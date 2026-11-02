@@ -7207,12 +7207,13 @@ fn is_a_build_directory(parent: &Path) -> bool {
 /// walked=152 findings=[".../.env"]              the same file one directory up
 /// ```
 ///
-/// `.git` is the sharper of the two: `NOCTUA.md §5.3` says this repository has
-/// no git repository, on purpose, so a `.git` directory in this tree is provably
-/// neither build output nor somebody else's checkout — which is what [`SKIP`]'s
-/// own doc says every entry is. `node_modules` is somebody else's tree in a
-/// repository that has one, and this has none — so here it is a directory
-/// with a familiar name.
+/// `.git` is anchored the way `target` is: this repository's own git directory
+/// sits beside the manifest that declares `[workspace]`, and that one is git's
+/// object store, not source. A `.git` anywhere else — inside a crate's sources,
+/// under a fixture — is not this repository's history; it is a directory with a
+/// familiar name, and a committed `.env` under it would be invisible to every
+/// walk-based gate. `node_modules` is somebody else's tree in a repository that
+/// has one, and this has none — so here it is a directory with a familiar name.
 ///
 /// `COVERED`'s two tests cannot see any of this: they prove that at least one
 /// file under each covered *path* is reached, and a hiding place is a path they
@@ -7221,7 +7222,10 @@ fn is_somewhere_source_can_hide(parent: &Path, name: &str) -> bool {
     match name {
         // Cargo writes one build directory per workspace, beside the manifest
         // that declares `[workspace]`; a member inside a workspace gets none.
-        "target" => !is_a_build_directory(parent),
+        // Git keeps one directory per checkout, beside the same manifest at the
+        // repository's root; any other `.git` in the tree is not this
+        // repository's and is walked like any directory.
+        "target" | ".git" => !is_a_build_directory(parent),
         // A node package tree sits beside the node manifest that declares it.
         // **Nothing here is a node package.** This asked whether a node manifest
         // sat beside the directory — and this is a Rust monorepo with no such
@@ -7234,10 +7238,9 @@ fn is_somewhere_source_can_hide(parent: &Path, name: &str) -> bool {
         //
         // `§10.2` maps what this repository holds and no part of it is a node
         // package. The day one arrives, the map changes and so does this line.
-        // There is no git here at all (`§5.3`), so nothing in this tree is one
-        // — and a clone of it would carry both of these, either of which can
-        // hold a committed secret the gates would then never read.
-        "node_modules" | ".git" => true,
+        // A clone would carry one, and it can hold a committed secret the gates
+        // would then never read.
+        "node_modules" => true,
         _ => false,
     }
 }
@@ -7344,11 +7347,13 @@ pub(crate) fn lines_under(root: &Path, kinds: &[&str], except: &Path) -> Result<
 /// directory simultaneously invisible to the citation gates, the type wall, the
 /// compile-time-query gate and the hatch census.
 ///
-/// So this shares nothing. It excludes exactly one path, and cargo names it:
-/// `target_directory` from `cargo metadata`. Every other name `walk` skips —
-/// `.git`, `node_modules`, a build directory beside a manifest — is counted
-/// here, and the comparison allows for it. What cannot happen is a *new*
-/// exclusion appearing on one side only.
+/// So this shares nothing. It excludes the path cargo names —
+/// `target_directory` from `cargo metadata` — and what sits beside the
+/// workspace manifest as a checkout's own: cargo's build directory and git's
+/// `.git`, judged by the directory's property below, not by `walk`'s list.
+/// Every other name `walk` skips — a `node_modules`, a `.git` inside a crate's
+/// sources — is counted here. What cannot happen is a *new* exclusion
+/// appearing on one side only.
 ///
 /// # Errors
 ///
@@ -7374,9 +7379,14 @@ pub(crate) fn census(root: &Path, except: &Path) -> Result<usize, String> {
         // warns against: what must not be shared is a *list of names*, which is
         // where a new exclusion can be added on both sides at once. This is a
         // property of the directory — a `target` beside a `[workspace]`
-        // manifest — and cargo, not this tool, decides it.
+        // manifest — and cargo, not this tool, decides it. Git's `.git` beside
+        // the same manifest is the checkout's own metadata by the same
+        // property, whether it is a directory or a linked worktree's file.
         let named = path.file_name().unwrap_or_default().to_string_lossy();
-        if path == except || (named == "target" && path.is_dir() && is_a_build_directory(root)) {
+        if path == except
+            || (named == "target" && path.is_dir() && is_a_build_directory(root))
+            || (named == ".git" && is_a_build_directory(root))
+        {
             continue;
         }
         if path.is_dir() {
@@ -7492,13 +7502,17 @@ pub(crate) fn walk(root: &Path, visit: &mut dyn FnMut(&Path)) -> Result<(), Stri
             // repository's own source is neither.
             //
             // Cargo's build directory sits beside a manifest, which is the fact
-            // that separates the two. `.git` and `node_modules` stay matched at
-            // any depth: each is a whole tree wherever it appears.
+            // that separates the two, and git's sits beside the same one.
+            // `node_modules` stays matched at any depth: it is a whole tree
+            // wherever it appears.
             if is_skipped(root, &name) {
                 continue;
             }
             walk(&path, visit)?;
-        } else {
+        } else if !(name == ".git" && is_a_build_directory(root)) {
+            // A linked worktree's `.git` is a one-line file naming where its
+            // git directory is, and it sits where the directory would: it is
+            // the checkout's own metadata, not one of its files.
             visit(&path);
         }
     }
@@ -11806,6 +11820,10 @@ mod tests {
         std::fs::create_dir_all(scratch.join("target/debug")).expect("writable");
         std::fs::write(scratch.join("Cargo.toml"), "[workspace]\n").expect("writable");
         std::fs::write(scratch.join("target/debug/artifact.rs"), "//! a\n").expect("writable");
+        // And the repository's own git directory, beside the same manifest.
+        std::fs::create_dir_all(scratch.join(".git/objects/ab")).expect("writable");
+        std::fs::write(scratch.join(".git/HEAD"), "ref: refs/heads/dev\n").expect("writable");
+        std::fs::write(scratch.join(".git/objects/ab/cdef"), "x").expect("writable");
 
         let mut seen: Vec<String> = Vec::new();
         walk(&scratch, &mut |path| {
@@ -11813,6 +11831,20 @@ mod tests {
         })
         .expect("the scratch tree is readable");
 
+        // **The repository's own `.git`, and only that one.** It is git's object
+        // store: walked, its packed objects are files no gate can read, and the
+        // marker census reports itself short over them.
+        for metadata in [".git/HEAD", ".git/objects/ab/cdef"] {
+            assert!(
+                !seen.contains(&metadata.to_owned()),
+                "the repository's own git directory was walked: {seen:?}"
+            );
+        }
+        assert_eq!(
+            crate::gates::census(&scratch, &scratch.join("target")).expect("readable"),
+            seen.len(),
+            "the census and the walk disagree about the repository's own `.git`"
+        );
         for source in [
             "crates/one/src/target/mod.rs",
             "crates/one/src/target/inner/deep.rs",
@@ -11850,11 +11882,10 @@ mod tests {
             );
         }
 
-        // **And the other two names on the list**, which were anchored to
-        // nothing while `target` was. A committed `.env` under either was
-        // invisible with the path count unmoved. `.git` is the sharper case:
-        // `§5.3` says this repository has no git, so a `.git` here is provably
-        // not somebody else's checkout.
+        // **And the other two names on the list.** A committed `.env` under
+        // either, anywhere but where each belongs, is invisible with the path
+        // count unmoved. A `.git` inside a crate's sources is not this
+        // repository's history, which sits beside the workspace manifest.
         for hidden in ["crates/one/src/node_modules", "crates/one/src/.git"] {
             std::fs::create_dir_all(scratch.join(hidden)).expect("writable");
             std::fs::write(scratch.join(hidden).join(".env"), "SECRET=1\n").expect("writable");
@@ -11887,6 +11918,46 @@ mod tests {
             "a node manifest bought a directory nothing looks in: {seen:?}"
         );
         let _ = std::fs::remove_dir_all(&scratch);
+    }
+
+    /// A linked worktree's `.git` file at the repository's root is its metadata,
+    /// and a file of that name anywhere else is a file like any other.
+    ///
+    /// `git worktree add` leaves a one-line `.git` *file* where the directory
+    /// would be. Walked, it is a file with no extension, which the kind gates
+    /// refuse — so a correct checkout would fail the gate for being one.
+    #[test]
+    fn a_worktrees_git_file_at_the_root_is_metadata_and_elsewhere_is_a_file() {
+        let held = crate::check::LeavesNothingBehind::new("worktree-git-file");
+        let scratch = held.root.clone();
+        std::fs::create_dir_all(scratch.join("crates/one/src")).expect("writable");
+        std::fs::write(scratch.join("Cargo.toml"), "[workspace]\n").expect("writable");
+        std::fs::write(scratch.join(".git"), "gitdir: /elsewhere/worktrees/one\n")
+            .expect("writable");
+        std::fs::write(scratch.join("crates/one/src/.git"), "gitdir: /elsewhere\n")
+            .expect("writable");
+
+        let mut seen: Vec<String> = Vec::new();
+        walk(&scratch, &mut |path| {
+            seen.push(crate::relative_to(&scratch, path));
+        })
+        .expect("the scratch tree is readable");
+
+        assert!(
+            !seen.contains(&".git".to_owned()),
+            "the worktree's own `.git` file was walked as one of its files: {seen:?}"
+        );
+        assert!(
+            seen.contains(&"crates/one/src/.git".to_owned()),
+            "a `.git` file inside a crate's sources was skipped: {seen:?}"
+        );
+        // And the second count agrees with the walk over the same tree: it
+        // judges the root's `.git` by the same property, written separately.
+        assert_eq!(
+            crate::gates::census(&scratch, &scratch.join("target")).expect("readable"),
+            seen.len(),
+            "the census and the walk disagree about a worktree's `.git` file"
+        );
     }
 
     #[test]
