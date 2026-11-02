@@ -1,0 +1,123 @@
+[package]
+name = "nc-kernel"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "The local kernel: the host of the plugin world, and the one door a mutation goes through."
+
+[features]
+# The doors a test reaches a plugin through without loading it — the component
+# `cargo xtask build --plugins` wrote, shown current, its `activate` and one
+# command run outside the decision point — the confirmations and approvals a
+# suite holds before the interfaces that issue them for real exist, the store
+# held in memory that the kernel's suites run on, and the log a suite reads
+# back. **Off by default**, so a shipped kernel carries none of it, and cannot
+# be built on a store that forgets everything.
+test-support = []
+
+[dependencies]
+# The runtime every plugin runs in, and the generator of this crate's half of
+# the world (`NOCTUA.md §4` [CLOSED]).
+wasmtime.workspace = true
+# The capabilities a plugin can be granted and the bounds it is held to, from
+# the one place both are declared (`NOCTUA.md §15.2`), and the code every
+# refusal carries (`§15.1`).
+nc-catalog.workspace = true
+# The one table of characters a reader sees nothing of, which a plugin's log
+# line is cleaned of — the table the judge holds a command's title to.
+nc-schema.workspace = true
+# A plugin's manifest is TOML, read into the shape `manifest.rs` declares and
+# refusing any field it does not.
+toml.workspace = true
+serde.workspace = true
+# What a confirmation and an approval are bound to the arguments of one
+# dispatch with, what names a blob — the hash of its bytes, computed as they
+# are written — and what a component's list of inputs is hashed with behind
+# `test-support`: the journal's hash.
+blake3.workspace = true
+# The local app database a daemon keeps every plugin's data in (`NOCTUA.md §4`,
+# "Local app database"), and the types of what it holds: `backend.rs`
+# implements the kernel's store over it, and the store held in memory answers
+# in the same types.
+nc-local.workspace = true
+# A unit is a Snowflake and a realm or a principal an opaque identifier, taken
+# typed. The kernel never builds either from text: it reaches the central log,
+# whose wall refuses that.
+nc-ids.workspace = true
+# The decision point's schema: every command a plugin declares at `activate` is
+# held to the actions it declares and the resource types each applies to
+# (`NOCTUA.md §11.7`).
+nc-authz.workspace = true
+# Every payload crossing the boundary is canonical JSON (`NOCTUA.md §16.4`):
+# the arguments a dispatch validates, forwards and hashes, a plugin's answer
+# and every value its store keeps, read with the one parser that refuses a
+# float, a key written twice and a nesting past its bound.
+nc-canon.workspace = true
+# The schema a command's arguments are validated against is read over
+# `serde_json`'s value, which the closed subset in `nc-schema` is written for.
+serde_json.workspace = true
+# The one pruner (`NOCTUA.md §15.8`): `pump` runs its SQLite target over the
+# local database's own pool, so the tables `catalog/limits.toml` bounds there
+# are held to their bounds by the pruner that holds the server's.
+nc-prune.workspace = true
+# The audit log every dispatch is written to before its answer is returned,
+# and whose brackets open and close a unit of work (`NOCTUA.md §14.9`).
+nc-journal.workspace = true
+# The central log the kernel's events go to, through its type wall
+# (`NOCTUA.md §15.4`): the first crate outside `nc-log` that logs.
+nc-log.workspace = true
+# The journal and the bus one call tree holds while it runs are locks held
+# across an await, and the directory a decision reads and every host call a
+# plugin makes are held to a deadline — `sync` and `time`, and no more of the
+# runtime than that; the blocking pool a fetch is sent from is the runtime's
+# own, which the workspace line already takes.
+tokio = { workspace = true, features = ["sync", "time"] }
+# A plugin's `net.fetch`, sent: the HTTPS client, which
+# `crates/nc-kernel/src/net/ureq.rs` configures and gives a resolver that dials
+# only public addresses; the protocol crate under it, whose error that file
+# matches on to tell an answer with more headers than the client parses as too
+# large; and the parser the request policy in
+# `crates/nc-kernel/src/net.rs` holds every URL to before the client sees it
+# (`NOCTUA.md §11.3`).
+ureq.workspace = true
+ureq-proto.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+# **Itself, with the doors open, so the documentation gate can read this
+# crate's tests and they can reach `component_for_tests` and
+# `activate_for_tests`.** Cargo resolves it to this same unit, so nothing is
+# built twice. The world's digest and the probe's canonical answers are read
+# with this crate's own `blake3` and `nc-canon`.
+nc-kernel = { path = ".", features = ["test-support"] }
+# The package line the world's version is held to, read the way `wit-bindgen`
+# and wasmtime read it rather than by matching text.
+wit-parser.workspace = true
+# The encoder `cargo xtask build --plugins` uses, for the one component a test
+# builds itself: a probe that calls exactly one host function, which is the
+# control that gives an empty import list its meaning.
+wit-component.workspace = true
+# Instantiating a component is asynchronous; the tests need something to poll
+# it, and a clock they can stop, so a directory that never answers is held to
+# its deadline without the suite waiting it out.
+tokio = { workspace = true, features = ["test-util"] }
+# The journal of the decision point's suite, in PostgreSQL as it runs on a
+# server, in a schema of the suite's own.
+sqlx.workspace = true
+# The reference plugin's own table of commands, which the component it becomes
+# must declare field for field: its adapter is built for `wasm32` alone, and
+# this suite is the only thing that reads what the adapter produces.
+nc-plugin-reference.workspace = true
+# The local database held in memory, which the store held in memory is held to
+# answer for answer.
+nc-local = { workspace = true, features = ["test-support"] }
+# The model-based test holds both stores to one sequence of operations.
+proptest.workspace = true
+# The pruner's target a store answers `pruner` with, which every store a suite
+# wraps names in its own `StoreBackend` — and which the suite that pumps runs
+# over the local database.
+nc-prune.workspace = true
+
+[lints]
+workspace = true

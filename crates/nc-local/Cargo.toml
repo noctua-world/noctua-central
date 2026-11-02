@@ -1,0 +1,63 @@
+[package]
+name = "nc-local"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "The local app database: one SQLite file per profile, private to its user, holding the plugin store and the units that wrote it."
+
+[features]
+# The doors a test drives the store through: a database held in memory for the
+# model-based property test, and a commit that stops the process between two of
+# its statements for the kill test. **Off by default**, so a shipped kernel
+# cannot open a store that forgets everything or abort itself mid-commit
+# through this crate's public surface.
+test-support = []
+
+[dependencies]
+# **SQLite, bundled, through the `sqlx` the server already uses** (`NOCTUA.md
+# §4`, "Local app database"): one crate, one async API and one migrator for
+# both databases. `sqlite-bundled` and not `sqlite`, which in 0.9 also turns on
+# extension loading, `deserialize` and unlock notification — none of which this
+# crate calls, and the first of which is a door `forbid(unsafe_code)` only
+# closes because 0.9 made it `unsafe`. The workspace line stays without it, so
+# nothing else links SQLite by accident; `cargo tree -i libsqlite3-sys` says who
+# does.
+sqlx = { workspace = true, features = ["sqlite-bundled"] }
+# The code every failure here carries (`NOCTUA.md §15.1`).
+nc-catalog.workspace = true
+# A unit is a Snowflake the kernel minted, and a realm and a principal are
+# opaque identifiers. **Read back here, where the conversion is allowed**: this
+# crate does not reach `nc-log`, whose wall refuses `from_crockford` and
+# `OpaqueId::new` in any crate that does.
+nc-ids.workspace = true
+# A value and a note are held to nc-canon's canonical text before they are
+# written, so what the store hands back is what the kernel hashed.
+nc-canon.workspace = true
+# The expected schema is held as the BLAKE3 of each object's SQL rather than as
+# the SQL, so no statement that builds a table is written in this crate's
+# sources — which is what `cargo xtask check`'s source gate refuses.
+blake3.workspace = true
+# The runtime `sqlx` already drives this crate on, for one thing of its own:
+# an open waits for the profile's lock on the blocking pool, never on a thread
+# that drives futures — two opens of one profile awaited on one runtime
+# otherwise deadlock for ever, the second holding the thread the first needs
+# to go on and let go.
+tokio.workspace = true
+
+[dev-dependencies]
+# **Itself, with the doors open**, so the documentation gate can read this
+# crate's suites and they can reach the in-memory store and the interrupted
+# commit. Cargo resolves it to this same unit, so nothing is built twice.
+nc-local = { path = ".", features = ["test-support"] }
+# A runtime to drive the store's futures; `sqlx` has no synchronous API.
+tokio.workspace = true
+# The model-based test holds the store against a `BTreeMap`.
+proptest.workspace = true
+# A test reaches the file the way somebody with write access to it would — to
+# drop a trigger, plant a temporary one, or rewrite the header — and then asks
+# the store what it makes of that.
+sqlx = { workspace = true, features = ["sqlite-bundled"] }
+
+[lints]
+workspace = true

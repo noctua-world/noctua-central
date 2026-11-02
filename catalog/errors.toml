@@ -1,0 +1,1074 @@
+# Every error this platform can produce, declared once.
+#
+# `NOCTUA.md §15.1`: an error's identity is data, not a string at a call site.
+# The code travels through every layer — kernel, service, gateway, client — and
+# is what the central log is queried by, so an error whose identity changes as it
+# crosses a boundary cannot be traced.
+#
+# **Reserving a code is append-only. Never reuse or renumber one**, or historical
+# log entries start lying. `catalog/errors.reserved.toml` is the ledger that
+# enforces it. It is **not** generated output — it is the history, and comparing
+# it against something derived from itself would let a hand edit ratify itself.
+# `cargo xtask build` appends to it; a checksum over its contents catches an edit
+# made outside the compiler; and a ledger nothing vouches for is accepted only by
+# `cargo xtask build --reserve`, which says what it reserved.
+#
+# What belongs here: errors *the running platform* produces. Build-time
+# diagnostics from the catalog compiler and the gates do not — they are located,
+# actionable messages a developer reads once, not identities a log is queried by.
+#
+# **`severity` here is not `level` in `catalog/log-events.toml`, and the two do
+# not share a vocabulary.** This one says how bad the error is — `info`,
+# `warning`, `error`, `critical` — and belongs to the error whatever writes it.
+# That one says which `tracing` level a log line is emitted at, and takes
+# `tracing`'s own spellings, of which `warn` is one. A newcomer who wrote
+# `level = "warn"` here, or `severity = "warning"` there, was reading the
+# neighbouring file and not a rule; the rule is that these are two properties of
+# two things, and each is spelled the way its own consumer spells it.
+
+# The area list is fixed (`§15.1`). Adding one is a decision, not a typo, so the
+# compiler rejects a code whose area is not declared here.
+[areas]
+AUTH = "Authentication. The IdP's own failures; never authorization"
+ACCT = "Accounts, their fields, and activation"
+APPR = "The approval system"
+KERN = "The local kernel and command dispatch"
+PLUG = "The WASM plugin host"
+BLOB = "Content-addressed blobs"
+P2P  = "Peer-to-peer transport and availability"
+AI   = "Model traffic, agent identity and budget"
+GW   = "The public gateway: ingress, rate limiting, transport"
+DB   = "Databases: PostgreSQL's connections, migrations and pruning, and the local SQLite file"
+VAL  = "Input validation, from the rules the catalog compiles"
+LOG  = "The central log and its shipper"
+CAT  = "The catalog: reading a registry the platform ships. No code yet — the compiler's own diagnostics are located build errors, not identities a log is queried by"
+CANON = "Canonical serialization: the payload format every boundary carries (§16.4)"
+IDS  = "Identifiers: Snowflake, the machine flake, file names"
+JRNL = "The command journal and its hash chain"
+POL  = "Policy packs: loading, validation, evaluation"
+
+# --- The journal (§14.9) ---
+
+[[error]]
+code = "NC-JRNL-0001"
+description = "The journal's hash chain is broken at an entry"
+message = "error.journal.chain-broken"
+severity = "critical"
+retryable = false
+
+[[error]]
+code = "NC-JRNL-0002"
+description = "An entry's hash does not match the entry's own contents"
+message = "error.journal.entry-tampered"
+severity = "critical"
+retryable = false
+
+[[error]]
+code = "NC-JRNL-0003"
+# `critical`, matching NC-DB-0001, because it is the same underlying failure and
+# §15.1 says an error whose identity changes as it crosses a boundary cannot be
+# traced. It is also the severity the consequence deserves: the journal is the
+# audit log, so a dispatch that cannot record itself must fail closed (§14.9).
+description = "The journal store did not answer"
+message = "error.journal.unavailable"
+severity = "critical"
+retryable = true
+
+[[error]]
+code = "NC-JRNL-0004"
+description = "A work unit that was already committed or aborted received an entry"
+message = "error.journal.unit-closed"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-JRNL-0005"
+# **Not NC-JRNL-0003**, which is the store not answering. A record whose text no
+# store could keep — a NUL in `action`, a resource nested past the reader — is
+# the caller's, and the store never saw it. Sharing the code sends a responder to
+# PostgreSQL for a defect in the request (§15.1), and `retryable` is the other
+# half of the same mistake: retrying an unstorable record produces the same
+# answer forever.
+#
+# **The sentence a person reads covers both**, which it did not: it said "holds a
+# character this system cannot store. Remove it", and a resource nested past the
+# reader holds no offending character and has nothing to remove. Two failures
+# share this code because the action is the same — the request has to change —
+# and the message has to be true of both or it is a message about one of them.
+description = "A record holds something no store could keep, so it was refused before the store saw it"
+message = "error.journal.unstorable"
+severity = "error"
+retryable = false
+
+# --- Identifiers (§16) ---
+
+[[error]]
+# **One variant, and `retryable = true`.** This covered three, and the
+# measurement that set `retryable = false` used two of them — a clock in 1999 and
+# a clock in 2200, where 500 retries each produced the same answer. The third is
+# the variant the code is *named* for, and it is the ordinary one: an NTP step
+# back of a few hundred milliseconds. Measured, `ClockMovedBackwards { drift:
+# 600ms }`, and 601 ms later the identical call answered `Ok` — which is verbatim
+# the criterion `NC-IDS-0007` uses to justify its own `true`. Both locales say
+# "nothing can be saved until the time it skipped has passed", which is a
+# sentence about waiting; the field said do not wait. `NC-IDS-0008` is the
+# permanent half.
+code = "NC-IDS-0001"
+description = "The clock moved backwards, so minting would repeat an identifier it has issued"
+message = "error.ids.clock-backwards"
+severity = "error"
+retryable = true
+
+[[error]]
+code = "NC-IDS-0002"
+# Recorded rather than raised. §16.2 says minting **waits** for the next
+# millisecond, so a caller never receives this — it exists because the wait is
+# worth a line in the log, and because a code is how that line is queried. The
+# log event `ids.sequence_exhausted` carries it.
+description = "This millisecond's sequence was exhausted and minting waited"
+message = "error.ids.sequence-exhausted"
+severity = "info"
+retryable = false
+# **Held, and never returned.** Minting waits out an exhausted millisecond and
+# then succeeds, so the caller receives an identifier and never this. The log
+# event that would carry it — `ids.sequence_exhausted` — is generated and
+# nothing constructs it, because `nc-ids` does not depend on `nc-log`: measured,
+# no `ErrorCode::IdsSequenceExhausted` outside the generated crate. So it is
+# `reserved` today, and becomes `raised` in the same change as the emitter.
+# Either way `docs/errors.md` stops publishing it under "every error the
+# platform can return", which it did over a code its own comment says nobody
+# receives.
+raising = "reserved"
+
+[[error]]
+code = "NC-IDS-0003"
+description = "Every machine-flake candidate in the sequence was already taken"
+message = "error.ids.flake-exhausted"
+severity = "critical"
+retryable = false
+# **Held, not raised.** `MachineFlake::exhausted()` is a `pub const fn` returning
+# this code and nothing calls it: pairing walks the candidate sequence and
+# pairing is Stage 24, so nothing in this tree can detect exhaustion. The gate
+# counted it as raised because its needle is the variant's *name*, and a `code()`
+# accessor names it — which is the gate's own limit, written down beside the
+# declaration it could not judge.
+raising = "reserved"
+
+[[error]]
+code = "NC-IDS-0004"
+description = "A file name does not parse as the naming scheme"
+message = "error.ids.name-unparsable"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-IDS-0005"
+description = "A file name cannot be built within the filesystem's limits"
+message = "error.ids.name-too-long"
+severity = "error"
+retryable = false
+
+[[error]]
+# **Its own code, because two types returned this failure and neither had one.**
+# `Base32Error` and `OpaqueIdError` both say "the text you handed me is not an
+# identifier", and both answered with a type the log cannot query and the journal
+# cannot record. `NC-IDS-0004` is about a *file name*, which is a different
+# subject with a different reader.
+#
+# `MachineFlake::from_value` is **not** one of them, though it was for a round:
+# it takes a `u16`, so there is no text and nobody typed it, and a message
+# telling a person to check the value they entered is about nothing. It carries
+# `NC-VAL-0001` instead. A code is only worth having if its description is true
+# of every failure that carries it.
+code = "NC-IDS-0006"
+description = "Text handed to an identifier type is not one"
+message = "error.ids.not-an-identifier"
+severity = "error"
+retryable = false
+
+[[error]]
+# **Not NC-JRNL-0001, which is the chain being broken.** `OutOfOrder` is what a
+# second writer racing this one looks like: both read the tail, both computed the
+# same next sequence, one landed. Measured with twelve threads doing the
+# `head()`-then-`append()` that `Journal::append` does — three landed, nine were
+# refused, and every one of the nine was told `NC-JRNL-0001`: *the journal's hash
+# chain is broken*, severity **critical**, `retryable = false`. The chain was
+# perfectly intact, and the code said do not retry. That is the platform's
+# loudest alarm firing on its most ordinary event, and the one instruction a
+# caller could act on was the wrong one.
+code = "NC-JRNL-0006"
+description = "Another writer took this sequence first, so the entry was not written"
+message = "error.journal.contended"
+severity = "warning"
+retryable = true
+
+[[error]]
+# **Not NC-JRNL-0004, whose description is the opposite.** `UnitAlreadyOpen`
+# carried the closed-unit code, so one error said in one line that a unit was
+# open and that it "was already committed or aborted", and both locales told the
+# reader the action had finished and to start it again — which is precisely the
+# operation that was refused. Measured: twelve to fifteen of every sixteen
+# concurrent openers of one unit receive this.
+code = "NC-JRNL-0007"
+description = "A work unit that is already open was opened again"
+message = "error.journal.unit-already-open"
+severity = "error"
+retryable = false
+
+[[error]]
+# **Not NC-JRNL-0006, which is contention.** That code says *another writer took
+# this sequence first* and is `retryable`; an entry numbered *past* the end of
+# the history is nobody else's doing, because writing only ever moves the end
+# forward. Measured on an empty table with one writer and nobody racing:
+# `Store::append` at sequence 7 answered `NC-JRNL-0006`, "Something else was
+# recorded at the same moment", and three retries answered the same. The
+# direction is what tells them apart, so the code is chosen by it.
+code = "NC-JRNL-0008"
+description = "An entry was numbered past the end of the history, which no other writer can cause"
+message = "error.journal.sequence-ahead"
+severity = "error"
+retryable = false
+
+[[error]]
+# **The store answered, and refused.** Every SQLSTATE `unavailable` did not have
+# an arm for fell through to `NC-JRNL-0003` — "the journal store did not answer",
+# critical, `retryable = true` — so a revoked `INSERT` (42501), a dropped table
+# (42P01), a failed authentication (28P01) and a genuine outage were one code,
+# one severity, one retryability and one user sentence. Measured, all four:
+#
+#     permission denied for table journal_entries   -> NC-JRNL-0003 retryable
+#     relation "journal_entries" does not exist     -> NC-JRNL-0003 retryable
+#     pool timed out waiting for a connection       -> NC-JRNL-0003 retryable
+#
+# `§14.9` makes the journal fail closed, so every command on the platform stops
+# — and the only instruction anybody gets is *try again in a moment*, for ever.
+# `nc-prune` already separates these: `NC-DB-0005` is "refused, and retrying will
+# not change it". This is the journal's.
+code = "NC-JRNL-0009"
+description = "The journal store answered and refused the write: a grant, a schema or a role, not an outage"
+message = "error.journal.refused"
+severity = "critical"
+retryable = false
+
+[[error]]
+# **Not NC-JRNL-0004 and not NC-JRNL-0007, because each says the opposite.** The
+# first says the unit finished and the second that it is under way; a close for
+# an identifier no opening bracket in this realm carries is neither. It is the
+# caller's defect — `Journal::close_unit` is handed identifiers that
+# `Journal::open_unit` minted — so no retry clears it, and writing the bracket
+# anyway would close something nobody began and refuse every later entry that
+# names the identifier as closed.
+code = "NC-JRNL-0010"
+description = "A work unit that was never opened was asked to close"
+message = "error.journal.unit-never-opened"
+severity = "error"
+retryable = false
+
+[[error]]
+# **The half of NC-IDS-0001 that waiting cannot fix.** A clock before this
+# system's epoch or past what 41 bits hold is a machine whose time is set wrong,
+# not one that stepped: measured with the clock at 1999 and at 2200, 500 retries
+# each produced the identical refusal. Under one code with the backwards step,
+# either the retryable half spun for ever or the transient half was told to give
+# up — and both locales' sentence, "until the time it skipped has passed", is
+# about a step and false of these.
+code = "NC-IDS-0008"
+description = "The clock is outside the range this identifier layout can represent"
+message = "error.ids.clock-out-of-range"
+severity = "error"
+retryable = false
+
+[[error]]
+# **Not NC-IDS-0002.** That one is severity `info`, `retryable = false`, and its
+# description is *"This millisecond's sequence was exhausted and minting waited"*
+# — a transient wait a caller is documented never to receive. A stuck clock is
+# the opposite of transient: measured, a frozen clock mints exactly 4096
+# identifiers and then refuses for ever, so minting has stopped on that machine
+# until somebody fixes its time. Reporting that as `info` about a wait is the
+# `§15.1` failure of a sentence that is not true of the thing carrying it.
+#
+# **`retryable = true`, and it was `false`.** Measured: the identical call, made
+# again after the clock ticked, answered `Ok`. Minting waits for the next
+# millisecond and only refuses when the wait itself runs out, so what a caller
+# holds is a refusal a later attempt clears — which is what this field is for.
+# The severity stays `critical`: a clock that has stopped is a machine somebody
+# has to look at, and the retry is what keeps the platform up until they do.
+code = "NC-IDS-0007"
+description = "The clock has stopped, so no more identifiers can be minted on this machine"
+message = "error.ids.clock-stuck"
+severity = "critical"
+retryable = true
+
+# --- The central log (§15.4) ---
+
+[[error]]
+code = "NC-LOG-0001"
+description = "The central log store did not accept a batch"
+message = "error.log.unreachable"
+severity = "warning"
+retryable = true
+# **Held, not raised.** `nc-log` writes its own failures to stderr rather than
+# to itself — logging a log failure through the log is the loop `§18.5` avoids —
+# so nothing constructs the event that would carry this. The number is held for
+# the stage that has somewhere else to put it.
+raising = "reserved"
+
+[[error]]
+code = "NC-LOG-0002"
+description = "Log events were dropped because the queue was full"
+message = "error.log.dropped"
+severity = "warning"
+retryable = false
+raising = "reserved"
+
+# --- PostgreSQL (§18.4) ---
+
+[[error]]
+code = "NC-DB-0001"
+description = "The database did not answer"
+message = "error.db.unreachable"
+severity = "critical"
+retryable = true
+
+[[error]]
+code = "NC-DB-0002"
+description = "A migration failed to apply"
+message = "error.db.migration-failed"
+severity = "critical"
+retryable = false
+# Raised by `crates/nc-local` when a migration of `local-migrations/` fails on
+# the user's own database. `cargo xtask dev` applies the server's and still
+# reports sqlx's own error, which is a developer's diagnostic rather than an
+# identity a log is queried by.
+
+[[error]]
+# **Only the failures a later run clears.** Every `Failure` carried this code,
+# and the crate keeps `waited` as a separate field precisely because a lock this
+# run did not get and a statement that cannot parse are different things.
+# Measured: three ticks against a table whose `order_by` column does not exist
+# gave three identical `NC-DB-0003`s, both locales promising "this will be tried
+# again", and twenty rows still held against a limit of five. The permanent half
+# is `NC-DB-0005`.
+code = "NC-DB-0003"
+description = "Pruning a table did not finish, and a later run may"
+message = "error.db.prune-failed"
+severity = "error"
+retryable = true
+
+[[error]]
+# **Not NC-DB-0003, which is pruning failing.** These are refusals *before* any
+# pruning is attempted: a table the catalog does not bound, the journal's §15.8
+# carve-out, an entry that disagrees with what `catalog/limits.toml` declares.
+# Measured: five of the pruner's nine failure paths reached a caller as a bare
+# `String` with no code at all, so a scheduler could neither journal them nor
+# tell them apart from a lock it should wait on. The action a responder takes is
+# different too — change the request or the catalog, rather than try again.
+#
+# **The description covers all four of them, and it did not.** It read "a table
+# the catalog does not bound", which is true of one carrier: the other three are
+# the journal's `§15.8` carve-out and a request that disagrees with what
+# `catalog/limits.toml` declares — and for those the catalog *does* bound the
+# table, which is how the refusal is detectable at all. A caller asking the
+# pruner to delete the audit log by row count and a caller with a typo in a table
+# name were indistinguishable by code, severity and sentence.
+code = "NC-DB-0004"
+description = "A table cannot be pruned the way the request asks, so it was left alone"
+message = "error.db.table-not-bounded"
+severity = "error"
+retryable = false
+
+[[error]]
+# **The half of NC-DB-0003 that retrying cannot fix.** A statement that will not
+# parse, a column that is not there, a table whose `DELETE` reaches beyond
+# itself: the run is over for that table until somebody changes something, and
+# `retryable = true` sent a scheduler round a loop that never clears while the
+# table grew.
+code = "NC-DB-0005"
+description = "Pruning a table was refused, and retrying will not change it"
+message = "error.db.prune-refused"
+severity = "error"
+retryable = false
+
+# --- The local app database (NOCTUA.md §4, "Local app database") ---
+#
+# **The DB area, not a new one.** The area list is fixed and adding one is a
+# decision (`§15.1`); a failure of the SQLite file on the user's machine is a
+# database failure, and the codes here beside PostgreSQL's say which database
+# by their descriptions. Both are critical and neither is retryable: the kernel
+# refuses to run on a file it cannot vouch for, and waiting does not change the
+# file.
+
+[[error]]
+# The directory or a file in it is reachable by another user, is a link,
+# belongs to another user, or lacks a bit its owner needs — a `0500` folder, a
+# `0400` file — or this process may not write where it has to. Nothing is
+# opened, created or repaired — chmod-ing it would decide on the user's behalf
+# that whatever made it was harmless. **Not another application's file**, which
+# is NC-DB-0007: nothing about a foreign header is how the folder was set up.
+# Nor a path the filesystem cannot answer for — a missing parent, a full disk,
+# a read-only mount — which is NC-DB-0001.
+#
+# **The sentence is what is true of every one of those.** It said other people
+# using this computer could reach the data, which a `0500` folder nobody else
+# can enter was refused with. Rewritten before any build carried it, through
+# the ledger's deliberate steps.
+code = "NC-DB-0006"
+description = "The local database's folder or files are not set up for this user alone to read and write, so it was not opened"
+message = "error.db.local-open-refused"
+severity = "critical"
+retryable = false
+
+[[error]]
+# The file is not the database this build expects: its header is another
+# application's, a page is damaged, its schema differs from what
+# `local-migrations/` builds (a dropped trigger, an added one, an edited
+# table), a temporary object sits on the connection, a write changed a number
+# of rows it could not have, its migrations are not this build's, or the SQLite
+# this build links is older than the floor.
+code = "NC-DB-0007"
+description = "The local database is not the one this build expects, so it was not used"
+message = "error.db.local-schema-unexpected"
+severity = "critical"
+retryable = false
+
+# --- Policy (§14.4) ---
+
+# **Raised by the decision point, not by the validator.** `nc-policy` reports
+# located `Problem`s a developer reads at build time, and `§15.1` says build-time
+# diagnostics are not identities a log is queried by. `nc-authz` is what a kernel
+# builds its decision point with, and a pack it cannot load is a refusal of every
+# dispatch — so these two and NC-POL-0007 are its errors, carried by
+# `PdpError`, and the `Problem`s ride inside them for whoever reads the log line.
+
+[[error]]
+code = "NC-POL-0001"
+description = "A policy pack could not be read"
+message = "error.policy.unreadable"
+severity = "critical"
+retryable = false
+
+[[error]]
+code = "NC-POL-0002"
+description = "A policy pack does not validate against the Cedar schema"
+message = "error.policy.invalid"
+severity = "critical"
+retryable = false
+
+[[error]]
+# What a denial carries when a policy decided it: a `forbid` fired, or nothing
+# permitted the request. A `warning` because the platform worked — this is the
+# answer, not a failure — and it is worth a line in the log all the same.
+code = "NC-POL-0003"
+description = "The decision point denied a request"
+message = "error.policy.denied"
+severity = "warning"
+retryable = false
+
+[[error]]
+# A realm whose profile or pin names a pack this build does not carry is denied
+# everything rather than decided by the core alone (`§14.4`). `critical`,
+# because the realm cannot act at all until the kernel carries its pack.
+code = "NC-POL-0004"
+description = "A realm pins a policy pack this build does not carry"
+message = "error.policy.pack-not-carried"
+severity = "critical"
+retryable = false
+
+[[error]]
+# Cedar skips a policy whose condition errs and answers from the rest, so an
+# erring `forbid` would allow. Any evaluation error denies instead, and so does
+# a request the schema refuses — each is the kernel asking a question the pack
+# cannot answer, which is a defect somebody has to see.
+code = "NC-POL-0005"
+description = "A decision could not be evaluated: the request does not fit the schema, or a policy erred"
+message = "error.policy.evaluation-failed"
+severity = "critical"
+retryable = false
+
+[[error]]
+# `nc-authz` declares the `Directory` a decision reads realms, grants and
+# entities from, and its errors are the directory's own, carrying no code: the
+# enforcement point is what turns one into a denial with this code — the
+# kernel's `commands.dispatch` — whether the directory refused, erred or did not
+# answer within the deadline the kernel holds it to.
+code = "NC-POL-0006"
+description = "The directory the decision point reads realms, grants and entities from did not answer"
+message = "error.policy.directory-unavailable"
+severity = "critical"
+retryable = true
+
+[[error]]
+# **Not NC-POL-0002, whose meaning is Cedar's validator.** `nc_policy::compile`
+# also refuses a pack for the rules this repository holds every pack to — an
+# `@id` missing, malformed, reserved or another policy's, a template, a core
+# floor narrowing itself, a pack holding no policy — and none of those is a
+# failure to validate against the schema. The ledger forbids rewording 0002 to
+# cover them, so they carry a code of their own.
+code = "NC-POL-0007"
+description = "A policy pack breaks a rule packs are held to"
+message = "error.policy.rule-broken"
+severity = "critical"
+retryable = false
+
+# --- Canonical serialization (§16.4) ---
+#
+# A malformed payload is the most likely runtime failure of the boundary layer,
+# so it is the one the central log most needs to be queryable by. It had no code
+# at all until a reviewer pointed out that it was the only error type carrying
+# none in `nc-canon`, `nc-catalog` and `nc-ids` — the three crates `nc-journal`
+# and `nc-log` are each built on. This comment said "the three foundation
+# crates" and named none of them, which is the same unnameable claim the doc on
+# `ParseError`'s `code` field records having carried.
+
+[[error]]
+code = "NC-CANON-0001"
+description = "A payload is not the canonical form this platform carries"
+message = "error.canon.unparsable"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-CANON-0002"
+description = "A payload holds a number this model cannot represent"
+message = "error.canon.number"
+severity = "error"
+retryable = false
+
+# --- Validation (§10.8) ---
+
+[[error]]
+code = "NC-VAL-0001"
+description = "A value is outside the limit the catalog declares for it"
+message = "error.validation.out-of-range"
+severity = "error"
+retryable = false
+# `field` is a **localised label**, not a column name: the caller resolves it
+# against the reader's locale before passing it, or a Portuguese sentence ends up
+# with `display_name` inside it. `min` and `max` carry their unit where one is
+# needed, because "between 3 and 13" answers nothing on its own.
+params = ["field", "min", "max"]
+
+[[error]]
+code = "NC-VAL-0002"
+description = "A command's arguments do not validate against the schema it declares"
+message = "error.validation.arguments-invalid"
+severity = "warning"
+retryable = false
+
+[[error]]
+code = "NC-VAL-0003"
+description = "The identifier a command's resource selector took from its arguments is not one"
+message = "error.validation.resource-id-malformed"
+severity = "warning"
+retryable = false
+
+# --- The local kernel (§11) ---
+#
+# What the kernel's decision point, its units of work and its history answer
+# with. **Held unless the line says otherwise**: `raising = "reserved"` is a
+# code whose producer is a part of the kernel not built yet, and the change
+# that builds it removes the line.
+
+[[error]]
+code = "NC-KERN-0001"
+description = "A dispatch named a command no built-in and no activated plugin declares"
+message = "error.kernel.unknown-command"
+severity = "warning"
+retryable = false
+
+[[error]]
+code = "NC-KERN-0002"
+description = "A dispatch named a command in a shape no command name can have"
+message = "error.kernel.malformed-name"
+severity = "warning"
+retryable = false
+
+[[error]]
+code = "NC-KERN-0003"
+description = "A plugin dispatched into itself while it was still running, which the kernel refuses rather than traps"
+message = "error.kernel.reentrant"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-KERN-0004"
+description = "A call tree nested its dispatches deeper than the kernel allows"
+message = "error.kernel.too-deep"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-KERN-0005"
+description = "A command that changes state was dispatched where only reading is allowed"
+message = "error.kernel.read-only"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-KERN-0006"
+description = "An irreversible command was dispatched without a confirmation the kernel issued"
+message = "error.kernel.unconfirmed"
+severity = "warning"
+retryable = false
+
+[[error]]
+code = "NC-KERN-0007"
+description = "A call tree ran past its deadline and was stopped"
+message = "error.kernel.deadline"
+severity = "error"
+retryable = true
+
+[[error]]
+code = "NC-KERN-0008"
+description = "A unit of work was aborted, so nothing it did was kept"
+message = "error.kernel.unit-aborted"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-KERN-0009"
+description = "An undo found no step of this person's to reverse"
+message = "error.kernel.nothing-to-undo"
+severity = "info"
+retryable = false
+
+[[error]]
+code = "NC-KERN-0010"
+description = "A redo found no undone step of this person's to restore"
+message = "error.kernel.nothing-to-redo"
+severity = "info"
+retryable = false
+
+[[error]]
+code = "NC-KERN-0011"
+description = "An undo or a redo was refused because what it would put back has been changed since"
+message = "error.kernel.undo-conflict"
+severity = "warning"
+retryable = false
+
+[[error]]
+code = "NC-KERN-0012"
+description = "An undo reached a step that left the machine or cannot be undone, with nothing registered to reverse it"
+message = "error.kernel.undo-barrier"
+severity = "info"
+retryable = false
+
+[[error]]
+code = "NC-KERN-0013"
+description = "A redo was refused because the undo it would reverse dispatched compensating commands"
+message = "error.kernel.redo-compensated"
+severity = "info"
+retryable = false
+
+[[error]]
+code = "NC-KERN-0014"
+description = "An undo stopped because a compensating command it dispatched failed"
+message = "error.kernel.compensation-failed"
+severity = "error"
+retryable = true
+
+[[error]]
+code = "NC-KERN-0015"
+description = "A plugin declared a command or a topic outside its namespace, in a reserved one, twice, or as a catalog command it does not match"
+message = "error.kernel.name-taken"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-KERN-0016"
+description = "A unit of work a stopped process left open was reverted when the kernel opened"
+message = "error.kernel.recovered-unit"
+severity = "warning"
+retryable = false
+
+[[error]]
+code = "NC-KERN-0017"
+description = "Undo or redo was dispatched from inside another command, where neither may run"
+message = "error.kernel.top-level-only"
+severity = "warning"
+retryable = false
+
+[[error]]
+# **Held, not raised.** Every function of the world is built and every command
+# the catalog gives the kernel has a handler (`crates/nc-kernel/src/builtin.rs`),
+# so nothing in this build answers that it is not built. The number stays
+# what the ledger recorded it as — a host function a plugin may be granted and
+# this build does not implement — for a function the world gains before its
+# host half does, and the change that adds such a function removes the line.
+code = "NC-KERN-0018"
+description = "A plugin granted a capability called a host function of it this build of the kernel does not implement"
+message = "error.kernel.not-built"
+severity = "error"
+retryable = false
+raising = "reserved"
+
+[[error]]
+code = "NC-KERN-0019"
+description = "A redo was refused because a blob the step created has been swept since"
+message = "error.kernel.redo-blob-swept"
+severity = "info"
+retryable = false
+
+[[error]]
+# **Not NC-KERN-0004, which is depth.** A plugin that dispatches in a loop
+# from one command nests nothing and reaches every plugin it may call as often
+# as its fuel lasts; the tree's count of dispatches is the bound that answers
+# it, and a reader told the tree was too deep would look for a chain that is
+# not there.
+code = "NC-KERN-0020"
+description = "A call tree dispatched more commands than the kernel allows one tree"
+message = "error.kernel.too-many-dispatches"
+severity = "error"
+retryable = false
+
+[[error]]
+# **Refused when it is registered, not when it would run.** A compensation is
+# dispatched nested inside the undo, as the person who asks, never confirmed
+# and never approved: a command that changes nothing reverses nothing, one that
+# needs a person's confirmation is denied there, one that deletes is denied
+# there by the core's quorum rule (`core.destructive_needs_quorum`), and undo
+# or redo is refused there (`NC-KERN-0017`) — so each would make the undo that
+# needs it fail for good. And a command of the kernel's own works on the realm
+# itself, not on what a plugin's step did.
+code = "NC-KERN-0021"
+description = "A compensation was refused because the command it names cannot set a step right: it changes nothing, needs a person's confirmation or a quorum's approval, or is one of the kernel's own, undo and redo among them"
+message = "error.kernel.compensation-refused"
+severity = "warning"
+retryable = false
+
+[[error]]
+# The store keeps a step the journal does not record as kept: its close was
+# never written, or a reversal the store refused left it behind. Undoing or
+# redoing it would act on history the audit log never saw, so nothing is done;
+# what a stopped process left so is reverted when the kernel opens next.
+code = "NC-KERN-0022"
+description = "An undo or a redo was refused because the journal does not record as kept the step it would reverse"
+message = "error.kernel.step-unrecorded"
+severity = "error"
+retryable = false
+
+[[error]]
+# **Bound to a plugin, not to a name.** An unloaded plugin leaves its
+# namespace to whichever identity loads next, which may declare a command
+# under the same name: dispatched by its name alone, a step's compensation
+# would run that plugin's code as the person, inside the undo's unit — a
+# reviewer found it doing so. So a compensation names the identity that held
+# its command when it was registered, and an undo dispatches none of the
+# step's compensations when another identity holds one of them now, or none
+# does.
+code = "NC-KERN-0023"
+description = "An undo was refused because a command its step registered as a compensation is no longer held by the plugin that held it then"
+message = "error.kernel.compensation-moved"
+severity = "warning"
+retryable = false
+
+[[error]]
+# **Bound to the grant that let it be registered.** Naming another plugin's
+# command as a compensation asks `commands.dispatch`, because the undo
+# dispatches it as the person; a plugin loaded again without that grant would
+# otherwise still have it dispatched — a reviewer found it so. So the note
+# names the plugin that registered it, and an undo dispatches none of the
+# step's compensations while one of another plugin's was registered by a
+# plugin no longer loaded granted `commands.dispatch`.
+code = "NC-KERN-0024"
+description = "An undo was refused because a compensation its step registered names another plugin's command, and the plugin that registered it is no longer loaded granted commands.dispatch"
+message = "error.kernel.compensation-ungranted"
+severity = "warning"
+retryable = false
+
+# --- The plugin host (§11.3) ---
+#
+# What a plugin is told when the host refuses it, kills it or cannot answer
+# it. Held unless the line says otherwise, as above.
+
+[[error]]
+code = "NC-PLUG-0001"
+description = "A plugin called a host function of a capability its manifest was not granted"
+message = "error.plugin.capability-denied"
+severity = "warning"
+retryable = false
+
+[[error]]
+code = "NC-PLUG-0002"
+description = "A plugin trapped, and was killed and restarted"
+message = "error.plugin.trapped"
+severity = "error"
+retryable = true
+
+[[error]]
+code = "NC-PLUG-0003"
+description = "A plugin computed past its fuel, and was killed and restarted"
+message = "error.plugin.out-of-fuel"
+severity = "error"
+retryable = true
+
+[[error]]
+code = "NC-PLUG-0004"
+description = "A plugin ran past its epoch deadline, and was killed and restarted"
+message = "error.plugin.epoch-deadline"
+severity = "error"
+retryable = true
+
+[[error]]
+code = "NC-PLUG-0005"
+description = "A plugin grew past its memory limit, and was killed and restarted"
+message = "error.plugin.memory-limit"
+severity = "error"
+retryable = true
+
+[[error]]
+code = "NC-PLUG-0006"
+description = "A host function a plugin called ran past its deadline, and the plugin was killed and restarted"
+message = "error.plugin.host-call-deadline"
+severity = "error"
+retryable = true
+
+[[error]]
+code = "NC-PLUG-0007"
+description = "A plugin is quarantined until it is released: it crashed too often inside its restart window, or did not come back as it was"
+message = "error.plugin.quarantined"
+severity = "critical"
+retryable = false
+
+[[error]]
+code = "NC-PLUG-0008"
+description = "A command a plugin declared at activate lacks a field every command needs"
+message = "error.plugin.descriptor-missing-field"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-PLUG-0009"
+description = "A command or a subscription a plugin declared at activate is refused"
+message = "error.plugin.descriptor-invalid"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-PLUG-0010"
+description = "A plugin's manifest is refused: not one, asking for what the catalog does not declare, or raising a limit"
+message = "error.plugin.manifest-invalid"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-PLUG-0011"
+description = "A plugin's component does not compile, or does not link against the world"
+message = "error.plugin.component-invalid"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-PLUG-0012"
+description = "A plugin fetched from a domain its manifest does not declare"
+message = "error.plugin.domain-not-declared"
+severity = "warning"
+retryable = false
+
+[[error]]
+code = "NC-PLUG-0013"
+description = "A plugin's network request is refused for its scheme, address, port, headers or method"
+message = "error.plugin.request-refused"
+severity = "warning"
+retryable = false
+
+[[error]]
+code = "NC-PLUG-0014"
+description = "A network response was larger than the kernel accepts"
+message = "error.plugin.response-too-large"
+severity = "warning"
+retryable = false
+
+[[error]]
+code = "NC-PLUG-0015"
+description = "A network request did not complete: no answer, a timeout, or a connection that failed"
+message = "error.plugin.network-unavailable"
+severity = "warning"
+retryable = true
+
+[[error]]
+# **A surface the kernel will not keep.** A tree `ui.render` is handed outside
+# the closed set of nodes `crates/nc-kernel/src/ui.rs` documents, past one of
+# its bounds, naming a command the registry does not hold or arguments that
+# command's schema does not name; and a surface opened under a title no person
+# could read. Refused as a value, and the surface keeps the last tree it held.
+code = "NC-PLUG-0016"
+description = "A plugin rendered a surface the kernel refuses"
+message = "error.plugin.ui-invalid"
+severity = "warning"
+retryable = false
+
+[[error]]
+# A running plugin refused at a bound the catalog declares on what it holds,
+# sends, queues or opens: a quota, a queue or a count. Where it is raised is
+# `grep -rln PluginBoundReached crates/nc-kernel/src`, rather than a list here:
+# the list this comment kept named the store, the blobs and the network and
+# left out the timers, the surfaces, the event queue, the unit handles and the
+# compensations a unit records. Each is a limit Noctua sets, which is all the
+# message says. A load refused for declaring more than `commands_per_plugin`
+# commands is NC-PLUG-0009: that plugin keeps nothing and is never started,
+# which this message does not say.
+code = "NC-PLUG-0017"
+description = "A plugin reached a bound the catalog declares: a quota, a queue or a count"
+message = "error.plugin.bound-reached"
+severity = "warning"
+retryable = false
+
+[[error]]
+code = "NC-PLUG-0018"
+description = "A write was refused because what it expected to replace had changed"
+message = "error.plugin.store-conflict"
+severity = "info"
+retryable = false
+
+[[error]]
+# **Not there, or not the plugin's: one answer for both.** A timer `timers.cancel`
+# names and a surface `ui.close-surface` or `ui.render` names are each the
+# plugin's own or nothing, so one another plugin holds is answered as one that
+# does not exist, and a plugin learns nothing of another's from the refusal.
+code = "NC-PLUG-0019"
+description = "A plugin asked for a key, a timer, a surface or a command that is not there"
+message = "error.plugin.not-found"
+severity = "info"
+retryable = false
+
+[[error]]
+code = "NC-PLUG-0020"
+description = "A plugin answered with a result that is not canonical, or that is too large"
+message = "error.plugin.malformed-result"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-PLUG-0021"
+description = "A plugin did not activate: it trapped, ran out of fuel, outgrew its memory or refused while it was instantiated or activated"
+message = "error.plugin.activation-failed"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-PLUG-0022"
+description = "A plugin was not loaded: its identity or its namespace is held by a loaded plugin, or its namespace is one the kernel keeps"
+message = "error.plugin.identity-taken"
+severity = "error"
+retryable = false
+
+[[error]]
+# **The plugin's own answer, in its own words, under the kernel's code.** A
+# command a plugin runs may answer with any of the world's errors, and the text
+# is the plugin's: this is the code every such refusal carries to whoever
+# dispatched it, with the case the plugin chose, so a refusal the kernel made
+# and one the plugin made are never told apart by guessing at a sentence.
+code = "NC-PLUG-0023"
+description = "A plugin's command refused what it was asked, answering one of the world's errors in its own words"
+message = "error.plugin.command-refused"
+severity = "info"
+retryable = false
+
+[[error]]
+# **A frame that may only read.** `activate`, a callback and a command declared
+# a read write nothing themselves — a timer's callback changes state only
+# through the commands it dispatches, in the unit it may begin for them — so a
+# write there is refused rather than put anywhere; and from `activate` no
+# command runs at all, so a dispatch there has no one to run as. Refused as a
+# value: the plugin lives on.
+code = "NC-PLUG-0024"
+description = "A plugin wrote where only reading is allowed — in activate, a callback or a command declared a read — or dispatched from activate, where no command runs"
+message = "error.plugin.read-only-frame"
+severity = "warning"
+retryable = false
+
+[[error]]
+# **Nobody to act for.** Reading who a call runs for, publishing an event,
+# setting a timer and opening, closing or rendering a surface each act for the
+# person a call tree runs on behalf of, and `activate` runs in none. Refused as
+# a value: the plugin lives on, and may do each once a command or a callback of
+# it runs.
+code = "NC-PLUG-0025"
+description = "A plugin called, where no call tree runs, a host function that acts for the person one runs for: the context, an event, a timer or a surface"
+message = "error.plugin.outside-a-call-tree"
+severity = "warning"
+retryable = false
+
+[[error]]
+# **A topic is the publisher's.** An event is published under lower-case words
+# joined by dots, beginning with the namespace the plugin's manifest names, so
+# a subscriber's pattern says whose events it hears and no plugin can speak in
+# another's name. Refused as a value, and nothing is queued.
+code = "NC-PLUG-0026"
+description = "A plugin published an event under a topic that is not one, or that is outside its namespace"
+message = "error.plugin.topic-refused"
+severity = "warning"
+retryable = false
+
+[[error]]
+# **Not `NC-PLUG-0018`, which is a conflict.** A revision the store never
+# writes is the plugin's defect: nothing changed meanwhile, and the same write
+# is refused the same way however often it is tried.
+code = "NC-PLUG-0027"
+description = "A plugin's write named, as the revision it expects to replace, text that is not a revision"
+message = "error.plugin.not-a-revision"
+severity = "warning"
+retryable = false
+
+[[error]]
+# **A handle is a unit's only while the unit lasts.** One aborted, let go, or
+# begun in a command that has returned has ended — whether its unit was kept or
+# not — so a method called on it does nothing, and is refused as a value: the
+# plugin lives on, and the call aborts nothing. Not `NC-KERN-0008`, which says
+# a unit was aborted: a reviewer found the handle of a unit that was kept
+# refused under it, in a command whose own unit nothing doomed.
+code = "NC-PLUG-0028"
+description = "A plugin called a method on the handle of a unit that had ended — aborted, let go, or begun in a command that has returned — and the call did nothing"
+message = "error.plugin.unit-ended"
+severity = "warning"
+retryable = false
+
+# --- Content-addressed blobs (§11.8, §13.4) ---
+#
+# What `blobs` answers a plugin: a hash that is not one, a blob not on this
+# machine — which this build never fetches from another — a blob past its
+# bound, a disk that failed, a writer that has finished, and an announcement no
+# peer hears (`crates/nc-kernel/src/host/blobs.rs`).
+
+[[error]]
+code = "NC-BLOB-0001"
+description = "A blob was named by text that is not a BLAKE3 hash"
+message = "error.blob.malformed-hash"
+severity = "warning"
+retryable = false
+
+[[error]]
+code = "NC-BLOB-0002"
+description = "A blob is not on this machine"
+message = "error.blob.not-local"
+severity = "info"
+retryable = true
+
+[[error]]
+code = "NC-BLOB-0003"
+description = "A blob grew past the size the kernel accepts"
+message = "error.blob.too-large"
+severity = "warning"
+retryable = false
+
+[[error]]
+code = "NC-BLOB-0004"
+description = "Reading or writing a blob's bytes on this machine failed"
+message = "error.blob.io"
+severity = "error"
+retryable = true
+
+[[error]]
+code = "NC-BLOB-0005"
+description = "A blob writer was written to or finished after it had finished"
+message = "error.blob.writer-finished"
+severity = "warning"
+retryable = false
+
+[[error]]
+code = "NC-BLOB-0006"
+description = "A blob was announced and no peer was there to tell"
+message = "error.blob.no-peers"
+severity = "info"
+retryable = false

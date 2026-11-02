@@ -1,0 +1,122 @@
+# The error codes this repository has used, and what each was reserved to
+# mean. Append-only: the compiler refuses to repoint or remove a line, because
+# every log entry ever written with a code still refers to it (NOCTUA.md
+# §15.1).
+#
+# `cargo xtask build` appends to this file. It is NOT generated output and is
+# not compared against a regeneration — an earlier version was, and a hand edit
+# ratified itself. The checksum below is over the reservations and over how many
+# there are, and it is what catches an edit made outside the compiler.
+#
+# A ledger only ever grows, which is why the count is inside the checksum: a
+# file holding fewer lines than it says it holds lost some, and every code they
+# reserved would otherwise be re-derived with whatever the registry means by it
+# today.
+#
+# Each line records the message key **and** the developer description, because
+# a code's meaning is both. Recording only the key let a code be rewritten from
+# one error to an unrelated one — key intact, description and both locale
+# sentences replaced — with the gate green.
+
+[meta]
+checksum = "9e13a11778893afad9a6ba74a95b83976e4423aa564d46d8b29a0790346bc9de"
+count = 97
+
+[reserved]
+"NC-BLOB-0001" = "error.blob.malformed-hash — warning — retryable:false — params:[] — A blob was named by text that is not a BLAKE3 hash"
+"NC-BLOB-0002" = "error.blob.not-local — info — retryable:true — params:[] — A blob is not on this machine"
+"NC-BLOB-0003" = "error.blob.too-large — warning — retryable:false — params:[] — A blob grew past the size the kernel accepts"
+"NC-BLOB-0004" = "error.blob.io — error — retryable:true — params:[] — Reading or writing a blob's bytes on this machine failed"
+"NC-BLOB-0005" = "error.blob.writer-finished — warning — retryable:false — params:[] — A blob writer was written to or finished after it had finished"
+"NC-BLOB-0006" = "error.blob.no-peers — info — retryable:false — params:[] — A blob was announced and no peer was there to tell"
+"NC-CANON-0001" = "error.canon.unparsable — error — retryable:false — params:[] — A payload is not the canonical form this platform carries"
+"NC-CANON-0002" = "error.canon.number — error — retryable:false — params:[] — A payload holds a number this model cannot represent"
+"NC-DB-0001" = "error.db.unreachable — critical — retryable:true — params:[] — The database did not answer"
+"NC-DB-0002" = "error.db.migration-failed — critical — retryable:false — params:[] — A migration failed to apply"
+"NC-DB-0003" = "error.db.prune-failed — error — retryable:true — params:[] — Pruning a table did not finish, and a later run may"
+"NC-DB-0004" = "error.db.table-not-bounded — error — retryable:false — params:[] — A table cannot be pruned the way the request asks, so it was left alone"
+"NC-DB-0005" = "error.db.prune-refused — error — retryable:false — params:[] — Pruning a table was refused, and retrying will not change it"
+"NC-DB-0006" = "error.db.local-open-refused — critical — retryable:false — params:[] — The local database's folder or files are not set up for this user alone to read and write, so it was not opened"
+"NC-DB-0007" = "error.db.local-schema-unexpected — critical — retryable:false — params:[] — The local database is not the one this build expects, so it was not used"
+"NC-IDS-0001" = "error.ids.clock-backwards — error — retryable:true — params:[] — The clock moved backwards, so minting would repeat an identifier it has issued"
+"NC-IDS-0002" = "error.ids.sequence-exhausted — info — retryable:false — params:[] — This millisecond's sequence was exhausted and minting waited"
+"NC-IDS-0003" = "error.ids.flake-exhausted — critical — retryable:false — params:[] — Every machine-flake candidate in the sequence was already taken"
+"NC-IDS-0004" = "error.ids.name-unparsable — error — retryable:false — params:[] — A file name does not parse as the naming scheme"
+"NC-IDS-0005" = "error.ids.name-too-long — error — retryable:false — params:[] — A file name cannot be built within the filesystem's limits"
+"NC-IDS-0006" = "error.ids.not-an-identifier — error — retryable:false — params:[] — Text handed to an identifier type is not one"
+"NC-IDS-0007" = "error.ids.clock-stuck — critical — retryable:true — params:[] — The clock has stopped, so no more identifiers can be minted on this machine"
+"NC-IDS-0008" = "error.ids.clock-out-of-range — error — retryable:false — params:[] — The clock is outside the range this identifier layout can represent"
+"NC-JRNL-0001" = "error.journal.chain-broken — critical — retryable:false — params:[] — The journal's hash chain is broken at an entry"
+"NC-JRNL-0002" = "error.journal.entry-tampered — critical — retryable:false — params:[] — An entry's hash does not match the entry's own contents"
+"NC-JRNL-0003" = "error.journal.unavailable — critical — retryable:true — params:[] — The journal store did not answer"
+"NC-JRNL-0004" = "error.journal.unit-closed — error — retryable:false — params:[] — A work unit that was already committed or aborted received an entry"
+"NC-JRNL-0005" = "error.journal.unstorable — error — retryable:false — params:[] — A record holds something no store could keep, so it was refused before the store saw it"
+"NC-JRNL-0006" = "error.journal.contended — warning — retryable:true — params:[] — Another writer took this sequence first, so the entry was not written"
+"NC-JRNL-0007" = "error.journal.unit-already-open — error — retryable:false — params:[] — A work unit that is already open was opened again"
+"NC-JRNL-0008" = "error.journal.sequence-ahead — error — retryable:false — params:[] — An entry was numbered past the end of the history, which no other writer can cause"
+"NC-JRNL-0009" = "error.journal.refused — critical — retryable:false — params:[] — The journal store answered and refused the write: a grant, a schema or a role, not an outage"
+"NC-JRNL-0010" = "error.journal.unit-never-opened — error — retryable:false — params:[] — A work unit that was never opened was asked to close"
+"NC-KERN-0001" = "error.kernel.unknown-command — warning — retryable:false — params:[] — A dispatch named a command no built-in and no activated plugin declares"
+"NC-KERN-0002" = "error.kernel.malformed-name — warning — retryable:false — params:[] — A dispatch named a command in a shape no command name can have"
+"NC-KERN-0003" = "error.kernel.reentrant — error — retryable:false — params:[] — A plugin dispatched into itself while it was still running, which the kernel refuses rather than traps"
+"NC-KERN-0004" = "error.kernel.too-deep — error — retryable:false — params:[] — A call tree nested its dispatches deeper than the kernel allows"
+"NC-KERN-0005" = "error.kernel.read-only — error — retryable:false — params:[] — A command that changes state was dispatched where only reading is allowed"
+"NC-KERN-0006" = "error.kernel.unconfirmed — warning — retryable:false — params:[] — An irreversible command was dispatched without a confirmation the kernel issued"
+"NC-KERN-0007" = "error.kernel.deadline — error — retryable:true — params:[] — A call tree ran past its deadline and was stopped"
+"NC-KERN-0008" = "error.kernel.unit-aborted — error — retryable:false — params:[] — A unit of work was aborted, so nothing it did was kept"
+"NC-KERN-0009" = "error.kernel.nothing-to-undo — info — retryable:false — params:[] — An undo found no step of this person's to reverse"
+"NC-KERN-0010" = "error.kernel.nothing-to-redo — info — retryable:false — params:[] — A redo found no undone step of this person's to restore"
+"NC-KERN-0011" = "error.kernel.undo-conflict — warning — retryable:false — params:[] — An undo or a redo was refused because what it would put back has been changed since"
+"NC-KERN-0012" = "error.kernel.undo-barrier — info — retryable:false — params:[] — An undo reached a step that left the machine or cannot be undone, with nothing registered to reverse it"
+"NC-KERN-0013" = "error.kernel.redo-compensated — info — retryable:false — params:[] — A redo was refused because the undo it would reverse dispatched compensating commands"
+"NC-KERN-0014" = "error.kernel.compensation-failed — error — retryable:true — params:[] — An undo stopped because a compensating command it dispatched failed"
+"NC-KERN-0015" = "error.kernel.name-taken — error — retryable:false — params:[] — A plugin declared a command or a topic outside its namespace, in a reserved one, twice, or as a catalog command it does not match"
+"NC-KERN-0016" = "error.kernel.recovered-unit — warning — retryable:false — params:[] — A unit of work a stopped process left open was reverted when the kernel opened"
+"NC-KERN-0017" = "error.kernel.top-level-only — warning — retryable:false — params:[] — Undo or redo was dispatched from inside another command, where neither may run"
+"NC-KERN-0018" = "error.kernel.not-built — error — retryable:false — params:[] — A plugin granted a capability called a host function of it this build of the kernel does not implement"
+"NC-KERN-0019" = "error.kernel.redo-blob-swept — info — retryable:false — params:[] — A redo was refused because a blob the step created has been swept since"
+"NC-KERN-0020" = "error.kernel.too-many-dispatches — error — retryable:false — params:[] — A call tree dispatched more commands than the kernel allows one tree"
+"NC-KERN-0021" = "error.kernel.compensation-refused — warning — retryable:false — params:[] — A compensation was refused because the command it names cannot set a step right: it changes nothing, needs a person's confirmation or a quorum's approval, or is one of the kernel's own, undo and redo among them"
+"NC-KERN-0022" = "error.kernel.step-unrecorded — error — retryable:false — params:[] — An undo or a redo was refused because the journal does not record as kept the step it would reverse"
+"NC-KERN-0023" = "error.kernel.compensation-moved — warning — retryable:false — params:[] — An undo was refused because a command its step registered as a compensation is no longer held by the plugin that held it then"
+"NC-KERN-0024" = "error.kernel.compensation-ungranted — warning — retryable:false — params:[] — An undo was refused because a compensation its step registered names another plugin's command, and the plugin that registered it is no longer loaded granted commands.dispatch"
+"NC-LOG-0001" = "error.log.unreachable — warning — retryable:true — params:[] — The central log store did not accept a batch"
+"NC-LOG-0002" = "error.log.dropped — warning — retryable:false — params:[] — Log events were dropped because the queue was full"
+"NC-PLUG-0001" = "error.plugin.capability-denied — warning — retryable:false — params:[] — A plugin called a host function of a capability its manifest was not granted"
+"NC-PLUG-0002" = "error.plugin.trapped — error — retryable:true — params:[] — A plugin trapped, and was killed and restarted"
+"NC-PLUG-0003" = "error.plugin.out-of-fuel — error — retryable:true — params:[] — A plugin computed past its fuel, and was killed and restarted"
+"NC-PLUG-0004" = "error.plugin.epoch-deadline — error — retryable:true — params:[] — A plugin ran past its epoch deadline, and was killed and restarted"
+"NC-PLUG-0005" = "error.plugin.memory-limit — error — retryable:true — params:[] — A plugin grew past its memory limit, and was killed and restarted"
+"NC-PLUG-0006" = "error.plugin.host-call-deadline — error — retryable:true — params:[] — A host function a plugin called ran past its deadline, and the plugin was killed and restarted"
+"NC-PLUG-0007" = "error.plugin.quarantined — critical — retryable:false — params:[] — A plugin is quarantined until it is released: it crashed too often inside its restart window, or did not come back as it was"
+"NC-PLUG-0008" = "error.plugin.descriptor-missing-field — error — retryable:false — params:[] — A command a plugin declared at activate lacks a field every command needs"
+"NC-PLUG-0009" = "error.plugin.descriptor-invalid — error — retryable:false — params:[] — A command or a subscription a plugin declared at activate is refused"
+"NC-PLUG-0010" = "error.plugin.manifest-invalid — error — retryable:false — params:[] — A plugin's manifest is refused: not one, asking for what the catalog does not declare, or raising a limit"
+"NC-PLUG-0011" = "error.plugin.component-invalid — error — retryable:false — params:[] — A plugin's component does not compile, or does not link against the world"
+"NC-PLUG-0012" = "error.plugin.domain-not-declared — warning — retryable:false — params:[] — A plugin fetched from a domain its manifest does not declare"
+"NC-PLUG-0013" = "error.plugin.request-refused — warning — retryable:false — params:[] — A plugin's network request is refused for its scheme, address, port, headers or method"
+"NC-PLUG-0014" = "error.plugin.response-too-large — warning — retryable:false — params:[] — A network response was larger than the kernel accepts"
+"NC-PLUG-0015" = "error.plugin.network-unavailable — warning — retryable:true — params:[] — A network request did not complete: no answer, a timeout, or a connection that failed"
+"NC-PLUG-0016" = "error.plugin.ui-invalid — warning — retryable:false — params:[] — A plugin rendered a surface the kernel refuses"
+"NC-PLUG-0017" = "error.plugin.bound-reached — warning — retryable:false — params:[] — A plugin reached a bound the catalog declares: a quota, a queue or a count"
+"NC-PLUG-0018" = "error.plugin.store-conflict — info — retryable:false — params:[] — A write was refused because what it expected to replace had changed"
+"NC-PLUG-0019" = "error.plugin.not-found — info — retryable:false — params:[] — A plugin asked for a key, a timer, a surface or a command that is not there"
+"NC-PLUG-0020" = "error.plugin.malformed-result — error — retryable:false — params:[] — A plugin answered with a result that is not canonical, or that is too large"
+"NC-PLUG-0021" = "error.plugin.activation-failed — error — retryable:false — params:[] — A plugin did not activate: it trapped, ran out of fuel, outgrew its memory or refused while it was instantiated or activated"
+"NC-PLUG-0022" = "error.plugin.identity-taken — error — retryable:false — params:[] — A plugin was not loaded: its identity or its namespace is held by a loaded plugin, or its namespace is one the kernel keeps"
+"NC-PLUG-0023" = "error.plugin.command-refused — info — retryable:false — params:[] — A plugin's command refused what it was asked, answering one of the world's errors in its own words"
+"NC-PLUG-0024" = "error.plugin.read-only-frame — warning — retryable:false — params:[] — A plugin wrote where only reading is allowed — in activate, a callback or a command declared a read — or dispatched from activate, where no command runs"
+"NC-PLUG-0025" = "error.plugin.outside-a-call-tree — warning — retryable:false — params:[] — A plugin called, where no call tree runs, a host function that acts for the person one runs for: the context, an event, a timer or a surface"
+"NC-PLUG-0026" = "error.plugin.topic-refused — warning — retryable:false — params:[] — A plugin published an event under a topic that is not one, or that is outside its namespace"
+"NC-PLUG-0027" = "error.plugin.not-a-revision — warning — retryable:false — params:[] — A plugin's write named, as the revision it expects to replace, text that is not a revision"
+"NC-PLUG-0028" = "error.plugin.unit-ended — warning — retryable:false — params:[] — A plugin called a method on the handle of a unit that had ended — aborted, let go, or begun in a command that has returned — and the call did nothing"
+"NC-POL-0001" = "error.policy.unreadable — critical — retryable:false — params:[] — A policy pack could not be read"
+"NC-POL-0002" = "error.policy.invalid — critical — retryable:false — params:[] — A policy pack does not validate against the Cedar schema"
+"NC-POL-0003" = "error.policy.denied — warning — retryable:false — params:[] — The decision point denied a request"
+"NC-POL-0004" = "error.policy.pack-not-carried — critical — retryable:false — params:[] — A realm pins a policy pack this build does not carry"
+"NC-POL-0005" = "error.policy.evaluation-failed — critical — retryable:false — params:[] — A decision could not be evaluated: the request does not fit the schema, or a policy erred"
+"NC-POL-0006" = "error.policy.directory-unavailable — critical — retryable:true — params:[] — The directory the decision point reads realms, grants and entities from did not answer"
+"NC-POL-0007" = "error.policy.rule-broken — critical — retryable:false — params:[] — A policy pack breaks a rule packs are held to"
+"NC-VAL-0001" = "error.validation.out-of-range — error — retryable:false — params:[field,min,max] — A value is outside the limit the catalog declares for it"
+"NC-VAL-0002" = "error.validation.arguments-invalid — warning — retryable:false — params:[] — A command's arguments do not validate against the schema it declares"
+"NC-VAL-0003" = "error.validation.resource-id-malformed — warning — retryable:false — params:[] — The identifier a command's resource selector took from its arguments is not one"

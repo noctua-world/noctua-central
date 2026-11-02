@@ -1,0 +1,177 @@
+# English — the source locale.
+#
+# Every key in this file must exist in every other locale, and every key in
+# another locale must exist here. A key missing from either side **fails the
+# build**, naming the key (`NOCTUA.md §10.9`): a lookup that quietly fell back to
+# English would ship a page in two languages and report nothing.
+#
+# Conventions:
+#
+# * Keys are dotted and quoted, so TOML reads them as literal strings rather than
+#   nesting. That keeps this a flat list a translator can read top to bottom
+#   without tracking which table they are inside.
+# * Placeholders are `{name}`, and a locale's set must match this file's exactly.
+# * **A sentence is one key.** Never assemble a message from fragments: word
+#   order is not a constant across languages.
+# * Backend responses carry a key and parameters, never a rendered sentence
+#   (`§10.9`). These are the sentences those keys resolve to.
+# * Written for a beginner, brief and precise (`§10.10`): what happened, and what
+#   the reader can do about it. No error code in the text — the code travels
+#   beside the message, and a reader who needs it is shown it.
+
+[meta]
+name  = "English"
+bcp47 = "en"
+dir   = "ltr"
+
+[message]
+
+# --- The journal ---
+"error.journal.chain-broken" = "The activity history does not add up, so Noctua stopped rather than continue. Nothing was changed. Contact whoever set up your Noctua."
+"error.journal.entry-tampered" = "One entry in the activity history has been altered since it was written. Nothing was changed now. Contact whoever set up your Noctua."
+"error.journal.unavailable" = "The activity history is not answering right now. Try again in a moment."
+"error.journal.unit-closed" = "That action finished before this step could be recorded, so nothing was saved. Start it again."
+"error.journal.contended" = "Something else was recorded at the same moment. Nothing was lost — try again."
+"error.journal.unit-already-open" = "That action is already under way. Finish or cancel it before starting it again."
+"error.journal.sequence-ahead" = "That step was numbered ahead of the activity history, so nothing was saved. Contact whoever set up your Noctua."
+"error.journal.refused" = "Noctua could not record what you did, and trying again will not help. Contact whoever set up your Noctua."
+"error.journal.unstorable" = "Part of that request is something this system cannot store. Simplify it and try again."
+"error.journal.unit-never-opened" = "That action was never started in the activity history, so it cannot be finished. Nothing was saved. Contact whoever set up your Noctua."
+
+# --- Identifiers ---
+"error.ids.clock-backwards" = "This computer's clock moved backwards, so nothing can be saved until the time it skipped has passed. Check the clock settings if this does not clear."
+"error.ids.clock-out-of-range" = "This computer's clock is set to the wrong year, so nothing can be saved. Fix the date and time, then try again."
+"error.ids.sequence-exhausted" = "A lot is being saved at once, so Noctua paused for an instant. Nothing was lost."
+"error.ids.clock-stuck" = "This computer's clock has stopped, so nothing new can be saved. Someone needs to look at it."
+"error.ids.flake-exhausted" = "This computer could not be given an identity of its own. Contact whoever set up your Noctua."
+"error.ids.name-unparsable" = "That file name is not in Noctua's format, so its details could not be read."
+"error.ids.name-too-long" = "That name is too long for your computer to store. Shorten the title."
+"error.ids.not-an-identifier" = "That is not an identifier this system recognises. Check the value and try again."
+
+# --- The central log ---
+"error.log.unreachable" = "Diagnostics are not being recorded right now. Everything else works normally."
+"error.log.dropped" = "Some diagnostics were skipped because too many arrived at once. Everything else works normally."
+
+# --- The database ---
+"error.db.unreachable" = "Noctua cannot reach its data right now. Try again in a moment."
+"error.db.migration-failed" = "Noctua could not finish updating its data and stopped before changing anything. Contact whoever set up your Noctua."
+"error.db.prune-failed" = "Old records could not be cleared this time. Nothing was lost, and this will be tried again."
+"error.db.table-not-bounded" = "Something asked to tidy a table in a way this system does not allow. That table was left as it is."
+"error.db.prune-refused" = "Old records could not be cleared, and trying again will not help. Contact whoever set up your Noctua."
+"error.db.local-open-refused" = "Noctua did not open the data it keeps on this computer, because its folder or files are not set up for you alone to read and write. Nothing was changed. Contact whoever set up your Noctua."
+"error.db.local-schema-unexpected" = "Noctua did not use the data it keeps on this computer, because it is not what this version expects. Nothing was changed. Contact whoever set up your Noctua."
+
+# --- Canonical serialization ---
+"error.canon.unparsable" = "Noctua could not read what it was sent. Nothing was changed."
+"error.canon.number" = "Noctua was sent a number it cannot store exactly, so it refused rather than round it. Nothing was changed."
+
+# --- Policy ---
+"error.policy.unreadable" = "Noctua could not read its permission rules, so it is allowing nothing until it can."
+"error.policy.invalid" = "Noctua's permission rules are not valid, so it is allowing nothing until they are fixed."
+"error.policy.denied" = "You do not have permission to do that."
+"error.policy.pack-not-carried" = "This space uses permission rules this version of Noctua does not have, so nothing is allowed in it until Noctua is updated."
+"error.policy.evaluation-failed" = "Noctua could not work out whether that is allowed, so it did not do it. Contact whoever set up your Noctua."
+"error.policy.directory-unavailable" = "Noctua could not check who may do that right now, so it did not do it. Try again in a moment."
+"error.policy.rule-broken" = "Noctua's permission rules were written in a way it does not accept, so it is allowing nothing until they are fixed."
+
+# --- Validation ---
+"error.validation.out-of-range" = "{field} must be between {min} and {max}."
+"error.validation.arguments-invalid" = "That request is not in the form the command expects. Nothing was done."
+"error.validation.resource-id-malformed" = "That request names something by an identifier Noctua does not accept. Nothing was done."
+
+# --- The kernel ---
+"error.kernel.unknown-command" = "There is no such command. Nothing was done."
+"error.kernel.malformed-name" = "That is not a command name Noctua can read. Nothing was done."
+"error.kernel.reentrant" = "A part of Noctua tried to call itself while it was still busy, so that step was refused. Nothing was changed."
+"error.kernel.too-deep" = "That action set off too many steps inside one another, so Noctua stopped it. Nothing was changed."
+"error.kernel.read-only" = "This step may only read, and what it asked for would change something, so it was refused. Nothing was changed."
+"error.kernel.unconfirmed" = "That cannot be undone, so it needs your confirmation first. Nothing was done."
+"error.kernel.deadline" = "That took too long, so Noctua stopped it. Nothing in Noctua was changed, but anything it had already sent outside this computer may have arrived. Check before you try again."
+"error.kernel.unit-aborted" = "That action was cancelled part-way, so none of what it changed in Noctua was kept. Anything it had already sent outside this computer may have arrived."
+"error.kernel.nothing-to-undo" = "There is nothing to undo."
+"error.kernel.nothing-to-redo" = "There is nothing to redo."
+"error.kernel.undo-conflict" = "That step cannot be undone or redone, because what it changed has been changed again since. Nothing was changed."
+"error.kernel.undo-barrier" = "That step did something Noctua cannot take back on its own — it reached outside this computer or cannot be undone — so undo stops here."
+"error.kernel.redo-compensated" = "That step cannot be redone, because undoing it also undid things outside Noctua's own data."
+"error.kernel.compensation-failed" = "Undo could not finish, because one of the steps that sets things right failed. Nothing in Noctua was undone, but a step that set things right before it may already have reached outside this computer. Check before you try again."
+"error.kernel.name-taken" = "A part of Noctua declared a command it may not have, so it was not started."
+"error.kernel.recovered-unit" = "Noctua found an action left unfinished when it last stopped, and undid it. Nothing else was changed."
+"error.kernel.top-level-only" = "Undo and redo can only be asked for directly, not from inside another action."
+"error.kernel.not-built" = "Part of what was asked is not available in this version of Noctua. Nothing was changed."
+"error.kernel.redo-blob-swept" = "That step cannot be redone, because a file it made has since been cleared away."
+"error.kernel.too-many-dispatches" = "That action set off too many steps, so Noctua stopped it. Nothing was changed."
+"error.kernel.compensation-refused" = "That step named a way to set things right that cannot run, so it was refused."
+"error.kernel.step-unrecorded" = "That step cannot be undone or redone yet, because Noctua's history does not show it as finished. Nothing was changed."
+"error.kernel.compensation-moved" = "That step cannot be undone, because what it named to set things right now belongs to another part of Noctua, or to none. Nothing was undone."
+"error.kernel.compensation-ungranted" = "That step cannot be undone, because the part of Noctua that named how to set it right may no longer ask another part to do so. Nothing was undone."
+
+# --- The plugin host ---
+"error.plugin.capability-denied" = "A part of Noctua asked for something it is not allowed to use, and was refused."
+"error.plugin.trapped" = "A part of Noctua stopped working and was restarted. What it was changing in Noctua was not kept, but anything it had already sent outside this computer may have arrived. Check before you try again."
+"error.plugin.out-of-fuel" = "A part of Noctua worked too hard on that and was restarted. What it was changing in Noctua was not kept, but anything it had already sent outside this computer may have arrived. Check before you try again."
+"error.plugin.epoch-deadline" = "A part of Noctua took too long and was restarted. What it was changing in Noctua was not kept, but anything it had already sent outside this computer may have arrived. Check before you try again."
+"error.plugin.memory-limit" = "A part of Noctua used too much memory and was restarted. What it was changing in Noctua was not kept, but anything it had already sent outside this computer may have arrived. Check before you try again."
+"error.plugin.host-call-deadline" = "A part of Noctua waited too long for an answer and was restarted. What it was changing in Noctua was not kept, but anything it had already sent outside this computer may have arrived. Check before you try again."
+"error.plugin.quarantined" = "A part of Noctua stopped working and has been switched off until someone looks at it."
+"error.plugin.descriptor-missing-field" = "A part of Noctua declared a command without something every command needs, so it was not started."
+"error.plugin.descriptor-invalid" = "A part of Noctua declared a command or a subscription Noctua does not accept, so it was not started."
+"error.plugin.manifest-invalid" = "A part of Noctua describes itself in a way Noctua does not accept, so it was not started."
+"error.plugin.component-invalid" = "A part of Noctua is not built for this version of Noctua, so it was not started."
+"error.plugin.domain-not-declared" = "A part of Noctua tried to reach a website it is not allowed to, and was refused."
+"error.plugin.request-refused" = "A part of Noctua made a network request Noctua does not allow, and it was not sent."
+"error.plugin.response-too-large" = "A website sent back more than Noctua accepts, so the answer was discarded."
+"error.plugin.network-unavailable" = "A website could not be reached right now. Try again in a moment."
+"error.plugin.ui-invalid" = "A part of Noctua tried to show something Noctua does not accept, so it was not shown."
+"error.plugin.bound-reached" = "A part of Noctua reached a limit Noctua sets, so that was refused."
+"error.plugin.store-conflict" = "That was changed somewhere else in the meantime, so nothing was saved. Try again."
+"error.plugin.not-found" = "What was asked for is not there."
+"error.plugin.malformed-result" = "A part of Noctua gave an answer Noctua cannot read, so nothing it changed in Noctua was kept. Anything it had already sent outside this computer may have arrived."
+"error.plugin.activation-failed" = "A part of Noctua failed while it was starting, so it was not started."
+"error.plugin.identity-taken" = "A part of Noctua asked for a name that another part, or Noctua itself, already has, so it was not started."
+"error.plugin.command-refused" = "That could not be done, and the part of Noctua that does it said why. Nothing was changed."
+"error.plugin.read-only-frame" = "A part of Noctua tried to change something while it was only allowed to look, and was refused."
+"error.plugin.outside-a-call-tree" = "A part of Noctua asked for something it may only ask for while it does something for you, and was refused."
+"error.plugin.topic-refused" = "A part of Noctua tried to announce something under a name it may not use, and was refused."
+"error.plugin.not-a-revision" = "A part of Noctua tried to save over a version of something that no version is ever called, and was refused. Nothing was saved."
+"error.plugin.unit-ended" = "A part of Noctua tried to finish a piece of work that had already ended, and was refused. Nothing changed because of it."
+
+# --- Blobs ---
+"error.blob.malformed-hash" = "That is not the name of a file Noctua can look for."
+"error.blob.not-local" = "That file is not on this computer right now."
+"error.blob.too-large" = "That file is larger than Noctua accepts, so it was not saved."
+"error.blob.io" = "A file could not be read or written on this computer. Try again in a moment."
+"error.blob.writer-finished" = "That file was already finished, so nothing more can be added to it."
+"error.blob.no-peers" = "There is no other device to share that file with right now."
+
+# --- The catalog's own mechanism entries ---
+# These two pairs exist to prove the generated typed handles resolve in both
+# locales. They are the entries a stage with a real notification or email
+# replaces, and they are visible in the developer surfaces so nobody wonders
+# what they are.
+"notification.catalog.mechanism.title" = "Noctua is working"
+"notification.catalog.mechanism.body" = "Hello {name}. This message exists so that Noctua can check its own notifications reach you correctly."
+"email.catalog.mechanism.subject" = "Noctua is working"
+"email.catalog.mechanism.body" = "This message exists so that Noctua can check its own email reaches you correctly. Nothing is expected of you."
+
+# --- Commands ---
+"command.journal.verify.title" = "Verify activity history"
+"command.journal.verify.description" = "Check that every recorded action is intact and in order."
+"command.limits.prune.title" = "Clear old records"
+"command.limits.prune.description" = "Remove the oldest records from any table that has passed its limit."
+"command.kernel.undo.title" = "Undo"
+"command.kernel.undo.description" = "Take back your last step: everything it changed in Noctua, and the files it made."
+"command.kernel.redo.title" = "Redo"
+"command.kernel.redo.description" = "Make again the last step you took back."
+
+# --- Capabilities ---
+"capability.context.description" = "Know who it is acting for: the person, anyone acting on their behalf, and whether a person confirmed this step."
+"capability.store.description" = "Keep structured data of its own, which no other part of Noctua can read or change."
+"capability.blobs.read.description" = "Find files by their content and read them, without loading a whole file into memory."
+"capability.blobs.write.description" = "Save new files, and tell other devices that this one has them."
+"capability.commands.dispatch.description" = "Ask other parts of Noctua to run their commands, each checked as if a person had asked."
+"capability.commands.begin.description" = "Group several changes into one step that is kept whole or not at all, and undone as one."
+"capability.events.publish.description" = "Announce that something happened, for other parts of Noctua to hear."
+"capability.events.subscribe.description" = "Hear the announcements it names, and only those."
+"capability.ui.description" = "Describe what it shows on screen, for Noctua to draw."
+"capability.net.description" = "Reach the websites it names, and no others."
+"capability.timers.description" = "Be woken after a while, or at a regular interval."

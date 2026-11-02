@@ -1,0 +1,41 @@
+[package]
+name = "nc-journal"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "The append-only, hash-chained command journal. It is the audit log; there is not a second one."
+
+[features]
+# What lets a test do what somebody with write access to the table would do.
+# **Off by default**, so a shipped library cannot be tampered with through its
+# own public surface — the append-only rule is then a guarantee rather than a
+# convention (`NOCTUA.md §14.9`).
+test-support = []
+
+[dependencies]
+nc-canon.workspace = true
+# The store that runs. `NOCTUA.md`'s PostgreSQL access is sqlx, and the `Store`
+# trait is asynchronous because sqlx has no synchronous API.
+sqlx.workspace = true
+serde_json.workspace = true
+nc-catalog.workspace = true
+# Work-unit identifiers are Snowflakes, and every field of a record that names a
+# *principal* — who acted, on whose behalf, under which grant — is an `OpaqueId`
+# rather than a `String`: this is the audit log, and a free-form string is how a
+# name reaches it. The policy name and the pack version stay `String`, because
+# they are the identifiers of a *policy file*, which is ours and not a person's.
+nc-ids.workspace = true
+
+[dev-dependencies]
+# A runtime to drive the store's futures. The trait is asynchronous because
+# PostgreSQL is; the tests need something to poll it.
+tokio.workspace = true
+# The pool the PostgreSQL store is driven through, and the migrations.
+sqlx.workspace = true
+# The crate depending on itself, which is how a feature meant only for tests is
+# switched on for them and left off for everybody else.
+nc-journal = { path = ".", features = ["test-support"] }
+
+[lints]
+workspace = true

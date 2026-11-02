@@ -1,0 +1,759 @@
+[
+  {
+    "uid": {
+      "type": "Realm",
+      "id": "home"
+    },
+    "attrs": {
+      "profile": "family",
+      "policy_pack": "family@1"
+    },
+    "parents": []
+  },
+  {
+    "uid": {
+      "type": "Group",
+      "id": "role.guardian"
+    },
+    "attrs": {},
+    "parents": [
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "User",
+      "id": "ana"
+    },
+    "attrs": {
+      "birth_date": {
+        "__extn": {
+          "fn": "datetime",
+          "arg": "1988-04-12"
+        }
+      },
+      "status": "active"
+    },
+    "parents": [
+      {
+        "type": "Group",
+        "id": "role.guardian"
+      },
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "User",
+      "id": "bruno"
+    },
+    "attrs": {
+      "birth_date": {
+        "__extn": {
+          "fn": "datetime",
+          "arg": "2016-09-30"
+        }
+      },
+      "status": "active"
+    },
+    "parents": [
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "User",
+      "id": "carla"
+    },
+    "attrs": {
+      "birth_date": {
+        "__extn": {
+          "fn": "datetime",
+          "arg": "1991-01-05"
+        }
+      },
+      "status": "active"
+    },
+    "parents": [
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "User",
+      "id": "dora"
+    },
+    "attrs": {
+      "birth_date": {
+        "__extn": {
+          "fn": "datetime",
+          "arg": "1952-03-14"
+        }
+      },
+      "status": "suspended"
+    },
+    "parents": [
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "User",
+      "id": "elias"
+    },
+    "attrs": {
+      "birth_date": {
+        "__extn": {
+          "fn": "datetime",
+          "arg": "1941-11-02"
+        }
+      },
+      "status": "deceased"
+    },
+    "parents": [
+      {
+        "type": "Group",
+        "id": "role.guardian"
+      },
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "User",
+      "id": "fabio"
+    },
+    "attrs": {
+      "birth_date": {
+        "__extn": {
+          "fn": "datetime",
+          "arg": "1964-07-21"
+        }
+      },
+      "status": "dormant"
+    },
+    "parents": [
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "User",
+      "id": "gloria"
+    },
+    "attrs": {
+      "birth_date": {
+        "__extn": {
+          "fn": "datetime",
+          "arg": "1947-05-09"
+        }
+      },
+      "status": "presumed_inactive"
+    },
+    "parents": [
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "User",
+      "id": "hugo"
+    },
+    "attrs": {
+      "birth_date": {
+        "__extn": {
+          "fn": "datetime",
+          "arg": "1983-12-01"
+        }
+      },
+      "status": "archived"
+    },
+    "parents": [
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "Folder",
+      "id": "household"
+    },
+    "attrs": {},
+    "parents": [
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "Feature",
+      "id": "gallery"
+    },
+    "attrs": {
+      "tier": "included"
+    },
+    "parents": [
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "Content",
+      "id": "photo"
+    },
+    "attrs": {
+      "owner": {
+        "__entity": {
+          "type": "User",
+          "id": "ana"
+        }
+      },
+      "sensitivity": "realm",
+      "encrypted": false
+    },
+    "parents": [
+      {
+        "type": "Folder",
+        "id": "household"
+      },
+      {
+        "type": "Feature",
+        "id": "gallery"
+      },
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "Content",
+      "id": "diary"
+    },
+    "attrs": {
+      "owner": {
+        "__entity": {
+          "type": "User",
+          "id": "ana"
+        }
+      },
+      "sensitivity": "private",
+      "encrypted": true
+    },
+    "parents": [
+      {
+        "type": "Folder",
+        "id": "household"
+      },
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "Content",
+      "id": "notice"
+    },
+    "attrs": {
+      "owner": {
+        "__entity": {
+          "type": "User",
+          "id": "ana"
+        }
+      },
+      "sensitivity": "public",
+      "encrypted": false
+    },
+    "parents": [
+      {
+        "type": "Folder",
+        "id": "household"
+      },
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "Content",
+      "id": "vault"
+    },
+    "attrs": {
+      "owner": {
+        "__entity": {
+          "type": "User",
+          "id": "ana"
+        }
+      },
+      "sensitivity": "restricted",
+      "encrypted": true
+    },
+    "parents": [
+      {
+        "type": "Folder",
+        "id": "household"
+      },
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "Content",
+      "id": "recipe"
+    },
+    "attrs": {
+      "owner": {
+        "__entity": {
+          "type": "User",
+          "id": "carla"
+        }
+      },
+      "sensitivity": "private",
+      "encrypted": true
+    },
+    "parents": [
+      {
+        "type": "Folder",
+        "id": "household"
+      },
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "Content",
+      "id": "postcard"
+    },
+    "attrs": {
+      "owner": {
+        "__entity": {
+          "type": "User",
+          "id": "dora"
+        }
+      },
+      "sensitivity": "realm",
+      "encrypted": false
+    },
+    "parents": [
+      {
+        "type": "Folder",
+        "id": "household"
+      },
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "Device",
+      "id": "ana-laptop"
+    },
+    "attrs": {
+      "owner": {
+        "__entity": {
+          "type": "User",
+          "id": "ana"
+        }
+      },
+      "node_key": "b62a0e7f4c1d9a35",
+      "attested": true
+    },
+    "parents": [
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "Device",
+      "id": "old-tablet"
+    },
+    "attrs": {
+      "owner": {
+        "__entity": {
+          "type": "User",
+          "id": "bruno"
+        }
+      },
+      "node_key": "4e91c07d2b6a8f13",
+      "attested": false
+    },
+    "parents": [
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "Agent",
+      "id": "ana-assistant"
+    },
+    "attrs": {
+      "operator": {
+        "__entity": {
+          "type": "User",
+          "id": "ana"
+        }
+      },
+      "autonomy": "supervised",
+      "budget_remaining": 1000
+    },
+    "parents": [
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "Agent",
+      "id": "ana-assistant-spent"
+    },
+    "attrs": {
+      "operator": {
+        "__entity": {
+          "type": "User",
+          "id": "ana"
+        }
+      },
+      "autonomy": "supervised",
+      "budget_remaining": 0
+    },
+    "parents": [
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "Grant",
+      "id": "g.current"
+    },
+    "attrs": {
+      "granted_by": {
+        "__entity": {
+          "type": "User",
+          "id": "ana"
+        }
+      },
+      "reason": "a household member, added when the realm was created",
+      "valid_from": {
+        "__extn": {
+          "fn": "datetime",
+          "arg": "2026-01-01"
+        }
+      },
+      "valid_until": {
+        "__extn": {
+          "fn": "datetime",
+          "arg": "2027-01-01"
+        }
+      },
+      "source": "manual"
+    },
+    "parents": [
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "Grant",
+      "id": "g.expiring_now"
+    },
+    "attrs": {
+      "granted_by": {
+        "__entity": {
+          "type": "User",
+          "id": "ana"
+        }
+      },
+      "reason": "expires at exactly the instant the cases call now, which is the boundary `<=` decides and `<` does not",
+      "valid_from": {
+        "__extn": {
+          "fn": "datetime",
+          "arg": "2026-01-01"
+        }
+      },
+      "valid_until": {
+        "__extn": {
+          "fn": "datetime",
+          "arg": "2026-08-26"
+        }
+      },
+      "source": "manual"
+    },
+    "parents": [
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "Grant",
+      "id": "g.beginning_now"
+    },
+    "attrs": {
+      "granted_by": {
+        "__entity": {
+          "type": "User",
+          "id": "ana"
+        }
+      },
+      "reason": "opens at exactly the instant the cases call now, which is the boundary `<` decides and `<=` does not",
+      "valid_from": {
+        "__extn": {
+          "fn": "datetime",
+          "arg": "2026-08-26"
+        }
+      },
+      "valid_until": {
+        "__extn": {
+          "fn": "datetime",
+          "arg": "2027-06-01"
+        }
+      },
+      "source": "manual"
+    },
+    "parents": [
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "Grant",
+      "id": "g.not_yet"
+    },
+    "attrs": {
+      "granted_by": {
+        "__entity": {
+          "type": "User",
+          "id": "ana"
+        }
+      },
+      "reason": "a guest pass for a visit next June, written today",
+      "valid_from": {
+        "__extn": {
+          "fn": "datetime",
+          "arg": "2027-06-01"
+        }
+      },
+      "valid_until": {
+        "__extn": {
+          "fn": "datetime",
+          "arg": "2027-06-30"
+        }
+      },
+      "source": "manual"
+    },
+    "parents": [
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "Grant",
+      "id": "g.expired"
+    },
+    "attrs": {
+      "granted_by": {
+        "__entity": {
+          "type": "User",
+          "id": "ana"
+        }
+      },
+      "reason": "a visiting relative, for the length of the visit",
+      "valid_from": {
+        "__extn": {
+          "fn": "datetime",
+          "arg": "2025-12-01"
+        }
+      },
+      "valid_until": {
+        "__extn": {
+          "fn": "datetime",
+          "arg": "2026-01-15"
+        }
+      },
+      "source": "manual"
+    },
+    "parents": [
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "Grant",
+      "id": "g.perpetual"
+    },
+    "attrs": {
+      "granted_by": {
+        "__entity": {
+          "type": "User",
+          "id": "ana"
+        }
+      },
+      "reason": "written by hand with no end, which is the shape \u00a79.3 refuses",
+      "valid_from": {
+        "__extn": {
+          "fn": "datetime",
+          "arg": "2026-01-01"
+        }
+      },
+      "source": "manual"
+    },
+    "parents": [
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "Grant",
+      "id": "g.by_policy"
+    },
+    "attrs": {
+      "granted_by": {
+        "__entity": {
+          "type": "User",
+          "id": "ana"
+        }
+      },
+      "reason": "membership of the realm, which the pack confers",
+      "valid_from": {
+        "__extn": {
+          "fn": "datetime",
+          "arg": "2026-01-01"
+        }
+      },
+      "source": "policy"
+    },
+    "parents": [
+      {
+        "type": "Realm",
+        "id": "home"
+      }
+    ]
+  },
+  {
+    "uid": {
+      "type": "Grant",
+      "id": "g.not_yet_by_policy"
+    },
+    "attrs": {
+      "granted_by": {
+        "__entity": {
+          "type": "User",
+          "id": "ana"
+        }
+      },
+      "reason": "membership the pack will confer from next June, written today",
+      "valid_from": {
+        "__extn": {
+          "fn": "datetime",
+          "arg": "2027-06-01"
+        }
+      },
+      "source": "policy"
+    },
+    "parents": []
+  },
+  {
+    "uid": {
+      "type": "Realm",
+      "id": "office"
+    },
+    "attrs": {
+      "profile": "org",
+      "policy_pack": "org@0.1.0"
+    },
+    "parents": []
+  },
+  {
+    "uid": {
+      "type": "User",
+      "id": "mallory"
+    },
+    "attrs": {
+      "birth_date": {
+        "__extn": {
+          "fn": "datetime",
+          "arg": "1979-02-02"
+        }
+      },
+      "status": "active"
+    },
+    "parents": [
+      {
+        "type": "Realm",
+        "id": "office"
+      }
+    ]
+  }
+]

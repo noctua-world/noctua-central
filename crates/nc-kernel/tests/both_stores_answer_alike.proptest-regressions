@@ -1,0 +1,20 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc b7383dd0e629da6122ec24ceaf1d5531e72436d3a9ce09b4408ef20c7f416f39 # shrinks to operations = [Commit(Planned { ana: false, writes: [(0, 0, Anything, Some(0))], blobs: [], notes: [], mark: None }), List(0, 0, 0)]
+cc 6f0f5ce6d7762770c52eaa6884d9e01035f1d890828aa94465c092cbcc5a23fb # shrinks to operations = [Commit(Planned { ana: true, writes: [], blobs: [], notes: [], mark: None }), Commit(Planned { ana: true, writes: [], blobs: [], notes: [], mark: None }), Units(true, 1)]
+cc 2e4bff062ecb9470f226bcd32fb76300ac57ea64715471c85169c62e60c8dac3 # shrinks to operations = [Commit(Planned { ana: false, writes: [], blobs: [], notes: [], mark: None }), ForgetBeyond(false, 0)]
+cc 31a53b8b43e98859b0510c084b83b1d7f784feaa6c651fab550ddfdecff8c165 # shrinks to operations = [Commit(Planned { ana: false, writes: [], blobs: [0], notes: [], mark: None }), ForgetBlob(0)]
+cc 65ea97a953942bbff17cc77b35d9da37862179410c3b3fc97901381782cbbeb4 # shrinks to operations = [Commit(Planned { ana: false, writes: [(1, 0, Anything, Some(0)), (1, 1, Anything, Some(0)), (1, 2, Value, Some(0))], blobs: [], notes: [], mark: None })]
+cc b3e765d9730326bbc65f50b3e3b5d12a3b35ba3d42e0094772ef4550f6a3ae4f # shrinks to operations = [Commit(Planned { ana: false, writes: [], blobs: [0], notes: [], mark: None }), Commit(Planned { ana: false, writes: [], blobs: [2, 1], notes: [], mark: None })]
+cc 61273a121354c2d51abe4c9bcc5dffe9ce53dcefec062ce6a7b10f55af84631d # shrinks to operations = [Commit(Planned { ana: false, writes: [], blobs: [], notes: [], mark: None }), Commit(Planned { ana: false, writes: [], blobs: [], notes: [], mark: None }), Commit(Planned { ana: true, writes: [], blobs: [], notes: [], mark: Some((2, true)) }), Units(true, 1)]
+cc ea97dab31c5a3ef02cb60cb5d90ba5574f9f71f02a7e425927f1ca73222c7f30 # shrinks to operations = [Commit(Planned { ana: true, home: false, kind: Step, writes: [], blobs: [], notes: [], mark: None }), Units(true, true, 1)]
+cc ef08fbf89aff80d05e34dbb13c5d12fbbc30452fae1b49350c0b0c6148cc6bba # shrinks to operations = [Commit(Planned { ana: false, home: false, kind: Step, writes: [], blobs: [], notes: [], mark: None }), Commit(Planned { ana: false, home: false, kind: Step, writes: [], blobs: [], notes: [], mark: None }), Units(false, false, 1)]
+cc 42c01247066003cc86e308950e21d9f21c4e9117f1e50ef6da97e45ad12c0c15 # shrinks to operations = [Commit(Planned { ana: true, home: false, kind: Step, writes: [], blobs: [], notes: [], mark: None }), ForgetBeyond(true, true, 0)]
+cc 48b787a1485f7575249cc9a9b1f135051e7cb68ce1af01a3a7163896e2688865 # shrinks to operations = [Commit(Planned { ana: false, home: false, kind: Step, writes: [], blobs: [1], notes: [], mark: None }), SetPinned(1, false, 6), UnpinnedBefore(6, 1)]
+cc c2862f41ba81234b9672ba55506f0cfdd2d0b99a52c3712184bea178cd64e6e4 # shrinks to operations = [Commit(Planned { ana: true, home: true, kind: Step, writes: [], blobs: [], notes: [], mark: None }), Commit(Planned { ana: false, home: false, kind: Step, writes: [], blobs: [], notes: [], mark: Some((0, true)) }), Steps(true, true, 1)]
+cc 47291750e7aca5dbe3e6d9f08dd0ed9f6597b44bffd65c9b689df36de94b2e4f # shrinks to operations = [Commit(Planned { ana: false, home: false, kind: Step, writes: [], blobs: [], notes: [0], mark: None }), NotedElsewhere(0, 0)]
+cc 030bb24232c44c1b80f20eb7023c85886e8e0ac8088162fe982b5487cd3aa5c8 # shrinks to operations = [CommitHeld(Planned { ana: false, home: false, kind: Step, writes: [], blobs: [], notes: [], mark: Some((0, false)) })]

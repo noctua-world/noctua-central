@@ -1,0 +1,39 @@
+# Invariant 4 — nobody escalates themselves.
+#
+# Ana is a guardian, so the pack genuinely permits her to grant. That is what
+# makes the first case worth writing: it is refused because of *who the resource
+# is*, not because she lacked the permission — and the second case is there to
+# prove the difference.
+
+[default.context]
+now = { datetime = "2026-08-26T00:00:00Z" }
+via_agent = false
+confirmed_by_human = false
+actor_chain_depth = 0
+policy_epoch = 7
+quorum_met = true
+grant = { entity = 'Grant::"g.current"' }
+
+[[case]]
+name = "a guardian cannot grant to herself"
+principal = 'User::"ana"'
+action = "Grant"
+resource = 'User::"ana"'
+decision = "deny"
+because = "core.no_self_escalation"
+
+[[case]]
+name = "nor revoke from herself, which is how a constraint is removed rather than added"
+principal = 'User::"ana"'
+action = "Revoke"
+resource = 'User::"ana"'
+decision = "deny"
+because = "core.no_self_escalation"
+
+[[case]]
+name = "but she may grant to another member, so the refusal above is about her and not about Grant"
+principal = 'User::"ana"'
+action = "Grant"
+resource = 'User::"carla"'
+decision = "allow"
+because = "family.a_guardian_administers_the_realm"

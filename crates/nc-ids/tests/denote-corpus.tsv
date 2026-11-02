@@ -1,0 +1,63 @@
+# What real Denote produces, for every component.
+#
+# Not written by hand. Regenerate with Emacs and denote.el on `load-path`:
+#
+#   emacs --batch -Q --eval '(progn (require (quote denote)) (dolist (s LIST) \
+#     (princ (format "%s\t%s\t%s\t%s\n" s \
+#       (denote-sluggify-and-apply-rules (quote title) s) \
+#       (denote-sluggify-and-apply-rules (quote signature) s) \
+#       (denote-sluggify-and-apply-rules (quote keyword) s)))))'
+#
+# Measured with GNU Emacs 30.2 and denote.el 4.1.0 on 2026-08-26. Four
+# tab-separated fields: what a person typed, then Denote's title, signature and
+# keyword slugs. A blank slug is written as the empty field between two tabs.
+#
+# `crates/nc-ids/tests/against_denote.rs` runs every row. Three rows are expected to differ and
+# say so there, each because a name has to survive a filesystem Denote does not
+# consider: this repository removes `<`, `>`, `\` and the C0 controls (U+0000
+# to U+001F, and nothing adjacent — Windows permits U+007F and C1, and Denote
+# keeps both).
+Praia de Copacabana	praia-de-copacabana	praia=de=copacabana	praiadecopacabana
+Café naïve	café-naïve	café=naïve	cafénaïve
+Zażółć gęślą jaźń	zażółć-gęślą-jaźń	zażółć=gęślą=jaźń	zażółćgęśląjaźń
+Łódź żółw	łódź-żółw	łódź=żółw	łódźżółw
+Tiếng Việt Đường phố	tiếng-việt-đường-phố	tiếng=việt=đường=phố	tiếngviệtđườngphố
+don't stop	dont-stop	dont=stop	dontstop
+don’t stop	dont-stop	dont=stop	dontstop
+“quoted” title	quoted-title	quoted=title	quotedtitle
+5 € + 3 £	5-€-3-£	5=€=3=£	5€3£
+temp 20°C	temp-20°c	temp=20°c	temp20°c
+写真 の アルバム	写真-の-アルバム	写真=の=アルバム	写真のアルバム
+العربية	العربية	العربية	العربية
+Ø đ ß æ	ø-đ-ß-æ	ø=đ=ß=æ	øđßæ
+a  b   c	a-b-c	a=b=c	abc
+a_b__c	a-b-c	a=b=c	abc
+  leading and trailing  	leading-and-trailing	leading=and=trailing	leadingandtrailing
+--dashes--	dashes	dashes	dashes
+==equals==	equals	equals	equals
+a-b	a-b	ab	ab
+a--b	a-b	ab	ab
+MiXeD CaSe	mixed-case	mixed=case	mixedcase
+with/slash	withslash	withslash	withslash
+with\backslash	with\backslash	with\backslash	with\backslash
+less < than	less-<-than	less=<=than	less<than
+greater > than	greater->-than	greater=>=than	greater>than
+star*and?mark	starandmark	starandmark	starandmark
+semi;colon:here	semicolonhere	semicolonhere	semicolonhere
+brackets[]{}()	brackets	brackets	brackets
+hash#dollar$percent%	hashdollarpercent	hashdollarpercent	hashdollarpercent
+at@sign	atsign	atsign	atsign
+tilde~backtick`	tildebacktick	tildebacktick	tildebacktick
+plus+plus	plusplus	plusplus	plusplus
+comma,dot.	commadot	commadot	commadot
+bang!	bang	bang	bang
+caret^amp&	caretamp	caretamp	caretamp
+pipe|pipe	pipepipe	pipepipe	pipepipe
+ç ñ ü ö å	ç-ñ-ü-ö-å	ç=ñ=ü=ö=å	çñüöå
+ǎ ē ǐ ǒ ǔ	ǎ-ē-ǐ-ǒ-ǔ	ǎ=ē=ǐ=ǒ=ǔ	ǎēǐǒǔ
+ą ę į ų	ą-ę-į-ų	ą=ę=į=ų	ąęįų
+ș ț	ș-ț	ș=ț	șț
+ō ŕ ś ţ ź	ō-ŕ-ś-ţ-ź	ō=ŕ=ś=ţ=ź	ōŕśţź
+say "hi" to her	say-hi-to-her	say=hi=to=her	sayhitoher
+the ‘quoted’ word	the-quoted-word	the=quoted=word	thequotedword
+a "quote" and a ‘curl’	a-quote-and-a-curl	a=quote=and=a=curl	aquoteandacurl

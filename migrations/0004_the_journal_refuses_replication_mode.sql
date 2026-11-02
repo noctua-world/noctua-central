@@ -1,0 +1,44 @@
+-- The append-only triggers refuse an `UPDATE` in every session role, not only
+-- the ordinary one.
+--
+-- `CREATE TRIGGER` leaves `pg_trigger.tgenabled = 'O'` — *origin only* — and
+-- `SET session_replication_role = replica` is what a logical-replication apply
+-- worker sets so that a row arriving from upstream does not re-fire local
+-- triggers. It is one statement, it takes effect immediately, and it leaves
+-- **no catalog trace**: unlike `ALTER TABLE … DISABLE TRIGGER`, nothing
+-- afterwards shows it happened.
+--
+-- Measured on PostgreSQL 18.6, against the shipped triggers:
+--
+--     SET session_replication_role = replica;
+--     UPDATE journal_entries SET action='Escalate', principal='attacker'
+--       WHERE sequence = 0;                                  -- UPDATE 1
+--     DELETE FROM journal_entries WHERE sequence = 1;         -- DELETE 1
+--
+-- That is the audit log, edited and truncated, through the table's own
+-- refusal. And it is reachable by the application: the role in `DATABASE_URL`
+-- is a superuser, which is what `session_replication_role` requires.
+--
+-- The two things it undoes are the two the journal exists for. `verify` reports
+-- a truncated history as **clean** — the chain is intact over what remains, and
+-- `§15.5`'s "every denial is recorded, not optional and not sampled" is gone
+-- with the rows. `crates/nc-journal/src/lib.rs` acknowledges that somebody with
+-- write access to the whole table can produce a shorter consistent history;
+-- what it relies on to make that hard is this trigger, and this trigger was
+-- one `SET` away from not being there.
+--
+-- `ENABLE ALWAYS` sets `tgenabled = 'A'`, which fires in every session role.
+-- Verified: the same `UPDATE` in replica mode is then refused with the
+-- trigger's own message.
+--
+-- **What this still does not reach**, so the list in `0001_journal.sql` stays
+-- honest: `TRUNCATE` — a different trigger event, and the one
+-- `0005_the_journal_refuses_truncate.sql` closes, because it emptied the table
+-- with no replication mode and no superuser at all; `ALTER TABLE … DISABLE
+-- TRIGGER` and `DROP TRIGGER` (both leave a catalog trace a reader can find);
+-- and anything done as a superuser with `pg_catalog` writes enabled. The answer
+-- to those is a role that is not a superuser, which is `NOCTUA.md §18`'s to
+-- give and not a migration's.
+
+ALTER TABLE journal_entries ENABLE ALWAYS TRIGGER journal_entries_no_update;
+ALTER TABLE journal_entries ENABLE ALWAYS TRIGGER journal_entries_no_delete;

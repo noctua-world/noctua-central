@@ -1,0 +1,5 @@
+# The `family` pack's version. A realm whose profile is `family` pins it as
+# `family@<version>` in its `policy_pack` (NOCTUA.md §14.4), and `nc-policy`
+# refuses a realm in `policy/world.json` that pins any other — so changing it is
+# the migration of every such realm, in one change. Nothing else belongs here.
+version = 1

@@ -1,0 +1,160 @@
+# The `family` pack's floors about who may act at all.
+#
+# Each denial names the `forbid` that caused it, and the runner re-runs it with
+# that `forbid` removed and requires the answer to become `allow` — so every
+# request here is one some permit in the pack would otherwise grant.
+#
+# **Each frozen status is decided on every kind of resource a permit lets that
+# account reach.** A floor is about the account, whatever it asks for, and the
+# runner mutates conjuncts and comparisons, not disjuncts. When this file put
+# `suspended` only on `Content` and `deceased` only on a `Realm`, a floor
+# narrowed to one kind of resource inside its `when` kept every check green.
+# Measured: `(principal.status == "suspended" && resource is Content)` gave a
+# suspended account back its undo and redo. The gate now refuses a type test
+# that guards no read in a floor's condition, and these cases stand behind the
+# shape it still excuses. So a suspended member is refused here on `Content`,
+# the `Realm` and her own `User`. A guardian who has died is refused on those
+# three and on a `Feature`, which his role reaches. No permit lets a member
+# who is not a guardian reach a `Feature`, so a case asking about one for her
+# would be a denial that proves nothing.
+
+[default.context]
+now = { datetime = "2026-08-26T00:00:00Z" }
+via_agent = false
+confirmed_by_human = false
+actor_chain_depth = 0
+policy_epoch = 7
+quorum_met = true
+grant = { entity = 'Grant::"g.current"' }
+
+[[case]]
+# Dora owns the postcard, so the owner permit would let her write it.
+name = "a suspended account writes nothing, not even what it owns"
+principal = 'User::"dora"'
+action = "Write"
+resource = 'Content::"postcard"'
+decision = "deny"
+because = "family.a_frozen_account_acts_on_nothing"
+
+[[case]]
+# She is a member of the realm, so the history permit would let her undo and
+# redo her own steps.
+name = "a suspended account steps through no history, not even its own"
+principal = 'User::"dora"'
+action = "Write"
+resource = 'Realm::"home"'
+decision = "deny"
+because = "family.a_frozen_account_acts_on_nothing"
+
+[[case]]
+# The account permit would let her read herself.
+name = "a suspended account does not read even its own account"
+principal = 'User::"dora"'
+action = "Read"
+resource = 'User::"dora"'
+decision = "deny"
+because = "family.a_frozen_account_acts_on_nothing"
+
+[[case]]
+# **The other status the rule names, decided by a case of its own.** The rule
+# is a disjunction and the runner mutates conjuncts and comparisons, not
+# disjuncts — so with only a suspended account in the world, deleting the
+# `deceased` half left every check green. Elias is still in
+# `Group::"role.guardian"`, which is the state `NOCTUA.md §14.7` leaves an
+# account in until its roles migrate, and the prune permit would reach him.
+name = "a guardian who has died prunes nothing, before his roles have migrated"
+principal = 'User::"elias"'
+action = "Delete"
+resource = 'Realm::"home"'
+decision = "deny"
+because = "family.a_frozen_account_acts_on_nothing"
+
+[[case]]
+# The photo is shared with the household, so the read permit would reach him.
+name = "a guardian who has died reads nothing the house shares"
+principal = 'User::"elias"'
+action = "Read"
+resource = 'Content::"photo"'
+decision = "deny"
+because = "family.a_frozen_account_acts_on_nothing"
+
+[[case]]
+# The account permit would let him read himself.
+name = "a guardian who has died does not read even his own account"
+principal = 'User::"elias"'
+action = "Read"
+resource = 'User::"elias"'
+decision = "deny"
+because = "family.a_frozen_account_acts_on_nothing"
+
+[[case]]
+# The guardian permit grants over any resource, a `Feature` included, and
+# names no status.
+name = "a guardian who has died grants nothing, before his roles have migrated"
+principal = 'User::"elias"'
+action = "Grant"
+resource = 'Feature::"gallery"'
+decision = "deny"
+because = "family.a_frozen_account_acts_on_nothing"
+
+[[case]]
+# **A status this pack does not know is frozen too.** Nothing checks `status`
+# against the five values `§14.7` names. While the rule listed the frozen
+# ones, any other value was allowed by the account permit: `archived` here,
+# and a typo, a different case or a state a later stage adds just the same.
+# Deny by default: the rule names the states that may act.
+name = "an account in a state this pack does not know reads nothing, not even itself"
+principal = 'User::"hugo"'
+action = "Read"
+resource = 'User::"hugo"'
+decision = "deny"
+because = "family.a_frozen_account_acts_on_nothing"
+
+[[case]]
+# **And the two live states before the end of the ladder, each by a case.**
+# The rule names the states that may act, as a disjunction the runner does not
+# mutate: deleting `dormant` from it would freeze an account nobody has
+# decided anything about, and without this case nothing would notice.
+name = "an account gone dormant still reads its own"
+principal = 'User::"fabio"'
+action = "Read"
+resource = 'User::"fabio"'
+decision = "allow"
+because = "family.a_member_reads_their_own_account"
+
+[[case]]
+# The same for `presumed_inactive`, the step before a quorum of successors
+# decides.
+name = "an account presumed inactive still reads what the house shares"
+principal = 'User::"gloria"'
+action = "Read"
+resource = 'Content::"photo"'
+decision = "allow"
+because = "family.a_member_reads_shared_content"
+
+[[case]]
+# `Content::"notice"` is public, and the household read permit constrains the
+# resource and never the principal — so every other device reads it.
+#
+# **Decided on `Content` because that is all a device can reach.** The one
+# permit over the realm a device could once pass, the undo and redo of
+# `family.a_member_steps_through_their_own_history`, says `principal is User`,
+# and its own cases in `realm.toml` pin that. A case asking this floor about
+# the realm would be refused with the floor removed as well, which the runner
+# rejects as a denial that proves nothing.
+name = "a device nobody attested reads nothing, not even what the house has made public"
+principal = 'Device::"old-tablet"'
+action = "Read"
+resource = 'Content::"notice"'
+decision = "deny"
+because = "family.an_unattested_device_acts_on_nothing"
+
+[[case]]
+# And the attested device reading the same thing, so the rule is about the
+# attestation and not about devices.
+name = "an attested device reads what the house has made public"
+principal = 'Device::"ana-laptop"'
+action = "Read"
+resource = 'Content::"notice"'
+decision = "allow"
+because = "family.a_member_reads_shared_content"

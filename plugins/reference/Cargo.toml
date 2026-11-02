@@ -1,0 +1,37 @@
+[package]
+name = "nc-plugin-reference"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "The reference plugin: the component the kernel's suites load, one capability at a time."
+
+[lib]
+# **Both, and each for one target.** `cdylib` is the core module
+# `cargo xtask build --plugins` builds for `wasm32-unknown-unknown` and encodes
+# as a component; `rlib` is what the host target links a test against. A host
+# `cdylib` holding the exports does not link at all — the linker's version
+# script cannot carry an export name with `:` in it — which is why the exports
+# live in `adapter`, compiled for `wasm32` only (`src/lib.rs`).
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# The world's guest half, and the one `export!` this plugin calls.
+nc-guest.workspace = true
+# The probe answers in canonical JSON, the format every payload crossing the
+# boundary is (`NOCTUA.md §16.4`). It builds for `wasm32` with no import of its
+# own, so the component still imports the world and nothing else.
+nc-canon.workspace = true
+
+[dev-dependencies]
+# **Itself, so the documentation gate can read this crate's tests.** Cargo
+# resolves it to this same unit, so nothing is built twice.
+nc-plugin-reference = { path = "." }
+# The judge a kernel holds every declared command to at `activate`
+# (`NOCTUA.md §11.7`), run over this plugin's table on the host.
+nc-schema.workspace = true
+# `plugin.toml` is read the way the kernel reads it, as TOML.
+toml.workspace = true
+
+[lints]
+workspace = true

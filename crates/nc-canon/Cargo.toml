@@ -1,0 +1,28 @@
+[package]
+name = "nc-canon"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "Canonical JSON, and hashing over it. One implementation, because two would agree until they did not."
+
+[dependencies]
+# Every error this crate can produce carries a catalog code, because a malformed
+# payload is what the central log is most likely to be queried by (`§15.1`).
+nc-catalog.workspace = true
+
+# The journal's chain hashes canonical bytes (`NOCTUA.md §14.9`, `§16.4`).
+blake3.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+# **Itself, so the documentation gate can read this crate's integration
+# tests.** `cargo doc` documents lib and bin targets only, so a broken
+# intra-doc link in `tests/` shipped with the gate green — and
+# `cargo rustdoc --test` cannot resolve a `use` of the crate under test
+# unless the package depends on itself here. Cargo resolves it to this
+# same unit, so nothing is built twice.
+nc-canon = { path = "." }
+
+[lints]
+workspace = true

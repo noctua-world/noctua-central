@@ -1,0 +1,84 @@
+[package]
+name = "xtask"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "The five verbs. Not published; this is the repository's build tool."
+
+[dependencies]
+# The generated crate, so a test can hold the registry and the constants it
+# became side by side. Drift compares the files with the emitter and therefore
+# agrees with itself when the emitter is wrong; this is the other side of that.
+# The policy pack's validator and case runner, so `check` can refuse a policy
+# with no denial test — NOCTUA.md §14.9's seventh invariant, which cannot be a
+# policy because a rule cannot require that somebody tested it.
+# `cargo xtask dev` applies the migrations, which is what makes the stack it
+# reports as up actually usable — and it applies them through the same migrator
+# the services will, so the bookkeeping is one mechanism rather than two.
+#
+# **`sqlite-bundled` too**, for the gate over `local-migrations/`: it applies
+# them to a scratch SQLite file the way `nc-local` does on a user's machine, and
+# holds what they build to the list `nc-local` checks every database against —
+# which is the second dependency below.
+sqlx = { workspace = true, features = ["sqlite-bundled"] }
+tokio.workspace = true
+# The local database's expected schema, its header and its SQLite floor: the one
+# list the crate compares an open database with, so the gate and the check at
+# open cannot disagree about what `local-migrations/` must build. It does not
+# reach `nc-log`, so taking it keeps this tool outside the log's wall.
+nc-local.workspace = true
+
+# The alarms in `AGENTS.md` are copied verbatim from `NOCTUA.md §3.6` and are
+# printed when `NOCTUA.md` cannot be reached, so they cannot be compared against
+# the original at the moment they matter — `the_alarms_are_the_ones_that_were_copied`
+# pins them by digest from inside this repository instead. Already a workspace
+# dependency for the journal's hash chain, so this is a member edge and not a
+# new crate.
+blake3.workspace = true
+nc-policy.workspace = true
+# The rule that judged each command's selector, so the policy step reads the
+# type an `argument:` selector names through its schema's `x-entity` the way the
+# kernel will, rather than through a second reader of the same grammar.
+nc-schema.workspace = true
+nc-catalog.workspace = true
+nc-catalog-compiler.workspace = true
+clap.workspace = true
+# Colour that disappears when stdout is not a tty, so a log file and a terminal
+# read the same. Declared here rather than in the workspace table because xtask
+# is the only thing that prints.
+anstream = "1.0"
+anstyle = "1.0"
+# **A manifest is TOML, and the type wall's scope gate used to read it as text.**
+# `can_log` enumerated the spellings it knew — `nc-log `, `nc-log=`,
+# `nc-log.workspace`, `[dependencies.nc-log]` — and cargo accepts more:
+# `[target.'cfg(unix)'.dependencies.nc-log]` and the quoted key
+# `"nc-log".workspace = true` both compile and both walked past it, switching the
+# gate off for a crate that really does log. A parser answers for every spelling
+# there is, and this one is already the workspace's.
+toml.workspace = true
+# **What turns a plugin into a component**, and the reason it is a dependency of
+# the gate rather than a tool somebody installs: `cargo xtask check` builds every
+# plugin for `wasm32` and encodes it before the tests load it
+# (`xtask/src/plugins.rs`), and a step that needs a binary on `PATH` is a step
+# that works on one machine. It also decodes the component back, for the check
+# that a plugin imports nothing outside the world — which the encoder does not
+# make itself: it encodes against every world the module carries, a
+# dependency's included.
+wit-component.workspace = true
+# **The world that check is against**, read from `crates/nc-kernel/wit` rather
+# than from the module, which carries whatever its dependencies embedded. The
+# parser the kernel's suites read the same file with, already in the graph
+# under `wit-component`.
+wit-parser.workspace = true
+# **Cargo's own answer to who is in this workspace and what each depends on.**
+# `check` read the manifests itself and got both questions wrong for manifests
+# cargo accepts: a dependency renamed through `[workspace.dependencies]` hid the
+# log from the type wall's scope, and a path dependency inside the workspace
+# directory is a member cargo builds without being listed in `members`. Both are
+# resolution rules, and re-deriving them is writing a second cargo. `cargo
+# metadata` answers in JSON; this is the deserialiser the tree already uses.
+serde_json.workspace = true
+
+[lints]
+workspace = true

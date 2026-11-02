@@ -1,0 +1,111 @@
+# Build output.
+/target/
+
+# Environment. `.env.example` is committed and `.env` never is: a real one holds
+# the database password, and `NOCTUA.md §15.5` puts secrets in ephemeral
+# environment variables at the process boundary rather than in a file a clone
+# could carry. A gate in `cargo xtask check` fails if one appears anyway.
+#
+# Not anchored to the root: a service directory will one day have its own, and an
+# anchored pattern would ignore neither it nor catch it.
+# Every shape of it, not the one spelling, and `env` is a dot-separated part of
+# the name rather than its prefix. `.env.local`, `env.production`,
+# `secrets.env.local` and `production.env` are all conventional names for a file
+# holding real credentials; the prefix rule ignored the first and let the other
+# three through, so three of the four would have gone into a clone.
+#
+# The template is un-ignored by what makes it a template — any part saying so,
+# not the single spelling `.env.example`, which left `.env.local.example`  # allow-reference: names `.env.local.example`, the shape this rule un-ignores, not a file here
+# ignored and therefore missing from a clone that needs it. A part is a part
+# wherever it sits, so each keyword is un-ignored last, first and in the middle:
+# `example.env` is as much a template as `.env.example`, and one rule that only
+# knew the last position hid it.
+.env
+.env*
+*.env
+*.env.*
+env
+env.*
+
+!*.example
+!*.sample
+!*.template
+!*.dist
+!example.*
+!sample.*
+!template.*
+!dist.*
+!*.example.*
+!*.sample.*
+!*.template.*
+!*.dist.*
+
+# A file with a type is that type. `env.rs` is a Rust module and `env.toml` a  # allow-reference: names `env.rs` and `env.toml`, the shapes this rule is about, not files here
+# manifest; `env.*` above hid both, so a clone was missing two source files. The
+# formats this tree holds, which is the same list `holds_an_environment` in
+# `xtask/src/gates.rs` reads — the two files decide the same names, and a test
+# there fails if they ever stop agreeing.
+#
+# **`!*.rs` and not `!env.rs` was too wide, and `!*.sh` was the dangerous one.**  # allow-reference: names `!env.rs`, the negation this paragraph is about, not a file here
+# `sh`, `json`, `yaml` and `toml` are the formats an environment is written in,
+# so `!*.sh` un-ignored `.env.sh` — `source .env.sh` is how such a file is used —
+# and a real one would have gone into a clone. Measured: `.env.sh` holding a
+# database URL and an AWS secret, `.env.json` holding a password, and  # allow-reference: names `.env.json`, a file a measurement wrote to prove the hole, not one here
+# `ok no .env is committed, in 165 path(s)` with `check passed`. The negations
+# below name the one file each rule above over-matches, which is `env.<format>`
+# and nothing else.
+#
+# **And the same five formats are not un-ignored here either**, which this list
+# had wrong in the other direction: it named all twelve, so `env.toml` was  # allow-reference: names `env.toml`, the shape the rule above over-matches, not a file here
+# tracked. Measured, one such file under `policy/` holding `DATABASE_URL` and
+# `AWS_SECRET_ACCESS_KEY` — `check passed` online and `--offline` both, the
+# whole run differing from a clean one by the path count going up by one. A file
+# named `env` wearing a config or shell format is an environment; a module named
+# `env` wears one of the kinds left below.
+!env.rs
+!env.md
+!env.sql
+!env.lock
+!env.cedar
+!env.cedarschema
+!env.tsv
+
+# **Every rule below the negations above, not above them.** Git takes the last
+# pattern that matches, so a new ignore rule written higher up would be undone by
+# `!*.md` or `!*.rs` for any file whose name ends that way — silently, and for
+# exactly the private files a rule like that is usually added to hide.
+#
+# The developer's private, machine-specific agent notes. See `NOCTUA.md §3.4`.
+AGENTS.local.md
+
+# OS cruft.
+.DS_Store
+Thumbs.db
+
+# **Not committed, and refused by the gate if it is.** `docker compose` merges
+# this file without being asked, so it is a second definition of the stack that
+# every gate about `docker-compose.yml` is blind to. Ignored here so a local one
+# is not committed by accident, and `cargo xtask check` refuses one that is.
+docker-compose.override.yml
+
+# `xtask/mutants.py` leaves one beside itself. It is not readable as text, so
+# the marker census counts it among the files it walked and cannot read one —
+# `the marker census read 167 file(s) of 168` — which is a real failure about a
+# file nobody meant to create.
+__pycache__/
+
+# The same runner's sentinel, which exists only while a source on disk is not
+# the source that run was handed. It is deliberately *not* cleaned up on a kill:
+# finding it is how the next run knows to refuse rather than take a weakening as
+# its baseline. Measured — a `SIGKILL` left `xtask/src/gates.rs` holding
+# `.any(|(named, found)| found == digest)`, the repository half of a digest pin
+# simply gone, and without the sentinel the next run would have written that
+# back as the restored tree.
+#
+# **It lives under `target/`, and this rule named the path it used to have.**
+# The runner moved it there because a file with no extension under a walked tree
+# fails `no_file_of_an_unknown_kind_sits_in_this_repository` — `xtask/mutants.py`
+# says so in as many words, and this file went on ignoring a path nothing writes
+# while the real one was covered only by the blanket `target/` rule above.
+# Reported on 2026-09-13 by a reviewer reading the two out loud.
+target/.mutants-in-flight

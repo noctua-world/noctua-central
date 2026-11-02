@@ -1,0 +1,193 @@
+# The `family` pack's permits over the realm itself, and over an account.
+#
+# Each permit is shown firing and shown refusing just outside itself, and the
+# runner re-runs every refusal with every `forbid` removed: a case still denied
+# with no forbid left is one about a missing permit, not about a rule.
+#
+# `Realm::"office"` is the other realm in `../../../world.json`, and nobody in
+# this household is in it — so a request against it is a family member acting
+# on a realm that is not theirs.
+
+[default.context]
+now = { datetime = "2026-08-26T00:00:00Z" }
+via_agent = false
+confirmed_by_human = false
+actor_chain_depth = 0
+policy_epoch = 7
+quorum_met = true
+grant = { entity = 'Grant::"g.current"' }
+
+[[case]]
+name = "a guardian reads the realm she keeps"
+principal = 'User::"ana"'
+action = "Read"
+resource = 'Realm::"home"'
+decision = "allow"
+because = "family.a_guardian_reads_the_realm"
+
+[[case]]
+name = "and a member who is not a guardian does not"
+principal = 'User::"carla"'
+action = "Read"
+resource = 'Realm::"home"'
+decision = "deny"
+no_permit_matched = "family.a_guardian_reads_the_realm"
+
+[[case]]
+# **Membership is the permit's own condition.** A guardian of this household
+# reads no other realm, and `principal in resource` is what says so.
+name = "a guardian reads her own realm and not another"
+principal = 'User::"ana"'
+action = "Read"
+resource = 'Realm::"office"'
+decision = "deny"
+no_permit_matched = "family.a_guardian_reads_the_realm"
+
+[[case]]
+# **The verb, which nothing else would hold.** Every realm-wide permit names
+# one action, and a guardian is in the realm she keeps — so a permit whose
+# action were dropped would hand her every verb over the whole realm. `Share`
+# is a verb no rule in this pack permits on a realm.
+name = "a guardian reads the realm and does not share it"
+the_action_is_the_boundary = true
+principal = 'User::"ana"'
+action = "Share"
+resource = 'Realm::"home"'
+decision = "deny"
+no_permit_matched = "family.a_guardian_reads_the_realm"
+
+[[case]]
+name = "a guardian prunes the realm she keeps, with a quorum"
+principal = 'User::"ana"'
+action = "Delete"
+resource = 'Realm::"home"'
+decision = "allow"
+because = "family.a_guardian_prunes_the_realm"
+
+[[case]]
+# **The core invariant still wins.** The permit says who may prune and the core
+# says a destructive action needs a quorum; a `forbid` beats a `permit`, so
+# the pack cannot give a guardian what the core refuses her.
+name = "and not without one, which the core decides and the pack cannot override"
+principal = 'User::"ana"'
+action = "Delete"
+resource = 'Realm::"home"'
+context = { quorum_met = false }
+decision = "deny"
+because = "core.destructive_needs_quorum"
+
+[[case]]
+name = "a member who is not a guardian prunes nothing, quorum or not"
+principal = 'User::"bruno"'
+action = "Delete"
+resource = 'Realm::"home"'
+decision = "deny"
+no_permit_matched = "family.a_guardian_prunes_the_realm"
+
+[[case]]
+name = "a guardian prunes her own realm and not another"
+principal = 'User::"ana"'
+action = "Delete"
+resource = 'Realm::"office"'
+decision = "deny"
+no_permit_matched = "family.a_guardian_prunes_the_realm"
+
+[[case]]
+name = "a member steps through her history in her own realm"
+principal = 'User::"bruno"'
+action = "Write"
+resource = 'Realm::"home"'
+decision = "allow"
+because = "family.a_member_steps_through_their_own_history"
+
+[[case]]
+name = "and somebody from another realm does not"
+principal = 'User::"mallory"'
+action = "Write"
+resource = 'Realm::"home"'
+decision = "deny"
+no_permit_matched = "family.a_member_steps_through_their_own_history"
+
+[[case]]
+# **Who is asking, and not where they are.** Ana's laptop is attested and in
+# `Realm::"home"` as much as bruno is, so membership lets it through; the
+# permit's `principal is User` is what refuses it. History is a person's, and
+# the type test shipped deleted once with this exact request allowed.
+#
+# A device can never be the `allow` this denial is paired with, so the case
+# says the principal is its boundary, and the runner asks the same request as
+# the principal of each `allow` the permit gives on this action — the one
+# above — and requires it permitted as one of them.
+name = "a device in the realm steps through no history, however attested"
+the_principal_is_the_boundary = true
+principal = 'Device::"ana-laptop"'
+action = "Write"
+resource = 'Realm::"home"'
+decision = "deny"
+no_permit_matched = "family.a_member_steps_through_their_own_history"
+
+[[case]]
+# And an agent, acting openly as one — `via_agent` set, so no core `forbid`
+# refuses it and the permit is the only thing that can.
+name = "nor does an agent, even one acting openly as an agent"
+the_principal_is_the_boundary = true
+principal = 'Agent::"ana-assistant"'
+action = "Write"
+resource = 'Realm::"home"'
+context = { via_agent = true }
+decision = "deny"
+no_permit_matched = "family.a_member_steps_through_their_own_history"
+
+[[case]]
+# **The other core invariant that has to win.** A permission that has run out
+# is not one, whatever the pack permits on top of it.
+name = "a step taken on an expired grant is refused, whatever the pack permits"
+principal = 'User::"ana"'
+action = "Write"
+resource = 'Realm::"home"'
+context = { grant = { entity = 'Grant::"g.expired"' } }
+decision = "deny"
+because = "core.grant_not_expired"
+
+[[case]]
+name = "a member reads her own account"
+principal = 'User::"bruno"'
+action = "Read"
+resource = 'User::"bruno"'
+decision = "allow"
+because = "family.a_member_reads_their_own_account"
+
+[[case]]
+# Ana is a guardian and administers every permission in the house; reading
+# another member's account is still not one of the things that gives her.
+name = "and not another member's, however much she administers"
+principal = 'User::"ana"'
+action = "Read"
+resource = 'User::"bruno"'
+decision = "deny"
+no_permit_matched = "family.a_member_reads_their_own_account"
+
+[[case]]
+# **This one also holds `family.a_member_steps_through_their_own_history` to a
+# `Realm`.** Every principal is `in` itself, so with that permit's type test
+# dropped a member could write their own account under a rule written for
+# undo — and this is the request that would then be allowed.
+name = "a member reads her own account and does not rewrite it"
+the_action_is_the_boundary = true
+principal = 'User::"bruno"'
+action = "Write"
+resource = 'User::"bruno"'
+decision = "deny"
+no_permit_matched = "family.a_member_reads_their_own_account"
+
+[[case]]
+# **And this one holds `family.a_guardian_prunes_the_realm` to a `Realm`**, for
+# the same reason: a guardian is in her own account as much as in her group,
+# so without the type test the prune permit would let her delete herself.
+name = "a guardian prunes the realm and not her own account, which she may only read"
+the_action_is_the_boundary = true
+principal = 'User::"ana"'
+action = "Delete"
+resource = 'User::"ana"'
+decision = "deny"
+no_permit_matched = "family.a_member_reads_their_own_account"

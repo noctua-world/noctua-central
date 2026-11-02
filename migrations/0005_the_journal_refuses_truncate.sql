@@ -1,0 +1,72 @@
+-- The append-only triggers refuse `TRUNCATE`, which is the one statement that
+-- emptied the whole table without firing either of them.
+--
+-- A row trigger fires per row, and `TRUNCATE` removes rows without visiting
+-- them: it is a different trigger event, and `0001_journal.sql` and
+-- `0004_the_journal_refuses_replication_mode.sql` both said so in their lists of
+-- what they did not reach. Measured on PostgreSQL 18.6 against migrations
+-- 0001-0004, with both triggers already `ENABLE ALWAYS`:
+--
+--     before: 4 entries, verify -> Ok(4)
+--     TRUNCATE journal_entries;                              -- no error
+--     after:  0 entries, verify -> Ok(0)
+--
+-- One statement, no replication mode, no superuser — table ownership is
+-- enough — and verification called the empty table a clean history. Selective
+-- truncation is the same statement with two more:
+--
+--     CREATE TEMP TABLE keep AS SELECT * FROM journal_entries WHERE sequence < 2;
+--     TRUNCATE journal_entries;
+--     INSERT INTO journal_entries SELECT * FROM keep;        -- verify -> Ok(2)
+--
+-- which is an attacker choosing what the audit log remembers, with the chain
+-- intact over what is left. `§15.5` requires every denial to be recorded, "not
+-- optional and not sampled"; that is precisely what a truncated history is.
+--
+-- `FOR EACH STATEMENT`, because `TRUNCATE` has no rows to hand a trigger —
+-- `FOR EACH ROW` on this event is a syntax error rather than a subtlety. The
+-- function is `journal_is_append_only()`, unchanged: `TG_OP` renders as
+-- `TRUNCATE`, so the refusal names the statement that was refused without a
+-- second message to keep in step with the first.
+--
+-- `ENABLE ALWAYS` for the reason 0004 gives — `CREATE TRIGGER` leaves
+-- `tgenabled = 'O'`, and one `SET session_replication_role = replica` would
+-- otherwise put this statement back.
+--
+-- **What this still does not reach**, so the lists stay honest:
+--
+--   * `ALTER TABLE … ALTER COLUMN … TYPE text USING <expr>` rewrites the heap
+--     and fires no row trigger, so it edits rows the table refuses to let
+--     anyone edit. The chain catches it the moment it touches a hashed field,
+--     and `crates/nc-journal/src/postgres.rs` now refuses a row whose stored
+--     `resource` or `work_unit` is not the spelling this code would have
+--     written — which is what closes the rewrite that changes the bytes and
+--     keeps the value. Unlike `DISABLE TRIGGER` it leaves `tgenabled = 'A'`,
+--     so nothing in the catalog says it happened.
+--   * `CREATE OR REPLACE FUNCTION journal_is_append_only()` with an empty body.
+--     All three triggers call one function, so replacing what they call is one
+--     statement and needs **function ownership only** — no superuser, no
+--     `session_replication_role`, no `DISABLE TRIGGER`, no `DROP TRIGGER`. The
+--     role that ran this migration owns it. Afterwards the catalog is *exactly*
+--     the state the list above holds up as proof: three triggers, all present,
+--     all `tgenabled = 'A'`, and the only trace is `pg_proc.prosrc`, which can
+--     be replaced back. sqlx's migration checksums hash these files and not the
+--     database, so they see nothing either. Measured: UPDATE, DELETE and
+--     TRUNCATE all accepted, the table emptied, and `verify` answering `Ok(0)`.
+--     What closes it is `the_triggers_are_there_and_call_what_they_were_written
+--     _to_call` in `crates/nc-journal/tests/in_postgres.rs`, which reads
+--     `pg_trigger` and `pg_proc` and fails when either has moved — a check, not
+--     an assumption.
+--   * `DROP TABLE`, `ALTER TABLE … DISABLE TRIGGER` and `DROP TRIGGER`, all of
+--     which leave a catalog trace a reader can find.
+--   * Anything done as a superuser with `pg_catalog` writes enabled.
+--
+-- Every one of those needs table ownership or more. The answer to them is a
+-- role that owns nothing, which is `NOCTUA.md §18`'s to give and not a
+-- migration's — and the reason this closes the ones a migration *can* close.
+
+CREATE TRIGGER journal_entries_no_truncate
+    BEFORE TRUNCATE ON journal_entries
+    FOR EACH STATEMENT EXECUTE FUNCTION journal_is_append_only();
+
+ALTER TABLE journal_entries ENABLE ALWAYS TRIGGER journal_entries_no_truncate;

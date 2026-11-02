@@ -1,0 +1,39 @@
+# Clippy's default `doc-valid-idents` is replaced the moment this file exists,
+# so it is restored here with `".."`. Without it `doc_markdown` fires on every
+# generated doc line naming PostgreSQL — warnings that were already latent and
+# that clippy's cache had been hiding, which is its own small lesson: a gate
+# reading a cached answer is a gate that has not run.
+doc-valid-idents = ["PostgreSQL", "VictoriaLogs", "BLAKE3", ".."]
+
+# Every line `cargo xtask` prints goes through `xtask/src/ui.rs`, which is what
+# makes the verdict's warn count and its `not run:` list true. A test scanning
+# for `println!` and `stdout()` was defeated by `let handle = std::io::stdout;`
+# — a needle list cannot resolve a name, so the rule is given to the compiler.
+#
+# `ui.rs` carries the one `#[expect]` that earns it.
+disallowed-methods = [
+  { path = "std::io::stdout", reason = "print through `ui`, so the run's own warn count stays true" },
+  { path = "std::io::stderr", reason = "print through `ui`, so the run's own warn count stays true" },
+  # A child process inherits this process's stdout, so spawning one that writes
+  # is printing — measured: `printf` put a line on the terminal under a verdict
+  # that had not counted it. Every legitimate spawn carries an `expect` saying
+  # why it earns it.
+  { path = "std::process::Command::new", reason = "a child that inherits stdio prints; `ui` is the one output path" },
+  # And a file handle, which is a terminal whenever the path is one. The gate
+  # beside this looks for `/dev/stdout`, `/proc/self/fd/1`, `/dev/tty` and six
+  # others as text — and a path is data, so it can be assembled:
+  # `File::create(["/dev/std", "out"].join(""))` is the terminal and matches no
+  # needle. The needle list stays for the paths written out; what the compiler
+  # answers is *who opens a handle at all*, which no spelling can hide.
+  #
+  # Every such call in the tree carries an `expect` whose reason says why it
+  # earns it: `nc-log`'s `ship.rs` opens `/dev/full` to give a test a descriptor
+  # that always fails; `nc-local`'s `create_private` creates the database file
+  # and the owner probe `0600` with `create_new`; and `nc-kernel`'s `blobs.rs`
+  # `create_private` creates a writing `0600` with `create_new` inside the
+  # blobs' own directory.
+  { path = "std::fs::File::create", reason = "a handle on `/dev/stdout` is the terminal; `ui` is the one output path" },
+  { path = "std::fs::File::create_new", reason = "a handle on `/dev/stdout` is the terminal; `ui` is the one output path" },
+  { path = "std::fs::File::options", reason = "a handle on `/dev/stdout` is the terminal; `ui` is the one output path" },
+  { path = "std::fs::OpenOptions::new", reason = "a handle on `/dev/stdout` is the terminal; `ui` is the one output path" },
+]

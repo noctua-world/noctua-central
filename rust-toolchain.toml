@@ -1,0 +1,39 @@
+# The toolchain, pinned here and nowhere else.
+#
+# **CI does not read this file.** This said "CI runs `rustup show`, which
+# installs exactly this, so nothing is named twice" — and `.github/workflows/
+# ci.yml` runs no rustup at all: it uses `dtolnay/rust-toolchain@stable` with # allow-reference: `dtolnay/rust-toolchain@stable` is an action on GitHub, not a path in this repository
+# `rustfmt` and `clippy` named as components. `README.md` describes that
+# correctly and this file contradicted it, which is the worse half — a developer
+# reading here concludes the pin reaches CI, and it does not.
+#
+# **`stable` is a moving channel, and that is a decision with a cost.** A new
+# stable Rust lands about every six weeks, so this line names a different
+# compiler over time. Acceptance criterion 4 — two generations byte-identical —
+# is checked between two runs of the *same* compiler and says nothing about two
+# runs of different ones: a release that changes what `rustfmt` emits, or what a
+# derive expands to, can change generated output on a day nobody touched this
+# tree. The developer chose the moving channel deliberately, over pinning an
+# exact version, because a pinned number needs somebody to raise it and a stale
+# one is its own hazard.
+#
+# So the limit is written rather than discovered: determinism here means *the
+# same toolchain twice*, and a toolchain change is a thing to regenerate and
+# diff, not a thing the gates can catch for you. `the_moving_channel_is_written_down`
+# in `xtask/src/check.rs` holds this sentence and its two companions together, in
+# both directions — pin a version and it requires the caveat to go.
+#
+# **One target beside the host's, and it is the plugins'.** Every member under
+# `plugins/` is built for `wasm32-unknown-unknown` and encoded as a component by
+# `cargo xtask check` before the tests load it (`xtask/src/plugins.rs`), so the
+# gate cannot run on a toolchain without it — named here, a fresh clone pays the
+# download once instead of failing its first `check`. `noctua-colors` and
+# `noctua-design` carry the same target for a browser playground; nothing here
+# targets the browser yet, and this is not that. A target nothing builds costs
+# every clone a download, so one is named here only when a member is built for
+# it.
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]
+targets = ["wasm32-unknown-unknown"]
+profile = "minimal"

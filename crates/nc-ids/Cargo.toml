@@ -1,0 +1,37 @@
+[package]
+name = "nc-ids"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "Snowflake identifiers, the machine flake, opaque identifiers, and the file-naming scheme."
+
+[dependencies]
+# `NOCTUA.md §16.2` derives the machine flake from BLAKE3 of the device's key.
+# Named by the decision, not chosen here.
+blake3.workspace = true
+nc-catalog.workspace = true
+# **One escaper, for the diagnostics as well as for the wire.** Several refusals
+# here exist because a control character would forge a line or a field, and each
+# of them wrote that character out raw — so the one place naming it was the one
+# place it appeared. `nc-canon` is already the crate whose job is that a value
+# cannot end the line it is on; a second copy of the rule here would be a second
+# set of edge cases. No cycle: `nc-canon` depends on nothing of ours.
+nc-canon.workspace = true
+
+[dev-dependencies]
+# **Itself, so the documentation gate can read this crate's integration
+# tests.** `cargo doc` documents lib and bin targets only, so a broken
+# intra-doc link in `tests/` shipped with the gate green — and
+# `cargo rustdoc --test` cannot resolve a `use` of the crate under test
+# unless the package depends on itself here. Cargo resolves it to this
+# same unit, so nothing is built twice.
+nc-ids = { path = "." }
+# `§16.3` asks for the builder and the parser to be written together and for
+# `parse(build(x))` to be property-tested — it calls that the single
+# highest-value test in the module, because a name that parses differently from
+# how it was built silently fragments a knowledge graph.
+proptest.workspace = true
+
+[lints]
+workspace = true

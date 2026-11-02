@@ -1,0 +1,32 @@
+[package]
+name = "nc-log"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "The central log: what it may hold, enforced by types, and how a line reaches it."
+
+[dependencies]
+# The error codes a log line is queried by, and the levels it is emitted at.
+nc-catalog.workspace = true
+# The opaque identifier types `LogValue` accepts. An identifier reaches the log
+# whole — `NOCTUA.md §15.4`'s own table says the central log holds "opaque IDs" —
+# and what makes that safe is that it is an identifier and not free text. What
+# this crate cannot do is stop a caller minting one *out of* personal data; that
+# residual risk is recorded against `§5.1`, which is [OPEN] and owns it.
+nc-ids.workspace = true
+# One escaper for every boundary. A second would be a second set of edge cases,
+# in the component whose whole job is that a value cannot end the line it is on.
+nc-canon.workspace = true
+
+[dev-dependencies]
+# **Itself, so the documentation gate can read this crate's integration
+# tests.** `cargo doc` documents lib and bin targets only, so a broken
+# intra-doc link in `tests/` shipped with the gate green — and
+# `cargo rustdoc --test` cannot resolve a `use` of the crate under test
+# unless the package depends on itself here. Cargo resolves it to this
+# same unit, so nothing is built twice.
+nc-log = { path = "." }
+
+[lints]
+workspace = true

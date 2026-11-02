@@ -1,0 +1,30 @@
+# The depth limit of `NOCTUA.md §14.6`, third rule, made to fire.
+
+[default.context]
+now = { datetime = "2026-08-26T00:00:00Z" }
+via_agent = true
+confirmed_by_human = false
+actor_chain_depth = 0
+policy_epoch = 7
+quorum_met = true
+grant = { entity = 'Grant::"g.current"' }
+
+[[case]]
+# The control: a request within the limit is not refused *by this rule*, which
+# is what makes the refusal below mean something.
+name = "an agent acting for a person is within the limit"
+principal = 'Agent::"ana-assistant"'
+action = "Read"
+resource = 'Content::"notice"'
+decision = "allow"
+because = "family.a_member_reads_shared_content"
+context = { actor_chain_depth = 2 }
+
+[[case]]
+name = "and a third link in the chain is refused"
+principal = 'Agent::"ana-assistant"'
+action = "Read"
+resource = 'Content::"notice"'
+decision = "deny"
+because = "core.chain_depth_is_bounded"
+context = { actor_chain_depth = 3 }

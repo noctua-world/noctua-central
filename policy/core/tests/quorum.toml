@@ -1,0 +1,49 @@
+# Invariant 5 — destructive actions require quorum.
+#
+# Cedar is told **whether** quorum was met, never how it is counted: the family
+# profile's threshold is 2 of 3 (`reference §3`) and the org profile's is higher,
+# so a number written into the core would be a number one pack could not change.
+# Counting is the approval system's: the decision point reads the quorum as met
+# only from an approval the kernel issued for the one dispatch.
+#
+# The second policy is the one that exists because agents do. `via_agent` and
+# `confirmed_by_human` are issued by the kernel from real interaction and are
+# never arguments an agent can fill in (`NOCTUA.md §11.7`) — the whole of §14.6
+# rests on that distinction.
+
+[default.context]
+now = { datetime = "2026-08-26T00:00:00Z" }
+via_agent = false
+confirmed_by_human = false
+actor_chain_depth = 0
+policy_epoch = 7
+quorum_met = true
+grant = { entity = 'Grant::"g.current"' }
+
+[[case]]
+name = "deleting without quorum is refused, even by the owner of the thing"
+principal = 'User::"ana"'
+action = "Delete"
+resource = 'Content::"diary"'
+decision = "deny"
+because = "core.destructive_needs_quorum"
+context = { quorum_met = false }
+
+[[case]]
+name = "an agent cannot delete on a human's behalf without that human confirming"
+principal = 'User::"ana"'
+action = "Delete"
+resource = 'Content::"diary"'
+decision = "deny"
+because = "core.irreversible_needs_a_human"
+context = { via_agent = true }
+
+[[case]]
+name = "and with the confirmation it goes through, so the refusal is the confirmation's absence"
+principal = 'User::"ana"'
+action = "Delete"
+resource = 'Content::"diary"'
+decision = "allow"
+because = "family.an_owner_governs_their_own_content"
+context = { via_agent = true, confirmed_by_human = true }
+

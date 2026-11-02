@@ -1,0 +1,153 @@
+# The local development stack: one command to a working platform.
+#
+# `cargo xtask dev` brings this up, waits for both health checks and applies the
+# migrations. It is not a deployment — production is `NOCTUA.md §18` — but the
+# two services are the ones that exist there, at the versions that exist there,
+# so a difference between this and production is a difference somebody chose.
+#
+# **Everything binds to loopback.** `127.0.0.1:` in front of every port is
+# load-bearing: Docker's default publishes on all interfaces *and writes an
+# iptables rule that bypasses a host firewall*, so a laptop on a café network
+# would be serving an unauthenticated database to the room. This is the one line
+# that prevents it, and it is the reason each port is written the long way.
+
+# **No `name:` here, deliberately.** It was `noctua-central`, and `-p` on the
+# command line does win — `cargo xtask dev` is safe either way — but a bare
+# `docker compose` run by hand in *any* checkout then addressed one shared
+# project. So a developer's own `docker compose ps` showed nothing while the
+# xtask stack ran, and their `docker compose down -v` took down a project
+# `dev --down` would never clean up. `xtask/src/dev.rs`'s `project_for` derives
+# the name from the checkout's canonical path and prints it; without a `name:`
+# here, a hand-run `docker compose` falls back to the directory's name, which is
+# at least this checkout's own.
+
+services:
+  postgres:
+    # **Pinned by digest**, which is the only pin a tag cannot slide out from
+    # under. `postgres:18-alpine` was here alone, and the comment beside it
+    # defended that against `latest` — a different question: `18-alpine` still
+    # moves on every 18.x patch and every Alpine base rebuild, and a
+    # `docker compose pull` takes whichever one is current. A major upgrade
+    # rewrites the data directory and is a decision; so, in a smaller way, is
+    # every other change to the image the stack runs.
+    #
+    # The tag stays in front of the digest so a reader can see which version this
+    # is. To move it: `docker pull postgres:<tag>` then
+    # `docker image inspect postgres:<tag> --format '{{.RepoDigests}}'`.
+    image: postgres:18-alpine@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-noctua}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-noctua}
+      POSTGRES_DB: ${POSTGRES_DB:-noctua}
+      # Deterministic collation. Without it the database's sort order comes from
+      # the host's locale, and `ORDER BY` returns different answers on two
+      # developers' machines — which is the kind of difference that surfaces as
+      # one failing test nobody can reproduce.
+      POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"
+    volumes:
+      # `/var/lib/postgresql`, NOT `/var/lib/postgresql/data`. PostgreSQL 18's
+      # image refuses to start against the older mount point and says why: with
+      # the data one level down inside a single mount, a future major upgrade can
+      # use `pg_upgrade --link`, which cannot cross a mount boundary. Measured
+      # here — the container restart-looped with "there appears to be PostgreSQL
+      # data in /var/lib/postgresql/data (unused mount/volume)" until this moved.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      # **A query over TCP, because `pg_isready` answers a different question.**
+      # This was `pg_isready -U … -d …`, with a comment saying the two flags were
+      # what stopped the migrations racing initialisation. They are inert:
+      # `pg_isready` pings the postmaster and never authenticates or opens the
+      # database it is given a name for. Measured against this stack:
+      #
+      #   pg_isready -U noctua     -d noctua                    -> accepting, exit 0
+      #   pg_isready -U noctua     -d this_database_is_not_there -> accepting, exit 0
+      #   pg_isready -U nosuchuser -d nosuchdb                   -> accepting, exit 0
+      #
+      # and against a fresh container it reported healthy for three polls while
+      # `POSTGRES_DB` did not exist yet. What actually kept the race from biting
+      # is that the entrypoint's initialisation server listens on the unix socket
+      # only — which is worth nobody's memory, and is not what the comment said.
+      #
+      # `psql -h …` asks the question the caller cares about: is there a server
+      # on the port I will connect to, does this role authenticate, and does this
+      # database exist. `-h` is what keeps it off the socket, so the init-time
+      # server does not answer it.
+      #
+      # **And not `127.0.0.1`, which authenticates by trust.** `initdb` writes
+      # `host all all 127.0.0.1/32 trust` into `pg_hba.conf`, and the entrypoint
+      # appends `host all all all scram-sha-256` *after* it; pg_hba is
+      # first-match-wins. Measured on this stack, from inside the container:
+      #
+      #   PGPASSWORD=definitely-not-the-password psql -h 127.0.0.1 …  ->  exit 0
+      #   PGPASSWORD=definitely-not-the-password psql -h 172.18.0.3 … ->  FATAL:
+      #                                password authentication failed for "noctua"
+      #
+      # So a wrong `POSTGRES_PASSWORD` left the stack `healthy` while every
+      # application connection failed — the green-healthcheck-broken-service
+      # shape this block's own comment argues against. The container's own
+      # routable address matches the scram rule, and `PGPASSWORD` is what makes
+      # the answer mean anything.
+      test:
+        - "CMD-SHELL"
+        - >-
+          PGPASSWORD="${POSTGRES_PASSWORD:-noctua}"
+          psql -h "$$(hostname -i | cut -d' ' -f1)"
+          -U ${POSTGRES_USER:-noctua} -d ${POSTGRES_DB:-noctua}
+          -c 'SELECT 1' > /dev/null 2>&1
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  logs:
+    # The central log store (`NOCTUA.md §15.4`, `§18.5`). Verified against that
+    # section's five requirements on 2026-08-25, on this machine, rather than
+    # taken from a name in a document:
+    #
+    #   Apache-2.0            yes, github.com/VictoriaMetrics/VictoriaLogs
+    #   a single binary       the image has no shell at all — `docker exec sh`
+    #                         fails with "not found"; the entrypoint is the binary
+    #   interactive UI        GET /select/vmui/ answers 200
+    #   live tailing          GET /select/logsql/tail answers 200 and streams
+    #   modest memory         15.65 MiB resident, idle
+    #   JSON lines over HTTP  POST /insert/jsonline accepted two lines and both
+    #                         came back through /select/logsql/query
+    # Pinned by digest, for the reason written beside `postgres` above: a tag is
+    # a name somebody else can repoint. This image carries `:latest` on the same
+    # digest today, which is exactly the slide the digest closes.
+    image: victoriametrics/victoria-logs:v1.52.0@sha256:47b820890d64c4575a2a0a46415dcd8a4fd59a0f1fcd6a377693d7aea639442e
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${LOGS_PORT:-9428}:9428"
+    command:
+      - "--storageDataPath=/victoria-logs-data"
+      # The bounds `catalog/limits.toml` declares for this store. They are here
+      # as well as there because this is what enforces them — the catalog entry
+      # says so by name, so the two cannot drift into a limit nothing applies.
+      - "--retentionPeriod=30d"
+      - "--retention.maxDiskSpaceUsageBytes=8GiB"
+    volumes:
+      - logs-data:/victoria-logs-data
+    healthcheck:
+      # **This is a liveness check and not a health check**, and the difference
+      # is worth the words: the image has no shell, no `curl` and no `wget`, so
+      # the only thing a `CMD` can run is the binary itself — and
+      # `--help` parses arguments and exits 0 whether or not the store can serve
+      # a single request. Measured: it exits 0 and the container reports
+      # `healthy` with the HTTP server never asked anything.
+      #
+      # The comment here used to say it "runs the binary's own health endpoint",
+      # which it does not. What proves the store is serving is
+      # `GET /health`, and that has to be asked from outside the container —
+      # `cargo xtask dev` does it, over a socket, and refuses to print the URL
+      # until it answers 200.
+      test: ["CMD", "/victoria-logs-prod", "--help"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:
+  logs-data:

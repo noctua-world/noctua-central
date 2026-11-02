@@ -1,0 +1,40 @@
+[package]
+name = "nc-prune"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "One pruner, for every table the catalog bounds."
+
+[dependencies]
+# The table limits it enforces. There is no second source for them, and a pruner
+# with numbers of its own is the bespoke cleanup NOCTUA.md §15.8 refuses.
+nc-catalog.workspace = true
+# The store that runs. The `Target` trait is asynchronous because sqlx is, and a
+# synchronous one could only be implemented here by blocking a thread on a
+# runtime — which deadlocks inside a caller that already has one.
+#
+# **`sqlite-bundled` too, for the second target** (`src/sqlite.rs`): the local
+# database's tables are bounded by the same pruner, over the pool
+# `crates/nc-local` opens. The same feature that crate takes, and no other of
+# the SQLite ones — `crates/nc-local/Cargo.toml` says why not `sqlite`.
+sqlx = { workspace = true, features = ["sqlite-bundled"] }
+
+[dev-dependencies]
+# **Itself, so the documentation gate can read this crate's integration
+# tests.** `cargo doc` documents lib and bin targets only, so a broken
+# intra-doc link in `tests/` shipped with the gate green — and
+# `cargo rustdoc --test` cannot resolve a `use` of the crate under test
+# unless the package depends on itself here. Cargo resolves it to this
+# same unit, so nothing is built twice.
+nc-prune = { path = "." }
+# A runtime to drive the futures the trait returns.
+tokio.workspace = true
+# The local database the SQLite target runs over in the kernel: a run over the
+# real schema is what shows the target reads the local tables and nothing else.
+nc-local.workspace = true
+# The pools both targets are driven through.
+sqlx = { workspace = true, features = ["sqlite-bundled"] }
+
+[lints]
+workspace = true

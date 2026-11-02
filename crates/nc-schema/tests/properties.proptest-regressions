@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 40452e385de6a36dcbf53ff46fb353853049fe596bf0463faa61834aa59b841a # shrinks to owned = Owned { name: "a.a", title: "aaa", args_schema: "{\"type\":\"object\",\"additionalProperties\":false,\"properties\":{\"note\":{\"type\":\"string\",\"x-entity\":\"Content\",\"maxLength\":128},\"text\":{\"type\":\"string\",\"maxLength\":4096}},\"required\":[\"note\",\"text\"]}", action: "Aaa", resource_selector: "realm", mutating: false, reversibility: Read }

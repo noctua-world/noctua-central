@@ -1,0 +1,31 @@
+[package]
+name = "nc-schema"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "The closed JSON Schema subset a command's arguments are declared in, the resource selector's grammar, and the judge a command's declaration answers to."
+
+[dependencies]
+# A schema and the arguments it judges are JSON, and this is the workspace's
+# JSON reader. Nothing else: the catalog compiler depends on this crate, so it
+# cannot reach `nc-catalog`, which that compiler generates.
+serde_json.workspace = true
+# **The trait only, and for one reason.** `serde_json` reads a key written twice
+# by keeping the second, and a reader somewhere else keeps the first — so one
+# schema text would be two tool interfaces, one validated here and another shown
+# to an agent. Refusing the duplicate needs a visitor of this crate's own, and a
+# visitor is a `serde` trait. `serde_json` already depends on it; this names it.
+serde.workspace = true
+
+[dev-dependencies]
+# **Itself, so the documentation gate can read this crate's tests.** Cargo
+# resolves it to this same unit, so nothing is built twice — the same line every
+# member of this workspace carries.
+nc-schema = { path = "." }
+# `NOCTUA.md §19.2`: a validator has a law — an instance built to satisfy a
+# schema is accepted, and any single change that breaks it is refused.
+proptest.workspace = true
+
+[lints]
+workspace = true

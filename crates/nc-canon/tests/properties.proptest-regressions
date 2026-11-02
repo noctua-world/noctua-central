@@ -1,0 +1,11 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc dfe1cc31f8b1c5a2f605ad06e650a5cd651729f16017e87f61dabcd752a0a623 # shrinks to value = Object({"\\": Null})
+cc 7fabf189241fcc50a2d14b90a71fc1d36483770c349af54e3ccfcc0ef964822a # shrinks to value = Object({"\"": Null})
+cc a7225383df27abd81c347f4847f8c915f57a5af48bf6e01c15fa02e491e08ef6 # shrinks to value = Object({"A": Object({"\\": Null})})
+cc f43ed9196acd400beff3714db84d7919b276c104c43ae25a5237964b53da9ef3 # shrinks to value = Array([Object({"\0": Null})])
+cc 69d25b54f112fca2038b67dba2ae3a10f197788172909b2ed60e027e2033424a # shrinks to mut pairs = [("\"\\\"", Null), ("A", Null), ("\\\"", Null)]

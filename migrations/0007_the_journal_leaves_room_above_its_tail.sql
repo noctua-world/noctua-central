@@ -1,0 +1,31 @@
+-- A history always has a next sequence, and one row could take that away.
+--
+-- `0003` bounded the bottom and said nothing about the top. A row at
+-- `9223372036854775807` — the largest value a BIGINT holds — leaves no
+-- representable number after it, and every later append is refused for ever.
+-- It takes one ordinary INSERT: no exotic column, nothing a reader would call
+-- tampering, only the privilege the writing service already has. Measured
+-- before this landed, against a real database:
+--
+--   Journal::record  -> Unstorable { field: "sequence", why: "it is
+--                       9223372036854775808, which PostgreSQL's BIGINT cannot
+--                       hold" }
+--   Store::append    -> the same, at every sequence, for ever
+--   DELETE / UPDATE / TRUNCATE -> refused by this table's own triggers
+--
+-- and `catalog/commands.toml` ships no command that can undo it, so recovery
+-- meant DDL on the audit log — which is to say, destroying the evidence to get
+-- the platform back. `§14.9`'s fail-closed rule then stops every command that
+-- must journal itself, so this is a total outage from one statement.
+--
+-- The bound leaves exactly one number of room, which is all the invariant
+-- needs: if the tail is at most 9223372036854775806, `MAX(sequence) + 1` is
+-- always a value the column can hold. At one entry per microsecond it is
+-- 292 000 years of headroom, so nothing legitimate meets it.
+--
+-- Its own migration rather than an edit to 0003, because a migration that has
+-- been applied is not a file to change — `cargo xtask check` refuses one, which
+-- is how this rule was met.
+ALTER TABLE journal_entries
+    ADD CONSTRAINT journal_entries_leaves_room_above_its_tail
+    CHECK (sequence <= 9223372036854775806);

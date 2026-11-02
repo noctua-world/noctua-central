@@ -1,0 +1,15 @@
+# The reference plugin's manifest: who it is, the namespace every one of its
+# commands and topics starts with, and what it may ask the kernel for.
+#
+# **It asks for nothing, and reaches for everything.** Its probe calls every
+# function of the world, and a kernel that loads it as written grants it no
+# capability, so every one of those functions answers `denied` — which is the
+# half of `NOCTUA.md §11.3`'s deny-by-default proved with this very file, by
+# `crates/nc-kernel/tests/capabilities.rs`. A test that needs a capability
+# granted builds its own grants; a capability written here would be one every
+# kernel suite then runs with. Granted nothing, the plugin's `activate` cannot
+# read how to activate from its store and declares its table as written, which
+# is what a suite loading it under this manifest gets.
+id = "noctua:reference"
+namespace = "reference"
+capabilities = []

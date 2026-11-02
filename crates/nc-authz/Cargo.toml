@@ -1,0 +1,47 @@
+[package]
+name = "nc-authz"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "The policy decision point as a library: the core and one realm's pack, embedded when it is built, and the directory it asks about realms, grants and entities."
+
+[features]
+# The door a test builds a decision point from policy text of its own through —
+# a pack with a rule that errs, one that does not parse. **Off by default**, so
+# a shipped kernel decides only with the packs embedded when it was built, which
+# `cargo xtask check` has held to their cases (`NOCTUA.md §14.9`).
+test-support = []
+
+[dependencies]
+# The engine: every request is decided by Cedar's own authorizer, against the
+# schema the pack was validated with.
+cedar-policy.workspace = true
+# The one door a decision point reaches a policy through (`nc_policy::compile`),
+# and the pin a realm writes against a pack (`nc_policy::manifest`). Both are
+# the gate's own functions, so what the gate passed and what decides are
+# compiled by one rule.
+nc-policy.workspace = true
+# The entity a question names, as the resource selector extracts it.
+nc-schema.workspace = true
+# A principal's identifier. **Minted here and never in the kernel**: the kernel
+# reaches the central log, and the log's wall refuses a crate that can reach it
+# minting one. This crate does not depend on `nc-log`, and must not.
+nc-ids.workspace = true
+# The code a denial carries (`NOCTUA.md §15.1`).
+nc-catalog.workspace = true
+# A decision's context is handed to Cedar as JSON, which is Cedar's own format
+# for it, and read against the schema.
+serde_json.workspace = true
+
+[dev-dependencies]
+# **Itself, with the door open, so the documentation gate can read this crate's
+# tests and they can reach `Pdp::from_sources_for_tests`.** Cargo resolves it to
+# this same unit, so nothing is built twice.
+nc-authz = { path = ".", features = ["test-support"] }
+# The directory is asynchronous, because the one that runs behind the kernel
+# reads a database; the tests need something to poll it.
+tokio.workspace = true
+
+[lints]
+workspace = true

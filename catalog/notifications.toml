@@ -1,0 +1,27 @@
+# Every notification a user can receive (`NOCTUA.md §15.2`).
+#
+# **A notification that is not in this file does not exist.** There is no ad-hoc
+# path. Sending one takes a generated typed handle rather than a string, so a
+# notification that was removed is a compile error and one that exists is
+# documented automatically.
+#
+# Each entry names two message keys, and both must exist in **both** locales or
+# the build fails (`§10.9`). `params` is what the message may interpolate: a
+# placeholder the caller does not supply is rendered literally, so the reader
+# sees the braces.
+
+[[notification]]
+# The one entry that exists to prove the mechanism.
+#
+# Stage 10 sends no notifications — it has no accounts and no UI — but a
+# generated typed handle that nothing has ever produced is a mechanism nobody has
+# watched work. This is the entry a stage with a real notification replaces, and
+# `nc-catalog`'s tests use it to prove the handle resolves in both locales.
+id = "catalog.mechanism"
+title = "notification.catalog.mechanism.title"
+body = "notification.catalog.mechanism.body"
+# One placeholder, deliberately. With `params = []` on every entry and no
+# placeholder in any message, the check that compares the two could never fire —
+# it existed, was documented, and proved nothing.
+params = ["name"]
+severity = "info"

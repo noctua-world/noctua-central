@@ -1,0 +1,237 @@
+# The `family` pack's permits, and the boundary of each.
+#
+# A permit's negative test is not a `forbid` firing — it is a request that falls
+# just outside the permit, denied because **nothing permitted it**. Cedar denies
+# by default, so that is the ordinary outcome, and the runner proves each of
+# these is genuinely of that kind by re-running it with every `forbid` removed:
+# a case still denied with no forbid left is a case about a missing permit.
+
+[default.context]
+now = { datetime = "2026-08-26T00:00:00Z" }
+via_agent = false
+confirmed_by_human = false
+actor_chain_depth = 0
+policy_epoch = 7
+quorum_met = true
+grant = { entity = 'Grant::"g.current"' }
+
+[[case]]
+name = "a child of the house reads what the house shares"
+principal = 'User::"bruno"'
+action = "Read"
+resource = 'Content::"photo"'
+decision = "allow"
+because = "family.a_member_reads_shared_content"
+
+[[case]]
+name = "and not what is private, which §13.3 has already encrypted from us as well"
+principal = 'User::"bruno"'
+action = "Read"
+resource = 'Content::"diary"'
+decision = "deny"
+no_permit_matched = "family.a_member_reads_shared_content"
+
+[[case]]
+# **The sensitivity the pack never touched.** The schema names four values, the
+# world held two, and the suite exercised `realm` (allow) and `private` (deny) —
+# so replacing this permit's whole condition with `resource.sensitivity !=
+# "private"` opened `restricted` content to every household member with the gate
+# reporting `10 policy(ies) each have a denial test` and `check passed`.
+# `NOCTUA.md §13.3` keys encryption off this label, and `restricted` is the
+# strictest of the four.
+name = "and not what is restricted, which is the label §13.3 encrypts hardest"
+principal = 'User::"bruno"'
+action = "Read"
+resource = 'Content::"vault"'
+decision = "deny"
+no_permit_matched = "family.a_member_reads_shared_content"
+
+[[case]]
+# And the other end of the same scale, so the permit is shown working at both
+# the values it allows rather than at one of them.
+name = "a member reads what the house has made public"
+principal = 'User::"bruno"'
+action = "Read"
+resource = 'Content::"notice"'
+decision = "allow"
+because = "family.a_member_reads_shared_content"
+
+[[case]]
+name = "an owner writes her own content"
+principal = 'User::"ana"'
+action = "Write"
+resource = 'Content::"diary"'
+decision = "allow"
+because = "family.an_owner_governs_their_own_content"
+
+[[case]]
+name = "and another member does not, however ordinary the request looks"
+principal = 'User::"carla"'
+action = "Write"
+resource = 'Content::"diary"'
+decision = "deny"
+no_permit_matched = "family.an_owner_governs_their_own_content"
+
+[[case]]
+name = "a member who is not a guardian grants nothing"
+principal = 'User::"bruno"'
+action = "Grant"
+resource = 'User::"carla"'
+decision = "deny"
+no_permit_matched = "family.a_guardian_administers_the_realm"
+
+[[case]]
+# **The action list, which nothing pinned.** `check_every_permit_constraint_is_tested`
+# was reading `@id(…)`'s parenthesis as the policy scope, so it had never fired
+# for any policy the loader accepts — and widening this permit's
+# `action in [Action::"Grant", Action::"Revoke"]` to a bare `action` gave every
+# guardian Read, Write, Delete and Share over every resource in the realm,
+# `restricted` content included, with the whole gate green. A guardian is
+# denied here *because of* that list, so removing it flips this answer.
+name = "a guardian administers permissions and does not thereby read everything"
+the_action_is_the_boundary = true
+principal = 'User::"ana"'
+action = "Read"
+resource = 'User::"carla"'
+decision = "deny"
+no_permit_matched = "family.a_guardian_administers_the_realm"
+
+[[case]]
+# The same gap in the read permit: `action == Action::"Read"` was pinned by
+# nothing, so a member who may read what the house shares could have been given
+# every other action over it by one token.
+name = "a member reads what the house shares and does not share it onward"
+the_action_is_the_boundary = true
+principal = 'User::"bruno"'
+action = "Share"
+resource = 'Content::"notice"'
+decision = "deny"
+no_permit_matched = "family.a_member_reads_shared_content"
+
+[[case]]
+# And the owner permit's list. `Content::"recipe"` belongs to carla precisely so
+# this case can exist: every other Content here belongs to `ana`, who is in
+# `role.guardian`, so `Grant` on her own content was already allowed by the
+# guardian permit and widening this one changed nothing.
+name = "an owner governs her own content and does not grant over it"
+the_action_is_the_boundary = true
+principal = 'User::"carla"'
+action = "Grant"
+resource = 'Content::"recipe"'
+decision = "deny"
+no_permit_matched = "family.an_owner_governs_their_own_content"
+
+[[case]]
+# `reference/identity-and-authorization.md §6`: revoking access to content
+# already delivered is impossible. Ana is a guardian and the vault's owner, so
+# every permit in this pack reaches it — and sharing it out is the one thing that
+# cannot be taken back.
+name = "a guardian does not share restricted content without a quorum"
+principal = 'User::"ana"'
+action = "Share"
+resource = 'Content::"vault"'
+context = { quorum_met = false }
+decision = "deny"
+because = "family.giving_out_encrypted_content_needs_quorum"
+
+[[case]]
+# And with the quorum, so the rule is about the quorum and not about the vault.
+name = "and shares it with one"
+principal = 'User::"ana"'
+action = "Share"
+resource = 'Content::"vault"'
+decision = "allow"
+because = "family.an_owner_governs_their_own_content"
+
+[[case]]
+# And the content that is not restricted is not caught by it, or the rule would
+# be "nobody shares anything".
+name = "sharing what the house already shares needs no quorum"
+principal = 'User::"ana"'
+action = "Share"
+resource = 'Content::"notice"'
+context = { quorum_met = false }
+decision = "allow"
+because = "family.an_owner_governs_their_own_content"
+
+
+[[case]]
+name = "a guardian does not grant restricted content without a quorum"
+principal = 'User::"ana"'
+action = "Grant"
+resource = 'Content::"vault"'
+context = { quorum_met = false }
+decision = "deny"
+because = "family.giving_out_encrypted_content_needs_quorum"
+
+[[case]]
+# **The other label.** `§6` names the pair in one breath — "private or
+# restricted content: encrypted with a random per-content key" — and the read
+# permit twenty lines up stops at `realm` for that reason. The `forbid` covered
+# `restricted` alone, so ana could hand out her diary with no quorum.
+name = "and does not share private content without one either"
+principal = 'User::"ana"'
+action = "Share"
+resource = 'Content::"diary"'
+context = { quorum_met = false }
+decision = "deny"
+because = "family.giving_out_encrypted_content_needs_quorum"
+
+[[case]]
+# **And a resource that is not content is not caught by it.** A guardian
+# granting a member access to a feature is ordinary administration; §6's
+# irrevocability argument is about content keys. Without this the rule could be
+# widened to every resource and no case would notice.
+name = "a guardian grants over a person without a quorum, which is not key distribution"
+principal = 'User::"ana"'
+action = "Grant"
+resource = 'User::"carla"'
+context = { quorum_met = false }
+decision = "allow"
+because = "family.a_guardian_administers_the_realm"
+
+[[case]]
+# **Cedar's answer without the directory, pinned rather than left implicit.**
+# `reference/identity-and-authorization.md §3` is unqualified — "Every entity
+# belongs to exactly one realm. Cross-realm access requires an explicit
+# federation tuple; there is no implicit inheritance" — and no policy in this
+# pack or the core enforces it: the read permit constrains the resource and never
+# the principal, which `permissions.cedar` argues for deliberately. What does is
+# the decision point: `nc-authz` asks Cedar over one realm's slice of the world
+# and denies a principal the slice does not hold, so this question asked of
+# `home` is denied, which
+# `an_entity_of_another_realm_is_denied_even_where_a_permit_reads_nothing_of_it`
+# asserts and `policy/core/README.md` records.
+#
+# `User::"mallory"` belongs to `Realm::"office"` and to no group of this
+# household. That this answer is `allow` over the whole world is the finding,
+# written down: the day a core `forbid` arrives, this case flips and somebody
+# decides on purpose.
+name = "an outsider reads what this household shares, which is the gap invariant 4 leaves"
+principal = 'User::"mallory"'
+action = "Read"
+resource = 'Content::"photo"'
+decision = "allow"
+because = "family.a_member_reads_shared_content"
+
+[[case]]
+# **The same gap from the other side, pinned the same way.**
+# `family.a_guardian_administers_the_realm` names no resource type and asks no
+# membership, so a guardian of this household may `Grant` and `Revoke` on any
+# `Realm` — `Realm::"office"`, which she is not in, included. The permits in
+# `realm.cedar` each ask `principal in resource`; this one is why "a member of
+# another realm is refused" is said of those and not of the pack, and
+# `policy/core/README.md` records it beside the §3 row. Asked through
+# `nc-authz`, whose slice of `home` holds no `Realm::"office"`, it is denied by
+# the same test as the case above.
+#
+# That this answer is `allow` over the whole world is the finding, written down,
+# and not a decision: the day the permit or a core `forbid` narrows it, this case
+# flips and somebody decides on purpose.
+name = "a guardian revokes over a realm she is not in, which the guardian permit does not refuse"
+principal = 'User::"ana"'
+action = "Revoke"
+resource = 'Realm::"office"'
+decision = "allow"
+because = "family.a_guardian_administers_the_realm"
+

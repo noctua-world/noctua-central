@@ -1,0 +1,167 @@
+# Brazilian Portuguese.
+#
+# The **values** in this file are the only text in this repository written in
+# another language. Everything else — these comments, the keys, and all the code
+# around them — is English, always (`NOCTUA.md §2.1`). A comment in Portuguese
+# here would be the rule broken inside the one file that documents it.
+#
+# Every key in `en.toml` exists here and every key here exists there: one missing
+# from either side **fails the build**, naming the key. The `{placeholders}` of
+# each message must be exactly the ones `en.toml` uses — a placeholder the caller
+# does not supply is rendered literally, so the reader sees the braces.
+#
+# The sentences are written for somebody who does not know the system: what
+# happened, and what they can do. No error code in the text.
+
+[meta]
+name  = "Português do Brasil"
+bcp47 = "pt-BR"
+dir   = "ltr"
+
+[message]
+
+# --- The journal ---
+"error.journal.chain-broken" = "O histórico de atividades não confere, então o Noctua parou em vez de continuar. Nada foi alterado. Fale com quem instalou o seu Noctua."
+"error.journal.entry-tampered" = "Um registro do histórico de atividades foi alterado depois de ter sido escrito. Nada foi alterado agora. Fale com quem instalou o seu Noctua."
+"error.journal.unavailable" = "O histórico de atividades não está respondendo agora. Tente de novo em instantes."
+"error.journal.unit-closed" = "A ação terminou antes que esta etapa pudesse ser registrada, então nada foi salvo. Comece de novo."
+"error.journal.contended" = "Outra coisa foi registrada no mesmo instante. Nada se perdeu — tente de novo."
+"error.journal.unit-already-open" = "Essa ação já está em andamento. Conclua ou cancele antes de começar de novo."
+"error.journal.sequence-ahead" = "Essa etapa foi numerada à frente do histórico de atividades, então nada foi salvo. Fale com quem configurou o seu Noctua."
+"error.journal.refused" = "O Noctua não conseguiu registrar o que você fez, e tentar de novo não vai adiantar. Fale com quem instalou o seu Noctua."
+"error.journal.unstorable" = "Parte dessa solicitação é algo que este sistema não consegue armazenar. Simplifique-a e tente de novo."
+"error.journal.unit-never-opened" = "Essa ação nunca foi iniciada no histórico de atividades, então não pode ser concluída. Nada foi salvo. Fale com quem instalou o seu Noctua."
+
+# --- Identifiers ---
+"error.ids.clock-backwards" = "O relógio deste computador voltou no tempo, então nada pode ser salvo até passar o tempo que foi pulado. Confira o ajuste de horário se isso não se resolver."
+"error.ids.clock-out-of-range" = "O relógio deste computador está no ano errado, então nada pode ser salvo. Ajuste a data e a hora e tente de novo."
+"error.ids.sequence-exhausted" = "Muita coisa está sendo salva ao mesmo tempo, então o Noctua pausou por um instante. Nada foi perdido."
+"error.ids.clock-stuck" = "O relógio deste computador parou, então nada novo pode ser salvo. Alguém precisa olhar isso."
+"error.ids.flake-exhausted" = "Não foi possível dar uma identidade própria a este computador. Fale com quem instalou o seu Noctua."
+"error.ids.name-unparsable" = "Esse nome de arquivo não está no formato do Noctua, então os dados dele não puderam ser lidos."
+"error.ids.name-too-long" = "Esse nome é longo demais para o seu computador guardar. Encurte o título."
+"error.ids.not-an-identifier" = "Isso não é um identificador que este sistema reconheça. Confira o valor e tente de novo."
+
+# --- The central log ---
+"error.log.unreachable" = "Os diagnósticos não estão sendo registrados agora. Todo o resto funciona normalmente."
+"error.log.dropped" = "Alguns diagnósticos foram deixados de lado porque chegaram muitos de uma vez. Todo o resto funciona normalmente."
+
+# --- The database ---
+"error.db.unreachable" = "O Noctua não está conseguindo alcançar os próprios dados agora. Tente de novo em instantes."
+"error.db.migration-failed" = "O Noctua não conseguiu terminar de atualizar os dados e parou antes de mudar qualquer coisa. Fale com quem instalou o seu Noctua."
+"error.db.prune-failed" = "Não foi possível limpar os registros antigos desta vez. Nada foi perdido, e isso será tentado de novo."
+"error.db.table-not-bounded" = "Algo pediu para limpar uma tabela de um jeito que este sistema não permite. A tabela ficou como estava."
+"error.db.prune-refused" = "Registros antigos não puderam ser limpos, e tentar de novo não vai ajudar. Fale com quem configurou o seu Noctua."
+"error.db.local-open-refused" = "O Noctua não abriu os dados que guarda neste computador, porque a pasta ou os arquivos em que eles ficam não estão configurados para que só você possa lê-los e alterá-los. Nada foi alterado. Fale com quem configurou o seu Noctua."
+"error.db.local-schema-unexpected" = "O Noctua não usou os dados que guarda neste computador, porque eles não são o que esta versão espera. Nada foi alterado. Fale com quem configurou o seu Noctua."
+
+# --- Canonical serialization ---
+"error.canon.unparsable" = "O Noctua não conseguiu ler o que recebeu. Nada foi alterado."
+"error.canon.number" = "O Noctua recebeu um número que não consegue guardar exatamente, então recusou em vez de arredondar. Nada foi alterado."
+
+# --- Policy ---
+"error.policy.unreadable" = "O Noctua não conseguiu ler as próprias regras de permissão, então não está permitindo nada até conseguir."
+"error.policy.invalid" = "As regras de permissão do Noctua não são válidas, então ele não está permitindo nada até que sejam corrigidas."
+"error.policy.denied" = "Você não tem permissão para fazer isso."
+"error.policy.pack-not-carried" = "Este espaço usa regras de permissão que esta versão do Noctua não tem, então nada é permitido nele até o Noctua ser atualizado."
+"error.policy.evaluation-failed" = "O Noctua não conseguiu determinar se isso é permitido, então não fez. Fale com quem instalou o seu Noctua."
+"error.policy.directory-unavailable" = "O Noctua não conseguiu verificar agora quem pode fazer isso, então não fez. Tente novamente em instantes."
+"error.policy.rule-broken" = "As regras de permissão do Noctua foram escritas de um jeito que ele não aceita, então ele não está permitindo nada até que sejam corrigidas."
+
+# --- Validation ---
+"error.validation.out-of-range" = "{field} precisa estar entre {min} e {max}."
+"error.validation.arguments-invalid" = "Esse pedido não está no formato que o comando espera. Nada foi feito."
+"error.validation.resource-id-malformed" = "Esse pedido identifica algo de um jeito que o Noctua não aceita. Nada foi feito."
+
+# --- The kernel ---
+"error.kernel.unknown-command" = "Esse comando não existe. Nada foi feito."
+"error.kernel.malformed-name" = "Esse não é um nome de comando que o Noctua consiga ler. Nada foi feito."
+"error.kernel.reentrant" = "Uma parte do Noctua tentou chamar a si mesma enquanto ainda estava ocupada, então esse passo foi recusado. Nada foi alterado."
+"error.kernel.too-deep" = "Essa ação disparou passos demais um dentro do outro, então o Noctua a interrompeu. Nada foi alterado."
+"error.kernel.read-only" = "Este passo só pode ler, e o que ele pediu mudaria algo, então foi recusado. Nada foi alterado."
+"error.kernel.unconfirmed" = "Isso não pode ser desfeito, então precisa primeiro da sua confirmação. Nada foi feito."
+"error.kernel.deadline" = "Isso demorou demais, então o Noctua interrompeu. Nada foi alterado no Noctua, mas o que já tinha sido enviado para fora deste computador pode ter chegado. Confira antes de tentar novamente."
+"error.kernel.unit-aborted" = "Essa ação foi cancelada no meio, então nada do que ela mudou no Noctua foi mantido. O que ela já tinha enviado para fora deste computador pode ter chegado."
+"error.kernel.nothing-to-undo" = "Não há nada para desfazer."
+"error.kernel.nothing-to-redo" = "Não há nada para refazer."
+"error.kernel.undo-conflict" = "Esse passo não pode ser desfeito nem refeito, porque o que ele mudou foi mudado de novo depois. Nada foi alterado."
+"error.kernel.undo-barrier" = "Esse passo fez algo que o Noctua não consegue reverter sozinho — foi além deste computador ou não pode ser desfeito —, então o desfazer para aqui."
+"error.kernel.redo-compensated" = "Esse passo não pode ser refeito, porque desfazê-lo também desfez coisas fora dos dados do próprio Noctua."
+"error.kernel.compensation-failed" = "Não foi possível concluir o desfazer, porque um dos passos que corrigem as coisas falhou. Nada foi desfeito no Noctua, mas um passo de correção anterior pode já ter chegado fora deste computador. Confira antes de tentar novamente."
+"error.kernel.name-taken" = "Uma parte do Noctua declarou um comando que não pode ter, então ela não foi iniciada."
+"error.kernel.recovered-unit" = "O Noctua encontrou uma ação deixada pela metade quando parou da última vez e a desfez. Nada mais foi alterado."
+"error.kernel.top-level-only" = "Desfazer e refazer só podem ser pedidos diretamente, não de dentro de outra ação."
+"error.kernel.not-built" = "Parte do que foi pedido não está disponível nesta versão do Noctua. Nada foi alterado."
+"error.kernel.redo-blob-swept" = "Esse passo não pode ser refeito, porque um arquivo que ele criou já foi apagado."
+"error.kernel.too-many-dispatches" = "Essa ação disparou passos demais, então o Noctua a interrompeu. Nada foi alterado."
+"error.kernel.compensation-refused" = "Esse passo indicou uma forma de corrigir as coisas que não pode ser executada, então ela foi recusada."
+"error.kernel.step-unrecorded" = "Esse passo ainda não pode ser desfeito nem refeito, porque o histórico do Noctua não o mostra como concluído. Nada foi alterado."
+"error.kernel.compensation-moved" = "Esse passo não pode ser desfeito, porque o que ele indicou para corrigir as coisas agora pertence a outra parte do Noctua, ou a nenhuma. Nada foi desfeito."
+"error.kernel.compensation-ungranted" = "Esse passo não pode ser desfeito, porque a parte do Noctua que indicou como corrigi-lo não pode mais pedir isso a outra parte. Nada foi desfeito."
+
+# --- The plugin host ---
+"error.plugin.capability-denied" = "Uma parte do Noctua pediu algo que não tem permissão de usar e foi recusada."
+"error.plugin.trapped" = "Uma parte do Noctua parou de funcionar e foi reiniciada. O que ela estava mudando no Noctua não foi mantido, mas o que ela já tinha enviado para fora deste computador pode ter chegado. Confira antes de tentar novamente."
+"error.plugin.out-of-fuel" = "Uma parte do Noctua trabalhou demais nisso e foi reiniciada. O que ela estava mudando no Noctua não foi mantido, mas o que ela já tinha enviado para fora deste computador pode ter chegado. Confira antes de tentar novamente."
+"error.plugin.epoch-deadline" = "Uma parte do Noctua demorou demais e foi reiniciada. O que ela estava mudando no Noctua não foi mantido, mas o que ela já tinha enviado para fora deste computador pode ter chegado. Confira antes de tentar novamente."
+"error.plugin.memory-limit" = "Uma parte do Noctua usou memória demais e foi reiniciada. O que ela estava mudando no Noctua não foi mantido, mas o que ela já tinha enviado para fora deste computador pode ter chegado. Confira antes de tentar novamente."
+"error.plugin.host-call-deadline" = "Uma parte do Noctua esperou demais por uma resposta e foi reiniciada. O que ela estava mudando no Noctua não foi mantido, mas o que ela já tinha enviado para fora deste computador pode ter chegado. Confira antes de tentar novamente."
+"error.plugin.quarantined" = "Uma parte do Noctua parou de funcionar e foi desligada até alguém olhar o que aconteceu."
+"error.plugin.descriptor-missing-field" = "Uma parte do Noctua declarou um comando sem algo de que todo comando precisa, então ela não foi iniciada."
+"error.plugin.descriptor-invalid" = "Uma parte do Noctua declarou um comando ou uma assinatura que o Noctua não aceita, então ela não foi iniciada."
+"error.plugin.manifest-invalid" = "Uma parte do Noctua se descreve de um jeito que o Noctua não aceita, então ela não foi iniciada."
+"error.plugin.component-invalid" = "Uma parte do Noctua não foi feita para esta versão do Noctua, então ela não foi iniciada."
+"error.plugin.domain-not-declared" = "Uma parte do Noctua tentou acessar um site que não tem permissão de acessar e foi recusada."
+"error.plugin.request-refused" = "Uma parte do Noctua fez uma requisição de rede que o Noctua não permite, e ela não foi enviada."
+"error.plugin.response-too-large" = "Um site devolveu mais do que o Noctua aceita, então a resposta foi descartada."
+"error.plugin.network-unavailable" = "Não foi possível acessar um site agora. Tente novamente em instantes."
+"error.plugin.ui-invalid" = "Uma parte do Noctua tentou mostrar algo que o Noctua não aceita, então isso não foi mostrado."
+"error.plugin.bound-reached" = "Uma parte do Noctua chegou a um limite que o Noctua impõe, então isso foi recusado."
+"error.plugin.store-conflict" = "Isso foi alterado em outro lugar nesse meio-tempo, então nada foi salvo. Tente novamente."
+"error.plugin.not-found" = "O que foi pedido não está lá."
+"error.plugin.malformed-result" = "Uma parte do Noctua deu uma resposta que o Noctua não consegue ler, então nada do que ela mudou no Noctua foi mantido. O que ela já tinha enviado para fora deste computador pode ter chegado."
+"error.plugin.activation-failed" = "Uma parte do Noctua falhou enquanto iniciava, então ela não foi iniciada."
+"error.plugin.identity-taken" = "Uma parte do Noctua pediu um nome que outra parte, ou o próprio Noctua, já tem, então ela não foi iniciada."
+"error.plugin.command-refused" = "Isso não pôde ser feito, e a parte do Noctua responsável disse por quê. Nada foi alterado."
+"error.plugin.read-only-frame" = "Uma parte do Noctua tentou alterar algo quando só podia consultar, e foi recusada."
+"error.plugin.outside-a-call-tree" = "Uma parte do Noctua pediu algo que só pode pedir enquanto faz alguma coisa por você, e foi recusada."
+"error.plugin.topic-refused" = "Uma parte do Noctua tentou anunciar algo com um nome que não pode usar, e foi recusada."
+"error.plugin.not-a-revision" = "Uma parte do Noctua tentou salvar por cima de uma versão de algo com um nome que nenhuma versão tem, e foi recusada. Nada foi salvo."
+"error.plugin.unit-ended" = "Uma parte do Noctua tentou concluir um trabalho que já tinha terminado, e foi recusada. Nada mudou por causa disso."
+
+# --- Blobs ---
+"error.blob.malformed-hash" = "Esse não é o nome de um arquivo que o Noctua consiga procurar."
+"error.blob.not-local" = "Esse arquivo não está neste computador agora."
+"error.blob.too-large" = "Esse arquivo é maior do que o Noctua aceita, então não foi salvo."
+"error.blob.io" = "Não foi possível ler ou gravar um arquivo neste computador. Tente novamente em instantes."
+"error.blob.writer-finished" = "Esse arquivo já foi concluído, então nada mais pode ser acrescentado a ele."
+"error.blob.no-peers" = "Não há outro dispositivo com quem compartilhar esse arquivo agora."
+
+# --- The entries that prove the catalog's mechanism ---
+"notification.catalog.mechanism.title" = "O Noctua está funcionando"
+"notification.catalog.mechanism.body" = "Olá, {name}. Esta mensagem existe para o Noctua conferir que as próprias notificações chegam até você corretamente."
+"email.catalog.mechanism.subject" = "O Noctua está funcionando"
+"email.catalog.mechanism.body" = "Esta mensagem existe para o Noctua conferir que o próprio e-mail chega até você corretamente. Nada é esperado de você."
+
+# --- Commands ---
+"command.journal.verify.title" = "Verificar histórico de atividades"
+"command.journal.verify.description" = "Conferir que toda ação registrada está intacta e em ordem."
+"command.limits.prune.title" = "Limpar registros antigos"
+"command.limits.prune.description" = "Remover os registros mais antigos de qualquer tabela que passou do limite."
+"command.kernel.undo.title" = "Desfazer"
+"command.kernel.undo.description" = "Desfazer o seu último passo: tudo o que ele mudou no Noctua e os arquivos que ele criou."
+"command.kernel.redo.title" = "Refazer"
+"command.kernel.redo.description" = "Fazer de novo o último passo que você desfez."
+
+# --- Capabilities ---
+"capability.context.description" = "Saber em nome de quem está agindo: a pessoa, quem age por ela e se uma pessoa confirmou este passo."
+"capability.store.description" = "Guardar dados estruturados próprios, que nenhuma outra parte do Noctua consegue ler ou alterar."
+"capability.blobs.read.description" = "Encontrar arquivos pelo conteúdo e lê-los, sem carregar um arquivo inteiro na memória."
+"capability.blobs.write.description" = "Salvar arquivos novos e avisar outros dispositivos de que este os tem."
+"capability.commands.dispatch.description" = "Pedir a outras partes do Noctua que executem seus comandos, cada um verificado como se uma pessoa tivesse pedido."
+"capability.commands.begin.description" = "Agrupar várias alterações em um só passo, mantido inteiro ou descartado, e desfeito de uma vez."
+"capability.events.publish.description" = "Anunciar que algo aconteceu, para outras partes do Noctua ficarem sabendo."
+"capability.events.subscribe.description" = "Ficar sabendo dos anúncios que indica, e somente desses."
+"capability.ui.description" = "Descrever o que mostra na tela, para o Noctua desenhar."
+"capability.net.description" = "Acessar os sites que indica, e nenhum outro."
+"capability.timers.description" = "Ser acordado depois de um tempo, ou em intervalos regulares."

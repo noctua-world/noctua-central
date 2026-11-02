@@ -1,0 +1,100 @@
+# Command metadata and keybindings (`NOCTUA.md §11.4`, `§12.8`).
+#
+# Commands are the only way to mutate state, so this file is also the platform's
+# tool surface: every command declares a JSON Schema for its arguments, and that
+# schema is what exposes it to an AI agent. **There is no separate "tools and
+# skills" subsystem** — do not build one (`§11.4`).
+#
+# The schema is written in the closed subset `crates/nc-schema` validates, and
+# the build holds every entry here to the same judge the kernel holds a
+# plugin's command to at `activate`: a keyword outside the subset fails the
+# build rather than being ignored, and every object says
+# `"additionalProperties": false`.
+#
+# Four fields are required and none of them is optional at `activate`
+# (`§11.7`, `reference/identity-and-authorization.md §2`):
+#
+#   action             the Cedar action name the PDP evaluates
+#   resource_selector  how the kernel extracts the resource from the arguments:
+#                      `realm`, or `argument:<name>` naming a required string
+#                      argument whose schema carries `x-entity` — the Cedar type
+#                      it identifies — and a `maxLength` of at most 128
+#   reversibility      read | write | irreversible
+#   mutating           whether it changes state at all
+#
+# `irreversible` requires `confirmed_by_human` in the context, and that flag is
+# **issued by the kernel from real UI interaction — never an argument an agent
+# can fill in** (`§14.6`). The decision point holds it after Cedar allows the
+# command, refusing one no confirmation the kernel issued for it was redeemed
+# with (`§11.7`).
+#
+# The commands below are the kernel's own operations: verifying the journal's
+# chain, pruning a table that has passed its limit, and stepping back and
+# forward through a person's own history. The kernel registers every one as
+# its own — a command in the namespaces it keeps, `kernel.`, `journal.` and
+# `limits.`, is the kernel's — decides each at its decision point as it decides
+# a plugin's, and runs each one it allows itself: every command here has a
+# handler in `crates/nc-kernel/src/builtin.rs`, and that file's test holds the
+# two lists to each other both ways. A plugin's commands are not written here:
+# a plugin declares them at `activate`, and the kernel holds each to the same
+# judge. A command written here outside the namespaces the kernel keeps would be
+# one the catalog describes for a plugin to implement, registered only when a
+# plugin declares it matching this entry in every field a dispatch is decided
+# by (`NOCTUA.md §15.2`).
+
+[[command]]
+name = "journal.verify"
+title = "command.journal.verify.title"
+description = "command.journal.verify.description"
+action = "Read"
+resource_selector = "realm"
+reversibility = "read"
+mutating = false
+args_schema = """
+{"type":"object","properties":{"from":{"type":"integer","minimum":0}},"additionalProperties":false}"""
+
+[[command]]
+name = "limits.prune"
+title = "command.limits.prune.title"
+description = "command.limits.prune.description"
+action = "Delete"
+resource_selector = "realm"
+# `write` and not `irreversible`, and the distinction is the point: what this
+# deletes is already past its declared limit, so the rows it removes were
+# promised to nobody. An `irreversible` command is one whose effect a human must
+# confirm each time, and a scheduled pruner cannot ask. `write` is not a promise
+# of undo either: a step that pruned is one undo stops at, and
+# `docs/commands.md` answers so for this command.
+reversibility = "write"
+mutating = true
+args_schema = """
+{"type":"object","properties":{"table":{"type":"string"},"dry_run":{"type":"boolean"}},"additionalProperties":false}"""
+
+# Undo and redo are a person's own: the resource is the realm, the action is
+# `Write`, and `family.a_member_steps_through_their_own_history` is what permits
+# it — the step undone is always the newest of the principal who asks, and what
+# it changed is authorized again now, one decision for each thing it changed.
+# **No argument.** Which step is the kernel's to find, so no identifier crosses
+# this boundary; and both run only at the top of a call tree, never from inside
+# another command (`[NC-KERN-0017]`).
+[[command]]
+name = "kernel.undo"
+title = "command.kernel.undo.title"
+description = "command.kernel.undo.description"
+action = "Write"
+resource_selector = "realm"
+reversibility = "write"
+mutating = true
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""
+
+[[command]]
+name = "kernel.redo"
+title = "command.kernel.redo.title"
+description = "command.kernel.redo.description"
+action = "Write"
+resource_selector = "realm"
+reversibility = "write"
+mutating = true
+args_schema = """
+{"type":"object","properties":{},"additionalProperties":false}"""

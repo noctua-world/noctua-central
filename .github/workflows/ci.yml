@@ -1,0 +1,221 @@
+# The gate, in CI.
+#
+# **This workflow has never run, and that is stated rather than implied.**
+# `noctua-central` has no git repository yet, by the decision in `NOCTUA.md
+# §5.3`, so there is no GitHub to run it. A workflow nobody has watched run is a
+# claim, not a result — and the first push is where it will be found wrong.
+#
+# It is committed now anyway, for one reason: §19.4 says the command surface does
+# not grow, and the way that stops being true is a CI file that quietly learns to
+# run `cargo fmt` and `cargo clippy` and `cargo test` as separate steps. Then the
+# gate a developer runs and the gate CI runs are two different gates, and the one
+# that matters is whichever is stricter that week. `xtask/src/workflow.rs` parses
+# this file and fails the build on any cargo invocation that is not
+# `cargo xtask <verb>` or the `cargo install` the gate needs — however it is
+# spelled, including through a script a step runs, an alias, or an action whose
+# job is to run cargo. It also checks that each job still runs what its name
+# says: the `deterministic` job has to build **twice**, in the order that makes
+# the second generation a second process. (Not "the job below" — the job below
+# this comment is `check`, which builds once.)
+#
+# Not "fails if it grows a second cargo command", which this line used to say and
+# which was never the rule: the file already carries several, and every one of
+# them is the gate.
+
+name: check
+
+on:
+  push:
+  pull_request:
+
+# One in flight per branch. A queue of identical gate runs tells nobody anything
+# the newest one does not.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # **No `RUSTFLAGS` here.** This set `-D warnings` at workflow scope so a
+  # dependency's new lint could not arrive as noise nobody reads — and the gate
+  # refuses to run with `RUSTFLAGS` set, on the grounds that cargo passes it to
+  # rustc alongside whatever `.cargo/config.toml` says, so a run with it set is
+  # not the run CI makes. Those two rules cannot both hold: this workflow could
+  # never have gone green, and its only step is the gate.
+  #
+  #     error .cargo/config.toml:1 — `RUSTFLAGS` is set in this environment,
+  #           to `-D warnings`
+  #
+  # It is also redundant. The gate runs `cargo clippy --workspace --all-targets
+  # --locked -- -D warnings` itself, which is where that rule belongs: warnings
+  # are errors at the gate and nowhere else, so an ordinary `cargo build` while
+  # editing still compiles. Setting it here made it true of every step.
+  #
+  # The gate reads the *process* environment, never this block, so it is silent
+  # on a developer's machine and fires only here — which is why nothing found
+  # it until somebody ran the gate with CI's own environment exported.
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    # **No `services:` block, and that is the finding it came from.** A GitHub
+    # service container takes an image, an environment, ports and `docker create`
+    # options — it cannot set the container's *command*, and the log store takes
+    # its bounds as a command:
+    #
+    #     command:
+    #       - "--retentionPeriod=30d"
+    #       - "--retention.maxDiskSpaceUsageBytes=8GiB"
+    #
+    # VictoriaLogs' `/flags` reports only flags that were *set*, so a service
+    # container answers it with an empty body. Measured, the pinned image run
+    # both ways:
+    #
+    #     docker run … victoria-logs        ->  GET /flags: 200, Content-Length: 0
+    #     docker compose up logs            ->  -retentionPeriod="30d"
+    #                                           -retention.maxDiskSpaceUsageBytes="8GiB"
+    #                                           -storageDataPath="/victoria-logs-data"
+    #
+    # and the gate's own floor on that answer:
+    #
+    #     error the log store answered `/flags` with nothing, so this step
+    #           compared the catalog against an empty list
+    #     error check failed: the log store reported no flags
+    #
+    # That step is one of the steps `--offline` skips — measured,
+    # `warn skipped: --offline, and only the running log store states its own bounds`
+    # — and the gate that holds those anchors reads `README.md`, `AGENTS.md` and
+    # the `justfile`, never this file. **This is written in the past tense on
+    # purpose**: the workflow it describes had no log store and never passed the
+    # flag, so its `check` job could not have gone green on any runner. The step
+    # at the bottom of this file is what retired it, and a reader who takes this
+    # paragraph for the present state reads a fixed defect as a live one. The
+    # number of skips is deliberately not written here either: four documents
+    # state it and a gate holds all four, and a fifth copy in a file that gate
+    # does not read is a copy that only agrees on the day it is written.
+    #
+    # **And nothing migrated the database.** `cargo xtask check` does not apply
+    # migrations and a service container has no way to; three steps then reported
+    # a skip and the run passed, so a green CI run was compatible with the
+    # journal's protections never being read. Both are now failures — see
+    # `Record` in `xtask/src/check.rs` — which would have turned this workflow
+    # red rather than quiet.
+    #
+    # The stack a developer runs is the stack CI runs. `cargo xtask dev` brings
+    # up `docker-compose.yml`, waits for the health checks written there, and
+    # applies the migrations — one definition of the stack instead of two, which
+    # is also what retires the third defect here: this job's health command was
+    # `psql -h 127.0.0.1`, and `initdb` writes `host all all 127.0.0.1/32 trust`
+    # above the entrypoint's scram line. Measured inside the container, with a
+    # deliberately wrong password: `-h 127.0.0.1` returned a row and exit 0,
+    # while the compose file's `-h "$(hostname -i …)"` was refused. A wrong
+    # `POSTGRES_PASSWORD` left CI healthy and every application connection
+    # failing — the shape `docker-compose.yml` carries thirty lines against, in a
+    # file nothing held to it.
+    env:
+      # The URL `cargo xtask dev` prints, against the stack it brings up.
+      # `localhost` resolved to the runner's own loopback and the compose file
+      # binds `127.0.0.1` explicitly, so they agreed by luck rather than by
+      # being the same string.
+      DATABASE_URL: postgres://noctua:noctua@127.0.0.1:5432/noctua
+    steps:
+      - uses: actions/checkout@v4
+
+      # **This does not read `rust-toolchain.toml`**, which this comment said and
+      # that file's own header records as the sentence it contradicted: the action
+      # below resolves `stable` itself, and no rustup runs here. `@stable` is the
+      # version this names, and the only reason it agrees with the repository is
+      # that `rust-toolchain.toml` names the same moving channel.
+      #
+      # **And the plugins' target, for the same reason as the components.** The
+      # gate builds every plugin for `wasm32-unknown-unknown` before the tests,
+      # and a toolchain the action installed without it fails that step.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo deny
+        run: cargo install --locked cargo-deny
+
+      # **The stack, before the gate that needs it.** Everything the gate asks a
+      # running database and a running log store — the journal's forty-four
+      # protections, where `pg_temp` sits, what the store was started with, how
+      # the database sorts — is here or is not checked at all. Those are exactly
+      # the steps `--offline` skips, and **CI never passes that flag**: this step
+      # is what makes the difference between the two runs, so a reader comparing
+      # a local `check --offline` with this job is comparing a smaller gate with
+      # the whole one.
+      - name: cargo xtask dev
+        run: cargo xtask dev
+
+      # **The whole gate, and nothing else.** Formatting, lints, the catalog, the
+      # policy pack, drift, determinism, the tests and the dependency audit are
+      # all steps of this one command, so there is exactly one thing to run and
+      # exactly one thing that can pass.
+      - name: cargo xtask check
+        run: cargo xtask check
+
+  # Determinism across *processes*, which the in-process check cannot prove: two
+  # generations inside one run share an allocator and a heap layout. This builds
+  # twice in two processes and compares the bytes.
+  #
+  # **Not from cold**, and the comment said so for a while: both builds are in
+  # this one job and share one `rust-cache`. Claiming a guarantee nobody had
+  # arranged is the failure `counts.rs` exists to catch, one file over.
+  deterministic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # **With the components, because this job runs the emitter.**
+      # `cargo xtask build` pipes every generated file through `rustfmt` from
+      # `PATH`, and this job's only step runs it twice. It asked for the
+      # toolchain without asking for rustfmt while the `check` job beside it
+      # does — a difference invisible until the first push. Measured with
+      # rustfmt off `PATH`: `error rustfmt is what turns the emitted source
+      # into the bytes that reach disk, and it is not here`.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      # **Everything the build writes, not one directory of it.** This diffed
+      # `crates/nc-catalog/src` alone, so the `docs/` pages and the generated
+      # log-event structs — a third of what `cargo xtask build` emits — were
+      # outside the only cross-process determinism check there is.
+      # **From a second copy in a second directory, not twice in this one.**
+      # Both builds ran in one checkout, so they shared the working directory,
+      # the filesystem and the order `read_dir` returns — which is the one thing
+      # a cross-process check is for. `catalog/i18n/` is read with `read_dir`,
+      # and locale order decides `Locale::ALL`, every column of `MESSAGES` and
+      # four `docs/` pages; a second run in the same directory agrees with the
+      # first about all of it whatever the emitter does.
+      #
+      # **Both operands are absolute.** Every right-hand side was relative, so
+      # the whole comparison rested on one `cd -` that nothing read: deleting
+      # that line made each `diff` compare the second checkout against itself,
+      # and `cargo test -p xtask --bin xtask workflow::` stayed at
+      # `27 passed; 0 failed` with `check passed` over it. A diff whose meaning
+      # is a working directory is a diff one line can turn into a tautology.
+      #
+      # The copy is laid down in a different order (`cp -r` follows this
+      # checkout's order, `find | sort -r` the reverse), on a path of a different
+      # length, so the two runs differ in the ways a second developer's machine
+      # differs.
+      - name: generate here and in a second copy, and diff
+        run: |
+          set -euo pipefail
+          cargo xtask build
+          mkdir -p /tmp/a-second-checkout-of-noctua-central
+          find . -path ./target -prune -o -print \
+            | sort -r \
+            | cpio -pdm --quiet /tmp/a-second-checkout-of-noctua-central
+          cd /tmp/a-second-checkout-of-noctua-central
+          cargo xtask build
+          diff -r /tmp/a-second-checkout-of-noctua-central/crates/nc-catalog/src \
+            "$GITHUB_WORKSPACE"/crates/nc-catalog/src
+          diff -r /tmp/a-second-checkout-of-noctua-central/crates/nc-log/src \
+            "$GITHUB_WORKSPACE"/crates/nc-log/src
+          diff -r /tmp/a-second-checkout-of-noctua-central/docs "$GITHUB_WORKSPACE"/docs
+          diff /tmp/a-second-checkout-of-noctua-central/catalog/errors.reserved.toml \
+            "$GITHUB_WORKSPACE"/catalog/errors.reserved.toml

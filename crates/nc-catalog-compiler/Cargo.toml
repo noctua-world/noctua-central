@@ -1,0 +1,34 @@
+[package]
+name = "nc-catalog-compiler"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "Reads catalog/ and emits nc-catalog. Not published: a consumer inherits what the platform is, never the thing that builds it."
+
+[dependencies]
+blake3.workspace = true
+serde.workspace = true
+toml.workspace = true
+# The rule a command's declaration answers to — its argument schema, its
+# selector, its name — which `NOCTUA.md §11.7` has the kernel hold a plugin's
+# declaration to at `activate`. Judged here through the same function, so a
+# command the catalog ships and a command a plugin declares cannot pass two
+# different rules. It is also this crate's only JSON reader: the emitter lists
+# a command's arguments through the parse that validated them, so `serde_json`
+# is reached through it. And it holds the one table of characters a reader sees
+# nothing of, because the judge refuses a schema holding one; this crate's
+# escapers read that table through a re-export rather than through a copy.
+nc-schema.workspace = true
+
+[dev-dependencies]
+# **Itself, so the documentation gate can read this crate's integration
+# tests.** `cargo doc` documents lib and bin targets only, so a broken
+# intra-doc link in `tests/` shipped with the gate green — and
+# `cargo rustdoc --test` cannot resolve a `use` of the crate under test
+# unless the package depends on itself here. Cargo resolves it to this
+# same unit, so nothing is built twice.
+nc-catalog-compiler = { path = "." }
+
+[lints]
+workspace = true

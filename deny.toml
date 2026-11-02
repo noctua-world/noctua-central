@@ -1,0 +1,235 @@
+# The dependency audit `NOCTUA.md §15.5` requires, run by `cargo xtask check`
+# rather than by a scheduled job — an advisory that arrives while nobody is
+# looking at a dashboard is an advisory nobody acts on.
+#
+# `§2.3` keeps the surface small in the first place; this is what checks that the
+# small surface stays clean.
+
+[graph]
+all-features = true
+
+[advisories]
+# A crate its author withdrew stops the gate. A yank is usually a broken release
+# or a security fix that arrived without an advisory, and either way the lockfile
+# is pinning something nobody should be using.
+#
+# There is deliberately no `ignore` list and no severity threshold for
+# vulnerabilities — cargo-deny denies those by default, and this repository has
+# few direct dependencies (`cargo metadata --format-version 1` lists them), so
+# "triage it later" would be a habit built for a problem it does not have.
+yanked = "deny"
+
+# **`unsound` defaults to the workspace and nobody chose that.** cargo-deny
+# 0.20.2's default is `Scope::Workspace`, which reports an unsound advisory only
+# when a *direct* dependent is a workspace member. This tree's direct
+# dependencies are a small part of the graph (`cargo metadata --format-version 1`
+# lists them, and the dependency step of `cargo xtask check` prints how many
+# crates it read), so an unsound advisory against anything deep inside `sqlx` or
+# `cedar-policy` — or against `libc`, `ring`, `hashbrown` — was silently
+# dropped. `unmaintained` is fine at its own
+# default of `all`; this was the one that was off, and the default is a decision
+# somebody has to make on purpose.
+unsound = "all"
+ignore = []
+
+[licenses]
+# Permissive only, and every entry is here because something in the tree uses it.
+# The list below is the list, and nothing here spells it a second time: what is
+# said here is the property every entry shares — each obliges a notice at most,
+# and none obliges publishing source.
+#
+# **No copyleft, not even file-level.** MPL-2.0 is deliberately absent: modifying
+# a covered file obliges publishing that file's source, which is not satisfied by
+# shipping a notice — and this repository carries no licence of its own
+# (`NOCTUA.md §5.10`), so inheriting an obligation in passing is exactly
+# what not to do. If something genuinely needs it, that is a conversation, not a
+# line added here.
+#
+# The list is what the tree actually uses, not what it might: cargo-deny warns on
+# an allowance nothing matched, and a gate that prints warnings on a clean tree
+# is a gate people stop reading. It grows in the change that brings the crate.
+allow = [
+    "Apache-2.0",
+    # Apache-2.0 with an *additional permission*: the LLVM exception removes the
+    # requirement to reproduce the notice in a compiled binary. Strictly more
+    # permissive than the line above, never less, so allowing it grants nothing
+    # Apache-2.0 does not already.
+    #
+    # **It is linked into the kernel.** `wasmtime`, `cranelift` and the crates
+    # under them carry it, and the kernel is built from them; it also arrives as
+    # `ar_archive_writer`, a build dependency of `psm`, under `stacker`, under
+    # `cedar-policy-core`. `cargo deny list` names every crate under each
+    # licence, and it is the command to run before believing a list here.
+    "Apache-2.0 WITH LLVM-exception",
+    # `encoding_rs`, which `wasmtime`'s component model decodes a string with as
+    # it crosses between a plugin and the kernel, and `subtle`, which `rustls`
+    # compares secrets with in constant time. Permissive; its third clause
+    # forbids using the authors' names to endorse a derivative, which costs
+    # nothing.
+    "BSD-3-Clause",
+    # **Mozilla's root bundle, as data.** `webpki-roots` is the list of the
+    # certificate authorities `net.fetch` trusts, compiled into the kernel so
+    # that nothing in the environment chooses them. The Community Data Licence
+    # Agreement is a data licence, and its permissive edition asks only that
+    # the notice travel with the data.
+    "CDLA-Permissive-2.0",
+    # `ring`, `rustls-webpki` and `untrusted`: the cryptography and the
+    # certificate checks under `rustls`, for `net.fetch`. ISC is MIT's
+    # permission in fewer words — a notice, and nothing else.
+    "ISC",
+    "MIT",
+    # `foldhash`, under `hashbrown` — in `sqlx`, and in `gimli` under
+    # `cranelift` and `wasmtime`. Permissive, and the one obligation it adds is
+    # that an altered source not be misrepresented as the original, which is a
+    # rule this repository would follow anyway.
+    "Zlib",
+    "Unicode-3.0",
+]
+confidence-threshold = 0.9
+
+# **Dev-dependency licences, which were not checked.** cargo-deny's default is
+# `include-dev = false`, so twenty crates — `proptest` and everything it brings —
+# were outside the licence audit entirely. Measured: 252 crates checked without
+# it, 272 with. None of the twenty violates the list *today*, so the audit was
+# clean by luck rather than by check, and this file's own reason for excluding
+# MPL-2.0 — not inheriting a copyleft obligation in passing, in a repository
+# with no licence of its own (`NOCTUA.md §5.10`) — applies to a test dependency exactly as it does to a
+# runtime one. Test sources ship from this repository like any other file.
+include-dev = true
+# This repository's own crates carry no `license` key: `noctua-central` has no
+# licence (`NOCTUA.md §5.10`). Every crate here is `publish = false`, so this exempts exactly those.
+private = { ignore = true }
+
+[bans]
+# A duplicated version is worth knowing about and is not always worth failing
+# over: it can mean two dependencies disagree about a transitive minor, which is
+# somebody else's release to make. When it is *our* pin that disagrees — this
+# repository had `anstream 0.6` beside `clap`'s `anstream 1.0` on the first day —
+# the warning is the thing that says so, and the fix is one line.
+multiple-versions = "warn"
+
+# **And dev-dependency duplicates, which were not counted.** The exact sibling of
+# the `include-dev` fix in `[licenses]`, left open one section down:
+# cargo-deny's default is `false`, so `proptest`'s tree was outside duplicate
+# detection entirely. Turning it on, on the day it was turned on, surfaced five
+# crates at more than one version that the audit had never seen, and
+# `xtask/src/check.rs` treats every cargo-deny *warning* as a build failure, so
+# this one key was hiding five findings. Which crates are duplicated today is
+# the `skip` list below, held to the graph both ways — cargo-deny warns on a
+# duplicate it does not name and on an entry that matches nothing — and
+# `cargo tree --locked -d --target all -e normal,build,dev` shows who brings
+# each.
+multiple-versions-include-dev = true
+# **And every duplicate that exists today is named here.** Acceptance criterion 1
+# is "no failures **and** no warnings", and nineteen of these printed on a clean
+# tree — a wall of noise that trains a reader to skip the line, which is exactly
+# how the twentieth would arrive unnoticed. Naming them makes the current set a
+# decision and any *new* one a warning again.
+#
+# Every entry below is somebody else's transitive disagreement, not a pin of
+# ours: `syn` and `hashbrown` are the ordinary one-major-behind lag of a large
+# tree, and the rest say where they come from beside them. A duplicate that
+# *is* ours belongs in a fix, not in this list. `cargo tree --locked -i
+# <crate>@<version> --target all -e all` names who brings each version, and it
+# is the command to run before believing a comment here.
+#
+# **`toml` and `toml_datetime` were in this list and were ours.**
+# `crates/nc-policy/Cargo.toml` pinned `toml = "0.9"` directly while the
+# workspace declared `1.1`, so both were linked into the same `xtask` binary —
+# a duplicate this comment says belongs in a fix, silenced by the list that says
+# it does not hold any. The fix was one line: `toml.workspace = true`. Both
+# entries are gone from here, so the day a real second `toml` appears it is a
+# warning again.
+skip = [
+    "arrayvec",
+    "cpufeatures",
+    "hashbrown",
+    "itertools",
+    "syn",
+    "unicode-width",
+    # **`sqlx` 0.9 is two generations of RustCrypto at once.** `sqlx-core`
+    # checksums a migration with `sha2` 0.10 and `sqlx-postgres` answers SCRAM
+    # with `sha2` 0.11, and each pulls its own `digest`, `block-buffer` and
+    # `crypto-common`. Nothing of ours names any of the four; they unify when
+    # `sqlx` moves `sqlx-core` to the newer line, which is its release to make.
+    "block-buffer",
+    "crypto-common",
+    "digest",
+    "sha2",
+    # `object` 0.40 is what `wasmtime` reads and writes compiled code with, and
+    # 0.37 is what `ar_archive_writer` builds an archive with — a build
+    # dependency of `psm`, under `stacker`, under `cedar-policy-core`. Two
+    # unrelated trees a major apart; they unify when `ar_archive_writer` moves.
+    "object",
+    # `wit-bindgen` 0.61 is the guest bindings every plugin is built with, and
+    # 0.46 is `wasip2`'s, under `getrandom` 0.3, under `proptest`'s randomness —
+    # dev-only, and never compiled for a plugin. The two are the generator of
+    # two different worlds, and nothing of ours names the older one.
+    "wit-bindgen",
+    # `base64` 0.23 is what `ureq` encodes a credential with, and 0.22 is
+    # `sqlx`'s, for SCRAM. One major apart in two unrelated trees; they unify
+    # when `sqlx` moves.
+    "base64",
+    # `windows-sys` 0.52 is `ring`'s, under `rustls`, and 0.61 is `tokio`'s,
+    # under `mio` — the bindings each was written against, compiled only for a
+    # Windows target, which no build of this tree is. They unify when `ring`
+    # moves.
+    "windows-sys",
+    # Two randomness stacks: `proptest`'s, dev-only, on `rand` 0.9, and the
+    # one `sqlx-postgres` draws SCRAM's nonce from, on `rand` 0.10 — each with
+    # its own `rand_core`, `getrandom` and, for UEFI, `r-efi`. They arrived
+    # with `multiple-versions-include-dev`, when `proptest`'s side was the only
+    # one; skipped by name like the rest, so a *new* duplicate is still a
+    # finding.
+    "getrandom",
+    "r-efi",
+    "rand",
+    "rand_core",
+]
+# A wildcard version is a dependency on whatever the registry has today. Path
+# dependencies inside this workspace carry no version at all and read the same
+# way to cargo-deny, so they are exempted by name rather than by relaxing the
+# rule they would otherwise switch off.
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+
+# **What a build script is allowed to run.** Every crate in the graph may have a
+# `build.rs` — `cargo metadata --format-version 1` lists them, as the
+# `custom-build` targets of its `packages` — and nothing looked at what those
+# scripts contain. An allow-list of them is a list that changes with every
+# dependency bump and buys little: `serde`, `libc` and `proc-macro2` having build scripts is not the
+# hazard. What is the hazard is a *precompiled binary* shipped inside a crate and
+# run from its build script, which is the shape a supply-chain compromise takes
+# and which needs no list to refuse.
+#
+# `interpreted = "deny"` is deliberately not set: it refuses shell and Python
+# checked into a crate, and several ordinary crates ship such files as test data
+# rather than as anything a build runs. This is the half that has no false
+# positives to argue about.
+#
+# **And one precompiled object is linked, which this rule does not see.**
+# `wit-bindgen`'s `build.rs` links two static archives it ships prebuilt —
+# `libwit_bindgen_cabi_realloc.a`, the canonical ABI's `cabi_realloc`, and
+# `libwit_bindgen_cabi_wasip3.a`, a task-context shim — into every `wasm32`
+# build, whatever features are on; their C sources ship beside them in the
+# crate. cargo-deny's `include-archives` is off, so `executables = "deny"` does
+# not open an archive. They link into a plugin and never into a host binary,
+# and a plugin runs inside the kernel's sandbox — which is the answer to them,
+# rather than this list.
+#
+# **`ring` ships objects too, for a target this tree is never built for.** Its
+# x86-64 assembly comes both as source and as objects `nasm` assembled, in a
+# directory of its own, so a Windows build needs no assembler; every other target
+# assembles the source with the C compiler in its `build.rs`, and the objects
+# are linked into nothing here — `nc-local` builds on Unix alone, and the
+# plugins are `wasm32`. The crate also carries the `perl` scripts that
+# generated that assembly, which cargo-deny lists as notes; its build script
+# runs them only when `RING_PREGENERATE_ASM` asks it to, which no build here
+# does.
+[bans.build]
+executables = "deny"

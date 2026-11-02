@@ -1,0 +1,125 @@
+# Invariant 3 — no manual grant without an expiry.
+#
+# Two policies, because the rule has two halves that fail differently: a grant
+# written with no end at all, and a grant whose end has passed. The first is a
+# mistake at write time; the second is the ordinary case, and a system that
+# handled only the first would hold every expired permission open for ever.
+#
+# The **exemption is tested too**, and that is the point of the third case:
+# `§4` permits an absent `valid_until` when `source == "policy"`, because a grant
+# the pack itself confers ends when membership ends and has no date of its own.
+# An exemption nobody exercises is how a rule quietly becomes unconditional.
+
+[default.context]
+now = { datetime = "2026-08-26T00:00:00Z" }
+via_agent = false
+confirmed_by_human = false
+actor_chain_depth = 0
+policy_epoch = 7
+quorum_met = true
+grant = { entity = 'Grant::"g.current"' }
+
+[[case]]
+name = "a manual grant with no end is refused, however recently it was written"
+principal = 'User::"ana"'
+action = "Read"
+resource = 'Content::"photo"'
+decision = "deny"
+because = "core.grants_expire"
+context = { grant = { entity = 'Grant::"g.perpetual"' } }
+
+[[case]]
+name = "a grant whose end has passed is refused"
+principal = 'User::"ana"'
+action = "Read"
+resource = 'Content::"photo"'
+decision = "deny"
+because = "core.grant_not_expired"
+context = { grant = { entity = 'Grant::"g.expired"' } }
+
+[[case]]
+name = "a grant the pack confers needs no end, which is the exemption §4 writes"
+principal = 'User::"ana"'
+action = "Read"
+resource = 'Content::"photo"'
+decision = "allow"
+because = "family.a_member_reads_shared_content"
+context = { grant = { entity = 'Grant::"g.by_policy"' } }
+
+[[case]]
+# **The boundary the comparison decides.** `valid_until <= context.now` and
+# `valid_until < context.now` differ on exactly one instant — a grant expiring
+# *now* — and every case above used a date well in the past, so the whole suite
+# stayed green with `<=` changed to `<`. A permission that has just run out
+# would then still be honoured, for as long as the clock reads that instant.
+name = "a grant expiring at this very instant has expired"
+principal = 'User::"ana"'
+action = "Read"
+resource = 'Content::"photo"'
+decision = "deny"
+because = "core.grant_not_expired"
+context = { grant = { entity = 'Grant::"g.expiring_now"' } }
+
+[[case]]
+# **The near end's own boundary, and it was held by nothing.** `valid_until <=
+# now` has `g.expiring_now` sitting on the instant it decides; `now <
+# valid_from` had no such grant — `g.not_yet` opens ten months out and
+# `g.current` opened eight months back, so `<` could be widened to `<=` with the
+# whole suite green and a grant that opens *this instant* refused. The file's
+# own prose says the rule is the window and not one end of it; the coverage was
+# one end of it. `inside_a_conjunct` proposes `==`/`!=` only, so no mutation
+# operator reaches an ordering comparison: a case or nothing.
+name = "a grant whose window opens at this very instant has begun"
+principal = 'User::"ana"'
+action = "Read"
+resource = 'Content::"photo"'
+decision = "allow"
+because = "family.a_member_reads_shared_content"
+context = { grant = { entity = 'Grant::"g.beginning_now"' } }
+
+[[case]]
+# **The near end of the window, which nothing read.** `valid_from` is required by
+# the reference's own provenance list and appeared in no `.cedar` expression at
+# all — so a grant written for a visit next June authorized this morning, while
+# the identical grant that ran out last January was refused. The two cases sit
+# together here for that reason: the rule is the window, not one end of it.
+name = "a grant whose window has not opened yet is not a grant"
+principal = 'User::"ana"'
+action = "Read"
+resource = 'Content::"photo"'
+context = { grant = { entity = 'Grant::"g.not_yet"' } }
+decision = "deny"
+because = "core.grant_has_begun"
+
+# **A grant the *other* guard stands aside for, so this one has to answer.**
+# `core.grant_has_begun` and `core.grant_not_expired` both read `context.now` and
+# both guard it `!(context has now) || …`. Every case here carried a grant with
+# both ends of its window, so each guard's proof was satisfied by the other's:
+# deleting `!(context has now) ||` from either left `cargo xtask check`
+# byte-identical to a clean run, and deleting it from *both* made the fail-open
+# gate fire for both, which is what proved the masking.
+#
+# This grant is written by the pack — `source = "policy"` — and has no
+# `valid_until`, which `§4` permits and `g.by_policy` already ships. So
+# `core.grant_not_expired` has nothing to say about it and the answer is this
+# policy's alone.
+[[case]]
+name = "a grant the pack confers from a date that has not come is not a grant yet"
+principal = 'User::"ana"'
+action = "Read"
+resource = 'Content::"photo"'
+context = { grant = { entity = 'Grant::"g.not_yet_by_policy"' } }
+decision = "deny"
+because = "core.grant_has_begun"
+
+# And one that has begun still decides, or the rule above would be "no grant is
+# ever valid".
+[[case]]
+name = "and one that has begun is"
+principal = 'User::"ana"'
+action = "Read"
+resource = 'Content::"photo"'
+context = { grant = { entity = 'Grant::"g.current"' } }
+decision = "allow"
+because = "family.a_member_reads_shared_content"
+

@@ -1,0 +1,52 @@
+# What an HTTP status line means to this repository, read by two suites.
+#
+# `xtask/src/store.rs`'s `served` decides whether the log store is up; the
+# `Delivery` classifier in `crates/nc-log/src/ship.rs` decides whether a batch of
+# log lines was taken. They were written four times between them with different
+# answers: only the shipper required the three characters of the code to be
+# digits, so `HTTP/1.1 2ab Invented` was a refusal to one and a success to the
+# other.
+#
+# Four tab-separated columns:
+#
+#   line          the status line, with `\r` for a carriage return
+#   terminator    `crlf` — the reader appends `\r\n\r\n`, an ordinary answer
+#                 `none` — the line is the whole answer, nothing follows it
+#   served        `2xx` or `not-2xx`, what `served` answers
+#   taken         `taken` or `not-taken`, what `Delivery::taken` answers
+#
+# **Two verdict columns, because the two are not the same question and one of
+# the classes they disagree on is real.** `served` asks whether the store said
+# 2xx, from a bounded read that may legitimately stop mid-line; the shipper asks
+# whether it may discard a batch, and an answer with no terminator is one it
+# cannot trust, so it keeps the lines and writes them to stderr. A single
+# `2xx`/`not-2xx` column could not carry the unterminated rows at all, and their
+# absence read as agreement.
+#
+# A case added here is answered by both suites or neither run is green, and the
+# row count is pinned in both — a floor with room under it let the one row that
+# decides the digit clause be deleted along with the clause.
+line	terminator	served	taken
+HTTP/1.1 200 OK	crlf	2xx	taken
+HTTP/1.1 201 Created	crlf	2xx	taken
+HTTP/1.1 204 No Content	crlf	2xx	taken
+HTTP/1.1 200 OK\r	crlf	2xx	taken
+HTTP/1.0 299 Whatever	crlf	2xx	taken
+HTTP/2 200 	crlf	2xx	taken
+HTTP/1.1 302 Found	crlf	not-2xx	not-taken
+HTTP/1.1 404 Not Found	crlf	not-2xx	not-taken
+HTTP/1.1 500 Internal Server Error	crlf	not-2xx	not-taken
+HTTP/1.1 100 Continue	crlf	not-2xx	not-taken
+HTTP/1.1 2 whatever	crlf	not-2xx	not-taken
+HTTP/1.1 20 OK	crlf	not-2xx	not-taken
+HTTP/1.1 2000 Invented	crlf	not-2xx	not-taken
+HTTP/1.1 2ab Invented	crlf	not-2xx	not-taken
+HTTP/1.1 2	crlf	not-2xx	not-taken
+HTTP/1.1 	crlf	not-2xx	not-taken
+HTTP/1.1	crlf	not-2xx	not-taken
+200 OK	crlf	not-2xx	not-taken
+garbage 200 ok	crlf	not-2xx	not-taken
+	crlf	not-2xx	not-taken
+HTTP/1.1 200 OK	none	2xx	not-taken
+HTTP/1.1 204 No Content	none	2xx	not-taken
+HTTP/1.1 404 Not Found	none	not-2xx	not-taken

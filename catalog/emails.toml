@@ -1,0 +1,16 @@
+# Every transactional email (`NOCTUA.md §15.2`).
+#
+# Same contract as `notifications.toml`: an email not declared here does not
+# exist, sending takes a generated typed handle, and both message keys must
+# resolve in both locales.
+#
+# `params` is checked against the placeholders in the message rather than trusted
+# — an email whose template asks for a name the sender does not pass reaches a
+# real person with `{name}` in it.
+
+[[email]]
+# The one entry that exists to prove the mechanism. See `notifications.toml`.
+id = "catalog.mechanism"
+subject = "email.catalog.mechanism.subject"
+body = "email.catalog.mechanism.body"
+params = []

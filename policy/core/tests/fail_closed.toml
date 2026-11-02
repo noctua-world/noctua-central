@@ -1,0 +1,47 @@
+# Invariant 1 — deny by default, and fail closed.
+#
+# `policy_epoch` is the realm's monotonic counter (§10 of the reference). Zero is
+# not a valid epoch: it is what a caller sends when it has no epoch to send, and
+# an unavailable decision point must deny rather than default to permissive.
+
+[default.context]
+now = { datetime = "2026-08-26T00:00:00Z" }
+via_agent = false
+confirmed_by_human = false
+actor_chain_depth = 0
+policy_epoch = 7
+quorum_met = true
+grant = { entity = 'Grant::"g.current"' }
+
+[[case]]
+name = "a request carrying no epoch is refused, however well formed it is"
+principal = 'User::"ana"'
+action = "Read"
+resource = 'Content::"photo"'
+decision = "deny"
+because = "core.fail_closed"
+context = { policy_epoch = 0 }
+
+[[case]]
+name = "and an epoch below zero, which is the same absence with a different bug behind it"
+principal = 'User::"ana"'
+action = "Read"
+resource = 'Content::"photo"'
+decision = "deny"
+because = "core.fail_closed"
+context = { policy_epoch = -1 }
+
+[[case]]
+# **The boundary the comparison decides, and it was held by nothing.** The cases
+# above sit at 0 and -1 and the default context carries 7, so `policy_epoch <= 0`
+# could be moved anywhere in `1..=6` with the whole suite green — and `1` is a
+# realm's first valid epoch, refused as "no decision point available" the moment
+# the threshold moves one. `inside_a_conjunct` proposes `==`/`!=` only, so no
+# mutation operator reaches an ordering comparison either: a case or nothing.
+name = "the first epoch a realm has is a decision point, not an absent one"
+principal = 'User::"ana"'
+action = "Read"
+resource = 'Content::"photo"'
+decision = "allow"
+because = "family.a_member_reads_shared_content"
+context = { policy_epoch = 1 }

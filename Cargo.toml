@@ -1,0 +1,365 @@
+# The one cargo workspace for the whole platform — apps, services and the local
+# kernel share the command catalog, the policy pack, the generated types and the
+# journal format, and versioning one contract across five repositories for one
+# developer is what this monorepo exists to avoid (`NOCTUA.md §10.1`).
+
+[workspace]
+resolver = "3"
+# `plugins/*` beside the crates, because a plugin is a member: the host target
+# lints, documents and tests its `behaviour` like any other crate, and
+# `cargo xtask check` builds it again for `wasm32-unknown-unknown` as a
+# component (`xtask/src/plugins.rs`).
+members = ["crates/*", "plugins/*", "xtask"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+# **1.96, because the kernel's WebAssembly runtime declares it.** `wasmtime`
+# 49 and the `cranelift` it brings both say `rust-version = "1.96.0"`, and this
+# line is what resolver 3 reads when it chooses a version. Under a lower floor
+# `cargo add wasmtime` offers only a release line that floor satisfies — the
+# 38.x line, which `cargo deny` refuses: RUSTSEC-2026-0222 and -0269 have no
+# patched version on it — while the `49` requirement below, which resolution
+# cannot move, resolves anyway and prints `(requires Rust 1.96.0)` beside each
+# of its crates, a note no gate reads. `sqlx` 0.9 declares 1.94 for the same
+# reason. `grep rust-version` over a crate's registry source answers each, and a
+# floor below one of them names a compiler this workspace cannot be built with.
+#
+# **The floor is enforced against new code, and nowhere else.** Cargo only
+# checks *toolchain ≥ rust-version*, never *this code compiles on rust-version*,
+# while `clippy::incompatible_msrv` is live through `clippy::all` and refuses
+# code needing a standard library newer than this line. A floor written lower
+# than the dependencies need makes that lint fail `-D warnings` on behalf of a
+# compiler nothing here can use; one written higher than the toolchain in
+# `rust-toolchain.toml` resolves makes every build refuse to start.
+rust-version = "1.96"
+# No `license` key and no LICENSE file: this repository has none, by the
+# developer's decision (`NOCTUA.md §5.10`).
+
+[workspace.dependencies]
+# Every entry here is one a member takes, or one that exists so a member *can*
+# take it. A declaration nothing resolves is a version nobody checks, so a
+# dependency is added in the change that first needs it, with the paragraph that
+# justifies it (`NOCTUA.md §2.3`).
+#
+# **One is the second kind today, and saying "every entry is used" was
+# false.** `noctua-design` is Stage 16's: it is declared here so that the crate
+# taking it writes one line rather than a version, which is the whole point of
+# this table, and what it is not is resolved — `cargo` never builds it at all.
+# `check` says "the design system's manifest is at …" rather than "resolves",
+# for exactly that reason.
+#
+# Pinned as minor-compatible: `cargo xtask check` fails on a dirty lockfile, so
+# an upgrade is always a deliberate, reviewed change rather than something that
+# happens to a machine that ran `cargo update`.
+
+# The design system, reached by path while it and this repository are edited
+# together. When this moves to a tagged dependency it becomes exactly this line:
+#   noctua-design = { git = "https://github.com/noctua-world/noctua-design.git", tag = "v0.2.7" }
+#
+# `noctua-colors` is deliberately absent. The colour system reaches this
+# repository *through* `noctua-design`, never directly and never redefined
+# (`NOCTUA.md §8.8`, invariant 1); `cargo xtask check` fails if any manifest here names it.
+noctua-design = { path = "../noctua-design/crates/noctua-design" }
+
+# Internal. Path only: nothing here is published, and there is no repository to
+# publish it from.
+nc-canon = { path = "crates/nc-canon" }
+# PostgreSQL: the driver, the pool and the migrations in one, chosen so that
+# there is one mechanism rather than three. Runtime queries only — no `query!`
+# macros — so nothing needs `DATABASE_URL` at build time and there is no `.sqlx`
+# cache to keep in sync with the schema.
+#
+# **No TLS feature at all.** `docker-compose.yml` binds PostgreSQL to
+# `127.0.0.1` and `NOCTUA.md §18.5` puts the store on the same machine as the
+# platform, so the connection never crosses a network. `rustls`, `ring` and
+# Mozilla's CA bundle are in the graph now, for the kernel's `net.fetch`
+# (`ureq` below), and that changes nothing here: this feature would be one
+# more trust store and handshake wired into a socket that never leaves the
+# machine, to encrypt loopback.
+#
+# The day a deployment reaches a database it does not own, the feature comes back
+# **in the change that needs it**, which is this repository's rule for every
+# dependency (`§2.3`).
+# **`macros` is on, and the promise above is about which macros are used.**
+# The paragraph said "no `query!` macros" and a reader took it as "the `macros`
+# feature is off"; `AGENTS.md` said so outright. It is not off, and it cannot
+# be: `sqlx::migrate!` — which is how `migrations/` is embedded at compile time,
+# needing no database — comes from `macros`, and removing the feature fails as
+# `cannot find `migrate` in `sqlx``.
+#
+# What the promise is really about is the `query!` family, which checks SQL
+# against a live database *while compiling*: those need `DATABASE_URL` at build
+# time and a `.sqlx` cache to build without one, and either would break
+# `cargo xtask check --offline`. A feature list cannot express "this macro and
+# not that one", so the rule is a source gate — `gates::no_compile_time_query`,
+# run over every Rust file in the tree by `cargo xtask check`.
+#
+# **0.9, and a statement built at run time is vouched for by name wherever the
+# compiler asks for it.** Its `query`, `query_as`, `query_scalar` and `raw_sql`,
+# and an `Executor` handed a string, take `impl SqlSafeStr`, which only a
+# `&'static str` and `sqlx::AssertSqlSafe(..)` implement, so a schema, a role or
+# a table name `format!`ted into a statement does not compile until it is
+# wrapped — and the wrap is a claim the compiler takes on trust.
+# `gates::ASSERTED_STATEMENTS` is where each file's claim was read: how many
+# statements it vouches for and every value their text is built from, held to
+# the tree in both directions by the same walk as the query gate. **What the
+# compiler leaves open is listed on `gates::Asserted`, with how each is held**,
+# and the list is what a reading of `sqlx`'s public signatures found rather
+# than a proof there is no other: `QueryBuilder`, refused wherever it is named;
+# `copy_in_raw` and `copy_out_raw`, which take a whole `COPY` statement as a
+# plain `&str` and are read the way a wrap is, so one built from values needs a
+# row; and two that nothing holds — a `String` leaked into a `&'static str`,
+# and the migrator's own table and schema names, which no migrator here sets.
+# Two things changed underneath: a PostgreSQL error's `Display` now ends
+# `at line N`, a line of the server's C source, so a sentence for a person is
+# composed from `DatabaseError::message()`; and the SQLite `sqlx` bundles is chosen by
+# `Cargo.lock`, not by this line — `sqlx-sqlite` accepts `libsqlite3-sys`
+# `>=0.30.1, <0.38`, and `cargo update -p sqlx` alone keeps an old one, so
+# `cargo tree -i libsqlite3-sys` is the command that says which, and
+# `crates/nc-local` refuses to open its database with one below 3.50.2.
+#
+# **SQLite is not on this line, and three members add it.** The local app
+# database (`NOCTUA.md §4`) is SQLite through this same crate: `nc-local`, the
+# pruner's second target and the gate over `local-migrations/` each write
+# `features = ["sqlite-bundled"]` in their own manifest, so nothing else links it
+# by accident.
+sqlx = { version = "0.9", default-features = false, features = [
+    "runtime-tokio",
+    "postgres",
+    "macros",
+    "migrate",
+] }
+
+# The async runtime. It arrives with `sqlx`, which has no synchronous API and is
+# what `NOCTUA.md`'s PostgreSQL access is built on; the `rt-multi-thread` and
+# `macros` features are what a test needs to drive an async store.
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+
+nc-catalog = { path = "crates/nc-catalog" }
+nc-catalog-compiler = { path = "crates/nc-catalog-compiler" }
+nc-log = { path = "crates/nc-log" }
+nc-policy = { path = "crates/nc-policy" }
+nc-prune = { path = "crates/nc-prune" }
+nc-ids = { path = "crates/nc-ids" }
+nc-journal = { path = "crates/nc-journal" }
+# The closed JSON Schema subset, the resource selector and the descriptor judge
+# (`NOCTUA.md §11.4`, `§11.7`). The catalog compiler judges every declared
+# command through it at build time and the kernel does at `activate`, so the
+# rule is written once; the compiler depending on it is why it depends on
+# nothing of this workspace.
+nc-schema = { path = "crates/nc-schema" }
+# The local app database (`NOCTUA.md §4`, "Local app database"): the plugin
+# store and the units that wrote it, in one SQLite file private to the user.
+# The kernel builds its store on it, and `xtask` takes it for the list of
+# objects `local-migrations/` must build — the one list the crate checks a
+# database against when it opens one, so the gate and the check cannot differ.
+nc-local = { path = "crates/nc-local" }
+# The decision point as a library: the core and one realm's pack, embedded when
+# it is built (`NOCTUA.md §14.2`). The kernel holds every command a plugin
+# declares at `activate` to the actions its schema declares and the resource
+# types each applies to. **It mints a principal's identifier, and the kernel
+# never does**: the kernel reaches the central log, whose wall refuses a crate
+# that can reach it minting one from text.
+nc-authz = { path = "crates/nc-authz" }
+# The guest half of the kernel's world, generated once: every plugin calls the
+# `export!` this crate's `generate!` emits, and none runs the generator itself
+# (`crates/nc-guest/src/lib.rs` says why that keeps `forbid(unsafe_code)` whole).
+nc-guest = { path = "crates/nc-guest" }
+# The reference plugin's host half, taken by the kernel's suite alone: what the
+# component declares at `activate` is held to what its `behaviour` module says,
+# field for field, because the adapter mapping one onto the other is compiled
+# for `wasm32` only and that suite is the one reader of what it produces.
+nc-plugin-reference = { path = "plugins/reference" }
+
+# The authorization engine (`NOCTUA.md §4` [CLOSED]): the decision point is this
+# library, embedded, and never a service on the critical path (`§14.2`).
+# **Here because two members take it, and they have to take one engine.**
+# `nc-policy` validates the pack and runs its cases with it, and `nc-authz`
+# decides with it, and a pack validated by one Cedar and decided by another is a
+# pack validated against a second implementation of Cedar's semantics — the
+# thing `nc-policy`'s own manifest says it exists to prevent.
+#
+# **What this line buys is not what the lockfile already gives.** Cargo resolves
+# every semver-compatible requirement on a crate to one version, so two members
+# writing `4.12` and `4.13` still link one Cedar — `cargo tree -i cedar-policy`
+# shows a single node under both. What one line prevents is what the lockfile
+# does not: a member moving to another major version and linking a second Cedar
+# beside the first, or an exact `=` pin in one member quietly deciding the
+# version the other runs while the other's manifest says something else. And it
+# is the one place the requirement is written, so raising it moves the validator
+# and the decision point together.
+cedar-policy = "4.12"
+
+# The five verbs and their flags. Already `noctua-colors`' and `noctua-design`'s
+# argument parser, so the three command surfaces behave the same way.
+clap = { version = "4.6", features = ["derive"] }
+
+# The plugin runtime (`NOCTUA.md §4` [CLOSED], `§11.3`): the Component Model,
+# **fuel** and **epoch interruption**, and a per-store resource limiter — the
+# three limits `§11.3` requires, because memory isolation alone contains a
+# plugin that crashes and not one that hangs. Not something to write here:
+# `§2.3` names a WASM runtime as the example of what an in-house solution is not.
+#
+# **The features are the ones the kernel runs, and every default is off.**
+# `runtime` and `cranelift` compile a component when it is loaded;
+# `component-model` is the world; `async` is what lets a host function await the
+# journal, the directory and the store, each of which is asynchronous; `std` and
+# `backtrace` make a trap name the guest frame it came from; and `call-hook`
+# tells the kernel each time a plugin's call crosses into the host and back,
+# which is how the epoch deadline bounds the plugin's own running and not the
+# time the kernel spends answering it — a host call has a deadline of its own.
+# It adds no crate to the graph. Left off, each for
+# a reason: `cache`, because a compiled artefact read back from disk goes
+# through `Component::deserialize`, which is `unsafe` — the kernel compiles on
+# every load instead; `wat`, because no text format is ever loaded;
+# `pooling-allocator` and `parallel-compilation`, which buy throughput this
+# kernel does not need yet; `threads`, `gc`, `stack-switching` and the async
+# component model, which no plugin is offered; and the debugging, profiling,
+# core-dump and `anyhow` integrations. `cargo tree -e features -i wasmtime` is
+# the command that says what is on.
+#
+# **The requirement names a patch release, because that is how wasmtime ships
+# its security fixes.** Its advisories land on every supported line at once and
+# say "upgrade to >= <line>.0.<n>", so the floor written here is the lowest
+# patch the advisory database accepts, not the release this was first built
+# against — a lockfile can only move up from it, and a fresh resolution can
+# never pick a patch `cargo deny` refuses. When the audit step names a newer
+# patch, the fix is this number and `cargo update -p wasmtime`, in one change;
+# `cargo deny --locked check advisories` is what says which patch that is.
+wasmtime = { version = "49.0.5", default-features = false, features = [
+    "runtime",
+    "cranelift",
+    "component-model",
+    "std",
+    "async",
+    "backtrace",
+    "call-hook",
+] }
+
+# The guest half of the same world: `§4`'s Component Model is "with
+# `wit-bindgen`", and `crates/nc-guest` runs its `generate!` once for every
+# plugin. **`macros` only.** The defaults add `realloc`, `std`, `bitflags`, the
+# async runtime and a string-literal form of the macro input, and the world
+# needs none of them. Its `build.rs` links two prebuilt static archives into
+# every `wasm32` build whatever the features say — `deny.toml` records that
+# beside its build-script rule.
+wit-bindgen = { version = "0.61.1", default-features = false, features = ["macros"] }
+
+# What turns a plugin's core module into a component, inside `cargo xtask`:
+# `ComponentEncoder` reads the worlds embedded in the module and refuses an
+# import none of them describes. **Every world, not the plugin's**: a dependency
+# with bindings of its own embeds another, the encoder merges them, and
+# `wasip2`'s `wasi:random` import was measured encoding without a word — so
+# `xtask/src/plugins.rs` decodes the component with this crate's `decode` and
+# holds each import to the world `plugin` itself. It has no default features
+# today, and `default-features = false` keeps it that way when a release adds
+# one; `wat` and `dummy-module` are for tools that print or invent modules, not
+# for an encoder.
+wit-component = { version = "0.258.0", default-features = false }
+
+# The WIT parser, for the questions a module and the kernel's generated
+# bindings cannot answer about the world they came from: which package and
+# version it declares, what the world `plugin` imports — the list
+# `cargo xtask build --plugins` holds a component to — and, for the capability
+# census, every function it holds, which a component's own imports do not say
+# (it imports only what its guest calls). `std` alone: the `decoding` and
+# `serde` defaults are what `wit-component` reads a binary component with, and it
+# turns them on for itself; nothing here asks this line for them.
+wit-parser = { version = "0.258", default-features = false, features = ["std"] }
+
+# The HTTPS client behind `net.fetch` (`NOCTUA.md §11.3`), the one way a plugin
+# reaches the network — decided with the developer on 2026-09-28: real HTTPS,
+# with the kernel owning every rule about what may be asked and this crate only
+# carrying a request the kernel already judged. **Blocking, and small**: no
+# runtime of its own, so the kernel runs it on the blocking pool under the host
+# call's deadline, and a resolver and a configuration the kernel replaces —
+# `crates/nc-kernel/src/net/ureq.rs` dials only public addresses, and turns off
+# the proxy `Config::default()` reads from the environment, every redirect and
+# every status read as an error. **`rustls` alone**, its `ring` provider and
+# `webpki-roots`, Mozilla's root bundle compiled in: a root store read from the
+# platform reads `SSL_CERT_FILE` and `SSL_CERT_DIR`, so the environment would
+# choose whom the kernel trusts; and the defaults add `gzip`, whose decoder sits
+# outside the limit an answer's body is read to — one answer at the bound then
+# inflates past it a thousandfold — so it, `brotli`, `charset` and `cookies`
+# stay off in every build, which `xtask` holds against the features cargo
+# resolves for this crate and the transport's own wire test against what it
+# hands on.
+# `Resolver` lives in `ureq::unversioned`, outside its semver promise — it may
+# change in a minor release, never a patch — which is one more reason the
+# lockfile, not this line, decides the version a build runs.
+ureq = { version = "3.5.0", default-features = false, features = ["rustls"] }
+
+# The protocol `ureq` speaks HTTP/1.1 with, already in the graph at the version
+# `ureq` requires. Taken directly only because the kernel matches on its
+# `Error` — the type `ureq::Error::Protocol` carries, which `ureq` does not
+# re-export — to tell an answer with more headers than its parser holds as an
+# answer too large, never as a network that did not answer. It adds no package
+# and no feature: its own, `client` and `server`, are off on this line, and
+# `ureq` turns on the one it needs. A `ureq` that moves to another release line
+# of it carries an `Error` the kernel's match does not name, which fails to
+# compile rather than letting the arm miss.
+ureq-proto = { version = "0.6", default-features = false }
+
+# The parser a plugin's URL is held to before anything is sent: WHATWG's, as a
+# browser reads one, so every spelling of an address — `127.1`, `0x7f000001`,
+# full-width digits, a trailing dot — parses to an IP host the kernel refuses
+# rather than to a name, and a domain is read in the lower-case IDNA form a
+# manifest declares. Already in the graph under `sqlx`; named here because the
+# kernel matches on its `Host` itself, and a type it matches on is a
+# dependency it takes.
+url = "2.5"
+
+# `NOCTUA.md §16.3` and `§16.4` both have algebraic laws — parse-then-build
+# identity, canonical round-trip — and `§19.2` puts those under property test.
+# Already `noctua-colors`'.
+proptest = "1.11"
+
+# The ledger's checksum, which is what catches an edit made outside the compiler.
+# `NOCTUA.md §16.2` and `§14.9` both name BLAKE3, and it is already
+# `noctua-colors`'.
+blake3 = "1.8"
+
+# The registries are TOML, and `preserve_order` keeps a scale in the order its
+# author wrote it: `delay_ms` is a curve, and an alphabetical parse of anything
+# ordered is deterministic and unreadable.
+toml = { version = "1.1", features = ["preserve_order"] }
+serde = { version = "1.0", features = ["derive"] }
+# A command's `args_schema` is JSON Schema, and it is validated at build time
+# rather than trusted: a malformed one silently removes the command's AI tool
+# interface, which nothing else would notice.
+# **`preserve_order`, declared rather than inherited.** `serde_json::Map` is a
+# sorted `BTreeMap` unless this feature is on, and the catalog emitter writes
+# `Command::arguments` "in the order `args_schema` declares them" — a sentence
+# that was true only because `cedar-policy-core`, reached through `nc-policy`,
+# happens to turn the feature on for the whole graph. Built without `nc-policy`
+# in it, the same emitter over the same catalog wrote `["dry_run", "table"]`
+# where the committed file says `["table", "dry_run"]`, and both determinism
+# gates ran inside one binary and could not see it. An emitter whose output
+# depends on the feature set of whatever links it is an emitter whose output is
+# not a function of its input.
+serde_json = { version = "1.0", features = ["preserve_order"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+unreachable_pub = "warn"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# There is deliberately no allow-list here. `noctua-colors` needs several for
+# colour maths and every one of them carries the paragraph that earns it; this
+# workspace has no numeric core and starts with none. An allow added later
+# without a written reason is a defect: it is a problem left pending, which
+# `NOCTUA.md §2.2` forbids.
+
+# Warnings become errors at the gate, not in the manifest: `cargo xtask check`
+# passes `-D warnings`, so an ordinary `cargo build` during development still
+# shows a warning without stopping the loop.
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1

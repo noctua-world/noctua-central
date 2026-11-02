@@ -1,0 +1,21 @@
+[package]
+name = "nc-guest"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "The guest half of the kernel's world: the bindings every plugin exports through, generated once."
+
+[dependencies]
+# The generator, and nothing else: `generate!` reads the world from
+# `crates/nc-kernel/wit`, the same file the host is generated from.
+wit-bindgen.workspace = true
+
+[dev-dependencies]
+# **Itself, so the documentation gate can read this crate's tests.** Cargo
+# resolves it to this same unit, so nothing is built twice — the same line every
+# member of this workspace carries.
+nc-guest = { path = "." }
+
+[lints]
+workspace = true

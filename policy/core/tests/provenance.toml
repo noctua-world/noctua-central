@@ -1,0 +1,53 @@
+# Invariant 2 — no permission without provenance.
+#
+# `reference/identity-and-authorization.md §4`: **every** relation tuple is a
+# grant carrying `granted_by`, `reason`, `valid_from`, `valid_until` and
+# `source`. A permission is never a boolean column, so a decision that rests on
+# no grant at all rests on nothing that can be audited or revoked.
+
+[default.context]
+now = { datetime = "2026-08-26T00:00:00Z" }
+via_agent = false
+confirmed_by_human = false
+actor_chain_depth = 0
+policy_epoch = 7
+quorum_met = true
+grant = { entity = 'Grant::"g.current"' }
+
+[[case]]
+name = "a request that names no grant is refused even when a pack would permit it"
+principal = 'User::"ana"'
+action = "Read"
+resource = 'Content::"photo"'
+decision = "deny"
+because = "core.provenance"
+context_without = ["grant"]
+
+[[case]]
+# **An `Agent` principal, which no case in the pack used.** Every one of the
+# seventeen was a `User`, so `unless { context has grant || principal is Agent }`
+# — an agent acting with no grant at all, which is exactly what invariant 2
+# exists to stop — could be added with the whole suite green.
+name = "an agent with no grant is refused like anybody else"
+principal = 'Agent::"ana-assistant"'
+action = "Read"
+resource = 'Content::"notice"'
+decision = "deny"
+because = "core.provenance"
+# **Marked as an agent**, or `core.an_agent_never_impersonates` refuses it too
+# and removing `core.provenance` would leave it denied — which is the coverage
+# check saying, correctly, that the case had stopped testing provenance. What
+# this case is about is the missing grant, so everything else about the request
+# has to be ordinary.
+context = { via_agent = true }
+context_without = ["grant"]
+
+[[case]]
+# And a `Device`, the other principal type nothing exercised.
+name = "and so is a device"
+principal = 'Device::"ana-laptop"'
+action = "Read"
+resource = 'Content::"notice"'
+decision = "deny"
+because = "core.provenance"
+context_without = ["grant"]

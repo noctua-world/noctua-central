@@ -1,0 +1,13 @@
+# Makes `cargo xtask <verb>` work from anywhere in the repository with no tool to
+# install first. This file is the entire reason the command surface needs no
+# bootstrap step.
+#
+# `--locked` is here as well as inside `check`, and both are needed. Without it
+# on the alias, `cargo run` resolves and rewrites a missing or stale `Cargo.lock`
+# *before* xtask starts — so the step that exists to catch a dirty lockfile runs
+# against one cargo has just tidied up, and `rm Cargo.lock && cargo xtask check`
+# passes. Measured. The cost is that changing a dependency needs an explicit
+# `cargo update` before the alias works again, which is exactly the deliberate,
+# reviewed change the manifest promises.
+[alias]
+xtask = "run --quiet --locked --package xtask --"

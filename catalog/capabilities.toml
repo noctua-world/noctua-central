@@ -1,0 +1,128 @@
+# Every capability a plugin can be granted (`NOCTUA.md §11.3`), and every
+# interface of the plugin world given to every plugin without asking.
+#
+# **Deny by default.** A plugin's manifest (`plugin.toml`) lists the
+# capabilities it asks for by the `name` written here, and nothing else: a name
+# this file does not declare is refused when the manifest is read. Every
+# function of a capability that was not granted answers `denied` — as a value
+# the plugin reads, never as a trap, because a trap kills the plugin it was
+# refusing — so a plugin discovers its limits by being told no, which is
+# testable, rather than by failing to link, which is not.
+#
+# **The world is the maximum surface and this file divides it.** Every function
+# of every interface `crates/nc-kernel/wit/noctua-kernel.wit` imports is written
+# here exactly once: in one capability below, or in the `functions` of an
+# interface given to every plugin. The kernel's coverage test reads the world
+# with its own parser and holds this list to it in both directions, so a
+# function the world gains fails that test until it is written here — and an
+# interface given to every plugin gives only the functions it lists, because
+# its reason was written about those — rather than reaching every plugin
+# without anybody having decided it should. A function is written as the
+# parser names it: a resource's method is `[method]<resource>.<name>`, and
+# `store`'s listing is `list` whatever escape the WIT writes it with.
+#
+#   [[capability]]  name         what a manifest writes: the interface, or the
+#                                interface, a dot and one lower-case word
+#                   interface    the interface of the world whose functions it
+#                                grants
+#                   functions    every function of that interface it grants
+#                   description  the i18n key of the sentence saying what it
+#                                lets a plugin do, in both locales
+#   [[ungated]]     interface    an interface no manifest is asked about
+#                   functions    every function of it every plugin is given,
+#                                written the same way; empty for an interface
+#                                that declares only types
+#                   reason       why giving it to every plugin grants nothing a
+#                                plugin could misuse
+#
+# A resource's methods are reachable only through the function that hands out
+# the resource — `open`, `create`, `begin` — so they sit in that function's
+# capability: a plugin denied the constructor never holds a handle to call one
+# on.
+
+[[capability]]
+name = "context"
+interface = "context"
+functions = ["principal", "actor-chain", "confirmed-by-human"]
+description = "capability.context.description"
+
+[[capability]]
+name = "store"
+interface = "store"
+functions = ["get", "put", "delete", "list"]
+description = "capability.store.description"
+
+[[capability]]
+name = "blobs.read"
+interface = "blobs"
+functions = ["locate", "open", "[method]reader.size", "[method]reader.read", "[method]reader.seek"]
+description = "capability.blobs.read.description"
+
+[[capability]]
+name = "blobs.write"
+interface = "blobs"
+functions = ["create", "announce", "[method]writer.write", "[method]writer.finish"]
+description = "capability.blobs.write.description"
+
+[[capability]]
+name = "commands.dispatch"
+interface = "commands"
+functions = ["dispatch"]
+description = "capability.commands.dispatch.description"
+
+[[capability]]
+name = "commands.begin"
+interface = "commands"
+functions = ["begin", "[method]unit.compensate-with", "[method]unit.commit", "[method]unit.abort"]
+description = "capability.commands.begin.description"
+
+[[capability]]
+name = "events.publish"
+interface = "events"
+functions = ["publish"]
+description = "capability.events.publish.description"
+
+[[capability]]
+# **No function, and still a capability.** What it grants is a declaration: the
+# topics a plugin's `activate` may subscribe to, which the manifest lists under
+# `[events] subscribe`. Delivery is `on-event`, which the plugin exports and
+# the kernel calls, so no import of the world is behind it.
+name = "events.subscribe"
+interface = "events"
+functions = []
+description = "capability.events.subscribe.description"
+
+[[capability]]
+name = "ui"
+interface = "ui"
+functions = ["open-surface", "close-surface", "render"]
+description = "capability.ui.description"
+
+[[capability]]
+# Only to the domains the manifest declares under `[net] domains`, and never a
+# raw socket: `fetch` is the whole of the network a plugin has.
+name = "net"
+interface = "net"
+functions = ["fetch"]
+description = "capability.net.description"
+
+[[capability]]
+name = "timers"
+interface = "timers"
+functions = ["after", "every", "cancel"]
+description = "capability.timers.description"
+
+[[ungated]]
+interface = "log"
+functions = ["write"]
+reason = """
+A line a plugin writes goes to that plugin's own bounded ring in the kernel and \
+never reaches the central log (NOCTUA.md §15.4), so writing one tells nobody \
+anything the plugin could not already see. `write` returns nothing, so there is \
+no `denied` it could answer either.
+"""
+
+[[ungated]]
+interface = "types"
+functions = []
+reason = "It declares the types the other interfaces share and no function at all, so there is nothing in it to call."

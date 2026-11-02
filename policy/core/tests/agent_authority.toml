@@ -1,0 +1,51 @@
+# `NOCTUA.md §14.6`, rules 2 and 5, made to fire.
+
+[default.context]
+now = { datetime = "2026-08-26T00:00:00Z" }
+via_agent = true
+confirmed_by_human = false
+actor_chain_depth = 2
+policy_epoch = 7
+quorum_met = true
+grant = { entity = 'Grant::"g.current"' }
+
+[[case]]
+# The control for both rules: an agent with budget left, acting as an agent.
+# Without it a refusal below could mean the request was refused for some other
+# reason entirely.
+name = "an agent with budget, acting as an agent, is not refused by these"
+principal = 'Agent::"ana-assistant"'
+action = "Read"
+resource = 'Content::"notice"'
+decision = "allow"
+because = "family.a_member_reads_shared_content"
+
+[[case]]
+name = "an agent that has spent its budget is refused"
+principal = 'Agent::"ana-assistant-spent"'
+action = "Read"
+resource = 'Content::"notice"'
+decision = "deny"
+because = "core.budget_is_a_permission"
+
+[[case]]
+# The same agent, the same request, one context flag different — so what this
+# proves is the flag and not the agent.
+name = "an agent acting unmarked is impersonating and is refused"
+principal = 'Agent::"ana-assistant"'
+action = "Read"
+resource = 'Content::"notice"'
+decision = "deny"
+because = "core.an_agent_never_impersonates"
+context = { via_agent = false }
+
+[[case]]
+# And the rule says nothing about a person acting as herself, which is every
+# request she makes — a `forbid` that caught this would stop the platform.
+name = "a person acting unmarked is not impersonating"
+principal = 'User::"ana"'
+action = "Read"
+resource = 'Content::"notice"'
+decision = "allow"
+because = "family.a_member_reads_shared_content"
+context = { via_agent = false }

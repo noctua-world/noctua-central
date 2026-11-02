@@ -1,0 +1,390 @@
+// Kernel surface v0.2.0 — the minimal kernel surface exposed to plugins.
+//
+// The golden rule: if a capability can be composed from the ones that already
+// exist here, it does NOT go in. The host is small; features are plugins.
+//
+// Provenance: this file began as the canonical English version of
+// `reference/original-pt-BR/noctua-kernel.wit` (v0.1.0), identifiers
+// byte-identical and only comments translated. **Since 0.2.0 the identifiers
+// diverge**: the `context` interface, `commands.reversibility`, and the
+// `action`, `resource-selector` and `reversibility` fields of
+// `commands.descriptor` exist only here — the three additions NOCTUA.md §11.7
+// describes. And `store.list` is written `%list`: `list` is a WIT
+// keyword, so neither the original nor v0.1.0 parses with a current
+// `wit-parser`, and `%` is WIT's escape for a keyword used as a name — on the
+// wire and in every binding the function is still `list`. The original is
+// provenance and is never edited; where the two differ, this file wins.
+//
+// What a function is for and what the 0.2.0 kernel answers can differ: blobs
+// fetched from and announced to other machines wait for the network
+// (NOCTUA-PLAN.md Stage 25). Where they do, the comment on the item says both.
+//
+// `repos/noctua-central/crates/nc-kernel/wit/noctua-kernel.wit` is a
+// byte-identical copy the kernel and every plugin compile against. Change this
+// file first, then copy it.
+
+package noctua:kernel@0.2.0;
+
+// ---------------------------------------------------------------------------
+// Shared types
+// ---------------------------------------------------------------------------
+
+interface types {
+  /// BLAKE3 hash of the content, in hex. This is the identity of every file on
+  /// the network.
+  type hash = string;
+
+  /// Stable identity of a plugin: "noctua:media-player".
+  type plugin-id = string;
+
+  /// Milliseconds since the Unix epoch.
+  type timestamp = u64;
+
+  /// Structured data at the boundaries: canonical JSON (ordered keys, stable
+  /// formatting). WIT cannot express a dynamic schema, and canonical JSON is
+  /// what gives minimal diffs and readability for the AI agents.
+  type payload = string;
+
+  /// Why a host function or a command did not answer. The string is the
+  /// kernel's sentence, opening on the registry code that names the refusal:
+  /// `[NC-PLUG-0001]`, `[NC-POL-0003]`.
+  variant error {
+    /// Not allowed: a capability not granted to this plugin, a dispatch the
+    /// decision point refused — a policy, a command that changes state
+    /// beneath one that only reads, a dispatch into the plugin already
+    /// running, a call tree past its depth or its count — a write where only
+    /// reading is allowed, or a request the kernel will not send.
+    denied(string),
+    not-found(string),
+    /// Malformed or too large: a payload that is not canonical JSON or not
+    /// what the declared schema reads, a key, a value or a request past its
+    /// bound, a cursor or a revision that is not one, a handle used after it
+    /// ended.
+    invalid(string),
+    /// Write against a stale version.
+    conflict(string),
+    /// Not now: a count the catalog bounds reached, a call tree past its
+    /// deadline, a journal, a store or a network that did not answer, a
+    /// plugin that is quarantined, a blob not on this machine, or no peer to
+    /// reach.
+    unavailable(string),
+    internal(string),
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Observability
+// ---------------------------------------------------------------------------
+
+interface log {
+  enum level { trace, debug, info, warn, error }
+  write: func(lvl: level, msg: string);
+}
+
+// ---------------------------------------------------------------------------
+// Who is asking — read-only to plugins, written only by the kernel
+// ---------------------------------------------------------------------------
+
+interface context {
+  use types.{error};
+
+  /// The principal this call tree runs on behalf of: an opaque identifier,
+  /// never a name.
+  principal: func() -> result<string, error>;
+
+  /// On whose behalf, outermost first. Empty unless an agent is acting —
+  /// delegation, never impersonation.
+  actor-chain: func() -> result<list<string>, error>;
+
+  /// Whether a human confirmed this dispatch through real UI interaction.
+  /// Issued by the kernel alone: it is never an argument, and a nested
+  /// dispatch never inherits it.
+  confirmed-by-human: func() -> result<bool, error>;
+}
+
+// ---------------------------------------------------------------------------
+// Structured state — namespace isolated per plugin
+// ---------------------------------------------------------------------------
+
+interface store {
+  use types.{error, payload};
+
+  /// Version token for optimistic writes.
+  type revision = string;
+
+  record entry {
+    value: payload,
+    rev: revision,
+  }
+
+  record page {
+    keys: list<string>,
+    next-cursor: option<string>,
+  }
+
+  get: func(key: string) -> result<option<entry>, error>;
+
+  /// `expected` absent = create only if it does not already exist.
+  put: func(key: string, value: payload, expected: option<revision>)
+    -> result<revision, error>;
+
+  /// `expected` absent = delete whatever is there.
+  delete: func(key: string, expected: option<revision>) -> result<_, error>;
+
+  %list: func(prefix: string, limit: u32, cursor: option<string>)
+    -> result<page, error>;
+}
+
+// ---------------------------------------------------------------------------
+// Content-addressed blobs — the P2P primitive
+// ---------------------------------------------------------------------------
+
+interface blobs {
+  use types.{error, hash};
+
+  enum availability {
+    /// Present on this machine's disk.
+    local,
+    /// Known to the platform, served by at least one reachable peer.
+    remote,
+    /// No peer available right now.
+    unavailable,
+  }
+
+  /// Streaming read: large media never enters the plugin's linear memory.
+  resource reader {
+    size: func() -> u64;
+    read: func(max: u32) -> result<list<u8>, error>;
+    seek: func(offset: u64) -> result<_, error>;
+  }
+
+  resource writer {
+    write: func(bytes: list<u8>) -> result<_, error>;
+    /// Closes and returns the hash of what was written.
+    finish: func() -> result<hash, error>;
+  }
+
+  /// Where the content is, without transferring it.
+  locate: func(h: hash) -> result<availability, error>;
+
+  /// Opens for reading. If it is not local, the kernel fetches it over P2P
+  /// transparently — the plugin neither knows nor cares where it came from.
+  /// Until the network exists the 0.2.0 kernel fetches nothing: a blob not on
+  /// this machine is `unavailable` at once, and `locate` never answers
+  /// `remote`.
+  open: func(h: hash) -> result<reader, error>;
+
+  create: func() -> result<writer, error>;
+
+  /// Announces to the platform that this node now serves this content. The
+  /// 0.2.0 kernel has no peer to announce to: it reaches none, and answers
+  /// `unavailable` rather than pretending it did.
+  announce: func(h: hash) -> result<_, error>;
+}
+
+// ---------------------------------------------------------------------------
+// Commands — the ONLY door to state mutation
+// ---------------------------------------------------------------------------
+
+interface commands {
+  use types.{error, payload};
+
+  /// Whether a command can be undone, and whether a human must confirm it.
+  enum reversibility {
+    /// Changes nothing.
+    read,
+    /// Changes state; undo reverses what the kernel can reverse.
+    write,
+    /// Cannot be reversed: requires `confirmed-by-human` in the context.
+    irreversible,
+  }
+
+  record descriptor {
+    /// Namespaced by the plugin: "media.play", "checklist.toggle".
+    name: string,
+    /// Label for the command list and keybindings.
+    title: string,
+    /// JSON Schema of the arguments, in the closed subset the kernel accepts.
+    /// This same schema is what exposes the command as a tool to the AI
+    /// agents — there is no separate tool subsystem.
+    args-schema: payload,
+    /// Whether it mutates state, and so runs in a unit of work and enters the
+    /// undo history. Every dispatch enters the audit log, a read's as well.
+    mutating: bool,
+    /// The Cedar action the policy decision point evaluates. Required: an
+    /// empty one is rejected at `activate`, naming the command.
+    action: string,
+    /// How the kernel extracts the resource from the arguments: `realm`, or
+    /// `argument:<name>` naming a required string property whose schema
+    /// carries `x-entity`. Required: an empty one is rejected at `activate`.
+    resource-selector: string,
+    /// Read, write or irreversible.
+    reversibility: reversibility,
+  }
+
+  record manifest {
+    commands: list<descriptor>,
+    /// Topic patterns this plugin wants to receive.
+    subscriptions: list<string>,
+  }
+
+  /// Groups mutations into ONE undo step and ONE atomic unit.
+  ///
+  /// Honest scope: it covers what the kernel knows how to reverse — `store`
+  /// writes and blobs created inside the group. It does NOT cover effects that
+  /// have already left the machine (`net.fetch`, an announcement propagated on
+  /// the network). For those, register a compensation.
+  ///
+  /// The group is AMBIENT: every command dispatched while it is open joins it,
+  /// including the ones that land in other plugins. Nested groups flatten into
+  /// whatever was already open.
+  resource unit {
+    /// Command the kernel dispatches if this group is undone, to reverse what
+    /// it cannot reverse on its own.
+    /// E.g. "media.unannounce" compensating a "media.announce".
+    compensate-with: func(name: string, args: payload) -> result<_, error>;
+
+    /// Confirms the group and records it as a single step in the history.
+    commit: func() -> result<_, error>;
+
+    /// Discards it explicitly.
+    abort: func();
+  }
+
+  /// Opens a group. `label` is the text the user sees in the history:
+  /// "Import album", "Personal agent: organize photos".
+  ///
+  /// Dropping the handle without `commit` aborts. This is deliberate: if the
+  /// plugin traps, runs out of fuel, or is killed midway, the handle falls with
+  /// it and the kernel reverts — no broken feature leaves half-applied state.
+  begin: func(label: string) -> result<unit, error>;
+
+  /// Invokes a command — another plugin's, or the kernel's. This is also how
+  /// one plugin talks to another: there is no separate call interface. A
+  /// command of the plugin dispatching it is refused as a dispatch into the
+  /// plugin already running (`denied`), since that plugin is the one running
+  /// the call.
+  ///
+  /// `kernel.undo` and `kernel.redo` are built-in commands, dispatched through
+  /// here like any other. There is no history interface.
+  dispatch: func(name: string, args: payload) -> result<payload, error>;
+}
+
+// ---------------------------------------------------------------------------
+// Events — the only way to observe
+// ---------------------------------------------------------------------------
+
+interface events {
+  use types.{error, payload};
+  publish: func(topic: string, data: payload) -> result<_, error>;
+}
+
+// ---------------------------------------------------------------------------
+// Declarative UI — the plugin describes, the host renders
+// ---------------------------------------------------------------------------
+
+interface ui {
+  use types.{error, payload};
+
+  enum surface-kind {
+    /// Side / auxiliary panel.
+    panel,
+    /// A whole page holding a document.
+    document,
+    /// Ephemeral overlay.
+    overlay,
+    /// Node anchored in 3D space.
+    node-3d,
+  }
+
+  type surface-id = string;
+
+  open-surface: func(kind: surface-kind, title: string)
+    -> result<surface-id, error>;
+
+  close-surface: func(id: surface-id) -> result<_, error>;
+
+  /// Declarative tree. Interactions are declared as command names, so the host
+  /// dispatches directly — no callback crosses the boundary, and no mutation
+  /// escapes the command system.
+  render: func(id: surface-id, tree: payload) -> result<_, error>;
+}
+
+// ---------------------------------------------------------------------------
+// Network — only for domains declared in the manifest. No raw sockets.
+// ---------------------------------------------------------------------------
+
+interface net {
+  use types.{error};
+
+  record request {
+    method: string,
+    url: string,
+    headers: list<tuple<string, string>>,
+    body: option<list<u8>>,
+  }
+
+  record response {
+    status: u16,
+    headers: list<tuple<string, string>>,
+    body: list<u8>,
+  }
+
+  fetch: func(req: request) -> result<response, error>;
+}
+
+// ---------------------------------------------------------------------------
+// Scheduling
+// ---------------------------------------------------------------------------
+
+interface timers {
+  use types.{error};
+  type timer-id = u64;
+
+  after: func(ms: u64, tag: string) -> result<timer-id, error>;
+  every: func(ms: u64, tag: string) -> result<timer-id, error>;
+  cancel: func(id: timer-id) -> result<_, error>;
+}
+
+// ---------------------------------------------------------------------------
+// Plugin side
+// ---------------------------------------------------------------------------
+
+interface guest {
+  use types.{error, payload};
+  use commands.{manifest};
+
+  /// Called once after instantiation. The plugin declares what it offers.
+  activate: func() -> result<manifest, error>;
+
+  /// Graceful shutdown. The kernel does not depend on this: it may kill the
+  /// instance at any moment (fuel exhausted, memory limit, crash).
+  deactivate: func();
+
+  /// Execution of a command declared in the manifest.
+  execute: func(name: string, args: payload) -> result<payload, error>;
+
+  on-event: func(topic: string, data: payload);
+  on-timer: func(tag: string);
+}
+
+// ---------------------------------------------------------------------------
+// World
+// ---------------------------------------------------------------------------
+
+/// The MAXIMUM surface. What each plugin actually receives is decided at
+/// instantiation: capabilities that were not granted are wired to stubs that
+/// return `denied`. Deny by default.
+world plugin {
+  import log;
+  import context;
+  import store;
+  import blobs;
+  import commands;
+  import events;
+  import ui;
+  import net;
+  import timers;
+
+  export guest;
+}

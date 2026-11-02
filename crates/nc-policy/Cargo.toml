@@ -1,0 +1,46 @@
+[package]
+name = "nc-policy"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "The policy pack's compiler, validator and case runner. Not a decision point."
+
+[dependencies]
+# The engine that runs in production. A pack validated by anything else would be
+# a pack validated against a second implementation of Cedar's semantics
+# (NOCTUA.md §4, §14.2). Through the workspace, so the requirement this crate
+# and the decision point in `nc-authz` both run under is written once, and one
+# of them cannot move to another major version without the other.
+cedar-policy.workspace = true
+# The case files, and the entity world they run against. `serde` is already the
+# workspace's deserialiser and `serde_json` is Cedar's own entity format.
+#
+# **Through the workspace, which is what `[workspace.dependencies]` is for.**
+# These three were pinned here directly — `toml` at 0.9 against the workspace's
+# 1.1 — so `cargo tree` showed two `toml` and two `toml_datetime` linked into
+# the same `xtask` binary, and `deny.toml` carried both in a skip list whose own
+# comment says "every entry below is somebody else's transitive disagreement,
+# not a pin of ours". It was ours.
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+
+[dev-dependencies]
+# **Itself, so the documentation gate can read this crate's integration
+# tests.** `cargo doc` documents lib and bin targets only, so a broken
+# intra-doc link in `tests/` shipped with the gate green — and
+# `cargo rustdoc --test` cannot resolve a `use` of the crate under test
+# unless the package depends on itself here. Cargo resolves it to this
+# same unit, so nothing is built twice.
+nc-policy = { path = "." }
+# **The one place `nc-schema`'s type-name rule meets Cedar's parser.**
+# `nc-schema` refuses an `x-entity` that is not a Cedar type name with a rule of
+# its own, because the catalog compiler depends on it and must not reach Cedar;
+# a rule written twice drifts, and this crate already runs Cedar. A test
+# dependency only, and no cycle: `nc-schema` depends on `serde` and
+# `serde_json` alone.
+nc-schema.workspace = true
+
+[lints]
+workspace = true

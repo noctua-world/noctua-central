@@ -1,0 +1,393 @@
+# Every safety limit and tunable, as data (`NOCTUA.md §15.8`).
+#
+# Limits may be very high; what matters is that they are declared, that one
+# pruner enforces all of them, and that a new unbounded table without an entry
+# **fails the build**. That gate is what makes this a policy rather than a habit.
+#
+# Two kinds of thing live here, and conflating them is how a limit nothing
+# enforces gets written down:
+#
+#   [tables.*]  Tables, in either database. The pruner owns these. Every
+#               `CREATE TABLE` in `migrations/` and in `local-migrations/` must
+#               have one, and the gate names the table when it does not.
+#               `database = "local"` says the table is the SQLite file's on the
+#               user's machine; without it the table is PostgreSQL's — the gate
+#               holds each entry to the directory that creates its table.
+#   [stores.*]  Data that lives outside PostgreSQL and is bounded by its own
+#               store's mechanism. Recorded so the developer surfaces show one
+#               list of every bound, and so nobody prunes what a store already
+#               prunes — or looks for a table that does not exist.
+
+# --- PostgreSQL tables ---
+
+# There is deliberately no `journal_work_units` table. A work unit is bracketed
+# by two entries in the journal itself — one opening it with its label, one
+# closing it as committed or abandoned — so a second table would be a second
+# place to look for the same fact, which is what `§14.9`'s "do not build two"
+# forbids. A group whose closing entry never arrives is one whose process
+# stopped, and its absence says so.
+
+[tables.journal_entries]
+# **The journal is the exception that needs a decision, not a default**
+# (`§15.8`). It is the audit log (`§14.9`), and audit retention is a policy-pack
+# property — `org` wants long retention — so its bound is per realm, read from
+# the pack, and never a global constant here. `strategy = "policy-pack"` is what
+# says so: it satisfies the unbounded-table gate without inventing a number that
+# would silently prune below what a pack promised.
+#
+# **Nothing redeems that yet, and nothing will notice.** No pack declares a
+# retention — `family/` has none and the other two are empty — and neither the
+# compiler nor the pruner checks that one exists. The exemption is unconditional
+# until the stage that reads packs arrives, and it will stay silent rather than
+# fail. §15.8 carves the journal out deliberately and Stage 10 owes no packs, so
+# this is a gap with a date on it rather than a defect; it is written here
+# because an exemption nobody redeems is how a carve-out becomes permanent.
+strategy = "policy-pack"
+order_by = "sequence"
+pack_reason = """
+audit retention for journal_entries is a per-realm policy-pack property \
+(§15.8), so no number here can bound this table without one day pruning below \
+what a pack promised. Until the stage that reads packs arrives, no pack \
+declares a retention and this table grows without limit — which is a gap with \
+a date on it rather than a bound.
+"""
+
+[tables.access_records]
+# `§15.8`'s second worked example, at the numbers it gives. `§15.6` says what the
+# table holds: rich per-access data including hardware and GeoIP location, which
+# is genuinely about a person — so it lives in PostgreSQL under normal
+# authorization, is never written to the central log, and is visible to the user
+# themselves.
+#
+# It is declared here before the stage that fills it, deliberately. The pruner
+# and the unbounded-table gate both need one real table with a row bound to act
+# on, and a gate proved only against a table invented by its own test is a gate
+# nobody has watched fire on anything that ships.
+max_rows = 500_000
+prune_batch = 50_000
+strategy = "oldest-first"
+# **What the database decides, not what a caller supplies.** `id` is a Snowflake
+# in Crockford base32, and that encoding is variable width — so a `text` sort
+# stops being a chronological one from about 2034, and the pruner would delete
+# the newest rows while reporting an ordinary run.
+#
+# `occurred_at` was the answer for one round and is not one: it is a `BIGINT`
+# with no DEFAULT and no CHECK, so it holds whatever wrote the row. Measured with
+# the real pruner, three of ten rows from a device whose clock was a day slow —
+# it deleted those three, which were the newest in the table, and reported an
+# ordinary `Pruned`. Stamps from the future are worse: every honest row is
+# removed and the table converges on holding only the bogus ones.
+#
+# `recorded` is assigned by the database on every write path
+# (`migrations/0006_access_records_orders_by_insertion.sql`): a `BEFORE INSERT OR
+# UPDATE` row trigger takes it from a sequence, and an `UPDATE` cannot renumber a
+# row. It rises with insertion by construction rather than by a promise about
+# somebody's clock. `occurred_at` keeps its own meaning — when the access
+# happened — and stops being the pruner's idea of oldest.
+#
+# **This said "an INSERT cannot name it", and that was true of one path.** The
+# column was `GENERATED ALWAYS AS IDENTITY` for a round, which refuses a plain
+# INSERT and nothing else: `OVERRIDING SYSTEM VALUE` writes any value, and `COPY`
+# needs no keyword at all. A row planted at `i64::MAX` sorts last for ever and is
+# unprunable; enough of them and the table can never come under `max_rows`, with
+# every run reporting ordinary. A bulk import is the ordinary way rows get
+# loaded, so the migration's own file records the measurement and the trigger is
+# what closed it.
+order_by = "recorded"
+
+# --- The local database: SQLite, on the user's machine (`local-migrations/`) ---
+#
+# Its tables are the plugin store (NOCTUA.md §11.4, §11.5): what each plugin
+# keeps, the units that wrote it, and the blobs this machine holds. Two of them
+# are **user state**, and `refuse-at-limit` is how a bound applies to user
+# state without the pruner deleting anybody's data: nothing prunes them, and
+# the writer refuses a new row at `max_rows`. A unit's images and notes take
+# the same strategy for another reason: each row belongs to one unit, an undo
+# of that unit needs all of them, and they leave with it by the cascade when
+# `store_units` is pruned — so they are counted per unit, and the commit
+# refuses a unit that would record more.
+
+[tables.blobs]
+# One row per blob the bytes directory holds, pinned while a committed unit
+# holds it. The count is the whole table: at the bound `crates/nc-local`
+# refuses the unit that would record one more, and the kernel's sweep is what
+# frees rows — the unpinned ones, after their grace period.
+database = "local"
+strategy = "refuse-at-limit"
+# The unit that first created the blob — a Snowflake, so creation order.
+# Nothing orders by it to delete; it is what a reader lists the table by.
+order_by = "created_unit"
+max_rows = 1_000_000
+
+[tables.store_entries]
+# **The count is per plugin**, not the whole table: `max_rows` is the quota one
+# plugin's keys in one realm are held to, and `crates/nc-local` refuses a unit
+# that would leave a plugin past it — so the table holds up to this many keys
+# for every plugin installed in every realm the machine's kernels serve. `per`
+# says so where the compiler and `docs/limits.md` read it. The kernel hands the number in, lowered for a plugin whose manifest
+# lowers it.
+database = "local"
+strategy = "refuse-at-limit"
+per = "plugin"
+# The unit that last wrote the key, which is a Snowflake: least recently written
+# first, if anything ever had to choose. Nothing does.
+order_by = "rev_unit"
+max_rows = 100_000
+
+[tables.store_notes]
+# What a unit did besides writing keys, one row per note: an action it was
+# authorised for, a compensation it registered, an effect that left the
+# machine, a blob it created. **Counted per unit**: `crates/nc-local` refuses
+# a unit that would record more than this many, and the rows leave with their
+# unit — so the table holds at most this many for every unit `store_units`
+# holds. The kernel hands the number in as `Quotas::notes_per_unit`
+# (`units::quotas` in `crates/nc-kernel`).
+database = "local"
+strategy = "refuse-at-limit"
+per = "unit"
+# The unit the note belongs to, a Snowflake: creation order by construction.
+order_by = "unit"
+max_rows = 10_000
+
+[tables.store_units]
+# One row per committed unit, with its images and notes hanging off it.
+# Nothing forgets one person's units: this is the bound over everyone
+# together, the oldest going first, a tenth at a time. `[kernel] undo_history`
+# bounds how far an undo or a redo reaches, not what is stored.
+database = "local"
+strategy = "oldest-first"
+# The unit's own identifier, a Snowflake: creation order by construction.
+order_by = "unit"
+max_rows = 100_000
+prune_batch = 10_000
+
+[tables.store_writes]
+# The before and after image of each key a unit wrote, one row per key.
+# **Counted per unit**, as `store_notes` is: `crates/nc-local` refuses a unit
+# that would record more images than this, and they leave with their unit. The
+# kernel hands the number in as `Quotas::writes_per_unit` and holds its overlay
+# — one net write per key — to the same number (`units::writes_per_unit` in
+# `crates/nc-kernel`), so no unit it builds is one the commit refuses.
+database = "local"
+strategy = "refuse-at-limit"
+per = "unit"
+# The unit the image belongs to, a Snowflake: creation order by construction.
+order_by = "unit"
+max_rows = 10_000
+
+# --- Stores outside PostgreSQL ---
+
+[stores.central_log]
+# The central log is **not** a PostgreSQL table. `§18.5` is explicit — logs
+# compete with the application for the same disk and buffer cache, and the query
+# ergonomics are miserable for this shape of data — and its store bounds by time
+# and disk rather than by row count.
+#
+# `§15.4`'s table and `§15.8`'s worked example both used to say the opposite, and
+# the conflict was put to the developer rather than resolved here: §18.5 wins,
+# and both were corrected in the same change. `§15.8`'s `max_rows`/`prune_batch`
+# pair is therefore deliberately absent rather than written down and unenforced.
+retention_days = 30
+max_disk_bytes = 8_589_934_592
+enforced_by = "the log store's own retention flags, set in docker-compose.yml"
+
+# --- Key derivation (§10.5, §10.6) ---
+#
+# Two configurations, not one. A password is at least twelve characters; a device
+# PIN is four to eight digits — thirteen to twenty-seven bits — and is only safe
+# because the credential it unlocks is encrypted with the derived key and wiped
+# after N failures. One shared cost either makes every login slow or makes the
+# PIN cheap to attack offline.
+#
+# Recorded here rather than at the call site so the parameters are tunable,
+# documented in one place, and visible in the developer surfaces — which is what
+# lets somebody answer "what are we deriving with?" without reading code.
+
+[argon2id.password]
+# OWASP's second recommended configuration: 19 MiB, two passes, one lane. Memory
+# is the parameter that costs an attacker with a GPU, which is why it is the
+# large one.
+memory_kib = 19_456
+iterations = 2
+parallelism = 1
+output_length = 32
+salt_length = 16
+
+[argon2id.device_pin]
+# Deliberately harder than the password's, and for the opposite reason: the
+# secret is small enough to enumerate, so the only defence that scales is making
+# each guess expensive. This runs on the user's own machine, once, at unlock.
+memory_kib = 65_536
+iterations = 3
+parallelism = 1
+output_length = 32
+salt_length = 16
+
+# --- Rate limits (§15.5) ---
+#
+# **Two budgets per surface**, because §15.5 requires per-identifier *and* per-IP
+# limits and they defend against different attacks: one person grinding one
+# account, and one address spraying one password across many. A gateway handed a
+# single number would invent the second, which is the duplicate rule §10.8 exists
+# to prevent.
+#
+# `delay_ms` is the escalation curve: the delay after the first failure, the
+# second, and so on, with the last value repeating. It is checked to be
+# non-decreasing — §15.5 says *escalating*, and a flat curve passes "has a curve"
+# while defending nothing.
+#
+# `lockout_after` is where the surface stops answering; absent means it never
+# does. `cumulative` says the count survives the window.
+
+[[rate_limit]]
+surface = "login"
+# No lockout on either budget, and that is the decision rather than an omission:
+# a lockout on a login surface whose identifiers are unique platform-wide (§15.5,
+# enumeration) is a denial-of-service anybody can aim at anybody. The escalating
+# delay is what carries this one.
+per_identifier = { window_seconds = 900, max_attempts = 10, delay_ms = [0, 0, 500, 1_000, 2_000, 5_000, 10_000] }
+per_address = { window_seconds = 900, max_attempts = 60, delay_ms = [0, 0, 250, 500, 1_000, 2_000, 5_000] }
+
+[[rate_limit]]
+surface = "activation_code"
+# A code is single-use and short-lived, so a lockout here costs an invited person
+# one message from an admin and costs an attacker the whole attempt.
+per_identifier = { window_seconds = 3_600, max_attempts = 5, delay_ms = [0, 1_000, 5_000, 15_000, 60_000], lockout_after = 10 }
+per_address = { window_seconds = 3_600, max_attempts = 30, delay_ms = [0, 500, 2_000, 10_000, 30_000], lockout_after = 60 }
+
+[[rate_limit]]
+surface = "device_pin"
+# `§10.6`: escalating delay, then **wipe the credential**, which forces a full
+# re-authentication. `cumulative` is load-bearing — a windowed count resets
+# forever, and a four-digit PIN behind eight attempts an hour falls in weeks.
+#
+# The per-address budget is generous because a family computer is one address and
+# several people; the identifier budget is what actually defends the PIN.
+per_identifier = { window_seconds = 3_600, max_attempts = 5, delay_ms = [0, 1_000, 5_000, 30_000, 120_000], lockout_after = 8, cumulative = true, on_lockout = "wipe-credential" }
+per_address = { window_seconds = 3_600, max_attempts = 40, delay_ms = [0, 500, 2_000, 10_000], lockout_after = 200 }
+
+[[rate_limit]]
+surface = "email_confirmation"
+per_identifier = { window_seconds = 3_600, max_attempts = 10, delay_ms = [0, 0, 1_000, 5_000, 15_000] }
+per_address = { window_seconds = 3_600, max_attempts = 40, delay_ms = [0, 0, 500, 2_000, 10_000] }
+
+[[rate_limit]]
+surface = "password_reset"
+# No lockout, for the same reason as `login`: a reset surface keyed on an
+# identifier anybody can guess is a lever against the account's owner.
+per_identifier = { window_seconds = 3_600, max_attempts = 5, delay_ms = [0, 1_000, 5_000, 15_000, 60_000] }
+per_address = { window_seconds = 3_600, max_attempts = 30, delay_ms = [0, 500, 2_000, 10_000, 30_000] }
+
+# --- The local kernel (§11.3) ---
+#
+# **The bounds every plugin is held to, and the only place they are written.**
+# The kernel reads `nc_catalog::KERNEL` and nothing else, and a plugin's
+# manifest may lower `memory_bytes`, `fuel_per_dispatch` and
+# `epoch_deadline_ticks` for itself — with `store_entries`' quota above, which
+# is the fourth — and never raise one. The type the compiler generates is
+# sealed against a struct literal and not against an edited copy of `KERNEL`,
+# so what leaves no second source of these numbers is the kernel itself:
+# `Limits::catalog()` reads `KERNEL`, and no function of the kernel takes a
+# value of the type from its caller.
+#
+# Every value is above zero, and the compiler holds the ones that bound each
+# other to it: a call tree's deadline is longer than one host call's, a host
+# call's longer than a network request's, the epoch's deadline comes before
+# the call tree's, and a dispatch's payload fits in one store value.
+#
+# Two bounds a reader might look for are not here, deliberately: how many keys
+# one plugin may keep is `store_entries`' `max_rows` above, and how many writes
+# one unit may record is `store_writes`' — their writer refuses at them, so the
+# number lives where the table is bounded and is written once.
+
+[kernel]
+# Memory: 64 MiB of linear memory, one instance, and the tables a component
+# built by `cargo xtask build --plugins` needs with room to spare.
+memory_bytes = 67_108_864
+instances = 16
+tables = 8
+table_elements = 20_000
+wasm_stack_bytes = 1_048_576
+# Computation. Fuel is wasmtime's count of executed instructions; a dispatch is
+# given more than `activate`, which declares commands and computes little.
+fuel_per_dispatch = 2_000_000_000
+fuel_per_activate = 500_000_000
+# Time. The epoch advances every `epoch_tick_ms`, and a call into a plugin may
+# run for `epoch_deadline_ticks` of them: five seconds, well inside the thirty
+# a whole call tree has. One host call may take twenty, which is the network
+# request's fifteen below with room for the kernel's own work around it.
+epoch_tick_ms = 10
+epoch_deadline_ticks = 500
+host_call_deadline_ms = 20_000
+dispatch_deadline_ms = 30_000
+dispatch_depth = 8
+dispatches_per_tree = 1_024
+# Supervision: three crashes in a minute quarantine a plugin. A kill at a call
+# tree's deadline is not one: the host spends that time as much as the plugin
+# does, so the plugin is restarted for it every time.
+restart_budget = 3
+restart_window_ms = 60_000
+# What crosses the boundary.
+payload_bytes = 1_048_576
+commands_per_plugin = 256
+store_key_bytes = 256
+store_value_bytes = 1_048_576
+# What one unit of work may stage, its keys and values counted together, before
+# the kernel holds a byte of it: a quarter of one plugin's own memory, so that a
+# plugin granted `store` cannot make the kernel hold for it what it could not
+# hold itself. The count of keys is `store_writes`' row bound; this is the
+# bound on their bytes, which that count times `store_value_bytes` is not. A
+# value a unit writes over or deletes is counted too: it is what the unit's
+# undo stages back, under this same bound, so a step kept is one it can undo.
+unit_bytes = 16_777_216
+store_list_max = 1_000
+blob_bytes = 4_294_967_296
+blob_read_chunk_bytes = 1_048_576
+# A day, so that a redo after an undo can hold a blob's bytes again.
+blob_orphan_grace_ms = 86_400_000
+# The readers and writers one plugin may hold open at once. Each writer holds a
+# file open in the kernel's process and each handle a record in host memory,
+# outside the linear memory `memory_bytes` bounds, so a plugin opening them in a
+# loop is refused at this number rather than left to exhaust the process.
+blob_handles = 32
+# The units one plugin may hold begun and not yet let go of inside one command.
+# Each is a record in host memory, as a blob handle is, and every one belongs to
+# the unit of the call tree it was begun in, so a plugin beginning them in a
+# loop is refused here rather than left to grow the kernel.
+unit_handles = 16
+# The network: fifteen seconds for a request, from connecting to its last byte,
+# which answers a slow peer as `unavailable` before the host call's deadline
+# would kill the plugin that asked.
+net_timeout_ms = 15_000
+# A request's head — the URL it is sent to and its headers' names and values,
+# counted together — well inside what the transport's HTTP can write, so that,
+# with its host held to a DNS name, a request the kernel accepts is one that can
+# be sent, and one that cannot is refused as the plugin's to change rather than
+# told as a network that failed.
+net_request_head_bytes = 16_384
+net_request_body_bytes = 10_485_760
+net_response_body_bytes = 33_554_432
+net_header_count = 64
+# Timers: a repeating one fires at most once a second, and none is set further
+# than thirty days ahead.
+timers_per_plugin = 64
+timer_min_interval_ms = 1_000
+timer_max_delay_ms = 2_592_000_000
+event_queue = 1_024
+# What the events waiting for delivery may hold, their topics and their data
+# counted together: one plugin publishing its fill of the queue at the largest
+# payload would otherwise make the kernel hold a gigabyte for it. As large as
+# one unit of work may stage, and never smaller than one event of the largest
+# payload under the longest topic, which the compiler holds it to.
+event_queue_bytes = 16_777_216
+# The declarative UI.
+surfaces_per_plugin = 16
+ui_tree_nodes = 2_000
+ui_tree_depth = 32
+ui_text_bytes = 4_096
+# What the kernel keeps of a plugin's own log, and how far back undo and redo
+# look through a person's history.
+log_ring_lines = 256
+log_line_bytes = 1_024
+undo_history = 100
+confirmation_ttl_ms = 60_000

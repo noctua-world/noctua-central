@@ -1,0 +1,343 @@
+# Every event the central log can receive (`NOCTUA.md §15.4`).
+#
+# The central log **must not contain user data**, because it stays active in
+# production — and that is enforced by types, not by care. Each entry below
+# becomes a generated struct whose fields may only be types implementing
+# `LogValue`, which is implemented for integers, booleans, durations, error
+# codes, opaque ID newtypes, `nc_log::Variant` and `nc_log::Literal` — and for
+# **no string type at all**. A dynamic string, the shape every accidental leak of
+# personal data takes, cannot compile into one of these.
+#
+# This paragraph described the wall as `&'static str` for a while and the one
+# below already said why that was torn down. The registry is this deliverable's
+# front door; two descriptions of the same wall, twelve lines apart, is how a
+# reader learns to trust neither.
+#
+# The `type` of every field below is checked **when this file is read** — there
+# is no `text` kind to name, so a field that wanted one fails the build here,
+# with a line, rather than later inside generated source. The types themselves
+# are then enforced by the compiler, because each maps to a Rust type that
+# implements `LogValue`, and no string type does — not `String`, not `&str`,
+# and not `&'static str`, which `String::leak` manufactures out of anything.
+#
+# **The guarantee has a second half, and it is built.** A leaked string is a real
+# `&'static str` — `String::leak` and `Box::leak` both make one out of anything —
+# so the trait no longer accepts a bare `&'static str` at all. A `literal`
+# field is `nc_log::Literal`, whose contents are private and whose only
+# constructor is a macro matching a literal *token*: a leaked value is not one,
+# and does not compile.
+#
+# `NOCTUA.md §15.4` also asks for a source gate rejecting `format!` and
+# interpolation at logging call sites, and that is `xtask/src/wall.rs`, run by
+# `cargo xtask check`. Each compile-fail fixture declares the diagnostic
+# they must produce, so a fixture that stops proving its shape fails rather than
+# passing quietly.
+#
+# Where the registry lives is `[DERIVED]`, and `NOCTUA.md §15.2` and `§15.4` now
+# both name this file. It is here, with the other registries, because a second
+# mechanism for the same shape of data is exactly what the catalog exists to
+# prevent — and because the developer surfaces will document log events for free
+# once `cargo xtask docs` writes them.
+
+# `level` is the `tracing` level a line is emitted at, in `tracing`'s own
+# spellings — `debug`, `info`, `warn`, `error`. It is **not** `severity` in
+# `catalog/errors.toml`, which says how bad an *error* is and spells that one
+# `warning`. Two properties of two things, each spelled the way its own consumer
+# spells it; reading one file for the other's vocabulary is what makes the pair
+# look like a typo.
+
+# The types a field may take. `text` is deliberately absent, and so is anything
+# that could carry a name, an address, a title or a path.
+#
+#   u64 i64 u32 bool          numbers and flags
+#   duration                  std::time::Duration
+#   error_code                a code from errors.toml
+#   snowflake                 a Snowflake, written as its Crockford base32 text
+#   literal                   a literal in the source, and nothing else
+#   enum                      a variant of an enum the platform declares — the
+#                             state of a state machine, never a name
+#
+# `id` is a kind the compiler still knows and **refuses**, and this list offered
+# it for a while — so the obvious pick for an identifier was a kind a third
+# source rejects, and a newcomer found that out from the refusal rather than from
+# here. It generates a field of `nc_ids::OpaqueId`, whose constructor accepts any
+# 1..=128 bytes of `[A-Za-z0-9._:-]`: a username, a document number, an email
+# local-part. What an opaque identifier may hold is `NOCTUA.md §5.1` and it is
+# [OPEN]; the stage that closes it deletes the refusal and puts `id` back on this
+# list. Until then, `snowflake` for a minted identifier and `literal` for a name
+# written in the source.
+
+# --- The journal (§14.9) ---
+
+[[event]]
+name = "journal.appended"
+description = "An entry was appended to the chain"
+level = "debug"
+fields = [
+  { name = "sequence", type = "u64" },
+  # A Snowflake, because that is what `Record::work_unit` holds. It was `id`,
+  # so logging one meant converting it through `OpaqueId::new` — the one
+  # constructor in this crate that accepts arbitrary text.
+  { name = "work_unit", type = "snowflake", optional = true },
+]
+
+[[event]]
+name = "journal.verified"
+description = "The chain verified from the entry `from` names to its last, and how many entries that was"
+level = "info"
+fields = [
+  { name = "entries", type = "u64" },
+  # Where the verification began. It was not here, and the description said
+  # *end to end* of a verification asked to start further on: a log reader
+  # told the whole chain held when only its tail had been read.
+  { name = "from", type = "u64" },
+  { name = "took", type = "duration" },
+]
+
+[[event]]
+name = "journal.broken"
+description = "Verification failed, or the read of the history a kernel recovers from as it opens stopped at an entry it could not decode, and at which entry"
+level = "error"
+fields = [
+  { name = "sequence", type = "u64" },
+  { name = "code", type = "error_code" },
+]
+
+# --- Identifiers (§16.2) ---
+
+[[event]]
+name = "ids.clock_backwards"
+description = "Minting refused because the clock moved backwards"
+level = "error"
+fields = [
+  { name = "drift", type = "duration" },
+  { name = "code", type = "error_code" },
+]
+
+[[event]]
+name = "ids.sequence_exhausted"
+description = "This millisecond ran out of sequence numbers and minting waited"
+level = "debug"
+fields = [{ name = "waited", type = "duration" }]
+
+[[event]]
+name = "ids.flake_collision"
+description = "A machine-flake candidate was taken and the next was tried"
+level = "warn"
+fields = [{ name = "attempt", type = "u32" }]
+
+# --- The log's own shipper (§15.4) ---
+
+[[event]]
+name = "log.dropped"
+description = "Events were dropped because the queue was full"
+level = "warn"
+fields = [
+  { name = "dropped", type = "u64" },
+  { name = "code", type = "error_code" },
+]
+
+[[event]]
+name = "log.store_unreachable"
+description = "The log store did not accept a batch"
+level = "warn"
+fields = [
+  { name = "code", type = "error_code" },
+  { name = "status", type = "u32" },
+]
+
+# --- Limits and the database (§15.8, §18.4) ---
+
+[[event]]
+name = "prune.pruned"
+description = "A table was over its limit and rows were removed"
+level = "info"
+fields = [
+  # `literal` and not `text`: the table name comes from `nc_catalog::TABLES`,
+  # which is generated source, so it is a literal in the binary rather than
+  # input. The honest limit is that nothing enforces where the caller got it —
+  # a pruner invoked with a name from a command argument could pass that
+  # instead. So nothing constructs this event yet: which table a run prunes is
+  # decided when it runs, and a `literal` is built from a type whose constant
+  # is the text (`AGENTS.md`, "What is deliberately not claimed"). The field
+  # becomes an `enum` over the declared tables, and this a claim with a type
+  # behind it, in the change that first logs a prune.
+  { name = "table", type = "literal" },
+  { name = "removed", type = "u64" },
+  { name = "remaining", type = "u64" },
+  { name = "took", type = "duration" },
+]
+
+[[event]]
+name = "prune.within_limit"
+description = "A table was inspected and was below its limit"
+level = "debug"
+fields = [
+  { name = "table", type = "literal" },
+  { name = "rows", type = "u64" },
+  { name = "max_rows", type = "u64" },
+]
+
+[[event]]
+name = "db.migrated"
+description = "Migrations were applied"
+level = "info"
+fields = [
+  { name = "applied", type = "u32" },
+  { name = "took", type = "duration" },
+]
+
+# --- The local kernel (§11) ---
+
+[[event]]
+name = "kernel.capability_denied"
+description = "A plugin called a host function of a capability it was not granted, and was answered denied"
+level = "warn"
+fields = [
+  # Which plugin, as the kernel's number for the slot it was loaded into. A
+  # plugin's id is text its author chose, and the wall has no kind for text.
+  { name = "slot", type = "u32" },
+  # Which capability, as the variant `nc_catalog::Capability` names it.
+  { name = "capability", type = "enum" },
+  { name = "code", type = "error_code" },
+]
+
+[[event]]
+name = "kernel.host_call_refused"
+description = "A plugin's host call was refused for where it ran or whose name it used, rather than for a capability: a change where nothing may change, an act for a person where no call tree runs, or an event under a topic not its own — logged once per function and code for each instance of the plugin"
+level = "warn"
+fields = [
+  { name = "slot", type = "u32" },
+  # `NC-PLUG-0024`, `NC-PLUG-0025` or `NC-PLUG-0026`, which say which of the
+  # three; never the function's arguments, which are text a plugin chose.
+  { name = "code", type = "error_code" },
+]
+
+[[event]]
+name = "kernel.dispatch_refused"
+description = "A dispatch was refused before its command ran, or its unit was not kept, and why"
+level = "warn"
+fields = [
+  { name = "code", type = "error_code" },
+  # Which of the decision point's refusals: `unknown_command`,
+  # `malformed_name`, `malformed_arguments`, `denied`, `unconfirmed`,
+  # `read_only`, `top_level_only`, `too_deep`, `deadline`,
+  # `too_many_dispatches`, `reentrant`, `quarantined`, `journal_unavailable`.
+  # A state, never the command's name, which is text a plugin chose.
+  { name = "reason", type = "enum" },
+  # Whether the command refused changes state: a refused write is the one a
+  # person may be waiting on.
+  { name = "mutating", type = "bool" },
+]
+
+[[event]]
+name = "kernel.unit_aborted"
+description = "A unit of work was aborted, and nothing it staged was kept"
+level = "info"
+fields = [
+  # The unit, as the journal's brackets name it.
+  { name = "unit", type = "snowflake" },
+  # Why: `failed` (its command refused or trapped), `nested` (a command inside
+  # it did), `explicit` (a plugin aborted a unit it had begun inside it),
+  # `dropped` (a plugin let a unit it had begun inside it go without committing
+  # it, or returned with it open), `conflict` (the store refused the commit),
+  # `journal` (the journal did not take its entry or its close),
+  # `journal_unknown` (the journal answered the close with an error and could
+  # not then say whether it took it, so the store's reversal was committed
+  # while the journal may record the unit as committed — the store's state is
+  # what the history acts on, and this line is the record of the reversal the
+  # journal may not show).
+  { name = "cause", type = "enum" },
+]
+
+[[event]]
+name = "kernel.revert_failed"
+description = "The store refused the reversal of a unit the journal never closed — the journal did not take its close, or its process stopped before it — so the unit stays committed in the store and open in the journal until the next prune of the kernel that left it, or a kernel opening over the two, reverts it"
+level = "error"
+fields = [
+  # The unit, as the journal's opening bracket names it.
+  { name = "unit", type = "snowflake" },
+  # The code of what refused the reversal: the store's, or the journal's when
+  # it could not mint the reversal's own unit.
+  { name = "code", type = "error_code" },
+]
+
+[[event]]
+name = "kernel.recovered"
+description = "The kernel, opening, found a unit of work a stopped process left open in the journal, reverted what the store kept of it, and closed it as aborted"
+level = "warn"
+fields = [
+  # The unit, as the journal's opening bracket names it.
+  { name = "unit", type = "snowflake" },
+  # Whether the store had kept it, so that its reversal was committed now:
+  # false for a unit the store held nothing of, or held reversed already.
+  { name = "reverted", type = "bool" },
+  # `NC-KERN-0016`, the code a unit recovered so is told by.
+  { name = "code", type = "error_code" },
+]
+
+[[event]]
+name = "kernel.step_reversed"
+description = "A step of a person's history was undone or redone, and the unit that did it was kept"
+level = "info"
+fields = [
+  # The step undone or redone, as the journal's brackets name it — never what
+  # it changed, which is the person's data.
+  { name = "unit", type = "snowflake" },
+  # `undo` or `redo`.
+  { name = "direction", type = "enum" },
+  # How many compensating commands the undo dispatched: none for a redo.
+  { name = "compensations", type = "u32" },
+  # How many effects of the step had left the machine, which the kernel could
+  # not take back itself and handed to the compensations.
+  { name = "beyond_reach", type = "u32" },
+]
+
+[[event]]
+name = "kernel.plugin_killed"
+description = "A plugin was stopped while it ran, and its store was dropped"
+level = "warn"
+fields = [
+  { name = "slot", type = "u32" },
+  # What stopped it: `trap`, `fuel`, `epoch`, `memory`, `deadline` — a host
+  # call that did not answer within `host_call_deadline_ms` — or `tree`, the
+  # call tree it ran in past its `dispatch_deadline_ms`, a kill that spends
+  # none of `restart_budget`.
+  { name = "cause", type = "enum" },
+  { name = "code", type = "error_code" },
+]
+
+[[event]]
+name = "kernel.plugin_restarted"
+description = "A plugin that was killed or released was instantiated again and activated as it was"
+level = "info"
+fields = [
+  { name = "slot", type = "u32" },
+  { name = "took", type = "duration" },
+]
+
+[[event]]
+name = "kernel.plugin_quarantined"
+description = "A plugin that was killed is not run again until it is released: it crashed too often inside its restart window, where a kill at its call tree's deadline is not counted, or did not come back as it was"
+level = "error"
+fields = [
+  { name = "slot", type = "u32" },
+  { name = "code", type = "error_code" },
+]
+
+# --- The network a plugin reaches (§11.3) ---
+
+[[event]]
+name = "net.refused"
+description = "A plugin's net.fetch was refused before anything was sent, or by the resolver, or for an answer too large — logged once per reason for each instance of the plugin"
+level = "warn"
+fields = [
+  { name = "slot", type = "u32" },
+  # Why: `url`, `scheme`, `ip_literal`, `localhost`, `userinfo`, `port`,
+  # `domain` — a name its manifest does not declare — `method`, `header`,
+  # `body`, `private_address` — a name that resolved to no public address —
+  # or `too_large`. Never the URL, the host or a header, which are text a
+  # plugin chose.
+  { name = "reason", type = "enum" },
+  { name = "code", type = "error_code" },
+]

@@ -1,0 +1,131 @@
+// The authorization model, transcribed from
+// `reference/identity-and-authorization.md §4`.
+//
+// That file is **normative and outranks `NOCTUA.md`** (`§0.4`), so this is a
+// transcription rather than a design. Every entity, attribute and action below
+// appears there, and the transcription is now whole.
+//
+// **It was not.** Four declarations Cedar forces stood here and not in the
+// reference — `entity Grant`, `entity Folder`, `context.quorum_met` and
+// `context.grant` — each marked as an addition and each carrying its reason.
+// Two of them the reference already required in prose without declaring: it
+// describes every relation tuple as a `Grant` with provenance, and it writes
+// `Content in [Folder, …]` without a `Folder` to be in. The developer decided
+// the reference should say what it required, so §4 now declares all four and
+// this file departs from it in nothing.
+//
+// The rule that leaves behind: where this file and the reference disagree, the
+// reference is what changes, because it is the one that outranks. A departure
+// marked here is a decision deferred, not a decision taken.
+//
+// It is what the decision point in `crates/nc-authz` builds every request on,
+// and a request it refuses is denied before any policy runs. `§14.4` also says
+// the pack indirection "must exist from the first commit, or the other two
+// become a rewrite", and a pack with no schema is a pack nothing can check.
+
+// The unit of tenancy. One deployment, one isolated set of data and people.
+entity Realm = {
+  // family | org | collective. It selects the pack, and that single indirection
+  // is how one platform serves three kinds of group without becoming three
+  // products.
+  "profile": String,
+  // The versioned identifier of the pack in force.
+  "policy_pack": String,
+};
+
+// Roles are groups: `Group::"role.billing"`.
+entity Group in [Realm];
+
+entity User in [Group, Realm] = {
+  // **The date, never a computed age or level** (§14.3). An age derived at
+  // decision time is always right; an age stored is right until somebody has a
+  // birthday.
+  "birth_date": datetime,
+  // active | dormant | presumed_inactive | deceased | suspended (§14.7).
+  "status": String,
+  "guest_tier"?: String,
+};
+
+// One installed local backend.
+entity Device in [Realm] = {
+  "owner": User,
+  // The ed25519 public key, which is the iroh NodeId — device identity and P2P
+  // identity are one thing (§14.5), which removes an entire subsystem.
+  "node_key": String,
+  "attested": Bool,
+};
+
+entity Agent in [Realm] = {
+  // On whose behalf it acts. An agent **never inherits** the operator's
+  // privileges; a decision is the intersection of the two (§14.6).
+  "operator": User,
+  // supervised | semi | trusted.
+  "autonomy": String,
+  "budget_remaining": Long,
+};
+
+entity Feature in [Realm] = {
+  "min_age"?: Long,
+  "tier": String,
+};
+
+entity Content in [Folder, Feature, Realm] = {
+  "owner": User,
+  // public | realm | private | restricted. Not merely a label: §13.3 keys
+  // encryption off it, so `private` and `restricted` are encrypted before they
+  // are hashed.
+  "sensitivity": String,
+  "encrypted": Bool,
+};
+
+// The reference named `Folder` as a parent of `Content` and, for a while, never
+// as an entity of its own — so Cedar had to be told it exists before
+// `Content in [Realm, Folder]` would validate. It carries no attributes, which
+// is why it was easy to miss. §4 declares it now.
+entity Folder in [Realm];
+
+// The reference keeps grants as PostgreSQL relation tuples, and a Cedar policy
+// cannot read a table — so invariants 2 and 3 (no permission without
+// provenance, no manual grant without an expiry) need the grant itself as an
+// entity the decision can see. §4 declares it with these five attributes.
+//
+// A relation tuple, and **every** one of them is a grant with provenance
+// (`§4`): `granted_by`, `reason`, `valid_from`, `valid_until`, `source`. A
+// permission is never a boolean column.
+entity Grant in [Realm] = {
+  "granted_by": User,
+  "reason": String,
+  "valid_from": datetime,
+  // Absent is permitted **only** when `source == "policy"`. A perpetual manual
+  // grant is rejected at write time (§4) and refused here as well.
+  "valid_until"?: datetime,
+  // policy | manual | inherited.
+  "source": String,
+};
+
+action "Read", "Write", "Delete", "Share", "Grant", "Revoke"
+  appliesTo {
+    principal: [User, Agent, Device],
+    resource: [Content, Feature, Realm, User],
+    context: {
+      "now": datetime,
+      "via_agent": Bool,
+      // **Issued by the kernel from real UI interaction, never an argument an
+      // agent can fill in** (§11.7). The distinction is the whole of §14.6.
+      "confirmed_by_human": Bool,
+      // Limited to 2. Agent calling agent calling agent is how privilege leaks
+      // unnoticed (§14.6).
+      "actor_chain_depth": Long,
+      // The monotonic counter per realm that makes a cached decision detectable
+      // as stale (§14.8).
+      "policy_epoch": Long,
+      // Invariant 5 — destructive actions require quorum — cannot be written
+      // without it. Cedar is told *whether* quorum was met and never how it is
+      // counted: the threshold is a pack property (`§14.3`).
+      "quorum_met": Bool,
+      // Invariants 2 and 3 are about the grant a decision rests on, and a policy
+      // that could not see it would have to trust that somebody else had
+      // checked.
+      "grant"?: Grant,
+    }
+  };

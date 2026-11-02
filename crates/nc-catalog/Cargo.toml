@@ -1,0 +1,22 @@
+[package]
+name = "nc-catalog"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "The shared core, compiled from catalog/. Generated and committed; every file under src/ is written by `cargo xtask build`."
+
+# No dependencies, and that is the point: every service, the kernel and every app
+# take this crate, so anything it pulled in they would all inherit.
+
+[dev-dependencies]
+# **Itself, so the documentation gate can read this crate's integration
+# tests.** `cargo doc` documents lib and bin targets only, so a broken
+# intra-doc link in `tests/` shipped with the gate green — and
+# `cargo rustdoc --test` cannot resolve a `use` of the crate under test
+# unless the package depends on itself here. Cargo resolves it to this
+# same unit, so nothing is built twice.
+nc-catalog = { path = "." }
+
+[lints]
+workspace = true
