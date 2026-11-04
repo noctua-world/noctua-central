@@ -3711,11 +3711,11 @@ fn compile_it_alone(
         // error check failed: 11 finding(s) about the compile-fail fixtures
         // ```
         //
-        // The word *network* appeared nowhere in the run, and `--offline`'s own
-        // documentation says the advisory database is the one thing here that
-        // fetches anything. Every dependency this build needs is in the local
-        // cache by the time it runs — the workspace has already been built and
-        // tested by earlier steps of the same command.
+        // The word *network* appeared nowhere in the run. Every package this
+        // build needs is on the machine by the time it runs: `cargo xtask check`
+        // runs `cargo fetch --locked` before any step, and under `--offline`,
+        // where nothing is fetched, a package missing from the machine has
+        // already failed the `wiring` step, which names that fetch as the fix.
         .args(["build", "--quiet", "--offline", "--message-format=json"])
         // Its own target directory, so a fixture that must not compile never
         // leaves a half-built artifact in the workspace's.
@@ -4093,11 +4093,11 @@ fn fails_the_same_way_without_the_crate(
         // error check failed: 11 finding(s) about the compile-fail fixtures
         // ```
         //
-        // The word *network* appeared nowhere in the run, and `--offline`'s own
-        // documentation says the advisory database is the one thing here that
-        // fetches anything. Every dependency this build needs is in the local
-        // cache by the time it runs — the workspace has already been built and
-        // tested by earlier steps of the same command.
+        // The word *network* appeared nowhere in the run. Every package this
+        // build needs is on the machine by the time it runs: `cargo xtask check`
+        // runs `cargo fetch --locked` before any step, and under `--offline`,
+        // where nothing is fetched, a package missing from the machine has
+        // already failed the `wiring` step, which names that fetch as the fix.
         .args(["build", "--quiet", "--offline", "--message-format=json"])
         .env("CARGO_TARGET_DIR", scratch.join("hollow-target"))
         .current_dir(scratch)

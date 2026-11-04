@@ -1481,8 +1481,7 @@ fn no_flags_reach_the_compiler(root: &Path, file: &str, findings: &mut Vec<Findi
     // warnings` at workflow scope reaches every job's gate step, and the
     // gate refuses to run with `RUSTFLAGS` set — those two rules cannot both
     // hold, so the workflow can never go green, and nothing finds it unless
-    // something reads the file that sets it. Its own `ci.yml` records that
-    // the workflow has never run.
+    // something reads the file that sets it.
     //
     // Reported against the workflow rather than against `.cargo/config.toml`,
     // because that is the file to edit.
@@ -5151,8 +5150,7 @@ mod tests {
     /// everywhere it could be acted on and fatal in the one place it fires.
     /// A `ci.yml` exporting `RUSTFLAGS: -D warnings` at workflow scope reaches
     /// every job's gate step, and the gate refuses to run with it set:
-    /// such a workflow can never go green, and its own header records
-    /// that it has never run.
+    /// such a workflow can never go green.
     #[test]
     fn a_workflow_that_exports_a_compiler_flag_is_reported() {
         let scratch = std::env::temp_dir().join(format!("nc-wf-env-{}", std::process::id()));
@@ -6115,40 +6113,80 @@ mod tests {
 
     /// A job named for a system runs on that system's runner, and the family is
     /// what is read, not the version.
+    ///
+    /// **Every system, each moved in turn.** The table is written here and not
+    /// read from [`super::RUNS_ON`], so a row deleted there still has its job
+    /// moved here, and the rule's silence fails this test: with only `macos`
+    /// moved, a `windows` job on an Ubuntu runner would pass every rule.
     #[test]
     fn a_job_named_for_a_system_runs_on_it() {
-        let ci = |macos: &str| {
-            format!(
-                "jobs:\n  linux:\n    runs-on: ubuntu-latest\n    steps:\n      - run: cargo \
-                 xtask check\n  macos:\n    runs-on: {macos}\n    steps:\n      - run: cargo \
-                 xtask check\n  windows:\n    runs-on: windows-latest\n    steps:\n      - \
-                 run: cargo xtask check\n"
-            )
-        };
-        let wrong = |findings: &[crate::gates::Finding]| -> Vec<String> {
-            findings
+        let systems = [
+            ("linux", "ubuntu-", "ubuntu-24.04"),
+            ("macos", "macos-", "macos-15"),
+            ("windows", "windows-", "windows-2025"),
+        ];
+        // Every job on its own runner but `moved`, which runs on `runner`, or
+        // names none at all when `runner` is `None`.
+        let ci = |moved: &str, runner: Option<&str>| -> String {
+            systems
                 .iter()
-                .filter(|finding| finding.what.contains("runner"))
-                .map(|finding| finding.what.clone())
+                .map(|&(job, family, _)| {
+                    let runs_on = if job == moved {
+                        runner.map(|runner| format!("    runs-on: {runner}\n"))
+                    } else {
+                        Some(format!("    runs-on: {family}latest\n"))
+                    };
+                    format!(
+                        "  {job}:\n{}    steps:\n      - run: cargo xtask check\n",
+                        runs_on.unwrap_or_default()
+                    )
+                })
+                .fold("jobs:\n".to_owned(), |all, job| all + &job)
+        };
+        let wrong = |workflow: &str| -> Vec<String> {
+            let mut findings = Vec::new();
+            super::jobs_are_what_they_are_named(workflow, &mut findings);
+            findings
+                .into_iter()
+                .filter(|finding| finding.what.contains(" job runs on `"))
+                .map(|finding| finding.what)
                 .collect()
         };
-        for runner in ["macos-latest", "macos-15", "\"macos-latest\""] {
-            let mut findings = Vec::new();
-            super::jobs_are_what_they_are_named(&ci(runner), &mut findings);
-            assert!(
-                wrong(&findings).is_empty(),
-                "a `macos` job on `{runner}` was refused: {findings:#?}"
-            );
-        }
-        for runner in ["ubuntu-latest", "windows-latest", ""] {
-            let mut findings = Vec::new();
-            super::jobs_are_what_they_are_named(&ci(runner), &mut findings);
+        for (job, family, versioned) in systems {
+            let latest = format!("{family}latest");
+            for runner in [
+                latest.clone(),
+                versioned.to_owned(),
+                format!("\"{latest}\""),
+                format!("'{latest}'"),
+                format!("{latest} # the newest"),
+            ] {
+                let refused = wrong(&ci(job, Some(&runner)));
+                assert!(
+                    refused.is_empty(),
+                    "a `{job}` job on `{runner}` was refused: {refused:#?}"
+                );
+            }
+            let elsewhere = systems
+                .iter()
+                .filter(|&&(other, _, _)| other != job)
+                .map(|&(_, other, _)| format!("{other}latest"));
+            for runner in elsewhere.chain([String::new()]) {
+                assert_eq!(
+                    wrong(&ci(job, Some(&runner))),
+                    [format!(
+                        "the `{job}` job runs on `{runner}`, which is not a `{family}` runner"
+                    )],
+                    "a `{job}` job on `{runner}` proves nothing about its system and was \
+                     accepted"
+                );
+            }
             assert_eq!(
-                wrong(&findings),
+                wrong(&ci(job, None)),
                 [format!(
-                    "the `macos` job runs on `{runner}`, which is not a `macos-` runner"
+                    "the `{job}` job runs on ``, which is not a `{family}` runner"
                 )],
-                "a `macos` job on `{runner}` proves nothing about macOS and was accepted"
+                "a `{job}` job that names no runner was accepted"
             );
         }
     }
@@ -6315,8 +6353,8 @@ mod tests {
     /// rests on that job, because the in-process step generates twice in one
     /// process and cannot see a difference that depends on the filesystem.
     ///
-    /// The job has never run, which `ci.yml` says of itself, so nothing else
-    /// would notice either.
+    /// Nothing but this test would notice such a directory missing from the
+    /// job either.
     #[test]
     fn the_determinism_job_diffs_everything_the_emitter_writes() {
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
@@ -7829,12 +7867,13 @@ mod tests {
     ///
     /// **`cargo xtask check` builds every plugin for that target before the
     /// tests, and neither source of a toolchain installs a target it is not asked
-    /// for.** rustup reads `[toolchain].targets` in `rust-toolchain.toml`; the
-    /// `check` job installs through an action that does not read that file and
-    /// takes its own `targets:`. A machine that already has the target stays green
-    /// with either line deleted, and a fresh clone or the runner then fails its
-    /// first gate at the `plugins` step — which is why the two are read here
-    /// rather than left to that failure.
+    /// for.** rustup reads `[toolchain].targets` in `rust-toolchain.toml`; each
+    /// job that runs the gate (`linux`, `macos`, `windows`) installs through an
+    /// action that does not read that file and takes its own `targets:`. A
+    /// machine that already has the target stays green with either line
+    /// deleted, and a fresh clone or the runner then fails its first gate at
+    /// the `plugins` step — which is why the two are read here rather than left
+    /// to that failure.
     #[test]
     fn the_plugins_target_is_asked_for_by_the_toolchain_file_and_by_ci() {
         let target = crate::plugins::TARGET;

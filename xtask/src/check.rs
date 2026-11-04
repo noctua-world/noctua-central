@@ -240,12 +240,10 @@ pub(crate) fn run(root: &Path, offline: bool) -> Result<(), String> {
     let stack = Stack::here(offline);
 
     ui::heading("wiring");
-    // **Before anything asks cargo for the graph**, and only when the network
-    // may be used: under `--offline` nothing is fetched, and a package missing
-    // here is named by the step that needed it (`members::metadata`).
-    if !offline {
-        the_packages_the_lockfile_names_are_here(root, &mut failures);
-    }
+    // **Before anything asks cargo for the graph.** Under `--offline` it
+    // fetches nothing, and a package missing here is named by the step that
+    // needed it (`members::metadata`).
+    the_packages_the_lockfile_names_are_here(root, offline, &mut failures);
     wiring(root, stack, &mut failures);
 
     ui::gap();
@@ -333,8 +331,19 @@ pub(crate) fn run(root: &Path, offline: bool) -> Result<(), String> {
 /// **`--locked`, so it fetches exactly what the lockfile says.** Cargo refuses
 /// to change a lockfile that is behind its manifests, and checks every download
 /// against the checksum the lockfile records, so this adds nothing to the build
-/// that the lockfile does not already name. Under `--offline` it is not called.
-fn the_packages_the_lockfile_names_are_here(root: &Path, failures: &mut Vec<String>) {
+/// that the lockfile does not already name.
+///
+/// **And under `--offline` it returns before reading anything**, so the flag
+/// that promises no network is kept by the function that would use it, where a
+/// test can hold it.
+fn the_packages_the_lockfile_names_are_here(
+    root: &Path,
+    offline: bool,
+    failures: &mut Vec<String>,
+) {
+    if offline {
+        return;
+    }
     let named = std::fs::read_to_string(root.join("Cargo.lock"))
         .map_err(|error| format!("Cargo.lock could not be read: {error}"))
         .and_then(|text| from_a_registry(&text));
@@ -12556,6 +12565,37 @@ mod tests {
         );
     }
 
+    /// The fetch runs without `--offline` and does nothing at all with it.
+    ///
+    /// **Both halves, over a root with no lockfile**, so neither reaches the
+    /// network: the first thing the fetch does is read `Cargo.lock`, and a
+    /// root without one fails there. Without the flag that failure is the
+    /// proof the fetch ran; with it, no failure and no line is the proof it
+    /// did not. Every machine that runs this already has every package, so a
+    /// fetch under `--offline` changes nothing a whole run prints, and this
+    /// is the one place the promise is held.
+    #[test]
+    fn the_fetch_runs_only_where_the_network_may_be_used() {
+        let held = super::LeavesNothingBehind::new("fetch");
+        let _printing = crate::ui::printing();
+        ui::forget_counts();
+        let mut failures = Vec::new();
+        super::the_packages_the_lockfile_names_are_here(&held.root, true, &mut failures);
+        assert!(
+            failures.is_empty() && ui::failures() == 0,
+            "under --offline the fetch read the lockfile, which is the first thing it does \
+             before it reaches the network: {failures:?}"
+        );
+        super::the_packages_the_lockfile_names_are_here(&held.root, false, &mut failures);
+        assert_eq!(
+            failures,
+            ["the packages the lockfile names could not be counted"],
+            "without --offline the fetch did not run"
+        );
+        assert_eq!(ui::failures(), 1, "the fetch failed without saying so");
+        ui::forget_counts();
+    }
+
     /// Whether this line declares the function `signature` names.
     ///
     /// **Rust has more spellings of a declaration than two.** With a
@@ -14834,6 +14874,21 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
                      applicable, which is a step the Linux job no longer judges"
                 );
             }
+            // **And the gate's own tests that ask docker.** They stand aside
+            // through `docker_stands_aside` rather than through the flag, so
+            // neither the census of suites nor the list above reads them, and
+            // one that returned early here would be counted by cargo as passed.
+            assert!(
+                super::docker_stands_aside("probe").is_none(),
+                "a test that asks docker would stand aside on Linux and still count as \
+                 passed, which is a step the Linux job no longer judges"
+            );
+        } else {
+            assert!(
+                super::docker_stands_aside("probe")
+                    .is_some_and(|why| why.contains("not applicable on")),
+                "a test that asks docker would ask it on a system that runs no stack"
+            );
         }
         // And what the flag announces is the same nine on a system that runs
         // the stack and only the advisory database's on one that does not.
@@ -18082,7 +18137,7 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 625, 56),
+        ("xtask/check.rs", 626, 56),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 44, 29),
         ("xtask/database.rs", 29, 6),
@@ -20880,8 +20935,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 515 scratches this tree
-    /// builds, 425 of the 515 are removed however the test leaves and 90 are
+    /// directories accumulated in an afternoon. Of the 516 scratches this tree
+    /// builds, 426 of the 516 are removed however the test leaves and 90 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -20961,7 +21016,7 @@ mod the_frozen_path_rule {
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
         ("nc-prune/in_sqlite.rs", 13, 13),
         ("xtask/build.rs", 8, 8),
-        ("xtask/check.rs", 36, 24),
+        ("xtask/check.rs", 37, 25),
         ("xtask/corpus.rs", 15, 15),
         ("xtask/counts.rs", 7, 0),
         ("xtask/determinism.rs", 6, 0),
@@ -23843,7 +23898,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 13771;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 13775;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -23862,7 +23917,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2528;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2525;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -23879,7 +23934,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 815;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 814;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -23913,7 +23968,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 19302;
+    const THE_REARRANGEMENTS_JUDGED: usize = 19311;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -23967,7 +24022,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **424 of 19,302 are accepted by the first-line
+    /// rules the gates apply: **424 of 19,311 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -24000,7 +24055,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **815 of
+    /// this tree offers, **814 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
