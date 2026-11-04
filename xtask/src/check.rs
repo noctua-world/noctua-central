@@ -6192,6 +6192,11 @@ fn the_lints_step_read_the_whole_tree(root: &Path, output: &str, failures: &mut 
 /// The path is quoted and the kind is bracketed, so the parse is anchored on
 /// both: a diff line begins `Diff in`, and a rustfmt command line begins with
 /// the program name. Neither can be mistaken for a target.
+///
+/// **Answered with `/`, as clippy's and rustdoc's roots are.** The quoted path
+/// is the path as Rust debug-prints it, so on Windows each separator arrives as
+/// an escaped backslash, and compared with `/` no root there was one cargo
+/// declares.
 fn the_source_roots_rustfmt_reported(output: &str) -> Vec<String> {
     output
         .lines()
@@ -6201,7 +6206,9 @@ fn the_source_roots_rustfmt_reported(output: &str) -> Vec<String> {
                 return None;
             }
             let (_, rest) = line.split_once("] ")?;
-            rest.strip_prefix('"')?.strip_suffix('"').map(str::to_owned)
+            rest.strip_prefix('"')?
+                .strip_suffix('"')
+                .map(|path| path.replace(r"\\", "/").replace('\\', "/"))
         })
         .collect()
 }
@@ -7380,9 +7387,13 @@ fn tests_verdict(output: &str, expected: &[String]) -> Result<usize, String> {
     // names a test file, a panic message, this tool's own echo of a command.
     // Measured: `Ok(400)` from an output where all four `xtask` suite names
     // appeared only inside warning text and none of them had run.
-    let announcements: Vec<&str> = output
+    // **With `/`, the separator every suite here is written with.** Cargo on
+    // Windows announces `Running tests\the_decision_point.rs`, and compared
+    // as written no suite there was ever announced.
+    let announcements: Vec<String> = output
         .lines()
         .filter_map(|line| line.trim().strip_prefix("Running "))
+        .map(|line| line.replace('\\', "/"))
         .collect();
     let mut missing = Vec::new();
     for suite in expected {
@@ -17136,6 +17147,14 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         let gone = tests_verdict(ran, &["tests/in_postgres.rs".to_owned()])
             .expect_err("a suite that never ran is not a pass");
         assert!(gone.contains("tests/in_postgres.rs"), "{gone}");
+        // And as cargo announces it on Windows.
+        let on_windows = "     Running tests\\tampering.rs (target\\debug\\deps\\tampering-1.exe)\n\
+                          test result: ok. 19 passed; 0 failed;\n";
+        assert_eq!(
+            tests_verdict(on_windows, &["tests/tampering.rs".to_owned()]),
+            Ok(19),
+            "a suite announced with Windows' separator was read as one that did not run"
+        );
 
         // **And a name two crates share has to be announced twice.** Asked
         // only whether a name was announced, one crate announcing a shared file
@@ -24150,7 +24169,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14152;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14153;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25002,6 +25021,18 @@ mod the_frozen_path_rule {
         let mut clean = Vec::new();
         super::the_formatting_step_read_the_whole_tree(root, &whole.join("\n"), &mut clean);
         assert!(clean.is_empty(), "a whole run was reported: {clean:?}");
+        // And the whole tree as rustfmt names it on Windows, each separator an
+        // escaped backslash.
+        let on_windows: Vec<String> = declared
+            .iter()
+            .map(|source| format!("[lib (2024)] \"D:\\\\w\\\\{}\"", source.replace('/', r"\\")))
+            .collect();
+        let mut clean = Vec::new();
+        super::the_formatting_step_read_the_whole_tree(root, &on_windows.join("\n"), &mut clean);
+        assert!(
+            clean.is_empty(),
+            "a whole run named with Windows' separator was reported: {clean:?}"
+        );
 
         // One root formatted, which is what a narrowed argument list looks like.
         let mut failures = Vec::new();
