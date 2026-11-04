@@ -281,7 +281,10 @@ behind one of them — a flag, a step inside `check` — and never becomes a six
 `cargo xtask check` first runs `cargo fetch --locked` and says so in one `ok` line: a
 fresh clone holds only what its first build fetched, and every step that asks cargo for the
 graph asks it `--offline`. With `--offline` nothing is fetched, and a graph that fails for
-a package missing from the machine names that command.
+a package missing from the machine names that command. The fetch records that it ran and
+the verdict holds the record to the flag: on a machine that already holds every package, a
+run that fetched under `--offline` and one that never fetched without it print the same as
+one that got it right, so both are refused.
 
 `cargo xtask check --offline` skips **nine** things: the advisory database, which is
 fetched — the audit's licence, ban and source checks read only the lockfile and still
@@ -1569,7 +1572,8 @@ The gate's own `cargo fetch --locked` is held the same way, and that is its secu
 answer: it downloads only what the lockfile names, cargo checks each download against the
 checksum recorded there, a lockfile behind its manifests is refused rather than rewritten,
 and nothing a fetch brings down runs until a build compiles it — so the fetch adds no
-package and no code the lockfile and the audit have not already been asked about.
+package and no code the lockfile and the audit have not already been asked about. Under
+`--offline` it does not run at all, and a run in which it did is refused by the verdict.
 
 ### A release reads back what it wrote
 
@@ -1815,11 +1819,12 @@ rather than anything decided for the project, and each is a maintainer's to reop
   `OFFLINE_SKIPS`. A run with no workspace above it is not distinguishable *by the number*
   from one where the section gate broke, which is why the names are printed.
 - **On macOS and Windows the stack's steps do not run at all**: the journal's protections,
-  the migration record, the log store's bounds, the database's sort order, the digest
-  comparison, the PostgreSQL suites and the stack's own tests are the Linux job's alone,
-  and each says so on those systems, named beside the verdict as `not applicable here:`.
-  A defect that shows only with the stack on macOS or Windows is caught by nothing, and no
-  stack is run there by decision (`NOCTUA.md §22.2`).
+  the migration record, where `pg_temp` sits in the migrated functions' paths, the log
+  store's bounds, the database's sort order, the digest comparison, the PostgreSQL suites
+  and the stack's own tests are the Linux job's alone, and each says so on those systems,
+  named beside the verdict as `not applicable here:`. A defect that shows only with the
+  stack on macOS or Windows is caught by nothing, and no stack is run there by decision
+  (`NOCTUA.md §22.2`).
 - **`.github/workflows/ci.yml` has never run**: there is no repository for it until
   Stage 12. It is committed so that CI and a developer cannot drift into two gates, and a
   gate reads it as a document ("CI's one gate reaches every file CI can reach"); unknown

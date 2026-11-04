@@ -39,9 +39,11 @@ checkout-shape:
 # the bounds only the running log store can state; how a database sorts; the
 # journal's PostgreSQL tests; fetching the advisory database; comparing each
 # pinned digest against what its tag resolves to; and the stack's own tests,
-# which ask docker what it resolves rather than reading one compose file. CI
-# never passes this recipe.
-# The same gate without the nine steps that need the stack or the network.
+# which ask docker what it resolves rather than reading one compose file. Nor
+# does it run `cargo fetch --locked`, which a run without the flag does first, so
+# every package the lockfile names must already be on the machine. CI never
+# passes this recipe.
+# The same gate without the nine steps that need the stack or the network, fetching nothing.
 check-offline:
     cargo xtask check --offline
 

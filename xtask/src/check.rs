@@ -311,6 +311,7 @@ pub(crate) fn run(root: &Path, offline: bool) -> Result<(), String> {
         &failures,
         skipped_by_the_flag(offline, stack),
         the_parts_not_applicable(stack),
+        !offline,
     )
 }
 
@@ -335,7 +336,9 @@ pub(crate) fn run(root: &Path, offline: bool) -> Result<(), String> {
 ///
 /// **And under `--offline` it returns before reading anything**, so the flag
 /// that promises no network is kept by the function that would use it, where a
-/// test can hold it.
+/// test can hold it. Past that return it records that it ran, and the verdict
+/// holds the record against the flag, so the call handed the wrong one is a
+/// refusal in every run rather than a fetch nobody sees.
 fn the_packages_the_lockfile_names_are_here(
     root: &Path,
     offline: bool,
@@ -344,6 +347,7 @@ fn the_packages_the_lockfile_names_are_here(
     if offline {
         return;
     }
+    ui::fetched();
     let named = std::fs::read_to_string(root.join("Cargo.lock"))
         .map_err(|error| format!("Cargo.lock could not be read: {error}"))
         .and_then(|text| from_a_registry(&text));
@@ -7499,7 +7503,7 @@ fn the_test_targets_are_documented_too(root: &Path, failures: &mut Vec<String>) 
 /// `xtask/mutants.py` are where a predicate's verdict is decided. It says the
 /// guard is still there, which is the question a deletion asks.
 #[cfg(test)]
-const WHAT_THE_GATE_CAN_SAY: [&str; 840] = [
+const WHAT_THE_GATE_CAN_SAY: [&str; 844] = [
     "`{named}` was passed to `docker compose` among its arguments. The project is this checkout's and is set above; docker resolves the flag to the later of two, so the stack would come up under a name `--down` does not address",
     "what CI reaches is more than {HOPS} hops deep",
     "Cedar denies by default, so a core rule that permits widens what is allowed rather than restricting it — move it to a pack, or make it a `forbid`",
@@ -7573,6 +7577,10 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 840] = [
     "not applicable here: {part}",
     "not run: {skip}",
     "the parts not applicable on this system are not the ones written down for it",
+    "the packages the lockfile names were fetched under --offline, which promises no network: the fetch returns at once when it is handed the flag, so a run that reached it was handed the wrong one",
+    "the fetch ran under --offline",
+    "the packages the lockfile names were not fetched, and --offline was not passed: on a fresh clone every step that reads the members fails without that fetch, and on a machine that already holds them nothing else notices it is gone",
+    "the fetch did not run, and nothing asked it not to",
     "{} part(s) of this run said they are not applicable on {} and {} are written down for it: {said:?}, against {inapplicable:?}. What applies is a property of the system, so the list is exact — on Linux it is empty, and a part standing aside there is a step the Linux job no longer judges",
     "`cargo metadata` listed no packages",
     "`cargo metadata` listed no packages",
@@ -12289,9 +12297,16 @@ const STEPS: [&str; 10] = [
 ///
 /// `announced` is how many steps `--offline` skips on this system, and the
 /// parts a run here says do not apply are `inapplicable` — none on Linux.
-fn finish(failures: &[String], announced: usize, inapplicable: &[&str]) -> Result<(), String> {
+/// `to_fetch` is whether the run was to fetch the packages the lockfile names,
+/// which is every run not under `--offline`.
+fn finish(
+    failures: &[String],
+    announced: usize,
+    inapplicable: &[&str],
+    to_fetch: bool,
+) -> Result<(), String> {
     // **Taken before this function prints anything of its own.** What the rule
-    // below is about is error lines a *step* printed; the two refusals in this
+    // below is about is error lines a *step* printed; the refusals in this
     // function print their own and record them in the same breath, so counting
     // those would make the rule true of itself.
     let printed = ui::failures();
@@ -12358,6 +12373,7 @@ fn finish(failures: &[String], announced: usize, inapplicable: &[&str]) -> Resul
                 .to_owned(),
         );
     }
+    the_fetch_did_what_it_was_asked(to_fetch)?;
     // **Reported whether or not something else failed.** Inside
     // `failures.is_empty()`, an unexplained warning would be invisible on any
     // run that also had a failure — which is every run a developer is in the
@@ -12447,6 +12463,37 @@ fn finish(failures: &[String], announced: usize, inapplicable: &[&str]) -> Resul
     } else {
         Err(format!("check failed: {}", failures.join(", ")))
     }
+}
+
+/// The fetch ran exactly where the network may be used.
+///
+/// **What a whole run cannot show.** On a machine that already holds every
+/// package, a fetch prints one `ok` line and changes nothing, so a run that
+/// fetched under `--offline` and one that never fetched without it read like
+/// runs that got it right. The first breaks the flag's one promise; the second
+/// is a fresh clone failing every step that reads the members again, seen only
+/// there. The fetch records that it ran, and this holds the record to the
+/// flag.
+fn the_fetch_did_what_it_was_asked(to_fetch: bool) -> Result<(), String> {
+    let fetched = ui::the_fetch_ran();
+    if fetched && !to_fetch {
+        ui::failure(
+            "the packages the lockfile names were fetched under --offline, which promises \
+             no network: the fetch returns at once when it is handed the flag, so a run \
+             that reached it was handed the wrong one",
+        );
+        return Err("the fetch ran under --offline".to_owned());
+    }
+    if to_fetch && !fetched {
+        ui::failure(
+            "the packages the lockfile names were not fetched, and --offline was not \
+             passed: on a fresh clone every step that reads the members fails without \
+             that fetch, and on a machine that already holds them nothing else notices \
+             it is gone",
+        );
+        return Err("the fetch did not run, and nothing asked it not to".to_owned());
+    }
+    Ok(())
 }
 
 // **Where this file's tests begin.** The spacing gate reads a file's source
@@ -12572,8 +12619,10 @@ mod tests {
     /// root without one fails there. Without the flag that failure is the
     /// proof the fetch ran; with it, no failure and no line is the proof it
     /// did not. Every machine that runs this already has every package, so a
-    /// fetch under `--offline` changes nothing a whole run prints, and this
-    /// is the one place the promise is held.
+    /// fetch under `--offline` changes nothing a whole run prints: this holds
+    /// the function and the record it leaves, and
+    /// `the_verdict_holds_the_fetch_to_the_flag` holds the verdict that reads
+    /// the record.
     #[test]
     fn the_fetch_runs_only_where_the_network_may_be_used() {
         let held = super::LeavesNothingBehind::new("fetch");
@@ -12586,6 +12635,11 @@ mod tests {
             "under --offline the fetch read the lockfile, which is the first thing it does \
              before it reaches the network: {failures:?}"
         );
+        assert!(
+            !ui::the_fetch_ran(),
+            "under --offline the fetch recorded that it ran, so the verdict refuses every \
+             run under the flag"
+        );
         super::the_packages_the_lockfile_names_are_here(&held.root, false, &mut failures);
         assert_eq!(
             failures,
@@ -12593,6 +12647,49 @@ mod tests {
             "without --offline the fetch did not run"
         );
         assert_eq!(ui::failures(), 1, "the fetch failed without saying so");
+        assert!(
+            ui::the_fetch_ran(),
+            "without --offline the fetch ran and left no record, so the verdict refuses \
+             every run without the flag"
+        );
+        ui::forget_counts();
+    }
+
+    /// The verdict holds what the fetch did to what the run was asked.
+    ///
+    /// **Both refusals and both passes.** The fetch's call in `run` is one
+    /// token from being handed the wrong flag, and on a machine that already
+    /// holds every package nothing a run prints would show it: under
+    /// `--offline` it reaches the network, and without it a fresh clone fails
+    /// every step that reads the members. The verdict reads the record the
+    /// fetch leaves, so either is a refusal in every run.
+    #[test]
+    fn the_verdict_holds_the_fetch_to_the_flag() {
+        let _printing = crate::ui::printing();
+        ui::forget_counts();
+        let refusal = finish(&[], 0, &[], true);
+        assert!(
+            refusal
+                .as_ref()
+                .is_err_and(|why| why.contains("the fetch did not run")),
+            "a run without --offline that never fetched was accepted: {refusal:?}"
+        );
+        ui::forget_counts();
+        ui::fetched();
+        let refusal = finish(&[], 0, &[], false);
+        assert!(
+            refusal
+                .as_ref()
+                .is_err_and(|why| why.contains("the fetch ran under --offline")),
+            "a run under --offline that fetched was accepted: {refusal:?}"
+        );
+        // And the two that did what they were asked pass, or the rule would
+        // refuse every run.
+        ui::forget_counts();
+        ui::fetched();
+        finish(&[], 0, &[], true).expect("a run that fetched without the flag was refused");
+        ui::forget_counts();
+        finish(&[], 0, &[], false).expect("a run under the flag that fetched nothing was refused");
         ui::forget_counts();
     }
 
@@ -14959,13 +15056,13 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
             ui::not_applicable(part);
         }
         assert!(
-            finish(&[], 0, &THE_STACKS_PARTS).is_ok(),
+            finish(&[], 0, &THE_STACKS_PARTS, false).is_ok(),
             "every part of the stack said it does not apply, as written down for a system \
              that runs no stack, and the run was refused"
         );
         // **The Linux case.** Written down for Linux, nothing is not applicable,
         // so the same lines are a refusal.
-        let refusal = finish(&[], 0, &[]);
+        let refusal = finish(&[], 0, &[], false);
         assert!(
             refusal
                 .as_ref()
@@ -14979,7 +15076,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
             ui::not_applicable(part);
         }
         assert!(
-            finish(&[], 0, &THE_STACKS_PARTS).is_err(),
+            finish(&[], 0, &THE_STACKS_PARTS, false).is_err(),
             "a part stopped saying it does not apply and the run was accepted"
         );
         ui::forget_counts();
@@ -15035,10 +15132,10 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         // cannot answer: four that there is no workspace above the repository,
         // and one that there is no sibling design system beside it.
         assert!(
-            finish(&[], 0, &[]).is_err(),
+            finish(&[], 0, &[], false).is_err(),
             "a warn line that is not a skip passed the run"
         );
-        assert!(finish(&["something".to_owned()], 0, &[]).is_err());
+        assert!(finish(&["something".to_owned()], 0, &[], false).is_err());
         // And a skip does pass, which is the floor: a rule that failed on every
         // warning would make `--offline` and a bare checkout impossible to run.
         //
@@ -15091,7 +15188,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         // `--offline` skips than the constant is a step that stopped saying it
         // did not run, which a reader takes as a step that ran.
         let asked = ui::skips_because("--offline");
-        let refusal = finish(&[], asked + 1, &[]);
+        let refusal = finish(&[], asked + 1, &[], false);
         assert!(
             refusal
                 .as_ref()
@@ -15735,7 +15832,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         // Nothing printed and nothing recorded is the ordinary passing run, and
         // it has to stay one or the rule below would fail every green check.
         ui::forget_counts();
-        finish(&[], 0, &[]).expect("a run that printed nothing and recorded nothing passed");
+        finish(&[], 0, &[], false).expect("a run that printed nothing and recorded nothing passed");
 
         // An error line, and no step recorded it: the shape a redirected wire
         // produces.
@@ -15746,7 +15843,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
             1,
             "an error line was printed and the verdict would not have counted it"
         );
-        let refusal = finish(&[], 0, &[]);
+        let refusal = finish(&[], 0, &[], false);
         assert!(
             refusal
                 .as_ref()
@@ -15760,7 +15857,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         // failure would be reported as a broken wire.
         ui::forget_counts();
         ui::failure("a probe error line, recorded by the step that printed it");
-        let recorded = finish(&["the policy pack disagrees".to_owned()], 0, &[]);
+        let recorded = finish(&["the policy pack disagrees".to_owned()], 0, &[], false);
         assert!(
             recorded
                 .as_ref()
@@ -18137,7 +18234,7 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 626, 56),
+        ("xtask/check.rs", 628, 56),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 44, 29),
         ("xtask/database.rs", 29, 6),
@@ -18159,7 +18256,7 @@ mod the_frozen_path_rule {
         ("xtask/the_pages_reach_the_catalog.rs", 37, 20),
         ("xtask/the_registry_reaches_the_code.rs", 26, 21),
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 30, 6),
-        ("xtask/ui.rs", 48, 12),
+        ("xtask/ui.rs", 51, 12),
         ("xtask/wall.rs", 129, 28),
         ("xtask/workflow.rs", 123, 23),
     ];
@@ -23898,7 +23995,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 13775;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 13783;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -23968,7 +24065,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 19311;
+    const THE_REARRANGEMENTS_JUDGED: usize = 19326;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24022,7 +24119,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **424 of 19,311 are accepted by the first-line
+    /// rules the gates apply: **424 of 19,326 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25246,7 +25343,7 @@ mod the_frozen_path_rule {
     /// Whether what sits before this position reads the environment.
     ///
     /// **The flag is read in one kind of place and written in others.** A walk
-    /// over the flag's own name finds `command.env("NC_NO_STACK", "1")` — this
+    /// over the flag's own name finds `command.env("NC_NO_STACK", why)` — this
     /// file's own harness *setting* the flag for a child process — and reports
     /// `check.rs` as a suite that stands aside, which is the too-strong half of
     /// the rule. What every spelling of a *read* shares is the call that opens
@@ -26168,7 +26265,7 @@ mod the_frozen_path_rule {
     /// verdicts that agree for that long are one row, and — because a prefix
     /// matches nothing the two censuses hold — every row is a shipped literal
     /// accounted for nowhere. Written out, each row is its own accounting.
-    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 459] = [
+    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 461] = [
         ("—", "compiled catalog/"),
         (
             "—",
@@ -27188,6 +27285,14 @@ mod the_frozen_path_rule {
         ),
         ("—", "not run: {skip}"),
         ("—", "not applicable here: {part}"),
+        (
+            "if fetched && !to_fetch",
+            "the packages the lockfile names were fetched under --offline, which promises no network: the fetch returns at once when it is handed the flag, so a run that reached it was handed the wrong one",
+        ),
+        (
+            "if to_fetch && !fetched",
+            "the packages the lockfile names were not fetched, and --offline was not passed: on a fresh clone every step that reads the members fails without that fetch, and on a machine that already holds them nothing else notices it is gone",
+        ),
         ("—", "database"),
         (
             "crate::check::Stack::Offline =>",

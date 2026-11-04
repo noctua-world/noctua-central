@@ -159,6 +159,29 @@ pub(crate) fn not_applicable_parts() -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// Records that this run fetched the packages the lockfile names.
+///
+/// **What the run did, kept where the verdict reads it.** `--offline` promises
+/// no network, and that promise is kept by one call site and the function it
+/// calls: with the call handed the wrong flag, a run under `--offline` fetches
+/// and a run without it never does, and on a machine that already holds every
+/// package the two print the same as a run that got it right. Measured, with
+/// `!offline` at the call: every xtask test green, and nothing in the verdict
+/// read what the fetch did. `check::finish` holds this against what the run was
+/// asked to do, the way it holds the parts that stood aside.
+pub(crate) fn fetched() {
+    let _printing = while_printing();
+    FETCHED.store(true, core::sync::atomic::Ordering::Relaxed);
+}
+
+/// Whether [`fetched`] was called.
+static FETCHED: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
+
+/// Whether this run fetched the packages the lockfile names.
+pub(crate) fn the_fetch_ran() -> bool {
+    FETCHED.load(core::sync::atomic::Ordering::Relaxed)
+}
+
 /// How many of the warnings were a step announcing it did not run.
 pub(crate) fn skips() -> usize {
     SKIPS.load(core::sync::atomic::Ordering::Relaxed)
@@ -421,6 +444,7 @@ pub(crate) fn forget_counts() {
     if let Ok(mut said) = NOT_APPLICABLE.lock() {
         said.clear();
     }
+    FETCHED.store(false, core::sync::atomic::Ordering::Relaxed);
 }
 
 /// The second line: a count, a hint, or the command that fixes what was printed.
@@ -906,7 +930,7 @@ mod tests {
         /// failure spells out: source added is ordinary work and the number goes
         /// up with it, but source *deleted* and a class *exempted* look
         /// identical from here, and only one of them is something to accept.
-        const THE_GROUND_THIS_READS: usize = 64_630;
+        const THE_GROUND_THIS_READS: usize = 64_676;
 
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let mut directories = vec![root.join("xtask/src")];

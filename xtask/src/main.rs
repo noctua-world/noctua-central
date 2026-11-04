@@ -110,8 +110,8 @@ enum Command {
     /// diffs two builds. `crate::check::WHAT_CI_RUNS` is that set, held against
     /// the workflow and against every sentence stating it.
     Check {
-        /// Skip the nine steps that need the local stack or the network. CI
-        /// never passes this.
+        /// Skip the nine steps that need the local stack or the network, and
+        /// fetch nothing. CI never passes this.
         #[arg(long)]
         offline: bool,
     },
