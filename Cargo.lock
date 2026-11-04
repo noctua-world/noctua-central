@@ -1836,6 +1836,7 @@ name = "nc-policy"
 version = "0.1.0"
 dependencies = [
  "cedar-policy",
+ "nc-platform",
  "nc-policy",
  "nc-schema",
  "serde",
@@ -3873,6 +3874,7 @@ dependencies = [
  "nc-catalog",
  "nc-catalog-compiler",
  "nc-local",
+ "nc-platform",
  "nc-policy",
  "nc-schema",
  "serde_json",

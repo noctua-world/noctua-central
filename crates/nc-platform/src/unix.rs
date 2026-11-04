@@ -35,6 +35,10 @@ pub(crate) const PRIVATE_FILE: &str = "`0600`";
 /// A directory is synced through a handle of its own.
 pub(crate) const SYNCS_A_DIRECTORY: bool = true;
 
+/// A directory is held through a handle of its own, and makes no lock file.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) const HOLDS_THROUGH_A_FILE: bool = false;
+
 /// A user, by the number the system knows it by.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct User(u32);
@@ -62,6 +66,13 @@ pub(crate) fn user_in(directory: &Path) -> Result<User, Judged> {
 /// Whether `path` is what it should be and nobody else's.
 pub(crate) fn judge(path: &Path, kind: Kind, user: &User) -> Result<(), Judged> {
     judged(path, &metadata_of(path)?, user, kind)
+}
+
+/// Whether a file another program made with the system's own mode and owner
+/// is nobody else's: as any file is, since the owner a new file is given here
+/// is the user this process runs as.
+pub(crate) fn judge_made_by_default(path: &Path, user: &User) -> Result<(), Judged> {
+    judge(path, Kind::File, user)
 }
 
 /// Whether one path, read as `found`, is what it should be and nobody else's.
@@ -173,6 +184,12 @@ pub(crate) fn sync_directory(directory: &Path) -> io::Result<()> {
     std::fs::File::open(directory)?.sync_all()
 }
 
+/// The time `path` was last written, set to `at` through a handle opened to
+/// read it, which is all the owner needs here.
+pub(crate) fn set_modified(path: &Path, at: std::time::SystemTime) -> io::Result<()> {
+    std::fs::File::open(path)?.set_modified(at)
+}
+
 /// The user this process runs as, read off a file it creates.
 ///
 /// **The directory is judged by the probe's owner, and the probe can only be
@@ -280,6 +297,23 @@ pub(crate) fn hide_its_entries(directory: &Path) -> io::Result<()> {
     chmod(directory, 0o300)
 }
 
+/// `0000`: read by nobody, its owner included.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn make_unreadable(path: &Path) -> io::Result<()> {
+    chmod(path, 0o000)
+}
+
+/// Nothing: a file this process creates is owned by the user it runs as, so
+/// there is no other owner to give it.
+#[cfg(any(test, feature = "test-support"))]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "the interface's answer: the Windows half says what setting the owner said"
+)]
+pub(crate) const fn owned_as_this_process_creates(_path: &Path) -> io::Result<bool> {
+    Ok(false)
+}
+
 /// A symbolic link at `link` to `target`.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn link_file(target: &Path, link: &Path) -> io::Result<()> {
@@ -311,6 +345,13 @@ pub(crate) fn is_held(directory: &Path, _name: &str) -> bool {
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) const fn someone_else(user: &User) -> User {
     User(user.0.wrapping_add(1))
+}
+
+/// Whether a child process ended the way `std::process::abort` ends one
+/// here: by `SIGABRT`, signal 6.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn stopped_by_abort(status: std::process::ExitStatus) -> bool {
+    std::os::unix::process::ExitStatusExt::signal(&status) == Some(6)
 }
 
 /// One mode a path is given, to be judged under it.

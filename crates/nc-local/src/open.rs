@@ -121,9 +121,14 @@ pub(crate) fn private_file_in(
         }
         Err(judged) => return Err(not_taken(judged, Holding::Database)),
     }
+    // **SQLite makes the companions, with the system's own security**, so on
+    // Windows each is owned by whoever the token makes the owner of what this
+    // process creates — the Administrators group, in an elevated process —
+    // and is judged as such; the directory, the lock and the file above are
+    // this crate's, made owned by the user, and held to that.
     for suffix in COMPANIONS {
         let companion = PathBuf::from(format!("{}{suffix}", file.display()));
-        match nc_platform::judge(&companion, Kind::File, &user) {
+        match nc_platform::judge_made_by_default(&companion, &user) {
             Ok(()) => {}
             Err(Judged::Failed(call)) if call.error().kind() == io::ErrorKind::NotFound => {}
             Err(judged) => return Err(not_taken(judged, Holding::Database)),

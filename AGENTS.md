@@ -1199,8 +1199,13 @@ header.
   One that already exists is opened only if it is not a link (on Windows, no reparse
   point of any kind), is owned by the process's user, lets no other user in (no group or
   other bit; an access list, every allow entry of which names the user) and gives its
-  owner what the store needs; anything else is refused (`NC-DB-0006`) and left exactly as
-  it was — loosening it would decide for the user that whatever made it was harmless. The
+  owner what the store needs (on Windows also a file not marked read-only, that system's
+  `0400`, which SQLite would open read-only); anything else is refused (`NC-DB-0006`) and
+  left exactly as it was — loosening it would decide for the user that whatever made it
+  was harmless. On Windows the companions SQLite makes are the one thing taken from
+  another owner — the one the process token gives what the process creates
+  (`nc_platform::judge_made_by_default`) — and the directory, the file and the lock,
+  which this crate makes owned by the user, are held to the user alone. The
   same tests stage each refusal on both systems through `nc_platform::testing`, so a Unix
   test and its Windows twin are one body. A path the filesystem cannot answer for — a
   missing parent, a full disk, a read-only mount, a file turned read-only under an open
@@ -1718,10 +1723,13 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **On Windows, the system's own can read or take anything** — the Administrators group,
   `SYSTEM`, and any process holding the backup or the take-ownership privilege —
   whatever the access list says: Windows' counterpart of root, which no access list
-  answers. And a file owned by the group the process token gives what this process
-  creates — the Administrators group, in an elevated process — is taken as the user's:
-  SQLite creates its companions with the token's default owner, and that group's members
-  are the ones who can take any file already. A deny entry is read as this user's
+  answers. And a companion SQLite made beside the database — its `-wal`, `-shm` or
+  `-journal`, and nothing else — owned by the group the process token gives what this
+  process creates (the Administrators group, in an elevated process) is taken as the
+  user's: SQLite creates them with the token's default owner, and that group's members
+  are the ones who can take any file already. The directory, the database file, the lock
+  file and the blobs' directory are this crate's, created owned by the user, and one owned
+  by anybody else is refused. A deny entry is read as this user's
   whoever it names — which groups a user is in is the token's to say, and reading every
   deny as this user's refuses more, never less. A path past Windows' 260-character limit
   is refused by the system, since nothing here writes the `\\?\` form for it.
@@ -2441,7 +2449,7 @@ and `sqlx`, and are named because the kernel matches on a type of each.
 | `serde`, `serde_json`, `toml` | Reading the registries and writing canonical output, and reading a command's argument schema for `crates/nc-schema` to validate |
 | `proptest` | `§16.3` and `§16.4` have algebraic laws, and `§19.2` puts those under property test |
 | `clap`, `anstream`, `anstyle` | The command surface, in `xtask` only |
-| `windows-sys` | The Win32 security calls of `crates/nc-platform`'s Windows half, and only there, compiled for a Windows target alone — decided on 2026-11-02: who the process token names (`OpenProcessToken`, `GetTokenInformation`), an access list built (`InitializeAcl`, `AddAccessAllowedAceEx`) and read (`GetSecurityInfo`, `GetAce`), and a file and a directory created with a descriptor of their own (`CreateFileW`, `CreateDirectoryW`). Not written here because the declarations — every structure's layout and every function's signature — would be ours to get right, with no compiler to check them against the system's. Version 0.61, which `tokio`'s `mio` already brings, so it adds no package; its features are the modules those calls are in, pinned in that crate's manifest. It is the one dependency whose calls are `unsafe`, and invariant 17 says how that is held |
+| `windows-sys` | The Win32 security calls of `crates/nc-platform`'s Windows half, and only there, compiled for a Windows target alone — decided on 2026-11-02: who the process token names (`OpenProcessToken`, `GetTokenInformation`), an access list built (`InitializeAcl`, `AddAccessAllowedAceEx`) and read (`GetSecurityInfo`, `GetAce`), and a file and a directory created with a descriptor of their own (`CreateFileW`, `CreateDirectoryW`); and, behind the test doors alone, a descriptor written onto one path through its handle (`SetKernelObjectSecurity`), from its text when it holds a conditional entry (`ConvertStringSecurityDescriptorToSecurityDescriptorW`). Not written here because the declarations — every structure's layout and every function's signature — would be ours to get right, with no compiler to check them against the system's. Version 0.61, which `tokio`'s `mio` already brings, so it adds no package; its features are the modules those calls are in, pinned in that crate's manifest. It is the one dependency whose calls are `unsafe`, and invariant 17 says how that is held |
 | `noctua-design` | The only cross-repository dependency this repository has: a `[workspace.dependencies]` path entry with the git-tag form in a comment above it (`NOCTUA.md §5.3`), reached by path while there is no repository here to resolve a tag from. `noctua-colors` is reached **through** it and never directly (`§8.6`), which a gate holds |
 
 **Three things are written here rather than taken**, all three a maintainer's call: the

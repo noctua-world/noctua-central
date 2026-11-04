@@ -1400,6 +1400,16 @@ fn left_as_it_stood(profile: &Path, before: &[(String, Vec<u8>)]) {
     );
 }
 
+/// `from` copied to `to` byte for byte, though a writer holds `from` open.
+///
+/// **Read and written rather than `std::fs::copy`**, which on Windows is
+/// `CopyFileExW`: it shares the file it reads for reading alone, so a file a
+/// connection holds open to write is refused to it. A file opened to read
+/// shares it for writing too, as SQLite's own handles do.
+fn copied(from: impl AsRef<Path>, to: &Path) {
+    std::fs::write(to, std::fs::read(from).expect("readable")).expect("copied");
+}
+
 /// A profile holding the file and a `-wal` with committed frames that were
 /// never checkpointed — what a process killed after a commit leaves — made by
 /// running `statements` through a writer still open when the two are copied.
@@ -1437,7 +1447,7 @@ async fn a_profile_with_frames_in_its_wal(
     private(&profile);
     for suffix in ["", "-wal"] {
         let to = profile.join(format!("{}{suffix}", nc_local::FILE_NAME));
-        std::fs::copy(format!("{}{suffix}", file.display()), &to).expect("copied");
+        copied(format!("{}{suffix}", file.display()), &to);
         private(&to);
     }
     writer.close().await.expect("closes");
@@ -1534,7 +1544,7 @@ async fn a_damaged_file_with_frames_in_its_wal_is_refused_and_left_as_it_stood()
     private(&profile);
     for suffix in ["", "-wal"] {
         let to = profile.join(format!("{}{suffix}", nc_local::FILE_NAME));
-        std::fs::copy(format!("{}{suffix}", file.display()), &to).expect("copied");
+        copied(format!("{}{suffix}", file.display()), &to);
         private(&to);
     }
     let root: i64 = sqlx::query_scalar(
@@ -1604,7 +1614,7 @@ async fn a_file_beside_a_hot_journal_is_refused_and_left_as_it_stood() {
     private(&profile);
     for suffix in ["", "-journal"] {
         let to = profile.join(format!("{}{suffix}", nc_local::FILE_NAME));
-        std::fs::copy(format!("{}{suffix}", file.display()), &to).expect("copied");
+        copied(format!("{}{suffix}", file.display()), &to);
         private(&to);
     }
     sqlx::query("ROLLBACK")
@@ -1618,9 +1628,9 @@ async fn a_file_beside_a_hot_journal_is_refused_and_left_as_it_stood() {
     assert!(error.to_string().contains("rollback journal"), "{error}");
     left_as_it_stood(&profile, &before);
     assert_eq!(
-        names_in(&profile).len(),
+        as_it_stands(&profile).len(),
         before.len(),
-        "nothing was made beside them"
+        "nothing was made beside them but the profile's lock"
     );
 }
 

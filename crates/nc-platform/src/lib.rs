@@ -33,7 +33,7 @@
 //!   not read), or without what its owner needs (Unix: the owner's bits;
 //!   Windows: what the user's entries grant, less what any deny entry takes —
 //!   a file read, write and delete, a directory list, traverse, add a file,
-//!   add a directory and delete a child).
+//!   add a directory and delete a child — and a file not marked read-only).
 //! - **One open of a profile at a time.** Unix: an exclusive lock on the
 //!   directory, because POSIX lets every lock on a file go when any descriptor
 //!   of it closes. Windows locks no directory, so a private file in it is
@@ -58,10 +58,13 @@
 //! a judgement and the open that follows it; and whoever the system lets past
 //! every access list — root on Unix; on Windows the Administrators group,
 //! `SYSTEM` and a process holding the backup or take-ownership privilege. On
-//! Windows, a file owned by the group the token makes the owner of what this
-//! process creates — the Administrators group, in an elevated process — is
-//! taken as this user's: what SQLite creates beside the database carries that
-//! owner, and its members can take any file already.
+//! Windows, a file another program made with the system's own security —
+//! what SQLite creates beside the database, judged by
+//! [`judge_made_by_default`] alone — is taken as this user's when it is owned
+//! by the group the token makes the owner of what this process creates: the
+//! Administrators group, in an elevated process, whose members can take any
+//! file already. Nothing this crate creates is judged that way, since it
+//! names the user as the owner of each itself.
 
 #![deny(clippy::print_stdout, clippy::print_stderr, clippy::dbg_macro)]
 // Every doctest of this crate forbids `unsafe` as the crate does: a
@@ -258,6 +261,23 @@ pub fn judge(path: &Path, kind: Kind, user: &User) -> Result<(), Judged> {
     imp::judge(path, kind, &user.0)
 }
 
+/// Whether the file `path`, which another program made in a private directory
+/// with the security the system gives a new file — SQLite's `-wal`, `-shm`
+/// and `-journal` — is this user's alone with everything its owner needs; it
+/// is left exactly as it was either way.
+///
+/// **As [`judge`] holds a file, but for one owner more**: the one the token
+/// gives what this process creates, which on Windows, in an elevated
+/// administrator's process, is the Administrators group and not the user. On
+/// Unix that owner is the user, so the two are one rule there.
+///
+/// # Errors
+///
+/// [`Judged::Refused`] and [`Judged::Failed`], as [`judge`] answers them.
+pub fn judge_made_by_default(path: &Path, user: &User) -> Result<(), Judged> {
+    imp::judge_made_by_default(path, &user.0)
+}
+
 /// Creates `directory`, one level, private to this user from its first
 /// moment.
 ///
@@ -312,6 +332,20 @@ pub fn hold(directory: &Path, name: &str, user: &User) -> Result<Held, Judged> {
 /// be opened or synced.
 pub fn sync_directory(directory: &Path) -> std::io::Result<()> {
     imp::sync_directory(directory)
+}
+
+/// Sets the time the file `path` was last written to `at`, and leaves its
+/// bytes as they are.
+///
+/// **Through a handle that may set it**: on Windows one opened to read may
+/// not, so a file named again by opening it to read would be refused there.
+///
+/// # Errors
+///
+/// [`std::io::Error`] as the system answered it, when the file could not be
+/// opened or its time set.
+pub fn set_modified(path: &Path, at: std::time::SystemTime) -> std::io::Result<()> {
+    imp::set_modified(path, at)
 }
 
 /// How the name of a probe that says who this process is begins.
@@ -623,6 +657,106 @@ mod tests {
             let path = entry.expect("an entry").path();
             judge(&path, Kind::File, &user).expect("what the lock leaves is private");
         }
+    }
+
+    /// A lock file that is not the user's alone is refused, and left as it
+    /// was, where a file is what holds a directory; elsewhere the name is not
+    /// the hold's, and is left alone.
+    ///
+    /// **The lock file is judged as the database's file is**: one planted at
+    /// its name — a link, or a file another user can reach — would otherwise
+    /// be opened and locked, and whatever it points at or whoever reaches it
+    /// decide when the profile is held.
+    #[test]
+    fn a_lock_file_that_is_not_its_own_is_refused_where_a_file_holds_the_directory() {
+        let scratch = Scratch::new("lock-file");
+        let user = user_in(&scratch.0).expect("private");
+        let target = scratch.0.join("target");
+        drop(super::create_private(&target).expect("a file"));
+        testing::link_file(&target, &scratch.0.join("linked")).expect("a link");
+        let reachable = scratch.0.join("reachable");
+        drop(super::create_private(&reachable).expect("a file"));
+        let said = testing::open_to_another_user(&reachable).expect("opened up");
+        for (name, says) in [("linked", "symbolic link"), ("reachable", said.as_str())] {
+            let path = scratch.0.join(name);
+            let as_it_stands = || {
+                let found = std::fs::symlink_metadata(&path).expect("there");
+                (
+                    testing::access(&path).expect("readable"),
+                    found.file_type().is_symlink(),
+                    found.len(),
+                )
+            };
+            let before = as_it_stands();
+            let held = super::hold(&scratch.0, name, &user);
+            assert_eq!(
+                as_it_stands(),
+                before,
+                "{name}: the hold changed what stood there"
+            );
+            if testing::HOLDS_THROUGH_A_FILE {
+                let refused = match held {
+                    Err(Judged::Refused(refused)) => refused.to_string(),
+                    other => panic!("{name}: refused, and it was {other:?}"),
+                };
+                assert!(refused.contains(says), "{name}: {refused}");
+            } else {
+                drop(held.expect("the directory is held, and the name is not the hold's"));
+            }
+        }
+    }
+
+    /// The owner the system gives what this process creates is taken as the
+    /// user's for a file the system made alone, and refused on any path this
+    /// crate made, which it made owned by the user itself.
+    ///
+    /// **Where that owner is the user — Unix, and Windows unelevated — the
+    /// two rules are one**, and both take the file.
+    #[test]
+    fn the_owner_the_system_gives_is_taken_only_for_what_the_system_made() {
+        let scratch = Scratch::new("default-owner");
+        let user = user_in(&scratch.0).expect("private");
+        let file = scratch.0.join("made-by-default");
+        drop(super::create_private(&file).expect("a file"));
+        let another = testing::owned_as_this_process_creates(&file).expect("owned");
+        super::judge_made_by_default(&file, &user).expect("owned as the system makes it");
+        match judge(&file, Kind::File, &user) {
+            Ok(()) => assert!(
+                !another,
+                "a file owned by another than the user was its own"
+            ),
+            Err(Judged::Refused(refused)) => assert!(
+                another && refused.to_string().contains("belongs to user"),
+                "{refused}"
+            ),
+            Err(failed) => panic!("judged, and it was {failed:?}"),
+        }
+        assert!(
+            matches!(
+                super::judge_made_by_default(&scratch.0, &user),
+                Err(Judged::Refused(_))
+            ),
+            "a directory is not a file the system made beside one"
+        );
+    }
+
+    /// The time a file was last written is set, and its bytes are kept.
+    #[test]
+    fn a_files_time_is_set_and_its_bytes_are_kept() {
+        use std::io::Write as _;
+
+        let scratch = Scratch::new("modified");
+        let file = scratch.0.join("file");
+        super::create_private(&file)
+            .expect("a file")
+            .write_all(b"kept")
+            .expect("written");
+        let at = std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_000_000_000);
+        super::set_modified(&file, at).expect("set");
+        let found = std::fs::symlink_metadata(&file).expect("there");
+        assert_eq!(found.modified().expect("a time"), at);
+        assert_eq!(std::fs::read(&file).expect("readable"), b"kept");
+        assert!(testing::is_as_created(&file), "its access was changed");
     }
 
     /// A directory's entries are made durable without an error, wherever

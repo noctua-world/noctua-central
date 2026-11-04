@@ -15,8 +15,16 @@ use std::path::Path;
 
 use crate::{Kind, User, imp};
 
+/// Whether [`crate::hold`] holds a directory through the lock file it names:
+/// true on Windows, which locks no directory.
+///
+/// Where it does, the file is created private or judged as any file of the
+/// user's; where it does not, nothing at that name is made or read.
+pub const HOLDS_THROUGH_A_FILE: bool = imp::HOLDS_THROUGH_A_FILE;
+
 /// What a path lets in, read so that two readings compare: on Unix its mode
-/// bits; on Windows its owner and every entry of its access list.
+/// bits; on Windows its owner, every entry of its access list and its
+/// read-only mark.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Access(imp::Access);
 
@@ -87,6 +95,28 @@ pub fn hide_its_entries(directory: &Path) -> io::Result<()> {
     imp::hide_its_entries(directory)
 }
 
+/// Takes from the owner of the file `path` the right to read it, which
+/// [`make_private`] gives back: on Unix `0000`; on Windows a deny entry.
+///
+/// # Errors
+///
+/// [`io::Error`] as the system answered it.
+pub fn make_unreadable(path: &Path) -> io::Result<()> {
+    imp::make_unreadable(path)
+}
+
+/// Gives `path` the owner the system gives what this process creates, and
+/// answers whether that owner is somebody other than this user — on Windows,
+/// in an elevated administrator's process, the Administrators group; nowhere
+/// else.
+///
+/// # Errors
+///
+/// [`io::Error`] as the system answered it.
+pub fn owned_as_this_process_creates(path: &Path) -> io::Result<bool> {
+    imp::owned_as_this_process_creates(path)
+}
+
 /// A link at `link` to the file `target`, which need not exist.
 ///
 /// # Errors
@@ -130,6 +160,13 @@ pub fn someone_else(user: &User) -> User {
     User(imp::someone_else(&user.0))
 }
 
+/// Whether a child process ended as `std::process::abort` ends one on this
+/// system: by `SIGABRT` on Unix, and through `__fastfail` on Windows.
+#[must_use]
+pub fn stopped_by_abort(status: std::process::ExitStatus) -> bool {
+    imp::stopped_by_abort(status)
+}
+
 /// One way a path can be not this user's alone, staged on demand.
 #[derive(Debug, Clone)]
 pub struct Opening(imp::Opening);
@@ -148,8 +185,8 @@ impl Opening {
 /// Every way another user can reach a path of `kind`, one at a time.
 ///
 /// On Unix each group and other bit alone; on Windows no access list at all,
-/// an entry letting a group in, and, on a directory, one only what is made
-/// inside it inherits.
+/// an entry letting a group in, an entry of a type no rule there reads, and,
+/// on a directory, one only what is made inside it inherits.
 #[must_use]
 pub fn every_way_another_user_can_reach(kind: Kind) -> Vec<Opening> {
     imp::every_way_another_user_can_reach(kind)
@@ -161,7 +198,8 @@ pub fn every_way_another_user_can_reach(kind: Kind) -> Vec<Opening> {
 /// Every way the owner of a path of `kind` can lack what the store needs.
 ///
 /// One at a time: on Unix each owner bit alone; on Windows each right denied
-/// alone, and an entry granting less than all of them.
+/// alone, an entry granting less than all of them, and on a file the
+/// read-only mark.
 #[must_use]
 pub fn every_way_its_owner_lacks(kind: Kind) -> Vec<Opening> {
     imp::every_way_its_owner_lacks(kind)

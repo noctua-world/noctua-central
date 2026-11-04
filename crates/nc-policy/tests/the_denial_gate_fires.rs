@@ -1787,8 +1787,6 @@ fn a_pack_that_cannot_be_read_is_refused_by_name() {
 /// about the wrong thing.
 #[test]
 fn a_file_that_cannot_be_read_is_refused_by_name() {
-    use std::os::unix::fs::PermissionsExt as _;
-
     for (named, check) in [
         ("policy/schema.cedarschema", "schema-unreadable"),
         ("policy/world.json", "world-unreadable"),
@@ -1806,14 +1804,14 @@ fn a_file_that_cannot_be_read_is_refused_by_name() {
     ] {
         let scratch = Scratch::new(check);
         let path = scratch.root.join(named);
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o000))
-            .expect("this test wrote the copy it is chmod-ing");
+        nc_platform::testing::make_unreadable(&path)
+            .expect("this test wrote the copy it is shutting");
         let said = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             scratch.must_fail(check, named.rsplit('/').next().expect("a file name"));
         }));
         // Readable again before the assertion is re-raised, so a failure here
         // does not leave a directory `Scratch`'s own `Drop` cannot remove.
-        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644));
+        let _ = nc_platform::testing::make_private(&path);
         if let Err(panic) = said {
             std::panic::resume_unwind(panic);
         }

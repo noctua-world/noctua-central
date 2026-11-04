@@ -453,9 +453,7 @@ impl Fixture {
         for entry in std::fs::read_dir(&self.blobs).expect("listed") {
             let path = entry.expect("an entry").path();
             if path.is_file() {
-                std::fs::File::open(&path)
-                    .and_then(|file| file.set_modified(long_ago))
-                    .expect("this test's own file is aged");
+                nc_platform::set_modified(&path, long_ago).expect("this test's own file is aged");
             }
         }
     }

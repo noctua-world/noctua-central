@@ -18280,7 +18280,7 @@ mod the_frozen_path_rule {
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 52, 15),
         ("nc-local/lib.rs", 12, 8),
         ("nc-local/open.rs", 17, 6),
-        ("nc-local/opening_refuses_what_it_did_not_make.rs", 59, 4),
+        ("nc-local/opening_refuses_what_it_did_not_make.rs", 60, 4),
         ("nc-local/schema.rs", 23, 2),
         ("nc-local/store.rs", 82, 12),
         ("nc-log/events.rs", 22, 110),
@@ -18288,10 +18288,10 @@ mod the_frozen_path_rule {
         ("nc-log/lib.rs", 19, 25),
         ("nc-log/ship.rs", 105, 50),
         ("nc-log/value.rs", 18, 36),
-        ("nc-platform/lib.rs", 35, 21),
-        ("nc-platform/testing.rs", 17, 1),
-        ("nc-platform/unix.rs", 35, 2),
-        ("nc-platform/windows.rs", 63, 11),
+        ("nc-platform/lib.rs", 40, 21),
+        ("nc-platform/testing.rs", 21, 1),
+        ("nc-platform/unix.rs", 41, 2),
+        ("nc-platform/windows.rs", 77, 11),
         ("nc-policy/an_entity_type_is_a_name_cedar_parses.rs", 7, 3),
         ("nc-policy/cases.rs", 10, 13),
         ("nc-policy/lib.rs", 103, 20),
@@ -21110,8 +21110,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 526 scratches this tree
-    /// builds, 436 of the 526 are removed however the test leaves and 90 are
+    /// directories accumulated in an afternoon. Of the 529 scratches this tree
+    /// builds, 439 of the 529 are removed however the test leaves and 90 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -21188,7 +21188,7 @@ mod the_frozen_path_rule {
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 26, 26),
         ("nc-local/open.rs", 3, 3),
         ("nc-local/opening_refuses_what_it_did_not_make.rs", 42, 42),
-        ("nc-platform/lib.rs", 10, 10),
+        ("nc-platform/lib.rs", 13, 13),
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
         ("nc-prune/in_sqlite.rs", 13, 13),
         ("xtask/build.rs", 8, 8),
@@ -24074,7 +24074,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14036;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14086;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24093,7 +24093,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2654;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2699;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -24110,7 +24110,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 859;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 878;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -24144,7 +24144,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 19617;
+    const THE_REARRANGEMENTS_JUDGED: usize = 19698;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24198,7 +24198,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **424 of 19,617 are accepted by the first-line
+    /// rules the gates apply: **424 of 19,698 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -24231,7 +24231,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **859 of
+    /// this tree offers, **878 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -42137,7 +42137,7 @@ impl<T: Shown> Shown for Option<T> {
         a_scratch_repository(&fake);
         std::fs::copy(&script, fake.join("xtask/the-checkout-shape.sh")).expect("writable");
         let link = held.root.join("link");
-        std::os::unix::fs::symlink(&fake, &link).expect("a symlink is writable");
+        nc_platform::testing::link_directory(&fake, &link).expect("a link is writable");
         for inside in [
             fake.display().to_string(),
             format!("{}/xtask/../nc-dotdot-probe", fake.display()),
@@ -42452,8 +42452,8 @@ impl<T: Shown> Shown for Option<T> {
         // two rows reach `rm -rf` with only that confirmation in place.
         let linked = held.root.join("linked/xtask");
         std::fs::create_dir_all(&linked).expect("writable");
-        std::os::unix::fs::symlink(&script, linked.join("the-checkout-shape.sh"))
-            .expect("a symlink is writable");
+        nc_platform::testing::link_file(&script, &linked.join("the-checkout-shape.sh"))
+            .expect("a link is writable");
         let hard = held.root.join("hard/xtask");
         std::fs::create_dir_all(&hard).expect("writable");
         std::fs::hard_link(&script, hard.join("the-checkout-shape.sh")).expect("writable");
@@ -42479,8 +42479,8 @@ impl<T: Shown> Shown for Option<T> {
         let held_dir = held.root.join("held");
         std::fs::create_dir_all(held_dir.join("crates")).expect("writable");
         std::fs::write(held_dir.join("Cargo.toml"), "[workspace]\n").expect("writable");
-        std::os::unix::fs::symlink(fake.join("xtask"), held_dir.join("xtask"))
-            .expect("a symlink is writable");
+        nc_platform::testing::link_directory(&fake.join("xtask"), &held_dir.join("xtask"))
+            .expect("a link is writable");
         for (how, named) in [
             (
                 "a symlink under a directory called xtask",
@@ -42549,7 +42549,7 @@ impl<T: Shown> Shown for Option<T> {
         let far = held.root.join("far/sub");
         std::fs::create_dir_all(&far).expect("writable");
         let link = far.join("shortcut.sh");
-        std::os::unix::fs::symlink(&script, &link).expect("a symlink is writable");
+        nc_platform::testing::link_file(&script, &link).expect("a link is writable");
 
         let drive = |named: &std::path::Path, from: &std::path::Path, argument: &str| {
             #[expect(

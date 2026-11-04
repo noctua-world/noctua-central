@@ -1562,9 +1562,8 @@ async fn a_kernel_stopped_in_the_middle_of_a_unit_leaves_nothing_of_it_once_it_o
     for (at, committed, flake) in [("the-entry", false, 7), ("the-close", true, 8)] {
         let profile = scratch.0.join(at);
         let status = the_stopped_child(at, &schema, &profile);
-        assert_eq!(
-            std::os::unix::process::ExitStatusExt::signal(&status),
-            Some(6),
+        assert!(
+            nc_platform::testing::stopped_by_abort(status),
             "{at}: the child did not stop the way `abort` stops it: {status}"
         );
         let store = stalling(
@@ -6440,9 +6439,8 @@ async fn a_unit_a_stopped_kernel_left_open_is_reverted_though_the_pruner_ran_mea
     let scratch = Scratch::new("left-open-pruned");
     let profile = scratch.0.join("the-close");
     let status = the_stopped_child("the-close", &schema, &profile);
-    assert_eq!(
-        std::os::unix::process::ExitStatusExt::signal(&status),
-        Some(6),
+    assert!(
+        nc_platform::testing::stopped_by_abort(status),
         "the child did not stop the way `abort` stops it: {status}"
     );
     let store = stalling(

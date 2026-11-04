@@ -615,8 +615,7 @@ impl BlobStore for DirectoryBlobs {
                 // directory finds the bytes young while the unit that made
                 // them again is in flight (`sweep`).
                 let named = root.join(hash.as_str());
-                std::fs::File::open(&named)
-                    .and_then(|bytes| bytes.set_modified(std::time::SystemTime::now()))
+                nc_platform::set_modified(&named, std::time::SystemTime::now())
                     .map_err(|error| failed(&format!("naming `{}`", named.display()), &error))?;
             } else {
                 let named = root.join(hash.as_str());
@@ -1451,9 +1450,7 @@ mod tests {
         let long_ago = std::time::SystemTime::now()
             - Duration::from_millis(KERNEL.blob_orphan_grace_ms)
             - Duration::from_secs(1);
-        std::fs::File::open(path)
-            .and_then(|file| file.set_modified(long_ago))
-            .expect("this test's own file is aged");
+        nc_platform::set_modified(path, long_ago).expect("this test's own file is aged");
     }
 
     /// A runtime whose blocking pool has one thread, which runs the work handed

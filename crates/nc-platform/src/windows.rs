@@ -15,21 +15,25 @@
 //! `FILE_FLAG_OPEN_REPARSE_POINT`, so a link is judged as the link and never
 //! as what it points at — and any reparse point is a link — and with
 //! `FILE_FLAG_BACKUP_SEMANTICS`, without which a directory cannot be opened at
-//! all. Its owner must be the user, or the group the token makes the owner of
-//! what this process creates, which is the owner SQLite's own files carry;
-//! **no access list at all** lets everybody in and is refused; **every allow
-//! entry must name the user**, inherited or not and whether it applies to the
-//! path or only to what is made in it; an entry of a kind this does not read is
-//! refused rather than guessed at; and what the user's entries grant, less what
-//! any deny entry takes, must cover what the store needs. A deny entry is read
-//! as this user's whoever it names: which groups a user is in is the token's to
-//! say, and reading every one as this user's refuses more, never less.
+//! all. Its owner must be the user — or, for a file another program made
+//! beside one of this crate's with the system's own security, as SQLite makes
+//! its companions, the group the token makes the owner of what this process
+//! creates; **no access list at all** lets everybody in and is refused;
+//! **every allow entry must name the user**, inherited or not and whether it
+//! applies to the path or only to what is made in it; an entry of a kind this
+//! does not read is refused rather than guessed at; and what the user's
+//! entries grant, less what any deny entry takes, must cover what the store
+//! needs — and a file marked read-only, which no access list can open for
+//! writing, lacks it. A deny entry is read as this user's whoever it names:
+//! which groups a user is in is the token's to say, and reading every one as
+//! this user's refuses more, never less.
 //!
 //! **Every `unsafe` block says, beside it, why each pointer it hands the
 //! system is valid for the call, and what is freed where**: a handle the
 //! system opens is an `OwnedHandle` or a `File` at once, which closes it on
-//! every path; what `GetSecurityInfo` allocates is held by [`Allocated`], which
-//! frees it with `LocalFree`; and every buffer this module hands the system —
+//! every path; what the system allocates — `GetSecurityInfo`'s descriptor, and
+//! one a test writes from its text — is held by [`Allocated`], which frees it
+//! with `LocalFree`; and every buffer this module hands the system —
 //! a SID, an access list, a path — is a `Vec` that outlives the call.
 
 #![cfg(windows)]
@@ -59,12 +63,14 @@ use windows_sys::Win32::Security::{
 };
 use windows_sys::Win32::Storage::FileSystem::{
     CREATE_NEW, CreateDirectoryW, CreateFileW, DELETE, FILE_ADD_FILE, FILE_ADD_SUBDIRECTORY,
-    FILE_ALL_ACCESS, FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_NORMAL, FILE_ATTRIBUTE_REPARSE_POINT,
-    FILE_DELETE_CHILD, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT,
-    FILE_GENERIC_EXECUTE, FILE_GENERIC_READ, FILE_GENERIC_WRITE, FILE_LIST_DIRECTORY,
-    FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE, FILE_TRAVERSE,
-    READ_CONTROL,
+    FILE_ALL_ACCESS, FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_NORMAL, FILE_ATTRIBUTE_READONLY,
+    FILE_ATTRIBUTE_REPARSE_POINT, FILE_DELETE_CHILD, FILE_FLAG_BACKUP_SEMANTICS,
+    FILE_FLAG_OPEN_REPARSE_POINT, FILE_GENERIC_EXECUTE, FILE_GENERIC_READ, FILE_GENERIC_WRITE,
+    FILE_LIST_DIRECTORY, FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ,
+    FILE_SHARE_WRITE, FILE_TRAVERSE, FILE_WRITE_ATTRIBUTES, READ_CONTROL,
 };
+#[cfg(any(test, feature = "test-support"))]
+use windows_sys::Win32::Storage::FileSystem::{WRITE_DAC, WRITE_OWNER};
 use windows_sys::Win32::System::SystemServices::{
     ACCESS_ALLOWED_ACE_TYPE, ACCESS_DENIED_ACE_TYPE, SECURITY_DESCRIPTOR_REVISION,
 };
@@ -81,6 +87,11 @@ pub(crate) const PRIVATE_FILE: &str = "owned and shut the same way";
 
 /// A directory has no handle to sync here.
 pub(crate) const SYNCS_A_DIRECTORY: bool = false;
+
+/// A directory is held through a lock file in it, since no directory takes a
+/// lock here.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) const HOLDS_THROUGH_A_FILE: bool = true;
 
 /// What a link is called when one is refused: any reparse point, of which a
 /// symbolic link and a junction are two.
@@ -505,15 +516,17 @@ fn opened(path: &Path, access: u32) -> io::Result<File> {
         .open(path)
 }
 
-/// What `GetSecurityInfo` allocated, freed when this is dropped.
+/// A descriptor the system allocated — `GetSecurityInfo`'s, and a test's
+/// written from its text — freed when this is dropped.
 struct Allocated(PSECURITY_DESCRIPTOR);
 
 impl Drop for Allocated {
     fn drop(&mut self) {
         if !self.0.is_null() {
             // SAFETY: the system allocated this with `LocalAlloc`, as
-            // `GetSecurityInfo` documents, and it is freed once, here; nothing
-            // read from it outlives this value.
+            // `GetSecurityInfo` and `ConvertStringSecurityDescriptorToSecurityDescriptorW`
+            // both document, and it is freed once, here; nothing read from it
+            // outlives this value.
             unsafe { LocalFree(self.0) };
         }
     }
@@ -671,16 +684,40 @@ pub(crate) fn user_in(directory: &Path) -> Result<User, Judged> {
     Ok(user)
 }
 
-/// Whether `path` is what it should be and nobody else's.
-pub(crate) fn judge(path: &Path, kind: Kind, user: &User) -> Result<(), Judged> {
-    let file = opened(path, READ_CONTROL | FILE_READ_ATTRIBUTES)
-        .map_err(|error| Failed::new(format!("`{}` could not be read", path.display()), error))?;
-    judged(path, &file, kind, user)
+/// Who a path that is judged may be owned by.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Owned {
+    /// The user alone: what this crate makes it makes owned by the user,
+    /// set outright.
+    ByTheUser,
+    /// The user, or the owner the token gives what this process creates: what
+    /// another program made with the system's own security, as SQLite does.
+    ByDefault,
 }
 
-/// Whether what `file` is open on, at `path`, is a `kind`, and `user`'s alone
-/// with everything the store needs.
-fn judged(path: &Path, file: &File, kind: Kind, user: &User) -> Result<(), Judged> {
+/// Whether `path` is what it should be and nobody else's.
+pub(crate) fn judge(path: &Path, kind: Kind, user: &User) -> Result<(), Judged> {
+    judge_owned(path, kind, user, Owned::ByTheUser)
+}
+
+/// Whether the file at `path`, made with the system's own security, is
+/// nobody else's: the owner the token gives what this process creates is
+/// taken as the user's for it alone.
+pub(crate) fn judge_made_by_default(path: &Path, user: &User) -> Result<(), Judged> {
+    judge_owned(path, Kind::File, user, Owned::ByDefault)
+}
+
+/// Whether `path` is what it should be, owned as `owned` says, and nobody
+/// else's.
+fn judge_owned(path: &Path, kind: Kind, user: &User, owned: Owned) -> Result<(), Judged> {
+    let file = opened(path, READ_CONTROL | FILE_READ_ATTRIBUTES)
+        .map_err(|error| Failed::new(format!("`{}` could not be read", path.display()), error))?;
+    judged(path, &file, kind, user, owned)
+}
+
+/// Whether what `file` is open on, at `path`, is a `kind`, owned as `owned`
+/// says, and `user`'s alone with everything the store needs.
+fn judged(path: &Path, file: &File, kind: Kind, user: &User, owned: Owned) -> Result<(), Judged> {
     let reading =
         |error: io::Error| Failed::new(format!("`{}` could not be read", path.display()), error);
     let refused = |what: String| Err(Judged::Refused(Refusal::of(path, what)));
@@ -695,7 +732,13 @@ fn judged(path: &Path, file: &File, kind: Kind, user: &User) -> Result<(), Judge
         _ => {}
     }
     let security = security_of(file).map_err(reading)?;
-    if security.owner != user.sid && security.owner != user.creates_as {
+    // **The token's default owner for what the system made alone.** In an
+    // elevated administrator's process that owner is the Administrators group,
+    // which every file SQLite creates beside the database carries. What this
+    // crate creates it creates owned by the user, so a path of its own owned
+    // by anybody else was given away since.
+    let taken_as_the_users = owned == Owned::ByDefault && security.owner == user.creates_as;
+    if security.owner != user.sid && !taken_as_the_users {
         return refused(format!(
             "belongs to user {} and this process runs as user {}",
             security.owner, user.sid
@@ -741,6 +784,16 @@ fn judged(path: &Path, file: &File, kind: Kind, user: &User) -> Result<(), Judge
             "has an access list that does not let its owner {to}"
         ));
     }
+    // **And a file marked read-only**, which is this system's `0400`: no
+    // access list opens it to be written or deleted, so SQLite would open it
+    // read-only, the self-check pass, and the next commit come back
+    // `NC-DB-0007` for a file whose only fault is this mark. A directory's mark
+    // means nothing to the system, and is not read.
+    if kind == Kind::File && attributes & FILE_ATTRIBUTE_READONLY != 0 {
+        return refused(format!(
+            "is marked read-only, which does not let its owner {to}"
+        ));
+    }
     Ok(())
 }
 
@@ -751,17 +804,18 @@ fn judged(path: &Path, file: &File, kind: Kind, user: &User) -> Result<(), Judge
 /// opened as a file without backup semantics, and takes no byte-range lock.
 /// Never the database file, whose locks are SQLite's. The file is created
 /// private when it is missing, and judged as any file of the user's when it
-/// is there — through the handle the lock is then taken on.
+/// is there — through the handle the lock is then taken on, opened to read
+/// alone, which is all a lock needs and all a file marked read-only lets a
+/// handle be opened with before it is judged.
 pub(crate) fn hold(directory: &Path, name: &str, user: &User) -> Result<File, Judged> {
     let path = directory.join(name);
     let held = match create_private(&path) {
         Ok(held) => held,
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-            let held =
-                opened(&path, GENERIC_READ | GENERIC_WRITE | READ_CONTROL).map_err(|error| {
-                    Failed::new(format!("`{}` could not be read", path.display()), error)
-                })?;
-            judged(&path, &held, Kind::File, user)?;
+            let held = opened(&path, GENERIC_READ | READ_CONTROL).map_err(|error| {
+                Failed::new(format!("`{}` could not be read", path.display()), error)
+            })?;
+            judged(&path, &held, Kind::File, user, Owned::ByTheUser)?;
             held
         }
         Err(error) => {
@@ -790,16 +844,39 @@ pub(crate) fn sync_directory(_directory: &Path) -> io::Result<()> {
     Ok(())
 }
 
-/// What a path lets in: its owner, every entry of its access list, and
-/// whether that list is protected.
+/// The time `path` was last written, set to `at`, through a handle opened to
+/// set its attributes: one opened to read may not.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a blob's file is opened here to set the time it was named, never written to; `ui` \
+              is the output path and none is a terminal — each is a file inside the blob \
+              directory, which its caller judged, or a test's own"
+)]
+pub(crate) fn set_modified(path: &Path, at: std::time::SystemTime) -> io::Result<()> {
+    std::fs::OpenOptions::new()
+        .access_mode(FILE_WRITE_ATTRIBUTES)
+        .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
+        .open(path)?
+        .set_modified(at)
+}
+
+/// What a path lets in: its owner, every entry of its access list, whether
+/// that list is protected, and whether the path is marked read-only.
 #[cfg(any(test, feature = "test-support"))]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Access(Security);
+pub(crate) struct Access {
+    security: Security,
+    read_only: bool,
+}
 
 /// What `path` lets in now.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn access(path: &Path) -> io::Result<Access> {
-    security_of(&opened(path, READ_CONTROL | FILE_READ_ATTRIBUTES)?).map(Access)
+    let file = opened(path, READ_CONTROL | FILE_READ_ATTRIBUTES)?;
+    Ok(Access {
+        security: security_of(&file)?,
+        read_only: file.metadata()?.file_attributes() & FILE_ATTRIBUTE_READONLY != 0,
+    })
 }
 
 /// Whether `path` is a directory or a file, read off the path itself.
@@ -813,25 +890,34 @@ fn kind_of(path: &Path) -> io::Result<Kind> {
 }
 
 /// Whether `path` carries exactly the descriptor this module creates one
-/// with: the user its owner, protected, one entry.
+/// with: the user its owner, protected, one entry, and no read-only mark.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn is_as_created(path: &Path) -> bool {
-    let (Ok(user), Ok(kind), Ok(Access(security))) = (this_user(), kind_of(path), access(path))
+    let (
+        Ok(user),
+        Ok(kind),
+        Ok(Access {
+            security,
+            read_only,
+        }),
+    ) = (this_user(), kind_of(path), access(path))
     else {
         return false;
     };
     security.owner == user.sid
         && security.protected
         && security.entries == Some(private_entries(&user.sid, kind))
+        && !read_only
 }
 
 /// Whether `path` lets in this user alone, with every right.
 ///
 /// Owned by the user or by the group the token makes the owner of what this
-/// process creates, and every entry, inherited or not, allowing the user.
+/// process creates — this is what SQLite's companions are read by — and every
+/// entry, inherited or not, allowing the user.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn is_private(path: &Path) -> bool {
-    let (Ok(user), Ok(Access(security))) = (this_user(), access(path)) else {
+    let (Ok(user), Ok(Access { security, .. })) = (this_user(), access(path)) else {
         return false;
     };
     let Some(entries) = security.entries else {
@@ -853,61 +939,126 @@ pub(crate) fn is_private(path: &Path) -> bool {
         && granted & EVERYTHING == EVERYTHING
 }
 
-/// Gives `path` the owner and the protected `entries` — no access list at
-/// all for none.
-///
-/// **The list first, then the owner**: a path's owner may always rewrite its
-/// list, and the list just written lets the user set the owner, whatever the
-/// list before it denied.
+/// `descriptor` initialised to hold nothing yet, to write one part of a
+/// path's through, as the pointer the calls that fill it take.
 #[cfg(any(test, feature = "test-support"))]
-fn set_security(path: &Path, owner: &Sid, entries: Option<&[Ace]>) -> io::Result<()> {
-    use windows_sys::Win32::Security::Authorization::SetSecurityInfo;
-    use windows_sys::Win32::Security::PROTECTED_DACL_SECURITY_INFORMATION;
-    use windows_sys::Win32::Storage::FileSystem::{WRITE_DAC, WRITE_OWNER};
-
-    let acl = entries.map(acl_of).transpose()?;
-    let list: *const ACL = acl
-        .as_ref()
-        .map_or(core::ptr::null(), |acl| acl.as_ptr().cast());
-    let file = opened(path, READ_CONTROL | WRITE_DAC)?;
-    // SAFETY: the handle is `file`'s, open across the call with the right to
-    // write the list; `list` is the access list built above, alive across the
-    // call and only read, or null, which is the list's absence; no owner,
-    // group or system list is set.
-    let status = unsafe {
-        SetSecurityInfo(
-            file.as_raw_handle(),
-            SE_FILE_OBJECT,
-            DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION,
-            null_mut(),
-            null_mut(),
-            list,
-            core::ptr::null(),
-        )
-    };
-    if status != ERROR_SUCCESS {
-        return Err(answered(status));
+fn initialised(descriptor: &mut SECURITY_DESCRIPTOR) -> io::Result<PSECURITY_DESCRIPTOR> {
+    let at: PSECURITY_DESCRIPTOR = core::ptr::from_mut(descriptor).cast();
+    // SAFETY: `at` is the caller's `descriptor`, a whole `SECURITY_DESCRIPTOR`
+    // borrowed for the call, which writes its header into it and nothing else.
+    if unsafe { InitializeSecurityDescriptor(at, SECURITY_DESCRIPTOR_REVISION) } == FALSE {
+        return Err(io::Error::last_os_error());
     }
-    drop(file);
-    let file = opened(path, READ_CONTROL | WRITE_OWNER)?;
+    Ok(at)
+}
+
+/// Gives what `file` is open on the owner `owner`.
+///
+/// **Through the handle, and nothing else**: `SetKernelObjectSecurity`
+/// writes the one descriptor it is handed onto the one object, and walks
+/// nothing below it.
+#[cfg(any(test, feature = "test-support"))]
+fn write_owner(file: &File, owner: &Sid) -> io::Result<()> {
+    use windows_sys::Win32::Security::SetKernelObjectSecurity;
+
+    let mut descriptor = SECURITY_DESCRIPTOR::default();
+    // Alive to the end of this function, which is as long as `at` is used.
+    let at = initialised(&mut descriptor)?;
+    // SAFETY: `at` is the descriptor initialised above; `owner` is a valid SID,
+    // borrowed for the whole of this function, which the descriptor only
+    // points at.
+    if unsafe { SetSecurityDescriptorOwner(at, owner.as_psid(), FALSE) } == FALSE {
+        return Err(io::Error::last_os_error());
+    }
     // SAFETY: the handle is `file`'s, open across the call with the right to
-    // set the owner; `owner` is a valid SID, alive across the call and only
-    // read.
-    let status = unsafe {
-        SetSecurityInfo(
-            file.as_raw_handle(),
-            SE_FILE_OBJECT,
-            OWNER_SECURITY_INFORMATION,
-            owner.as_psid(),
-            null_mut(),
-            core::ptr::null(),
-            core::ptr::null(),
-        )
-    };
-    if status != ERROR_SUCCESS {
-        return Err(answered(status));
+    // set the owner; `at` and the SID it points at are alive across it, and
+    // the call only reads them.
+    if unsafe { SetKernelObjectSecurity(file.as_raw_handle(), OWNER_SECURITY_INFORMATION, at) }
+        == FALSE
+    {
+        return Err(io::Error::last_os_error());
     }
     Ok(())
+}
+
+/// Gives what `file` is open on the access list `list`, protected from its
+/// parent's — none at all for no list.
+///
+/// **Through the handle, and nothing else**, as [`write_owner`] is. The calls
+/// that write a list by a path's name carry its inheritable entries down to
+/// every file and directory under it, and a list denying the user the right
+/// to list a directory would refuse that very walk.
+#[cfg(any(test, feature = "test-support"))]
+fn write_list(file: &File, list: Option<&[u32]>) -> io::Result<()> {
+    use windows_sys::Win32::Security::SetKernelObjectSecurity;
+
+    let mut descriptor = SECURITY_DESCRIPTOR::default();
+    // Alive to the end of this function, which is as long as `at` is used.
+    let at = initialised(&mut descriptor)?;
+    let pointer: *const ACL = list.map_or(core::ptr::null(), |list| list.as_ptr().cast());
+    // SAFETY: `at` is the descriptor initialised above; `pointer` is the
+    // access list `list` holds, borrowed for the whole of this function, or
+    // null, which is the list's absence. The descriptor only points at it.
+    if unsafe { SetSecurityDescriptorDacl(at, TRUE, pointer, FALSE) } == FALSE {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: the descriptor initialised above, whose control bits the call
+    // sets in place: the list inherits nothing from the parent.
+    if unsafe { SetSecurityDescriptorControl(at, SE_DACL_PROTECTED, SE_DACL_PROTECTED) } == FALSE {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: the handle is `file`'s, open across the call with the right to
+    // write the list; `at` and the list it points at are alive across it, and
+    // the call only reads them.
+    if unsafe { SetKernelObjectSecurity(file.as_raw_handle(), DACL_SECURITY_INFORMATION, at) }
+        == FALSE
+    {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
+/// Marks the file `path` read-only, or clears the mark, through a handle
+/// that may set its attributes.
+#[cfg(any(test, feature = "test-support"))]
+fn set_read_only(path: &Path, read_only: bool) -> io::Result<()> {
+    let file = opened(path, FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES)?;
+    let mut permissions = file.metadata()?.permissions();
+    permissions.set_readonly(read_only);
+    file.set_permissions(permissions)
+}
+
+/// Gives `path` the owner and the protected `entries` — no access list at
+/// all for none — and takes a read-only mark off a file.
+///
+/// **Each part through a handle that may write it, in an order that always
+/// can.** The mark first, while the list that set it — the user's, with
+/// every right — is still the path's. Then, for a path somebody else owns —
+/// what a process creates, in an elevated administrator's, is owned by the
+/// Administrators group — the user's own list, which the owner of a path may
+/// always write and which lets the user set the owner, and then that owner.
+/// The list asked for last, which the owner may always write, whatever it
+/// takes away.
+#[cfg(any(test, feature = "test-support"))]
+fn set_security(path: &Path, owner: &Sid, entries: Option<&[Ace]>) -> io::Result<()> {
+    let kind = kind_of(path)?;
+    let Access {
+        security,
+        read_only,
+    } = access(path)?;
+    if read_only {
+        set_read_only(path, false)?;
+    }
+    if security.owner != *owner {
+        let private = acl_of(&private_entries(owner, kind))?;
+        write_list(
+            &opened(path, READ_CONTROL | WRITE_DAC)?,
+            Some(private.as_slice()),
+        )?;
+        write_owner(&opened(path, READ_CONTROL | WRITE_OWNER)?, owner)?;
+    }
+    let acl = entries.map(acl_of).transpose()?;
+    write_list(&opened(path, READ_CONTROL | WRITE_DAC)?, acl.as_deref())
 }
 
 /// Gives `path` the descriptor this module creates one of its kind with.
@@ -964,6 +1115,18 @@ pub(crate) fn shut_its_owner_out(path: &Path) -> io::Result<String> {
     Ok(lacking(kind).to_owned())
 }
 
+/// Denies the user reading the file `path`, before the entry that allows
+/// everything.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn make_unreadable(path: &Path) -> io::Result<()> {
+    use windows_sys::Win32::Storage::FileSystem::FILE_READ_DATA;
+
+    let user = this_user()?;
+    let mut entries = vec![Ace::deny(user.sid.clone(), FILE_READ_DATA)];
+    entries.extend(private_entries(&user.sid, kind_of(path)?));
+    set_security(path, &user.sid, Some(&entries))
+}
+
 /// Denies the user listing `directory`, before the entry that allows
 /// everything: written in and entered, and not listed.
 #[cfg(any(test, feature = "test-support"))]
@@ -972,6 +1135,19 @@ pub(crate) fn hide_its_entries(directory: &Path) -> io::Result<()> {
     let mut entries = vec![Ace::deny(user.sid.clone(), FILE_LIST_DIRECTORY)];
     entries.extend(private_entries(&user.sid, Kind::Directory));
     set_security(directory, &user.sid, Some(&entries))
+}
+
+/// Gives `path` the owner the token gives what this process creates, and
+/// answers whether that is somebody other than the user: the Administrators
+/// group, in an elevated administrator's process.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn owned_as_this_process_creates(path: &Path) -> io::Result<bool> {
+    let user = this_user()?;
+    if user.creates_as == user.sid {
+        return Ok(false);
+    }
+    write_owner(&opened(path, READ_CONTROL | WRITE_OWNER)?, &user.creates_as)?;
+    Ok(true)
 }
 
 /// A symbolic link at `link` to the file `target`.
@@ -1049,6 +1225,15 @@ pub(crate) fn someone_else(user: &User) -> User {
     }
 }
 
+/// Whether a child process ended as `std::process::abort` ends one here:
+/// through `__fastfail`, whose exit code is `STATUS_STACK_BUFFER_OVERRUN`.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn stopped_by_abort(status: std::process::ExitStatus) -> bool {
+    use windows_sys::Win32::Foundation::STATUS_STACK_BUFFER_OVERRUN;
+
+    status.code() == Some(STATUS_STACK_BUFFER_OVERRUN)
+}
+
 /// One access list a path is given, to be judged under it.
 #[cfg(any(test, feature = "test-support"))]
 #[derive(Debug, Clone)]
@@ -1065,10 +1250,64 @@ enum How {
     NoList,
     /// An entry letting `sid` read, with `flags`.
     Lets(Sid, u32),
+    /// A conditional entry letting the user read when its condition holds:
+    /// of a type no rule here reads.
+    Conditional,
     /// An entry denying the user `mask`, before the one allowing everything.
     Denies(u32),
     /// The user's one entry allowing `mask` and nothing more.
     Grants(u32),
+    /// The private list, and the file marked read-only.
+    ReadOnly,
+}
+
+/// The type a conditional entry is written with, and its refusal names.
+#[cfg(any(test, feature = "test-support"))]
+const CONDITIONAL: u32 =
+    windows_sys::Win32::System::SystemServices::ACCESS_ALLOWED_CALLBACK_ACE_TYPE;
+
+/// Gives what `file` is open on the access list `sddl` writes, in the
+/// security descriptor language: the one way to write a conditional entry
+/// without laying out its expression by hand.
+#[cfg(any(test, feature = "test-support"))]
+fn write_list_of(file: &File, sddl: &str) -> io::Result<()> {
+    use windows_sys::Win32::Security::Authorization::{
+        ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
+    };
+    use windows_sys::Win32::Security::SetKernelObjectSecurity;
+
+    let text: Vec<u16> = sddl.encode_utf16().chain([0]).collect();
+    let mut descriptor: PSECURITY_DESCRIPTOR = null_mut();
+    // SAFETY: `text` is NUL-ended and alive across the call, which only reads
+    // it and writes the descriptor it allocates into the local `descriptor`;
+    // its size is not asked for.
+    let converted = unsafe {
+        ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            text.as_ptr(),
+            SDDL_REVISION_1,
+            &raw mut descriptor,
+            null_mut(),
+        )
+    };
+    if converted == FALSE {
+        return Err(io::Error::last_os_error());
+    }
+    // Freed with `LocalFree` when this returns, as the call documents.
+    let descriptor = Allocated(descriptor);
+    // SAFETY: the handle is `file`'s, open across the call with the right to
+    // write the list; the descriptor is the one the system answered, which
+    // `descriptor` keeps alive across the call, and the call only reads it.
+    if unsafe {
+        SetKernelObjectSecurity(
+            file.as_raw_handle(),
+            DACL_SECURITY_INFORMATION,
+            descriptor.0,
+        )
+    } == FALSE
+    {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
 }
 
 /// Gives `path` the opening's list, and answers how a refusal names it.
@@ -1085,6 +1324,19 @@ pub(crate) fn apply(opening: &Opening, path: &Path) -> io::Result<String> {
             entries.push(Ace::allow(sid.clone(), FILE_GENERIC_READ, *flags));
             sid.to_string()
         }
+        How::Conditional => {
+            set_security(path, &user.sid, Some(&entries))?;
+            let inherited = match opening.kind {
+                Kind::Directory => "OICI",
+                Kind::File => "",
+            };
+            let sid = &user.sid;
+            write_list_of(
+                &opened(path, READ_CONTROL | WRITE_DAC)?,
+                &format!("D:P(A;{inherited};FA;;;{sid})(XA;;FR;;;{sid};(Member_of {{SID(BA)}}))"),
+            )?;
+            return Ok(format!("an access entry of type {CONDITIONAL}"));
+        }
         How::Denies(mask) => {
             entries.insert(0, Ace::deny(user.sid.clone(), *mask));
             lacking(opening.kind).to_owned()
@@ -1097,13 +1349,22 @@ pub(crate) fn apply(opening: &Opening, path: &Path) -> io::Result<String> {
             )];
             lacking(opening.kind).to_owned()
         }
+        How::ReadOnly => {
+            set_security(path, &user.sid, Some(&entries))?;
+            set_read_only(path, true)?;
+            return Ok(format!(
+                "is marked read-only, which {}",
+                lacking(opening.kind)
+            ));
+        }
     };
     set_security(path, &user.sid, Some(&entries))?;
     Ok(said)
 }
 
 /// No list; `Everyone`, `Users` and `Authenticated Users` let in, each alone;
-/// and, on a directory, `Everyone` let into what is made inside it alone.
+/// a conditional entry; and, on a directory, `Everyone` let into what is made
+/// inside it alone.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn every_way_another_user_can_reach(kind: Kind) -> Vec<Opening> {
     let mut ways = vec![
@@ -1111,6 +1372,7 @@ pub(crate) fn every_way_another_user_can_reach(kind: Kind) -> Vec<Opening> {
         How::Lets(everyone(), 0),
         How::Lets(Sid::well_known(5, &[32, 545]), 0),
         How::Lets(Sid::well_known(5, &[11]), 0),
+        How::Conditional,
     ];
     if kind == Kind::Directory {
         ways.push(How::Lets(
@@ -1121,8 +1383,8 @@ pub(crate) fn every_way_another_user_can_reach(kind: Kind) -> Vec<Opening> {
     ways.into_iter().map(|how| Opening { kind, how }).collect()
 }
 
-/// Each right the store needs of a `kind` denied alone, and an entry granting
-/// reading alone.
+/// Each right the store needs of a `kind` denied alone, an entry granting
+/// reading alone, and, on a file, the read-only mark.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn every_way_its_owner_lacks(kind: Kind) -> Vec<Opening> {
     use windows_sys::Win32::Storage::FileSystem::{FILE_READ_DATA, FILE_WRITE_DATA};
@@ -1137,10 +1399,10 @@ pub(crate) fn every_way_its_owner_lacks(kind: Kind) -> Vec<Opening> {
             FILE_DELETE_CHILD,
         ],
     };
-    denied
-        .iter()
-        .map(|mask| How::Denies(*mask))
-        .chain([How::Grants(FILE_GENERIC_READ | FILE_TRAVERSE)])
-        .map(|how| Opening { kind, how })
-        .collect()
+    let mut ways: Vec<How> = denied.iter().map(|mask| How::Denies(*mask)).collect();
+    ways.push(How::Grants(FILE_GENERIC_READ | FILE_TRAVERSE));
+    if kind == Kind::File {
+        ways.push(How::ReadOnly);
+    }
+    ways.into_iter().map(|how| Opening { kind, how }).collect()
 }
