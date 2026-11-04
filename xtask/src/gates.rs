@@ -6984,7 +6984,7 @@ const KNOWN_FORMATS: [&str; 12] = [
 ///
 /// So the rule is the shape rather than the spelling: anything beginning `.env`
 /// is one, except the committed examples, which are the point of having them.
-fn holds_an_environment(name: &str) -> bool {
+pub(crate) fn holds_an_environment(name: &str) -> bool {
     // **`production.env` is an environment file and `.env` is a spelling.**
     // Matched as a `.env` prefix, `production.env` at the root and `env`
     // beside a crate's source both go through holding credentials — and the

@@ -931,10 +931,11 @@ mod tests {
         );
 
         // The directory takes no new file; the ledger in it is still writable.
-        let was = std::fs::metadata(scratch.join("catalog")).expect("the directory is there");
-        let mut shut = was.permissions();
-        shut.set_readonly(true);
-        std::fs::set_permissions(scratch.join("catalog"), shut).expect("writable");
+        // **Through the door each system shuts a directory with.** A read-only
+        // mark is a mode on Unix and an attribute Windows ignores on a
+        // directory, so there it shut nothing and the build wrote its sibling
+        // and renamed it as though nothing were in the way.
+        nc_platform::testing::shut_its_owner_out(&scratch.join("catalog")).expect("shut");
         let refused = super::write_what_changed(
             &scratch,
             &files,
@@ -943,7 +944,7 @@ mod tests {
                 ..ledger.clone()
             },
         );
-        std::fs::set_permissions(scratch.join("catalog"), was.permissions()).expect("writable");
+        nc_platform::testing::make_private(&scratch.join("catalog")).expect("opened again");
         assert!(
             refused.is_err(),
             "the ledger's directory would take no new file and the build reported \

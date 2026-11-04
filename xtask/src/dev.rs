@@ -2664,17 +2664,16 @@ mod tests {
         let real = scratch.join("noctua-central");
         let _ = std::fs::remove_dir_all(&scratch);
         std::fs::create_dir_all(&real).expect("writable");
-        #[cfg(unix)]
-        {
-            let linked = scratch.join("by-another-name");
-            std::os::unix::fs::symlink(&real, &linked).expect("a symlink");
-            assert_eq!(
-                super::project_for(&real),
-                super::project_for(&linked),
-                "a symlinked checkout and its target were given two stacks, so a \
-                 `dev --down` through one would leave the other's containers"
-            );
-        }
+        // A symbolic link on Unix and a junction on Windows: the link a person
+        // makes to a directory on each, and one `canonicalize` sees through.
+        let linked = scratch.join("by-another-name");
+        nc_platform::testing::link_directory(&real, &linked).expect("a link");
+        assert_eq!(
+            super::project_for(&real),
+            super::project_for(&linked),
+            "a linked checkout and its target were given two stacks, so a \
+             `dev --down` through one would leave the other's containers"
+        );
         let _ = std::fs::remove_dir_all(&scratch);
 
         let one = super::project_for(Path::new("/nonexistent/a/noctua-central"));

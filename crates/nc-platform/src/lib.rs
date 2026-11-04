@@ -656,6 +656,29 @@ mod tests {
         }
     }
 
+    /// What each system lacks that a suite stands aside for, and that Linux
+    /// lacks none of it.
+    ///
+    /// **The Linux job runs every suite another system's job cannot**
+    /// (`NOCTUA.md §22.2`), so an answer of "lacking" there is a suite no job
+    /// judges at all. Held per system, so an answer moved on any of the three
+    /// is a failure on that system's own job.
+    #[test]
+    fn linux_lacks_nothing_a_suite_stands_aside_for() {
+        let expected = if cfg!(target_os = "linux") {
+            (Some("/dev/shm"), true)
+        } else if cfg!(windows) {
+            (None, false)
+        } else {
+            (None, true)
+        };
+        assert_eq!(
+            (testing::LISTED_AS_MADE, testing::A_POSIX_SHELL),
+            expected,
+            "what this system lacks for a suite is not what it is written to lack"
+        );
+    }
+
     /// A directory held once is held: a second hold waits until the first
     /// lets go, and the lock leaves nothing that is not private.
     ///

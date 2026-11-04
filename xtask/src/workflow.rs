@@ -4064,7 +4064,7 @@ mod tests {
             let (files, ran_out) = super::everything_ci_reaches(&root).expect("the walk runs");
             let read = files
                 .iter()
-                .filter(|path| path.to_string_lossy().contains("/ci/s"))
+                .filter(|path| crate::relative_to(&root, path).starts_with("ci/s"))
                 .count();
             (read, ran_out)
         };
@@ -4310,15 +4310,25 @@ mod tests {
         // the guard actually decides is whether a `*` in the directory half is
         // a wildcard this refuses or a name it looks up, and the two answers
         // differ only where that name is real.
-        std::fs::create_dir_all(scratch.join("*")).expect("writable");
-        std::fs::write(scratch.join("*/a.yml"), "").expect("writable");
-        let left_over = super::matching(&scratch, "*/a.yml");
-        assert!(
-            left_over.is_empty(),
-            "a `*` in the directory half is a pattern this does not expand, so it \
-             answers with nothing — and a reader that took it for a name would report \
-             a file under a directory no workflow ever wrote: {left_over:?}"
-        );
+        //
+        // **Where a name can hold a `*`.** Windows refuses one in any name, so
+        // there no directory called `*` exists for the two readings to differ
+        // over, in this scratch or in any checkout the reader walks; the clause
+        // is held on the systems where the name is real.
+        match std::fs::create_dir_all(scratch.join("*")) {
+            Err(refused) if refused.kind() == std::io::ErrorKind::InvalidFilename => {}
+            made => {
+                made.expect("writable");
+                std::fs::write(scratch.join("*/a.yml"), "").expect("writable");
+                let left_over = super::matching(&scratch, "*/a.yml");
+                assert!(
+                    left_over.is_empty(),
+                    "a `*` in the directory half is a pattern this does not expand, so it \
+                     answers with nothing — and a reader that took it for a name would \
+                     report a file under a directory no workflow ever wrote: {left_over:?}"
+                );
+            }
+        }
         let left_over = super::matching(&scratch, "one/*/a.yml");
         assert!(
             left_over.is_empty(),

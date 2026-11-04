@@ -2777,7 +2777,7 @@ mod tests {
                     if !words.contains(&cited) {
                         missing.push(format!(
                             "{}:{}: `{cited}`",
-                            path.strip_prefix(root()).unwrap_or(path).display(),
+                            crate::relative_to(root(), path),
                             index + 1
                         ));
                     }

@@ -11,6 +11,11 @@
 # last line is a whole sentence that stands alone;
 # `the_listing_reads_as_sentences` holds it.
 
+# **Windows runs a recipe in PowerShell**, which every Windows machine has, and
+# not in `sh`, which `just` asks for by default and Windows does not ship. Each
+# recipe is a `cargo xtask` verb, the listing, or a script that names `sh` itself.
+set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
+
 default:
     @just --list
 

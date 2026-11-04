@@ -5542,6 +5542,35 @@ const ANNOUNCES_NO_DATABASE: [(&str, &str, &str, usize); 5] = [
     ),
 ];
 
+/// The suites that stand aside where the system lacks what they need, and say so.
+///
+/// **The other half of [`ANNOUNCES_NO_DATABASE`].** There the gate tells a suite
+/// through `NC_NO_STACK`; here the system answers, through
+/// `nc_platform::testing`, which is the one place a system is asked what it can
+/// do (`NOCTUA.md §2.7`). Each guard says in its own output which system stood
+/// it aside and why, and the same reader counts it into the same line, so the
+/// number printed is every suite that stands aside. On Linux none of these does,
+/// which `linux_lacks_nothing_a_suite_stands_aside_for` holds in `nc-platform`,
+/// since the Linux job is the one that runs them.
+const ANNOUNCES_WHAT_THE_SYSTEM_LACKS: [(&str, &str, &str, usize); 2] = [
+    // A directory listed in the order its entries were made, without which the
+    // suite about the order on disk has two layouts in one order.
+    (
+        "crates/nc-catalog-compiler/tests/the_order_on_disk_stays_on_disk.rs",
+        "nc_platform::testing::LISTED_AS_MADE.is_none()",
+        "skipped, not applicable on",
+        1,
+    ),
+    // A POSIX shell of the system's own, which every guard of the checkout
+    // script is a claim about.
+    (
+        "xtask/src/check.rs",
+        "!nc_platform::testing::A_POSIX_SHELL",
+        "skipped, not applicable on",
+        10,
+    ),
+];
+
 /// How many of a suite's guards both ask for the flag and say so inside themselves.
 ///
 /// **Read as code, not as a file.** Needles looked for anywhere in the text let
@@ -5750,7 +5779,30 @@ fn the_database_suites_still_stand_aside(root: &Path, failures: &mut Vec<String>
             failures.push("a database suite did not announce itself".to_owned());
         }
     }
-    if said == ANNOUNCES_NO_DATABASE.len() {
+    // **And the suites the system stands aside**, read by the same rule and
+    // counted into the same line.
+    for (named, asks, says, controls) in ANNOUNCES_WHAT_THE_SYSTEM_LACKS {
+        let Ok(text) = std::fs::read_to_string(root.join(named)) else {
+            ui::failure(&format!(
+                "{named} is a suite that stands aside where the system lacks what it \
+                 needs and it is not in this tree, so where it stands aside is unknown"
+            ));
+            failures.push("a suite the system stands aside is missing".to_owned());
+            continue;
+        };
+        let announcing = announcing_guards(&text, asks, says);
+        if announcing == controls {
+            said += 1;
+        } else {
+            ui::failure(&format!(
+                "{named} holds {announcing} guard(s) that ask what the system lacks and \
+                 say so inside the guard, and {controls} are written down — cargo counts \
+                 a test that returned early as one that passed"
+            ));
+            failures.push("a suite the system stands aside did not announce itself".to_owned());
+        }
+    }
+    if said == ANNOUNCES_NO_DATABASE.len() + ANNOUNCES_WHAT_THE_SYSTEM_LACKS.len() {
         ui::detail(&format!(
             "{said} suite(s) stand aside when what they need is absent and say so in their own output"
         ));
@@ -7536,7 +7588,7 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// `xtask/mutants.py` are where a predicate's verdict is decided. It says the
 /// guard is still there, which is the question a deletion asks.
 #[cfg(test)]
-const WHAT_THE_GATE_CAN_SAY: [&str; 845] = [
+const WHAT_THE_GATE_CAN_SAY: [&str; 849] = [
     "`{named}` was passed to `docker compose` among its arguments. The project is this checkout's and is set above; docker resolves the flag to the later of two, so the stack would come up under a name `--down` does not address",
     "what CI reaches is more than {HOPS} hops deep",
     "Cedar denies by default, so a core rule that permits widens what is allowed rather than restricting it — move it to a pack, or make it a `forbid`",
@@ -7698,6 +7750,8 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 845] = [
     "a crate outside nc-log depends on it and has not logged yet, so there is nothing at a call site to read",
     "a database suite did not announce itself",
     "a database suite is missing",
+    "a suite the system stands aside did not announce itself",
+    "a suite the system stands aside is missing",
     "a digest pin was neither compared nor announced",
     "a file is not a rule, and three of the seven core files hold more than one: deleting one rule from a file that keeps another moved three counts by one and left the file count unchanged. Add the id to `CORE_RULES` in xtask/src/policy.rs, or take the rule out of policy/core/",
     "a hatch with no reason",
@@ -8270,10 +8324,12 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 845] = [
     "{judged} {subject}(s) became this gate's to judge and {reached} reached a verdict",
     "{looked} compose name(s) were looked for, and docker merges eight",
     "{named} is a suite that stands aside without a database and it is not in this tree, so what --offline skipped is unknown",
+    "{named} is a suite that stands aside where the system lacks what it needs and it is not in this tree, so where it stands aside is unknown",
     "{named} is generated and is not on disk. Run `cargo xtask build`",
     "{named} is named as generated and nothing generates it any more — delete it and take it out of GENERATED_FILES",
     "{named} is neither a file nor a directory, so this gate inspected nothing where the emitter is supposed to be",
     "{named} holds {announcing} control(s) that ask for the flag and say so inside the guard, and {controls} are written down — cargo counts a test that returned early as one that passed",
+    "{named} holds {announcing} guard(s) that ask what the system lacks and say so inside the guard, and {controls} are written down — cargo counts a test that returned early as one that passed",
     "{name} holds a version and not `{from}`, so the files already disagree",
     "{name} holds no `permit` or `forbid`, so it decides nothing",
     "{name} is listed as carrying the version and holds none. Either it stopped carrying one — take it out of CARRIES_THE_VERSION — or the line was lost, and a release now would ship a tree that disagrees with itself",
@@ -9290,13 +9346,7 @@ fn the_files_that_excuse_a_line(root: &Path) -> Vec<(String, String)> {
             )
         });
         if readable && let Ok(text) = std::fs::read_to_string(path) {
-            found.push((
-                path.strip_prefix(root)
-                    .unwrap_or(path)
-                    .to_string_lossy()
-                    .into_owned(),
-                text,
-            ));
+            found.push((crate::relative_to(root, path), text));
         }
     });
     found
@@ -10587,7 +10637,7 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 606] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 607] = [
     // The prefix every finding about this gate's own arithmetic carries, so the
     // three attack helpers can refuse such an answer without naming a sentence.
     "this gate's own accounting — ",
@@ -10982,6 +11032,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 606] = [
     "sharing what the house already shares needs no quorum",
     "skipped, docker was not asked",
     "skipped, no database",
+    "skipped, not applicable on",
     "something inside the walk is filtering, and a `§` in the part it skipped reads as checked. The number of citations cannot say this: its floor is zero",
     "something inside the walk is filtering, and a citation in the part it skipped reads as checked. The number of citations cannot say this: its floor is zero, and a walk that reads one file reports a number that looks like a measurement",
     "struct `Shipper` is private",
@@ -13315,12 +13366,7 @@ mod tests {
             }
             let text = std::fs::read_to_string(path).unwrap_or_default();
             if text.lines().any(|line| a_line_declares(line, DECLARED)) {
-                declared.push(
-                    path.strip_prefix(root())
-                        .unwrap_or(path)
-                        .to_string_lossy()
-                        .into_owned(),
-                );
+                declared.push(crate::relative_to(root(), path));
             }
         })
         .expect("the tree can be walked");
@@ -18229,7 +18275,7 @@ mod the_frozen_path_rule {
         ("nc-catalog-compiler/the_gates_fire.rs", 65, 93),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
-            8,
+            13,
             2,
         ),
         ("nc-catalog/capabilities.rs", 7, 1),
@@ -18311,12 +18357,12 @@ mod the_frozen_path_rule {
         ("nc-log/events.rs", 22, 110),
         ("nc-log/every_event_reaches_the_store.rs", 4, 1),
         ("nc-log/lib.rs", 19, 25),
-        ("nc-log/ship.rs", 105, 50),
+        ("nc-log/ship.rs", 106, 50),
         ("nc-log/value.rs", 18, 36),
-        ("nc-platform/lib.rs", 41, 21),
-        ("nc-platform/testing.rs", 23, 1),
-        ("nc-platform/unix.rs", 43, 2),
-        ("nc-platform/windows.rs", 81, 11),
+        ("nc-platform/lib.rs", 42, 21),
+        ("nc-platform/testing.rs", 26, 1),
+        ("nc-platform/unix.rs", 46, 2),
+        ("nc-platform/windows.rs", 84, 11),
         ("nc-policy/an_entity_type_is_a_name_cedar_parses.rs", 7, 3),
         ("nc-policy/cases.rs", 10, 13),
         ("nc-policy/lib.rs", 103, 20),
@@ -18337,7 +18383,7 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 633, 56),
+        ("xtask/check.rs", 636, 56),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 44, 29),
         ("xtask/database.rs", 29, 6),
@@ -18349,7 +18395,7 @@ mod the_frozen_path_rule {
         ("xtask/limits.rs", 176, 59),
         ("xtask/local.rs", 79, 8),
         ("xtask/main.rs", 2, 24),
-        ("xtask/members.rs", 33, 7),
+        ("xtask/members.rs", 34, 7),
         ("xtask/plugins.rs", 25, 5),
         ("xtask/policy.rs", 57, 5),
         ("xtask/references.rs", 54, 26),
@@ -21135,8 +21181,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 531 scratches this tree
-    /// builds, 441 of the 531 are removed however the test leaves and 90 are
+    /// directories accumulated in an afternoon. Of the 533 scratches this tree
+    /// builds, 443 of the 533 are removed however the test leaves and 90 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -21202,9 +21248,14 @@ mod the_frozen_path_rule {
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 32] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 33] = [
         ("nc-catalog-compiler/ledger.rs", 1, 0),
         ("nc-catalog-compiler/the_gates_fire.rs", 149, 149),
+        (
+            "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
+            2,
+            2,
+        ),
         ("nc-kernel/blobs.rs", 10, 10),
         ("nc-kernel/the_decision_point.rs", 3, 3),
         ("nc-kernel/the_rest_of_the_world.rs", 2, 2),
@@ -24099,7 +24150,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14121;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14152;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24118,7 +24169,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2706;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2721;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -24135,7 +24186,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 880;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 885;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -24169,7 +24220,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 19764;
+    const THE_REARRANGEMENTS_JUDGED: usize = 19809;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24223,7 +24274,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **424 of 19,764 are accepted by the first-line
+    /// rules the gates apply: **424 of 19,809 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -24256,7 +24307,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **880 of
+    /// this tree offers, **885 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -25762,6 +25813,54 @@ mod the_frozen_path_rule {
         }
     }
 
+    /// Every source that asks what the system lacks is one the census names,
+    /// with as many guards as it writes down.
+    ///
+    /// **The same two halves as the flag's census above.** A suite asking
+    /// `nc_platform::testing` whether this system can give it what it needs,
+    /// and returning when it cannot, is counted by cargo as a pass; unnamed, it
+    /// is a suite standing aside on macOS or Windows with nothing judging
+    /// whether it says so. Each door is asked for as code, so the census rows
+    /// below, which name it inside a string, are not suites.
+    #[test]
+    fn every_source_that_asks_what_the_system_lacks_is_one_the_census_names() {
+        let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+        let doors: Vec<&str> = super::ANNOUNCES_WHAT_THE_SYSTEM_LACKS
+            .iter()
+            .map(|(_, asks, _, _)| asks.trim_start_matches('!').trim_end_matches(".is_none()"))
+            .collect();
+        let mut found: Vec<String> = Vec::new();
+        for (_, _, path) in every_source_of_every_member(root, &["src", "tests"]) {
+            let raw = std::fs::read_to_string(&path).expect("a source file is readable");
+            let neutral = crate::gates::blanked(&raw);
+            if doors.iter().any(|door| neutral.contains(door)) {
+                found.push(crate::relative_to(root, &path));
+            }
+        }
+        found.sort();
+        found.dedup();
+        let mut named: Vec<String> = super::ANNOUNCES_WHAT_THE_SYSTEM_LACKS
+            .iter()
+            .map(|(file, _, _, _)| (*file).to_owned())
+            .collect();
+        named.sort();
+        assert_eq!(
+            found, named,
+            "the sources whose code asks what the system lacks are not the ones this \
+             census names, so a suite stands aside on some system and nothing judges \
+             whether it says so"
+        );
+        for (file, asks, says, controls) in super::ANNOUNCES_WHAT_THE_SYSTEM_LACKS {
+            let text = std::fs::read_to_string(root.join(file)).expect("the suite is readable");
+            assert_eq!(
+                super::announcing_guards(&text, asks, says),
+                controls,
+                "`{file}` holds a different number of guards that announce themselves \
+                 than the census writes down"
+            );
+        }
+    }
+
     /// A `[graph]` list that names a crate narrows the audit, and an empty one
     /// does not.
     ///
@@ -26261,7 +26360,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 606;
+    const THE_REST_IT_SAYS: usize = 607;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -26409,7 +26508,7 @@ mod the_frozen_path_rule {
     /// verdicts that agree for that long are one row, and — because a prefix
     /// matches nothing the two censuses hold — every row is a shipped literal
     /// accounted for nowhere. Written out, each row is its own accounting.
-    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 461] = [
+    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 465] = [
         ("—", "compiled catalog/"),
         (
             "—",
@@ -27167,7 +27266,23 @@ mod the_frozen_path_rule {
         ),
         ("else", "a database suite did not announce itself"),
         (
-            "if said == ANNOUNCES_NO_DATABASE.len()",
+            "let Ok(text) = std::fs::read_to_string(root.join(named)) else",
+            "{named} is a suite that stands aside where the system lacks what it needs and it is not in this tree, so where it stands aside is unknown",
+        ),
+        (
+            "let Ok(text) = std::fs::read_to_string(root.join(named)) else",
+            "a suite the system stands aside is missing",
+        ),
+        (
+            "else",
+            "{named} holds {announcing} guard(s) that ask what the system lacks and say so inside the guard, and {controls} are written down — cargo counts a test that returned early as one that passed",
+        ),
+        (
+            "else",
+            "a suite the system stands aside did not announce itself",
+        ),
+        (
+            "if said == ANNOUNCES_NO_DATABASE.len() + ANNOUNCES_WHAT_THE_SYSTEM_LACKS.len()",
             "{said} suite(s) stand aside when what they need is absent and say so in their own output",
         ),
         (
@@ -31781,6 +31896,24 @@ mod every_report_wire {
 /// Rust fragments is the defect one level down.
 #[cfg(test)]
 mod the_meta_gate {
+    /// Why a drive of the checkout script stands aside where the system has no POSIX
+    /// shell of its own, as that drive says it.
+    ///
+    /// **The script's guards are the reason it is safe to run, and they are
+    /// POSIX's.** They stand before an `rm -rf` and a `cpio`, and each is a
+    /// claim about how a shell spends a path: `cd -P` resolves a link before
+    /// the `..` after it, two leading slashes are one directory, and an
+    /// absolute path opens with `/`. The `sh` Git ships for Windows runs the
+    /// script and keeps none of the three — measured on a Windows runner, a
+    /// decoy reaching the script through a junction was taken for the
+    /// repository it belongs to — so a drive there would prove guards the
+    /// script does not have. `nc_platform::testing::A_POSIX_SHELL` is where the
+    /// system says so.
+    const NO_POSIX_SHELL: &str = "the checkout script's guards spend a path as a POSIX \
+                                  shell does, and the sh this system has spends it as \
+                                  Windows does, so they are not the guards they read as \
+                                  here; the Linux and macOS jobs run it";
+
     /// Why each Rust source the mutation runner does not edit is not edited.
     ///
     /// **This table is where *excluded* is told from *forgotten*.** A file left
@@ -32785,7 +32918,7 @@ mod the_meta_gate {
                 clippy::disallowed_methods,
                 reason = "the guard is driven for its refusal, and its output is read"
             )]
-            let mut command = std::process::Command::new("python3");
+            let mut command = std::process::Command::new(nc_platform::testing::PYTHON);
             command
                 .arg("-c")
                 .arg(&asking)
@@ -32795,7 +32928,7 @@ mod the_meta_gate {
                 Some(url) => command.env("DATABASE_URL", url),
                 None => command.env_remove("DATABASE_URL"),
             };
-            command.output().expect("python3 imports the meta-gate")
+            command.output().expect("Python 3 imports the meta-gate")
         };
 
         let absent = drive(None);
@@ -32890,7 +33023,7 @@ mod the_meta_gate {
                 clippy::disallowed_methods,
                 reason = "the runner's verdict is driven with a suite's output, and read"
             )]
-            let mut command = std::process::Command::new("python3");
+            let mut command = std::process::Command::new(nc_platform::testing::PYTHON);
             command
                 .arg("-c")
                 .arg(&asking)
@@ -32898,7 +33031,7 @@ mod the_meta_gate {
                 .current_dir(root)
                 .env("PYTHONDONTWRITEBYTECODE", "1")
                 .output()
-                .expect("python3 imports the meta-gate")
+                .expect("Python 3 imports the meta-gate")
         };
         let stale = drive(&format!(
             "thread 'the_reference_plugin_activates_and_declares_its_one_command' panicked \
@@ -32985,7 +33118,7 @@ mod the_meta_gate {
                 reason = "the runner's verdict is driven with stubbed suites over a scratch \
                           source, and read"
             )]
-            let mut command = std::process::Command::new("python3");
+            let mut command = std::process::Command::new(nc_platform::testing::PYTHON);
             let ran = command
                 .arg("-c")
                 .arg(&asking)
@@ -32993,7 +33126,7 @@ mod the_meta_gate {
                 .current_dir(root)
                 .env("PYTHONDONTWRITEBYTECODE", "1")
                 .output()
-                .expect("python3 imports the meta-gate");
+                .expect("Python 3 imports the meta-gate");
             let said = String::from_utf8_lossy(&ran.stdout).into_owned();
             let verdict = said
                 .lines()
@@ -33089,7 +33222,7 @@ mod the_meta_gate {
             clippy::disallowed_methods,
             reason = "the runner's table is read by the interpreter that runs it"
         )]
-        let asked = std::process::Command::new("python3")
+        let asked = std::process::Command::new(nc_platform::testing::PYTHON)
             .arg("-c")
             .arg(format!(
                 "import importlib.util, json; \
@@ -33102,7 +33235,7 @@ mod the_meta_gate {
             .current_dir(root)
             .env("PYTHONDONTWRITEBYTECODE", "1")
             .output()
-            .expect("python3 imports the meta-gate");
+            .expect("Python 3 imports the meta-gate");
         let table: Vec<(String, String)> = serde_json::from_slice(&asked.stdout)
             .expect("`NEVER_REACHED` is pairs of a saying and its fix");
         let the_code = the_rust_under(&root.join("crates"));
@@ -33178,13 +33311,13 @@ mod the_meta_gate {
             clippy::disallowed_methods,
             reason = "the runner's predicate is driven by the interpreter that runs it"
         )]
-        let said = std::process::Command::new("python3")
+        let said = std::process::Command::new(nc_platform::testing::PYTHON)
             .arg("-c")
             .arg(&asking)
             .current_dir(root)
             .env("PYTHONDONTWRITEBYTECODE", "1")
             .output()
-            .expect("python3 imports the meta-gate");
+            .expect("Python 3 imports the meta-gate");
         let built = String::from_utf8_lossy(&said.stdout).trim().to_owned();
         assert_eq!(
             built,
@@ -42139,6 +42272,13 @@ impl<T: Shown> Shown for Option<T> {
     /// absolute, which is the difference the guard has to see.
     #[test]
     fn a_path_that_resolves_inside_this_repository_is_refused() {
+        if !nc_platform::testing::A_POSIX_SHELL {
+            println!(
+                "skipped, not applicable on {}: {NO_POSIX_SHELL}",
+                crate::ui::SYSTEM
+            );
+            return;
+        }
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let script = root.join("xtask/the-checkout-shape.sh");
         // **Resolved, not merely absolute.** The spellings
@@ -42260,6 +42400,13 @@ impl<T: Shown> Shown for Option<T> {
     /// run `rm -rf` as root's parent.
     #[test]
     fn the_root_is_refused_though_it_contains_everything() {
+        if !nc_platform::testing::A_POSIX_SHELL {
+            println!(
+                "skipped, not applicable on {}: {NO_POSIX_SHELL}",
+                crate::ui::SYSTEM
+            );
+            return;
+        }
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let source =
             std::fs::read_to_string(root.join("xtask/the-checkout-shape.sh")).expect("readable");
@@ -42348,6 +42495,13 @@ impl<T: Shown> Shown for Option<T> {
     /// `rm -rf` of a directory the caller did not name.
     #[test]
     fn the_script_reached_through_a_doubled_slash_still_knows_where_it_is() {
+        if !nc_platform::testing::A_POSIX_SHELL {
+            println!(
+                "skipped, not applicable on {}: {NO_POSIX_SHELL}",
+                crate::ui::SYSTEM
+            );
+            return;
+        }
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let source =
             std::fs::read_to_string(root.join("xtask/the-checkout-shape.sh")).expect("readable");
@@ -42440,6 +42594,13 @@ impl<T: Shown> Shown for Option<T> {
     /// inodes after following them.
     #[test]
     fn a_link_to_this_script_does_not_make_its_directory_the_repository() {
+        if !nc_platform::testing::A_POSIX_SHELL {
+            println!(
+                "skipped, not applicable on {}: {NO_POSIX_SHELL}",
+                crate::ui::SYSTEM
+            );
+            return;
+        }
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let source =
             std::fs::read_to_string(root.join("xtask/the-checkout-shape.sh")).expect("readable");
@@ -42556,6 +42717,13 @@ impl<T: Shown> Shown for Option<T> {
     /// where `dirname` answers `.` and `.` is right.
     #[test]
     fn the_script_reached_by_another_name_refuses_rather_than_guessing() {
+        if !nc_platform::testing::A_POSIX_SHELL {
+            println!(
+                "skipped, not applicable on {}: {NO_POSIX_SHELL}",
+                crate::ui::SYSTEM
+            );
+            return;
+        }
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let source =
             std::fs::read_to_string(root.join("xtask/the-checkout-shape.sh")).expect("readable");
@@ -42682,6 +42850,13 @@ impl<T: Shown> Shown for Option<T> {
     /// same spelling is read in.
     #[test]
     fn an_ordinary_cdpath_does_not_move_the_repository() {
+        if !nc_platform::testing::A_POSIX_SHELL {
+            println!(
+                "skipped, not applicable on {}: {NO_POSIX_SHELL}",
+                crate::ui::SYSTEM
+            );
+            return;
+        }
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let source =
             std::fs::read_to_string(root.join("xtask/the-checkout-shape.sh")).expect("readable");
@@ -42749,6 +42924,13 @@ impl<T: Shown> Shown for Option<T> {
     /// fails this rather than passing it.
     #[test]
     fn the_guard_is_armed_before_the_gate_that_can_come_back() {
+        if !nc_platform::testing::A_POSIX_SHELL {
+            println!(
+                "skipped, not applicable on {}: {NO_POSIX_SHELL}",
+                crate::ui::SYSTEM
+            );
+            return;
+        }
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let source =
             std::fs::read_to_string(root.join("xtask/the-checkout-shape.sh")).expect("readable");
@@ -42830,6 +43012,13 @@ impl<T: Shown> Shown for Option<T> {
     /// arrived.
     #[test]
     fn the_copy_leaves_the_build_directory_behind() {
+        if !nc_platform::testing::A_POSIX_SHELL {
+            println!(
+                "skipped, not applicable on {}: {NO_POSIX_SHELL}",
+                crate::ui::SYSTEM
+            );
+            return;
+        }
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let source =
             std::fs::read_to_string(root.join("xtask/the-checkout-shape.sh")).expect("readable");
@@ -43051,6 +43240,13 @@ impl<T: Shown> Shown for Option<T> {
     /// first `rm -rf`, so the test costs a process and no copying.
     #[test]
     fn the_checkout_script_refuses_a_copy_inside_this_repository() {
+        if !nc_platform::testing::A_POSIX_SHELL {
+            println!(
+                "skipped, not applicable on {}: {NO_POSIX_SHELL}",
+                crate::ui::SYSTEM
+            );
+            return;
+        }
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let script = root.join("xtask/the-checkout-shape.sh");
         // Syntax first, because a script nothing runs is a script nothing
@@ -43183,6 +43379,13 @@ impl<T: Shown> Shown for Option<T> {
     /// script is for.
     #[test]
     fn the_script_refuses_to_run_inside_a_checkout_it_made() {
+        if !nc_platform::testing::A_POSIX_SHELL {
+            println!(
+                "skipped, not applicable on {}: {NO_POSIX_SHELL}",
+                crate::ui::SYSTEM
+            );
+            return;
+        }
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let source =
             std::fs::read_to_string(root.join("xtask/the-checkout-shape.sh")).expect("readable");
@@ -43295,7 +43498,7 @@ impl<T: Shown> Shown for Option<T> {
             clippy::disallowed_methods,
             reason = "the runner is driven and its summary is read, not printed"
         )]
-        let printed = std::process::Command::new("python3")
+        let printed = std::process::Command::new(nc_platform::testing::PYTHON)
             .arg(runner)
             .arg("--summary")
             .current_dir(runner.parent().expect("the runner is in a directory"))
@@ -43303,7 +43506,7 @@ impl<T: Shown> Shown for Option<T> {
             // `__pycache__` beside it is a file of a kind no rule here knows.
             .env("PYTHONDONTWRITEBYTECODE", "1")
             .output()
-            .expect("python3 is on this machine");
+            .expect("Python 3 is on this machine");
         assert!(
             printed.status.success(),
             "`python3 xtask/mutants.py --summary` failed: {}",

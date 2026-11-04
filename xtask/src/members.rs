@@ -282,8 +282,11 @@ fn built_from_in(parsed: &serde_json::Value, package: &str) -> Result<Vec<String
         .iter()
         .filter(|candidate| id(candidate).is_some_and(|found| reached.contains(&found)))
         .filter_map(|candidate| candidate.get("manifest_path")?.as_str())
-        .filter_map(|manifest| inside_the_root(workspace, manifest)?.strip_suffix("/Cargo.toml"))
-        .map(str::to_owned)
+        .filter_map(|manifest| {
+            inside_the_root(workspace, manifest)?
+                .strip_suffix("/Cargo.toml")
+                .map(str::to_owned)
+        })
         .collect();
     directories.sort();
     Ok(directories)
@@ -358,10 +361,19 @@ mod built_from_tests {
 /// separator test would change no verdict anywhere, and `Member::sources` is
 /// the floor under the type wall's count of source roots. A rule with one copy
 /// has one test.
-fn inside_the_root<'a>(root: &str, path: &'a str) -> Option<&'a str> {
-    path.strip_prefix(root)
+///
+/// **And either separator, answered with `/`.** On Windows cargo writes every
+/// manifest path with a backslash, under a root written the same way, so a
+/// separator read as `/` alone found no member there, and every gate scoped by
+/// the members failed for having nothing to judge. Both spellings are turned
+/// into `/` before they are compared, which is the rule [`crate::relative_to`]
+/// keeps for every path this tool prints or compares, and what comes back is
+/// the form every list here is written in.
+fn inside_the_root(root: &str, path: &str) -> Option<String> {
+    let (root, path) = (root.replace('\\', "/"), path.replace('\\', "/"));
+    path.strip_prefix(&root)
         .filter(|rest| rest.starts_with('/'))
-        .map(|rest| rest.trim_start_matches('/'))
+        .map(|rest| rest.trim_start_matches('/').to_owned())
 }
 
 /// The same question, asked of an answer that is already parsed.
@@ -602,8 +614,10 @@ fn opening_the_local_database_in(parsed: &serde_json::Value) -> Result<Vec<Strin
             .get("manifest_path")
             .and_then(serde_json::Value::as_str)
             .and_then(|manifest| inside_the_root(root, manifest))
-            .and_then(|rest| rest.strip_suffix("Cargo.toml"))
-            .map(|directory| directory.trim_end_matches('/'));
+            .and_then(|rest| {
+                rest.strip_suffix("Cargo.toml")
+                    .map(|directory| directory.trim_end_matches('/').to_owned())
+            });
         let (true, Some(directory)) = (is_a_member, directory) else {
             continue;
         };
@@ -612,7 +626,7 @@ fn opening_the_local_database_in(parsed: &serde_json::Value) -> Result<Vec<Strin
             .and_then(serde_json::Value::as_array)
             .is_some_and(|dependencies| dependencies.iter().any(hands_over_sqlite));
         if opens {
-            found.push(directory.to_owned());
+            found.push(directory);
         }
     }
     found.sort();
@@ -761,10 +775,10 @@ fn from_metadata(parsed: &serde_json::Value) -> Result<Vec<Member>, String> {
         // package at `/w-vendor/nc-vendored/Cargo.toml` is
         // admitted with the relative path `-vendor/nc-vendored`, so the lint walk, the source walk and the type-wall scope all judge a manifest outside the repository and count it among the members. <!-- allow-reference: `-vendor/nc-vendored` is the nonsense path the defect produced, in a fixture workspace at `/w` -->
         // A second copy of one rule is a copy proved by nothing.
-        let Some(relative) = inside_the_root(root, manifest)
-            .and_then(|rest| rest.strip_suffix("Cargo.toml"))
-            .map(|directory| directory.trim_end_matches('/'))
-        else {
+        let Some(relative) = inside_the_root(root, manifest).and_then(|rest| {
+            rest.strip_suffix("Cargo.toml")
+                .map(|directory| directory.trim_end_matches('/').to_owned())
+        }) else {
             continue;
         };
         // **Reaches the log, at any depth.** `cargo metadata` has already
@@ -785,8 +799,7 @@ fn from_metadata(parsed: &serde_json::Value) -> Result<Vec<Member>, String> {
                         let relative = target
                             .get("src_path")
                             .and_then(serde_json::Value::as_str)
-                            .and_then(|path| inside_the_root(root, path))
-                            .map(str::to_owned)?;
+                            .and_then(|path| inside_the_root(root, path))?;
                         Some((relative, is_documented(target)))
                     })
                     .collect::<Vec<(String, bool)>>()
@@ -803,7 +816,7 @@ fn from_metadata(parsed: &serde_json::Value) -> Result<Vec<Member>, String> {
             continue;
         };
         found.push(Member {
-            path: relative.to_owned(),
+            path: relative,
             name: name.to_owned(),
             can_log,
             sources,
@@ -1254,6 +1267,41 @@ mod tests {
             paths,
             vec!["crates/nc-log"],
             "`/w-vendor` is a sibling of `/w`, not a directory inside it"
+        );
+    }
+
+    /// A member cargo names with Windows' separator is a member, written with `/`.
+    ///
+    /// The answer on a Windows runner, in the shape it came: read with `/` as
+    /// the only separator, no package in it was inside the root and the walk
+    /// answered that cargo listed no member at all. A sibling is still outside
+    /// with either separator, because what decides inside is still a separator
+    /// after the root.
+    #[test]
+    fn a_member_cargo_names_with_backslashes_is_a_member() {
+        let answer = serde_json::json!({
+            "workspace_root": "D:\\w",
+            "packages": [
+                {"name": "nc-log", "id": "log",
+                 "manifest_path": "D:\\w\\crates\\nc-log\\Cargo.toml",
+                 "targets": [{"src_path": "D:\\w\\crates\\nc-log\\src\\lib.rs", "kind": ["lib"]}]},
+                {"name": "nc-vendored", "id": "vendored",
+                 "manifest_path": "D:\\w-vendor\\nc-vendored\\Cargo.toml"},
+            ],
+        });
+        let found = from_metadata(&answer).expect("a readable answer");
+        let read: Vec<(&str, &[String])> = found
+            .iter()
+            .map(|member| (member.path.as_str(), member.sources.as_slice()))
+            .collect();
+        assert_eq!(
+            read,
+            vec![(
+                "crates/nc-log",
+                &["crates/nc-log/src/lib.rs".to_owned()][..]
+            )],
+            "a Windows answer is read as the members it names, with `/`, and its sibling \
+             is not one of them"
         );
     }
 

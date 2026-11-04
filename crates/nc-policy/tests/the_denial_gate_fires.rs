@@ -2056,7 +2056,7 @@ fn an_empty_pack_is_refused_rather_than_passing_everything() {
                     path.strip_prefix(&scratch.root)
                         .expect("under the copy")
                         .to_string_lossy()
-                        .into_owned(),
+                        .replace('\\', "/"),
                 );
             }
         }
@@ -2199,11 +2199,15 @@ fn every_policy_file() -> Vec<(String, String)> {
             if path.is_dir() {
                 gather(&path, root, into);
             } else if path.extension().is_some_and(|kind| kind == "cedar") {
+                // With `/`, which is how every path the pack is compiled
+                // under is written and what the filters below compare: on
+                // Windows the separator is `\`, and a core read as
+                // `policy\core\…` was filtered out whole as no core at all.
                 let relative = path
                     .strip_prefix(root)
                     .expect("under the repository")
                     .to_string_lossy()
-                    .into_owned();
+                    .replace('\\', "/");
                 let text = std::fs::read_to_string(&path).expect("the policy is readable");
                 into.push((relative, text));
             }

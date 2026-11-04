@@ -6308,8 +6308,12 @@ def main():
         if os.path.exists(SENTINEL):
             os.unlink(SENTINEL)
 
-    for caught in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
-        signal.signal(caught, lambda number, frame: (restore(), sys.exit(128 + number)))
+    for caught in (signal.SIGTERM, signal.SIGINT, getattr(signal, "SIGHUP", None)):
+        # **The hangup where the system has one.** Windows has no `SIGHUP`, and
+        # naming it there ended the run before its first operator. Read by
+        # name, so a system that has it is caught as it always was.
+        if caught is not None:
+            signal.signal(caught, lambda number, frame: (restore(), sys.exit(128 + number)))
     try:
         for source, predicate, label, frm, to in WEAKENINGS:
             if predicate != seen:

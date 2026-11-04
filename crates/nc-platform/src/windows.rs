@@ -93,6 +93,20 @@ pub(crate) const SYNCS_A_DIRECTORY: bool = false;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) const HOLDS_THROUGH_A_FILE: bool = true;
 
+/// NTFS lists a directory by name, whatever order its entries were made in.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) const LISTED_AS_MADE: Option<&str> = None;
+
+/// No `sh` of the system's own: the one Git ships hands every path to a
+/// system that spends it as Windows does.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) const A_POSIX_SHELL: bool = false;
+
+/// Python 3 by the name its installers give it here: `python3` is, where it
+/// is anything, the system's shortcut to its app store.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) const PYTHON: &str = "python";
+
 /// What a link is called when one is refused: any reparse point, of which a
 /// symbolic link and a junction are two.
 const A_LINK: &str = "is a symbolic link, a junction or another reparse point";

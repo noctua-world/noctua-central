@@ -27,8 +27,7 @@ disallowed-methods = [
   # answers is *who opens a handle at all*, which no spelling can hide.
   #
   # Every such call in the tree carries an `expect` whose reason says why it
-  # earns it: `nc-log`'s `ship.rs` opens `/dev/full` to give a test a descriptor
-  # that always fails; and `nc-platform`, where each system makes a path private,
+  # earns it: `nc-platform`, where each system makes a path private,
   # creates the local database's file, the owner probe and every writing of a
   # blob `0600` with `create_new` in its Unix half, and in its Windows half
   # opens a path to judge it, to read and set its access list, or to set the

@@ -971,20 +971,15 @@ fn the_backlog_after_a_refusal(carried: u64) -> u64 {
 /// floor is the whole point**: when `Drop` sets the abandon flag the budget
 /// drops from `DEADLINE` to `ABANDONED_ANSWER` while `started.elapsed()` is
 /// already seconds, so `left` saturates to zero —
-/// and `set_read_timeout(Some(ZERO))` is `InvalidInput`. Without the floor
-/// every abandoned exchange dies with this client's own socket API as the
-/// operator-facing sentence, verbatim on stderr:
+/// and `set_read_timeout(Some(ZERO))` is `InvalidInput`. A bound the socket
+/// refuses leaves the last one that took in force, and before the first slice
+/// that is the one `exchange` set — `WRITE_TIMEOUT`, for an exchange that began
+/// before the shutdown gave up — so without the floor such an exchange would
+/// wait seconds on a budget of milliseconds.
 ///
-/// ```text
-/// nc-log: the store did not take 64 line(s): could not bound the answer:
-///         cannot set a 0 duration timeout
-/// ```
-///
-/// and returns *without attempting the read*, discarding an answer one syscall
-/// away. A separate function because the arm that reports the refusal is
-/// unreachable once this is right — the socket has to break
-/// for `set_read_timeout` to fail otherwise — so what a test can hold is the
-/// arithmetic, which is where the defect lives.
+/// A separate function because which bound is in force is not something an
+/// answer shows, so what a test can hold is the arithmetic, which is where the
+/// defect lives.
 fn answer_slice(left: core::time::Duration) -> core::time::Duration {
     left.min(POLL).max(core::time::Duration::from_millis(1))
 }
@@ -1875,19 +1870,22 @@ impl Target {
             // **Never zero, which std refuses.** When `Drop` sets the abandon
             // flag the budget drops from `DEADLINE` to `ABANDONED_ANSWER` while
             // `started.elapsed()` is already seconds, so `left` saturates to
-            // zero and `set_read_timeout(Some(ZERO))` is `InvalidInput`.
-            // Without the floor every abandoned exchange dies with this
-            // client's own socket API as the operator-facing sentence —
-            // verbatim on stderr,
-            // `nc-log: the store did not take 64 line(s): could not bound the
-            // answer: cannot set a 0 duration timeout` — and returns *without
-            // attempting the read*, discarding an answer one syscall away and
-            // forcing the verdict to `Silent` even where a partial read_bytes line
-            // has arrived. One millisecond is a bound; zero is an error.
+            // zero and `set_read_timeout(Some(ZERO))` is `InvalidInput`, which
+            // leaves an older and longer bound in force. One millisecond is a
+            // bound; zero is an error.
             let slice = answer_slice(left);
-            if let Err(error) = stream.set_read_timeout(Some(slice)) {
-                return Delivery::Silent(format!("could not bound the answer: {error}"));
-            }
+            // **A bound the socket refuses is not a verdict.** macOS answers
+            // `EINVAL` here once the store has reset the connection, because a
+            // socket shut down both ways takes no new option — and what the
+            // store sent before the reset is still there, readable at once with
+            // the reset after it. Read as `Silent`, that refusal threw the
+            // answer away and counted a store that had gone as one that
+            // answered: on a macOS runner a shutdown offered a gone store one
+            // batch more than `GIVE_UP_AFTER`, and an acceptance split by a
+            // pause came back `Silent`. So the read goes ahead under the last
+            // bound that took, which `exchange` set before the first slice: it
+            // is bounded either way, and what it returns is the verdict.
+            let _ = stream.set_read_timeout(Some(slice));
             match answer.read(&mut byte) {
                 // A slice that expired is not a verdict: the loop goes round,
                 // recomputes the budget against the flag, and stops when the
@@ -2922,11 +2920,11 @@ mod tests {
 
     /// A read slice is never zero and never longer than one `POLL`.
     ///
-    /// **Zero is what `std` refuses**, and the arm that reports the refusal
-    /// turns this client's own socket API into the operator's sentence: measured
-    /// on stderr, `nc-log: the store did not take 64 line(s): could not bound
-    /// the answer: cannot set a 0 duration timeout`, returned without attempting
-    /// the read at all. `left` saturates to zero on every abandoned exchange —
+    /// **Zero is what `std` refuses**, and a refused bound leaves the last one
+    /// that took in force: before the first slice that is `WRITE_TIMEOUT` for an
+    /// exchange that began before the shutdown gave up, seconds against an
+    /// abandoned budget of two hundred milliseconds. `left` saturates to zero
+    /// on every abandoned exchange —
     /// `Drop` sets the flag, the budget falls from `DEADLINE` to
     /// `ABANDONED_ANSWER`, and `started.elapsed()` is already past it — so this
     /// is the ordinary path at shutdown and not an edge case.
@@ -2949,7 +2947,8 @@ mod tests {
             let slice = super::answer_slice(left);
             assert!(
                 !slice.is_zero(),
-                "a slice of zero is `InvalidInput`, and the answer is never read: {left:?}"
+                "a slice of zero is `InvalidInput`, and the read waits on an older, longer \
+                 bound: {left:?}"
             );
             assert!(
                 slice <= super::POLL,
@@ -2974,7 +2973,7 @@ mod tests {
     /// dropped line is then a number nobody is looking at — the process that
     /// lost the lines is the only one that knows.
     ///
-    /// A child process, for the reason the `/dev/full` pair gives: this needs
+    /// A child process, for the reason the refused-stderr pair gives: this needs
     /// the harness's real stderr, and a test cannot redirect it without
     /// disturbing every other test in the binary. Here it is a pipe the parent
     /// reads.
@@ -3401,13 +3400,21 @@ mod hostile_store_tests {
     /// still full when the store goes. This holds the first answer back long
     /// enough for the child to fill its queue and exit, answers it, and then
     /// drops the listener — so every connection the shutdown makes is refused.
+    ///
+    /// **The request is read before it is answered**, so the store that goes
+    /// closes the connection rather than resetting it. A socket closed with
+    /// bytes still unread sends a reset, and Windows discards what of the answer
+    /// the client had not read yet when the reset arrives: measured on a
+    /// Windows runner, part of the status line read and then `os error 10054`,
+    /// so the one batch the store took was read as a store that stopped
+    /// answering, which is a store that answered — and the shutdown offered
+    /// three batches where this test is about two.
     fn a_store_that_answers_once_and_then_goes(stall: core::time::Duration) -> u16 {
         let listener = TcpListener::bind("127.0.0.1:0").expect("a port");
         let port = listener.local_addr().expect("bound").port();
         std::thread::spawn(move || {
             if let Ok((mut stream, _)) = listener.accept() {
-                // One batch of short lines fits in the socket buffers, so the
-                // client is not blocked writing a body nobody reads.
+                let _ = the_lines_in_one_request(&mut stream);
                 std::thread::sleep(stall);
                 let _ = stream.write_all(b"HTTP/1.1 204 No Content\r\n\r\n");
             }
@@ -4868,8 +4875,14 @@ mod hostile_store_tests {
         //
         // A child process is what it takes: a test cannot redirect the
         // harness's own stderr without disturbing every other test in the
-        // binary. `/dev/full` refuses every write with `ENOSPC`, and `2>&-` does
-        // not work — the first socket reuses the closed descriptor.
+        // binary. Its stderr is a pipe whose reader is gone before the child
+        // starts, which refuses every write on every system — a broken pipe on
+        // Unix, where the Rust runtime ignores `SIGPIPE`, and a closing pipe on
+        // Windows. `/dev/full` did the same with `ENOSPC` on Linux alone: macOS
+        // and Windows have no such device. And `2>&-` does not work — the first
+        // socket reuses the closed descriptor.
+        let (unread, refusing) = std::io::pipe().expect("a pipe");
+        drop(unread);
         #[expect(
             clippy::disallowed_methods,
             reason = "a tool this gate drives; its output is read, not printed"
@@ -4885,7 +4898,7 @@ mod hostile_store_tests {
                 // child runs zero tests and exits 0, so the assertion below
                 // would pass with the defect restored — the same vacuity, one
                 // layer out.
-                "ship::hostile_store_tests::the_child_that_writes_to_a_full_stderr",
+                "ship::hostile_store_tests::the_child_that_writes_to_a_refusing_stderr",
                 "--exact",
                 // **And `--nocapture`.** libtest replaces stderr with a capture
                 // buffer, so without this the write never reaches the failing
@@ -4894,17 +4907,7 @@ mod hostile_store_tests {
                 "--nocapture",
             ])
             .env("NC_LOG_STDERR_CHILD", "1")
-            .stderr(
-                #[expect(
-                    clippy::disallowed_methods,
-                    reason = "the descriptor under test is a full device, which is a handle \
-                              and not a terminal"
-                )]
-                std::fs::OpenOptions::new()
-                    .write(true)
-                    .open("/dev/full")
-                    .expect("/dev/full"),
-            )
+            .stderr(refusing)
             // **Captured, not discarded.** Asserting only that the child exited
             // 0 is not enough — a child whose filter matches nothing runs zero
             // tests and exits 0 too, and the argument order, the module's name
@@ -4928,7 +4931,7 @@ mod hostile_store_tests {
     }
 
     #[test]
-    fn the_child_that_writes_to_a_full_stderr() {
+    fn the_child_that_writes_to_a_refusing_stderr() {
         struct Refused;
         impl crate::sealed::Sealed for Refused {}
         impl crate::Event for Refused {
@@ -4951,9 +4954,9 @@ mod hostile_store_tests {
         // With `eprint!` this panics and the process exits non-zero, which is
         // what the drain thread dying looks like from outside.
         for _ in 0..8 {
-            // The return value says whether it landed, and on `/dev/full` it
-            // does not — which is the point: the write is refused and the
-            // process still lives.
+            // The return value says whether it landed, and on a pipe nobody
+            // can read it does not — which is the point: the write is refused
+            // and the process still lives.
             assert!(
                 !super::to_stderr("nc-log: a line nobody can read\n"),
                 "a stderr that refuses every write reported success"
@@ -5023,8 +5026,8 @@ mod hostile_store_tests {
 
     /// A stderr that **blocks** is a pause with a number, not a silent outage.
     ///
-    /// **`/dev/full` is the easy stderr failure**: it fails fast
-    /// with `ENOSPC`. What a real deployment produces is a pipe nobody is
+    /// **A pipe whose reader is gone is the easy stderr failure**: it fails
+    /// fast, every write. What a real deployment produces is a pipe nobody is
     /// draining — journald backpressure, an unread `docker logs`, a stopped
     /// terminal — and that *blocks*. Measured against one, with a hung store,
     /// 3000 lines and the write on the drain thread:
@@ -5572,6 +5575,42 @@ mod hostile_store_tests {
         }
     }
 
+    /// An answer a reset follows is read, or the reset is, and neither is silence.
+    ///
+    /// **macOS refuses a new read bound once a reset has arrived**, because a
+    /// socket shut down both ways takes no new option, while the answer the
+    /// store sent first is still there to be read. Taken for a verdict, that
+    /// refusal made this exchange `Silent` — a store that answered, holding the
+    /// batch nobody knows the fate of — with its answer one read away. This
+    /// store never reads the request, so its close is a reset that follows its
+    /// answer at once. What the client reads then is the system's: Linux and
+    /// macOS keep what arrived before the reset, and Windows discards it. So
+    /// what is held is what every system shares — the verdict is the answer, or
+    /// the reset after part of it, and never the silence of a store that said
+    /// nothing.
+    #[test]
+    fn an_answer_a_reset_follows_is_not_read_as_silence() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a port");
+        let port = listener.local_addr().expect("bound").port();
+        let answering = std::thread::spawn(move || {
+            if let Ok((mut stream, _)) = listener.accept() {
+                // Two `POLL` slices, so the client is inside its read when the
+                // answer and the reset arrive together.
+                std::thread::sleep(core::time::Duration::from_millis(200));
+                let _ = stream.write_all(b"HTTP/1.1 204 No Content\r\n\r\n");
+            }
+        });
+        let target =
+            Target::parse(&format!("http://127.0.0.1:{port}/insert")).expect("a valid endpoint");
+        let answer = target.post(&["{}".to_owned()], &AtomicBool::new(false));
+        let _ = answering.join();
+        assert!(
+            !matches!(answer, super::Delivery::Silent(_)),
+            "a store that answered and then reset the connection was read as one that \
+             said nothing: {answer:?}"
+        );
+    }
+
     #[test]
     fn the_two_bounds_are_small_enough_to_be_bounds() {
         // A floor on the constants themselves: a `STATUS_LIMIT` of a gigabyte or
@@ -5731,7 +5770,7 @@ mod hostile_store_tests {
     /// ```
     ///
     /// A child process is what makes that a test rather than a paragraph, for
-    /// the reason the `/dev/full` pair gives: a test cannot block the harness's
+    /// the reason the refused-stderr pair gives: a test cannot block the harness's
     /// own stderr without blocking every other test in the binary. Here the
     /// child's stderr is a pipe **the parent never reads**, so the pipe buffer
     /// fills, the writer thread blocks inside `write_all`, the queue behind it

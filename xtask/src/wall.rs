@@ -3065,11 +3065,16 @@ fn pointed_at(diagnostic: &str) -> Vec<usize> {
         //
         // The span's own object carries the file; every shipped fixture's
         // primary span is in the crate's own `main.rs`, which is the one file a
-        // fixture is.
+        // fixture is. **With either separator**: rustc on Windows names it with
+        // a backslash, which JSON writes escaped, and read with `/` alone no
+        // span there was the fixture's, so every fixture was refused at no line
+        // at all.
         let span = &rest[..at];
         let names_the_fixture = span
             .rsplit_once("\"file_name\":\"")
-            .is_none_or(|(_, after)| after.starts_with("src/main.rs"));
+            .is_none_or(|(_, after)| {
+                after.starts_with("src/main.rs") || after.starts_with(r"src\\main.rs")
+            });
         rest = &rest[at + needle.len()..];
         if !names_the_fixture {
             continue;
@@ -4793,6 +4798,13 @@ mod tests {
         // The floor: a diagnostic naming only the fixture keeps every line.
         let ours = r#"{"spans":[{"file_name":"src/main.rs","line_start":9},{"file_name":"src/main.rs","line_start":12}]}"#;
         assert_eq!(super::pointed_at(ours), vec![9, 12]);
+        // And the fixture as rustc names it on Windows, its separator escaped.
+        let windows = r#"{"spans":[{"file_name":"src\\main.rs","line_start":9},{"file_name":"C:\\w\\crates\\nc-log\\src\\value.rs","line_start":190}]}"#;
+        assert_eq!(
+            super::pointed_at(windows),
+            vec![9],
+            "the fixture named with Windows' separator is still the fixture"
+        );
     }
 
     /// A token written in a comment is not a fixture naming its subject.

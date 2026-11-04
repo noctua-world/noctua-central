@@ -1813,10 +1813,26 @@ mod tests {
         for (name, expected) in ENVIRONMENTS {
             let scratch = Scratch::new();
             scratch.write(name, "TOKEN=live\n");
-            let (findings, walked) =
-                crate::gates::committed_env_files(scratch.root()).expect("a readable scratch");
-            assert!(walked >= 1, "the walk did not reach `{name}`");
-            let found = of_kind(&findings, "is committed here") == 1;
+            // **The name the filesystem kept is the one the walk meets.**
+            // Windows drops a trailing dot from every name it creates, so the
+            // module name with a dot after it lands there as the module itself,
+            // which is harmless, and the walk judges a file this case is not
+            // about. No checkout on such
+            // a filesystem can hold the name either, so there the case is put to
+            // the predicate itself, which is what the walk asks of a name
+            // anywhere one can exist.
+            let kept = std::fs::read_dir(scratch.root())
+                .expect("a readable scratch")
+                .flatten()
+                .any(|entry| entry.file_name() == *name);
+            let found = if kept {
+                let (findings, walked) =
+                    crate::gates::committed_env_files(scratch.root()).expect("a readable scratch");
+                assert!(walked >= 1, "the walk did not reach `{name}`");
+                of_kind(&findings, "is committed here") == 1
+            } else {
+                crate::gates::holds_an_environment(name)
+            };
             if found != expected {
                 wrong.push(format!(
                     "  `{name}` — the gate says {}, and it is {}",

@@ -22,6 +22,34 @@ use crate::{Kind, User, imp};
 /// user's; where it does not, nothing at that name is made or read.
 pub const HOLDS_THROUGH_A_FILE: bool = imp::HOLDS_THROUGH_A_FILE;
 
+/// A directory that lists its entries in the order they were made, where
+/// this system has one: Linux's `tmpfs` at `/dev/shm`.
+///
+/// **What a suite stands aside for where it is `None`.** macOS's APFS lists a
+/// directory by a hash of each name and Windows' NTFS by the name itself, so
+/// there two layouts of one set of names come back in one order, and a suite
+/// about the order on disk has nothing to compare. It says so in its own
+/// output, by the system's name, and the Linux job runs it.
+pub const LISTED_AS_MADE: Option<&str> = imp::LISTED_AS_MADE;
+
+/// Whether this system has a POSIX shell of its own, in which a path is spent
+/// as POSIX spends it: false on Windows.
+///
+/// **The `sh` Git ships there runs a script, and is not one.** It hands its
+/// paths to Windows, which spends a `..` by striking out the name before it,
+/// link or not, and reads two leading slashes as a network host; and a native
+/// caller hands it a drive's path that is not rooted at `/` at all. A guard
+/// written against POSIX paths is not, there, the guard it reads as: measured on a
+/// Windows runner, a decoy that reaches a script through a junction was taken
+/// for the repository the script belongs to. A suite driving such a guard
+/// stands aside where this is false and says so in its own output, by the
+/// system's name, and the Linux and macOS jobs run it.
+pub const A_POSIX_SHELL: bool = imp::A_POSIX_SHELL;
+
+/// The name Python 3 answers to on this system, for a suite that drives a
+/// script in it: `python3` on Unix and `python` on Windows.
+pub const PYTHON: &str = imp::PYTHON;
+
 /// What a path lets in, read so that two readings compare: on Unix its mode
 /// bits; on Windows its owner, every entry of its access list and its
 /// read-only mark.

@@ -1878,6 +1878,24 @@ rather than anything decided for the project, and each is a maintainer's to reop
   named beside the verdict as `not applicable here:`. A defect that shows only with the
   stack on macOS or Windows is caught by nothing, and no stack is run there by decision
   (`NOCTUA.md §22.2`).
+- **On Windows the checkout script's guards are not proven**: each guard before its
+  `rm -rf` is a claim about how a POSIX shell spends a path — `cd -P` resolving a link
+  before the `..` after it, two leading slashes being one directory, an absolute path
+  opening with `/` — and the `sh` Git ships for Windows keeps none of them. Measured on a
+  Windows runner, a decoy reaching the script through a junction passed every guard as the
+  repository the script belongs to. So its drives stand aside there, saying so, and the
+  Linux and macOS jobs run them; somebody who runs the script on Windows anyway runs guards
+  no test holds.
+- **That the catalog's output does not follow a directory's order is measured on Linux
+  alone**: macOS lists a directory by a hash of each name and Windows by the name, so two
+  layouts of the locale files come back in one order there and the suite holding the
+  output to both stands aside. The sort it holds is the same code on every system.
+- **An answer a reset overtakes is lost on Windows**: a store that closes the connection
+  with the request unread resets it, and Windows discards what of the answer the shipper
+  had not read yet, so the batch is kept on stderr as an answer it could not read
+  (`Delivery::Unreadable`) — a store that answered, and a possible duplicate. macOS refuses
+  a new read bound on such a socket and still holds the answer, so the shipper reads it
+  under the bound already set (`an_answer_a_reset_follows_is_not_read_as_silence`).
 - **`.github/workflows/ci.yml` has never run**: there is no repository for it until
   Stage 12. It is committed so that CI and a developer cannot drift into two gates, and a
   gate reads it as a document ("CI's one gate reaches every file CI can reach"); unknown
@@ -2184,6 +2202,17 @@ cannot ask for it, and `finish` refuses any not-applicable line on Linux and, el
 any list but `THE_STACKS_PARTS`, in order. A part added to the stack's steps is a row
 there and a sentence at its call site, which `every_part_of_the_stack_says_why_it_stands_aside`
 holds to each other.
+
+**A suite that needs what a system lacks asks `nc_platform::testing`, and says so.** The
+system's answer is a constant of that crate, fixed per system as `RUNS_THE_STACK` is —
+`LISTED_AS_MADE`, a directory listed in the order its entries were made, and
+`A_POSIX_SHELL` — never a probe of the machine, so a Linux machine cannot stand a suite
+aside, and `linux_lacks_nothing_a_suite_stands_aside_for` holds every answer on every
+system. Each guard prints `skipped, not applicable on <system>:` and why, in its own output,
+and `ANNOUNCES_WHAT_THE_SYSTEM_LACKS` in `xtask/src/check.rs` counts the guards into the
+same line as the database suites, read by the same rule, with
+`every_source_that_asks_what_the_system_lacks_is_one_the_census_names` naming every source
+that asks.
 
 ### Two tallies are not a pairing
 
