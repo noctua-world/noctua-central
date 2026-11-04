@@ -136,13 +136,13 @@ mod tests {
     /// what it closes, so what the kernel holds for one plugin's renders is a
     /// tree per surface it holds, however often it renders.
     ///
-    /// **Written by a reviewer (wave 5, isolation), and it found a real bug**:
-    /// every render was held until the tree ended, so a plugin rendering a
-    /// tree near `payload_bytes` into one surface in a loop — each render
-    /// waiting on nothing and costing it little fuel, so only the tree's
-    /// deadline ended it — made the kernel hold gigabytes for it. The second
-    /// half is the same loop through a surface opened and closed each time,
-    /// which a close that left its surface's tree held would let grow as far.
+    /// **What a tree that held every render would cost**: held until the tree
+    /// ends, every render of a plugin rendering a tree near `payload_bytes`
+    /// into one surface in a loop — each render waiting on nothing and costing
+    /// it little fuel, so only the tree's deadline ends it — would make the
+    /// kernel hold gigabytes for it. The second half is the same loop through a
+    /// surface opened and closed each time, which a close that left its
+    /// surface's tree held would let grow as far.
     #[tokio::test]
     async fn one_plugins_renders_in_one_call_tree_hold_a_tree_per_surface_it_holds() {
         use std::sync::{Arc, Mutex};

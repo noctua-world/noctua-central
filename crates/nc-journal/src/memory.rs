@@ -7,15 +7,14 @@
 //! position, and verifying each — hundreds of chains per run. Against a database
 //! that would be a test somebody runs weekly and eventually deletes.
 //!
-//! It also has one capability nothing else will: it can be **tampered with**.
-//! `tamper` and `remove` exist so the tests can do what somebody with write
-//! access to the table would, and both are behind the `test-support` feature,
-//! which is off unless a test asks for it. The PostgreSQL store refuses
-//! `UPDATE` and `DELETE` on the journal in a trigger
-//! (`migrations/0001_journal.sql`), so
-//! there the append-only rule is the product rather than the subject of a test —
-//! `the_table_refuses_to_be_edited` watches the trigger fire. This paragraph
-//! described both in the future tense after they shipped.
+//! It also has one capability nothing else will: it can be **tampered
+//! with**. `tamper` and `remove` exist so the tests can do what somebody with
+//! write access to the table would, and both are behind the `test-support`
+//! feature, which is off unless a test asks for it. The PostgreSQL store
+//! refuses `UPDATE` and `DELETE` on the journal in a trigger
+//! (`migrations/0001_journal.sql`), so there the append-only rule is the
+//! product rather than the subject of a test — `the_table_refuses_to_be_edited`
+//! watches the trigger fire.
 
 use core::future::Future;
 
@@ -95,33 +94,34 @@ impl Store for InMemory {
     }
 
     fn append(&mut self, entry: Entry) -> impl Future<Output = Result<(), Error>> + Send {
-        // **Here, not one layer up.** `Journal::append` is `pub(crate)` and this
-        // is public, so the rule that used to live there was a rule about one
-        // code path — and `InMemory` is what the tamper tests drive directly.
+        // **Here, not one layer up.** `Journal::append` is `pub(crate)` and
+        // this is public, so a rule living there would be a rule about one code
+        // path — and `InMemory` is what the tamper tests drive directly.
         if let Err(refused) = crate::readable(&entry) {
             return core::future::ready(Err(refused));
         }
-        // **A unit is opened once, and that question comes first.** `Journal::append`
-        // asks, and `Store::append` is public and this crate's own tests call it
-        // directly — so the rule was one about a code path again, which is the
-        // shape `postgres.rs`'s header names. Measured: both stores accepted a
+        // **A unit is opened once, and that question comes first.**
+        // `Journal::append` asks, and `Store::append` is public and this
+        // crate's own tests call it directly — so asked only there, the rule
+        // would be one about a code path again, which is the shape
+        // `postgres.rs`'s header names. Measured that way: both stores accept a
         // second opening bracket for an open unit.
         //
         // **Before the sequence, because a unit that is open stays open.** In
         // PostgreSQL the two are true together for every loser of a race to
-        // open one unit, and answering the sequence sent twelve to fifteen of
-        // sixteen concurrent openers `JournalContended`, `retryable = true`,
-        // for a condition no retry clears. The permanent answer is the useful
-        // one, and both stores give it.
+        // open one unit, and answering the sequence would send twelve to
+        // fifteen of sixteen concurrent openers `JournalContended`,
+        // `retryable = true`, for a condition no retry clears. The permanent
+        // answer is the useful one, and both stores give it.
         //
         // **And closed before open, because a closed unit is still open.** The
         // opening bracket stays in the table when a unit is committed — it is
         // what says the unit began — so "has this unit been opened" answers
-        // `true` for one that has finished, and reopening a *closed* unit came
-        // back `UnitAlreadyOpen`: *"Finish or cancel it before starting it
-        // again"*, about something that already finished. Measured with
-        // `unit_opened` and `unit_closed` both `true` on one unit, in both
-        // stores.
+        // `true` for one that has finished, and asked first it would answer
+        // reopening a *closed* unit with `UnitAlreadyOpen`: *"Finish or cancel
+        // it before starting it again"*, about something that already finished.
+        // Measured with `unit_opened` and `unit_closed` both `true` on one
+        // unit, in both stores.
         if let Some(unit) = entry.record.work_unit
             && entry.record.action == crate::unit::OPENS
             && entry.record.result == crate::Outcome::UnitBegun
@@ -148,29 +148,28 @@ impl Store for InMemory {
                 return core::future::ready(Err(Error::UnitAlreadyOpen { unit }));
             }
         }
-        // **The sequence first, and PostgreSQL now answers it first too.** The
-        // two stores have to give one answer for one call, and for a while the
-        // agreement ran the other way round — this asked the unit first because
-        // `postgres.rs` did. What changed is that asking the *unit* first was
-        // measurably wrong there: PostgreSQL's diagnosis runs after the refused
-        // statement, so a bracket committed in between makes `unit_closed`
-        // describe a moment that has passed. Measured, with the closing bracket
-        // landing 700 ms into a two-second window: the statement was refused for
-        // ordering while the unit was open, and the caller was told the unit was
-        // closed — wrong in 95 of 120 unforced rounds.
+        // **The sequence first, and PostgreSQL answers it first too.** The two
+        // stores have to give one answer for one call, and asking the *unit*
+        // first is measurably wrong there: PostgreSQL's diagnosis runs after
+        // the refused statement, so a bracket committed in between makes
+        // `unit_closed` describe a moment that has passed. Measured, with the
+        // closing bracket landing 700 ms into a two-second window: asking the
+        // unit first, the statement is refused for ordering while the unit is
+        // open, and the caller is told the unit is closed — wrong in 95 of 120
+        // unforced rounds.
         //
-        // The sequence cannot go stale that way: `entry.sequence` and the tail of
-        // this history are both facts about this caller's own attempt. So both
-        // stores answer it first, and the shared script test is what holds them
-        // to it.
+        // The sequence cannot go stale that way: `entry.sequence` and the tail
+        // of this history are both facts about this caller's own attempt. So
+        // both stores answer it first, and the shared script test is what holds
+        // them to it.
         //
         // **The tail's sequence and one, not the length.** `Postgres::append`
-        // asks for `MAX(sequence) + 1` and this asked how many entries there
-        // are, which are the same number only while nothing has ever been
-        // removed — and `remove` is public behind `test-support` for the tamper
-        // tests, which call it at four places. Measured on a five-entry history
-        // with `remove(1)`: the legitimate next entry was refused with
-        // `expected: 4, found: 5`, and an entry re-using sequence 4 was
+        // asks for `MAX(sequence) + 1`, and how many entries there are is the
+        // same number only while nothing has ever been removed — and `remove`
+        // is public behind `test-support` for the tamper tests, which call it
+        // at four places. Measured with the length, on a five-entry history
+        // with `remove(1)`: the legitimate next entry is refused with
+        // `expected: 4, found: 5`, and an entry re-using sequence 4 is
         // *accepted*, leaving two rows at sequence 4 in a history whose
         // PostgreSQL twin has that column as its primary key. Two
         // implementations of one trait method disagreeing is the divergence the
@@ -183,25 +182,25 @@ impl Store for InMemory {
                 found: entry.sequence,
             }));
         }
-        // **And the link, after the sequence.** It verifies the
+        // **And the link, after the sequence.** The hash check verifies the
         // entry against itself — `hash == compute_hash()` — and says nothing
-        // about what it claims to follow, so `Entry::chain(1, Some([0xAA; 32]),
-        // record)` is self-consistent, lands through the public `Store::append`,
-        // and `verify` condemns the history for ever. That is the same door the
-        // hash check closed, one field along, and it is the store that knows
-        // what the tail is.
+        // about what it claims to follow, so
+        // `Entry::chain(1, Some([0xAA; 32]), record)` is self-consistent, would
+        // land through the public `Store::append`, and `verify` would condemn
+        // the history for ever. That is the same door the hash check closes,
+        // one field along, and it is the store that knows what the tail is.
         //
-        // **Asked after the sequence, because the order is the answer.** This
-        // ran first, so an entry with a stale sequence *and* a link that no
-        // longer matches came back `Undecodable` here and `OutOfOrder` from
+        // **Asked after the sequence, because the order is the answer.** Asked
+        // first, an entry with a stale sequence *and* a link that no longer
+        // matches would come back `Undecodable` here and `OutOfOrder` from
         // PostgreSQL — one call, two variants and two codes, with opposite
         // `retryable`. A caller whose sequence is stale read a different tail
         // and is racing; only one whose sequence is right and whose link is
-        // wrong read a tail that is not there.
-        // **And an empty history links to nothing.** Written `if let Some(tail)`,
-        // the check did not run at all when there was no tail — so
-        // `Entry::chain(0, Some([0xAA; 32]), record)` was *accepted* as the
-        // first entry of a history, and `verify` then answered
+        // wrong read a tail that is not there. **And an empty history links to
+        // nothing.** Written `if let Some(tail)`, the check would not run at
+        // all when there is no tail — so
+        // `Entry::chain(0, Some([0xAA; 32]), record)` would be *accepted* as
+        // the first entry of a history, and `verify` then answer
         // `Broken { sequence: 0, LinkDoesNotMatchPredecessor }` for ever, on a
         // table nobody had tampered with. The genesis entry's link is `None`,
         // and that is as much a fact about the tail as any other.
@@ -218,9 +217,10 @@ impl Store for InMemory {
                 written.record.work_unit == Some(unit)
                     && written.record.realm == entry.record.realm
                     // **And the action, which is what makes it a bracket.** The
-                    // third copy of this predicate, and the one the two above it
-                    // were fixed without: an ordinary `Write` carrying
-                    // `Outcome::UnitCommitted` closed somebody else's group.
+                    // third copy of this predicate, with the same clauses as
+                    // the two above it: without the action, an ordinary `Write`
+                    // carrying `Outcome::UnitCommitted` closes somebody else's
+                    // group.
                     && written.record.action == crate::unit::CLOSES
                     && matches!(
                         written.record.result,
@@ -273,7 +273,7 @@ impl Store for InMemory {
         // **And the action, which is what makes it a bracket.** Without it an
         // ordinary `Write` carrying `Outcome::UnitCommitted` closes somebody
         // else's unit — measured against PostgreSQL, and this store answers the
-        // same question, so it had the same hole.
+        // same question, so it has the same hole without it.
         //
         // **The first in order, as PostgreSQL's `ORDER BY sequence` takes it**,
         // and its outcome rather than the fact of it: a unit rolled back is
@@ -357,14 +357,14 @@ mod tests {
 
     /// Only an opening bracket is asked whether the unit is already open.
     ///
-    /// **Both clauses of that guard survived being deleted.** Three tests were
-    /// written for the rule and all three place their odd entry where no bracket
-    /// exists yet, so the question is never reached and the guard decides
-    /// nothing in any of them. With `action == OPENS` gone, an ordinary entry
-    /// carrying a bracket's *outcome* is judged an opener; with
-    /// `result == UnitBegun` gone, a closing action is; and either way this
-    /// store answers `UnitAlreadyOpen` to an entry `postgres.rs` accepts, which
-    /// is the divergence between the two implementations that the shared script
+    /// **Each clause of that guard, decided.** Three tests of the rule place
+    /// their odd entry where no bracket exists yet, so the question is never
+    /// reached and the guard decides nothing in any of
+    /// them. With `action == OPENS` gone, an ordinary entry carrying a
+    /// bracket's *outcome* is judged an opener; with `result == UnitBegun`
+    /// gone, a closing action is; and either way this store
+    /// answers `UnitAlreadyOpen` to an entry `postgres.rs` accepts, which is
+    /// the divergence between the two implementations that the shared script
     /// exists to stop.
     ///
     /// So the bracket is opened first, and then each half is offered alone.
@@ -409,11 +409,11 @@ mod tests {
 
     /// Emptiness is what is in the store, not a constant.
     ///
-    /// **`is_empty` had no caller that read its value either.** Both it and
-    /// `len` are the store's own accounting, and every test here reads `all()`
-    /// instead — so `is_empty` could answer `true` always, or `false` always,
-    /// with the whole suite green. Both directions are asked, and against
-    /// `len`, so the two cannot drift apart.
+    /// **`is_empty` has no other caller that reads its value.** Both it
+    /// and `len` are the store's own accounting, and every other test here
+    /// reads `all()` instead — so `is_empty` could answer `true` always,
+    /// or `false` always, with the rest of the suite green. Both directions are
+    /// asked, and against `len`, so the two cannot drift apart.
     #[tokio::test]
     async fn an_empty_store_says_so_and_a_written_one_does_not() {
         let mut store = InMemory::default();
@@ -433,13 +433,13 @@ mod tests {
 
     /// After a removal, the next sequence is the tail's and one.
     ///
-    /// **A count stood in for a position.** This store answered
-    /// `self.entries.len()` and `Postgres::append` answers `MAX(sequence) + 1`,
-    /// which are one number only while nothing has been removed — and `remove`
-    /// exists for the tamper tests, which call it. Measured on the old code with
-    /// this history: the legitimate next entry was refused with
-    /// `expected: 4, found: 5`, and one re-using sequence 4 was accepted,
-    /// leaving two rows at a sequence that is PostgreSQL's primary key.
+    /// **A count must not stand in for a position.** `self.entries.len()`
+    /// and `Postgres::append`'s `MAX(sequence) + 1` are one number only while
+    /// nothing has been removed — and `remove` exists for the tamper tests,
+    /// which call it. Measured with the count, on this history: the legitimate
+    /// next entry is refused with `expected: 4, found: 5`, and one re-using
+    /// sequence 4 is accepted, leaving two rows at a sequence that
+    /// is PostgreSQL's primary key.
     #[tokio::test]
     async fn the_next_sequence_after_a_removal_is_the_tail_s_and_one() {
         /// An entry chained onto whatever this history's tail is.
@@ -497,17 +497,17 @@ mod tests {
 
     /// A closed unit is closed at this door too.
     ///
-    /// **The two stores disagreed here.** `Journal::append` asks
-    /// `Store::unit_closed` and PostgreSQL asks it again inside the insert's own
-    /// `WHERE`, and this store asked nowhere — so a caller that chained the
-    /// entry itself and went straight to `Store::append` was refused by one
-    /// implementation of the trait and accepted by the other. Measured before
-    /// the fix: the entry landed at sequence 2, *after* its own
-    /// `unit-committed` bracket at 1, and `verify` answered `Ok(3)`.
+    /// **The two stores agree here.** `Journal::append`
+    /// asks `Store::unit_closed` and PostgreSQL asks it again inside the
+    /// insert's own `WHERE`; a store asking nowhere would refuse in one
+    /// implementation of the trait and accept in the other a caller that
+    /// chained the entry itself and went straight to `Store::append`. Measured
+    /// that way: the entry lands at sequence 2, *after* its
+    /// own `unit-committed` bracket at 1, and `verify` answers `Ok(3)`.
     ///
     /// This is the store criterion 3's every-position proof runs on, so the
-    /// lenient half was the wrong half — evidence from here is only worth what
-    /// it says about the store that runs in production.
+    /// lenient half would be the wrong half — evidence from here is only worth
+    /// what it says about the store that runs in production.
     #[tokio::test]
     async fn an_entry_after_its_own_bracket_is_refused_however_it_arrives() {
         for closing in [Outcome::UnitCommitted, Outcome::UnitAborted] {
@@ -577,13 +577,13 @@ mod tests {
 
     /// A unit opened in another realm is not open here.
     ///
-    /// **The twin of the test above, which `unit_opened` did not have.**
-    /// Measured, its realm comparison flipped from `==` to `!=`: the whole
-    /// workspace stayed green. After that `UnitAlreadyOpen` is unreachable for a
-    /// unit opened in this realm — the guard that stops a second `open` on one
-    /// unit — and fires for every unit opened in another, which is the
-    /// cross-realm leak the sibling test exists to refuse. `memory.rs`'s own
-    /// comment warns that these two doors have to read the realm the same way.
+    /// **The twin of the test above, for `unit_opened`.** Measured without it,
+    /// its realm comparison flipped from `==` to `!=`: the whole workspace
+    /// stays green. After that `UnitAlreadyOpen` is unreachable for a unit
+    /// opened in this realm — the guard that stops a second `open` on one unit
+    /// — and fires for every unit opened in another, which is the cross-realm
+    /// leak the sibling test exists to refuse. `memory.rs`'s own comment warns
+    /// that these two doors have to read the realm the same way.
     #[tokio::test]
     async fn a_unit_opened_in_another_realm_is_not_open_here() {
         let unit = nc_ids::Snowflake::from_crockford("01J8XK2M9P53").expect("a test unit");
@@ -613,14 +613,15 @@ mod tests {
     }
 
     /// A bracket is a bracket, and an ordinary entry with a bracket's outcome
-    /// is not one — asked of `unit_opened`, which had no such test.
+    /// is not one — asked of `unit_opened`.
     ///
-    /// **Every clause of `unit_opened` was switched off with the gate green**,
-    /// in both stores: the action, the outcome, and — in PostgreSQL — the realm,
-    /// the action and the result each `OR TRUE`. Five plants, five times
-    /// `check passed` at the baseline test count. The closing twin's clauses had
-    /// been repaired in three copies of the predicate under a paragraph making
-    /// exactly this argument; one bracket along, nothing asked.
+    /// **Every clause of `unit_opened` can otherwise be switched off with the
+    /// gate green**, in both stores: the action, the outcome, and —
+    /// in PostgreSQL — the realm, the action and the result
+    /// each `OR TRUE`. Five plants, five times `check passed` at the
+    /// baseline. The closing twin's clauses are held in three copies of the
+    /// predicate under a paragraph making exactly this argument; this asks it
+    /// one bracket along.
     ///
     /// What it costs when it is wrong: an ordinary `Write` carrying
     /// `Outcome::UnitBegun` marks a unit open for ever, so the legitimate
@@ -659,8 +660,8 @@ mod tests {
 
         // And the mirror: a bracket's *action* with an ordinary outcome. The
         // two clauses are separate, and a test that trips only one leaves the
-        // other free — measured, the outcome clause survived the first draft of
-        // this test with the whole suite green.
+        // other free — measured, the outcome clause survives a test of the
+        // first alone with the whole suite green.
         let sequence = u64::try_from(store.entries.len()).expect("a short test history");
         let mut refused = Record::new(
             realm.clone(),
@@ -695,10 +696,11 @@ mod tests {
 
     /// An entry this store could not read back is refused before it is written.
     ///
-    /// **Implemented in both stores and proved in one.** `Store::append`'s doc
+    /// **Implemented in both stores and proved in both.** `Store::append`'s doc
     /// says every implementation refuses an entry it could not read back by
-    /// calling `readable` first; deleting the call here left the whole suite
-    /// green, and the two stores then disagreed about what a journal accepts.
+    /// calling `readable` first; without this, deleting the call here leaves
+    /// the whole suite green, and the two stores then disagree about what a
+    /// journal accepts.
     #[tokio::test]
     async fn an_entry_that_could_not_be_read_back_is_refused() {
         let mut deep = Value::Null;
@@ -753,15 +755,15 @@ mod tests {
 
     /// A unit opened in another realm does not stop it being opened here.
     ///
-    /// **The third copy of the bracket predicate, and its realm clause was
-    /// decided by nothing.** `Store::unit_opened` has
-    /// `a_unit_opened_in_another_realm_is_not_open_here` and the general
+    /// **The third copy of the bracket predicate, and its realm clause,
+    /// decided.** `Store::unit_opened`
+    /// has `a_unit_opened_in_another_realm_is_not_open_here` and the general
     /// closed-unit predicate has `a_bracket_in_another_realm_closes_nothing`;
-    /// the copy inside `append`'s *opening* guard had neither. Measured on
-    /// 2026-09-08, `&& written.record.realm == entry.record.realm` deleted from
-    /// it: `cargo test --workspace --locked` exit 0 and
-    /// `cargo run -q -p xtask -- check` at `check passed`, `ok 1223 test(s)` —
-    /// while every other clause of the same two predicates is RED when planted.
+    /// the copy inside `append`'s *opening* guard has this. Measured without
+    /// it, `&& written.record.realm == entry.record.realm` deleted from
+    /// it: `cargo test --workspace --locked` exits 0 and `cargo xtask check`
+    /// prints `check passed` — while every other clause of the same two
+    /// predicates is RED when planted.
     ///
     /// What it costs is verbatim reason 3 of `Store::unit_closing`'s own doc, one
     /// bracket along: *"a journal opened for `realm-2` refused a write on the
@@ -871,17 +873,17 @@ mod tests {
 
     /// How a unit closed is its first closing bracket, not a later one.
     ///
-    /// **Which bracket answers was decided by nothing.** `append` refuses a
-    /// second closing bracket, so every test here held one, and the scan could
-    /// take the last match instead of the first with the whole suite green —
-    /// measured on 2026-09-28, alongside PostgreSQL's `ORDER BY sequence`
-    /// turned `DESC`. A second one is still reachable: `tamper` here, and a
-    /// second connection's `INSERT` there. The difference between the two
-    /// answers is the one `unit_closing` exists to carry — a committed unit
-    /// stands and an aborted one does not — so a later bracket that flips it
-    /// reads a rolled-back unit as one that stands. The later bracket is
-    /// planted by `tamper` because `append` refuses it, which is the refusal
-    /// that makes the first the one that closed the unit.
+    /// **Which bracket answers, decided.** `append` refuses a second closing
+    /// bracket, so every other test here holds one, and the scan could take the
+    /// last match instead of the first with the rest of the suite green —
+    /// measured alongside PostgreSQL's `ORDER BY sequence` turned `DESC`. A
+    /// second one is still reachable: `tamper` here, and a second connection's
+    /// `INSERT` there. The difference between the two answers is the one
+    /// `unit_closing` exists to carry — a committed unit stands and an aborted
+    /// one does not — so a later bracket that flips it reads a rolled-back unit
+    /// as one that stands. The later bracket is planted by `tamper` because
+    /// `append` refuses it, which is the refusal that makes the first the one
+    /// that closed the unit.
     #[tokio::test]
     async fn how_a_unit_closed_is_its_first_closing_bracket_not_a_later_one() {
         let realm = OpaqueId::new("user-1").expect("a test realm");
@@ -906,22 +908,23 @@ mod tests {
 
     /// A unit that was *aborted* is closed for the reopen guard too.
     ///
-    /// **The closing set was two outcomes and one of them was free.** Narrowing
-    /// `matches!(…, UnitCommitted | UnitAborted)` in `append`'s reopen guard to
-    /// `== UnitCommitted` left `cargo run -q -p xtask -- check` at
-    /// `check passed`, `ok 1223 test(s)` on 2026-09-08. Reopening an aborted
-    /// unit then answers `UnitAlreadyOpen` (`NC-JRNL-0007`) from this store and
-    /// `UnitClosed` (`NC-JRNL-0004`) from PostgreSQL, whose `$16` binds both
-    /// spellings in the INSERT's `WHERE` and again in `why_nothing_landed`.
+    /// **The closing set is two outcomes, and both are
+    /// held.** Narrowing `matches!(…, UnitCommitted | UnitAborted)`
+    /// in `append`'s reopen guard to `== UnitCommitted`
+    /// leaves `cargo xtask check` at `check passed` without this. Reopening an
+    /// aborted unit then answers `UnitAlreadyOpen` (`NC-JRNL-0007`) from this
+    /// store and `UnitClosed` (`NC-JRNL-0004`) from PostgreSQL, whose `$16`
+    /// binds both spellings in the INSERT's `WHERE` and again
+    /// in `why_nothing_landed`.
     ///
     /// `reopening_a_closed_unit_says_it_is_closed` is the only other test of
     /// this branch and it closes with `UnitCommitted` alone; the scripts that
-    /// abort exercise the *general* predicate rather than the reopen one. This
-    /// file already learned the lesson once — `a unit closed by being rolled
-    /// back`'s own comment says both halves could be narrowed to
-    /// committed-only with the whole gate green — and the reopen copy, added
-    /// afterwards, was not covered. Both outcomes, in the store that needs no
-    /// database, for the reason `an_entry_after_its_own_bracket_is_refused_however_it_arrives`
+    /// abort exercise the *general* predicate rather than the reopen
+    /// one. `a unit closed by being rolled back`'s own comment says both halves
+    /// of the general one could be narrowed to committed-only with the whole
+    /// gate green, and the reopen copy is the same shape. Both outcomes, in the
+    /// store that needs no database, for the
+    /// reason `an_entry_after_its_own_bracket_is_refused_however_it_arrives`
     /// gives.
     #[tokio::test]
     async fn a_unit_closed_either_way_cannot_be_opened_again() {

@@ -21,7 +21,7 @@ id = "catalog.mechanism"
 title = "notification.catalog.mechanism.title"
 body = "notification.catalog.mechanism.body"
 # One placeholder, deliberately. With `params = []` on every entry and no
-# placeholder in any message, the check that compares the two could never fire —
-# it existed, was documented, and proved nothing.
+# placeholder in any message, the check that compares the two could never fire,
+# and a check that cannot fire proves nothing however well it is documented.
 params = ["name"]
 severity = "info"

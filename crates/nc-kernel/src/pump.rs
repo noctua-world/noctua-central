@@ -34,10 +34,10 @@
 //! start it again in is started first — by the pump before anything else, and
 //! before each callback. A plugin that is quarantined is not called: its
 //! due timers are held until it is released, and an event it would hear is
-//! dropped and counted — and that is asked after the start before its
-//! callback, so a plugin that start quarantined is held from it too. A
-//! reviewer found it asked before: a start that failed left the one-shot
-//! timer spent and counted as fired, and the event as delivered.
+//! dropped and counted — and that is asked after the start before its callback,
+//! so a plugin that start quarantined is held from it too. Asked before the
+//! start, a start that failed would leave the one-shot timer spent and counted
+//! as fired, and the event as delivered.
 //!
 //! **To its end, whoever stops waiting.** The pump runs on a task of its own,
 //! as a top-level dispatch does: a caller that stops waiting for it loses the

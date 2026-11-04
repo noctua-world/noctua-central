@@ -98,11 +98,11 @@
 //! from the pruner in the store, with every unit whose state it moves
 //! (`nc_local::LocalStore::commit_held`), and lets go once it hears the
 //! journal's close or has reverted the unit, and [`recover`] lets go of the
-//! holds of every unit of its realm the journal records as closed. A reviewer
-//! found one realm's prune taking the record of a unit another realm's
-//! stopped process left open — its recovery then closed it as aborted with its
-//! writes kept — and the step of an undo left open, which kept that realm's
-//! kernel from opening.
+//! holds of every unit of its realm the journal records as closed. Without the
+//! hold, one realm's prune would take the record of a unit another realm's
+//! stopped process left open — its recovery then closing it as aborted with its
+//! writes kept — and the step of an undo left open, which would keep that
+//! realm's kernel from opening.
 //!
 //! What this answers (`NOCTUA.md §2.4`): half-applied state — a command that
 //! fails, a nested command that fails having written, published, set or
@@ -196,11 +196,10 @@ pub(crate) fn blobs_per_unit() -> u64 {
 /// **What makes every step the kernel keeps one it can undo.** An undo notes
 /// each pin it takes off, which is a blob its step made, and each action its
 /// compensations were allowed, which is at most one for each the step
-/// registered; so it keeps at most two notes more than its step did. A
-/// reviewer found a step kept at `store_notes`' bound whose undo kept one
-/// more than the store takes, and was refused every time — its compensations
-/// dispatched again before each refusal, and undo reaching only the newest
-/// step.
+/// registered; so it keeps at most two notes more than its step did. Kept
+/// at `store_notes`' bound, a step's undo would keep one more than the store
+/// takes, and be refused every time — its compensations dispatched again before
+/// each refusal, and undo reaching only the newest step.
 const KEPT_FOR_ITS_UNDO: u64 = 2;
 
 /// How many notes a step may keep: one unit's bound, less what it keeps room
@@ -253,11 +252,10 @@ pub(crate) struct Ambient {
 /// state holds what it puts off in its unit, kept with it; a tree that only
 /// reads — a top-level read, the dispatches nested beneath it, a callback —
 /// holds it in a `Later` of its own, released once the tree has ended and
-/// every entry it gave the journal was taken, and dropped otherwise. **A
-/// reviewer found a real bug with it**: a read armed its timer and queued its
-/// event at once, so a read whose entry the journal refused — its answer
-/// withheld — still had its timer fire and its event heard as the person, for
-/// a dispatch that is in no entry.
+/// every entry it gave the journal was taken, and dropped otherwise. **Never at
+/// once**: a read that armed its timer and queued its event at once would, when
+/// the journal refused its entry — its answer withheld — still have its timer
+/// fire and its event heard as the person, for a dispatch that is in no entry.
 #[derive(Debug, Default)]
 pub(crate) struct Later {
     /// The events published, queued once it is released.
@@ -329,11 +327,11 @@ impl Later {
     /// applies what it holds in order, a surface shows the last tree it was
     /// given, and an identifier is never handed out twice, so what is shown
     /// does not change — and what the kernel keeps for one plugin's renders is
-    /// at most a tree per surface it holds, however often it renders. **A
-    /// reviewer found a real bug with it**: every render was kept until the
-    /// tree ended, so a plugin rendering a tree near `payload_bytes` into one
-    /// surface in a loop, each render waiting on nothing and costing it little
-    /// fuel, made the kernel hold gigabytes for it until its tree's deadline.
+    /// at most a tree per surface it holds, however often it renders. Kept
+    /// until the tree ended, every render of a plugin rendering a tree near
+    /// `payload_bytes` into one surface in a loop, each render waiting on
+    /// nothing and costing it little fuel, would make the kernel hold gigabytes
+    /// for it until its tree's deadline.
     pub(crate) fn show(&mut self, shown: Shown) {
         if let Shown::Rendered { owner, id, .. } | Shown::Closed { owner, id } = &shown {
             self.shown.retain(|held| !held.renders_into(*owner, id));
@@ -613,9 +611,9 @@ impl Ambient {
     ///
     /// **At most one fewer than a call tree may dispatch**, [`compensations`]:
     /// the undo dispatches each one nested in its own tree, which is the
-    /// first dispatch of it. A reviewer found a step registering as many as
-    /// a tree may dispatch accepted, and every undo of it refused at the last
-    /// compensation — so undo never reached past it.
+    /// first dispatch of it. A step registering as many as a tree may dispatch
+    /// would be accepted, and every undo of it refused at the last compensation
+    /// — so undo would never reach past it.
     ///
     /// # Errors
     ///
@@ -699,11 +697,11 @@ impl Ambient {
     ///
     /// **An undo whose compensation made the blob its step made holds it**, as
     /// a step does, so the pin stays on — and what the undo answers, journals
-    /// and keeps a note of says so, all three reading the reversal after this.
-    /// A reviewer found the store refusing such an undo every time, the blob
-    /// pinned and unpinned by one unit, and then, that repaired in the store's
-    /// record alone, the undo answering and journaling `reverted.blobs: 1` and
-    /// noting a pin it never took off.
+    /// and keeps a note of says so, all three reading the reversal after
+    /// this. Otherwise the store would refuse such an undo every time, the blob
+    /// pinned and unpinned by one unit; and with only the store's record
+    /// mended, the undo would answer and journal `reverted.blobs: 1` and note a
+    /// pin it never took off.
     pub(crate) fn holds_what_it_made(&mut self) {
         let made = &self.made;
         if let Some(reversing) = &mut self.reversing {
@@ -853,10 +851,10 @@ struct Staged {
 ///
 /// **And the value each key held before it, kept counted.** That is the
 /// image the unit's record keeps and its undo stages back, through this same
-/// bound: a step that deleted or wrote over more than the bound of values,
-/// counted by what it wrote alone, was kept and then refused at every undo,
-/// which a verifier measured, and so undo never reached past the step a large
-/// accidental delete is.
+/// bound: counted by what it wrote alone, a step that deleted or wrote over
+/// more than the bound of values would be kept and then refused at every undo,
+/// measured, and so undo would never reach past the step a large accidental
+/// delete is.
 #[derive(Debug, Default)]
 pub(crate) struct Overlay {
     order: Vec<(String, String)>,
@@ -1641,11 +1639,11 @@ async fn revert<E: Environment>(shared: &Shared<E>, unit: Snowflake) -> Result<(
     })?;
     let mut record = reversal(&detail, by, shared.clock.now_ms(), restored, &held)
         .map_err(|failed| store_failed(&failed))?;
-    // **A pin put back only on a blob the store still holds**: one whose row
-    // is gone has no bytes behind it, and a reviewer found a reversal
-    // inserting a pinned row for bytes the sweep had deleted — a blob said to
-    // be kept, which nothing would sweep again. Its step names a blob that is
-    // not here, which `blobs.locate` then says.
+    // **A pin put back only on a blob the store still holds**: one whose row is
+    // gone has no bytes behind it, and a reversal that put it back anyway would
+    // insert a pinned row for bytes the sweep had deleted — a blob said to be
+    // kept, which nothing would sweep again. Its step names a blob that is not
+    // here, which `blobs.locate` then says.
     let mut still_here = Vec::with_capacity(record.blobs.len());
     for blob in record.blobs {
         let row = shared
@@ -1676,9 +1674,10 @@ async fn revert<E: Environment>(shared: &Shared<E>, unit: Snowflake) -> Result<(
 /// as the unit: a reversal is the kernel's own repair, run at once or — by a
 /// prune, or the recovery on open — after units committed since, and whatever
 /// it runs after, a pin is taken off only when no other unit holds the blob.
-/// **A reviewer found one taken off**: a step kept since made the same bytes
-/// again, and the reversal of the unit left committed before it, asked only of
-/// the pins a redo put back, left that step's blob to the sweep.
+/// **Asked of every pin, not of a redo's alone**: when a step kept since made
+/// the same bytes again, the reversal of the unit left committed before it,
+/// asked only of the pins a redo put back, would leave that step's blob to the
+/// sweep.
 ///
 /// # Errors
 ///
@@ -1858,8 +1857,8 @@ pub(crate) async fn reverted_again<E: Environment>(shared: &Shared<E>) -> Result
 /// **Newest first.** A unit's reversal is held to the store holding what the
 /// unit left, and a later unit over the same key left something else — which
 /// the later unit's own reversal puts back, as it puts back the states it
-/// moved. Oldest first, two units over one key had the second reversal refused
-/// as a conflict, and every later open refused the same way.
+/// moved. Oldest first, two units over one key would have the second reversal
+/// refused as a conflict, and every later open refused the same way.
 ///
 /// # Errors
 ///
@@ -1916,8 +1915,8 @@ pub(crate) async fn recover<E: Environment>(shared: &Shared<E>) -> Result<(), Re
         // **Only what this realm kept is reverted**: the realms of one machine
         // share the file, and a unit of another realm under the same number —
         // two journals that did not share one minter (`nc_journal::Journal::
-        // sharing`) — is not what this one left open. A reviewer found one
-        // realm's recovery reverting another's kept unit.
+        // sharing`) — is not what this one left open, and reverting it would
+        // undo another realm's kept unit.
         let held = held.filter(|detail| detail.row.meta.realm == shared.realm);
         let reverted = held.is_some_and(|detail| detail.row.state == UnitState::Committed);
         if reverted && let Err(refused) = revert(shared, unit).await {
@@ -2063,11 +2062,10 @@ mod tests {
     /// The bounds a unit's commit is held to are the catalog's, each read by
     /// the name of its own table, and a plugin's lowered quota is its own.
     ///
-    /// **Read from the catalog here, and not through the helpers they are
-    /// built with**: a reviewer doubled the bound on the blobs the store
-    /// keeps, and every suite of the crate — and the whole gate — stayed
-    /// green, the tests of its siblings taking their expectation from the
-    /// helper they test.
+    /// **Read from the catalog here, and not through the helpers they are built
+    /// with**: with the bound on the blobs the store keeps doubled, a test
+    /// taking its expectation from the helper it tests would stay green, and
+    /// this one, reading the catalog, fails.
     #[test]
     fn a_units_bounds_are_the_catalogs_each_by_its_own_table() {
         let catalog = |table: &str| {
@@ -2296,9 +2294,9 @@ mod tests {
     /// more, a value written over gives back what it held, and a write refused
     /// stages nothing.
     ///
-    /// A verifier found that one unit could make the kernel hold 80 MiB for a
-    /// plugin whose own memory is capped at 64 MiB, the bound being only the
-    /// count of keys: this is the bound in bytes.
+    /// Bounded by the count of keys alone, one unit could make the kernel hold
+    /// 80 MiB for a plugin whose own memory is capped at 64 MiB: this is the
+    /// bound in bytes.
     #[test]
     fn a_unit_stages_no_more_bytes_than_the_catalog_allows() {
         let (unit, _) = units();
@@ -2331,12 +2329,12 @@ mod tests {
     /// A key a unit first writes counts what it held before against the
     /// unit's bytes, and keeps it counted, so the undo of a unit kept fits.
     ///
-    /// A verifier found a step that deleted twenty values of about a megabyte
-    /// kept, its key names alone counted, and its undo refused at every
-    /// attempt: the before images an undo stages were past the bound the step
-    /// was never held to, so undo never reached past it. An undo or a redo
-    /// counts what each key holds as it puts it back, the same images the
-    /// other way round.
+    /// With its key names alone counted, a step that deleted twenty values of
+    /// about a megabyte would be kept, and its undo refused at every attempt:
+    /// the before images an undo stages would be past the bound the step was
+    /// never held to, so undo would never reach past it. An undo or a redo
+    /// counts what each key holds as it puts it back, the same images the other
+    /// way round.
     #[test]
     fn a_unit_counts_what_each_key_held_before_it_so_that_its_undo_fits() {
         let (unit, earlier) = units();
@@ -2462,10 +2460,9 @@ mod tests {
             assert_eq!(refused.kind(), RefusalKind::Conflict, "{refused}");
             assert_eq!(refused.code(), ErrorCode::PluginStoreConflict);
         }
-        // **Not the conflict's code**, whose description — what the write
-        // expected had changed — is untrue of a text that is no revision: a
-        // reviewer found it carrying `[NC-PLUG-0018]`, whose message tells a
-        // person to try again.
+        // **Not the conflict's code, `[NC-PLUG-0018]`**, whose description —
+        // what the write expected had changed — is untrue of a text that is no
+        // revision, and whose message tells a person to try again.
         let malformed =
             expected("k", Some(&held), Some("yesterday"), true).expect_err("not a revision");
         assert_eq!(
@@ -2723,10 +2720,10 @@ mod tests {
     /// A unit registers no more compensations than its undo can dispatch: one
     /// fewer than a call tree may, the undo's own dispatch being the first.
     ///
-    /// **A reviewer found a real bug with it**: compensations were bounded only
-    /// by the notes a unit keeps, ten times more, so a step could register
-    /// more than any undo of it could run — refused at the last one every
-    /// time it was asked, which left undo stuck at that step for good.
+    /// **Not by the notes alone**: bounded only by the notes a unit keeps, ten
+    /// times more, a step could register more than any undo of it could run —
+    /// refused at the last one every time it was asked, which would leave undo
+    /// stuck at that step for good.
     #[test]
     fn a_unit_registers_no_more_compensations_than_its_undo_can_dispatch() {
         let (unit, _) = units();
@@ -2761,10 +2758,10 @@ mod tests {
     /// with, so a write naming it lands over whatever the unit staged since —
     /// and in another unit the same position is another revision.
     ///
-    /// **The narrower claim, pinned**: a reviewer read the store's "a revision
-    /// is never reused" as covering a key written twice in one unit, which it
-    /// never did — a call tree is one person's, run one command at a time, and
-    /// what a revision tells apart is another tree's write.
+    /// **The narrower claim, pinned**: the store's "a revision is never reused"
+    /// does not cover a key written twice in one unit — a call tree is one
+    /// person's, run one command at a time, and what a revision tells apart is
+    /// another tree's write.
     #[test]
     fn inside_a_unit_one_revision_covers_every_value_a_key_takes() {
         let (unit, other) = units();
@@ -2796,10 +2793,10 @@ mod tests {
     /// A command that ran, allowed an action its unit has no room to note,
     /// dooms the unit with the bound's code, and one noted already does not.
     ///
-    /// A verifier found the doom held by nothing: let go of, a unit whose
-    /// notes a plugin had filled with compensations was kept without the note
-    /// of what its command was allowed, so an undo of it authorized nothing
-    /// again before putting its writes back.
+    /// The doom is held here: let go of, a unit whose notes a plugin had filled
+    /// with compensations would be kept without the note of what its command
+    /// was allowed, so an undo of it would authorize nothing again before
+    /// putting its writes back.
     #[test]
     fn a_unit_with_no_room_to_note_what_a_command_was_allowed_is_doomed() {
         let mut ambient = filled("allowed");
@@ -2830,9 +2827,8 @@ mod tests {
     /// by a unit with no room left for the note, which then notes nothing of
     /// it; a command that does not leave is never noted.
     ///
-    /// A verifier found the refusal held by nothing. No dispatch of this build
-    /// reaches it — such a command runs only at the top of its tree, its unit
-    /// empty — so this is where it is held.
+    /// No dispatch of this build reaches the refusal — such a command runs only
+    /// at the top of its tree, its unit empty — so this is where it is held.
     #[test]
     fn a_command_that_leaves_the_machine_is_refused_by_a_unit_with_no_room_to_note_it() {
         let listed = crate::registry::Registry::from_catalog().listed();
@@ -2909,9 +2905,9 @@ mod tests {
     /// not kept or its undo — the pins it takes off, that its compensation ran,
     /// the compensation's action and its own — fits.
     ///
-    /// **A reviewer found a real bug with it**: a step was kept at the bound,
-    /// and its undo recorded one note more, which the store refused every time
-    /// — after its compensations were dispatched again each time.
+    /// **What it holds against**: a step kept at the bound whose undo records
+    /// one note more, which the store would refuse every time, its
+    /// compensations dispatched again before each refusal.
     #[test]
     fn the_undo_of_every_step_the_kernel_keeps_notes_no_more_than_the_store_takes() {
         let (unit, step) = units();

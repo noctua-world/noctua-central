@@ -18,44 +18,43 @@ fn text() -> impl Strategy<Value = String> {
         "[A-Za-zÀ-ÿ0-9 ]{0,40}",
         "[a-z=\\-_@. ]{0,40}",
         "[\\u3040-\\u309f\\u4e00-\\u4e40 ]{0,20}",
-        // Long enough to force truncation, which is the one case the earlier
-        // strategies could not reach: every branch was capped at forty
-        // characters, so `build` never took the shortening path and the law was
+        // Long enough to force truncation: with every branch capped at forty
+        // characters, `build` never takes the shortening path and the law is
         // only ever checked on names that already fit.
         "[a-z ]{200,600}",
-        // **Long and not ASCII.** The only long branch was `[a-z ]`, so every
-        // title that reached `shorten`'s truncation had a character boundary at
-        // every byte — and the walk that steps back to one could be deleted with
-        // 355 tests and 30 000 property cases green. It is not decorative:
+        // **Long and not ASCII.** With `[a-z ]` the only long branch, every
+        // title that reaches `shorten`'s truncation has a character boundary at
+        // every byte — and the walk that steps back to one could be deleted
+        // with every test and property case green. It is not decorative:
         // truncating 300 `é` panics without it, and §16.3 keeps accents, so a
         // long Portuguese, Polish or Japanese title is the ordinary case.
         "[éàçõñłżăǎ ]{100,400}",
         "[写真のアルバム日本語 ]{100,400}",
         "[a-zé中𐀀 ]{200,500}",
-        // The typographic apostrophe and the curly quotes, which are what a real
-        // title actually contains and what the punctuation set was missing.
+        // The typographic apostrophe and the curly quotes, which are what a
+        // real title actually contains.
         "[a-z\u{2018}\u{2019}\u{201c}\u{201d} ]{0,40}",
-        // **The characters a file name cannot hold**, which this alphabet did
-        // not contain for a title, a signature or a keyword — only
-        // `extension_text` drew them. `a_built_name_holds_nothing_a_filesystem_
-        // refuses` calls itself the only assertion that reads the whole name,
-        // and for three of the four components it was reading an alphabet with
-        // nothing forbidden in it: deleting `FORBIDDEN.contains(&character)`
-        // from `slug` left `--test properties` green, and only the corpus's
-        // three deviation rows caught it.
+        // **The characters a file name cannot hold**, for a title, a signature
+        // and a keyword as well as for `extension_text`.
+        // `a_built_name_holds_nothing_a_filesystem_refuses` reads the whole
+        // name, and over an alphabet with nothing forbidden in it for three of
+        // the four components, deleting `FORBIDDEN.contains(&character)` from
+        // `slug` would leave `--test properties` green, with only the corpus's
+        // three deviation rows to catch it.
         "[a-z<>:\"/\\\\|?* ]{0,40}",
-        // And the control characters, for the same reason: deleting
-        // `unusable(character)` left this file green and one unit test in
-        // `naming.rs` was all that stood between a C0 byte and a file name.
+        // And the control characters, for the same reason: without them,
+        // deleting `unusable(character)` leaves this file green and one unit
+        // test in `naming.rs` is all that stands between a C0 byte and a file
+        // name.
         "[a-z\u{0000}-\u{001f}\u{007f} ]{0,40}",
-        // **Long *and* holding a delimiter**, so truncation is exercised on text
-        // that has structure in it. Every branch long enough to reach `shorten`
-        // was delimiter-free, so the interaction between shortening and the
-        // markers `parse` reads was never generated.
+        // **Long *and* holding a delimiter**, so truncation is exercised on
+        // text that has structure in it. With every branch long enough to reach
+        // `shorten` delimiter-free, the interaction between shortening and the
+        // markers `parse` reads would never be generated.
         "[a-z=\\-_@. ]{200,500}",
         // **Combining marks, and the same letter spelled two ways.** Every
-        // branch above is precomposed, so a decomposed `e` + U+0301 never
-        // reached `shorten` — where the character-boundary walk lives, and
+        // branch above is precomposed, so without this a decomposed `e` +
+        // U+0301 never reaches `shorten` — where the character-boundary walk lives, and
         // which the long branches exist to exercise. `§16.3` keeps accents, and
         // a title pasted from a Mac is decomposed as a matter of course.
         "[a-z\u{0300}-\u{0311} ]{0,40}",
@@ -67,10 +66,10 @@ fn text() -> impl Strategy<Value = String> {
         // reader cannot see.
         "[a-z\u{200b}\u{200d}\u{200e}\u{200f}\u{202a}-\u{202e}\u{feff} ]{0,40}",
         // **Long, and holding something removable.** The two branches that draw
-        // forbidden and control characters are capped at forty, so truncation
-        // was never exercised on text that also loses characters to `slug` —
-        // the interaction between "shorten to fit" and "this character is
-        // removed" was generated by nothing.
+        // forbidden and control characters are capped at forty, so without this
+        // truncation is never exercised on text that also loses characters to
+        // `slug` — the interaction between "shorten to fit" and "this character
+        // is removed" generated by nothing.
         "[a-z<>:\"/\\\\|?* ]{200,500}",
         "[a-z\u{0000}-\u{001f}\u{007f} ]{200,500}",
         Just(String::new()),
@@ -79,12 +78,12 @@ fn text() -> impl Strategy<Value = String> {
 
 /// Extensions, over the same alphabet every other component is generated from.
 ///
-/// **This generator is the finding.** It was `[a-z]{1,5}`, and the extension is
-/// the one component whose sluggifier does not remove the scheme's delimiters —
-/// so the single case where `build` could emit a marker inside a component was
-/// the single case the law was never tried on. `parse(build(x)) == x` was false
-/// for `Some("==a")` from the public constructor, and three review passes went
-/// by with the property test green.
+/// **This generator draws what the rule is about.** The extension is the one
+/// component whose sluggifier does not remove the scheme's delimiters, so a
+/// generator such as `[a-z]{1,5}` leaves the single case where `build` could
+/// emit a marker inside a component as the single case the law is never tried
+/// on. Under it `parse(build(x)) == x` could be false for `Some("==a")` from
+/// the public constructor with the property test green.
 ///
 /// A generator that cannot produce the input a rule is about is a rule with no
 /// test, however many cases it runs.
@@ -96,47 +95,45 @@ fn extension_text() -> impl Strategy<Value = String> {
         // when it is removed.
         "[a-z=_.@ -]{1,8}",
         "[=_-]{2,4}[a-z]{0,3}",
-        // Control characters and the characters Windows forbids. The generator
-        // could draw neither, and the extension was the one component whose
-        // filter did not remove them — so a built name carried a raw NUL and the
-        // law held only because nothing ever asked.
+        // Control characters and the characters Windows forbids. The extension
+        // is the one component whose filter would not remove them — so a
+        // generator drawing neither lets a built name carry a raw NUL with the
+        // law holding only because nothing ever asks.
         //
-        // **All nine of the Windows set, not the three that were obvious.** This
-        // held `<>\\` and the law below asserted the same three, so the six that
-        // live in Denote's `REMOVED` — `:"/|?*` — reached a built name through
-        // the one component that does not run `REMOVED`. `/` among them, which
-        // made the name a path.
+        // **All nine of the Windows set, not the three that are obvious.** With
+        // `<>\\` here and the law below asserting the same three, the six that
+        // live in Denote's `REMOVED` — `:"/|?*` — reach a built name through
+        // the one component that does not run `REMOVED`. `/` among them makes
+        // the name a path.
         "[a-z]{0,3}[\u{0}-\u{1f}<>:\"/\\\\|?*]{1,3}[a-z]{0,3}",
         // And the shape that is a traversal rather than a stray character.
         "\\.\\./[a-z]{1,4}",
         "[a-z]{1,3}/[a-z]{1,3}",
         // **Long enough to drive the length refusal on its own.** Every branch
-        // above is capped at eight characters, so the only way a generated name
-        // reached `NameError::TooLong` was through the keyword list — and an
-        // extension is the one component `shorten` may not shorten, because it
-        // is what says the file's type. A name that cannot be built is a
-        // refusal, and a refusal is part of the law.
+        // above is capped at eight characters, so without this the only way a
+        // generated name reaches `NameError::TooLong` is through the keyword
+        // list — and an extension is the one component `shorten` may not
+        // shorten, because it is what says the file's type. A name that cannot
+        // be built is a refusal, and a refusal is part of the law.
         "[a-z]{200,400}",
     ]
 }
 
 /// Names as a person might type them, rather than only as `build` writes them.
 ///
-/// The other half of the round-trip, and the one an earlier version could not
-/// test: it only ever fed `parse` what `build` had produced, which is exactly
-/// the population where `parse` cannot misbehave.
+/// The other half of the round-trip: feeding `parse` only what `build` produced
+/// is feeding it exactly the population where `parse` cannot misbehave.
 fn raw_name() -> impl Strategy<Value = String> {
     (
         // **`-` is in this alphabet because it is the only character that tells
-        // the signature's split from a wrong one.** It was `[A-Za-z =]`, so
-        // `parse` splitting on `-` instead of `=` was the identity on every
-        // generated name — measured on 2026-09-08, `text.split('-')` in
-        // `FileName::parse` with `cargo xtask check` green and every printed
-        // line unchanged, while `==rio-de-janeiro--praia@@…` stopped being the
-        // one signature `riodejaneiro` and `canonical_name` proposed renaming
-        // the file to `==rio=de=janeiro--praia@@…`. The keyword alphabet one
-        // line down has always held its own separator, and both keyword splits
-        // were killed by it.
+        // the signature's split from a wrong one.** With `[A-Za-z =]`, `parse`
+        // splitting on `-` instead of `=` is the identity on every generated
+        // name — measured, `text.split('-')` in `FileName::parse` with
+        // `cargo xtask check` green and every printed line unchanged, while
+        // `==rio-de-janeiro--praia@@…` stops being the one signature
+        // `riodejaneiro` and `canonical_name` proposes renaming the file to
+        // `==rio=de=janeiro--praia@@…`. The keyword alphabet one line down
+        // holds its own separator, and both keyword splits are killed by it.
         prop::option::of("[A-Za-z =-]{0,20}"),
         prop::option::of("[A-Za-zé中 -]{0,30}"),
         prop::option::of("[A-Za-z _]{0,20}"),
@@ -178,9 +175,9 @@ proptest! {
     ///
     /// **The round trip cannot catch this**, and that is why it is its own law:
     /// a NUL in an extension survives `parse(build(x))` perfectly well, so the
-    /// identity held while `build` was emitting a byte no filesystem accepts in
-    /// a path. `§16.3` requires the whole name to respect what Windows forbids,
-    /// and this is the only assertion that reads the whole name.
+    /// identity holds while `build` could be emitting a byte no filesystem
+    /// accepts in a path. `§16.3` requires the whole name to respect
+    /// what Windows forbids, and this asserts it of the whole name.
     #[test]
     fn a_built_name_holds_nothing_a_filesystem_refuses(
         signature in prop::collection::vec(text(), 0..3),
@@ -200,12 +197,12 @@ proptest! {
                     "U+{:04X} reached a built name: {name:?}",
                     character as u32
                 );
-                // **`§16.3`'s rule, not this module's constant.** This asserted
-                // `<>\\` — which is what `FORBIDDEN` held at the time, so the
-                // law restated the code instead of the requirement and the six
-                // Windows characters that were only in Denote's `REMOVED` went
-                // straight through the extension. A test written from the
-                // implementation cannot find the implementation wrong.
+                // **`§16.3`'s rule, not this module's constant.** Asserting
+                // `FORBIDDEN`'s contents — `<>\\`, say — restates the code
+                // instead of the requirement, and lets the six Windows
+                // characters only in Denote's `REMOVED` go straight through the
+                // extension. A test written from the implementation cannot find
+                // the implementation wrong.
                 prop_assert!(
                     !matches!(
                         character,
@@ -216,9 +213,10 @@ proptest! {
                 );
             }
             // **And the whole name is one path component.** A character check
-            // reads characters; this reads what the name *is*. `/` made
-            // `build()` return `--t@@01J8XK2M9P51./../etc/passwd`, which is four
-            // components and escapes the directory a caller meant to write in.
+            // reads characters; this reads what the name *is*. `/` let through
+            // makes `build()` return `--t@@01J8XK2M9P51./../etc/passwd`, which
+            // is four components and escapes the directory a caller meant to
+            // write in.
             prop_assert_eq!(
                 std::path::Path::new(&name).components().count(),
                 1,
@@ -256,7 +254,7 @@ proptest! {
         // **How often this line returns early is itself asserted**, one test
         // down, because `§19.5` is that the count of things examined is part of
         // what a test claims: measured over 4096 replays of these generators,
-        // 1873 — 45.7% — reached it and asserted nothing, and at proptest's
+        // 1873 — 45.7% — reach it and assert nothing, and at proptest's
         // default 256 cases that leaves about 139 that exercise criterion 8.
         let Ok(built) = original.build() else { return Ok(()) };
         prop_assert!(built.len() <= nc_ids::naming::MAX_BYTES);
@@ -267,17 +265,17 @@ proptest! {
     /// Parsing is **idempotent** over names the builder never made.
     ///
     /// This is the half that catches a parser merely *compatible* with the
-    /// builder rather than its inverse, and an earlier version could not: it fed
-    /// `parse` only what `build` had written, which is the one population where
-    /// `parse` cannot misbehave. Proved by breaking it — a `parse` that stripped
-    /// hyphens from titles left that version green.
+    /// builder rather than its inverse: feeding `parse` only what `build` wrote
+    /// is the one population where `parse` cannot misbehave. Proved by breaking
+    /// it — a `parse` that strips hyphens from titles passes that half and
+    /// fails this.
     #[test]
     fn parsing_any_name_reaches_a_fixed_point(raw in raw_name()) {
         let Ok(once) = FileName::parse(&raw) else { return Ok(()) };
         // **A name that will not fit is a refusal, and a refusal is part of the
-        // law.** This wrote `.expect("a generated name is short")`, which held
-        // only because no generator could produce an extension long enough to
-        // fill the budget on its own — the keyword list was the only path to
+        // law.** An `.expect("a generated name is short")` here would hold only
+        // while no generator can produce an extension long enough to fill the
+        // budget on its own, leaving the keyword list the only path to
         // `TooLong`. An extension is the one component `shorten` may not
         // shorten, because it is what says the file's type, so the answer there
         // is a refusal rather than a shorter name.
@@ -291,9 +289,9 @@ proptest! {
         prop_assert_eq!(twice.build().expect("rebuilds"), bytes);
     }
 
-    /// Identifiers only ever increase, which is `§19.2`'s "ID monotonicity" and
-    /// was a unit test rather than a property while this file claimed to hold
-    /// every law that section names.
+    /// Identifiers only ever increase, which is `§19.2`'s "ID monotonicity",
+    /// held here as a property because this file holds every law that section
+    /// names.
     #[test]
     fn identifiers_only_increase(steps in prop::collection::vec(0_u64..3, 1..200)) {
         use nc_ids::{MachineFlake, Minter};
@@ -333,11 +331,11 @@ proptest! {
         prop_assert_eq!(built.matches("@@").count(), 1);
         prop_assert_eq!(parsed.signature(), ["s"]);
         // **And no delimiter run reaches the name from content**, which is what
-        // this property is named for and did not check. It asserted the `@@`
-        // count and the signature, so deleting `slug`'s joiner-collapse rule —
-        // content becoming structure, exactly — left it green, and two unit
-        // tests in `naming.rs` caught it instead. A property whose name is
-        // trusted for more than it does is worse than one that is not there.
+        // this property is named for. Asserting only the `@@` count and the
+        // signature, deleting `slug`'s joiner-collapse rule — content becoming
+        // structure, exactly — leaves it green, with two unit tests in
+        // `naming.rs` to catch it instead. A property whose name is trusted for
+        // more than it does is worse than one that is not there.
         //
         // Counted in the **built name**, not in the parsed parts: a run that
         // came from content becomes a delimiter, so `parse` hands back a
@@ -346,10 +344,7 @@ proptest! {
         // one of.
         //
         // This name has one signature, one title and one keyword list, so each
-        // marker appears exactly once. Deleting `slug`'s joiner-collapse rule —
-        // content becoming structure, exactly what this property is named for —
-        // left the older assertions green, and two unit tests in `naming.rs`
-        // caught it instead.
+        // marker appears exactly once.
         // An empty title or keyword writes no marker at all, so the bound is
         // "at most one" rather than "exactly one": what a leak produces is a
         // *second* one.
@@ -420,7 +415,7 @@ proptest! {
 
 /// How many of the generated cases actually exercise criterion 8.
 ///
-/// **Two of the properties above return early, and nothing said how often.**
+/// **Two of the properties above return early, and this says how often.**
 /// `parsing_a_built_name_returns_what_built_it` skips a case whose signature and
 /// keywords alone will not fit, and `parsing_any_name_reaches_a_fixed_point`
 /// skips one the parser refuses. Both skips are correct — the refusal is the law
@@ -429,7 +424,7 @@ proptest! {
 /// of things examined is part of what a test claims.
 ///
 /// Measured over 4096 replays of the same generators: **1873, 45.7%**, of the
-/// round-trip cases reached the early return. At proptest's default 256 cases
+/// round-trip cases reach the early return. At proptest's default 256 cases
 /// that leaves about 139 exercising `parse(build(x)) == x`.
 ///
 /// This is a floor, not the number: the generators are random and the exact
@@ -483,17 +478,17 @@ fn enough_generated_cases_reach_the_assertion() {
             .expect("the generator produces a value")
             .current();
         // **Both early returns, not the first one.** The property has two: a
-        // name that will not parse, counted here from the first day, and — since
-        // the `extension_text` branch long enough to fill the length budget was
-        // added — a parsed name that will not *rebuild*. This counted the first
-        // and was blind to the second, which is the shape it exists to refuse.
+        // name that will not parse, and — with an `extension_text` branch long
+        // enough to fill the length budget — a parsed name that will not
+        // *rebuild*. Counting the first and not the second is the shape this
+        // test exists to refuse.
         //
         // Measured over 4096 replays of the shipped generators: 292 refused by
-        // `parse`, 202 refused by `build`, 3602 that assert. The guard saw
-        // 92.9% and reality was 87.9% — 5% today, and structurally blind, which
-        // is what matters. Driven to the limit by reducing `extension_text` to
-        // its long branch: 251 of 256 cases returned without asserting anything
-        // and this test still passed.
+        // `parse`, 202 refused by `build`, 3602 that assert. Counting only the
+        // first sees 92.9% where reality is 87.9% — 5%, and structurally blind,
+        // which is what matters. Driven to the limit by reducing
+        // `extension_text` to its long branch: 251 of 256 cases return without
+        // asserting anything, and such a guard still passes.
         if let Ok(once) = FileName::parse(&raw)
             && once.build().is_ok()
         {

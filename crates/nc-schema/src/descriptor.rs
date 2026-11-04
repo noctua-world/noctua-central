@@ -431,10 +431,10 @@ mod tests {
 
     /// A title holding a character a reader sees nothing of is refused.
     ///
-    /// The review that found the argument schema passing the judge with tag
-    /// characters in it asked the same of the title, the one other field of
-    /// free text: accepted, with a right-to-left override that shows a person
-    /// a command under words it does not say.
+    /// The title is the one other field of free text beside the argument
+    /// schema, and it is held to the same rule: without this, a title with a
+    /// right-to-left override is accepted, showing a person a command under
+    /// words it does not say.
     #[test]
     fn a_title_holding_a_character_a_reader_sees_nothing_of_is_refused() {
         for (title, hidden) in [
@@ -463,10 +463,10 @@ mod tests {
 
     /// An argument schema holding one is refused by the judge, not the compiler alone.
     ///
-    /// Found by review, with this declaration: the kernel asks the judge of a
-    /// plugin's command at `activate`, and the refusal stood in the compiler
-    /// alone, so a description spelling `IGN` in tag characters behind a
-    /// right-to-left override was accepted.
+    /// This asks the judge itself: the kernel asks the judge of a plugin's
+    /// command at `activate`, so a refusal standing in the compiler alone
+    /// would accept there a description spelling `IGN` in tag characters
+    /// behind a right-to-left override.
     #[test]
     fn an_argument_schema_a_reader_cannot_see_all_of_is_refused_by_the_judge() {
         let problems = judge(&Declared {

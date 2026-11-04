@@ -14,8 +14,9 @@
 //! `crates/nc-catalog/src/i18n.rs` come from it, along with four `docs/*.md`
 //! pages. One `sort_by` in `locale_files` is what makes that order independent
 //! of the filesystem, and the `allow-nondeterminism:` marker beside the
-//! `read_dir` call asserts that sort exists — while nothing checked the
-//! assertion. Deleting the sort and leaving the marker as committed:
+//! `read_dir` call asserts that sort exists — and without this file nothing
+//! would check the assertion. Measured that way, the sort deleted and the
+//! marker left as committed:
 //!
 //! ```text
 //! cargo xtask build   ->  ok  15 generated file(s), 5 rewritten
@@ -158,12 +159,12 @@ fn two_directory_orders_produce_the_same_bytes() {
 
 /// Every page's sections are in the order the generated crate uses.
 ///
-/// **Four pages walked their registry in file order** while `emit.rs` sorts
-/// before it writes the Rust, so `docs/log-events.md` opened at
-/// `journal.appended` and `crates/nc-catalog/src/events.rs` opened at
-/// `db.migrated` — and `docs.rs`'s own comment, one table over, says "every
-/// other table on every page sorts". Measured on the committed tree, no
-/// mutation:
+/// **Not in file order.** `emit.rs` sorts before it writes the Rust, so a page
+/// walking its registry in file order opens `docs/log-events.md`
+/// at `journal.appended` while `crates/nc-catalog/src/events.rs` opens
+/// at `db.migrated` — and `docs.rs`'s own comment, one table over, says "every
+/// other table on every page sorts". Measured on a tree whose pages walk in
+/// file order, no mutation:
 ///
 /// ```text
 /// docs/log-events.md   ## `journal.appended`  ## `journal.verified`  ## `journal.broken` …
@@ -228,57 +229,57 @@ fn every_page_lists_its_entries_in_order() {
 
 /// Every value a registry supplies to a table row is escaped for one.
 ///
-/// **It was applied to the translated sentences and to nothing else.**
-/// `commands.toml`'s `action` and `resource_selector` and `limits.toml`'s
-/// `order_by` were written into their rows raw, and only their non-emptiness is
-/// checked — so a value holding a `|` wrote a row with an extra cell in it:
+/// **Applied to every value, not only to the translated
+/// sentences.** `commands.toml`'s `action` and `resource_selector`
+/// and `limits.toml`'s `order_by` are checked only for non-emptiness — so
+/// written into their rows raw, a value holding a `|` writes a row with an
+/// extra cell in it:
 ///
 /// ```text
 /// | Resource selector | `realm | anything` |
 /// ```
 ///
-/// and the compiler said nothing. The page's own test caught the wreckage and
-/// reported it against the page, which sends a reader to the generated file
+/// and the compiler says nothing. The page's own test catches the wreckage and
+/// reports it against the page, which sends a reader to the generated file
 /// rather than to the registry line that caused it.
 ///
-/// Driven through `compile` rather than through `cell`, because what was wrong
-/// was the call site and not the function.
+/// Driven through `compile` rather than through `cell`, because what matters is
+/// the call site and not the function.
 #[test]
 fn a_bar_in_a_registry_value_does_not_end_its_cell() {
     let base = Path::new("/dev/shm").join(format!("nc-cell-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&base);
     lay_out(&base, "en");
-    // **A hand list of three, and `docs.rs` wrote five values raw.** Two of the
-    // other three were reachable: the message-key column of every registry's
-    // sentence table, and `limit.surface` in the rate-limit table. Adding either
-    // to this list turned it red, which is the definition of an exclusion list
-    // that had switched a gate off:
+    // **Not a hand list of three.** Of the other values `docs.rs` writes, two
+    // are reachable: the message-key column of every registry's sentence table,
+    // and `limit.surface` in the rate-limit table. Adding either to an
+    // exclusion list that excused them turns it red, which is the definition of
+    // an exclusion list that switches a gate off:
     //
     // ```text
     // `docs/limits.md` has a row of 10 cells under a header of 9
     // `docs/notifications.md` has a row of 6 cells under a header of 5
     // ```
     //
-    // **And the reason the remaining three were excused was false of two of
-    // them.** It said all three *"pass through `load::identifier()`, which
-    // refuses anything outside `[A-Za-z0-9_]`, so a bar cannot reach them"* —
-    // and nothing calls `identifier()` on a `limits.tables` key or a
-    // `limits.stores` key. `check_tables` never touches the name at all, and
-    // `docs.rs` wrote both raw while every neighbouring value on the same two
-    // rows went through `cell()`. Adding either to this list turned it red at
-    // once:
+    // **And an excuse has to be true of what it excuses.** Saying all three
+    // *"pass through `load::identifier()`, which refuses anything outside
+    // `[A-Za-z0-9_]`, so a bar cannot reach them"* is false of two: nothing
+    // calls `identifier()` on a `limits.tables` key or a `limits.stores` key,
+    // and `check_tables` never touches the name at all. Written raw while every
+    // neighbouring value on the same two rows goes through `cell()`, either one
+    // added to this list turns it red at once:
     //
     // ```text
     // `docs/limits.md` has a row of 8 cells under a header of 7:
     // | `access | records` | `oldest-first` | `recorded` | 500000 | 50000 | — |
     // ```
     //
-    // Both are escaped now and both are in the sweep below. What is left
-    // excused is a *parameter name*, which really is identifier-checked, and the
-    // resource selector, which is held to its grammar — `realm` or
-    // `argument:<name>` — by the judge the kernel shares, so the catalog is
-    // refused before a page is rendered. That is why this is a list and not a
-    // sweep, and each entry says which surface it stands for.
+    // Both are escaped and both are in the sweep below. What is left excused is
+    // a *parameter name*, which really is identifier-checked, and the resource
+    // selector, which is held to its grammar — `realm` or `argument:<name>` —
+    // by the judge the kernel shares, so the catalog is refused before a page
+    // is rendered. That is why this is a list and not a sweep, and each entry
+    // says which surface it stands for.
     //
     // **The selector's excuse is asserted rather than assumed**, on this same
     // copy and before anything else is changed in it.
@@ -300,8 +301,8 @@ fn a_bar_in_a_registry_value_does_not_end_its_cell() {
             "surface = \"login\"",
             "surface = \"log | in\"",
         ),
-        // The first column of the table limits, and of the store limits: the two
-        // the comment above excused on a reason that was not true of them.
+        // The first column of the table limits, and of the store limits: the
+        // two an identifier excuse would not be true of.
         (
             "catalog/limits.toml",
             "[tables.access_records]",
@@ -392,10 +393,10 @@ fn a_bar_in_a_registry_value_does_not_end_its_cell() {
 
 /// A selector holding a bar is refused by name, so its row is never written.
 ///
-/// The half of [`a_bar_in_a_registry_value_does_not_end_its_cell`] that
-/// excuses the selector column, run on that test's own copy of the catalog
-/// and leaving it as it found it. Its own function because the caller crossed
-/// clippy's line limit with it inline.
+/// The half of [`a_bar_in_a_registry_value_does_not_end_its_cell`] that excuses
+/// the selector column, run on that test's own copy of the catalog and leaving
+/// it as it found it. Its own function because inline it would cross the
+/// caller's clippy line limit.
 fn a_bar_never_reaches_the_selector_column(base: &Path) {
     let commands = base.join("catalog/commands.toml");
     let shipped = std::fs::read_to_string(&commands).expect("readable");

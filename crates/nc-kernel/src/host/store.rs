@@ -585,8 +585,8 @@ mod tests {
 
     #[tokio::test]
     async fn a_timers_callback_that_began_a_unit_writes_nothing_itself_and_is_told_why() {
-        // **A review found the old sentence false**: it said a callback runs
-        // in no unit of work, and a timer's callback may begin one.
+        // **The refusal's end is read**: a timer's callback may begin a unit, so
+        // the refusal says how it changes state, not that it runs in no unit.
         let mut state = HostState::in_memory(GrantSet::of([Capability::Store]));
         state.enter(
             Frame::for_tests(false, Some(a_unit()))
@@ -745,9 +745,8 @@ mod tests {
     /// many keys it may write: each value at its own bound, the writes past the
     /// unit's are refused with the bound's code.
     ///
-    /// A verifier staged 80 MiB this way in one unit, past the 64 MiB the
-    /// plugin's own memory may grow to, when the only bound was the count of
-    /// keys.
+    /// Bounded by the count of keys alone, one unit could stage 80 MiB this
+    /// way, past the 64 MiB the plugin's own memory may grow to.
     #[tokio::test]
     async fn a_unit_holds_no_more_bytes_than_the_catalog_allows_whatever_its_values() {
         let mut state = writing(a_unit());
@@ -805,9 +804,9 @@ mod tests {
     /// A page reads the store past the keys the unit deleted, so a plugin is
     /// never told its listing has ended while keys it was not shown remain.
     ///
-    /// A verifier found the widening of the committed read held by nothing:
-    /// without it, a page of one over a store holding `a`, `b` and `c`, with `a`
-    /// deleted in the unit, came back empty and as the last.
+    /// The widening of the committed read is what this test holds: without it,
+    /// a page of one over a store holding `a`, `b` and `c`, with `a` deleted in
+    /// the unit, would come back empty and as the last.
     #[tokio::test]
     async fn a_page_reads_past_the_keys_the_unit_deleted() {
         let mut minter = nc_ids::Minter::new(

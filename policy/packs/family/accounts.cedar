@@ -21,13 +21,13 @@
 //
 // **Written as the states that may act, not the ones that may not.** `status`
 // is a `String` in the schema and nothing checks it against the five values
-// `§14.7` names, so a rule listing `suspended` and `deceased` let every other
-// spelling through: a typo, a different case, a state a later stage adds. The
-// next permit then allowed it. `NOCTUA.md §2.4` says that if a check cannot be
-// performed the answer is no, so the live states are named instead. They are
-// `active`, and `dormant` and `presumed_inactive`, the steps of the succession
-// ladder before anybody has decided anything. Every other value is frozen,
-// `suspended` and `deceased` among them.
+// `§14.7` names, so a rule listing `suspended` and `deceased` would let every
+// other spelling through — a typo, a different case, a state a later stage adds
+// — and the next permit would allow it. `NOCTUA.md §2.4` says that if a check
+// cannot be performed the answer is no, so the live states are named instead.
+// They are `active`, and `dormant` and `presumed_inactive`, the steps of the
+// succession ladder before anybody has decided anything. Every other value is
+// frozen, `suspended` and `deceased` among them.
 //
 // What it deliberately does not reach: a `Device` or an `Agent` acting for a
 // frozen account. Neither carries a `status`, and whether a person's devices

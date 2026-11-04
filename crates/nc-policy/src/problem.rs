@@ -27,22 +27,18 @@ pub struct Problem {
 ///
 /// **A comment is not a declaration.** Comments in these case files routinely
 /// quote the case below them — the pack's own files open with a paragraph
-/// explaining what each case is for — so a bare `contains` filed every
+/// explaining what each case is for — so a bare `contains` files every
 /// diagnostic against the prose above the case rather than the case. The
-/// compiler's twin of this reader has skipped comment lines since a reviewer
-/// paid for it; this one, written later, did not, and nothing noticed because
-/// nothing in this crate ever read a `Problem`'s line back. Both halves reported
-/// in round sixty-two.
+/// compiler's twin of this reader skips comment lines for the same reason.
 ///
-/// **In both syntaxes this crate reads.** The skip knew `#`, which is the case
-/// files' TOML; every *policy* is Cedar, whose comment is `//`, and the two
+/// **In both syntaxes this crate reads.** The case files are TOML, whose
+/// comment is `#`; every *policy* is Cedar, whose comment is `//`, and the two
 /// callers in `lib.rs` search Cedar text for a policy id. Every core policy in
 /// this repository opens with a paragraph of `//` that names the rule below it
-/// — `chain_depth.cedar`'s first line quotes its own id — so a diagnostic about
-/// a policy was filed against the prose at the top of its file rather than
-/// against the policy, which is exactly the defect the paragraph above records
-/// being paid for once already, in the other syntax. Reported in round
-/// sixty-four.
+/// — `chain_depth.cedar`'s first line quotes its own id — so a skip that knows
+/// only `#` files a diagnostic about a policy against the prose at the top of
+/// its file rather than against the policy: the defect the paragraph above
+/// describes, in the other syntax.
 ///
 /// Both openers are refused unconditionally rather than chosen by the caller: a
 /// `#` opens no line of Cedar and `//` opens no line of TOML, so neither can
@@ -103,8 +99,8 @@ mod tests {
 
     /// A policy's own file quotes its id in the paragraph above it.
     ///
-    /// The skip knew TOML's `#` and not Cedar's `//`, so every diagnostic about
-    /// a core policy was filed against the header paragraph of its file — and
+    /// A skip that knows TOML's `#` and not Cedar's `//` files every diagnostic
+    /// about a core policy against the header paragraph of its file — and
     /// the paragraph is where the rule is *explained*, which is the line a
     /// reader is least helped by. Both real spellings, because
     /// `policy/core/chain_depth.cedar` opens with `//` prose and

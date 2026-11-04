@@ -17,13 +17,13 @@
 //! from the sentence — so a sentence asking for something the declaration omits
 //! can never be supplied, whatever the translations agree on.
 //!
-//! **Every diagnostic here is English, and located where a line exists.** Both
-//! were findings. They interpolated the locale's *endonym*, so a developer's
-//! build log read "Português do Brasil is missing …" in a repository whose every
-//! artifact is English (`§2.1`); and three classes carried no line at all
-//! although `line_of` would have found the key.
+//! **Every diagnostic here is English, and located where a line exists.** One
+//! that interpolates the locale's *endonym* puts "Português do Brasil is
+//! missing …" in a developer's build log, in a repository whose every artifact
+//! is English (`§2.1`); and a diagnostic with no line is one `line_of` could
+//! have located.
 //!
-//! One still carries none, and it cannot: a key **missing** from a locale has no
+//! One class carries none, and it cannot: a key **missing** from a locale has no
 //! line in that locale to point at. It names the source file the sentence has to
 //! be translated from instead, which is where the reader actually has to go.
 
@@ -37,8 +37,8 @@ use crate::problem::{Problem, line_of};
 /// The 1-indexed line a key that is not in this file should be written on.
 ///
 /// **The end of the file is a line, and it is under the wrong heading.** A key
-/// absent from a locale has no line of its own, so both diagnostics pointed at
-/// the last one — accurate as an insertion point and wrong as a place: these
+/// absent from a locale has no line of its own, and the last one is accurate
+/// as an insertion point and wrong as a place: these
 /// files group their keys under `# --- <Group> ---` comments, and the last line
 /// of `catalog/i18n/en.toml` sits inside the commands block. A newcomer told to
 /// add `error.validation.…` at line 77 files it among the commands, and the
@@ -70,16 +70,15 @@ fn where_to_write(text: &str, key: &str) -> usize {
 mod insertion_point_tests {
     /// A missing key is filed with its own group, not at the end of the file.
     ///
-    /// **One key per group answers every question the same way.** The fixture
-    /// this grew out of had exactly one key under each prefix, so *the last of
-    /// the group* and *the first of it* are the same line and neither the
-    /// `.last()` nor the walk that shortens the prefix was decided by anything:
-    /// `.last()` → `.min()` and `while let` → `if let` both survived, and so did
-    /// dropping the `.max(1)` that keeps an empty file off line zero. Its one
-    /// multi-level assertion compared the prefix walk against the end-of-file
-    /// fallback, which is the same number — a rule compared against itself.
-    /// Measured in round sixty-two. Every group below holds two keys, and the
-    /// empty file is driven.
+    /// **One key per group answers every question the same way.** With exactly
+    /// one key under each prefix, *the last of the group* and *the first of it*
+    /// are the same line and neither the `.last()` nor the walk that shortens
+    /// the prefix is decided by anything: `.last()` → `.min()` and
+    /// `while let` → `if let` both survive, and so does dropping the `.max(1)`
+    /// that keeps an empty file off line zero. A multi-level assertion
+    /// comparing the prefix walk against the end-of-file fallback compares the
+    /// same number — a rule compared against itself. Every group below holds
+    /// two keys, and the empty file is driven.
     #[test]
     fn a_key_is_written_where_its_neighbours_are() {
         let file = "# --- Errors ---\n\
@@ -102,7 +101,7 @@ mod insertion_point_tests {
         assert_eq!(super::where_to_write(file, "error.db.x.deeper"), 3);
         assert_eq!(super::where_to_write(file, "command.limits.prune"), 9);
         // A group that does not exist yet goes at the end, which is the honest
-        // answer and is what every key used to get.
+        // answer.
         assert_eq!(super::where_to_write(file, "email.welcome.subject"), 9);
         // **And an empty file answers one, not zero.** There is no line zero to
         // send a reader to, and `.count()` without the floor gives exactly that.
@@ -175,11 +174,11 @@ fn params(
 /// No locale's value is the source sentence, word for word.
 ///
 /// **Every rule here is about a key's presence and its placeholders**, and none
-/// about what the value says — so seven pt-BR sentences replaced verbatim with
-/// their English text compiled, generated, and published both language columns
-/// of `docs/errors.md` identical, with `check passed`. The only bounds were two
-/// test floors phrased as fractions ("more than half differ", "more than 20 of
-/// 28"), which a handful of untranslated strings satisfies comfortably.
+/// about what the value says — so without this, seven pt-BR sentences replaced
+/// verbatim with their English text compile, generate, and publish both
+/// language columns of `docs/errors.md` identical, with `check passed`. Test
+/// floors phrased as fractions ("more than half differ", "more than 20 of
+/// 28") are satisfied comfortably by a handful of untranslated strings.
 ///
 /// Nothing in this catalog legitimately coincides today, so the rule is absolute
 /// and the exception list starts empty. A word that is the same in both
@@ -206,33 +205,32 @@ fn no_value_is_the_source_sentence(
 
 /// Keys whose value is legitimately the same sentence in both locales, and why.
 ///
-/// **The diagnostic names this, so it has to exist.** Turning the list into a
-/// parameter left the shipped caller passing `&[]` and every mention of the name
-/// in prose — so the refusal told a translator to "add it to `THE_SAME_IN_BOTH`
-/// with the reason" and there was nothing to add it to. Empty is still the
+/// **The diagnostic names this, so it has to exist.** The refusal tells a
+/// translator to "add it to `THE_SAME_IN_BOTH` with the reason", and with the
+/// list only a parameter there would be nothing to add it to. Empty is the
 /// honest state of this catalog; a product name or an identifier that coincides
 /// goes here with the reason, which is the two-place edit somebody reads.
 ///
-/// **And the reason is a field, which it was not.** As `&[&str]` this was a bare
-/// exclusion list: the diagnostic promised "add it to `THE_SAME_IN_BOTH` with
-/// the reason it is the same in both", and the only place a reason could go was
-/// a comment nothing reads. Any key could be exempted from the untranslated
-/// check by adding six characters, with no floor, no count and nothing to say
-/// why — and an exemption whose reason is unwritten is indistinguishable from a
+/// **And the reason is a field.** As `&[&str]` this would be a bare exclusion
+/// list: the diagnostic promises "add it to `THE_SAME_IN_BOTH` with the reason
+/// it is the same in both", and the only place a reason could go would be a
+/// comment nothing reads. Any key could be exempted from the untranslated check
+/// by adding six characters, with no floor, no count and nothing to say why —
+/// and an exemption whose reason is unwritten is indistinguishable from a
 /// translation somebody gave up on. `every_exemption_names_the_reason_it_is_one`
 /// is what makes the second column load-bearing rather than decorative.
 pub(crate) const THE_SAME_IN_BOTH: &[(&str, &str)] = &[];
 
 /// The exemption list a caller may hand the untranslated rule.
 ///
-/// **The list a test iterates is not the list the shipped call hands over.**
+/// **The list a test iterates has to be the list the shipped call hands over.**
 /// `every_exemption_names_the_reason_it_is_one` walks the constant above — the
 /// reason field, the character floor, the word floor, the duplicate check, all
-/// of it — and nothing read what the live caller actually passes. So
-/// `&[THE_SAME_IN_BOTH, &[("error.ids.name-too-long", "x")]].concat()` at the
-/// call site exempted a key from a rule this catalog calls absolute, with no
-/// reason anybody reads: warning-free, `check passed`, transcript byte-identical.
-/// Measured in round sixty-two; audit question four exactly, which is whether an
+/// of it — and nothing there reads what the live caller actually passes. With
+/// a plain list, `&[THE_SAME_IN_BOTH, &[("error.ids.name-too-long", "x")]].concat()`
+/// at the call site exempts a key from a rule this catalog calls absolute, with
+/// no reason anybody reads: warning-free, `check passed`, transcript
+/// byte-identical. That is audit question four exactly, which is whether an
 /// exclusion list turns the gate off.
 ///
 /// There is exactly one way to make one of these outside a test, and it hands
@@ -269,15 +267,16 @@ mod exemptions {
 
 /// The same, with the exception list handed in.
 ///
-/// **`THE_SAME_IN_BOTH` is empty, so the clause that reads it was a branch no
-/// input could reach.** The whole mechanism — the constant, the `.contains`, and
-/// the diagnostic telling a developer to "add it to `THE_SAME_IN_BOTH` with the
-/// reason" — could be deleted with 127 tests green. An exclusion list nobody has
-/// ever exercised is a list nobody knows works, and the first entry would be
-/// added by someone trusting a hole that had never been opened.
+/// **`THE_SAME_IN_BOTH` is empty, so with it alone the clause that reads it is
+/// a branch no input can reach.** The whole mechanism — the constant, the
+/// `.contains`, and the diagnostic telling a developer to "add it to
+/// `THE_SAME_IN_BOTH` with the reason" — could then be deleted with every test
+/// green. An exclusion list nobody has ever exercised is a list nobody knows
+/// works, and the first entry would be added by someone trusting a hole that
+/// had never been opened.
 ///
-/// The list is a parameter now so a test can pass one. The shipped caller passes
-/// `&[]`, which is still the honest state of this catalog: nothing in it
+/// The list is a parameter so a test can pass one. The shipped caller passes
+/// the empty constant, which is the honest state of this catalog: nothing in it
 /// legitimately coincides.
 fn no_value_is_the_source_sentence_except(
     file: &str,
@@ -315,12 +314,12 @@ fn no_value_is_the_source_sentence_except(
 
 /// Whether two sentences are the same one, for the purpose above.
 ///
-/// **Byte equality was the whole test**, so the rule was one keystroke wide: a
-/// trailing period, a capital, or two spaces between words made an English
-/// sentence pasted into `pt-BR.toml` pass as a translation, and every downstream
-/// gate — presence, placeholders, both test floors — reads it as translated.
+/// **Byte equality alone makes the rule one keystroke wide**: a trailing
+/// period, a capital, or two spaces between words make an English sentence
+/// pasted into `pt-BR.toml` pass as a translation, and every downstream gate —
+/// presence, placeholders, both test floors — reads it as translated.
 /// Measured, `error.db.migration-failed` in `catalog/i18n/pt-BR.toml` set to the
-/// English sentence with a full stop added:
+/// English sentence with a full stop added, under byte equality:
 ///
 /// ```text
 /// cargo xtask check   ->  check passed
@@ -334,32 +333,34 @@ fn no_value_is_the_source_sentence_except(
 fn the_same_sentence(ours: &str, theirs: &str) -> bool {
     fn plainly(text: &str) -> String {
         // **What a reader cannot see is not what tells two messages apart.**
-        // `split_whitespace` drops whitespace and nothing else, so one
-        // `U+2063 INVISIBLE SEPARATOR` appended to the English sentence made it
-        // a different string here and the same sentence on the page. Measured on
-        // `NC-JRNL-0001` — `critical`, non-retryable, the journal-tampering
-        // message: `cargo xtask build` accepted it and `docs/errors.md`
-        // published English in the pt-BR column, under `check passed`.
+        // `split_whitespace` drops whitespace and nothing else, so with it alone
+        // one `U+2063 INVISIBLE SEPARATOR` appended to the English sentence
+        // would make it a different string here and the same sentence on the
+        // page. Measured on `NC-JRNL-0001` — `critical`, non-retryable, the
+        // journal-tampering message: with whitespace alone dropped,
+        // `cargo xtask build` accepts it and `docs/errors.md` publishes English
+        // in the pt-BR column.
         //
-        // **And the repair then read the escapers' set, which is a different
-        // question.** `shows_nothing` answers `INVISIBLE_RANGES`, and what that
-        // array holds is replaced by a *space* in every doc line and every
-        // published cell — so it can only ever hold characters that stand
-        // between words, and `U+3164 HANGUL FILLER` is a letter that stands
-        // inside them. The same plant one character along: the English sentence
-        // plus `U+3164` filed as the pt-BR `error.journal.chain-broken` gave
-        // `Ok, 0 problem(s)` and put that English sentence in the pt-BR column
-        // of `NC-JRNL-0001` in `docs/errors.md`. `tells_two_sentences_apart` is
-        // this question's own predicate, and the only reader of `BLANK_RANGES`.
-        // **What a reader sees, not what the bytes are.** This *deleted* every
-        // character `tells_two_sentences_apart` refuses, and `printable` — which
-        // writes every `///` line and every published cell — replaces the
-        // invisible half of that set with a space. So the English sentence with
-        // one of its spaces written `U+200D` normalised here to `oldrecords`
-        // while publishing as `Old records`: the two columns of `docs/errors.md`
-        // carried the identical English sentence and this rule, whose whole job
-        // is to notice that, compared two different strings. Measured, filed as
-        // the pt-BR `error.db.unreachable`: `ACCEPTED, 0 problem(s)`.
+        // **And the escapers' set is a different question.** `shows_nothing`
+        // answers `INVISIBLE_RANGES`, and what that array holds is replaced by a
+        // *space* in every doc line and every published cell — so it can only
+        // ever hold characters that stand between words, and
+        // `U+3164 HANGUL FILLER` is a letter that stands inside them. Read
+        // through that set, the English sentence plus `U+3164` filed as the
+        // pt-BR `error.journal.chain-broken` gives `Ok, 0 problem(s)` and puts
+        // that English sentence in the pt-BR column of `NC-JRNL-0001` in
+        // `docs/errors.md`. `tells_two_sentences_apart` is this question's own
+        // predicate, and the only reader of `BLANK_RANGES`.
+        // **What a reader sees, not what the bytes are.** Deleting every
+        // character `tells_two_sentences_apart` refuses is not enough, because
+        // `printable` — which writes every `///` line and every published cell —
+        // replaces the invisible half of that set with a space. So the English
+        // sentence with one of its spaces written `U+200D` would normalise here
+        // to `oldrecords` while publishing as `Old records`: the two columns of
+        // `docs/errors.md` carry the identical English sentence and this rule,
+        // whose whole job is to notice that, compares two different strings.
+        // Measured, filed as the pt-BR `error.db.unreachable`:
+        // `ACCEPTED, 0 problem(s)`.
         //
         // Substituting what `printable` substitutes makes this normalise to the
         // sentence the page actually publishes. What stays deleted is
@@ -392,10 +393,10 @@ fn the_same_sentence(ours: &str, theirs: &str) -> bool {
 /// A key that is present and says nothing.
 ///
 /// **The completeness rules are about a key's *presence*; none of them looks at
-/// the value.** `""` and `"   "` both passed every rule in this file — the first
-/// is caught downstream by a generated-crate assertion, and the second only by a
-/// Markdown cell that happens to trim, so an ordinary tidy-up to that comparison
-/// would ship a blank translation with `check passed`.
+/// the value.** Without this rule `""` and `"   "` both pass every rule in this
+/// file — the first is caught downstream by a generated-crate assertion, and
+/// the second only by a Markdown cell that happens to trim, so an ordinary
+/// tidy-up to that comparison would ship a blank translation with `check passed`.
 ///
 /// Asked of every locale including the source, because an empty English sentence
 /// is a page with a gap in it.
@@ -407,14 +408,14 @@ fn no_key_is_blank(
     problems: &mut Vec<Problem>,
 ) {
     for (key, value) in &locale.message {
-        // **What a reader sees, not what `char::is_whitespace` answers.** This
-        // asked `value.trim().is_empty()`, and the rest of this file asks
-        // `shows_nothing`. A value of three `U+2063 INVISIBLE SEPARATOR`
-        // characters was accepted: the published cell is empty, and
-        // `nc_catalog::message` hands a caller a string a reader sees nothing
-        // of. Its own doc says this rule exists because `""` and `"   "` both
-        // passed every rule in this file; the third spelling of the same thing
-        // did too, and unlike the first two nothing downstream catches it.
+        // **What a reader sees, not what `char::is_whitespace` answers.** The
+        // rest of this file asks `shows_nothing`, and asked as
+        // `value.trim().is_empty()` a value of three
+        // `U+2063 INVISIBLE SEPARATOR` characters is accepted: the published
+        // cell is empty, and `nc_catalog::message` hands a caller a string a
+        // reader sees nothing of. Its own doc says this rule exists because `""`
+        // and `"   "` would pass every other rule in this file; the third
+        // spelling of the same thing would too.
         if value
             .chars()
             .any(|shown| !shown.is_whitespace() && crate::tells_two_sentences_apart(shown))
@@ -424,14 +425,14 @@ fn no_key_is_blank(
         problems.push(Problem {
             file: file.to_owned(),
             // **The line the key is on, not the line it should be written on.**
-            // This used `where_to_write`, whose own doc says it answers *"the
+            // Not `where_to_write`, whose own doc says it answers *"the
             // 1-indexed line a key that is **not** in this file should be
             // written on"* — and the key this diagnostic is about **is** in the
-            // file. Measured, three blanked keys, each reported seven lines
-            // late, each landing on a neighbouring key with a full sentence in
-            // it: a reader following the location finds healthy prose and no
-            // gap. Two of `where_to_write`'s three call sites are about keys
-            // genuinely absent and are right; this was the third.
+            // file. Measured through `where_to_write`, three blanked keys are
+            // each reported seven lines late, each landing on a neighbouring key
+            // with a full sentence in it: a reader following the location finds
+            // healthy prose and no gap. `where_to_write`'s call sites are about
+            // keys genuinely absent.
             line: crate::problem::line_of(text, &format!("\"{key}\""), 1)
                 .or_else(|| Some(where_to_write(text, key))),
             what: format!("{tag}'s \"{key}\" is blank"),
@@ -483,12 +484,13 @@ pub(crate) fn check(root: &Path, catalog: &Catalog, problems: &mut Vec<Problem>)
 
     params(catalog, &source_file, &source_text, source, problems);
 
-    // **And the other direction, which nothing asked.** A key present in every
-    // locale that no registry entry points at compiles, lands in `KEYS` and
-    // `MESSAGES`, and appears on no page — a sentence translated into every
-    // language and shown to nobody, maintained forever by people who cannot tell
-    // it is dead. That is the same argument `orphan-key` is built on, one file
-    // over, and `referenced_keys` already computes the set it needs.
+    // **And the other direction: every key is one a registry entry points at.**
+    // Without it, a key present in every locale that no registry entry points
+    // at would compile, land in `KEYS` and `MESSAGES`, and appear on no page —
+    // a sentence translated into every language and shown to nobody,
+    // maintained forever by people who cannot tell it is dead. That is the same
+    // argument `orphan-key` is built on, one file over, and `referenced_keys`
+    // already computes the set it needs.
     //
     // `nc_catalog::message` takes a `&str`, so a key no registry names is not
     // *provably* dead — nothing calls it with a literal today, and a caller that
@@ -512,10 +514,10 @@ pub(crate) fn check(root: &Path, catalog: &Catalog, problems: &mut Vec<Problem>)
 
     // **Asked of the source before the loop that skips it.** `no_key_is_blank`'s
     // doc says it is asked of every locale "including the source, because an
-    // empty English sentence is a page with a gap in it" — and its only call
-    // site was inside this loop, past the `continue` that skips the source. So
-    // `"error.db.prune-failed" = ""` in the source locale compiled clean, and
-    // the test that claimed to cover it only ever edited the translation.
+    // empty English sentence is a page with a gap in it" — and were it called
+    // only inside this loop, past the `continue` that skips the source,
+    // `"error.db.prune-failed" = ""` in the source locale would compile clean,
+    // while a test that edits only the translation would stay green.
     //
     // The generated surface does not catch it either: it asserts the sentence
     // is non-empty, which `""` fails and `"   "` passes — and whitespace is the
@@ -597,12 +599,12 @@ pub(crate) fn check(root: &Path, catalog: &Catalog, problems: &mut Vec<Problem>)
 
 /// `placeholders`, for a test that has to drive the real thing.
 ///
-/// **The gate comparing this with the emitted renderer ran a hand-written copy of
-/// it**, and the renderer half had already been given a door for exactly that
-/// reason. Measured: this predicate widened to accept `.` — so the compiler
-/// declares `{user.name}` a placeholder while the renderer calls it prose — and
-/// `cargo xtask check` passed, with the corpus holding a row for that very
-/// sentence and a comment saying "neither side accepts it".
+/// **The gate comparing this with the emitted renderer runs this, not a
+/// hand-written copy of it**, as the renderer half has a door for the same
+/// reason. Measured against a copy: this predicate widened to accept `.` — so
+/// the compiler declares `{user.name}` a placeholder while the renderer calls
+/// it prose — leaves `cargo xtask check` passing, with the corpus holding a row
+/// for that very sentence and a comment saying "neither side accepts it".
 #[doc(hidden)]
 #[must_use]
 pub fn placeholders_for_tests(sentence: &str) -> Vec<String> {
@@ -642,10 +644,11 @@ mod tests {
     ///
     /// **The hole, not just the rule** — the `SKIP`/`COVERED` pattern
     /// `NOCTUA.md §19.4` states and `nc-log` already follows. `THE_SAME_IN_BOTH`
-    /// is empty, so `.contains(…)` was constant-false and the exemption arm was
-    /// a branch no input reached: the constant, the clause and the diagnostic
-    /// naming it could all be deleted with 127 tests green, and the first person
-    /// to use the list would be trusting a hole nobody had opened.
+    /// is empty, so `.contains(…)` over it is constant-false and the exemption
+    /// arm a branch no input reaches: without this, the constant, the clause and
+    /// the diagnostic naming it could all be deleted with every test green, and
+    /// the first person to use the list would be trusting a hole nobody had
+    /// opened.
     #[test]
     fn the_exemption_silences_the_key_it_names_and_no_other() {
         let locale = |pairs: &[(&str, &str)]| crate::model::Locale {
@@ -714,11 +717,11 @@ mod tests {
 
     /// Every exemption names the reason it is one, or there are none.
     ///
-    /// **The list had no floor, no count and no field for a reason.** As
-    /// `&[&str]` a key was exempted from the untranslated check by adding six
-    /// characters, and the diagnostic's own promise — "add it to
-    /// `THE_SAME_IN_BOTH` with the reason it is the same in both" — had nowhere
-    /// to put the reason. What that buys is a published page showing one
+    /// **A list with no floor, no count and no field for a reason.** As
+    /// `&[&str]` a key would be exempted from the untranslated check by adding
+    /// six characters, and the diagnostic's own promise — "add it to
+    /// `THE_SAME_IN_BOTH` with the reason it is the same in both" — would have
+    /// nowhere to put the reason. What that buys is a published page showing one
     /// sentence in two language columns with nothing in the tree saying it was
     /// meant.
     ///
@@ -729,28 +732,26 @@ mod tests {
     #[test]
     fn every_exemption_names_the_reason_it_is_one() {
         // **The list the shipped rule is handed, not the constant beside it.**
-        // Round sixty-two put the list behind a constructor whose doc says there
-        // is exactly one way to make one outside a test and it hands back the
-        // constant — and nothing checked that it does. This walked
-        // `THE_SAME_IN_BOTH` while the rule walked `shipped().rows()`, so the
-        // seam moved one frame inward and a key could be exempted, with an empty
-        // reason, from a rule this catalog calls absolute. Two reviewers found
-        // it independently in round sixty-three; the naive form was caught only
-        // by `-D dead-code` noticing an unreferenced constant, which is the
+        // The list sits behind a constructor whose doc says there is exactly one
+        // way to make one outside a test and it hands back the constant — and a
+        // test walking `THE_SAME_IN_BOTH` while the rule walks
+        // `shipped().rows()` checks nothing of that: the seam moves one frame
+        // inward and a key can be exempted, with an empty reason, from a rule
+        // this catalog calls absolute. The naive form is caught only by
+        // `-D dead-code` noticing an unreferenced constant, which is the
         // compiler objecting to tidiness rather than a gate objecting to a hole.
-        // **A loop that could not iterate.** `THE_SAME_IN_BOTH` is `&[]`, so the
-        // three assertions this test was made of sat inside a `for` over an
-        // empty slice: the reason predicate had never run on any input, and the
-        // rule that makes the second column load-bearing was itself the
-        // unexercised hole `the_exemption_silences_the_key_it_names_and_no_other`
-        // exists to refuse one level down. Every clause of it could be deleted,
-        // or weakened to `len() >= 1`, with the suite green — and the first
-        // person to add an exemption would be trusting it.
+        // **A loop that cannot iterate.** `THE_SAME_IN_BOTH` is `&[]`, so
+        // assertions inside a `for` over it alone would sit over an empty
+        // slice: the reason predicate would run on no input, and the rule that
+        // makes the second column load-bearing would itself be the unexercised
+        // hole `the_exemption_silences_the_key_it_names_and_no_other` exists to
+        // refuse one level down. Every clause of it could be deleted, or
+        // weakened to `len() >= 1`, with the suite green — and the first person
+        // to add an exemption would be trusting it.
         //
         // So it is driven over a written-out table, and the list is checked
-        // with the same predicate. Empty is still the honest state of this
-        // catalog; what changed is that the rule now works before there is
-        // anything for it to work on.
+        // with the same predicate. Empty is the honest state of this catalog,
+        // and the rule works before there is anything for it to work on.
         for (key, reason) in [
             ("brand.name", "the product name, which is not translated"),
             (

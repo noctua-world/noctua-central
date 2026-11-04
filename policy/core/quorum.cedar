@@ -9,9 +9,8 @@
 //
 // **What this does not yet cover, and why.** `§14.7`'s status transitions —
 // suspending, freezing, declaring an account deceased — are destructive in the
-// sense that matters, and they are a `Write` on a `User` rather than a `Delete`.
-// This comment used to claim "any action against a `User`" and the policy said
-// `action == Action::"Delete"`, so the case it named was the case it missed.
+// sense that matters, and they are a `Write` on a `User` rather than a `Delete`,
+// so `action == Action::"Delete"` misses them.
 //
 // Widening it to every action against a `User` would demand quorum to *read* a
 // profile. Narrowing it correctly needs the decision to know that this

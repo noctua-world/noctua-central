@@ -1284,10 +1284,10 @@ async fn every_mutating_dispatch_writes_exactly_one_dispatch_entry_in_postgresql
 /// this repository does: `cargo xtask check --offline` sets `NC_OFFLINE`.
 ///
 /// **One schema per test, not per process.** The tests of this binary run at
-/// once, and two of them shared `nc_kernel_<pid>`: each dropped and created it
-/// again under the other — found by a reviewer, the two failing six runs of
-/// six together and the whole binary three of five, which reads every
-/// mutation of this crate as killed.
+/// once, and two of them sharing `nc_kernel_<pid>` would each drop and create
+/// it again under the other — measured, the two failing six runs of six
+/// together and the whole binary three of five, which reads every mutation of
+/// this crate as killed.
 async fn postgres(test: &str) -> Option<(sqlx::PgPool, String)> {
     use sqlx::postgres::PgPoolOptions;
 
@@ -1372,7 +1372,7 @@ async fn finish(pool: sqlx::PgPool) {
 /// answer, held here as it stands:** a unit opened past that row is one the
 /// read never shows, so it is not found, and stays open — and the read
 /// stopping is logged, at that row, with the code a verification gives it,
-/// which a reviewer found the recovery saying nothing of.
+/// rather than the recovery saying nothing of it.
 #[tokio::test]
 async fn a_unit_whose_close_a_read_did_not_reach_is_not_closed_again() {
     let mut stopped = a_stopped_journal();
@@ -1448,8 +1448,8 @@ async fn a_unit_whose_close_a_read_did_not_reach_is_not_closed_again() {
 ///
 /// Another writer closed it after the journal was asked: the close the
 /// journal holds is the one there is, nothing is written twice, and the unit
-/// is logged as recovered once. A reviewer found every close error read as a
-/// refusal with the whole suite passing, since no test reached this one.
+/// is logged as recovered once. With every close error read as a refusal, the
+/// kernel would not open, and this test would fail.
 #[tokio::test]
 async fn a_unit_the_journal_says_was_closed_meanwhile_does_not_keep_the_kernel_from_opening() {
     let mut stopped = a_stopped_journal();
@@ -1728,8 +1728,8 @@ async fn a_denied_dispatch_is_journaled_with_the_forbid_that_decided() {
     assert_eq!(entry.record.principal.as_str(), "dora");
     assert_eq!(entry.record.policy_pack.as_deref(), Some("family@1"));
     assert_eq!(entry.record.policy_epoch, Some(EPOCH));
-    // **The grant it rested on and the entity it was asked for**, which a
-    // verifier found held by nothing: an entry naming neither passed the suite.
+    // **The grant it rested on and the entity it was asked for**: an entry
+    // naming neither fails here.
     assert_eq!(
         entry.record.grant_used.as_ref().map(OpaqueId::as_str),
         Some("g.current")
@@ -1739,8 +1739,8 @@ async fn a_denied_dispatch_is_journaled_with_the_forbid_that_decided() {
         r#"{"command":"reference.note.put","entity":{"id":"postcard","type":"Content"}}"#
     );
     assert_eq!(entry.record.work_unit, None, "a denial opens no unit");
-    // **When it was refused**, which a verifier found held by nothing: every
-    // refusal written at the epoch passed the suite.
+    // **When it was refused**: every refusal written at the epoch fails this
+    // test, as it fails the one of a name no command has.
     assert_eq!(entry.record.recorded_at, NOW_MS + 5);
     assert!(
         entries.iter().all(|entry| !is_a_bracket(entry)),
@@ -1868,8 +1868,8 @@ const WAITED_ON_FOR_EVER: Duration = Duration::from_secs(3_600);
 /// the decision point asks it is a denial — the realm's facts, the grant and
 /// the entities each asked under the deadline of a host call.
 ///
-/// A verifier found the grant and the slice asked with no deadline and no
-/// test to notice: this one hung for ever with either taken out.
+/// The grant and the slice are each asked under that deadline: with either
+/// taken out, the dispatch waits on the directory for ever and this fails.
 #[tokio::test]
 async fn a_dispatch_while_the_directory_is_unavailable_is_denied() {
     let (fixture, _) = reference().await;
@@ -1956,9 +1956,9 @@ async fn a_realm_pinning_a_pack_this_kernel_does_not_carry_is_denied() {
 /// every decision asked with none: the epoch a dispatch is decided under is
 /// the directory's, and never one the kernel puts in its place.
 ///
-/// A verifier found the epoch held to nothing: a kernel deciding under an
-/// epoch of its own allowed a write on a realm at epoch zero, and only the
-/// journal's copy of it was read.
+/// The refusal and the store are read, not only the journal's copy of the
+/// epoch: a kernel deciding under an epoch of its own would allow a write on
+/// a realm at epoch zero.
 #[tokio::test]
 async fn a_realm_the_directory_gives_no_epoch_is_denied() {
     let (fixture, _) = reference().await;
@@ -2073,9 +2073,9 @@ async fn what_the_journal_left(fixture: &Fixture<Failing<nc_journal::InMemory>>,
                 matches!(step.state, nc_local::UnitState::Undone { .. }),
                 "{units:#?}"
             );
-            // **And the reversal is in the person's history under the name
-            // the kernel's documentation gives it**, which a verifier found
-            // held by nothing: a reversal labelled anything passed the suite.
+            // **And the reversal is in the person's history under the name the
+            // kernel's documentation gives it**: a reversal labelled anything
+            // else fails here.
             assert!(
                 units.iter().any(|unit| {
                     unit.meta.kind == UnitKind::Undo { target: step.unit }
@@ -2111,8 +2111,9 @@ async fn what_the_journal_left(fixture: &Fixture<Failing<nc_journal::InMemory>>,
 /// A read is journaled before its answer is returned, so a read the journal
 /// did not take is answered with nothing it read.
 ///
-/// A verifier found no test of it: a decision point that withheld only a
-/// write's answer passed the whole suite.
+/// **Withheld as a write's answer is**: a decision point that withheld only a
+/// write's answer would fail this, and the timer, event and surface tests
+/// after it.
 #[tokio::test]
 async fn a_read_the_journal_did_not_take_is_withheld() {
     let (fixture, told) = reference().await;
@@ -2174,9 +2175,9 @@ fn a_second() -> String {
 /// and never for a read whose answer was withheld — at the top of its tree or
 /// nested beneath a read the journal refused.
 ///
-/// **A reviewer found a real bug with it**: a read held nothing for later, so
-/// the timer was armed at once, and the pump fired it as ana for a dispatch
-/// that is in no journal entry.
+/// **What it holds against**: a read that held nothing for later would arm the
+/// timer at once, and the pump fire it as ana for a dispatch that is in no
+/// journal entry.
 #[tokio::test]
 async fn a_timer_set_by_a_read_the_journal_did_not_take_never_fires() {
     let (fixture, told) = putting_off().await;
@@ -2227,8 +2228,8 @@ async fn a_timer_set_by_a_read_the_journal_did_not_take_never_fires() {
 /// An event a read publishes reaches the queue only once the journal took the
 /// read's entry, and is never heard for a read whose answer was withheld.
 ///
-/// **A reviewer found a real bug with it**: the event was queued at once, and
-/// the peer heard it as ana for a dispatch that is in no journal entry.
+/// **What it holds against**: the event queued at once, and the peer hearing it
+/// as ana for a dispatch that is in no journal entry.
 #[tokio::test]
 async fn an_event_published_by_a_read_the_journal_did_not_take_is_never_heard() {
     let (fixture, told) = putting_off().await;
@@ -2299,9 +2300,9 @@ fn showing(text: &str) -> String {
 /// did not take the read's entry, as a timer it sets never fires and an event
 /// it publishes is never heard — and the same read the journal takes shows it.
 ///
-/// **Written by a reviewer, who found a real bug with it**: the surface was
-/// opened and rendered into at once, so a read whose answer was withheld, in
-/// no entry of the journal, left a person shown what it found.
+/// **What it holds against**: a surface opened and rendered into at once, so
+/// that a read whose answer was withheld, in no entry of the journal, would
+/// leave a person shown what it found.
 #[tokio::test]
 async fn a_surface_rendered_by_a_read_the_journal_did_not_take_is_never_shown() {
     let (fixture, told) = with(&[], "").await;
@@ -2355,9 +2356,8 @@ async fn a_surface_rendered_by_a_read_the_journal_did_not_take_is_never_shown() 
 /// nested in another plugin's — is never shown, and the same unit kept shows
 /// it.
 ///
-/// **Written by a reviewer, who found a real bug with it**: the unit was
-/// reverted and its dispatch refused, and the surface went on showing what it
-/// did.
+/// **What it holds against**: the unit reverted and its dispatch refused, and
+/// the surface going on showing what it did.
 #[tokio::test]
 async fn a_surface_rendered_in_a_unit_the_journal_did_not_keep_is_never_shown() {
     let (fixture, told) = with(&[], "").await;
@@ -2416,9 +2416,9 @@ async fn a_surface_rendered_in_a_unit_the_journal_did_not_keep_is_never_shown() 
 /// no blob this machine holds any more, and the sweep deletes them once their
 /// grace has passed.
 ///
-/// **What a blob made in a unit outlived** until the reversal took them off:
-/// the store's writes went back and its blobs stayed pinned, kept for ever by a
-/// unit the journal never said was kept.
+/// **What a blob made in a unit would otherwise outlive**: with the pins left
+/// on, the store's writes would go back and its blobs stay pinned, kept for
+/// ever by a unit the journal never said was kept.
 #[tokio::test]
 async fn a_unit_the_journal_did_not_close_takes_the_pins_off_the_blobs_it_made() {
     let (fixture, told) = with(&[], "").await;
@@ -2493,9 +2493,9 @@ async fn a_unit_the_journal_did_not_close_takes_the_pins_off_the_blobs_it_made()
 /// not keep either, has its pin taken off again by that unit's reversal: a row
 /// that names a blob is not a committed unit holding it.
 ///
-/// **What no test told apart**, measured by a review: with every row taken for
-/// a pin, the second reversal left the blob pinned for good — held by no unit
-/// the journal kept, and deleted by no sweep — and every suite passed.
+/// **A row is not a pin**: with every row taken for one, the second reversal
+/// would leave the blob pinned for good — held by no unit the journal kept, and
+/// deleted by no sweep — which this test refuses.
 #[tokio::test]
 async fn a_blob_made_again_after_its_pin_came_off_is_unpinned_by_the_next_reversal() {
     let (fixture, told) = with(&[], "").await;
@@ -2562,9 +2562,9 @@ fn text_of(answered: &str, name: &str) -> String {
 /// the unit's reversal, leave the unit committed in the store and open in the
 /// journal — and the caller is told exactly that, never that it was reverted.
 ///
-/// A verifier found the caller told "reverted at once" while the store kept
-/// the write and every later dispatch could read it: the reversal's refusal
-/// was dropped.
+/// What it holds against: the reversal's refusal dropped, and the caller told
+/// "reverted at once" while the store keeps the write and every later dispatch
+/// can read it.
 #[tokio::test]
 async fn a_reversal_the_store_refuses_leaves_the_unit_committed_and_says_so() {
     let (fixture, told) = reference().await;
@@ -2653,8 +2653,8 @@ async fn a_reversal_the_store_refuses_leaves_the_unit_committed_and_says_so() {
 /// lost after the journal's own commit — is a unit kept: the journal is asked
 /// how the unit closed before anything is reverted.
 ///
-/// A verifier found such a unit reverted while the hash-chained journal
-/// recorded it as committed.
+/// What it holds against: such a unit reverted while the hash-chained journal
+/// records it as committed.
 #[tokio::test]
 async fn a_close_the_journal_took_before_its_answer_was_lost_is_kept() {
     let (fixture, told) = reference().await;
@@ -2701,10 +2701,9 @@ async fn a_close_the_journal_took_before_its_answer_was_lost_is_kept() {
 /// kept whole: the timer it set is armed, and it is no longer held from the
 /// pruner.
 ///
-/// **Held by no suite before**: a reviewer reduced the arm of `units::close`
-/// that keeps such a unit to `return Ok(())` and every suite of the crate
-/// passed, the unit's timers, events and surfaces dropped and the unit held
-/// from the pruner until the next open.
+/// **The arm of `units::close` that keeps such a unit is read here**: reduced
+/// to `return Ok(())`, it would leave the unit's timers, events and surfaces
+/// dropped and the unit held from the pruner until the next open.
 #[tokio::test]
 async fn a_unit_whose_close_landed_before_its_answer_was_lost_arms_its_timer() {
     let (fixture, told) = putting_off().await;
@@ -2904,10 +2903,9 @@ async fn an_irreversible_command_needs_a_confirmation_the_kernel_issued() {
 /// evaluated, and is honoured by the next one it was issued for.
 ///
 /// The directory answers the realm at an epoch past what the decision point's
-/// schema holds, so Cedar's request is refused (`[NC-POL-0005]`). **A
-/// reviewer found a real bug with it**: the confirmation was redeemed before
-/// the request was built, so the person's single-use confirmation went with a
-/// dispatch the kernel never decided.
+/// schema holds, so Cedar's request is refused (`[NC-POL-0005]`). **Not
+/// redeemed before the request is built**: redeemed then, the person's
+/// single-use confirmation would go with a dispatch the kernel never decided.
 #[tokio::test]
 async fn a_confirmation_is_not_spent_on_a_decision_that_could_not_be_evaluated() {
     let fixture = reference_and_peer().await;
@@ -2943,9 +2941,8 @@ async fn a_confirmation_is_not_spent_on_a_decision_that_could_not_be_evaluated()
 /// A confirmation lives no longer than `confirmation_ttl_ms` when the
 /// kernel's clock steps back after it was issued.
 ///
-/// **A reviewer found a real bug with it**: its life was measured on that
-/// clock alone, with a saturating difference, so a clock stepped back an hour
-/// gave it an hour more.
+/// **Not on that clock alone**: measured on it alone, with a saturating
+/// difference, its life would gain an hour from a clock stepped back an hour.
 #[tokio::test]
 async fn a_confirmation_lives_no_longer_than_its_time_when_the_clock_steps_back() {
     let fixture = reference_and_peer().await;
@@ -3129,8 +3126,8 @@ async fn a_name_no_command_has_or_could_have_is_refused_and_journaled_without_it
         fixture.logged("kernel.dispatch_refused", "reason"),
         ["unknown_command", "malformed_name"]
     );
-    // **And the code each was refused with**, which a verifier found held by
-    // nothing: a log naming every refusal by a denial's code passed the suite.
+    // **And the code each was refused with**: a log naming every refusal by a
+    // denial's code fails here.
     assert_eq!(
         fixture.logged("kernel.dispatch_refused", "code"),
         [
@@ -3334,10 +3331,9 @@ async fn a_command_that_fails_or_traps_leaves_nothing_it_wrote() {
 async fn a_nested_command_that_fails_having_written_aborts_the_whole_unit() {
     let fixture = reference_and_peer().await;
     let put = note("photo", Some("half done"));
-    // **In the case of what doomed it**, which a verifier found held by
-    // nothing: a doomed unit refused as `internal` whatever doomed it passed
-    // the suite, and a caller cannot tell a refusal it may retry from one it
-    // may not.
+    // **In the case of what doomed it**: a doomed unit refused as `internal`
+    // whatever doomed it fails here, and would leave a caller unable to tell a
+    // refusal it may retry from one it may not.
     for (nested, kind, code) in [
         (
             "peer.note.put-then-fail",
@@ -3394,8 +3390,9 @@ async fn a_nested_command_that_fails_having_written_aborts_the_whole_unit() {
 /// written nothing: what a killed plugin staged cannot be known, and its
 /// caller may not keep the unit by ignoring the refusal.
 ///
-/// A verifier found that only a trap after a write was tested, so a decision
-/// point dooming a unit for a write alone passed the whole suite.
+/// The peer traps here having written nothing, so a decision point that
+/// doomed a unit only for a nested failure that wrote would keep it, and fails
+/// this test.
 #[tokio::test]
 async fn a_trap_dooms_the_unit_it_ran_in_though_it_wrote_nothing() {
     let fixture = reference_and_peer().await;
@@ -3435,10 +3432,10 @@ async fn a_trap_dooms_the_unit_it_ran_in_though_it_wrote_nothing() {
     );
     assert_eq!(fixture.logged("kernel.plugin_killed", "cause"), ["trap"]);
     assert_eq!(fixture.logged("kernel.unit_aborted", "cause"), ["nested"]);
-    // **Every field of each line, not its name and one field**, which a
-    // verifier found: a log naming another unit as aborted, or another slot
-    // as killed, passed the suite. The unit is the one the journal bracketed,
-    // and the plugin killed is the peer, loaded second.
+    // **Every field of each line, not its name and one field**: a log naming
+    // another unit as aborted, or another slot as killed, fails here. The unit
+    // is the one the journal bracketed, and the plugin killed is the peer,
+    // loaded second.
     let unit = entries
         .iter()
         .find(|entry| is_a_bracket(entry))
@@ -3465,9 +3462,9 @@ async fn a_trap_dooms_the_unit_it_ran_in_though_it_wrote_nothing() {
 /// ran in, whatever its caller does with the refusal: what it wrote is not
 /// kept, since nothing in the journal says it was done.
 ///
-/// A verifier found only an entry refused at the top of a tree tested: with
-/// the doom taken out of the nested case, the whole suite passed while the
-/// nested write was committed with no entry recording it.
+/// The entry refused here is the nested dispatch's: with the doom taken out of
+/// the nested case, this test fails, the nested write committed with no entry
+/// recording it.
 #[tokio::test]
 async fn a_nested_dispatch_whose_entry_the_journal_did_not_take_leaves_nothing_it_wrote() {
     let (fixture, told) = with(
@@ -3527,8 +3524,8 @@ async fn a_nested_dispatch_whose_entry_the_journal_did_not_take_leaves_nothing_i
 /// caller, which may go on and have its unit kept: only a failure that wrote,
 /// or a trap, dooms it.
 ///
-/// A verifier found this half of the rule held by nothing: a decision point
-/// dooming the unit for every nested failure passed the whole suite.
+/// This half of the rule is read here: a decision point dooming the unit for
+/// every nested failure fails this test.
 #[tokio::test]
 async fn a_nested_failure_that_wrote_nothing_leaves_the_unit_to_its_caller() {
     let fixture = reference_and_peer().await;
@@ -3716,10 +3713,9 @@ async fn a_call_tree_past_its_deadline_dispatches_nothing_more() {
 /// A command refused past its tree's deadline is logged as the command it
 /// names: a write as one that changes state, and a read as one that does not.
 ///
-/// **Written by a reviewer (wave 5, PEP), and it found a real bug**: a refusal
-/// from the tree's depth, deadline or count was logged as `mutating: false`
-/// whatever it refused, and a refused write is the one a person may be
-/// waiting on (`catalog/log-events.toml`).
+/// **What it holds against**: a refusal from the tree's depth, deadline or
+/// count logged as `mutating: false` whatever it refused, while a refused write
+/// is the one a person may be waiting on (`catalog/log-events.toml`).
 #[tokio::test]
 async fn a_command_refused_past_its_trees_deadline_is_logged_as_the_command_it_names() {
     let fixture = reference_and_peer().await;
@@ -3758,11 +3754,11 @@ async fn a_command_refused_past_its_trees_deadline_is_logged_as_the_command_it_n
 /// would have asked for, and the tree journals those two refusals and no
 /// other.
 ///
-/// A verifier found the dispatch past the count refused as a value and
-/// journaled each time: a relay told to go on through its refusals wrote one
-/// entry for every call past the count, bounded by nothing but its fuel. A
-/// later reviewer found the plugin killed at the first one past the count,
-/// whoever had spent it (`isolation.rs`), which is why it is told first.
+/// Refused as a value and journaled each time, the dispatch past the count
+/// would let a relay told to go on through its refusals write one entry for
+/// every call past the count, bounded by nothing but its fuel. Trapped at the
+/// first one past the count, the plugin would be killed whoever had spent it
+/// (`isolation.rs`), which is why it is told first.
 #[tokio::test]
 async fn a_call_tree_dispatches_no_more_than_its_count() {
     let count = KERNEL.dispatches_per_tree;
@@ -3827,9 +3823,9 @@ async fn a_call_tree_dispatches_no_more_than_its_count() {
 /// spends the tree's count with each refusal and is told at the count and
 /// killed past it, as one whose dispatches ran is.
 ///
-/// A verifier found that only a dispatch that passed the budgets was counted:
-/// past the deadline, a relay going on through its refusals was refused as
-/// often as its fuel let it ask, each refusal one more entry.
+/// Were only a dispatch that passed the budgets counted, a relay going on
+/// through its refusals past the deadline would be refused as often as its fuel
+/// let it ask, each refusal one more entry.
 #[tokio::test]
 async fn a_plugin_asking_on_past_the_deadline_is_stopped_at_its_trees_count() {
     let fixture = reference_and_peer().await;
@@ -3860,8 +3856,8 @@ async fn a_plugin_asking_on_past_the_deadline_is_stopped_at_its_trees_count() {
 /// is told spends the tree's count with each refusal of the depth, and is
 /// told at the count and killed past it.
 ///
-/// A verifier found the depth's refusal left uncounted: the deepest relay,
-/// going on through its refusals, was refused as often as its fuel let it ask.
+/// With the depth's refusal left uncounted, the deepest relay, going on through
+/// its refusals, would be refused as often as its fuel lets it ask.
 #[tokio::test]
 async fn a_plugin_asking_on_past_the_depth_is_stopped_at_its_trees_count() {
     let depth = usize::try_from(KERNEL.dispatch_depth).expect("fits");
@@ -3989,9 +3985,9 @@ async fn a_write_from_a_command_that_only_reads_is_refused() {
 /// writes nothing either.
 ///
 /// **Its tree holds a unit**, the outer command's, so a unit to stage in is
-/// not what refuses it: its frame's own declaration is. Found when the frame's
-/// rule was weakened to every command and every suite stayed green, a read at
-/// the top of a tree having no unit to be refused for.
+/// not what refuses it: its frame's own declaration is. With the frame's rule
+/// weakened to let every command write, a write from a read at the top of a
+/// tree is still refused, for want of a unit, and the one here is not.
 #[tokio::test]
 async fn a_write_from_a_read_nested_inside_a_change_is_refused_too() {
     let fixture = reference_and_peer().await;
@@ -4304,10 +4300,10 @@ async fn a_table_the_local_database_does_not_bound_is_refused<
 /// is withheld, the units past the table's bound all stay, and the same prune
 /// the journal takes deletes a batch of them.
 ///
-/// **Written by a reviewer, who found a real bug with it**: the pruner deleted
-/// before the entry was written, outside every unit, so a prune the journal
-/// held no entry of — its unit closed as aborted — had taken ten thousand of
-/// a person's units.
+/// **What it holds against**: a pruner that deletes before the entry is
+/// written, outside every unit, so that a prune the journal holds no entry of —
+/// its unit closed as aborted — would have taken ten thousand of a person's
+/// units.
 #[tokio::test]
 async fn a_prune_whose_entry_the_journal_did_not_take_deletes_nothing() {
     let (fixture, told) = reference().await;
@@ -4364,10 +4360,10 @@ async fn a_prune_whose_entry_the_journal_did_not_take_deletes_nothing() {
 ///
 /// A unit whose close the journal did not take and whose reversal the store
 /// refused is committed in the store and open in the journal — here the
-/// oldest of the units past the table's bound. A reviewer found the pruner
-/// taking its record: the kernel opened next closed the unit as aborted and
-/// its write stayed in the store. A dry run is refused as well, which a
-/// verifier found held by no test, and a prune of another table is not held.
+/// oldest of the units past the table's bound. With its record taken by the
+/// pruner, the kernel opened next would close the unit as aborted and its write
+/// stay in the store. A dry run is refused as well, and a prune of another
+/// table is not held.
 #[tokio::test]
 async fn a_prune_takes_no_unit_the_journal_holds_open_and_reverts_it_first() {
     let told = Arc::new(Mutex::new(Told::default()));
@@ -4447,10 +4443,9 @@ async fn a_prune_takes_no_unit_the_journal_holds_open_and_reverts_it_first() {
 /// A kernel opened again over the journal the first one wrote and the same
 /// store is held to finding nothing left open.
 ///
-/// **Over what the first kernel wrote, read back**: `nc_journal::InMemory` is
-/// a value, and a reviewer found this opened over the empty one the first
-/// kernel's journal was cloned from — so it found nothing left open whatever
-/// the first kernel left.
+/// **Over what the first kernel wrote, read back**: `nc_journal::InMemory` is a
+/// value, and opened over the empty one the first kernel's journal was cloned
+/// from, this would find nothing left open whatever the first kernel left.
 async fn reverted_before_it_was_pruned(
     fixture: Fixture<Failing<nc_journal::InMemory>>,
     left: nc_ids::Snowflake,
@@ -4558,9 +4553,9 @@ async fn left_committed(
 /// Neither silence is read as a no: one the journal cannot say of stays held,
 /// the prune refused with the journal's code; one it says it kept is no longer
 /// held, kept, and the prune runs. **The journal is silent of that one unit
-/// alone**: one silent of every unit refuses every entry a unit holds, the
-/// prune's own among them, which refused the prune before it asked anything —
-/// and a plant reading the silence as "still open" passed.
+/// alone**: one silent of every unit would refuse every entry a unit holds, the
+/// prune's own among them, refusing the prune before it asked anything — and a
+/// plant reading the silence as "still open" would pass.
 #[tokio::test]
 async fn a_unit_the_journal_kept_after_all_is_not_reverted_before_a_prune() {
     let (fixture, told) = reference().await;
@@ -4655,9 +4650,9 @@ async fn a_unit_the_journal_kept_after_all_is_not_reverted_before_a_prune() {
 /// the store answers reverts the unit before it runs.
 ///
 /// **A store that cannot read the unit is not one that holds nothing of it.**
-/// A reviewer found the read's error taken for "nothing" by a plant, with the
-/// whole suite passing: the prune ran, and the unit was closed as aborted in
-/// the journal with its write left in the store, where nothing reverts it.
+/// With the read's error taken for "nothing", the prune would run, and the unit
+/// be closed as aborted in the journal with its write left in the store, where
+/// nothing reverts it — which this test refuses.
 #[tokio::test]
 async fn a_unit_held_from_the_pruner_that_the_store_cannot_read_stays_held_and_is_not_closed() {
     let (fixture, told) = reference().await;
@@ -4721,9 +4716,9 @@ async fn a_unit_held_from_the_pruner_that_the_store_cannot_read_stays_held_and_i
 ///
 /// The newer unit's reversal puts back the value the older one left, which is
 /// what the older one's reversal is held to — the order the recovery on open
-/// keeps too. A reviewer found the prune's order held by no test: oldest
-/// first, the older reversal was refused as a conflict, and with it every
-/// prune of the units for as long as the kernel ran.
+/// keeps too. Pruned oldest first, the older reversal would be refused as a
+/// conflict, and with it every prune of the units for as long as the kernel
+/// runs.
 #[tokio::test]
 async fn two_units_held_from_the_pruner_over_one_key_are_reverted_the_newer_first() {
     let (fixture, told) = reference().await;
@@ -4886,8 +4881,7 @@ async fn a_kernel_does_not_open_over_a_unit_it_could_not_recover_and_opens_once_
 /// **Neither is read as a no.** A store that cannot read the unit is not one
 /// that holds nothing of it, which would close it with its writes kept; and a
 /// journal that cannot say is not one that says it is open, which would revert
-/// what it may have kept. A reviewer found each read so, by a plant, with the
-/// whole suite still passing.
+/// what it may have kept. Either, planted to read so, fails here.
 async fn what_cannot_answer_recovers_nothing(history: &nc_journal::InMemory, store: &Stalling) {
     let log = Arc::new(Captured::default());
     store.refuses_units.store(true, Ordering::SeqCst);
@@ -5043,9 +5037,9 @@ async fn unrecovered(
 /// reverted, the newer first, and the kernel opens.
 ///
 /// The newer unit's reversal puts back the value the older one left, which is
-/// what the older one's reversal is held to. A reviewer found them reverted
-/// oldest first: the second reversal was refused as a conflict, and every
-/// later open refused the same way, for good.
+/// what the older one's reversal is held to. Reverted oldest first, the second
+/// reversal would be refused as a conflict, and every later open refused the
+/// same way, for good.
 #[tokio::test]
 async fn two_units_left_committed_over_one_key_are_both_reverted_the_newer_first() {
     let mut stopped = a_stopped_journal();
@@ -5107,10 +5101,9 @@ async fn two_units_left_committed_over_one_key_are_both_reverted_the_newer_first
 /// breaks and with the code of what broke it, and logged as broken; and a
 /// verification asked to start further on starts there.
 ///
-/// A verifier found neither half held by any test, since every verification
-/// here read an intact chain from its start: a `journal.verify` answering
-/// `verified` over a rewritten entry, or one reading from the start whatever
-/// it was asked, passed the whole suite.
+/// A `journal.verify` answering `verified` over a rewritten entry, or one
+/// reading from the start whatever it is asked, fails this test: it reads a
+/// chain broken where it breaks, and a verification asked to start further on.
 #[tokio::test]
 async fn a_chain_that_does_not_verify_is_answered_broken_where_it_breaks() {
     let (fixture, told) = reference().await;
@@ -5156,8 +5149,9 @@ async fn a_chain_that_does_not_verify_is_answered_broken_where_it_breaks() {
         Value::Integer(2),
         "{further_on}"
     );
-    // **And the log says where it began.** It said *the chain verified end to
-    // end* of this one, with nothing to tell it from a whole chain read.
+    // **And the log says where it began**: without it, the log would say *the
+    // chain verified end to end* of this one, with nothing to tell it from a
+    // whole chain read.
     assert_eq!(fixture.logged("journal.verified", "from"), ["1"]);
 }
 
@@ -5257,11 +5251,10 @@ async fn a_denial_is_logged_with_its_code_and_is_not_journaled() {
 /// code and the plugin's slot — once for the instance, however often a
 /// command of it tries again.
 ///
-/// **Written by a reviewer (wave 5, PEP), and it found a real bug**: the
-/// plugin was answered `denied` with `[NC-PLUG-0024]` and nothing recorded
-/// it, no journal entry and no log line, where a capability denied and a
-/// fetch refused are each logged — and every authorization denial is
-/// recorded (`NOCTUA.md §15.5`).
+/// **What it holds against**: the plugin answered `denied` with
+/// `[NC-PLUG-0024]` and nothing recording it, no journal entry and no log
+/// line, where a capability denied and a fetch refused are each logged — and
+/// every authorization denial is recorded (`NOCTUA.md §15.5`).
 #[tokio::test]
 async fn a_write_refused_where_nothing_may_change_is_logged_with_its_code_once() {
     let (fixture, _) = reference().await;
@@ -5294,10 +5287,9 @@ async fn a_write_refused_where_nothing_may_change_is_logged_with_its_code_once()
 /// loaded, before anything is dispatched to it, and again by the instance a
 /// restart brings back.
 ///
-/// **Written from a reviewer's probe (wave 5, documents), and it found a real
-/// bug**: what `activate` was refused was logged on the return of a later,
-/// unrelated call — the probe's reached no host function at all — and never
-/// for a plugin nothing dispatched.
+/// **What it holds against**: what `activate` was refused logged on the return
+/// of a later, unrelated call — the probe's reaches no host function at all —
+/// and never for a plugin nothing dispatched.
 #[tokio::test]
 async fn a_capability_refused_in_activate_is_logged_once_the_plugin_is_loaded() {
     let store = stalling(
@@ -5594,8 +5586,8 @@ async fn redo_not_closed(
 /// it. The control is a redo whose blob nothing else holds, whose reversal
 /// takes off the pin it put back.
 ///
-/// Found by a review: the reversal took off the pin carla's committed step
-/// held, and the sweep deleted the bytes.
+/// What it holds against: the reversal taking off the pin carla's committed
+/// step holds, and the sweep deleting the bytes.
 #[tokio::test]
 async fn a_redo_the_journal_did_not_close_leaves_the_pin_another_unit_holds() {
     let (fixture, told) = with_the_blobs().await;
@@ -5655,8 +5647,8 @@ async fn a_redo_the_journal_did_not_close_leaves_the_pin_another_unit_holds() {
 /// set right what the unit sent with. The plugin is granted no network, so its
 /// request is refused and the unit holds the compensation and nothing else.
 ///
-/// Found by a review: an aborted unit's refusal named nothing it registered,
-/// though what an abort answers is meant to name each one.
+/// What it holds against: an aborted unit's refusal naming nothing it
+/// registered, though what an abort answers is meant to name each one.
 #[tokio::test]
 async fn a_unit_not_kept_names_the_compensations_registered_in_it() {
     let (fixture, told) = with(&[], "").await;
@@ -5836,9 +5828,9 @@ async fn two_realms_minting_with(
 /// second is refused as a unit the file holds already, which is why they
 /// share it.
 ///
-/// **A reviewer found a real bug with it**: every test of two realms on one
-/// machine gave them two flakes, and two realms on the one flake numbered
-/// their units alike, so one realm's write was refused for the other's unit.
+/// **Two realms on one flake, as a machine runs them**: given two flakes, two
+/// realms minting with minters of their own would never number their units
+/// alike, and a test of them would not show the refusal above.
 #[tokio::test]
 async fn two_realms_sharing_their_machines_minter_each_keep_their_units() {
     let shared = minting_on(7);
@@ -5882,10 +5874,9 @@ fn caller_of(world: &MemoryDirectory, name: &str) -> Caller {
 /// What a plugin keeps for an entity of one realm is not read in another
 /// whose kernel shares the machine's local database.
 ///
-/// **A reviewer found a real bug with it**: the store kept a plugin's keys by
-/// plugin and key alone, so in `cousins` bruno — the owner of that realm's
-/// diary — read through the decision point what ana keeps of hers at home,
-/// where he is denied it.
+/// **Not by plugin and key alone**: a store that kept a plugin's keys so would
+/// let bruno in `cousins` — the owner of that realm's diary — read through the
+/// decision point what ana keeps of hers at home, where he is denied it.
 #[tokio::test]
 async fn what_a_plugin_keeps_in_one_realm_is_not_read_in_another() {
     let ((home, home_world), (away, away_world)) =
@@ -5971,10 +5962,9 @@ async fn a_write_in_one_realm_does_not_change_what_another_keeps() {
 ///
 /// Each time ana dispatches a command that cannot be undone with a fresh
 /// confirmation, the directory fails, and she dispatches again with the same
-/// confirmation once it answers. **A reviewer found a real bug with it**: the
-/// entities were asked for after the confirmation was redeemed, so a
-/// directory failing there took the person's single-use confirmation with a
-/// dispatch the kernel never decided.
+/// confirmation once it answers. **Not asked after the confirmation is
+/// redeemed**: asked then, a directory failing there would take the person's
+/// single-use confirmation with a dispatch the kernel never decided.
 #[tokio::test]
 async fn a_confirmation_is_not_spent_on_a_dispatch_the_directory_could_not_decide() {
     let (fixture, _) = reference().await;
@@ -6092,9 +6082,8 @@ async fn a_kernel_with_a_device_of_anas_id() -> (Kernel<Env<nc_journal::InMemory
 /// A confirmation issued to the user `ana` is not redeemed by the device
 /// `ana`: Cedar holds the two for two principals, and so does the kernel.
 ///
-/// **A reviewer found a real bug with it**: the kernel bound a confirmation
-/// to the principal's identifier alone, and the device was handed the
-/// person's confirmation.
+/// **Not by the principal's identifier alone**: bound to it, a confirmation of
+/// the person's would be handed to the device.
 #[tokio::test]
 async fn a_confirmation_issued_to_a_user_is_not_redeemed_by_a_device_of_the_same_id() {
     let (kernel, seen) = a_kernel_with_a_device_of_anas_id().await;
@@ -6178,9 +6167,9 @@ where
 /// A unit reverted before a prune keeps the pin of a blob a step kept since
 /// made again: that step holds it.
 ///
-/// **A reviewer found a real bug with it**: the reversal asked whether
-/// another unit held only the pins a redo put back, and took off every pin
-/// the unit itself put on — so the sweep deleted the bytes of carla's kept
+/// **Asked of every pin, not of a redo's alone**: a reversal that asked whether
+/// another unit holds only the pins a redo put back would take off every pin
+/// the unit itself put on — so the sweep would delete the bytes of carla's kept
 /// step.
 #[tokio::test]
 async fn a_unit_reverted_before_a_prune_keeps_the_pin_a_step_kept_since_holds() {
@@ -6350,11 +6339,10 @@ async fn a_blob_its_undo_left_unpinned(
 /// close the journal did not take and whose reversal the store refused — is
 /// reverted by the next prune, though the sweep ran a day in between.
 ///
-/// **A reviewer found a real bug with it**: the prune waited for every unit
-/// the kernel held committed and open, and the sweep for none. It forgot the
-/// row and the bytes the undo had unpinned; the prune then reverted the undo,
-/// which pinned the blob again — inserting a pinned row for bytes that were
-/// gone — and committed the step again as holding it.
+/// **The sweep waits for such a unit, as the prune does**: waiting for none, it
+/// would forget the row and the bytes the undo had unpinned; the prune would
+/// then revert the undo, which pins the blob again — inserting a pinned row for
+/// bytes that are gone — and commit the step again as holding it.
 #[tokio::test]
 async fn a_blob_a_reversal_still_owed_pins_again_is_not_swept_before_it() {
     let (fixture, told) = with_the_blobs().await;
@@ -6393,10 +6381,10 @@ async fn a_blob_a_reversal_still_owed_pins_again_is_not_swept_before_it() {
 /// gone gets no pinned row with nothing behind it, and its step's blob is said
 /// to be unavailable rather than kept.
 ///
-/// **What a reviewer found the reversal doing**: inserting a pinned row for a
-/// blob the sweep had taken, which no sweep would take again — a blob said to
-/// be kept with no bytes behind it. The sweep now leaves such a blob alone;
-/// this holds the reversal to it should the row go another way.
+/// **What it holds against**: the reversal inserting a pinned row for a blob
+/// the sweep had taken, which no sweep would take again — a blob said to be
+/// kept with no bytes behind it. The sweep leaves such a blob alone; this holds
+/// the reversal to it should the row go another way.
 #[tokio::test]
 async fn a_reversal_pins_again_no_blob_whose_row_is_gone() {
     let (fixture, told) = with_the_blobs().await;
@@ -6437,11 +6425,11 @@ async fn a_reversal_pins_again_no_blob_whose_row_is_gone() {
 /// journal is reverted when that kernel opens again, though the pruner ran
 /// over the file in between — as another realm's kernel, sharing it, runs it.
 ///
-/// **A reviewer found a real bug with it**: the pruner took the oldest units
-/// of the file, holding back only the ones the kernel running it left, so the
-/// stopped unit's record went, and the recovery closed it as aborted with its
-/// write left in the store. The kernel commits a unit held from the pruner
-/// until it hears the journal's close.
+/// **Held from the pruner until the journal's close is heard**: a pruner that
+/// took the oldest units of the file, holding back only the ones the kernel
+/// running it left, would take the stopped unit's record, and the recovery
+/// close it as aborted with its write left in the store. The kernel commits a
+/// unit held from the pruner until it hears the journal's close.
 #[tokio::test]
 async fn a_unit_a_stopped_kernel_left_open_is_reverted_though_the_pruner_ran_meanwhile() {
     let Some((pool, schema)) = postgres("left_open_pruned").await else {

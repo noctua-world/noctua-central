@@ -1,16 +1,15 @@
 //! Gates over the source tree.
 //!
-//! Three rules shape every gate here, and each was paid for elsewhere in this
-//! fleet:
+//! Three rules shape every gate here:
 //!
 //! **A finding is a returned value, not an error.** One pass reports everything
 //! it found, because fixing one problem to be shown the next is a miserable loop.
 //!
 //! **A finding says what to do, in its own field.** `what` is the defect and
 //! `fix` is the remedy, and they are separate because a single `message` can only
-//! be checked by its length — which a reviewer duly defeated by writing a long
-//! sentence containing no remedy at all. Two fields make "there is a remedy" a
-//! structural property instead of a word count.
+//! be checked by its length — and a long sentence containing no remedy at all
+//! passes that check. Two fields make "there is a remedy" a structural property
+//! instead of a word count.
 //!
 //! **An exclusion list is a claim and needs its own test.** `SKIP` is exactly how
 //! a gate gets quietly turned off for the code it exists to guard, so `COVERED`
@@ -38,10 +37,9 @@ pub(crate) struct Finding {
 /// **any** depth.
 ///
 /// Any depth and not anchored at the root, because a nested `target/` is still <!-- allow-reference: `target/` is build output, which CARGO_TARGET_DIR may put elsewhere -->
-/// build output. `noctua-design` learned this the hard way: a second package
-/// created a nested `node_modules`,
-/// its root-anchored entry did not match, and the gates began walking vendored
-/// output through a symlink.
+/// build output. In `noctua-design`, a second package creates a nested
+/// `node_modules` that a root-anchored entry does not match, and with only
+/// that entry its gates walk vendored output through a symlink.
 const SKIP: [&str; 3] = [".git", "target", "node_modules"];
 
 /// The only three names `SKIP` may hold.
@@ -62,7 +60,7 @@ const NOTHING_ELSE_MAY_BE_SKIPPED: [&str; 3] = [".git", "target", "node_modules"
 
 /// The directories the gates exist for.
 ///
-/// Not used at run time — it is the subject of the two tests that keep `SKIP`
+/// Not used at run time — it is the subject of two of the tests that keep `SKIP`
 /// honest. Adding a directory here is how a later stage says "the gates must
 /// reach this too", and a directory holding no files yet cannot be listed: the
 /// walk-level test would fail for the absence rather than for a skip.
@@ -87,16 +85,16 @@ const COVERED: [&str; 20] = [
     // The plugins, which are members and ship as the components the kernel
     // loads.
     "plugins",
-    // **The directory the unbounded-table gate is entirely about.** It was not
-    // here, so `SKIP` could be given `"migrations"` and the section-citation
-    // gate dropped fifteen citations with `check passed`.
+    // **The directory the unbounded-table gate is entirely about.** Without it
+    // here, `"migrations"` in `SKIP` would pass both of this list's tests while
+    // taking every citation in the migrations out of the section-citation gate.
     "migrations",
     // And the local database's, which the same gate reads in its own dialect.
     "local-migrations",
     // **And the generated developer surfaces**, which are normative (`§15.3`).
-    // `"docs"` in `SKIP` took six committed files out of the `.env` walk and out
-    // of the section-citation gate — 130 paths to 124, 522 citations to 516 —
-    // with both of the tests that exist to keep `SKIP` honest still green.
+    // Measured without it here: `"docs"` in `SKIP` took six committed files out
+    // of the `.env` walk and out of the section-citation gate — 130 paths to
+    // 124, 522 citations to 516 — with both of this list's tests still green.
     "docs",
 ];
 
@@ -112,9 +110,9 @@ const COVERED: [&str; 20] = [
 /// design system actually draws. The two agree on the day they are written and
 /// never again.
 pub(crate) fn colours_come_through_the_design_system(file: &str, text: &str) -> Vec<Finding> {
-    // **Parsed, not scanned.** Two spellings walked past a text scan in
-    // succession: a `#` inside a quoted value cut the line at the wrong place,
-    // and then `"noctua\u002Dcolors" = "0.4"` held no literal `noctua-colors`
+    // **Parsed, not scanned.** Two spellings walk past a text scan: a `#`
+    // inside a quoted value cuts the line at the wrong place, and
+    // `"noctua\u002Dcolors" = "0.4"` holds no literal `noctua-colors`
     // anywhere in the file at all. Measured, that key added to the root
     // `[workspace.dependencies]`:
     // `ok 10 manifest(s) reach the colour system through the design system`,
@@ -133,12 +131,11 @@ pub(crate) fn colours_come_through_the_design_system(file: &str, text: &str) -> 
         return findings;
     };
     let named: Vec<String> = the_dependencies_of(&manifest);
-    // **Contains, not equals.** The scan this replaced reported
-    // `noctua-colors-tokens` too, and a crate whose name is the colour system's
-    // with something on the end is the same second copy under a different
-    // package — narrowing to an exact match would have been a repair that took
-    // a rule away. The parser is what closes the escape and the rename; the
-    // breadth is kept.
+    // **Contains, not equals.** `noctua-colors-tokens` is reported too: a crate
+    // whose name is the colour system's with something on the end is the same
+    // second copy under a different package, and an exact match would take that
+    // rule away. The parser is what closes the escape and the rename; the
+    // breadth stays.
     if named.iter().any(|name| name.contains("noctua-colors")) {
         findings.push(Finding {
             file: file.to_owned(),
@@ -268,11 +265,11 @@ fn blank_raw_string(source: &[char], mut index: usize, out: &mut String) -> Opti
 mod what_ships_is_not_the_tests {
     /// What [`super::without_test_modules`] hands back holds no test.
     ///
-    /// **Nothing decided the wrapper at all.** Replacing its whole body with
-    /// `source.to_owned()` left `check passed` — and with it the defect it
-    /// exists for came straight back: the one production `CARGO_TERM_COLOR`
-    /// call changed to `"auto"` with the needle written only inside a test's
-    /// assertion message, green. Measured by a reviewer on 2026-09-12.
+    /// **This is the test of the wrapper itself.** With its whole body replaced
+    /// by `source.to_owned()`, the defect it exists for comes straight back —
+    /// the one production `CARGO_TERM_COLOR` call changed to `"auto"`, with the
+    /// needle written only inside a test's assertion message, passes the source
+    /// assertion that reads through it — and this test fails.
     ///
     /// The two directions, because a wrapper that blanks *everything* also
     /// holds no test: what ships must still carry the item each caller is
@@ -314,31 +311,27 @@ mod what_ships_is_not_the_tests {
 /// character.
 ///
 /// **Neither the first `#[cfg(test)]` nor the last is where production ends.**
-/// Two source assertions in `check.rs` cut the file at
-/// `rfind("#[cfg(test)]")` under a comment saying that puts test code where a
-/// source assertion cannot see it. It does the opposite: the last one in that
-/// file opens a module fourteen thousand lines below where production stops, so
-/// the "production" half carried every test in the file, those two assertions
-/// included. Measured on 2026-09-11 — the one production
-/// `CARGO_TERM_COLOR` call set to `"auto"` and the needle written into an
-/// ordinary `//` comment inside a test — `check passed`, `1313 test(s)`. The
-/// *first* occurrence is no better: that file holds a test-only helper module
-/// eight hundred lines above its own tests, which is why the cut was moved in
-/// the first place.
+/// Cutting a file at `rfind("#[cfg(test)]")` does not put test code where a
+/// source assertion cannot see it — it does the opposite: the last one in
+/// `check.rs` sits thousands of lines below where production stops, so the
+/// "production" half carries nearly every test in the file. Measured with
+/// that cut — the one production `CARGO_TERM_COLOR` call set to `"auto"` and
+/// the needle written into an ordinary `//` comment inside a test —
+/// `check passed`. The *first* occurrence is no better: that file holds
+/// test-only items among its production code, far above its own tests.
 ///
-/// **And the first answer to that was a third copy of a question this file
-/// already answers.** It scanned lines, armed on a bare `#[cfg(test)]` and took
-/// the next line as the item — so an attribute standing above a *doc block*, or
-/// above a `const X: […] = [`, armed and disarmed without blanking anything.
-/// Measured by a reviewer on 2026-09-12: 43 of `check.rs`'s 63 `#[cfg(test)]`
-/// items survived into what it called the code that ships, `WHAT_THE_GATE_CAN_
-/// SAY`'s 728 literals among them — and replacing the whole body with
-/// `source.to_owned()` left `check passed`, so nothing decided it either.
+/// **Nor is a line scanner the answer.** One that arms on a bare
+/// `#[cfg(test)]` and takes the next line as the item arms and disarms without
+/// blanking anything when the attribute stands above a *doc block*, or above a
+/// `const X: […] = [`. Measured on `check.rs`: most of its `#[cfg(test)]`
+/// items survived such a scan into what it called the code that ships,
+/// `WHAT_THE_GATE_CAN_SAY`'s literals among them.
 ///
 /// [`the_test_modules`] is the reader that answers this correctly, with the
-/// four failed attempts recorded in its own doc and a cross-check beside it.
-/// This is a thin wrapper over it, and the test below is what says the wrapper
-/// cut anything at all.
+/// shapes that defeat a simpler reading recorded in its own doc and a
+/// cross-check beside it. This is a thin wrapper over it, and
+/// `what_ships_holds_no_test_and_still_holds_the_code`, above it, is what says
+/// the wrapper cut anything at all.
 ///
 /// Blanked rather than deleted, so an offset here is an offset in the file and
 /// an indented needle still matches its own indentation. A file whose modules
@@ -463,17 +456,17 @@ pub(crate) fn code_without_text(text: &str) -> String {
         }
         // A character literal, told from a lifetime by looking for the close.
         //
-        // **`char_literal_at` and not a second reading of the same rule.** This
-        // was written out again here and got it wrong in one place: for `'\''`
-        // the search began at the *escaped* quote, so the literal closed one
-        // character early and the real terminator was re-scanned as a fresh
+        // **`char_literal_at` and not a second reading of the same rule.** A
+        // second copy written out here can get it wrong in one place: for
+        // `'\''` a search that begins at the *escaped* quote closes the literal
+        // one character early and re-scans the real terminator as a fresh
         // apostrophe. From there the lexer is one quote out of phase — in
         // `matches!(here, '\''|'"')` the stray quote pairs with the `'` two
         // positions along, swallows the `|`, and leaves a `"` to open a phantom
-        // string — after which this function reports code as blanked and text as
-        // code, which is precisely backwards for the guard that depends on it.
-        // Measured, with the §15.1 walk's assertion deleted and two lines
-        // planted:
+        // string — after which this function would report code as blanked and
+        // text as code, which is precisely backwards for the guard that depends
+        // on it. Measured with such a copy, the §15.1 walk's assertion deleted
+        // and two lines planted:
         //
         // ```text
         // const _: bool = matches!('a', '\''|'"');
@@ -482,8 +475,8 @@ pub(crate) fn code_without_text(text: &str) -> String {
         //   ->  check passed
         // ```
         //
-        // The same `(2..8)` window also missed `'\u{100}'` and every longer
-        // escape, which were then emitted whole as code. One reader for one
+        // A fixed `(2..8)` window also misses `'\u{100}'` and every longer
+        // escape, which are then emitted whole as code. One reader for one
         // rule: the escape offsets and the eleven-character limit live in
         // `char_literal_at`, which the raw-string and byte-string scanners
         // beside it already use.
@@ -504,12 +497,12 @@ pub(crate) fn code_without_text(text: &str) -> String {
 
 /// Source with its comments removed, respecting string literals.
 ///
-/// **Three strippers in this tree read a `//` inside a string as a comment**, and
-/// each one was measured being walked past. `wall.rs` and
-/// `every_generated_value_is_compared.rs` are string-aware; these two were not,
-/// so a URL in a string literal followed by a compile-time query reported
-/// nothing, and a variable "read" only by a `/* … */` block gave
-/// `ok 7 declared setting(s) are read somewhere`.
+/// **A stripper that reads a `//` inside a string as a comment is walked
+/// past.** `wall.rs` and `every_generated_value_is_compared.rs` are
+/// string-aware, and so is this one: one that is not reports nothing for a URL
+/// in a string literal followed by a compile-time query, and a variable "read"
+/// only by a `/* … */` block gives `ok 7 declared setting(s) are read
+/// somewhere`.
 ///
 /// `line_comment` is `//` for Rust and `#` for TOML, YAML and shell; `--` for
 /// SQL. Which characters open a string depends on the same answer, because SQL,
@@ -526,8 +519,8 @@ pub(crate) fn without_comments(text: &str, line_comment: &str) -> String {
     // SELECT 'the " char'; -- PROBE     -> the `-- PROBE` survives
     // ```
     //
-    // — real content cut out of one, and in the other the exact hole the
-    // migration-comment fix closed, reopened by one `"` in a string.
+    // — real content cut out of one, and in the other a migration's comment
+    // read as code because of one `"` in a string.
     let mut quoted: Option<char> = None;
     let mut escaped = false;
     let mut block = 0_usize;
@@ -551,25 +544,24 @@ pub(crate) fn without_comments(text: &str, line_comment: &str) -> String {
         }
         // **A raw string ends at its own hash count, not at the next quote.**
         // `r#"see "https://x" for details"#` holds bare quotes, so counting them
-        // left the scan *outside* a string when it met the `//` of `https://` —
-        // and the rest of the line, including a `sqlx::query!`, was dropped as a
-        // comment. Measured: 1 finding on the plain line, **0** with the raw
-        // string in front of it.
+        // leaves the scan *outside* a string when it meets the `//` of `https://`
+        // — and the rest of the line, including a `sqlx::query!`, is dropped as a
+        // comment. Measured that way: 1 finding on the plain line, **0** with the
+        // raw string in front of it.
         //
-        // **The whole opener is consumed, prefix and quote together.** It used
-        // to push the `r` and step one character, so for `r"…"` — no hashes —
-        // the very next character was the *opening* quote and
-        // `closes_raw(_, _, 0)` is `(0..0).all(…)`, which is true: the string
-        // closed where it opened. Measured, `r"http://x"` followed by a
-        // `sqlx::query!` on the same line gave **0** findings against 1 for the
-        // plain-string version. The fix for one shape broke the shape one hash
-        // shorter, which is the argument for consuming the opener whole rather
-        // than re-reading its last character as content.
-        // **Rust's syntax, on Rust.** `char_literal_at` below is guarded by
-        // `rust` and this was not, so a raw-string opener was recognised in
+        // **The whole opener is consumed, prefix and quote together.** Pushing
+        // the `r` and stepping one character makes the very next character of
+        // `r"…"` — no hashes — the *opening* quote, and `closes_raw(_, _, 0)` is
+        // `(0..0).all(…)`, which is true: the string closes where it opens.
+        // Measured that way, `r"http://x"` followed by a `sqlx::query!` on the
+        // same line gives **0** findings against 1 for the plain string. Consuming
+        // the opener whole, rather than re-reading its last character as content,
+        // is what keeps every hash count, zero included, on one rule.
+        // **Rust's syntax, on Rust.** Like `char_literal_at` below, this is
+        // guarded by `rust`: unguarded, a raw-string opener is recognised in
         // YAML, shell, TOML and SQL — where `r"` is ordinary text. A raw string
         // deliberately does not reset at a newline, so one `grep -r"x` in a
-        // workflow or a compose file put the scanner inside a string for the
+        // workflow or a compose file puts the scanner inside a string for the
         // **rest of the file**:
         //
         // ```text
@@ -579,8 +571,8 @@ pub(crate) fn without_comments(text: &str, line_comment: &str) -> String {
         // ```
         //
         // Which is `no_unread_variable`'s own stated failure — a gate whose own
-        // prose satisfies it is wired to nothing — reintroduced by one
-        // character, and costing the whole file rather than one line.
+        // prose satisfies it is wired to nothing — produced by one character,
+        // and costing the whole file rather than one line.
         if rust
             && quoted.is_none()
             && raw.is_none()
@@ -617,13 +609,13 @@ pub(crate) fn without_comments(text: &str, line_comment: &str) -> String {
             index += 1;
             continue;
         }
-        // **A char literal is not a quote.** `let c = '"';` toggled the state
-        // and left every `//` on every following line unrecognised — this file
-        // holds that literal, so the stripper walked past its own doc comments
-        // and reported them. The newline reset below bounds that to one line,
-        // and a line is exactly where a `//` lives, so the literal is read as
-        // what it is. A lifetime — `'a`, with no closing quote — is not one, and
-        // falls through to being ordinary text.
+        // **A char literal is not a quote.** Read as one, `let c = '"';` toggles
+        // the state and leaves every `//` on every following line unrecognised —
+        // the newline reset below is not applied to Rust, so nothing bounds it —
+        // and this file holds that literal, so a stripper that toggles on it
+        // walks past its own doc comments and reports them. The literal is read
+        // as what it is. A lifetime — `'a`, with no closing quote — is not one,
+        // and falls through to being ordinary text.
         if rust
             && quoted.is_none()
             && here == '\''
@@ -666,13 +658,11 @@ pub(crate) fn without_comments(text: &str, line_comment: &str) -> String {
                 }
                 continue;
             }
-            // **A newline does not end a quote, and the sentence here said it
-            // did.** *"Rust has no unescaped newline inside a string literal"*
-            // is false — a bare newline between quotes is part of the string,
-            // and the `\` at a line end is the *continuation* that removes one.
-            // [`blanked`]'s own comment already recorded that this premise was
-            // wrong about `without_string_contents`; it was wrong here too, and
-            // here it cuts text rather than blanking it. Measured:
+            // **A newline does not end a quote in Rust.** A bare newline
+            // between quotes is part of the string, and the `\` at a line end is
+            // the *continuation* that removes one. Resetting the quote at a
+            // newline cuts text here rather than blanking it. Measured with the
+            // reset:
             //
             // ```text
             // let s = "one
@@ -680,7 +670,7 @@ pub(crate) fn without_comments(text: &str, line_comment: &str) -> String {
             // two";
             // ```
             //
-            // came back as `let s = "one\n\ntwo";` — a line of the *string*
+            // comes back as `let s = "one\n\ntwo";` — a line of the *string*
             // deleted as though it were prose, from the function that decides
             // what is code for half the gates in this file.
             //
@@ -703,13 +693,12 @@ pub(crate) fn without_comments(text: &str, line_comment: &str) -> String {
 
 /// The opener of a raw string starting at `index`: its width, and its hash count.
 ///
-/// **Every prefix Rust gives one.** This looked for a bare `r` and rejected one
-/// preceded by a name character — which is right for `for`, and wrong for `br`
-/// and `cr`: a byte raw string was not recognised at all, so
-/// `br#"a "http://x" b"#` left the scan outside a string at the `//` and the
-/// rest of the line was dropped as a comment. Measured: **0** findings against
-/// 1 for the same line with a plain string. The same class as the fix beside
-/// it, one prefix along.
+/// **Every prefix Rust gives one.** A bare `r` preceded by a name character is
+/// not an opener — `for` ends in one — but `br` and `cr` are: a reader that
+/// looks only for a bare `r` does not recognise a byte raw string at all, so
+/// `br#"a "http://x" b"#` leaves the scan outside a string at the `//` and the
+/// rest of the line is dropped as a comment. Measured with such a reader:
+/// **0** findings against 1 for the same line with a plain string.
 pub(crate) fn raw_string_at(chars: &[char], index: usize) -> Option<(usize, usize)> {
     // `r`, `br` and `cr` open one; `b"` and `c"` are ordinary strings with a
     // prefix, and the quote below handles those unchanged.
@@ -766,11 +755,11 @@ fn text_at(chars: &[char], index: usize, needle: &str) -> bool {
 
 /// The `sqlx` macros that need a database to compile.
 ///
-/// **The promise was written as a feature and is a fact about usage.**
-/// `Cargo.toml` says *"Runtime queries only — no `query!` macros — so nothing
-/// needs `DATABASE_URL` at build time and there is no `.sqlx` cache to keep in
-/// sync with the schema"*, and `AGENTS.md` restated that as the `macros`
-/// feature being off. It is not off and cannot be: `sqlx::migrate!` is how
+/// **The promise is a fact about usage, not a feature.** `Cargo.toml` says
+/// *"Runtime queries only — no `query!` macros — so nothing needs
+/// `DATABASE_URL` at build time and there is no `.sqlx` cache to keep in sync
+/// with the schema"*, and that does not mean the `macros` feature is off. It
+/// is not off and cannot be: `sqlx::migrate!` is how
 /// `migrations/` is embedded, it needs no database, and it comes from `macros`
 /// — removing the feature fails as ``cannot find `migrate` in `sqlx` ``.
 ///
@@ -788,7 +777,7 @@ fn text_at(chars: &[char], index: usize, needle: &str) -> bool {
 ///
 /// **Built from halves, so no needle's spelling sits in this file.** The gate
 /// reads every Rust file in the tree, which includes this one — and
-/// written out, the list reported itself six times. The alternative is an
+/// written out, the list reports itself once per entry. The alternative is an
 /// exclusion for `xtask/src/gates.rs`, which is a hole in the one file where a
 /// hole would be least visible; `wall.rs`'s tests build their needles the same
 /// way for the same reason.
@@ -801,7 +790,7 @@ pub(crate) const COMPILE_TIME_QUERIES: [&str; 12] = [
     concat!("query_file_scalar", "!"),
     // **And the `_unchecked` half of each pair.** `sqlx` ships both forms and
     // both need `DATABASE_URL` at build time — the coupling this list exists to
-    // refuse — so naming six of twelve left the other six free. `_unchecked`
+    // refuse — so naming six of twelve leaves the other six free. `_unchecked`
     // skips the *type* checking and keeps the connection: it is the one a
     // developer reaches for when the checked form will not compile, which is
     // exactly when the pressure to use it is highest.
@@ -842,13 +831,13 @@ pub(crate) const COMPILE_TIME_QUERIES: [&str; 12] = [
 pub(crate) fn no_ignored_test(file: &str, text: &str) -> Vec<Finding> {
     let stripped = without_comments(text, "//");
     let lines: Vec<&str> = stripped.lines().collect();
-    // **Not a list of spellings — the position.** Every version of this gate
-    // before it was four spellings long, and the fifth was free:
-    // `#[cfg(target_os = "vxworks")]` above a test was invisible to this and to
-    // the census in `check.rs`, so hiding a test moved no number.
+    // **Not a list of spellings — the position.** A list four spellings long
+    // leaves the fifth free: `#[cfg(target_os = "vxworks")]` above a test is
+    // invisible to such a list, so the test leaves the run with nothing
+    // reported.
     //
     // **And not a list of *line shapes* either.** Reading the attribute run as
-    // "lines that start with `#[`" left ten more spellings free — a blank line
+    // "lines that start with `#[`" leaves ten more spellings free — a blank line
     // between two attributes, a doc comment between the attribute and the item,
     // a `cfg_attr` `cargo fmt` wrapped across four lines — none of them
     // ingenious, all of them things an author or a formatter writes. So the run
@@ -877,17 +866,16 @@ pub(crate) fn no_ignored_test(file: &str, text: &str) -> Vec<Finding> {
             .join(" ");
         let about_a_test = run.attributes.iter().any(|(_, text)| is_a_test_attribute(text))
             // **What is in the module, not what it is called.** See
-            // `holds_a_test` for the thirty modules this tree has whose names do
-            // not begin with `tests`, and for the two tests of slack that made
+            // `holds_a_test` for the modules this tree has whose names do not
+            // begin with `tests`, and for the census slack that would make
             // hiding one of them silent everywhere else too.
             || opens_a_module(&run.item) && holds_a_test(&lines, run.at)
             // A `mod x;` declares a whole file, and a condition on it deletes
             // every test in that file without touching it.
             //
-            // **Through the same visibility strip as the clause above it**,
-            // which this did not use while sitting three lines below one that
-            // did. `pub mod entry;` is not `mod `, so one token turned the rule
-            // off: measured, `#[cfg(unix)]` above `mod docs;` in
+            // **Through the same visibility strip as the clause above it.**
+            // `pub mod entry;` is not `mod `, so without the strip one token
+            // turns the rule off: measured, `#[cfg(unix)]` above `mod docs;` in
             // `nc-catalog-compiler` is `error … this test is hidden from the run
             // by a condition`, and the same attribute above `pub mod entry;` in
             // `nc-journal` is `check passed, with 4 warn line(s)` with that file
@@ -908,10 +896,10 @@ pub(crate) fn no_ignored_test(file: &str, text: &str) -> Vec<Finding> {
                 // `#[cfg(test)]` on a test module is how one is written, and it
                 // is the condition `cargo test` sets.
                 // **Whatever the item is.** `cfg(test)` is the condition
-                // `cargo test` sets, so it hides nothing from the run — this
-                // was narrowed to a module called `tests`, then to any module,
-                // and both narrowings were a false finding waiting for someone
-                // to write `#[cfg(test)] #[test] fn t()`. Any *other* condition
+                // `cargo test` sets, so it hides nothing from the run — and
+                // narrowing this to a module called `tests`, or to any module,
+                // is a false finding waiting for someone to write
+                // `#[cfg(test)] #[test] fn t()`. Any *other* condition
                 // in the same run is still reported on its own line.
                 if attribute.starts_with("#[cfg(test)]") {
                     continue;
@@ -938,7 +926,7 @@ struct Run {
 /// Every item in a file with its attribute run, brackets balanced.
 ///
 /// An attribute may span lines — `cargo fmt` wraps a long `cfg_attr` across four
-/// — and blank lines and doc comments may sit inside a run. Both were what made
+/// — and blank lines and doc comments may sit inside a run. Both are what make
 /// a line-shaped reading of the run miss ten spellings.
 fn runs(lines: &[&str]) -> Vec<Run> {
     let mut found = Vec::new();
@@ -986,24 +974,23 @@ fn opens_a_module(item: &str) -> bool {
 
 /// Whether the module opening at `from` holds a test anywhere inside it.
 ///
-/// **The gate was keyed on the name `tests` and this tree has thirty modules
-/// that are not called that** — `query_tests` (50 tests), `the_frozen_path_rule`
-/// (52), `hostile_store_tests` (18), `every_report_wire` (16), `narrowing` (7)
-/// and more. None of them was `about_a_test`, so a second `#[cfg]` on one was
-/// invisible here. Measured, `#[cfg(test)] #[cfg(not(test))]` written above
-/// `mod width_tests` in `crates/nc-ids/src/base32.rs`: `cargo test -p xtask`
-/// gave 401 passed and `cargo run -p xtask -- check` printed `check passed`,
-/// the only trace being `1072 test(s)` becoming `1070`. The census in
-/// `check.rs` is the only other thing that could see it, and it carries two
-/// tests of slack because doctests count towards `passed` — so hiding one or
-/// two tests moved nothing at all.
+/// **Keyed on the name `tests`, the gate misses every module not called
+/// that** — `query_tests`, `the_frozen_path_rule`, `hostile_store_tests`,
+/// `every_report_wire`, `narrowing` and more — and a second `#[cfg]` on one is
+/// invisible. Measured, `#[cfg(test)] #[cfg(not(test))]` written above
+/// `mod width_tests` in `crates/nc-ids/src/base32.rs`, with the name as the key
+/// and with the census in `check.rs` counting doc-tests towards `passed` — two
+/// tests of slack in its floor: `cargo test -p xtask` passed and
+/// `cargo run -p xtask -- check` printed `check passed`, the only trace being
+/// the test count falling by two. `doctests_in` takes that slack out of the
+/// census's floor.
 ///
 /// What makes a module a test module is what is in it, so that is what is read.
 ///
 /// **Spent once over the whole text, not a line at a time.** A literal may span
 /// lines, so asking a whole-file stripper for one line at a time blanks the
-/// first line of one and hands back every line after it as code — measured, a
-/// three-line `\`-continued fixture whose tail is `}` written inside an
+/// first line of one and hands back every line after it as code — measured that
+/// way, a three-line `\`-continued fixture whose tail is `}` written inside an
 /// existing helper in `crates/nc-policy/src/problem.rs`, above the module's
 /// first `#[test]`: with `#[cfg(unix)]` on that module and no fixture the gate
 /// says `this test is hidden from the run by a condition`; with the fixture,
@@ -1097,22 +1084,21 @@ fn flatten(text: &str) -> String {
 
 /// Whether an attribute makes the item below it a test.
 ///
-/// **`#[tokio::test(flavor = "multi_thread")]` is one, and matching `]` missed
+/// **`#[tokio::test(flavor = "multi_thread")]` is one, and matching `]` misses
 /// it.** Measured: that spelling over `changing_any_entry_breaks_verification_at
 /// _that_entry` — acceptance criterion 3's own test — with
-/// `#[cfg(all(unix, not(unix)))]` above it, gave `ok 717 test(s)` and
+/// `#[cfg(all(unix, not(unix)))]` above it, under a match on `]`, gave
 /// `check passed`, while the identical `cfg` over a plain `#[tokio::test]` was
 /// reported. The configuration parentheses were the whole difference between a
 /// red run and a green one.
 pub(crate) fn is_a_test_attribute(attribute: &str) -> bool {
     let attribute = attribute.trim_start();
-    // **A path, not a prefix list.** `tokio::test` was accepted and
-    // `::tokio::test` was not — a leading `::` is ordinary Rust, `rustc --test`
-    // runs it, and it was invisible to this *and* to the census that shares this
-    // predicate, so hiding a test lowered both sides of the comparison meant to
-    // catch it. Measured on acceptance criterion 3's own test:
-    // `ok 726 test(s)`, `check passed`, and `cargo test -- --list` no longer
-    // naming it.
+    // **A path, not a prefix list.** A prefix list that accepts `tokio::test`
+    // misses `::tokio::test` — a leading `::` is ordinary Rust, `rustc --test`
+    // runs it, and it is then invisible to this *and* to the census that shares
+    // this predicate, so hiding a test lowers both sides of the comparison
+    // meant to catch it. Measured with such a list, on acceptance criterion 3's
+    // own test: `check passed`, and `cargo test -- --list` no longer naming it.
     //
     // So the rule is what an attribute *resolves to*: its last path segment.
     // `#[test]`, `#[tokio::test]`, `#[::tokio::test]`, `#[std::prelude::v1::test]`
@@ -1130,13 +1116,13 @@ pub(crate) fn is_a_test_attribute(attribute: &str) -> bool {
     {
         return true;
     }
-    // **A `cfg_attr`'s arguments resolved, not three spellings of them.** The
-    // bare form was made to resolve a path and this stayed a substring list, so
-    // `#[cfg_attr(all(), ::tokio::test)]` was a test to the compiler and not to
-    // this — measured on acceptance criterion 3's own test, with an `#[ignore]`
-    // beside it that `no_ignored_test` then did not judge either, `ok 732
-    // test(s)`, `check passed`, and `cargo test -- --list` naming it as ignored.
-    // Both sides of the floor moved together, which is what the floor was for.
+    // **A `cfg_attr`'s arguments resolved, not three spellings of them.** Read
+    // as a substring list, `#[cfg_attr(all(), ::tokio::test)]` is a test to the
+    // compiler and not to this — measured on acceptance criterion 3's own test,
+    // with an `#[ignore]` beside it that `no_ignored_test` then did not judge
+    // either: `check passed`, and `cargo test -- --list` naming it as ignored.
+    // Both sides of the floor then move together, and the floor, which exists
+    // to catch exactly that hiding, sees nothing.
     if let Some(inside) = attribute
         .strip_prefix("#[cfg_attr(")
         .and_then(|rest| rest.strip_suffix(")]"))
@@ -1177,13 +1163,12 @@ fn hidden(file: &str, index: usize, by: &str) -> Finding {
 
 /// Whether `§15.1` judges a file, named once for the walk, its floor and its fixture.
 ///
-/// **It was written out three times.** The rule lived inline in the walk;
-/// `check.rs` kept `SCOPED_OUT`, a hand-made list of the two exclusions that lie
-/// inside the scope, so the floor could subtract them; and the fixture had no
-/// copy at all, which is why it planted in `crates/nc-catalog/` and expected a
-/// finding there. Two hand-kept copies of one rule is the shape `§19.3`
-/// condemns, and here the second copy was what a floor subtracted — so a crate
-/// added to one and not the other is slack in the floor rather than a failure.
+/// **Named once.** The walk and the planted fixture ask this, and what the
+/// floor in `check.rs` subtracts is `scoped_out()`, derived from the same
+/// `OUTSIDE_THE_ERROR_CODE_SCOPE` this function reads — because two hand-kept
+/// copies of one rule is the shape `§19.3` condemns, and where the second copy
+/// is what a floor subtracts, a crate added to one and not the other is slack
+/// in the floor rather than a failure.
 ///
 /// The scope: the crates the platform runs, the plugins it hosts and the schema
 /// it runs against. `xtask` is out because it is the tool that reads these
@@ -1192,12 +1177,11 @@ fn hidden(file: &str, index: usize, by: &str) -> Finding {
 /// reservation lines are out because a rule refusing the parser its own subject
 /// is one nobody can satisfy.
 ///
-/// **`plugins/` is inside, and was not.** A plugin is a member cargo builds like
-/// any crate, and a code it spells out is one the registry cannot renumber just
-/// the same — measured, `NC-JRNL-0003` written into a title in
-/// `plugins/reference/src/behaviour.rs` left this step's line identical to a
-/// clean run, because the scope was the two directories the tree had before
-/// the plugin tree arrived.
+/// **`plugins/` is inside.** A plugin is a member cargo builds like any crate,
+/// and a code it spells out is one the registry cannot renumber just the same
+/// — measured with `plugins/` outside the scope, `NC-JRNL-0003` written into a
+/// title in `plugins/reference/src/behaviour.rs` left this step's line
+/// identical to a clean run.
 pub(crate) fn in_the_error_code_scope(relative: &str) -> bool {
     if !(relative.starts_with("crates/")
         || relative.starts_with("migrations/")
@@ -1213,13 +1197,13 @@ pub(crate) fn in_the_error_code_scope(relative: &str) -> bool {
 
 /// The crates `§15.1` must judge, written out — one entry per member crate.
 ///
-/// **The exclusion list was pinned only against itself.** Every consumer derived
-/// its expectation from `OUTSIDE_THE_ERROR_CODE_SCOPE`: `check.rs`'s
-/// `scoped_out()` subtracts from it, and the planted-fixture test filters its
-/// expectation through `in_the_error_code_scope`. So adding one line to the list
-/// was a change nothing could disagree with — measured, `"crates/nc-journal/"`
-/// added and a hand-written `NC-JRNL-0003` left in the audit crate's own tamper
-/// suite:
+/// **The exclusion list cannot be pinned only against itself.** Every other
+/// consumer derives its expectation from `OUTSIDE_THE_ERROR_CODE_SCOPE`:
+/// `check.rs`'s `scoped_out()` subtracts from it, and the planted-fixture test
+/// filters its expectation through `in_the_error_code_scope`. Without this
+/// list, adding one line to that one is a change nothing can disagree with —
+/// measured, `"crates/nc-journal/"` added and a hand-written `NC-JRNL-0003`
+/// left in the audit crate's own tamper suite:
 ///
 /// ```text
 /// ok    21707 source line(s) name no error code as text (§15.1)   (baseline 31188)
@@ -1229,14 +1213,13 @@ pub(crate) fn in_the_error_code_scope(relative: &str) -> bool {
 ///
 /// The canary lives in `nc-canon` and the fixture plants under a pid-named
 /// directory, so neither is in the excluded crate; the line floor stayed exact
-/// because it subtracted the same crate in the same edit. Deriving the floor
-/// from the list is what `xtask/canaries/README.md` presented as keeping the
-/// list honest, and it is what made the list unfalsifiable.
+/// because it subtracted the same crate in the same edit. A floor derived from
+/// the list cannot keep the list honest: it makes the list unfalsifiable.
 ///
-/// This is the other half, and it is the rule that file already states for
-/// another list: *a case per thing it could grow to include — one per workspace
-/// member.* A member added here and to the exclusion list in the same edit is a
-/// contradiction the test names.
+/// This is the other half, and it is the rule `xtask/canaries/README.md`
+/// states for another list: *a case per thing it could grow to include — one
+/// per member crate.* A member added here and to the exclusion list in the
+/// same edit is a contradiction the test names.
 #[cfg(test)]
 const JUDGED_BY_THE_ERROR_CODE_RULE: [&str; 12] = [
     "crates/nc-authz/",
@@ -1258,8 +1241,8 @@ const JUDGED_BY_THE_ERROR_CODE_RULE: [&str; 12] = [
 /// `catalog/`, `docs/` and `xtask/` are here for completeness of the sentence
 /// above; `crates/ + migrations/ + plugins/` does not contain them, which is why
 /// `check.rs`'s floor must subtract only the two that *are* inside the scope —
-/// subtracting a directory the scope never held is how another floor saturated
-/// to zero and stopped being a floor at all. `xtask/` is a workspace member, and
+/// subtracting a directory the scope never held can saturate a floor to zero,
+/// and then it stops being a floor at all. `xtask/` is a workspace member, and
 /// the census that holds every member to one of these two lists reads it here.
 pub(crate) const OUTSIDE_THE_ERROR_CODE_SCOPE: [&str; 5] = [
     "catalog/",
@@ -1272,12 +1255,12 @@ pub(crate) const OUTSIDE_THE_ERROR_CODE_SCOPE: [&str; 5] = [
 /// No error code is written out at a call site.
 ///
 /// **`NOCTUA.md §15.1`: "Codes are declared in `catalog/errors.toml`, never
-/// invented at the call site."** Four things are required there and one had a
-/// gate — the append-only ledger. This is the second. Measured before it
-/// existed: a probe file in `nc-canon` returning the literal
-/// `"NC-KERN-4242"`, a code in no registry, and `ok 20 error code(s) reserved,
-/// and every code this catalog declares is one of them` — because the
-/// reservation gate reads `catalog/`, and a call site is not `catalog/`.
+/// invented at the call site."** Four things are required there; the
+/// append-only ledger is one gate and this is another. Measured without it: a
+/// probe file in `nc-canon` returning the literal `"NC-KERN-4242"`, a code in
+/// no registry, and `ok 20 error code(s) reserved, and every code this catalog
+/// declares is one of them` — because the reservation gate reads `catalog/`,
+/// and a call site is not `catalog/`.
 ///
 /// The generated crate is where the codes legitimately are, and the registry and
 /// its ledger are where they are declared; everywhere else, an `NC-` code in a
@@ -1290,10 +1273,10 @@ pub(crate) fn no_code_is_written_at_a_call_site(
     let mut read = 0_usize;
     // **And the lines as the file holds them, which is what a floor can
     // compare.** What this gate judges is the text with comments blanked,
-    // continuations joined and `concat!` glued — 326 fewer lines than the files
-    // hold, on this tree — so an exact floor against a count of the tree was
-    // short by that much on a correct run, and the ratio that covered the
-    // difference covered a whole crate with it. Measured: one line removing
+    // continuations joined and `concat!` glued — fewer lines than the files
+    // hold — so an exact floor against a count of the tree is short by the
+    // difference on a correct run, and a ratio loose enough to cover the
+    // difference covers a whole crate with it. Measured: one line removing
     // `crates/nc-journal/` — the audit log — took 31 % of the walk with a real
     // `NC-KERN-4242` in it, under a floor that allowed half. Two numbers: this
     // one answers "did the walk reach every file", exactly; the planted-fixture
@@ -1321,22 +1304,21 @@ pub(crate) fn no_code_is_written_at_a_call_site(
         let Ok(text) = std::fs::read_to_string(path) else {
             return;
         };
-        // **The comment marker its own file type uses.** `//` was applied to a
-        // migration too, so `-- raised as NC-KERN-9001 when this fails` — prose
-        // in SQL — was a finding, while the byte-identical sentence in a Rust
-        // `//` comment was not. `references::Comments` already knows which is
-        // which.
+        // **The comment marker its own file type uses.** With `//` applied to a
+        // migration too, `-- raised as NC-KERN-9001 when this fails` — prose in
+        // SQL — is a finding, while the byte-identical sentence in a Rust `//`
+        // comment is not. `references::Comments` already knows which is which.
         let comment = if path.extension().is_some_and(|kind| kind == "sql") {
             "--"
         } else {
             "//"
         };
         // **A string continued with `\` is one line to the compiler.** Written
-        // across two, `"NC-KERN-\` / `4243"` put the digits on a line whose
+        // across two, `"NC-KERN-\` / `4243"` puts the digits on a line whose
         // area is empty and the area on a line whose digits are, and neither
         // half is a code. Joining them first is what the compiler does.
         // **And a `concat!` `cargo fmt` wrapped.** The scan is per line, so
-        // `concat!(\n "NC-",\n "KERN-4243",\n …)` held no whole code on any
+        // `concat!(\n "NC-",\n "KERN-4243",\n …)` holds no whole code on any
         // line — and that wrapped form is what the formatter produces as soon as
         // the argument list is long, not something anybody had to write.
         raw += text.lines().count();
@@ -1353,8 +1335,8 @@ pub(crate) fn no_code_is_written_at_a_call_site(
         let mut reached_a_verdict = 0_usize;
         for (index, line) in joined.lines().enumerate() {
             // **Counted at the top of the loop, which is where a line becomes
-            // this gate's to judge.** Counting files left the number at full
-            // strength when a filter sat inside the loop; counting at the
+            // this gate's to judge.** Counting files leaves the number at full
+            // strength when a filter sits inside the loop; counting at the
             // *bottom* counts only the lines that matched, which is a different
             // number again and one that falls to two on a correct run.
             //
@@ -1365,7 +1347,7 @@ pub(crate) fn no_code_is_written_at_a_call_site(
             // and saying so is better than a comment claiming a counter can do
             // what no position for it can.
             judged_here += 1;
-            // **And the line as its pieces make it.** Four spellings assembled
+            // **And the line as its pieces make it.** Four spellings assemble
             // the same code past a scan of the literal text: `concat!("NC-",
             // "KERN-4242")`, a `\`-continuation across two lines,
             // `"NC-KERN-424\x34"`, and `format!("NC-{}-{:04}", …)`. The first
@@ -1423,8 +1405,8 @@ pub(crate) fn no_code_is_written_at_a_call_site(
             reached_a_verdict,
             &mut findings,
         );
-        // **Counted per line, not per file.** Counting files left the number at
-        // full strength when the filter was inside the line loop — measured, a
+        // **Counted per line, not per file.** Counting files leaves the number
+        // at full strength when the filter is inside the line loop — measured, a
         // `if !line.contains("ErrorCode") { continue; }` with a hand-written
         // `NC-KERN-4242` in the tree and `ok 48 source file(s)`. What the gate
         // judges is lines, so lines are what it reports.
@@ -1490,9 +1472,9 @@ fn glued(line: &str) -> String {
     while let Some(character) = characters.next() {
         match character {
             // **The glue, and the whitespace touching it — not every space.**
-            // Removing all whitespace made `NC - CANON - 0001` — an English
+            // Removing all whitespace makes `NC - CANON - 0001` — an English
             // sentence with spaced hyphens, naming no code — read as one, and
-            // the gate reported a doc attribute as a hand-written code. What
+            // the gate then reports a doc attribute as a hand-written code. What
             // stands between a `concat!`'s pieces is a quote, a comma and the
             // space beside them; a space with prose on both sides is prose.
             '"' | ',' => {
@@ -1504,8 +1486,8 @@ fn glued(line: &str) -> String {
                 }
             }
             // `\x34` is `4`, and so is `\u{34}`. Only ASCII, which is all a
-            // code holds — and both spellings, because one of them was the
-            // whole of a reviewer's third evasion.
+            // code holds — and both spellings, because a scan that decodes only
+            // one lets the other assemble a code past it.
             '\\' if matches!(characters.peek(), Some('x' | 'u')) => {
                 let braced = characters.peek() == Some(&'u');
                 characters.next();
@@ -1566,11 +1548,9 @@ fn codes_in(line: &str) -> Vec<String> {
 
 /// What the image gate inspected, and how much of it it could answer.
 ///
-/// **A five-element tuple, and every corpus case destructured it `(findings, _,
-/// _, _, _)`.** Four numbers nothing named, so nothing could be floored without
-/// counting positions — and `compared`, the only one that says the digest
-/// comparison ran at all, had no floor while its own comment said it was "the
-/// count that says so is the one a floor can hold".
+/// **Named fields, not a tuple.** Four unnamed numbers cannot be floored
+/// without counting positions — and `compared`, the only one that says the
+/// digest comparison ran at all, is the count a floor has to hold.
 #[derive(Debug)]
 pub(crate) struct Pins {
     /// Defects in the tree.
@@ -1593,12 +1573,13 @@ pub(crate) struct Pins {
 /// inherits stdio is a print, so `Command::new` is disallowed by default —
 /// docker here is *driven* and its output is read, never shown.
 ///
-/// **This block carried [`every_image_is_pinned`]'s summary and its rationale**,
-/// with its own summary stranded three paragraphs down as a tail clause — the
-/// shape a deleted item between two doc blocks leaves, and the shape rustdoc
-/// renders as this private wrapper being the rule about images. Neither the
-/// `DOCUMENTED` census nor the fused-summary gate could see it: both counts are
-/// conserved when one block simply holds another item's prose.
+/// **This block is about the wrapper and nothing else.** A block holding a
+/// neighbour's summary and rationale — [`every_image_is_pinned`]'s, with its
+/// own summary stranded as a tail clause — is the shape a deleted item between
+/// two doc blocks leaves, and rustdoc renders it as this private wrapper being
+/// the rule about images. Neither the `DOCUMENTED` census nor the fused-summary
+/// gate can see that: both counts are conserved when one block simply holds
+/// another item's prose.
 fn the_effective_stack(root: &Path) -> std::io::Result<std::process::Output> {
     #[expect(clippy::disallowed_methods, reason = "docker is driven, not printed")]
     std::process::Command::new("docker")
@@ -1610,10 +1591,10 @@ fn the_effective_stack(root: &Path) -> std::io::Result<std::process::Output> {
 /// Why `docker compose config` produced nothing, in the reader's terms.
 ///
 /// **Which of the two failures, because they send a reader to different
-/// places.** One sentence covered both, and *the effective stack could not be
-/// resolved* sends a reader to `docker compose config` when the answer is that
-/// there is no `docker` on this machine — which is not a defect in this
-/// repository at all. `--offline` is the flag for a machine without one, and it
+/// places.** *The effective stack could not be resolved* sends a reader to
+/// `docker compose config`, which is wrong when the answer is that there is no
+/// `docker` on this machine — not a defect in this repository at all.
+/// `--offline` is the flag for a machine without one, and it
 /// announces the stack's own tests among the steps it skips.
 fn docker_did_not_answer(problem: &std::io::Error) -> Finding {
     if problem.kind() == std::io::ErrorKind::NotFound {
@@ -1658,25 +1639,23 @@ fn nothing_was_compared(findings: Vec<Finding>, unanswerable: Vec<Finding>) -> P
 
 /// Every image the stack runs is pinned by digest.
 ///
-/// **A tag is a name somebody else can repoint.** `postgres:18-alpine` was
-/// defended in a comment against `latest`, which is a different question: the
-/// tag still moves on every 18.x patch and every Alpine base rebuild, and a
-/// `docker compose pull` takes whichever image is current. Two reviewers a day
-/// apart both measured the same two unpinned tags and both reported them, which
-/// is what a rule with no gate behind it looks like.
+/// **A tag is a name somebody else can repoint.** Avoiding `latest` is a
+/// different question: `postgres:18-alpine` still moves on every 18.x patch and
+/// every Alpine base rebuild, and a `docker compose pull` takes whichever image
+/// is current.
 ///
 /// The tag is kept in front of the digest — `image:tag@sha256:…` — because a
 /// reader needs to see which version this is, and a bare digest is unreadable.
 pub(crate) fn every_image_is_pinned(root: &Path, offline: bool) -> Pins {
-    // **`--offline` gives up the half that needs nothing.** The step returned
-    // before this function was called at all, so the pure-text rules —
-    // `pinned_by_digest`, `is_a_build_key`, the pass over the written files —
-    // went with the docker comparison. Measured, `image: postgres:latest` in
+    // **`--offline` skips only the half that needs docker.** Returning before
+    // this function is called takes the pure-text rules — `pinned_by_digest`,
+    // `is_a_build_key`, the pass over the written files — with the docker
+    // comparison. Measured that way, `image: postgres:latest` in
     // `docker-compose.yml`: online, two errors saying a tag is not a pin;
     // `--offline`, no finding anywhere, the step printing only its skip line.
-    // That is the defect `check.rs` records fixing one step over —
-    // *"`cargo deny check` runs four checks and one of them wants the network;
-    // this skipped all four"*.
+    // It is the same defect `check.rs` refuses for `cargo deny check` one step
+    // over: skipping all four of its checks because one of them wants the
+    // network.
     //
     // So only the resolution is skipped. What the files say is read either way.
     if offline {
@@ -1685,10 +1664,10 @@ pub(crate) fn every_image_is_pinned(root: &Path, offline: bool) -> Pins {
     let mut findings = Vec::new();
     // Tags this machine has not pulled, so the comparison could not be made. Reported as skipped steps, not defects — see `judge_a_pin`.
     let mut unanswerable = Vec::new();
-    // **What docker resolves, not what one file says.** The text scan read
-    // `docker-compose.yml` and `dev.rs` runs `docker compose` with no `-f`, so
-    // every one of these put an unpinned image into the running stack with the
-    // gate printing `ok 2 image(s) … each pinned by digest`:
+    // **What docker resolves, not what one file says.** A text scan reads
+    // `docker-compose.yml`, and `dev.rs` runs `docker compose` with no `-f`, so
+    // each of these puts an unpinned image into the running stack past such a
+    // scan, with the gate printing `ok 2 image(s) … each pinned by digest`:
     // ```text
     // compose.yaml                       — outranks docker-compose.yml entirely
     // docker-compose.override.yaml       — merged; only the .yml spelling was checked
@@ -1742,9 +1721,9 @@ pub(crate) fn every_image_is_pinned(root: &Path, offline: bool) -> Pins {
     for (index, line) in resolved.lines().enumerate() {
         // **A built service, in the projection docker actually resolves.** The
         // file pass reads eight names in the repository root, so a service
-        // declared in a file `include:` pulls in from anywhere else was in
-        // neither pass — measured with such a file carrying `build:` and a
-        // Dockerfile reading `FROM postgres:latest`:
+        // declared in a file `include:` pulls in from anywhere else is in
+        // neither pass without this — measured with such a file carrying
+        // `build:` and a Dockerfile reading `FROM postgres:latest`:
         // `ok 4 image(s) in the stack, each pinned by digest`, with the stack
         // running an unpinned image. `docker compose config` prints the `build:`
         // key wherever the service came from, which is the one place that knows.
@@ -1798,8 +1777,8 @@ pub(crate) fn every_image_is_pinned(root: &Path, offline: bool) -> Pins {
 
 /// The pins the compose files write down, without asking docker anything.
 ///
-/// Its own function because [`every_image_is_pinned`] is at clippy's line limit
-/// with it inline — the same reason its neighbours are functions.
+/// Its own function so that [`every_image_is_pinned`] can return it whole
+/// under `--offline`, before docker is asked anything.
 fn only_what_the_files_say(root: &Path) -> Pins {
     let mut findings = Vec::new();
     let mut written = 0_usize;
@@ -1816,12 +1795,11 @@ fn only_what_the_files_say(root: &Path) -> Pins {
 
 /// Where an image is actually written, for a finding a reader can jump to.
 ///
-/// **The line number was an index into `docker compose config`'s output** and
-/// the finding was filed under `docker-compose.yml`, so
-/// `docker-compose.yml:16` pointed at a line of prose while the image sat on
-/// 120. Two of the fix texts said the number was compose's; the two on
-/// `judge_a_pin` did not, and every other gate in this tree emits a real
-/// `file:line` — so an editor jumping to this one lands in the wrong place.
+/// **An index into `docker compose config`'s output is not a line of the
+/// file.** Filed under `docker-compose.yml`, `docker-compose.yml:16` points at
+/// a line of prose while the image sits on 120 — and every other gate in this
+/// tree emits a real `file:line`, so an editor jumping to that one lands in the
+/// wrong place.
 ///
 /// The resolved stack is still what is judged: this only asks the files where
 /// the answer is written down. An image that exists only after resolution — one
@@ -1838,16 +1816,15 @@ fn where_it_is_written(root: &Path, image: &str, resolved: usize) -> (String, us
                 continue;
             }
             // **Quotes stripped, as both passes strip them.** The resolved pass
-            // trims `"` and `'` before matching and the file pass replaces them
-            // — this compared the raw text, so `image: "postgres:18-alpine"`,
-            // which is ordinary compose, never matched and fell back to the
-            // `docker compose config` index. Measured, one image quoted and one
-            // not, both unpinned: the unquoted one reported at its real line 120
-            // and the quoted one at :44, which is a line of environment prose,
-            // while the second pass reported the same image correctly at :37.
-            // Two spellings of one file in one list of findings, one pointing at
-            // something unrelated — verbatim the defect this function was added
-            // to close.
+            // trims `"` and `'` before matching and the file pass replaces them;
+            // compared raw, `image: "postgres:18-alpine"`, which is ordinary
+            // compose, never matches and falls back to the `docker compose
+            // config` index. Measured that way, one image quoted and one not,
+            // both unpinned: the unquoted one reported at its real line 120 and
+            // the quoted one at :44, which is a line of environment prose, while
+            // the second pass reported the same image correctly at :37 — one list
+            // of findings pointing at something unrelated, which is the defect
+            // this function exists to close.
             if the_image_on(trimmed)
                 .is_some_and(|written| written.trim().trim_matches(['"', '\'']) == image)
             {
@@ -1860,13 +1837,12 @@ fn where_it_is_written(root: &Path, image: &str, resolved: usize) -> (String, us
 
 /// The image a line names, whatever whitespace or quoting the key wears.
 ///
-/// **`strip_prefix("image:")` was written three times and each copy read one
-/// spelling.** YAML allows whitespace between a key and its colon and docker
-/// resolves `image :` to the same service — measured, one space added before
+/// **One reader for every spelling of the key.** YAML allows whitespace between
+/// a key and its colon and docker resolves `image :` to the same service, which
+/// a bare `strip_prefix("image:")` misses — measured, one space added before
 /// the colon in `docker-compose.yml`:
 /// `ok 2 image(s) in the resolved stack and 1 written in its files`, the written
-/// count halved and the step still saying `ok`. Quoting is the other spelling,
-/// and one of the three copies already knew about it.
+/// count halved and the step still saying `ok`. Quoting is the other spelling.
 ///
 /// **Flow style is a spelling this does not read, and that is measured rather
 /// than assumed.** `a: {image: postgres:latest, restart: unless-stopped}` splits
@@ -1909,8 +1885,8 @@ const COMPOSE_FILES: [&str; 8] = [
 
 /// A pinned image, held against what its own tag resolves to.
 ///
-/// Split out of [`every_image_is_pinned`] only because that function grew past
-/// the line limit.
+/// Split out of [`every_image_is_pinned`] only because that function would pass
+/// the line limit with it inline.
 fn judge_a_pin(
     root: &Path,
     image: &str,
@@ -1923,9 +1899,9 @@ fn judge_a_pin(
     match the_digest_is_the_tag(image) {
         Ok(true) => {
             // **Digests actually compared, counted apart from images
-            // read.** `read` rises on every `image:` line whatever became
-            // of it, so the number printed said nothing about whether any
-            // referent had been checked at all.
+            // read.** `read` rises on every `image:` line whatever becomes
+            // of it, so it says nothing about whether any referent was
+            // checked at all.
             *compared += 1;
         }
         Ok(false) => findings.push(Finding {
@@ -1940,11 +1916,12 @@ fn judge_a_pin(
                           `docker image inspect <tag> --format '{{index .RepoDigests 0}}'`"
                 .to_owned(),
         }),
-        // **A finding, because a skip here was free.** `finish` makes
-        // any `skipped:`-prefixed warning cost nothing when nothing
-        // announced it, so this printed one line and exited 0 — and a
-        // reviewer shipped `postgres:17-alpine@sha256:…` carrying
-        // **18**'s digest through a green run:
+        // **Not pulled here is an absence of local information, not a defect in
+        // the tree — so it is announced, and never free.** A skip that costs
+        // nothing lets `postgres:17-alpine@sha256:…` carrying **18**'s digest
+        // through a green run: `finish` makes any `skipped:`-prefixed warning
+        // cost nothing when nothing announced it, so a skip that prints one
+        // line and exits 0 gives
         //
         // ```text
         // warn  skipped: `postgres:17-alpine` is not pulled here, so its
@@ -1953,37 +1930,26 @@ fn judge_a_pin(
         // check passed
         // ```
         //
-        // `cargo xtask dev` would then pull by digest and bring up
-        // PostgreSQL 18 under a tag reading 17 — the exact defect this
-        // function exists to close, shipped green. A gate that cannot ask
-        // its question has not answered it, and `check` already takes
-        // that line about the database: fail, and name the command that
-        // makes the answer available.
-        // **Not pulled here is an absence of local information, not a defect in
-        // the tree.** This was an error, on the reasoning that a free skip once
-        // let `postgres:17-alpine` carrying 18's digest through a green run —
-        // and the reasoning is right about the skip and wrong about the verdict.
-        // Nothing pulls these images on a CI runner, so the gate was guaranteed
-        // red there.
+        // and `cargo xtask dev` then pulls by digest and brings up PostgreSQL
+        // 18 under a tag reading 17 — the exact defect this function exists to
+        // close, green. An error is wrong the other way: nothing pulls these
+        // images on a CI runner, so the gate would be guaranteed red there.
         //
-        // **The second half of that reasoning said both tags had since been
-        // repointed upstream, and it is not true.** Measured on 2026-09-15
-        // without pulling anything — `docker manifest inspect <tag>` and
+        // **Whether a tag still resolves to the digest beside it is what this
+        // comparison is for; it may not assert the answer in advance.**
+        // Measured without pulling anything, `docker manifest inspect <tag>` and
         // `docker manifest inspect <the pinned digest>` returned byte-identical
-        // indexes for both images, so each tag still resolves to the digest
-        // beside it and a host that pulled the tags would get a *green*
-        // comparison. Whether that stays true is exactly what this comparison
-        // is for; what it may not do is assert the answer in advance.
+        // indexes for both images: each tag resolved to the digest beside it,
+        // so a host that pulled the tags would get a *green* comparison.
         //
         // What the pin guarantees is the bytes, and the digest does that alone.
         // What the comparison adds is that the *label* beside them is honest.
         //
-        // **And `cargo xtask dev` does not make that comparison available**,
-        // which this said for two rounds and is false. Compose brings the stack
-        // up from `image:tag@sha256:…`, and docker resolves a reference
-        // carrying a digest **by the digest**: the tag is discarded before the
-        // store sees it. Measured on 2026-09-15 with an image the store did not
-        // hold, so that nothing already pulled could answer for it:
+        // **And `cargo xtask dev` does not make that comparison available.**
+        // Compose brings the stack up from `image:tag@sha256:…`, and docker
+        // resolves a reference carrying a digest **by the digest**: the tag is
+        // discarded before the store sees it. Measured with an image the store
+        // did not hold, so that nothing already pulled could answer for it:
         //
         // ```text
         // docker pull hello-world:latest@sha256:d1a8d0a4…
@@ -1997,8 +1963,7 @@ fn judge_a_pin(
         // is permanent: `docker image inspect <tag>` keeps failing however many
         // times the stack comes up. What makes the answer available is pulling
         // the **tag** — which is also what the compose file tells a reader to do
-        // when moving a pin. The image was removed again; the store held none
-        // before the measurement and holds none after.
+        // when moving a pin.
         //
         // Here the honest report is that the question could not be asked —
         // announced, so the verdict counts it among the steps that did not run,
@@ -2040,8 +2005,9 @@ fn unpinned(root: &Path, image: &str, index: usize) -> Finding {
 
 /// The second pass: what the compose files say, rather than what docker resolves.
 ///
-/// Split out of [`every_image_is_pinned`] only because that function grew past
-/// the line limit.
+/// Its own function because [`every_image_is_pinned`] and
+/// [`only_what_the_files_say`] both run it: the files are read online and
+/// under `--offline` alike.
 fn written_pins(root: &Path, findings: &mut Vec<Finding>, written: &mut usize) {
     // **And the files themselves, because the resolved config cannot show
     // everything.** Three ways past a scan of `docker compose config` alone,
@@ -2059,11 +2025,11 @@ fn written_pins(root: &Path, findings: &mut Vec<Finding>, written: &mut usize) {
     // The two passes catch what the other cannot: the resolved config applies
     // overrides, `extends` and anchors, and the files show what is written
     // regardless of profile, projection or environment.
-    // **Two numbers, because they are two questions.** They shared one counter,
-    // so `2 image(s)` came out as `4` — every image counted once by the
-    // resolved projection and once by the file it is written in — and neither
-    // pass could be caught having inspected nothing, because the other's count
-    // carried it. `read` is what docker resolves; `written` is what the files
+    // **Two numbers, because they are two questions.** One shared counter makes
+    // `2 image(s)` come out as `4` — every image counted once by the resolved
+    // projection and once by the file it is written in — and neither pass can
+    // then be caught having inspected nothing, because the other's count
+    // carries it. `read` is what docker resolves; `written` is what the files
     // say; `compared` is how many pins had their referent checked.
     *written = in_the_compose_files(root, findings);
 }
@@ -2090,7 +2056,7 @@ fn pinned_by_digest(image: &str) -> bool {
 ///
 /// **`str::split("//")` is not a comment stripper.** A doubled separator inside
 /// a path — `"..//canaries/x.rs"`, which cargo accepts — is two slashes, and
-/// cutting there split the `canaries/` from the `#[path]` that reaches it. What
+/// cutting there splits the `canaries/` from the `#[path]` that reaches it. What
 /// opens a comment in Rust is `//` at the start of a line or after whitespace;
 /// what does not is `//` after any other character.
 pub(crate) fn line_without_a_comment(line: &str) -> &str {
@@ -2130,26 +2096,23 @@ fn more_opens_than_closes(line: &str) -> bool {
 /// **A wrapped attribute is still one attribute.** A reader that steps over
 /// lines beginning `#[` and stops at anything else stops at the *continuation*
 /// of an attribute rustfmt has broken across lines — and the doc block above it
-/// is never seen. Four reviewers named this over five rounds before one planted
-/// it: a `#[doc(alias = …)]` in the house layout above `pub async fn begin` made
-/// two of `nc-journal`'s tests fail with messages that are false, one of them
-/// saying a function has no `# Errors` section while its section sits untouched
-/// three lines up.
+/// is never seen. Measured with such a reader: a `#[doc(alias = …)]` in the
+/// house layout above `pub async fn begin` makes two of `nc-journal`'s tests
+/// fail with messages that are false, one of them saying a function has no
+/// `# Errors` section while its section sits untouched three lines up.
 ///
 /// The last line of a wrapped attribute closes with `]` and its first begins
 /// `#[`, so a bounded walk back to that first line is what joins the two. The
 /// bound is what stops a stray `]` — an array closing above an item — walking
 /// the reader out of the block it is reading.
 ///
-/// **Not test-only any more.** `a_test_door_says_it_is_one` read a door's
-/// prologue with its own walk — up while each line opens `///` or `#[` or is
-/// blank — which a wrapped attribute ends on its *closing* line, so the
-/// prologue came back empty and a door that **is** marked `#[doc(hidden)]` and
-/// **does** carry lines saying what it reaches was told "a `_for_tests` door is
-/// not marked as one. Mark it, and say above it what it is for". The correct
-/// reader was in this file the whole time and behind `#[cfg(test)]` — one rule
-/// written twice with the production copy the narrower, which is the shape this
-/// campaign has now found in nine files. Found by a reviewer in wave 21.
+/// **Shipped, not test-only, because one walk serves both.** A door's prologue
+/// read with a walk of its own — up while each line opens `///` or `#[` or is
+/// blank — ends on a wrapped attribute's *closing* line, so the prologue comes
+/// back empty and a door that **is** marked `#[doc(hidden)]` and **does** carry
+/// lines saying what it reaches is told "a `_for_tests` door is not marked as
+/// one. Mark it, and say above it what it is for". One rule written twice
+/// leaves one copy the narrower, so `a_test_door_says_it_is_one` asks this.
 pub(crate) fn past_the_attributes(lines: &[&str], mut at: usize) -> usize {
     const WRAPPED_AT_MOST: usize = 12;
     while at > 0 {
@@ -2159,20 +2122,19 @@ pub(crate) fn past_the_attributes(lines: &[&str], mut at: usize) -> usize {
             continue;
         }
         // **A comment ending in `]` is not a wrapped attribute's last line, and
-        // a wrapped attribute's first line is unbalanced.** The bound was
-        // written to stop "a stray `]` above an item walking the reader out of
-        // the block it is reading", and it did not: an intra-doc link ends a doc
-        // line in `]` — `/// See [`other`]`, the most ordinary line here — and
-        // the walk left the item, crossed blank lines and whole other items, and
-        // landed on a neighbour's `#[doc(hidden)]`, so an unmarked `_for_tests`
-        // door borrowed a marker. Found in wave 24.
+        // a wrapped attribute's first line is unbalanced.** The bound alone
+        // does not stop "a stray `]` above an item walking the reader out of the
+        // block it is reading": an intra-doc link ends a doc line in `]` —
+        // `/// See [`other`]`, the most ordinary line here — and an unguarded
+        // walk leaves the item, crosses blank lines and whole other items, and
+        // lands on a neighbour's `#[doc(hidden)]`, so an unmarked `_for_tests`
+        // door borrows a marker.
         //
-        // **And the first repair was too strong.** It stopped the inner walk at
-        // a blank line, which a wrapped attribute list may legitimately contain
-        // — measured, `#[doc(\n alias = "a",\n\n alias = "b"\n)]` then lost its
-        // doc block entirely. It was also still too weak for a `//` comment
-        // ending in `]`, and for a macro call `thing![a, b]`. Found in wave 25,
-        // by a skeptic measuring both directions of the repair.
+        // **Stopping the inner walk at a blank line is too strong**, because a
+        // wrapped attribute list may legitimately contain one — measured,
+        // `#[doc(\n alias = "a",\n\n alias = "b"\n)]` then loses its doc block
+        // entirely. It is also too weak for a `//` comment ending in `]`, and
+        // for a macro call `thing![a, b]`.
         //
         // What separates them is not blankness: an attribute that *wraps* opens
         // brackets its first line does not close. So the line the walk lands on
@@ -2203,7 +2165,7 @@ pub(crate) fn past_the_attributes(lines: &[&str], mut at: usize) -> usize {
 
 /// Whether the digest a pin carries is the digest of the tag beside it.
 ///
-/// **A pin's *form* was checked and its *referent* never was.** `sha256:` plus
+/// **A pin's *form* is not its *referent*.** `sha256:` plus
 /// sixty-four lowercase hex is a shape, and docker resolves a
 /// `tag@sha256:…` reference by the digest alone — the tag is a comment to the
 /// daemon and load-bearing to every human reader and to `§18.4`. Measured, one
@@ -2230,14 +2192,12 @@ pub(crate) fn past_the_attributes(lines: &[&str], mut at: usize) -> usize {
 /// precisely so it is not. A digest nobody has pulled is one this cannot
 /// judge, and saying so is the honest answer.
 ///
-/// **And `cargo xtask dev` is not the remedy**, which this said and which is
-/// false: compose brings the stack up from `image:tag@sha256:…` and docker
-/// resolves that by the digest, so the tag never reaches the store and this
-/// keeps skipping however many times the stack comes up. What makes the
-/// question answerable is pulling the tag — `docker pull <the image before the
-/// `@`>`. The correction is written here as well as in the body because this is
-/// the half rustdoc publishes, and the body comment that first carried it does
-/// not reach a reader of the docs.
+/// **And `cargo xtask dev` is not the remedy:** compose brings the stack up
+/// from `image:tag@sha256:…` and docker resolves that by the digest, so the tag
+/// never reaches the store and this keeps skipping however many times the stack
+/// comes up. What makes the question answerable is pulling the tag —
+/// `docker pull <the image before the `@`>`. It is said here as well as in the
+/// body because this is the half rustdoc publishes.
 fn the_digest_is_the_tag(image: &str) -> Result<bool, String> {
     let Some((tag, digest)) = image.split_once('@') else {
         return Ok(true);
@@ -2265,8 +2225,8 @@ fn the_digest_is_the_tag(image: &str) -> Result<bool, String> {
 
 /// Whether `digest` is one of the digests `listed` gives for `tag`'s repository.
 ///
-/// **`listed.contains(digest)` was the whole test, and it is a substring test on
-/// JSON.** `RepoDigests` is a list of `repository@sha256:…` entries and an image
+/// **`listed.contains(digest)` is a substring test on JSON, not this.**
+/// `RepoDigests` is a list of `repository@sha256:…` entries and an image
 /// can carry several — one per repository it has been tagged into — so a
 /// substring match says "this digest appears somewhere in this list", which is
 /// not "this tag resolves to this digest". A digest belonging to a *different*
@@ -2330,23 +2290,23 @@ fn includes(text: &str) -> Vec<String> {
 
 /// Whether a line declares a service is built rather than pulled.
 ///
-/// **Flow style is YAML too.** The test was `== "build:"` or a `"build: "`
-/// prefix, and `sneaky: {build: {context: "."}, command: […]}` is one line that
+/// **Flow style is YAML too.** A test for `== "build:"` or a `"build: "`
+/// prefix misses `sneaky: {build: {context: "."}, command: […]}`, one line that
 /// matches neither — measured accepted, with a `Dockerfile` reading
 /// `FROM postgres:latest`, and `cargo xtask dev` builds and runs it. A key is a
 /// key wherever the mapping opens.
 fn is_a_build_key(line: &str) -> bool {
     // **Quotes come off first.** YAML permits a quoted key and compose
-    // normalises it away, so `"build":` reached the running stack past a test
+    // normalises it away, so `"build":` reaches the running stack past a test
     // for `build:` — measured, a service built from a Dockerfile reading
     // `FROM postgres:latest` with `ok 4 image(s) … each pinned by digest`.
     line.split(['{', ','])
         .map(|piece| piece.trim_start().replace(['"', '\''], ""))
         .any(|piece| {
             // `build:{` is not here: `split(['{', ','])` guarantees no piece
-            // holds a `{`, so that clause was unsatisfiable by construction —
-            // found by the meta-gate, which reported a weakening of it as
-            // surviving because nothing could tell the two apart. A clause no
+            // holds a `{`, so such a clause is unsatisfiable by construction,
+            // and the meta-gate would report a weakening of it as surviving
+            // because nothing could tell the two apart. A clause no
             // input can decide is not a defence, it is a reason to think there
             // is one.
             piece == "build:" || piece.starts_with("build: ")
@@ -2364,12 +2324,12 @@ fn in_the_compose_files(root: &Path, findings: &mut Vec<Finding>) -> usize {
     // `NC_IMG=postgres:latest docker compose --profile "*" config` resolved to
     // `image: postgres:latest`. The resolved pass interpolates from *this*
     // process's environment; the file pass is the one that catches a variable,
-    // and it never opened the file the variable was in.
-    // **`COMPOSE_FILES`, because this list was written twice in one file.** The
-    // const above and this literal held the same eight names for two readers —
-    // `where_it_is_written`, which decides what a finding points at, and this
-    // pass, which decides what is read at all — so a name added to one was a
-    // file the other still ignored, with both counts printed and `check passed`.
+    // and without this it never opens the file the variable is in.
+    // **`COMPOSE_FILES`, one list for both readers** — `where_it_is_written`,
+    // which decides what a finding points at, and this pass, which decides what
+    // is read at all. With two copies of the eight names, a name added to one
+    // is a file the other still ignores, with both counts printed and
+    // `check passed`.
     let mut named: Vec<String> = COMPOSE_FILES
         .iter()
         .map(|name| (*name).to_owned())
@@ -2392,15 +2352,14 @@ fn in_the_compose_files(root: &Path, findings: &mut Vec<Finding>) -> usize {
         let Ok(text) = std::fs::read_to_string(root.join(named)) else {
             continue;
         };
-        // **A block scalar's body is text, not keys.** This read every line of
-        // every compose file with no guard, while its sibling `where_it_is_written`
-        // skips a comment line — one rule, two copies, and the wider one is what
-        // feeds the `written < read` floor. Measured, an `image:` line written
-        // inside the healthcheck's folded scalar after a trailing hash so the
-        // shell ignores it: `ok 2 image(s) in the resolved stack and 3 written in
-        // its files`. Padding `written` buys room under the floor that exists
-        // because a spelling the file pass cannot read is an image none of its
-        // rules apply to.
+        // **A block scalar's body is text, not keys.** Read with no guard,
+        // every line of every compose file feeds the `written < read` floor.
+        // Measured that way, an `image:` line written inside the healthcheck's
+        // folded scalar after a trailing hash so the shell ignores it:
+        // `ok 2 image(s) in the resolved stack and 3 written in its files`.
+        // Padding `written` buys room under the floor that exists because a
+        // spelling the file pass cannot read is an image none of its rules
+        // apply to.
         let mut scalar_at: Option<usize> = None;
         for (index, line) in text.lines().enumerate() {
             let trimmed = line.trim();
@@ -2412,11 +2371,12 @@ fn in_the_compose_files(root: &Path, findings: &mut Vec<Finding>) -> usize {
                 scalar_at = None;
             }
             // **The header line is still a key.** `image: >-` ends in a scalar
-            // marker, so this skipped the `image:` line *and* its body — the
-            // real pin vanished from `written`. Measured together with the hole
-            // below: `ok 2 image(s) in the resolved stack and 2 written in its
-            // files`, `check passed`, while `PG_IMAGE=postgres:latest docker
-            // compose config` brings up an unpinned stack.
+            // marker, so skipping from the marker skips the `image:` line *and*
+            // its body — the real pin vanishes from `written`. Measured that way,
+            // together with the quoted-scalar case below: `ok 2 image(s) in the
+            // resolved stack and 2 written in its files`, `check passed`, while
+            // `PG_IMAGE=postgres:latest docker compose config` brings up an
+            // unpinned stack.
             let opens_a_scalar = matches!(
                 trimmed.rsplit(' ').next().unwrap_or_default(),
                 "|" | ">" | "|-" | ">-" | "|+" | ">+"
@@ -2426,16 +2386,15 @@ fn in_the_compose_files(root: &Path, findings: &mut Vec<Finding>) -> usize {
                 // Fall through: the key on this line is read before its body is
                 // skipped.
             }
-            // **A quoted scalar may span lines too.** The reader had no notion
-            // of one, so the second line of `x-note: "why this block exists
-            // <newline> image: <a pinned digest>"` was read as an `image:` key
-            // and paid `written` back by hand — restoring the count the block
-            // scalar had just taken, under the floor that exists because a
-            // spelling this pass cannot read is an image none of its rules
-            // apply to.
+            // **A quoted scalar may span lines too.** A reader with no notion of
+            // one reads the second line of `x-note: "why this block exists
+            // <newline> image: <a pinned digest>"` as an `image:` key and pays
+            // `written` back by hand — restoring the count the block scalar
+            // takes, under the floor that exists because a spelling this pass
+            // cannot read is an image none of its rules apply to.
             //
-            // **The two quote characters, counted apart.** They were summed into
-            // one total, so one of each is even and the tracker never fired:
+            // **The two quote characters, counted apart.** Summed into one
+            // total, one of each is even and the tracker never fires:
             // measured, a note inside the healthcheck block whose text holds an
             // ordinary English apostrophe, with a pinned image spelled on its
             // second line, gave `ok 2 image(s) in the resolved stack and 3
@@ -2450,16 +2409,16 @@ fn in_the_compose_files(root: &Path, findings: &mut Vec<Finding>) -> usize {
                     }
                 }
             }
-            // A comment is not a key either, which the sibling already knew.
+            // A comment is not a key either; `where_it_is_written` skips one too.
             if trimmed.starts_with('#') {
                 continue;
             }
-            // **A quoted key is the same key**, which this pass did not know:
-            // `"image":` is a YAML spelling compose normalises away, so the one
-            // pass that reads a *variable* was turned off by two characters —
-            // the attack it exists for. It stripped every quote on the line to
-            // get past that; `the_image_on` strips the key's own, which is
-            // where the quoting is, and leaves the value alone.
+            // **A quoted key is the same key.** `"image":` is a YAML spelling
+            // compose normalises away, so without this the one pass that reads
+            // a *variable* is turned off by two characters — the attack it
+            // exists for. `the_image_on` strips the key's own quotes, which is
+            // where the quoting is, and leaves the value alone rather than
+            // stripping every quote on the line.
             if let Some(image) = the_image_on(trimmed) {
                 read += 1;
                 let image = image.trim().trim_matches(['"', '\'']);
@@ -2478,12 +2437,12 @@ fn in_the_compose_files(root: &Path, findings: &mut Vec<Finding>) -> usize {
                         .to_owned(),
                 });
             // **The raw line, not the unquoted one.** Stripping here as well
-            // made `is_a_build_key`'s own unquoting unreachable from both call
+            // makes `is_a_build_key`'s own unquoting unreachable from both call
             // sites — `docker compose config` emits no quotes either — and the
-            // meta-gate reported a weakening of it as surviving, because nothing
-            // could tell the two apart. A defence with no reachable input is a
-            // defence nothing keeps honest, so the normalisation is left where
-            // the predicate can be judged on it.
+            // meta-gate then reports a weakening of it as surviving, because
+            // nothing can tell the two apart. A defence with no reachable input
+            // is a defence nothing keeps honest, so the normalisation is left
+            // where the predicate can be judged on it.
             } else if is_a_build_key(trimmed) {
                 findings.push(Finding {
                     file: named.to_owned(),
@@ -2508,9 +2467,9 @@ fn in_the_compose_files(root: &Path, findings: &mut Vec<Finding>) -> usize {
 /// The path below the member a file belongs to, when it is directly under one.
 ///
 /// **Every member tree cargo resolves**: the ones [`inside_a_member`] reads —
-/// `crates/*` and `plugins/*` — and `xtask`. It named two arms, `crates/*` and
-/// `xtask`, after `plugins/*` joined the members, so a canary directory at a
-/// plugin's root was none to the predicates over it while a crate's was. Used
+/// `crates/*` and `plugins/*` — and `xtask`. With only `crates/*` and `xtask`
+/// named, a canary directory at a plugin's root is none to the predicates over
+/// it while a crate's is one. Used
 /// by [`inside_a_canary_directory`] for the same reason [`an_integration_test`]
 /// reads the directory directly under the member: a directory cargo treats
 /// specially is one *at* a member's root, and the word anywhere in a path is a
@@ -2529,18 +2488,15 @@ fn directly_under_a_member(relative: &str) -> Option<&str> {
 /// plants in every real directory has to know the same thing the walk does
 /// rather than restate it.
 ///
-/// **`contains("/canaries/")` is not that, which is the `/tests/` defect
-/// again.** [`an_integration_test`] was narrowed beside this — a module a
-/// member calls `tests` under its own `src` is shipped code, cargo compiles it,
-/// and the walk stepped over it — and the same sentence is true of the word
-/// `canaries`: `mod canaries;` with a `canaries` module under a member's own
-/// `src` is compiled into the library by cargo, is reached by no `#[path]`, and
-/// was excluded from
-/// the code-producer walk by this. The floor at `check.rs`'s
-/// `every_code_is_what_the_registry_says_it_is` shares the predicate, so both
-/// sides agreed about ground neither read. Held shut today only by the doc
-/// ratchet and by a hand-pinned count of canary directories, neither of which
-/// is this rule.
+/// **`contains("/canaries/")` is not that, for the reason
+/// [`an_integration_test`] reads the directory under the member.** A module a
+/// member calls `tests` under its own `src` is shipped code that cargo
+/// compiles, and the same is true of the word `canaries`: `mod canaries;` with
+/// a `canaries` module under a member's own `src` is compiled into the library
+/// by cargo and is reached by no `#[path]`, so a substring test excludes it
+/// from the code-producer walk. The floor at `check.rs`'s
+/// `every_code_is_what_the_registry_says_it_is` shares the predicate, so with a
+/// substring test both sides would agree about ground neither reads.
 ///
 /// What the exclusion is for is a directory a person put beside a member's
 /// `src` to hold code nothing compiles — the repository root's own, or one at a
@@ -2552,15 +2508,14 @@ pub(crate) fn inside_a_canary_directory(relative: &str) -> bool {
 
 /// Whether the canary walk reads this file.
 ///
-/// **One rule, because the floor beside it read different ground.** The walk
+/// **One rule, so the floor beside the walk reads the same ground.** The walk
 /// takes `.rs` files *and* manifests — cargo compiles what a manifest names —
-/// and the second count it was held against was `rust_lines`, which takes `.rs`
-/// only. The manifests are 470 lines, so the floor carried 470 lines of
-/// permanent slack and was written `<` rather than `!=` to survive it: measured,
-/// a clause skipping `docs.rs` and `main.rs` together — 388 lines — left
+/// and a second count that takes `.rs` only carries the manifests' lines as
+/// permanent slack, which forces a `<` rather than a `!=`: measured, a clause
+/// skipping `docs.rs` and `main.rs` together — 388 lines — left
 /// `ok 149818 source line(s) compile no canary` and `check passed`, and the
-/// same clause over a 505-line file was reported at once. The threshold between
-/// them was exactly the manifests.
+/// same clause over a 505-line file was reported at once. The manifests' 470
+/// lines were exactly the threshold between them.
 pub(crate) fn is_read_by_the_canary_walk(root: &Path, path: &Path) -> bool {
     let relative = relative_to(root, path);
     let manifest = path
@@ -2578,15 +2533,14 @@ pub(crate) fn is_read_by_the_canary_walk(root: &Path, path: &Path) -> bool {
 /// The kinds the canary walk opens, by extension.
 ///
 /// **Two lists rather than two literals, so a fixture can derive from them.**
-/// The predicate said `kind == "rs"` and `name == "Cargo.toml"` inline, which
-/// is not a thing anything can enumerate — and the only fixture driving the
-/// walk's body planted `.rs` and nothing else, for as long as the manifest half
-/// has existed. Measured in wave 38: a clause in the walk body dropping
-/// manifests, plus five lines of `[[test]] path = "canaries/…"`, and the gate
-/// whose whole title is "nothing cargo compiles reaches into a `canaries/`
-/// directory" said `ok` with its own count *up* while cargo built a binary out
-/// of one. The citation gates have had this shape for longer and it is why
-/// their fixture could be widened at all.
+/// `kind == "rs"` and `name == "Cargo.toml"` written inline are not a thing
+/// anything can enumerate, and a fixture that plants `.rs` and nothing else
+/// leaves the manifest half undriven. Measured with such a fixture: a clause in
+/// the walk body dropping manifests, plus five lines of
+/// `[[test]] path = "canaries/…"`, and the gate whose whole title is "nothing
+/// cargo compiles reaches into a `canaries/` directory" said `ok` with its own
+/// count *up* while cargo built a binary out of one. The citation gates have
+/// the same shape, and it is what lets their fixture be widened.
 pub(crate) const CANARY_READS: [&str; 1] = ["rs"];
 
 /// The names it opens whatever their extension, which is the half that matters.
@@ -2603,14 +2557,15 @@ mod what_the_canary_walk_reads {
     /// The predicate both readings ask, driven directly.
     ///
     /// **Sharing one predicate makes the two counts agree and makes the
-    /// predicate itself unpinned.** Round forty-five replaced a one-sided floor
-    /// with an equality where both sides call `is_read_by_the_canary_walk`, so
-    /// a clause *inside* it moves both numbers together: measured,
-    /// `"Cargo.toml"` written `"Cargo.tom"` left 520 tests passing and
-    /// `check passed`, with the entire transcript diff being one count falling
-    /// by 473 — the manifests, silently dropped. The manifest half is the half
-    /// this walk exists for: five lines of `[[test]] path = "canaries/…"` are
-    /// how a canary gets compiled.
+    /// predicate itself unpinned.** Both sides of the equality call
+    /// `is_read_by_the_canary_walk`, so a clause *inside* it moves both numbers
+    /// together and the equality holds: measured with no test driving the
+    /// predicate, `"Cargo.toml"` written `"Cargo.tom"` left `check passed`,
+    /// with the entire transcript diff being one count falling by 473 — the
+    /// manifests, silently dropped. This test asks the predicate about a
+    /// manifest directly. The manifest half is the half this walk exists for:
+    /// five lines of `[[test]] path = "canaries/…"` are how a canary gets
+    /// compiled.
     ///
     /// A shared predicate is still right. What it needs is a corpus of its own,
     /// which is this.
@@ -2673,10 +2628,11 @@ pub(crate) fn the_lines_the_canary_walk_reads(root: &Path, except: &Path) -> Res
 
 /// No crate reaches into a `canaries/` directory.
 ///
-/// **The exemption rests on the canary not being compiled, and nothing held
+/// **The exemption rests on the canary not being compiled, and this gate holds
 /// it.** `crates/nc-canon/canaries/a_code_written_by_hand.rs` opens *"Not
 /// compiled: outside this crate's `src/`, so cargo never sees it"* — a promise,
-/// not a rule. Measured: five lines in `crates/nc-canon/src/lib.rs`
+/// not a rule. Measured without this gate: five lines in
+/// `crates/nc-canon/src/lib.rs`
 ///
 /// ```rust
 /// #[path = "../canaries/a_code_written_by_hand.rs"]
@@ -2700,8 +2656,8 @@ pub(crate) fn no_crate_compiles_a_canary(root: &Path) -> Result<(Vec<Finding>, u
     walk(root, &mut |path| {
         // **And manifests, because cargo compiles what one names.** The gate's
         // own title is "nothing cargo compiles reaches into a `canaries/`
-        // directory", and it read `.rs` only — so five lines of `[[test]] path
-        // = "canaries/…"` built one, with `check passed` and
+        // directory", and a gate reading `.rs` only lets five lines of
+        // `[[test]] path = "canaries/…"` build one, with `check passed` and
         // `target/debug/deps/shipped-*` on disk. The rule is
         // `is_read_by_the_canary_walk` so the floor beside this can ask it too.
         if !is_read_by_the_canary_walk(root, path) {
@@ -2713,26 +2669,27 @@ pub(crate) fn no_crate_compiles_a_canary(root: &Path) -> Result<(Vec<Finding>, u
         };
         // The file's own lines, so this count is the same quantity `rust_lines`
         // produces and the floor can be exact. `without_comments` drops lines,
-        // which made the two disagree by construction.
+        // which would make the two disagree by construction.
         for (index, line) in text.lines().enumerate() {
             read += 1;
             // **A comment opens after whitespace, not inside a path.**
-            // `split("//")` cut `#[path = "..//canaries/…"]` in half — a
+            // `split("//")` cuts `#[path = "..//canaries/…"]` in half — a
             // doubled separator cargo accepts and compose of the two tokens
-            // this gate needs — so the attack its own doc describes replayed
-            // with both counts *up*: measured, `NC-DB-0001` in
+            // this gate needs — so, cut there, the attack its own doc describes
+            // replays with both counts *up*: measured, `NC-DB-0001` in
             // `libnc_canon.rlib` and `check passed`.
             let line = line_without_a_comment(line);
             // **A module declaration, not a mention.** `check.rs` names each
             // canary in a constant and `gates.rs` reads them, which is the gate
             // working; what compiles one in is `#[path]`, `include!` and their
-            // relatives. Matching the word alone reported the gate itself.
+            // relatives. Matching the word alone would report the gate itself.
             // **`path =` anywhere, not `#[path` at the start.**
             // `#[cfg_attr(all(), path = "../canaries/…")]` is the same
-            // attribute behind a predicate that is always true, and it compiled
-            // a canary in with every count *up* — measured, `NC-KERN-9999`
-            // twice in `libnc_canon.rlib` and `check passed`. The wrapped form
-            // was caught only by rustfmt, which is not a gate.
+            // attribute behind a predicate that is always true, and past a
+            // `#[path` prefix test it compiles a canary in with every count *up*
+            // — measured, `NC-KERN-9999` twice in `libnc_canon.rlib` and
+            // `check passed`. Past that test, the wrapped form is caught only by
+            // rustfmt, which is not a gate.
             let reaches = [
                 "path =",
                 "path=",
@@ -2768,23 +2725,23 @@ pub(crate) fn no_crate_compiles_a_canary(root: &Path) -> Result<(Vec<Finding>, u
 /// use of it.** `MachineFlake::exhausted` is three lines and has no caller
 /// outside its own tests — pairing is Stage 24 — so nothing in this tree can
 /// report flake exhaustion, and the registry says `reserved`. The gate's needle
-/// is the variant's name, which that function supplies, so the two disagreed
-/// about a fact neither could be wrong about on its own.
+/// is the variant's name, which that function supplies, so without this the two
+/// disagree about a fact neither can be wrong about on its own.
 ///
 /// Narrow on purpose: only a body that is *exactly* one `ErrorCode::` path,
 /// with nothing else in it. `Error::code()`'s match arms are not this — they
 /// map a value a caller holds, which is a use — and neither is anything that
 /// builds an error and returns it.
 ///
-/// **And it read two literals while the finder five lines below resolved
-/// four.** [`error_code_names`] exists because a needle list cannot resolve a
-/// name, and this — the exclusion that decides *mapping table* from *raise* —
-/// went on matching `-> ErrorCode {` and a body opening `ErrorCode::`. Under
-/// any spelling that function resolves and this one does not, the exclusion
-/// stops applying while the finder keeps working, and the gate then reports a
-/// producer that is not one. Measured, one line in `crates/nc-ids/src/flake.rs`
-/// — the import respelled and `MachineFlake::exhausted`'s body written as the
-/// bare variant it then names:
+/// **And it reads the names the finder resolves, not two literals of its
+/// own.** [`error_code_names`] exists because a needle list cannot resolve a
+/// name, and this is the exclusion that decides *mapping table* from *raise*.
+/// An exclusion matching only `-> ErrorCode {` and a body opening
+/// `ErrorCode::` stops applying under any spelling that function resolves and
+/// it does not, while the finder keeps working, and the gate then reports a
+/// producer that is not one. Measured that way, one line in
+/// `crates/nc-ids/src/flake.rs` — the import respelled and
+/// `MachineFlake::exhausted`'s body written as the bare variant it then names:
 ///
 /// ```text
 /// use nc_catalog::ErrorCode::{self, IdsFlakeExhausted};
@@ -2793,22 +2750,21 @@ pub(crate) fn no_crate_compiles_a_canary(root: &Path) -> Result<(Vec<Finding>, u
 /// ```
 ///
 /// `catalog/errors.toml`'s own comment on that number says that exact function
-/// is not a producer, so the gate contradicted the registry about a fact
+/// is not a producer, so the gate then contradicts the registry about a fact
 /// neither can be wrong about on its own — and a gate wrong in *that* direction
 /// teaches a reader to ignore it.
 ///
 /// So the same two lists the finder resolves are passed in: `types` are the
 /// names this file may write in front of a `::`, and `bare` the variants it
 /// imported without one. A body that is exactly one of those is a name for a
-/// code rather than a use of it, however the file spelled the import.
+/// code rather than a use of it, however the file spells the import.
 ///
 /// The *fully qualified* `-> nc_catalog::ErrorCode { nc_catalog::ErrorCode::X }`
 /// is deliberately still a producer: `types` holds the names a path may open
 /// with, and `nc_catalog` is not one. `FlakeOutOfRange::code`
-/// (`crates/nc-ids/src/flake.rs`) is written that way and is the only non-test
-/// producer of `NC-VAL-0001`, which is declared `raised` on the strength of it —
-/// so widening this to qualified paths would move a registry verdict rather than
-/// close a hole.
+/// (`crates/nc-ids/src/flake.rs`) is written that way and is a producer of
+/// `NC-VAL-0001`, which is declared `raised` — so widening this to qualified
+/// paths would drop a producer from the walk rather than close a hole.
 fn without_bare_returns(text: &str, types: &[String], bare: &[(String, String)]) -> String {
     let mut out = String::with_capacity(text.len());
     let lines: Vec<&str> = text.lines().collect();
@@ -2845,13 +2801,14 @@ fn without_bare_returns(text: &str, types: &[String], bare: &[(String, String)])
 
 /// The file with the *inside* of every Rust string literal blanked out.
 ///
-/// **A `#[doc = "…"]` attribute was a producer.** `without_comments` strips
+/// **A `#[doc = "…"]` attribute is not a producer.** `without_comments` strips
 /// `//`, `///`, `//!` and `/* … */` — every *comment* — and a doc **attribute**
 /// is not a comment, it is a string literal in an attribute position. So
-/// `#[doc = "… nc_catalog::ErrorCode::LogUnreachable …"]` made the reserved
-/// `NC-LOG-0001` "produced by a crate outside the catalog", and the same
-/// spelling on the other side keeps a `raised` declaration true after the last
-/// real producer is gone. Measured, one line added to `crates/nc-canon/src/lib.rs`:
+/// without this, `#[doc = "… nc_catalog::ErrorCode::LogUnreachable …"]` makes
+/// the reserved `NC-LOG-0001` "produced by a crate outside the catalog", and
+/// the same spelling on the other side keeps a `raised` declaration true after
+/// the last real producer is gone. Measured, one line added to
+/// `crates/nc-canon/src/lib.rs`:
 ///
 /// ```text
 /// error `NC-LOG-0001` is declared `reserved` and is produced by a crate outside the catalog
@@ -2891,14 +2848,12 @@ pub(crate) fn without_string_contents(text: &str) -> String {
             }
             continue;
         }
-        // **A quote inside a comment is not a quote.** Nothing here knew what a
-        // comment was, which the one-line bound below used to hide: an
-        // apostrophe or a lone quote in prose opened a string that ended at the
-        // newline, costing one line. With a literal free to span lines — which
-        // it is — the same quote runs until the next one, and real code in
-        // between is handed back to every caller as blanked text. Measured, the
-        // moment the bound came off: `ui.rs`'s printer walk reported two of 505
-        // bodies no longer ending at their own closing brace.
+        // **A quote inside a comment is not a quote.** A literal is free to
+        // span lines, so an apostrophe or a lone quote in prose, read as an
+        // opener, runs until the next quote, and real code in between is handed
+        // back to every caller as blanked text. Measured with comments not
+        // recognised here: `ui.rs`'s printer walk reported two of 505 bodies no
+        // longer ending at their own closing brace.
         //
         // Copied through rather than spent, because the callers that care about
         // comments strip them with `without_comments` first, and the ones that
@@ -2939,8 +2894,8 @@ pub(crate) fn without_string_contents(text: &str) -> String {
             && let Some(width) = char_literal_at(&bytes, index)
         {
             // **Blanked like a string, because a char literal holds text too.**
-            // This copied the literal through verbatim, so `'{'` and `'}'` were
-            // braces to every brace-counting scan downstream. Measured in
+            // Copied through verbatim, `'{'` and `'}'` are braces to every
+            // brace-counting scan downstream. Measured in
             // `ui.rs`'s counter-reader rule: a probe with `let at = "x}y".find('}');`
             // above the line it reads is invisible, while the identical probe
             // without the char literal is named. The quotes are kept so the
@@ -2967,14 +2922,10 @@ pub(crate) fn without_string_contents(text: &str) -> String {
                     // **The escaped character may be the newline itself.**
                     // `\`-at-end-of-line is Rust's continuation, which is the
                     // form every fixture in this repository is written with, and
-                    // spending it as a space lost the line: measured, three
-                    // lines in and two out. `blanked` keeps it, and
-                    // `the_stripper_keeps_the_line_count` holds `blanked` and
-                    // `without_comments` to that rule while this function was
-                    // not in the test at all — so `check.rs`'s sentence "newlines
-                    // are kept, so every line number below still counts from the
-                    // top of the file" was false of the function it was written
-                    // above.
+                    // spending it as a space loses the line: measured, three
+                    // lines in and two out. `blanked` keeps it too, and
+                    // `the_stripper_keeps_the_line_count` holds this function,
+                    // `blanked` and `without_comments` to that rule.
                     out.push(if inside == '\n' { '\n' } else { ' ' });
                     index += 1;
                     continue;
@@ -2989,31 +2940,31 @@ pub(crate) fn without_string_contents(text: &str) -> String {
                         index += 1;
                         break;
                     }
-                    // **A newline does not end it, and the sentence here said
-                    // it did.** Rust string literals may hold a bare newline —
-                    // `let s = "one\ntwo";` written across two lines compiles,
-                    // and so does the `\`-continued form this repository writes
-                    // its fixtures with. So everything after the first line of
-                    // such a literal was handed back to every caller as *code*.
-                    // Measured, on `let source = "\<newline>fn wanted() {}
-                    // <newline>#[test]<newline>fn other() {}<newline>";`:
+                    // **A newline does not end it.** Rust string literals may
+                    // hold a bare newline — `let s = "one\ntwo";` written across
+                    // two lines compiles, and so does the `\`-continued form
+                    // this repository writes its fixtures with. Ended at the
+                    // newline, everything after the first line of such a
+                    // literal is handed back to every caller as *code*.
+                    // Measured that way, on `let source = "\<newline>fn
+                    // wanted() {}<newline>#[test]<newline>fn other() {}<newline>";`:
                     //
                     // ```text
                     // "let source = \"                \n#[test]\nfn other() {}\n\" \n"
                     // ```
                     //
-                    // — the first line spent and the rest live, which put
+                    // — the first line spent and the rest live, which puts
                     // `fn other` into the undocumented-item census as an item of
                     // `check.rs` and a `#[test]` into the test census as a test
                     // that does not exist. Both censuses are floors under
                     // numbers this gate prints.
                     //
                     // The newline is kept so line numbers downstream do not
-                    // move, which is what the raw-string branch above already
-                    // does for the same reason. An unbalanced quote is a compile
-                    // error, and cargo builds every file this reads in the same
-                    // run, so the bound this replaced was protecting against
-                    // something that cannot reach here.
+                    // move, which is what the raw-string branch above does for
+                    // the same reason. An unbalanced quote is a compile error,
+                    // and cargo builds every file this reads in the same run, so
+                    // a bound at the newline would protect against something
+                    // that cannot reach here.
                     '\n' => out.push('\n'),
                     _ => out.push(' '),
                 }
@@ -3078,9 +3029,8 @@ fn past_a_block_comment(chars: &[char], index: usize) -> usize {
 /// direction: a scanner that reads a comment as code is what this exists to
 /// stop.
 ///
-/// **Not test-only any more.** [`outside_the_tests`] counted braces on raw text
-/// and this is the text a brace counter has to read; the two lived one file
-/// apart with the shipped scanner using the naive one.
+/// **Shipped, not test-only.** [`outside_the_tests`] counts braces, and this is
+/// the text a brace counter has to read.
 pub(crate) fn blanked(text: &str) -> String {
     let chars: Vec<char> = text.chars().collect();
     let mut out = String::with_capacity(text.len());
@@ -3114,15 +3064,13 @@ pub(crate) fn blanked(text: &str) -> String {
         // difference from `without_string_contents`.
         if let Some((opener, hashes)) = raw_string_at(&chars, index) {
             // **The opening hashes are spent too, so what comes back is still
-            // Rust.** They were kept while the closing ones were spent, which
-            // leaves `r#"x"#;` as `r#" " ;` — a raw string that opens and never
+            // Rust.** Keeping them while the closing ones are spent leaves
+            // `r#"x"#;` as `r#" " ;` — a raw string that opens and never
             // closes. Any reader that scans the blanked text then runs one
-            // delimiter out of phase for the rest of the file: measured by a
-            // reviewer on 2026-09-12, one `let _ = r#"x"#;` in `check.rs`
-            // turned the floor census red with a list of garbage and dropped a
-            // row from the census beside it, naming no floor and no defect.
-            // `check.rs` holds no raw string in code today, which is the only
-            // reason nobody had met it.
+            // delimiter out of phase for the rest of the file: measured, one
+            // `let _ = r#"x"#;` in `check.rs` turned the floor census red with
+            // a list of garbage and dropped a row from the census beside it,
+            // naming no floor and no defect.
             //
             // With both sides spent the result reads as an ordinary empty
             // string, which is what it is, and the length is unmoved either
@@ -3181,18 +3129,14 @@ pub(crate) fn blanked(text: &str) -> String {
                         index += 1;
                         break;
                     }
-                    // **A string literal may span lines**, which the two
-                    // strippers beside this one both used to get wrong: each
-                    // carried the sentence "Rust has no unescaped newline in a
-                    // string literal", and it is not so — a raw newline inside
+                    // **A string literal may span lines.** A raw newline inside
                     // quotes is part of the string, and the `\` at a line end is
-                    // the *continuation* that removes one. Both are repaired;
-                    // this one was right from the start. Measured, on
-                    // `xtask/tests/every_generated_value_is_compared.rs`, whose
-                    // `a_function_body_stops_at_its_own_brace` holds a
-                    // seven-line literal: ending the string at the first
-                    // newline handed four of that literal's braces back as
-                    // code, and the file stopped balancing.
+                    // the *continuation* that removes one. Measured with the
+                    // string ended at its first raw newline: the `\`-continued
+                    // literal in `a_function_body_stops_at_its_own_brace`
+                    // (`xtask/tests/every_generated_value_is_compared.rs`)
+                    // hands every brace below that newline back as code, and
+                    // that file and `xtask/src/check.rs` stop balancing.
                     _ => spend(&mut out, inside),
                 }
                 index += 1;
@@ -3209,19 +3153,18 @@ pub(crate) fn blanked(text: &str) -> String {
 ///
 /// The whole item each time, `#[cfg(test)]` attribute included, so a caller can
 /// cut them all out and be left with **everything the file ships** — the code
-/// above the tests *and* the code below them, which is the half that had no
-/// reader.
+/// above the tests *and* the code below them, the half a cut at the first
+/// module of tests leaves out.
 ///
-/// **Plural, and that is a finding rather than a generalisation.** The rule was
-/// specified against "the last column-zero `#[cfg(test)]`", and `release.rs`
-/// has two modules of tests — `mod tests` and `mod relock_tests` at the foot of
-/// the file — so the last one alone leaves the first, four hundred lines of it,
-/// counted as shipped code. Every module of tests is cut, and a caller that
-/// wants to know it cut the right ones can check that what is left holds no
-/// `#[test]`.
+/// **Plural, because one file can hold several.** `release.rs` has two modules
+/// of tests — `mod tests`, and `mod relock_tests` at the foot of the file — so
+/// cutting at the last column-zero `#[cfg(test)]` alone leaves the whole of the
+/// first counted as shipped code. Every module of tests is cut, and a caller
+/// that wants to know it cut the right ones can check that what is left holds
+/// no `#[test]`.
 ///
-/// **Code below a file's test module is shipped code, and four attempts at
-/// finding where a module ends did not bind.** `rfind("\n}")` finds an appended
+/// **Code below a file's test module is shipped code, and four simpler ways of
+/// finding where a module ends do not bind.** `rfind("\n}")` finds an appended
 /// item's own brace; counting braces on the raw text is skewed by a `{` inside
 /// a string literal in the tests; blanking the strings with
 /// [`without_string_contents`] shifts every offset after the first raw string,
@@ -3302,7 +3245,7 @@ pub(crate) fn the_test_modules(text: &str) -> Option<Vec<core::ops::Range<usize>
 
 /// No source file pulls in text from a file the gates do not read.
 ///
-/// **A fifth shape, and it needed no edit to any gate.** The `§15.1` walk takes
+/// **A shape that needs no edit to any gate.** The `§15.1` walk takes
 /// `.rs` and `.sql`; its floor calls `lines_under` with the same two kinds. So a
 /// file of any other extension is outside the walk *and* outside the second
 /// count that exists to catch a narrowed walk — both sides narrow together,
@@ -3320,7 +3263,7 @@ pub(crate) fn the_test_modules(text: &str) -> Option<Vec<core::ops::Range<usize>
 ///
 /// Every number up, every canary reported, both counters agreeing line for
 /// line, and the audit-log crate shipping a hand-written registry code. No
-/// predicate was weakened, so mutation coverage would not have seen it either.
+/// predicate is weakened, so mutation coverage cannot see it either.
 ///
 /// The rule is narrow on purpose: what cargo pulls into a compiled crate has to
 /// be a file the gates read, and `.rs` is the one they all read. A generated
@@ -3353,15 +3296,14 @@ pub(crate) fn nothing_includes_what_the_gates_do_not_read(
             // would be an exclusion list growing to fit the gate.
             // **Found in the code, read from the line.** `include!(` appears
             // inside this gate's own string literals — its fix text and the
-            // search below — and the positive rule reported both of them. The
-            // blanked copy is the same length in characters, so a position found
-            // there is the position here.
-            // — which was true of the name and not of the function called:
-            // `without_string_contents` writes the raw-string closer back as one
-            // character, measured 30 chars in and 29 out, so a line holding a raw
-            // literal before an `include!(` shifted every offset left by the hash
-            // count. [`blanked`] is the length-preserving one, and it spends
-            // comments too.
+            // search below — and a search of the raw line reports both of them.
+            // The blanked copy is the same length in characters, so a position
+            // found there is the position here.
+            // That is true of [`blanked`] and not of `without_string_contents`,
+            // which writes the raw-string closer back as one character —
+            // measured 30 chars in and 29 out — so a line holding a raw literal
+            // before an `include!(` would shift every offset left by the hash
+            // count. [`blanked`] spends comments too.
             let blanked: Vec<char> = blanked(code).chars().collect();
             let here: Vec<char> = code.chars().collect();
             let Some(at) = blanked
@@ -3371,10 +3313,10 @@ pub(crate) fn nothing_includes_what_the_gates_do_not_read(
                 continue;
             };
             // **The argument, not the first string literal in it.** Reading the
-            // first literal and skipping when it held no `.` meant `concat!` walked
+            // first literal and skipping when it holds no `.` lets `concat!` walk
             // straight through: `include!(concat!("plan", "ted.in"))` yields
             // `"plan"`, and so does the canonical build-script idiom
-            // `include!(concat!(env!("OUT_DIR"), "/generated.rs"))` — which put
+            // `include!(concat!(env!("OUT_DIR"), "/generated.rs"))` — which puts
             // every build-script-generated file outside every gate in this suite.
             // Measured, a hand-written registry code in the crate the journal
             // hashes through:
@@ -3461,11 +3403,12 @@ pub(crate) fn rust_files_under(root: &Path, under: &str, keep: fn(&str) -> bool)
 
 /// Which files decide what a code's `raising` says, named for the walk and its test.
 ///
-/// **The walk had no mechanism of any kind** — no canary, no fixture, no corpus
-/// entry, no test — and a floor of `raised.len() < 5`. One line in its skip
-/// chain, `relative.starts_with("crates/nc-log/")`, left two codes the registry
-/// declares `reserved` being produced by a public function, with every printed
-/// number *up* and the reserved count unchanged at seven:
+/// **Named once, so the walk and its test read one rule.** With no canary,
+/// fixture, corpus entry or test over it and a floor of `raised.len() < 5`, one
+/// line in the walk's skip chain, `relative.starts_with("crates/nc-log/")`,
+/// left two codes the registry declares `reserved` being produced by a public
+/// function, with every printed number *up* and the reserved count unchanged
+/// at seven:
 ///
 /// ```text
 /// ok    28 code(s) are declared as what the tree does with them, and 7 of them
@@ -3482,20 +3425,19 @@ pub(crate) fn in_the_raising_scope(relative: &str) -> bool {
         || relative.starts_with("crates/nc-catalog-compiler/")
         || an_integration_test(relative)
         // The same predicate the canary walk reads, and not a second spelling
-        // of it: this was a bare `contains("/canaries/")`, which skips a
-        // `canaries` module under a member's `src` that cargo compiles into the
-        // library.
+        // of it: a bare `contains("/canaries/")` skips a `canaries` module
+        // under a member's `src` that cargo compiles into the library.
         || inside_a_canary_directory(relative))
 }
 
 /// Whether `relative` is one of a member's integration tests.
 ///
-/// **`contains("/tests/")` is not that, and the floor beside it agreed.**
+/// **`contains("/tests/")` is not that, and the floor beside it would agree.**
 /// A module a member calls `tests` under its own `src` is shipped code — cargo
-/// compiles it, it is
-/// in the library, and its name is an author's choice — and the walk stepped
-/// over it, while `rust_files_under` stepped over it too, so the equality that
-/// floors the walk balanced with a whole directory missing from both sides.
+/// compiles it, it is in the library, and its name is an author's choice — and
+/// a substring test steps over it in the walk and in `rust_files_under` alike,
+/// so the equality that floors the walk balances with a whole directory missing
+/// from both sides.
 /// Measured, a public documented producer of the reserved `NC-DB-0002` in
 /// exactly that file: `ok 29 code(s) are declared as what the tree does with
 /// them`, every number unmoved and no line about it anywhere.
@@ -3514,9 +3456,9 @@ fn an_integration_test(relative: &str) -> bool {
 /// that member.
 ///
 /// **Both member trees, in one place.** The raising walk, its integration-test
-/// exclusion and its per-member name map each spelled `strip_prefix("crates/")`
-/// on their own, so the plugin tree — a member tree since the plugin build
-/// arrived — was outside all three at once.
+/// exclusion and its per-member name map all ask this, so a member tree is
+/// inside all three or none — with `strip_prefix("crates/")` spelled in each,
+/// the plugin tree is outside all three at once.
 pub(crate) fn inside_a_member(relative: &str) -> Option<(&str, &str)> {
     ["crates/", "plugins/"].iter().find_map(|tree| {
         let (member, inside) = relative.strip_prefix(tree)?.split_once('/')?;
@@ -3526,12 +3468,12 @@ pub(crate) fn inside_a_member(relative: &str) -> Option<(&str, &str)> {
 
 /// Which declared codes a crate outside the catalog actually constructs.
 ///
-/// **`catalog/errors.toml` said "every error the platform can return" over
-/// six codes nothing raises.** Measured by looking for each code's own
-/// `ErrorCode::` variant outside the generated crate and outside `#[cfg(test)]`
-/// regions: five had no producer at all and one was recorded rather than
-/// returned. A registry that cannot tell a live error from a reserved number is
-/// a registry a reader has to check by grep, which is what this does once.
+/// **A registry that cannot tell a live error from a reserved number is a
+/// registry a reader has to check by grep, which is what this does once.**
+/// Measured by looking for each code's own `ErrorCode::` variant outside the
+/// generated crate and outside `#[cfg(test)]` regions, a `catalog/errors.toml`
+/// headed "every error the platform can return" held six codes nothing raised:
+/// five with no producer at all and one recorded rather than returned.
 ///
 /// The scope is `crates/` and `plugins/`, minus the catalog's own two: the
 /// compiler parses these codes and the generated crate declares them, and
@@ -3547,18 +3489,17 @@ pub(crate) fn codes_something_raises(root: &Path) -> Result<(Vec<String>, usize)
     // The files this walk actually judged, so a filter inside it is visible.
     let mut read = 0_usize;
     // **Read whole, then judged, because a name is a crate's and not a file's.**
-    // This resolved the enum's local names per *file*, and rustc resolves them
-    // per crate: `pub use nc_catalog::ErrorCode as Code;` at one member's root
-    // and `crate::Code::Planted` in a sibling file of the same member is
-    // `ErrorCode::Planted` to the compiler, and matched nothing here — the
-    // sibling declares no alias of its own, so its `types` held the default
-    // spelling alone and the walk answered `[]`. Every other spelling this
-    // resolves was closed one at a time in `error_code_names`; this is the one
-    // that cannot be closed inside a single file, because the declaration is
-    // not in it.
+    // rustc resolves the enum's local names per crate: `pub use
+    // nc_catalog::ErrorCode as Code;` at one member's root and
+    // `crate::Code::Planted` in a sibling file of the same member is
+    // `ErrorCode::Planted` to the compiler, and resolved per *file* it matches
+    // nothing — the sibling declares no alias of its own, so its `types` hold
+    // the default spelling alone and the walk answers `[]`. Every other
+    // spelling this resolves is handled inside one file by `error_code_names`;
+    // this is the one that cannot be, because the declaration is not in it.
     //
-    // The shape `check.rs`'s `the_aliases_each_member_declares` already uses for
-    // the static-string wall, and for the same reason.
+    // The shape `check.rs`'s `the_aliases_each_member_declares` uses for the
+    // static-string wall, and for the same reason.
     let mut sources: Vec<(String, String)> = Vec::new();
     let mut visit = |path: &Path| {
         let relative = relative_to(root, path);
@@ -3610,29 +3551,29 @@ pub(crate) fn codes_something_raises(root: &Path) -> Result<(Vec<String>, usize)
     }
 
     for (relative, text) in &sources {
-        // **And with comments gone.** A code named only in prose counted as a
-        // producer, so a comment could keep a declaration true after the last
+        // **And with comments gone.** A code named only in prose would count as
+        // a producer, so a comment could keep a declaration true after the last
         // real use went.
         let code = without_string_contents(&without_comments(&outside_the_tests(text), "//"));
         // **A `const fn` that returns a code is not a producer.** The needle is
         // the variant's *name*, and a `pub const fn exhausted() -> ErrorCode`
-        // names it — so `NC-IDS-0003` counted as raised while nothing in the
-        // tree can detect flake exhaustion, which is Stage 24's pairing walk.
-        // Declared honestly as `reserved`, the gate then contradicted the
-        // registry. What the needle can tell apart is a code *returned by a
-        // function whose whole body is that code* from a code used anywhere
-        // else, and the first is a mapping table, not a raise.
+        // names it — so `NC-IDS-0003` would count as raised while nothing in
+        // the tree can detect flake exhaustion, which is Stage 24's pairing
+        // walk, and with the code declared honestly as `reserved` the gate would
+        // contradict the registry. What the needle can tell apart is a code
+        // *returned by a function whose whole body is that code* from a code
+        // used anywhere else, and the first is a mapping table, not a raise.
         // **The names this file gives the enum, not the one name it is
-        // declared under.** A needle list cannot resolve a name, which is the
-        // lesson `main.rs`, `release.rs` and `determinism.rs` each record about
-        // a different scan; here it was `ErrorCode::` alone, and
+        // declared under.** A needle list cannot resolve a name, which
+        // `main.rs`, `release.rs` and `determinism.rs` each record about a
+        // different scan; with `ErrorCode::` alone,
         // `use nc_catalog::ErrorCode as Code;` then `Code::PolicyUnreadable`
-        // matched nothing at all.
+        // matches nothing at all.
         //
-        // **Resolved first, because the exclusion above needs them too.** The
-        // blanking ran before this and read two literals of its own, so a
-        // mapping table written under any spelling this resolves stopped being
-        // excluded while the finder below went on finding it. `use` statements
+        // **Resolved first, because the exclusion above needs them too.** With
+        // the blanking first and two literals of its own, a mapping table
+        // written under any spelling this resolves stops being excluded while
+        // the finder below goes on finding it. `use` statements
         // are not what the blanking touches, so reading the names off the
         // unblanked text is the same answer.
         let (mut types, bare) = error_code_names(&code);
@@ -3652,12 +3593,12 @@ pub(crate) fn codes_something_raises(root: &Path) -> Result<(Vec<String>, usize)
         // **The same widened list to the exclusion**, which this file's own
         // paragraph on `without_bare_returns` says must stay in step: a mapping
         // table written under a name the crate declares elsewhere would stop
-        // being excluded while the finder below went on finding it.
+        // being excluded while the finder below goes on finding it.
         let code = without_bare_returns(&code, &types, &bare);
         // **An import is not a producer, and both halves must read that same
-        // text.** The bare-variant half below already dropped the `use` lines;
-        // the qualified-path loop did not, so `use nc_catalog::ErrorCode::X;`
-        // made the import its own producer. Measured, on a refactor of
+        // text.** The bare-variant half below drops the `use` lines, and a
+        // qualified-path loop that does not makes `use nc_catalog::ErrorCode::X;`
+        // its own producer. Measured, on a refactor of
         // `nc-ids`'s `exhausted()` that is semantics-preserving and clippy
         // clean — importing the variant and returning it bare:
         // `error `NC-IDS-0003` is declared `reserved` and is produced by a
@@ -3667,7 +3608,7 @@ pub(crate) fn codes_something_raises(root: &Path) -> Result<(Vec<String>, usize)
         let code = without_the_use_statements(&code);
         // **And the qualified-path form, `<…ErrorCode>::Variant`.** rustc reads
         // `<nc_catalog::ErrorCode>::LogDropped` as the same path with the same
-        // meaning, and the needle ended in `::` — so it matched nothing.
+        // meaning, and a needle ending in `::` matches nothing.
         // Measured end to end in `crates/nc-journal/src/memory.rs`: the reserved
         // `NC-LOG-0002` produced by a public function, `ok 29 code(s) …`
         // unchanged and `check passed`. `use …::*;` is the fourth spelling and
@@ -3679,8 +3620,9 @@ pub(crate) fn codes_something_raises(root: &Path) -> Result<(Vec<String>, usize)
         for needle in &needles {
             for (at, _) in code.match_indices(needle.as_str()) {
                 // **A name that merely ends in those letters is another type.**
-                // `MyErrorCode::Planted` matched the bare needle, so a code was
-                // reported as produced by a crate that names an unrelated enum.
+                // `MyErrorCode::Planted` matches the bare needle, so without this
+                // a code is reported as produced by a crate that names an
+                // unrelated enum.
                 if code[..at]
                     .chars()
                     .next_back()
@@ -3719,9 +3661,10 @@ fn the_member_of(relative: &str) -> Option<String> {
 /// The local names a source file gives `ErrorCode`, and the variants it imports
 /// bare.
 ///
-/// **The gate read one spelling, and rustc reads four.** `codes_something_raises`
-/// looked for `ErrorCode::` and nothing else, so both halves of Rust's import
-/// syntax walked past it. Measured, in `crates/nc-journal/src/memory.rs`:
+/// **rustc reads four spellings, and one is not enough.** A scan for
+/// `ErrorCode::` and nothing else lets both halves of Rust's import syntax walk
+/// past it. Measured with such a scan, in
+/// `crates/nc-journal/src/memory.rs`:
 ///
 /// ```text
 /// use nc_catalog::ErrorCode as Code;   Code::PolicyUnreadable
@@ -3733,11 +3676,12 @@ fn the_member_of(relative: &str) -> Option<String> {
 /// ```
 ///
 /// `use nc_catalog::ErrorCode::{self, PolicyUnreadable};` and then the bare
-/// `PolicyUnreadable` is the second spelling and was equally invisible.
+/// `PolicyUnreadable` is the second spelling and is equally invisible to such a
+/// scan.
 /// `docs/errors.md` is generated from `raising`, so either one publishes a
 /// subsystem as raising nothing while `nc-journal` returns its code.
 ///
-/// The answer is the shape `wall.rs`'s `static_aliases` already uses: read the
+/// The answer is the shape `wall.rs`'s `static_aliases` uses: read the
 /// file's own imports and look for the names *it* uses. Two lists come back —
 /// the names that may stand in front of a `::`, and the pairs
 /// `(written here, the variant it names)` for a variant imported without one,
@@ -3750,9 +3694,10 @@ fn error_code_names(code: &str) -> (Vec<String>, Vec<(String, String)>) {
     let mut types: Vec<String> = vec![enum_name.clone()];
     let mut bare: Vec<(String, String)> = Vec::new();
     // **`type X = …ErrorCode;`, which is the third way to give it a name.**
-    // This pass read `use` statements only, and rustc reads a type alias as the
-    // same rename: `type Held = nc_catalog::ErrorCode;` then `Held::DbMigrationFailed`
-    // is `ErrorCode::DbMigrationFailed`, and it matched nothing here. Measured, a
+    // rustc reads a type alias as the same rename as a `use`:
+    // `type Held = nc_catalog::ErrorCode;` then `Held::DbMigrationFailed` is
+    // `ErrorCode::DbMigrationFailed`, and a pass that reads `use` statements
+    // only matches nothing. Measured without this, a
     // public documented producer of the reserved `NC-DB-0002` written that way
     // in `crates/nc-canon/src/lib.rs` left the verdict line at its baseline —
     // `ok 29 code(s) are declared as what the tree does with them`, and
@@ -3823,14 +3768,13 @@ fn read_one_import(rest: &str, types: &mut Vec<String>, bare: &mut Vec<(String, 
     };
     // `use …::ErrorCode::{self, PolicyUnreadable as Unreadable};` — a group,
     // whose items are the two kinds together.
-    // **The rename outside a group was thrown away.** `identifier_at` stops at
-    // the space, so `use …::ErrorCode::Planted as Refused;` came back as the
-    // pair `(Planted, Planted)` and the local name `Refused` — the only
-    // spelling the file actually writes — was in neither list. The test for
-    // that spelling passed anyway, because the qualified loop was reading the
-    // `use` line itself and finding `Planted` there: the import was the
-    // producer. Fixing that loop to read use-free text is what made this
-    // visible, which is what a repair that closes one hole is supposed to do.
+    // **The rename outside a group is kept.** `identifier_at` stops at the
+    // space, so `use …::ErrorCode::Planted as Refused;` read without splitting
+    // on ` as ` gives the pair `(Planted, Planted)`, and the local name
+    // `Refused` — the only spelling the file actually writes — is in neither
+    // list. A test for that spelling passes anyway if the qualified loop reads
+    // the `use` line itself and finds `Planted` there, which is the import
+    // being its own producer; that loop reads use-free text for that reason.
     let group = after.strip_prefix('{').map_or_else(
         || after.split(';').next().unwrap_or(after).trim().to_owned(),
         |inside| {
@@ -3872,7 +3816,7 @@ fn identifier_at(text: &str) -> String {
 /// same import and rustfmt is free to wrap a long one; a bound on how far it
 /// will look, because an unterminated `use` is a file that does not compile and
 /// not this rule's business. The shape [`crate::release`]'s `the_imports_of`
-/// already uses, one visibility simpler: what is wanted here is the path, and a
+/// uses, one visibility simpler: what is wanted here is the path, and a
 /// `pub use` carries the same one.
 fn use_statements(code: &str) -> Vec<String> {
     statements_opening_with(code, "use ")
@@ -3888,13 +3832,12 @@ fn type_statements(code: &str) -> Vec<String> {
 
 /// A line with any leading visibility taken off it.
 ///
-/// **A re-export is an import, and both readers below thought `pub ` was the
-/// whole of a visibility.** `pub(crate) use nc_catalog::ErrorCode as Code;` is
-/// an ordinary line to `strip_prefix("pub ")`, so the rename was invisible to
-/// the name resolver and the import itself was left in the text the bare-variant
-/// scan reads — two errors from one missing spelling. `crate::release`'s
-/// `without_a_visibility` records the same defect against its own census, in the
-/// same words.
+/// **A re-export is an import, and `pub ` is not the whole of a visibility.**
+/// `pub(crate) use nc_catalog::ErrorCode as Code;` is an ordinary line to
+/// `strip_prefix("pub ")`, so read that way the rename is invisible to the name
+/// resolver and the import itself is left in the text the bare-variant scan
+/// reads — two errors from one missing spelling. `crate::release`'s
+/// `without_a_visibility` records the same defect against its own census.
 ///
 /// `pub`, `pub(crate)`, `pub(super)` and `pub(in path)` are all of them.
 /// Whitespace is required after the visibility, so an identifier that merely
@@ -3920,11 +3863,11 @@ pub(crate) fn without_a_visibility(line: &str) -> &str {
 
 /// Every statement in `code` opening with `keyword`, whole and squeezed.
 ///
-/// **One collector, because there are two keywords and they had one reader.**
-/// `use … as X;` was read and `type X = …ErrorCode;` was not, and rustc gives a
-/// type the same second name either way — so the two spellings of a rename
-/// belong to one pass rather than to a pass and a hole. Splitting the walk out
-/// is what makes the second keyword a line rather than a copy of this function.
+/// **One collector for both keywords.** rustc gives a type the same second name
+/// through `use … as X;` and through `type X = …ErrorCode;`, so the two
+/// spellings of a rename belong to one pass rather than to a pass and a hole.
+/// One walk is what makes the second keyword a line rather than a copy of this
+/// function.
 fn statements_opening_with(code: &str, keyword: &str) -> Vec<String> {
     let lines: Vec<&str> = code.lines().collect();
     let mut found = Vec::new();
@@ -3994,9 +3937,9 @@ fn names_it_bare(code: &str, name: &str) -> bool {
 /// anything the platform does, and counting it would make this gate agree with
 /// itself.
 ///
-/// **The braces are counted in a text where a literal is not code.** This read
-/// the raw file, and `'{'`, `"{"` and `format!("{{")` are braces to a counter
-/// that does not know what a string is — so one test that writes a brace and no
+/// **The braces are counted in a text where a literal is not code.** In the
+/// raw file, `'{'`, `"{"` and `format!("{{")` are braces to a counter that
+/// does not know what a string is — so one test that writes a brace and no
 /// matching one moves `depth` for ever, `in_a_test` never closes, and every
 /// line of the file below that test is blanked. Measured, six lines added to
 /// `crates/nc-canon/src/parse.rs`:
@@ -4023,8 +3966,8 @@ fn names_it_bare(code: &str, name: &str) -> bool {
 /// [`blanked`] spends every comment and every literal character for character
 /// and keeps the newlines, so line `n` of it is line `n` of the file with the
 /// braces that are code and no others. The `#[cfg(test)]` and the closing brace
-/// are looked for in that text too: a `//` line naming the attribute used to
-/// open a test region, because `without_comments` runs *after* this.
+/// are looked for in that text too: otherwise a `//` line naming the attribute
+/// opens a test region, because `without_comments` runs *after* this.
 pub(crate) fn outside_the_tests(text: &str) -> String {
     let spent = blanked(text);
     let mut out = String::with_capacity(text.len());
@@ -4048,12 +3991,12 @@ pub(crate) fn outside_the_tests(text: &str) -> String {
             }
         }
         if in_a_test {
-            // **An item is not always brace-delimited, and this closed only on
-            // a brace.** The attribute governs one item, and `use …;`,
-            // `const …;`, `static …;`, `type …;` and `mod x;` are all items
-            // that end in a semicolon — so the region stayed open past them and
-            // blanked everything down to the *next* item's closing brace, which
-            // is shipped code. Measured, `#[cfg(test)] pub const PROBE: u32 = 3;`
+            // **An item is not always brace-delimited.** The attribute governs
+            // one item, and `use …;`, `const …;`, `static …;`, `type …;` and
+            // `mod x;` are all items that end in a semicolon — so a region that
+            // closes only on a brace stays open past them and blanks everything
+            // down to the *next* item's closing brace, which is shipped code.
+            // Measured, `#[cfg(test)] pub const PROBE: u32 = 3;`
             // in `crates/nc-journal/src/memory.rs` with a documented public
             // producer of the reserved `NC-POL-0001` under it:
             //
@@ -4075,9 +4018,9 @@ pub(crate) fn outside_the_tests(text: &str) -> String {
             //
             // **And a comma**, one mark over: a match arm and a struct
             // literal's field end in one, and the attribute governs that arm or
-            // that field. Closing only on `}` or `;`, the region ran to the
-            // enclosing brace, and a reviewer hid behind a `#[cfg(test)]` arm a
-            // production arm that dropped a trigger — the local SQL gate and the
+            // that field. Closing only on `}` or `;`, the region runs to the
+            // enclosing brace, so a production arm that drops a trigger hides
+            // behind a `#[cfg(test)]` arm — measured, the local SQL gate and the
             // raising rule both went blind there. The brackets are counted too,
             // so a comma inside a parameter list or an argument list, which
             // ends no item, closes nothing.
@@ -4105,20 +4048,20 @@ pub(crate) fn no_compile_time_query(file: &str, text: &str) -> Vec<Finding> {
     let mut findings = Vec::new();
     let stripped = without_comments(text, "//");
     // **The renamed call, not the import.** `use sqlx::query as sql;` then
-    // `sql!("SELECT 1")` names nothing on the list — the lesson
-    // `determinism.rs` already learned about `process::Command`.
+    // `sql!("SELECT 1")` names nothing on the list — which `determinism.rs`
+    // records about `process::Command`.
     //
     // What is flagged is the **call**, and that is the whole reason this is two
     // passes: `use sqlx::query` imports the runtime function *and* the macro,
     // which live in different namespaces and share a name, so reporting the
     // `use` would fire on every caller who renamed the ordinary function. A
     // `sql!(` — with the bang — is the macro and nothing else.
-    // **The whole `use`, not the first three words of a line.** This read
-    // `rest.split_whitespace()` and required `X`, `as`, `Y` in that order, which
-    // is one spelling of an import out of several cargo and rustc accept.
+    // **The whole `use`, not the first three words of a line.** Requiring
+    // `X`, `as`, `Y` in that order from `rest.split_whitespace()` reads one
+    // spelling of an import out of several cargo and rustc accept.
     // `use sqlx::{query as sql};` — the braced form, and the more idiomatic one
     // — makes the first word `{query`, matching nothing, so `sql!("SELECT 1")`
-    // was not a finding. Measured, the same file two ways:
+    // is not a finding. Measured, the same file two ways under that reading:
     //
     // ```text
     // use sqlx::query as sql;    -> `sqlx::sql!` checks its SQL at build time
@@ -4128,8 +4071,7 @@ pub(crate) fn no_compile_time_query(file: &str, text: &str) -> Vec<Finding> {
     // A `use` ends at its semicolon and may span lines, so the statement is
     // what is read, and every identifier in it is a word — braces, commas and
     // newlines are separators like any other. That answers for the nested tree
-    // and the multi-line form together, rather than for one shape at a time,
-    // which is the mistake three other lists in this tool made first.
+    // and the multi-line form together, rather than for one shape at a time.
     //
     // A module rename needs nothing here: `use sqlx as db;` then `db::query!(…)`
     // still spells `query!`, and the needles below match it.
@@ -4166,9 +4108,11 @@ pub(crate) fn no_compile_time_query(file: &str, text: &str) -> Vec<Finding> {
             .chain(renamed.iter().map(String::as_str))
             .collect();
         for needle in &looking_for {
-            // `query!` is the tail of `query_as!` too, so the longest match is
-            // the one reported — otherwise one line is two findings under two
-            // names, which is the shape `determinism.rs` fixed for its own list.
+            // A renamed needle can be the tail of a listed one —
+            // `use sqlx::query as y;` makes `y!`, the tail of `query!` — so the
+            // longest match is the one reported; otherwise one line is two
+            // findings under two names, which is the shape `determinism.rs`
+            // refuses in its own list.
             let named = looking_for
                 .iter()
                 .filter(|other| code.contains(**other))
@@ -4235,8 +4179,8 @@ mod query_tests {
         assert_eq!(findings("/* NC_PROBE is prose here. */\n", "lib.rs"), 1);
         assert_eq!(findings("/** NC_PROBE is prose here. */\n", "lib.rs"), 1);
         assert_eq!(findings("// NC_PROBE is prose here.\n", "lib.rs"), 1);
-        // **SQL's comment is `--`**, and everything that was not Rust got `#` —
-        // so a line of prose in a migration counted as a read.
+        // **SQL's comment is `--`**, not `#` — read with `#`, a line of prose
+        // in a migration counts as a read.
         assert_eq!(
             findings(
                 "-- NC_PROBE is prose here; this line is a comment.\n",
@@ -4263,11 +4207,11 @@ mod query_tests {
     fn every_macro_that_needs_a_database_is_listed() {
         // **The twelve, written out.** The stems below ask for eight of them
         // and the driver beside this test loops over the constant itself, so
-        // four entries — the `query_file_as` and `query_file_scalar` pairs —
-        // were held by the length alone: measured in round sixty-five, one
-        // character changed in `query_file_as!` left `check passed`, and that
-        // macro then walked through the gate that exists to stop a build-time
-        // `DATABASE_URL`.
+        // without this assertion four entries — the `query_file_as` and
+        // `query_file_scalar` pairs — would be held by the length alone:
+        // measured that way, one character changed in `query_file_as!` left
+        // `check passed`, and that macro then walked through the gate that
+        // exists to stop a build-time `DATABASE_URL`.
         assert_eq!(
             COMPILE_TIME_QUERIES,
             [
@@ -4286,17 +4230,17 @@ mod query_tests {
             ],
             "the macros that need a database at build time moved"
         );
-        // **The list had no membership assertion**, so deleting an entry only
-        // shortened the loop below and every test stayed green — the shape
-        // `determinism.rs`'s own needle list was caught with. A macro added to
+        // **A membership assertion**, because without one deleting an entry
+        // only shortens the loop below and every test stays green — the shape
+        // `determinism.rs`'s own needle list guards against. A macro added to
         // the family needs adding here and in the list, which is the two-place
         // edit that makes a removal visible.
         //
         // **And every one of them twice**, because `sqlx` ships each with an
-        // `_unchecked` sibling and the list named six of the twelve. Both forms
-        // want `DATABASE_URL` at build time — `_unchecked` skips the *type*
-        // check and keeps the connection — so the half that was free is the half
-        // a developer reaches for when the checked form will not compile.
+        // `_unchecked` sibling. Both forms want `DATABASE_URL` at build time —
+        // `_unchecked` skips the *type* check and keeps the connection — so the
+        // half left free would be the half a developer reaches for when the
+        // checked form will not compile.
         for needle in ["query", "query_as", "query_scalar", "query_file"] {
             for form in [needle.to_owned(), format!("{needle}_unchecked")] {
                 assert!(
@@ -4343,9 +4287,8 @@ mod query_tests {
             no_compile_time_query("src/x.rs", &prose),
             [] as [crate::gates::Finding; 0]
         );
-        // And the string case that made the first version blind: a `//` inside
-        // a literal does not end the code, so a URL no longer hides the rest of
-        // the line.
+        // And the string case: a `//` inside a literal does not end the code,
+        // so a URL does not hide the rest of the line.
         let after_a_url = format!(
             "    let e = \"http://127.0.0.1:9428\"; let n = sqlx::{}(\"SELECT 1\");\n",
             COMPILE_TIME_QUERIES[0]
@@ -4353,10 +4296,10 @@ mod query_tests {
         assert_eq!(no_compile_time_query("src/x.rs", &after_a_url).len(), 1);
 
         // **And the same URL inside a raw string**, which is the mirror of it:
-        // `r#"…"#` holds bare quotes, so counting quotes left the scan outside a
-        // string when it met the `//` of `https://` and dropped the rest of the
-        // line — including the query — as a comment. Measured: 1 finding on the
-        // plain line, **0** with the raw string in front of it.
+        // `r#"…"#` holds bare quotes, so counting quotes leaves the scan outside
+        // a string when it meets the `//` of `https://` and drops the rest of
+        // the line — including the query — as a comment. Measured that way: 1
+        // finding on the plain line, **0** with the raw string in front of it.
         let after_a_raw_url = format!(
             "    let note = r#\"see \"https://example.invalid\" for details\"#; \
              let n = sqlx::{}(\"SELECT 1\");\n",
@@ -4394,7 +4337,7 @@ mod query_tests {
             "the two string kinds have to behave the same"
         );
         // **And a renamed call.** `use sqlx::query as sql;` then `sql!(…)` names
-        // nothing on the list — the lesson `determinism.rs` learned about
+        // nothing on the list — which `determinism.rs` records about
         // `process::Command`.
         let bare = COMPILE_TIME_QUERIES[0].trim_end_matches('!');
         let aliased = format!("use sqlx::{bare} as sql;\n    let n = sql!(\"SELECT 1\");\n");
@@ -4417,10 +4360,10 @@ mod query_tests {
             [] as [crate::gates::Finding; 0]
         );
 
-        // **Every shape a `use` comes in, not the one written above.** The
-        // reader took the first three whitespace-separated words of the line, so
-        // the braced form — the more idiomatic of the two — made the first word
-        // `{query` and matched nothing:
+        // **Every shape a `use` comes in, not the one written above.** A reader
+        // that takes the first three whitespace-separated words of the line
+        // makes the braced form — the more idiomatic of the two — open with
+        // `{query`, matching nothing:
         //
         // ```text
         // use sqlx::query as sql;    -> `sqlx::sql!` checks its SQL at build time
@@ -4428,8 +4371,7 @@ mod query_tests {
         // ```
         //
         // A `use` ends at its semicolon and may span lines, and a nested tree
-        // puts the rename several separators in. This is the fourth list of
-        // spellings in this tool to be found short, so what is asked now is the
+        // puts the rename several separators in, so what is asked is the
         // statement rather than a shape of it.
         let second = COMPILE_TIME_QUERIES[1].trim_end_matches('!');
         for import in [
@@ -4446,7 +4388,7 @@ mod query_tests {
         }
 
         // And the brace form of an unrelated rename is still not a finding, so
-        // the loosened reader did not become a reader of everything.
+        // the statement reader is not a reader of everything.
         assert_eq!(
             no_compile_time_query(
                 "src/x.rs",
@@ -4465,10 +4407,10 @@ mod query_tests {
 /// `&'static str` and `sqlx::AssertSqlSafe(..)` implement, so a statement with a
 /// schema, a role or a table name `format!`ted into it does not compile until it
 /// is wrapped. The wrap is a claim — *nothing in this text can come from outside
-/// this repository* — and the compiler takes it on trust, so a reviewer has to
-/// make it once per statement and this table is where each file's answer is
-/// written: how many statements it vouches for, and every value their text is
-/// built from.
+/// this repository* — and the compiler takes it on trust, so it has to be made
+/// once per statement by someone reading it, and this table is where each
+/// file's answer is written: how many statements it vouches for, and every
+/// value their text is built from.
 ///
 /// **What the compiler leaves open, and how each is held.** Read off the public
 /// functions of `sqlx-core`, `sqlx-postgres` and `sqlx-sqlite` 0.9 that take a
@@ -4488,20 +4430,21 @@ mod query_tests {
 ///   and runs as one batch on every connection it opens, vouching for the
 ///   text itself: read the way a copy is, by [`pragmas_set`], so a pragma set
 ///   from values is a statement this table counts and names the values of,
-///   and one set from literals needs no row. **Found by a reviewer**: a value
-///   built from the environment, in the shipped `crates/nc-local/src/open.rs`,
-///   passed every gate, and a probe showed text handed to it as a value run as
-///   a statement of its own.
+///   and one set from literals needs no row. **Measured**: a value built from
+///   the environment, in the shipped `crates/nc-local/src/open.rs`, passed
+///   every gate without this reading, and a probe showed text handed to it as
+///   a value run as a statement of its own.
 /// - A migrator built when it runs — `Migrator::new` over a path,
 ///   `with_migrations`, any `MigrationSource`, `ResolveWith` and
 ///   `resolve_blocking` — which reads `.sql` files then and wraps their text in
 ///   `AssertSqlSafe` inside `sqlx`: refused by name in the sources that open the
 ///   local database, by `crate::local`'s source gate, where the one migrator is
-///   the `sqlx::migrate!` the crate embeds when it compiles. **Found by a
-///   reviewer**: the shipped store migrating from a relative path passed every
-///   gate, each suite running from the package's root, where that path is this
-///   repository's own directory. The gates of this binary migrate scratch files
-///   from this repository's directories, which no user's file is.
+///   the `sqlx::migrate!` the crate embeds when it compiles. **Measured**: the
+///   shipped store migrating from a relative path passed every gate without
+///   that refusal, each suite running from the package's root, where that path
+///   is this repository's own directory. The gates of this binary migrate
+///   scratch files from this repository's directories, which no user's file
+///   is.
 /// - A `String` leaked into a `&'static str`, which is a `&'static str`:
 ///   nothing here tells it from a literal.
 /// - The migrator's own table and schema names — `Migrator`'s
@@ -4749,9 +4692,10 @@ fn asserted_calls(text: &str) -> Vec<(usize, Option<Vec<String>>)> {
 /// **The door the wrapper does not guard.** `sqlx-postgres` 0.9's `copy_in_raw`
 /// and `copy_out_raw` take a plain `&str` rather than `impl SqlSafeStr`, so a
 /// statement `format!`ted into one compiles with no wrap written anywhere.
-/// Measured by a reviewer: `PgPoolCopyExt::copy_in_raw(&pool,
+/// Measured: `PgPoolCopyExt::copy_in_raw(&pool,
 /// &format!("COPY {table} (id, at) FROM STDIN"))`, planted in a test of a file
-/// with a row, ran against PostgreSQL while every walk here said nothing.
+/// with a row, ran against PostgreSQL while a walk over the wrapper alone said
+/// nothing.
 ///
 /// So a copy is read the way a wrap is. Its statement is its **last** argument —
 /// a pool's copy called as `PgPoolCopyExt::copy_in_raw(&pool, ..)` takes the pool
@@ -4837,10 +4781,10 @@ fn copied_statements(text: &str) -> Vec<(usize, Option<Vec<String>>, String)> {
 /// nothing and is not reported, which is how every call in this tree is
 /// written. One that is not a call this can read — named after a `.` or a
 /// `::` and never called with brackets, the door passed as a value — is
-/// reported rather than skipped. **A reviewer found the path call read as no
-/// call at all**: `SqliteConnectOptions::pragma(options, "cache_size",
-/// std::env::var(..))`, planted in the store's shipped options, met no
-/// finding, nor did the door bound to a name and called through it.
+/// reported rather than skipped. **The path call is a call too**: read as a
+/// method only, `SqliteConnectOptions::pragma(options, "cache_size",
+/// std::env::var(..))`, planted in the store's shipped options, meets no
+/// finding, and neither does the door bound to a name and called through it.
 fn pragmas_set(text: &str) -> Vec<(usize, Option<Vec<String>>, String)> {
     let original: Vec<char> = text.chars().collect();
     let code: Vec<char> = blanked(text).chars().collect();
@@ -4850,8 +4794,8 @@ fn pragmas_set(text: &str) -> Vec<(usize, Option<Vec<String>>, String)> {
     for at in 0..code.len().saturating_sub(needle.len() - 1) {
         // **The name before what precedes it**, because what precedes it is a
         // walk back over whitespace: asked at every position, a file whose
-        // comments blank to one long run of spaces cost the square of its
-        // length, and the planted fixture's every-directory tree did not finish
+        // comments blank to one long run of spaces costs the square of its
+        // length, and the planted fixture's every-directory tree does not finish
         // in twenty minutes.
         if code[at..at + needle.len()] != needle[..]
             || code.get(at + needle.len()).copied().is_some_and(word)
@@ -5258,10 +5202,11 @@ mod asserted_tests {
     /// A pragma set from values is a statement vouched for, and one set from
     /// literals is not.
     ///
-    /// **Found by a reviewer**: `SqliteConnectOptions::pragma` takes any
-    /// `Into<Cow<'static, str>>` and runs it on every connection, so a value
-    /// built from the environment in the shipped `crates/nc-local/src/open.rs`
-    /// reached SQLite with no wrap and no row, and every gate passed.
+    /// **Measured** without this reading: `SqliteConnectOptions::pragma` takes
+    /// any `Into<Cow<'static, str>>` and runs it on every connection, so a
+    /// value built from the environment in the shipped
+    /// `crates/nc-local/src/open.rs` reached SQLite with no wrap and no row,
+    /// and every gate passed.
     #[test]
     fn a_pragma_set_from_values_is_a_vouched_statement_and_a_literal_one_is_not() {
         let no_row = "crates/nc-local/src/open.rs";
@@ -5298,9 +5243,9 @@ mod asserted_tests {
                 .any(|finding| finding.what.contains("other than as a call")),
             "a pragma named and not called hid what it sets"
         );
-        // **Called as a path**, and passed as a value to be called later: a
-        // reviewer planted each in the store's shipped options and the walk
-        // read neither.
+        // **Called as a path**, and passed as a value to be called later:
+        // planted in the store's shipped options, neither is read by a walk
+        // that knows only the method call.
         let as_a_path = "    let options = SqliteConnectOptions::pragma(options, \"cache_size\", \
                          std::env::var(\"NC_CACHE\").unwrap_or_default());\n";
         let findings = every_asserted_statement_is_named(no_row, as_a_path);
@@ -5335,9 +5280,9 @@ mod asserted_tests {
     /// A `COPY` built from values is a statement vouched for, and one written
     /// as a literal is not.
     ///
-    /// **Found by a reviewer**: `copy_in_raw` takes a plain `&str`, so a `COPY`
-    /// built from values reached PostgreSQL with no wrap and no row, and this
-    /// walk saw nothing. The literal form is how this tree calls it.
+    /// **Measured**: `copy_in_raw` takes a plain `&str`, so a `COPY` built from
+    /// values reached PostgreSQL with no wrap and no row while a walk over the
+    /// wrapper alone saw nothing. The literal form is how this tree calls it.
     #[test]
     fn a_copy_built_from_values_is_a_vouched_statement_and_a_literal_one_is_not() {
         let [copy_in, copy_out] = COPY_DOORS;
@@ -5488,8 +5433,9 @@ mod the_unsafe_rule {
     /// its line, and every file read.
     ///
     /// **One walk, the tree's and the fixture's**, so a filter written in it is
-    /// one `the_unsafe_walk_goes_everywhere` sees: the walk paid nothing that a
-    /// counter could hold, and three files named by hand were its only floor.
+    /// one `the_unsafe_walk_goes_everywhere` sees: that test plants the defect
+    /// in every real directory and under every name the walk opens, rather than
+    /// in a few files named by hand.
     pub(super) fn unsafe_written_under(
         root: &std::path::Path,
     ) -> (Vec<super::Finding>, Vec<String>) {
@@ -5558,25 +5504,25 @@ mod the_unsafe_rule {
 /// Every variable `.env.example` declares is read by something in the tree.
 ///
 /// **A setting nothing reads is worse than an absent one.** `.env.example` is
-/// this repository's answer to "what does the stack read", and it declared
-/// `NC_LOG_ENDPOINT`, which nothing anywhere read: the log endpoint is an
-/// argument to `Log::open`, defaulted by a constant in `ship.rs`. A developer
-/// changing that line would have watched it have no effect, in the one file
-/// whose job is to be believed about configuration.
+/// this repository's answer to "what does the stack read", and a variable
+/// declared there that nothing reads — `NC_LOG_ENDPOINT` would be one: the log
+/// endpoint is an argument to `Log::open`, defaulted by a constant in
+/// `ship.rs` — is a line a developer changes and watches have no effect, in the
+/// one file whose job is to be believed about configuration.
 ///
 /// A variable is read when its name appears in **code, with the comments
 /// stripped**: `docker-compose.yml` substitutes most of them, and `xtask` and
 /// the tests read the rest.
 ///
-/// **Not "anywhere in the tree", which was the first version and was satisfied
-/// by this very paragraph.** Written that way, the gate found `NC_LOG_ENDPOINT`
-/// in the doc comment explaining why `NC_LOG_ENDPOINT` is not read, and passed.
-/// A gate whose own prose satisfies it is wired to nothing — the same defect
-/// `every_generated_value_is_compared.rs` was defeated by, one file over.
+/// **Not "anywhere in the tree", which this very paragraph would satisfy.**
+/// Read that way, the gate finds `NC_LOG_ENDPOINT` in the doc comment
+/// explaining why `NC_LOG_ENDPOINT` is not read, and passes. A gate whose own
+/// prose satisfies it is wired to nothing — the same defect
+/// `every_generated_value_is_compared.rs` guards against, one file over.
 ///
 /// It is still a weak test, and deliberately: the strong version would need to
 /// know how a shell expands a compose file. A name appearing in no code at all
-/// is the case worth catching, and it is the case that happened.
+/// is the case worth catching.
 ///
 /// # Errors
 ///
@@ -5609,10 +5555,10 @@ pub(crate) fn no_unread_variable(root: &Path) -> Result<(Vec<Finding>, usize), S
         let Ok(text) = std::fs::read_to_string(path) else {
             return;
         };
-        // **SQL's comment is `--`, and it was never stripped.** Everything that
-        // was not Rust got `#`, so `-- NC_AUDIT_PROBE is not read here; this
-        // line is prose.` in a migration counted as a read: 1 finding without
-        // it, **0** with. That is this gate's own sentence — *a gate whose own
+        // **SQL's comment is `--`.** With `#` for everything that is not Rust,
+        // `-- NC_AUDIT_PROBE is not read here; this line is prose.` in a
+        // migration counts as a read: 1 finding without it, **0** with. That is
+        // this gate's own sentence — *a gate whose own
         // prose satisfies it is wired to nothing* — one file type along.
         let opener = match path.extension().and_then(|kind| kind.to_str()) {
             Some("rs") => "//",
@@ -5625,9 +5571,9 @@ pub(crate) fn no_unread_variable(root: &Path) -> Result<(Vec<Finding>, usize), S
 
     let mut findings = Vec::new();
     for (line, name) in &declared {
-        // **A whole name, not a substring.** `NC_PROBE` was "read" by a file
-        // mentioning `NC_PROBE_SOMETHING_ELSE`, so declaring a prefix of an
-        // existing variable satisfied this for free.
+        // **A whole name, not a substring.** Read as a substring, `NC_PROBE` is
+        // "read" by a file mentioning `NC_PROBE_SOMETHING_ELSE`, so declaring a
+        // prefix of an existing variable satisfies this for free.
         if reads_the_name(&elsewhere, name) {
             continue;
         }
@@ -5649,7 +5595,7 @@ pub(crate) fn no_unread_variable(root: &Path) -> Result<(Vec<Finding>, usize), S
 ///
 /// An environment variable's name is a word: `NC_PROBE` is not read by a file
 /// that mentions `NC_PROBE_SOMETHING_ELSE`, and treating a substring as a use
-/// let a declared prefix of an existing variable satisfy the gate for free.
+/// lets a declared prefix of an existing variable satisfy the gate for free.
 fn reads_the_name(code: &str, name: &str) -> bool {
     let part_of_a_name = |c: char| c.is_alphanumeric() || c == '_';
     let mut from = 0;
@@ -5669,8 +5615,7 @@ fn reads_the_name(code: &str, name: &str) -> bool {
 ///
 /// Rust, the compose file, the workflows, and shell — the four places a name in
 /// `.env.example` is actually consumed. A Markdown file is prose about the
-/// settings, and prose is what the first version of this gate mistook for a
-/// reader.
+/// settings, and prose is not a reader.
 fn consumes_variables(path: &Path) -> bool {
     let name = path
         .file_name()
@@ -5680,9 +5625,9 @@ fn consumes_variables(path: &Path) -> bool {
         return true;
     }
     // **Not `toml`.** A `description = "…"` in a registry is prose about a
-    // setting, and reading it as a use of one made the gate satisfiable by
-    // documentation — the same defect its first version had, one file type
-    // along. Nothing in this tree reads an environment variable from a TOML
+    // setting, and reading it as a use of one makes the gate satisfiable by
+    // documentation — prose read as a reader, one file type along. Nothing in
+    // this tree reads an environment variable from a TOML
     // file; `docker-compose.yml`, the workflows, the shell and Rust do.
     path.extension()
         .and_then(|kind| kind.to_str())
@@ -5690,12 +5635,13 @@ fn consumes_variables(path: &Path) -> bool {
 }
 /// The lints `[workspace.lints]` actually declares, one case each.
 ///
-/// **Nothing pinned the contents.** `every_member_takes_the_workspace_lints`
-/// checks that each member *opts in*; nothing checked there was anything to opt
-/// into. Measured: `unsafe_code = "forbid"` deleted from the root manifest and a
-/// raw-pointer dereference planted in `xtask/src/store.rs` — it compiles, which
-/// this gate's own doc calls the proof a crate is outside the lints, and every
-/// printed line was byte-identical to a clean run:
+/// **The contents, pinned.** `every_member_takes_the_workspace_lints` checks
+/// that each member *opts in*, which says nothing about whether there is
+/// anything to opt into. Measured without this: `unsafe_code = "forbid"`
+/// deleted from the root manifest and a raw-pointer dereference planted in
+/// `xtask/src/store.rs` — it compiles, which this gate's own doc calls the
+/// proof a crate is outside the lints, and every printed line was
+/// byte-identical to a clean run:
 ///
 /// ```text
 /// ok    9 member(s) take the workspace lints
@@ -5722,12 +5668,11 @@ pub(crate) fn the_workspace_lints(root: &Path) -> Result<Vec<(String, String)>, 
     // warning: unrecognized lint tool `lints.rustfmt` … supported tools: cargo, clippy, rust, rustdoc
     // ```
     //
-    // The pin read two, then three. `[workspace.lints.cargo]` is inert on stable
-    // today (`-Zcargo-lints` is nightly), so nothing is switched off through it
-    // yet; it is pinned because a pin over a set enumerates the set, and the
-    // stable release that lights it up is not a release anybody will re-derive
-    // this list for. The `rustdoc` omission was not inert: two lines in the root
-    // manifest,
+    // `[workspace.lints.cargo]` is inert on stable today (`-Zcargo-lints` is
+    // nightly), so nothing is switched off through it yet; it is pinned because
+    // a pin over a set enumerates the set, and the stable release that lights
+    // it up is not a release anybody will re-derive this list for. Leaving out
+    // `rustdoc` is not inert: two lines in the root manifest,
     //
     // ```toml
     // [workspace.lints.rustdoc]
@@ -5774,10 +5719,11 @@ pub(crate) fn the_workspace_lints(root: &Path) -> Result<Vec<(String, String)>, 
 
 /// Every member opts in to the workspace lints.
 ///
-/// **The lints are opt-in per crate, and nothing kept a crate inside them.**
-/// `[workspace.lints]` sets `unsafe_code = "forbid"`, `missing_docs` and clippy
-/// `pedantic`, and a member gets none of it without `[lints] workspace = true`.
-/// Measured: deleting those two lines from `crates/nc-ids/Cargo.toml` and adding
+/// **The lints are opt-in per crate, and this gate keeps a crate inside
+/// them.** `[workspace.lints]` sets `unsafe_code = "forbid"`, `missing_docs`
+/// and clippy `pedantic`, and a member gets none of it without
+/// `[lints] workspace = true`. Measured without this gate: deleting those two
+/// lines from `crates/nc-ids/Cargo.toml` and adding
 /// a public undocumented function with an `unsafe` block gave `check passed` —
 /// the workspace's strongest lint, off for a crate, with nothing reporting it.
 /// A crate added without the stanza is unlinted from birth, which is the more
@@ -5801,20 +5747,22 @@ pub(crate) fn every_member_takes_the_workspace_lints(
             continue;
         };
         // **`workspace = true` *inside* `[lints]`, not two unrelated questions.**
-        // This asked whether some line trimmed to `workspace = true` and,
-        // separately, whether the text held `[lints]` anywhere — so deleting the
-        // stanza and writing
+        // A rule that asks whether some line trims to `workspace = true` and,
+        // separately, whether the text holds `[lints]` anywhere is satisfied by
+        // deleting the stanza and writing
         //
         //     # The workspace's [lints] table is declared at the root.
         //     [dev-dependencies.proptest]
         //     workspace = true
         //
-        // satisfied both. Measured: a public undocumented function with an
-        // `unsafe` block compiled, with `9 member(s) take the workspace lints`
-        // and `check passed`. `unsafe_code = "forbid"` cannot be overridden at
-        // crate level, so the compile succeeding *is* the proof the crate was
-        // outside the lints. A crate written with table-form dependencies is
-        // unlinted from birth.
+        // in its place. Measured with that rule: a public undocumented
+        // function with an `unsafe` block compiled, with
+        // `9 member(s) take the workspace lints` and `check passed`.
+        // `unsafe_code = "forbid"` cannot be overridden at crate level, so the
+        // compile succeeding *is* the proof the crate was outside the lints.
+        // Under that rule, a crate written with table-form dependencies holds a
+        // `workspace = true` line from birth, and one mention of `[lints]`
+        // anywhere in it is all it needs to pass unlinted.
         // **Asked of the parser, not of the lines.** `section_of` is a line
         // scanner, so a TOML multi-line string holding
         //
@@ -5825,22 +5773,22 @@ pub(crate) fn every_member_takes_the_workspace_lints(
         // """
         // ```
         //
-        // satisfied it — measured, with the real stanza deleted from
+        // satisfies it — measured, with the real stanza deleted from
         // `crates/nc-prune/Cargo.toml`: `9 member(s) take the workspace lints`,
         // and a public undocumented function with an `unsafe` block compiling
         // clean in that crate. `unsafe_code = "forbid"` cannot be overridden at
         // crate level, so the compile succeeding *is* the proof the crate was
-        // outside the lints. `is_a_build_directory` two hundred lines down
-        // already asks `toml` this kind of question, and this crate already
-        // depends on it: a manifest is TOML, and reading it as text is writing a
-        // second parser that disagrees with cargo's.
+        // outside the lints. `is_a_build_directory` asks `toml` this kind of
+        // question too, and this crate depends on it: a manifest is TOML, and
+        // reading it as text is writing a second parser that disagrees with
+        // cargo's.
         //
         // `toml::from_str`, not `str::parse` — `FromStr for Value` parses a
         // *value* and refuses a document at `line 1, column 10`, which is the
-        // newline after `[package]`. Silently: the `.ok()` turned every manifest
-        // in the tree into a finding, which at least fails loudly. A parse that
-        // cannot fail quietly is worth more than one that reads the right thing
-        // most of the time.
+        // newline after `[package]`. With `str::parse`, the `.ok()` would hide
+        // that refusal and turn every manifest in the tree into a finding, which
+        // at least fails loudly. A parse that cannot fail quietly is worth more
+        // than one that reads the right thing most of the time.
         let takes_them = toml::from_str::<toml::Value>(&text)
             .ok()
             .and_then(|manifest| manifest.get("lints")?.get("workspace")?.as_bool())
@@ -5859,12 +5807,12 @@ pub(crate) fn every_member_takes_the_workspace_lints(
             });
         }
         // **The last statement a verdict reaches, not the first of the body.**
-        // `checked` is floored against `members_of(root)`, and it stood above
-        // the judgement — so `if relative == "xtask/Cargo.toml" { continue; }`
-        // one line under it kept both numbers exact with the stanza deleted from
-        // that manifest and an `unsafe` dereference compiling in its source:
-        // `ok 9 member(s) take the workspace lints`, `ok lints`, `check passed`.
-        // This document's own rule, unapplied in the file that states it.
+        // `checked` is floored against `members_of(root)`, and were it above
+        // the judgement, `if relative == "xtask/Cargo.toml" { continue; }` one
+        // line under it would keep both numbers exact with the stanza deleted
+        // from that manifest and an `unsafe` dereference compiling in its
+        // source: measured, `ok 9 member(s) take the workspace lints`,
+        // `ok lints`, `check passed`.
         checked += 1;
     }
     Ok((findings, checked))
@@ -5891,17 +5839,16 @@ pub(crate) fn every_member_takes_the_workspace_lints(
 const LINT_GROUPS: [&str; 26] = [
     "warnings",
     "unused",
-    // **The eleven other groups `rustc` has, which were missing.** The list
-    // named two of the thirteen — measured against `rustc -W help`, whose table
-    // is the authority — so a crate root could write
-    // `#![allow(nonstandard_style)]`, or `future_incompatible`, and this gate
-    // said nothing while the verdict below it counts warnings. Each is a group
-    // by rustc's own definition of one, which is the whole rule here: an allow
-    // is a judgement about a lint, and a group is all of them at once.
+    // **The eleven other groups `rustc` has.** Without them — measured
+    // against `rustc -W help`, whose table is the authority — a crate root can
+    // write `#![allow(nonstandard_style)]`, or `future_incompatible`, and this
+    // gate says nothing while the verdict below it counts warnings. Each is a
+    // group by rustc's own definition of one, which is the whole rule here: an
+    // allow is a judgement about a lint, and a group is all of them at once.
     //
     // They are held to that table rather than copied from it, by
     // `every_lint_group_rustc_names_is_on_this_list` — the day the toolchain
-    // grows a group, a hand-written list is silently short again.
+    // grows a group, a hand-written list is silently short.
     "deprecated_safe",
     "future_incompatible",
     "keyword_idents",
@@ -5913,11 +5860,10 @@ const LINT_GROUPS: [&str; 26] = [
     "rust_2021_compatibility",
     "rust_2024_compatibility",
     "unknown_or_malformed_diagnostic_attributes",
-    // **The three `[workspace.lints.rust]` names, which were missing.** This
-    // list held `warnings`, `unused` and ten clippy groups, so a crate root
-    // could write `#![allow(missing_docs)]` — or put `unreachable_pub` or
+    // **The three `[workspace.lints.rust]` names.** Without them a crate root
+    // can write `#![allow(missing_docs)]` — or put `unreachable_pub` or
     // `missing_debug_implementations` down for its whole tree — and this gate
-    // said nothing, while `Cargo.toml` sets all three to `warn` and the verdict
+    // says nothing, while `Cargo.toml` sets all three to `warn` and the verdict
     // counts warnings. `unsafe_code` is not here because it is `forbid`, which
     // Rust does not let an inner attribute downgrade: allowing it is a compile
     // error rather than a silence, and listing it would be a rule about
@@ -5943,8 +5889,8 @@ const LINT_GROUPS: [&str; 26] = [
 /// suppresses exactly as `allow` does — it adds a warning when *nothing* was
 /// suppressed, which is the opposite of what this gate is looking for — and
 /// `#![cfg_attr(all(), allow(clippy::all))]` is the same attribute with a
-/// predicate that is always true in front of it. The same wrapper defeated the
-/// test census and the ignored-test gate, each in its own round.
+/// predicate that is always true in front of it. The test census and the
+/// ignored-test gate read through the same wrapper.
 fn lints_put_down(attribute: &str) -> Vec<String> {
     let mut names = Vec::new();
     for opener in ["allow(", "expect("] {
@@ -6039,10 +5985,10 @@ const A_WRITTEN_REASON: &str = "reason =";
 /// Whether `code` opens a public function item, in any spelling Rust allows.
 ///
 /// The grammar is `pub … const? async? unsafe? extern "abi"? fn`, and the words
-/// between `pub` and `fn` are what a prefix list keeps missing: `pub async fn`
-/// was outside the first version of the door rule and `pub extern "C" fn` was
-/// outside the second. So the words are stepped over rather than enumerated —
-/// what remains has to be `fn`, and anything else is not a function item.
+/// between `pub` and `fn` are what a prefix list misses: `pub async fn` and
+/// `pub extern "C" fn` are both outside a list of `pub fn` and `pub const fn`.
+/// So the words are stepped over rather than enumerated — what remains has to
+/// be `fn`, and anything else is not a function item.
 ///
 /// A visibility of `pub(crate)` or `pub(super)` is deliberately **not** a door:
 /// it reaches no further than the crate, and the rule is about a door a
@@ -6071,7 +6017,7 @@ fn opens_a_public_function(code: &str) -> bool {
 /// What a walk over the hatches has counted so far.
 ///
 /// Two numbers rather than two `&mut usize` parameters, because the door check
-/// grew a third question and eight arguments is where clippy stops reading.
+/// asks a third question and eight arguments is where clippy stops reading.
 struct Tally {
     hatches: usize,
     doors: usize,
@@ -6083,10 +6029,11 @@ struct Tally {
 /// such a feature has said in its own `Cargo.toml` what the feature is for, and
 /// `nc-journal`'s says it plainly: *"Off by default, so a shipped library cannot
 /// be tampered with through its own public surface"*. That sentence is a claim
-/// about the default build, and it was false — `Entry::forged_for_tests`, the
-/// constructor that takes the hash as an argument and so walks straight past
-/// `#[non_exhaustive]`, was in the default public surface. Measured on
-/// 2026-09-08 with a `const _:` binding under `#[cfg(not(any(test, feature =
+/// about the default build, and a door left in the default public surface makes
+/// it false — `Entry::forged_for_tests`, the constructor that takes the hash as
+/// an argument and so walks straight past `#[non_exhaustive]`, is the door that
+/// matters most. Measured, with that door in the default surface and a
+/// `const _:` binding under `#[cfg(not(any(test, feature =
 /// "test-support")))]`: `cargo build -p nc-journal` compiled.
 ///
 /// A crate with no such feature is not asked for one: `fill_for_tests`,
@@ -6115,8 +6062,8 @@ const DOORS_ARE_BEHIND: &str = "test-support";
 
 /// A `_for_tests` door is marked as one and says why it exists.
 ///
-/// Split from [`every_hatch_carries_its_reason`], which crossed clippy's
-/// hundred-line bound when the second half of invariant 13 arrived. The two
+/// Split from [`every_hatch_carries_its_reason`], which would cross clippy's
+/// hundred-line bound with this inline. The two
 /// halves are one walk on purpose: both are habits the tree keeps by hand, and
 /// a walk that reads the tree twice is a walk that can disagree with itself
 /// about what it read.
@@ -6131,47 +6078,43 @@ fn a_test_door_says_it_is_one(
 ) {
     // A door a test reaches a private thing through.
     //
-    // **Every spelling `pub fn` can wear, not two of them.** This asked for
-    // `pub fn` or `pub const fn`, and `crates/nc-journal/src/postgres.rs`'s
-    // `pub async fn why_nothing_landed_for_tests` was outside the gate written
-    // to hold invariant 13: deleting its `#[doc(hidden)]` moved no number in
+    // **Every spelling `pub fn` can wear, not two of them.** Asked as `pub fn`
+    // or `pub const fn`, `crates/nc-journal/src/postgres.rs`'s
+    // `pub async fn why_nothing_landed_for_tests` is outside the gate written
+    // to hold invariant 13: deleting its `#[doc(hidden)]` moves no number in
     // the run, because `hatches` is read only as `hatches == 0` and the lint
     // hatches keep it non-zero on their own. `async` is not hypothetical — it
-    // is the shape every door into the PostgreSQL store must take, and Stage 11
-    // adds more of them. This file's own header records the same class being
-    // missed once before, by a scanner that "knew seven keywords and one
-    // visibility".
-    // **And the property, not a list of prefixes.** Six spellings replaced two,
-    // and Rust's grammar is `const? async? unsafe? extern abi? fn` — so
-    // `pub extern "C" fn`, the only `extern` spelling anybody writes, and
-    // `pub const unsafe fn` were both outside the six. Measured: an
+    // is the shape every door into the PostgreSQL store must take.
+    // **And the property, not a list of prefixes.** Rust's grammar is
+    // `const? async? unsafe? extern abi? fn`, so a list of six spellings still
+    // leaves out `pub extern "C" fn`, the only `extern` spelling anybody
+    // writes, and `pub const unsafe fn`. Measured with such a list: an
     // undocumented, unhidden `pub extern "C" fn a_reviewer_door_for_tests()`
     // added to `crates/nc-prune/src/postgres.rs` left `check passed` with the
-    // door count unmoved at eleven. An enumeration of spellings is the shape
-    // this predicate has now been wrong in twice; what a door *is* is a public
-    // function item, and that is what is asked.
+    // door count unmoved. What a door *is* is a public function item, and that
+    // is what is asked.
     if code.contains("_for_tests") && opens_a_public_function(code) {
         tally.hatches += 1;
         // **Counted apart, because `hatches` cannot say a door is gone.** It is
         // read only as `hatches == 0` and the lint hatches keep it non-zero on
-        // their own, so a door falling out of the predicate — a `pub async fn`
-        // did — moved no number in the run at all. Incremented *here* rather
-        // than beside the call, because a second copy of this predicate is one
-        // rule written twice and the narrower copy is always the one that stays.
+        // their own, so without this count a door falling out of the predicate
+        // moves no number in the run at all. Incremented *here* rather than
+        // beside the call, because a second copy of this predicate is one rule
+        // written twice and the narrower copy is always the one that stays.
         tally.doors += 1;
         // **Both are looked for in the prologue, not on the line
         // above.** A door's shape is `/// why it exists`, then
         // `#[doc(hidden)]`, then the item — so reading only the
         // line above finds the attribute and reports every
         // correctly written door as carrying no reason. Measured:
-        // six of them, on the first run.
-        // **Through a wrapped attribute, which this walk used to stop at.** See
-        // [`past_the_attributes`]: a wrapped attribute's closing line is neither
-        // `#[` nor `///`, so the `take_while` ended on it and the prologue came
-        // back empty — after which a door that carried both its marker and its
-        // reason was told to add them. Every line from where that reader says
-        // the attributes begin is prologue, and the walk above it continues as
-        // before.
+        // six of them.
+        // **Through a wrapped attribute.** See [`past_the_attributes`]: a
+        // wrapped attribute's closing line is neither `#[` nor `///`, so a
+        // `take_while` alone ends on it and the prologue comes back empty —
+        // after which a door that carries both its marker and its reason is
+        // told to add them. Every line from where that reader says the
+        // attributes begin is prologue, and the walk above it continues from
+        // there.
         let opens = past_the_attributes(lines, index);
         let mut prologue: Vec<&str> = lines[opens..index].iter().map(|line| line.trim()).collect();
         prologue.extend(
@@ -6191,26 +6134,23 @@ fn a_test_door_says_it_is_one(
         // **And out of the default build, where the crate says it is.** The
         // prologue is where a `#[cfg]` sits, beside the `#[doc(hidden)]` that is
         // already read from it.
-        // **Joined, because a wrapped attribute is one attribute.** Wave 21
-        // made the prologue survive rustfmt's wrapping and repaired two of the
-        // three questions asked of it: `marked` and `said` need only *some*
-        // line, and this one needs `#[cfg(` and the feature name on the **same**
-        // one. So a door written `#[cfg(any(\n    test,\n    feature =
-        // "test-support"\n))]` — the exact spelling this rule's own remedy
-        // tells its author to write — was judged as being in the default build,
-        // and told to do what it had already done. One rule, three questions,
-        // two of them repaired. Found in wave 22.
-        // **One attribute at a time, because the join spanned all of them.**
-        // Wave 22 joined the whole prologue so a rustfmt-wrapped `#[cfg(any(…))]`
-        // would read as one attribute, and then `#[cfg(` and the feature name
-        // could come from *two different* ones: the docs.rs idiom
+        // **Joined, because a wrapped attribute is one attribute.** `marked`
+        // and `said` need only *some* line, and this needs `#[cfg(` and the
+        // feature name in the **same** attribute. Read line by line, a door
+        // written `#[cfg(any(\n    test,\n    feature = "test-support"\n))]` —
+        // the exact spelling this rule's own remedy tells its author to write —
+        // is judged as being in the default build, and told to do what it has
+        // already done.
+        // **One attribute at a time, not the whole prologue at once.** Joined
+        // whole, `#[cfg(` and the feature name can come from *two different*
+        // attributes: the docs.rs idiom
         // `#[cfg_attr(docsrs, doc(cfg(feature = "test-support")))]` — which this
         // rule's own fixture carries, and which puts the item behind nothing —
         // supplies the name, any unrelated real `#[cfg(…)]` supplies the opener,
-        // and a door genuinely in the default build reads as behind the feature.
-        // Invariant 13's default-build half switched off, silently. `marked` and
-        // `said` ask line by line and cannot be fed this way; only the joined
-        // question could. Found in wave 23.
+        // and a door genuinely in the default build reads as behind the feature,
+        // which switches invariant 13's default-build half off silently.
+        // `marked` and `said` ask line by line and cannot be fed this way; only
+        // a joined question can.
         let mut attributes: Vec<String> = Vec::new();
         for line in prologue.iter().filter(|line| !line.starts_with("///")) {
             match attributes.last_mut() {
@@ -6224,14 +6164,13 @@ fn a_test_door_says_it_is_one(
         let behind = attributes
             .iter()
             .any(|whole| whole.contains("#[cfg(") && whole.contains(DOORS_ARE_BEHIND));
-        // **The crate's directory, not a name a sibling's begins with.** This
-        // read `starts_with(whose)` with no separator, so a crate whose
-        // directory name merely *opens* with another's was claimed by it — and
-        // a crate that declares no `test-support` feature would be told its door
-        // contradicts one, with the remedy pointing at a manifest key that is
-        // not there. Reported on 2026-09-14 with a scratch workspace driving the
-        // shipped walk; the type wall in `xtask/src/wall.rs` writes its own
-        // sibling case out, and this rule had it missing.
+        // **The crate's directory, not a name a sibling's begins with.** Read as
+        // `starts_with(whose)` with no separator, a crate whose directory name
+        // merely *opens* with another's is claimed by it — and a crate that
+        // declares no `test-support` feature is told its door contradicts one,
+        // with the remedy pointing at a manifest key that is not there.
+        // Measured with a scratch workspace driving the shipped walk; the type
+        // wall in `xtask/src/wall.rs` writes the same sibling case out.
         let inside = |whose: &String| {
             relative
                 .strip_prefix(whose.as_str())
@@ -6284,9 +6223,9 @@ fn a_test_door_says_it_is_one(
 /// Every lint put down carries a written reason, and every test door says it is
 /// one.
 ///
-/// **Invariant 15 said it had no gate, and invariant 13 said the same.** Both
-/// are right about what a gate cannot do: whether a paragraph *earns* an allow
-/// is a judgement, and so is whether a `#[doc(hidden)]` door is the real thing
+/// **Invariants 13 and 15 are partly beyond a gate, and this is the part that
+/// is not.** Whether a paragraph *earns* an allow is a judgement, and so is
+/// whether a `#[doc(hidden)]` door is the real thing
 /// or a second implementation that agrees with itself. What a gate can do is
 /// refuse the case where there is no paragraph at all, and count what it read —
 /// which is the difference between a habit a reader has to check and a habit
@@ -6316,10 +6255,10 @@ pub(crate) fn every_hatch_carries_its_reason(
     let shut = the_crates_that_shut_their_doors(root);
     // **`plugins/` as well**, because a plugin is a workspace member that clippy
     // judges at `-D warnings` like any crate, so a lint put down there is put
-    // down in the same tree. This walked `crates/` and `xtask/` alone after the
-    // plugin tree arrived — measured, `#[allow(clippy::must_use_candidate)]`
-    // with no reason in `plugins/reference/src/behaviour.rs` left this step's
-    // line byte-identical to a clean run.
+    // down in the same tree. Measured with `crates/` and `xtask/` walked
+    // alone: `#[allow(clippy::must_use_candidate)]` with no reason in
+    // `plugins/reference/src/behaviour.rs` left this step's line
+    // byte-identical to a clean run.
     for tree in ["crates", "plugins", "xtask"] {
         let root_of = root.join(tree);
         if !root_of.is_dir() {
@@ -6331,7 +6270,7 @@ pub(crate) fn every_hatch_carries_its_reason(
             // fixture that plants in every real directory. Restating it in the
             // test would make the test agree with whatever this walk does; this
             // way a directory that leaves the scope leaves the expectation in
-            // the same edit. Found in wave 29.
+            // the same edit.
             if !in_the_hatch_scope(&relative) {
                 return;
             }
@@ -6340,38 +6279,36 @@ pub(crate) fn every_hatch_carries_its_reason(
             };
             let lines: Vec<&str> = text.lines().collect();
             // **A string literal is not an attribute, and a quote is not a
-            // literal.** The question was asked as `!code.contains('"')`, so any
-            // quote anywhere on the line took it out of the gate entirely —
-            // measured, `#[allow(clippy::all)] // see the note in "§15.1"` above
-            // a real item was neither counted nor judged, and so was every
-            // single-line `#[expect(…, reason = "…")]` in the tree: three of the
-            // thirty-one, which is a rule that stops asking the moment somebody
-            // answers it inline. It also missed what it was written for. The
-            // emitter's template in `crates/nc-catalog-compiler/src/emit.rs`
-            // carries `#![allow(clippy::match_same_arms)]` *inside* a string
-            // whose quotes are on other lines, and that text was counted as one
-            // of this tree's hatches.
+            // literal.** Asked as `!code.contains('"')`, any quote anywhere on
+            // the line takes it out of the gate entirely — measured,
+            // `#[allow(clippy::all)] // see the note in "§15.1"` above a real
+            // item was neither counted nor judged, and so was every single-line
+            // `#[expect(…, reason = "…")]` in the tree, which is a rule that
+            // stops asking the moment somebody answers it inline. Nor does it
+            // see what it is for: the emitter's template in
+            // `crates/nc-catalog-compiler/src/emit.rs` carries
+            // `#![allow(clippy::match_same_arms)]` *inside* a string whose quotes
+            // are on other lines, and to that question the text is one of this
+            // tree's hatches.
             //
-            // Both are the same question — is this line code — and this tree
-            // already answers it. `without_string_contents` keeps every line and
+            // Both are the same question — is this line code — and
+            // `without_string_contents` answers it: it keeps every line and
             // every newline, so the spent copy can be indexed by the original's
             // line numbers.
             let spent = without_string_contents(&text);
             let bare: Vec<&str> = spent.lines().collect();
             // **Lines, not files**, because `floor_on_the_rust_lines` compares
             // against a second count of the tree's lines — handing it a file
-            // count made the two sides different quantities and the floor read
+            // count makes the two sides different quantities and the floor reads
             // `88 against 121928`, which is a gate reporting a defect that is
             // its own arithmetic.
             //
             // **And counted at the last statement a verdict reaches**, not
-            // before the loop that judges. `read += lines.len();` stood here,
-            // which holds only that the file was opened: a filter written
-            // between the counter and the rule left the printed number and the
-            // exact floor under it both whole while the rule was never asked —
-            // the failure `xtask/canaries/README.md` records verbatim for the
-            // two walks that had no mechanism, and this was the third, with no
-            // identity, no canary and no fixture. Found in wave 29.
+            // before the loop that judges. A `read += lines.len();` here holds
+            // only that the file was opened: a filter written between the
+            // counter and the rule leaves the printed number and the exact floor
+            // under it both whole while the rule is never asked — the failure
+            // `xtask/canaries/README.md` records for walks with no mechanism.
             let mut reached_a_verdict = 0_usize;
             for index in 0..lines.len() {
                 let code = bare.get(index).map_or("", |line| line.trim());
@@ -6402,22 +6339,21 @@ pub(crate) fn every_hatch_carries_its_reason(
                     // a `#![allow]` at a crate root takes a comment above it,
                     // because a crate-level attribute has no item to sit on and
                     // the generated crates carry theirs that way. Requiring the
-                    // argument alone reported a correctly justified allow —
+                    // argument alone reports a correctly justified allow —
                     // measured, in `crates/nc-catalog/src/lib.rs`, whose three
                     // lines above it say exactly why — and pushing a `reason =`
-                    // into the emitter's template then broke the *other* gate,
-                    // whose quote walk reads `\"` as an opening quote and spends
-                    // the rest of the line. A repair that is too strong is still
-                    // a repair that is wrong.
+                    // into the emitter's template was measured breaking the
+                    // *other* gate, whose quote walk read `\"` as an opening
+                    // quote and spent the rest of the line.
                     // **And a doc comment is not a reason.** `///` begins
                     // with `//`, so an allow written under the documentation of
-                    // the item it sits on satisfied this — which is where an
+                    // the item it sits on would satisfy this — which is where an
                     // allow is usually written, and which says nothing about the
-                    // lint. Measured over the tree's twenty-eight hatch lines at
-                    // the time: two rely on a comment above, both ordinary `//`
-                    // prose written for the allow, and the rule was off for
-                    // every documented item in the repository. `//!` is the same
-                    // shape one level up.
+                    // lint. Measured over the tree's hatch lines, two relied on
+                    // a comment above, both ordinary `//` prose written for the
+                    // allow: reading `///` as a reason buys nothing, and it turns
+                    // the rule off for every documented item in the repository.
+                    // `//!` is the same shape one level up.
                     let said_above = index
                         .checked_sub(1)
                         .and_then(|at| lines.get(at))
@@ -6488,18 +6424,17 @@ pub(crate) fn every_hatch_carries_its_reason(
 /// that keeps such a list from turning a gate off.
 ///
 /// Split out of the walk so the fixture that plants in every real directory can
-/// ask the walk's own scope instead of restating it. The rule is the one the
-/// walk already applied, spelled the same way: many of the real directories are
-/// outside `crates/`, `plugins/` and `xtask/`, and an expectation that ignored
-/// that refused a tree with nothing wrong with it.
+/// ask the walk's own scope instead of restating it. The rule is the walk's
+/// own: many of the real directories are outside `crates/`, `plugins/` and
+/// `xtask/`, and an expectation that ignores that refuses a tree with nothing
+/// wrong with it.
 pub(crate) fn in_the_hatch_scope(relative: &str) -> bool {
     (relative.starts_with("crates/")
         || relative.starts_with("plugins/")
         || relative.starts_with("xtask/"))
-        // The extension is asked of the path rather than of the text, which is
-        // how the walk asked it before this was split out — and `ends_with`
-        // here is a lint in this workspace, because it decides `.RS` the other
-        // way on a case-insensitive filesystem.
+        // The extension is asked of the path rather than of the text — and
+        // `ends_with` here is a lint in this workspace, because it decides
+        // `.RS` the other way on a case-insensitive filesystem.
         && Path::new(relative).extension().is_some_and(|kind| kind == "rs")
         && !relative.starts_with("xtask/canaries/")
 }
@@ -6512,11 +6447,11 @@ pub(crate) fn in_the_hatch_scope(relative: &str) -> bool {
 pub(crate) fn no_source_puts_the_lints_down(root: &Path) -> Result<(Vec<Finding>, usize), String> {
     let mut findings = Vec::new();
     let mut read = 0_usize;
-    // **The whole tree, not `src/`.** This walked `xtask/src` and each crate's
-    // `src/`, which is 56 of the 83 Rust files here. The 27 it could not reach
-    // are every `crates/*/tests/`, every `xtask/tests/` and the eleven
+    // **The whole tree, not `src/`.** `xtask/src` and each crate's `src/`
+    // leave out every `crates/*/tests/`, every `xtask/tests/` and the
     // `crates/nc-log/fixtures/` — all compiled by cargo, all able to carry an
-    // inner attribute. Measured: `#![allow(clippy::all, clippy::pedantic,
+    // inner attribute. Measured with only the `src/` trees walked:
+    // `#![allow(clippy::all, clippy::pedantic,
     // unused)]` plus four real violations in `crates/nc-journal/tests/
     // tampering.rs` — acceptance criterion 3's own suite — and the count did not
     // move: `ok 56 source file(s) leave the workspace lints on`, `ok lints`,
@@ -6540,8 +6475,8 @@ pub(crate) fn no_source_puts_the_lints_down(root: &Path) -> Result<(Vec<Finding>
             // `continue` written below it leaves that number whole while the
             // rule is never asked.
             let mut reached_a_verdict = 0_usize;
-            // **An attribute is not a line.** This read one line and asked it to
-            // both open and close, so rustfmt's own wrapping hid the defect:
+            // **An attribute is not a line.** Asking one line to both open and
+            // close lets rustfmt's own wrapping hide the defect:
             //
             // ```rust
             // #![allow(
@@ -6552,25 +6487,24 @@ pub(crate) fn no_source_puts_the_lints_down(root: &Path) -> Result<(Vec<Finding>
             //
             // over `crates/nc-journal/tests/tampering.rs` — acceptance criterion
             // 3's suite — gave `ok 83 source file(s) leave the workspace lints
-            // on` and `check passed`, with four real clippy violations
-            // underneath. And rustfmt *produces* that shape once the list is
-            // long enough, so the hole opens by itself.
+            // on` and `check passed` under that reading, with four real clippy
+            // violations underneath. And rustfmt *produces* that shape once the
+            // list is long enough, so the hole opens by itself.
             // The line the accumulator opened at, and how many lines it has taken
             // in. **The count is what makes the identity honest**: the loop
             // charges `judged_here` once per line, so an attribute that spans
             // four lines must return four verdicts when it finally balances, not
-            // one. Written the other way the two counters could never be equal
-            // whenever the accumulator was used at all — so ordinary rustfmt
-            // output, `#![allow(\n    clippy::match_same_arms\n)]`, made this gate
+            // one. Written the other way the two counters can never be equal
+            // whenever the accumulator is used at all — so ordinary rustfmt
+            // output, `#![allow(\n    clippy::match_same_arms\n)]`, makes this gate
             // fail with a message blaming a filter that does not exist. Measured:
             // `6 line(s) of this file became this gate's to judge and 4 reached a
             // verdict`, on a file whose only unusual property was being wrapped.
             let mut held: Option<(usize, String, usize, bool)> = None;
-            // **An outer attribute on a `mod` covers a whole file.** This gate
-            // read `#![` and nothing else, and the corpus case arguing for that
-            // — "an outer allow is scoped to the item under it and is the
-            // mechanism working" — chose `fn f() {}`, where it is true. On a
-            // module declaration it is false: measured, one real
+            // **An outer attribute on a `mod` covers a whole file.** "An outer
+            // allow is scoped to the item under it and is the mechanism
+            // working" is true of `fn f() {}` and false of a module
+            // declaration: measured, with `#![` read and nothing else, one real
             // `clippy::uninlined_format_args` planted in
             // `crates/nc-journal/src/entry.rs` failed a cold clippy, and then
             // `#[allow(clippy::all, clippy::pedantic)]` written above
@@ -6585,30 +6519,29 @@ pub(crate) fn no_source_puts_the_lints_down(root: &Path) -> Result<(Vec<Finding>
             // `#[allow(…)]` above `mod tests` is ordinary Rust.
             let mut awaiting: Vec<(usize, String, usize)> = Vec::new();
             // **The whole text through the stripper, not each line on its own.**
-            // The sibling walk fifty lines up does exactly this, and for exactly
-            // this reason: quote state has to survive a literal that opens on
-            // one line and closes on another. Per line, a literal inside a
-            // wrapped attribute never balances, the accumulator runs to its
-            // bound, and the gate says "an inner attribute here never closes its
-            // brackets" over an **outer** attribute that closes one line down —
-            // a cause and a remedy that are both false, on a line whose author
-            // did nothing wrong, while everything below it goes unjudged. One
-            // rule written twice with the second copy the narrower, in one file,
-            // fifty lines apart. Found by a reviewer in wave 21.
+            // The hatch walk above does the same, for the same reason: quote
+            // state has to survive a literal that opens on one line and closes
+            // on another. Per line, a literal inside a wrapped attribute never
+            // balances, the accumulator runs to its bound, and the gate says "an
+            // inner attribute here never closes its brackets" over an **outer**
+            // attribute that closes one line down — a cause and a remedy that
+            // are both false, on a line whose author did nothing wrong, while
+            // everything below it goes unjudged.
             let spent = without_string_contents(&text);
             for (index, line) in spent.lines().enumerate() {
                 // At the top of the loop, for the reason written on the §15.1
                 // walk above.
                 judged_here += 1;
-                // **`split("//")` is not a comment stripper, and this file says
-                // so 1300 lines up.** An inner attribute whose string holds a
-                // `//` — a URL in a `#![doc]`, which is ordinary Rust — was
-                // truncated to an unbalanced fragment, and `held` then opened an
-                // accumulator that can never close: from that line on, every
-                // line in the file was *appended* rather than judged. Measured,
-                // in `crates/nc-journal/tests/tampering.rs` — criterion 3's own
-                // suite — one line of `#![doc = "… <https://example.invalid/…>"]`
-                // above a real blanket allow:
+                // **`split("//")` is not a comment stripper** — see
+                // `line_without_a_comment`. Cut there, an inner attribute whose
+                // string holds a `//` — a URL in a `#![doc]`, which is ordinary
+                // Rust — is truncated to an unbalanced fragment, and `held` then
+                // opens an accumulator that can never close: from that line on,
+                // every line in the file is *appended* rather than judged.
+                // Measured that way, in `crates/nc-journal/tests/tampering.rs` —
+                // criterion 3's own suite — one line of
+                // `#![doc = "… <https://example.invalid/…>"]` above a real blanket
+                // allow:
                 //
                 // ```text
                 // ok    71155 source line(s) leave the workspace lints on   <- up
@@ -6662,17 +6595,17 @@ pub(crate) fn no_source_puts_the_lints_down(root: &Path) -> Result<(Vec<Finding>
                     }
                 };
                 if !balanced(&attribute) {
-                    // **A held line has not reached a verdict.** This counted one
-                    // here, which is what made the two-counter identity vacuous
-                    // for this gate: `judged_here` and `reached_a_verdict` rose
+                    // **A held line has not reached a verdict.** Counting one
+                    // here would make the two-counter identity vacuous for this
+                    // gate: `judged_here` and `reached_a_verdict` would rise
                     // together while every line went into a buffer nobody asked
-                    // the rule. The identity now means what its name says.
+                    // the rule.
                     //
                     // Bounded, because an accumulator that never closes would
                     // swallow the rest of the file — and the bound is a
-                    // **finding**, not a silent drop. Four thousand characters of
-                    // source went unjudged and the run stayed green, which is the
-                    // one outcome a gate must not have.
+                    // **finding**, not a silent drop. A silent drop leaves four
+                    // thousand characters of source unjudged with the run green,
+                    // which is the one outcome a gate must not have.
                     if attribute.len() < 4_000 {
                         held = Some((at, attribute, lines, outer));
                     } else {
@@ -6727,7 +6660,7 @@ pub(crate) fn no_source_puts_the_lints_down(root: &Path) -> Result<(Vec<Finding>
                 &mut findings,
             );
             // Counted per line, for the reason written on the §15.1 walk above:
-            // a filter inside the line loop left a per-file count at full
+            // a filter inside the line loop leaves a per-file count at full
             // strength. Measured, `if index > 0 { continue; }` — which reads
             // *more* correct than the real rule, since an inner attribute is
             // near the top of a file — with a blanket allow over acceptance
@@ -6741,9 +6674,9 @@ pub(crate) fn no_source_puts_the_lints_down(root: &Path) -> Result<(Vec<Finding>
 
 /// A compose file beside the stack's own, which `.gitignore` says is refused.
 ///
-/// **`.gitignore` said `cargo xtask check` refuses one and nothing did.**
-/// `COMPOSE_FILES` had exactly two readers, both of which only *read* the files
-/// for `image:` lines; no rule judged their existence. Measured, with an
+/// **`.gitignore` says `cargo xtask check` refuses one, and this gate does.**
+/// `COMPOSE_FILES`'s other two readers only *read* the files for `image:` lines;
+/// neither judges their existence. Measured without this, with an
 /// override replacing both healthchecks with `test: ["CMD-SHELL", "true"]` —
 /// the shape `dev` waits on, and the incident `dev.rs` records:
 /// `docker compose --profile '*' config` showed both gutted, the walk saw the
@@ -6784,10 +6717,10 @@ pub(crate) fn committed_env_files(root: &Path) -> Result<(Vec<Finding>, usize), 
     let mut found = Vec::new();
     // How many directories were walked, so a walk that reached nothing is visible
     // rather than green. `check.rs`'s own header says every step reports what it
-    // looked at, and this one printed only its verdict.
-    // **Counted where it is judged, not where it is visited.** The increment was
-    // the first line of the visitor, so a filter placed one line after it left
-    // this number at full strength while the gate judged nothing: measured, a
+    // looked at.
+    // **Counted where it is judged, not where it is visited.** As the first
+    // line of the visitor, the increment lets a filter placed one line after it
+    // leave this number at full strength while the gate judges nothing: measured, a
     // `crates/`-shaped early return took the walk from judging 153 paths to
     // judging none, and the printed count went *up* to 154 — because the secret
     // file itself was one of the paths visited. This is the one number a reader
@@ -6800,8 +6733,9 @@ pub(crate) fn committed_env_files(root: &Path) -> Result<(Vec<Finding>, usize), 
         // **Reported in any case, agreed with `.gitignore` in one.**
         // `holds_an_environment` is case-sensitive because git is, and the test
         // that binds the two exists to keep them saying the same thing — so the
-        // case fold lives here, where nothing is compared with git. Measured,
-        // an upper-cased env file under `policy/core/` holding a password:
+        // case fold lives here, where nothing is compared with git. Measured
+        // without the fold, an upper-cased env file under `policy/core/`
+        // holding a password:
         // `check passed`, and the whole run differed from a clean one by one
         // number, going *up* — `no .env is committed, in 169 path(s)` instead of
         // 168. The two rules this gate's own comment credits as the fail-safe
@@ -6821,10 +6755,10 @@ pub(crate) fn committed_env_files(root: &Path) -> Result<(Vec<Finding>, usize), 
             });
         }
         // **Last, so nothing can return between the verdict and the count.**
-        // Moving it below the `file_name` guard was not enough: a filter placed
-        // one line further down kept the number at full strength while the gate
-        // judged nothing, and the count went *up* — 153 to 154 — because the
-        // committed secret was itself a visited path. A counter anywhere but the
+        // Below the `file_name` guard is not enough: a filter placed one line
+        // further down keeps the number at full strength while the gate judges
+        // nothing, and the count goes *up* — measured, 153 to 154 — because the
+        // committed secret is itself a visited path. A counter anywhere but the
         // end of a visitor is a counter something can be inserted above.
         walked += 1;
     })?;
@@ -6833,9 +6767,9 @@ pub(crate) fn committed_env_files(root: &Path) -> Result<(Vec<Finding>, usize), 
 
 /// The formats an environment is written in.
 ///
-/// **The list this replaced was every file kind the repository holds**, so an
-/// `env` file wearing toml, json, sh or yaml was read as "a module named `env`"
-/// — the exemption the paragraph below writes for a Rust module. Measured, one
+/// **Not every file kind the repository holds.** With all of them, an `env` file
+/// wearing toml, json, sh or yaml is read as "a module named `env`" — the
+/// exemption the paragraph below writes for a Rust module. Measured, one
 /// such file under `policy/` holding `DATABASE_URL` and
 /// `AWS_SECRET_ACCESS_KEY`: `check passed`, exit 0, online and `--offline`
 /// both, and the whole run differing from a clean one by a single number, the
@@ -6850,7 +6784,7 @@ const AN_ENVIRONMENT_IS_WRITTEN_IN: [&str; 5] = ["toml", "json", "yaml", "yml", 
 /// Every file kind this repository holds.
 ///
 /// The exemption below needs both lists: a suffix that is not a kind at all —
-/// `env.production` — was never a module, and a suffix that is a kind but is
+/// `env.production` — is never a module, and a suffix that is a kind but is
 /// how an environment is written is not one either.
 ///
 /// `env.rs` is a Rust module and `env.toml` a manifest. Both have `env` as a <!-- allow-reference: names `env.rs` `env.toml` — names a shape the rule judges, not a file here -->
@@ -6873,34 +6807,31 @@ const KNOWN_FORMATS: [&str; 12] = [
 
 /// Whether a file name is one that carries an environment.
 ///
-/// **`.env` was the whole rule**, and `.env.example` says of it: *"The gate is
-/// absolute so that nobody has to remember which `.env` was the safe one."* It
-/// was exactly a gate that required remembering. `.env.local`, `.env.production`
-/// and `services/auth/.env.local` are all conventional names for a file holding <!-- allow-reference: names `services/auth/.env.local` — the shapes the gate missed, none of which is in this tree -->
-/// real credentials, none of them is in `.gitignore`, and none was caught — so
-/// three of them would go into a clone with `check passed`.
+/// **The shape, not the one spelling `.env`.** `.env.example` says of this gate:
+/// *"The gate is absolute so that nobody has to remember which `.env` was the
+/// safe one."* A gate on `.env` alone is one that requires remembering.
+/// `.env.local`, `.env.production`
+/// and `services/auth/.env.local` are all conventional names for a file holding <!-- allow-reference: names `services/auth/.env.local` — the shapes the rule judges, none of which is in this tree -->
+/// real credentials, and where `.gitignore` and this rule both match only the
+/// one spelling, none of them is ignored or caught — so they would go into a
+/// clone with `check passed`.
 ///
-///
-/// The rule is now the shape rather than the spelling: anything beginning `.env`
+/// So the rule is the shape rather than the spelling: anything beginning `.env`
 /// is one, except the committed examples, which are the point of having them.
 fn holds_an_environment(name: &str) -> bool {
     // **`production.env` is an environment file and `.env` is a spelling.**
-    // This matched a `.env` prefix, so `production.env` at the root and `env`
-    // beside a crate's source both went through holding credentials — and the
-    // path count went *up*, because the walk read them and the gate did not
+    // Matched as a `.env` prefix, `production.env` at the root and `env`
+    // beside a crate's source both go through holding credentials — and the
+    // path count goes *up*, because the walk reads them and the gate does not
     // judge them. `env_file:` in a compose file names exactly that shape, and
-    // `.gitignore` has the same blind spot, so neither this nor the ignore file
-    // stops one reaching a clone.
+    // an ignore rule on the same prefix has the same blind spot, so neither
+    // would stop one reaching a clone.
     //
-    // The shape is: the whole name is `env`, or it begins `.env`, or it ends
-    // `.env`. A Rust source file named after the word is none of those,
-    // because the
-    // extension is what it ends with.
-    // **Any component of the name, not its first or last.** The rule was
-    // "starts with `.env`, or ends with `.env`, or is `env`", minus five exact
-    // spellings — and it was wrong in both directions. `secrets.env.local` and
-    // `env.production` hold credentials and fell between the clauses;
-    // `.env.local.example` is a template and fell inside the wrong one: allow-reference: names `.env.local.example` — a name the rule judges, not a file here
+    // **Any component of the name, not its first or last.** "Starts with
+    // `.env`, or ends with `.env`, or is `env`", minus five exact spellings, is
+    // wrong in both directions. `secrets.env.local` and `env.production` hold
+    // credentials and fall between the clauses;
+    // `.env.local.example` is a template and falls inside the wrong one: allow-reference: names `.env.local.example` — a name the rule judges, not a file here
     //
     // ```text
     // .env.local.example   -> error: it holds real credentials
@@ -6911,20 +6842,20 @@ fn holds_an_environment(name: &str) -> bool {
     // A name is a run of dot-separated parts. It is an environment file when one
     // of them is `env`, and a template when one of them says so — which is the
     // shape, and holds for every arrangement of the two.
-    // **No empty-part filter, because the three guards below dominate it.**
-    // `split('.')` yields an empty part only from a leading dot, a trailing dot
-    // or a doubled one, and the format exemption — the one clause `parts.len()`
-    // reaches — rejects all three before it counts. Nothing else reads a part
-    // that could be empty: `""` is neither `env` nor a template word. The filter
-    // was one rule written twice, and `mutants.py` reported deleting it as a
-    // weakening no input distinguishes. Checked before removing it: both forms
-    // driven over 54,240 generated names — every arrangement of up to four parts
-    // drawn from an alphabet holding the empty string, `env`, `envrc`, four
-    // formats, three template words and three qualifiers — with no disagreement.
-    // **Case-sensitive, because git is.** Lower-casing the name here was tried
-    // and reverted: it made this function report a `.ENV` that `.gitignore` does
-    // not hide, and `the_ignore_file_hides_exactly_what_the_gate_reports` exists
-    // to say the two agree. Teaching the ignore file character classes does not
+    // **No empty-part filter.** `split('.')` yields an empty part only from a
+    // leading dot, a trailing dot or a doubled one, and the format exemption —
+    // the one clause that asks how many parts there are — does not match any
+    // of the three. Nothing else reads a part that could be empty: `""` is
+    // neither `env` nor a template word. A filter would be that rule written
+    // twice: measured with one, `mutants.py` reported deleting it as a
+    // weakening no input distinguishes, and both forms driven over 54,240
+    // generated names — every arrangement of up to four parts drawn from an
+    // alphabet holding the empty string, `env`, `envrc`, four formats, three
+    // template words and three qualifiers — showed no disagreement.
+    // **Case-sensitive, because git is.** Lower-casing the name here makes
+    // this function report a `.ENV` that `.gitignore` does not hide, and
+    // `the_ignore_file_hides_exactly_what_the_gate_reports` exists to say the
+    // two agree. Teaching the ignore file character classes does not
     // work either — this repository's own matcher cannot read them, so the two
     // halves would disagree in the other direction.
     //
@@ -6934,14 +6865,12 @@ fn holds_an_environment(name: &str) -> bool {
     // allows, which is why the fold is in the reporter rather than here.
     let parts: Vec<&str> = name.split('.').collect();
     // **A part equal to `env`, or a name that begins `.env`.** The docstring
-    // above says "anything beginning `.env` is one" and the rule asked only the
-    // first question — so `.envrc`, which splits to `["envrc"]`, was not an
-    // environment file to this gate. That is direnv's standard file and the
-    // commonest non-`.env` spelling of exactly what `§15.5` forbids; `.gitignore`
-    // had the same blind spot, and the test that holds the two together listed
-    // nineteen names and not that one, so both defences were off at once.
-    // Measured: `.envrc` at the repository root holding a database URL with a
-    // password and an `AWS_SECRET_ACCESS_KEY` gave
+    // above says "anything beginning `.env` is one", and `.envrc` has no part
+    // that is `env`, so asking only the first question leaves it out. That is
+    // direnv's standard file and the commonest non-`.env` spelling of exactly
+    // what `§15.5` forbids. Measured with the first question alone, and with an
+    // ignore file that has the same blind spot: `.envrc` at the repository root
+    // holding a database URL with a password and an `AWS_SECRET_ACCESS_KEY` gave
     // `ok no .env is committed, in 165 path(s)` — the count *up* — and
     // `check passed`, and `git check-ignore` would not have hidden it either.
     if !parts.contains(&"env") && !name.starts_with(".env") {
@@ -6955,8 +6884,9 @@ fn holds_an_environment(name: &str) -> bool {
     // **And the whole name is `env` and a format, not merely ending in one.**
     // `sh`, `json`, `yaml` and `toml` are exactly the formats an environment is
     // *written* in, and `source .env.sh` is a conventional way to load one — so
-    // "a file ending in a known format is that format" exempted the very files
-    // this gate exists to catch. Measured, two of them at the repository root:
+    // "a file ending in a known format is that format" would exempt the very
+    // files this gate exists to catch. Measured, two of them at the repository
+    // root, under that reading:
     //
     // ```text
     // .env.sh    export DATABASE_URL=postgres://noctua:hunter2@db.internal/noctua
@@ -6972,36 +6902,36 @@ fn holds_an_environment(name: &str) -> bool {
     // anything precedes the `env`. <!-- allow-reference: names `secrets.env.sh` —
     // a shape the rule judges, not a file here -->
     //
-    // **The leading dot is what tells them apart, and it was filtered away one
-    // line up.** A dotfile called `.env` with a format after it and a module
-    // called `env` of that format both became `["env", "sh"]`, so the exemption
-    // written for the module covered the environment. A name beginning with a
-    // dot is a dotfile, and `.env` with any suffix is an environment.
-    // **And no empty part anywhere**, which the filter above hides. A doubled dot
-    // and a trailing dot both collapse to two parts, so the module exemption
-    // fired and this said "not an environment file" — while the ignore file's
+    // **The leading dot is what tells them apart, so it is not filtered
+    // away.** With empty parts filtered out, a dotfile called `.env` with a
+    // format after it and a module called `env` of that format both become
+    // `["env", "sh"]`, and the exemption written for the module covers the
+    // environment. A name beginning with a dot is a dotfile, and `.env` with
+    // any suffix is an environment.
+    // **And no empty part filtered anywhere.** Filtered, a doubled dot and a
+    // trailing dot both collapse to two parts, so the module exemption fires
+    // and this says "not an environment file" — while the ignore file's
     // wildcard matches them and its negation does not, so git ignores them.
-    // Driven over 115,454 generated names against real `git check-ignore`: 48
-    // disagreements, every one of that shape, and the twenty-one-name agreement
-    // test covered none of them. A doubled or trailing dot is not a file type.
+    // Driven over 115,454 generated names against real `git check-ignore`, the
+    // filtered form gave 48 disagreements, every one of that shape. A doubled
+    // or trailing dot is not a file type.
     //
     // **Written as the shape, not as four questions about a length.**
     // `parts.len() == 2 && parts.first() == Some(&"env") && parts.last()
-    // .is_some_and(…)` asked whether an `Option` was `None` behind a guard that
-    // makes it `Some` — `mutants.py` reported `is_some_and -> is_none_or` as a
-    // weakening no input distinguishes, which is what a dead branch looks like
-    // from the outside.
-    // **And the three dot guards are gone with it.** `!starts_with('.')`,
-    // `!contains("..")` and `!ends_with('.')` were written to stop a name with an
-    // empty part from reaching a length test that the filter had shortened. With
-    // the parts unfiltered, every such name has three or more of them and the
-    // pattern below does not match — so the guards decided nothing, and
-    // `mutants.py` reported deleting each of them as a weakening no input
-    // distinguishes. Both forms driven over the same 54,240 names: no
-    // disagreement.
-    // **A module, not every kind this repository holds.** The list this asked
-    // was `KNOWN_FORMATS` — twelve file kinds — so an `env` file wearing any of
-    // toml, json, sh or yaml was "a module named `env`". Measured, one such
+    // .is_some_and(…)` would ask whether an `Option` is `None` behind a guard
+    // that makes it `Some` — measured on that form, `mutants.py` reported
+    // `is_some_and -> is_none_or` as a weakening no input distinguishes, which
+    // is what a dead branch looks like from the outside.
+    // **And no dot guards.** `!starts_with('.')`, `!contains("..")` and
+    // `!ends_with('.')` would stop a name with an empty part from reaching a
+    // length test that a filter had shortened. With the parts unfiltered, every
+    // such name has three or more of them and the pattern below does not match
+    // — so the guards would decide nothing, and with them written `mutants.py`
+    // reported deleting each as a weakening no input distinguishes. Both forms
+    // driven over the same 54,240 names: no disagreement.
+    // **A module, not every kind this repository holds.** Asked of
+    // `KNOWN_FORMATS` alone — twelve file kinds — an `env` file wearing any of
+    // toml, json, sh or yaml is "a module named `env`". Measured, one such
     // file under `policy/` holding `DATABASE_URL` and `AWS_SECRET_ACCESS_KEY`:
     // `check passed`, exit 0, online and `--offline` both, and the entire run
     // differed from a clean one by a single number —
@@ -7012,9 +6942,9 @@ fn holds_an_environment(name: &str) -> bool {
     // The paragraph above says what the exemption is for: *"A Rust module named
     // `env` is a module because it **is** `env`, of that type."* A module is
     // written in `rs`. Nothing else named `env.<kind>` is more likely a module
-    // than an environment, and the list had eleven other kinds in it. Removing
-    // the exemption altogether was measured too: `ok no .env is committed, in
-    // 168 path(s)`, unchanged — nothing in this tree relies on it.
+    // than an environment. Removing the exemption altogether was measured too:
+    // `ok no .env is committed, in 168 path(s)`, unchanged — nothing in this
+    // tree relies on it.
     if matches!(parts.as_slice(), ["env", last]
         if KNOWN_FORMATS.contains(last) && !AN_ENVIRONMENT_IS_WRITTEN_IN.contains(last))
     {
@@ -7031,15 +6961,9 @@ fn holds_an_environment(name: &str) -> bool {
 /// nothing but a `fix` string, so a directory that does not exist and a glob
 /// that matches no file both read as a rule.
 ///
-/// **The summary above this one named a function that is gone.** It said *"how
-/// many files under `directory` end in `suffix`"*, which this has not done
-/// since it began reading a glob segment by segment — and a block whose item
-/// has been deleted fuses onto whatever is written next, where rustdoc renders
-/// it as that item's summary.
-///
 /// `*.cedar` is the files directly in it; `*/Cargo.toml` is one directory down.
 /// Segment by segment, because taking the text after the last dot and looking
-/// for it anywhere beneath made two of the six `COUNTABLE` rows pass while the
+/// for it anywhere beneath was measured passing two `COUNTABLE` rows while the
 /// command they hand a reader matched nothing.
 #[cfg(test)]
 pub(crate) fn glob_count(directory: &Path, glob: &str) -> usize {
@@ -7079,13 +7003,13 @@ pub(crate) fn glob_count(directory: &Path, glob: &str) -> usize {
 mod a_glob_counts_at_the_depth_it_names {
     /// A segment before the last one steps down; the last one counts.
     ///
-    /// **The depth was decided by nothing.** `let last = …` written `true`
-    /// counts every match at every level, and `false` counts nothing at all —
-    /// and every caller of this function is a `COUNTABLE` row whose directory
-    /// happens to answer the same number either way, so the whole tree stayed
-    /// green under both. The rows this serves are the commands a reader is
-    /// handed: `ls crates/*/Cargo.toml` is one directory down and
-    /// `ls catalog/*.toml` is not.
+    /// **Without this, the depth is decided by nothing.** `let last = …`
+    /// written `true` counts every match at every level, and `false` counts
+    /// nothing at all — and every caller of this function is a `COUNTABLE` row
+    /// whose directory happens to answer the same number either way, so the
+    /// whole tree would stay green under both. The rows this serves are the
+    /// commands a reader is handed: `ls crates/*/Cargo.toml` is one directory
+    /// down and `ls catalog/*.toml` is not.
     #[test]
     fn a_segment_before_the_last_steps_down() {
         let scratch = std::env::temp_dir().join(format!("nc-glob-depth-{}", std::process::id()));
@@ -7143,10 +7067,10 @@ pub(crate) fn manifests(root: &Path) -> Result<Vec<PathBuf>, String> {
 
 /// Whether a `target` directory in `parent` is the one cargo writes.
 ///
-/// **Beside the *workspace* manifest, not beside any manifest.** The first form
-/// of this rule asked whether a `Cargo.toml` sat in the parent, and one sits
-/// beside nine of the directories in this tree — so a `target` under any member
-/// became a place nothing looks. Measured, the same file in two directories:
+/// **Beside the *workspace* manifest, not beside any manifest.** A `Cargo.toml`
+/// sits in every member's directory, so asking whether one sits in the parent
+/// makes a `target` under any member a place nothing looks.
+/// Measured, the same file in two directories under that question:
 ///
 /// ```text
 /// a committed `.env` under migrations/  -> error: it is committed here
@@ -7154,9 +7078,9 @@ pub(crate) fn manifests(root: &Path) -> Result<Vec<PathBuf>, String> {
 /// ```
 ///
 /// Byte-identical files, opposite verdicts, and the path count did not move.
-/// Every walk-based gate in the tool reads through here, so that was a hiding
-/// place for a committed secret, an unread citation, a compile-time query and a
-/// logging call site at once.
+/// Every walk-based gate in the tool reads through here, so that would be a
+/// hiding place for a committed secret, an unread citation, a compile-time
+/// query and a logging call site at once.
 ///
 /// Cargo puts a workspace's build output in **one** directory, beside the
 /// manifest that declares `[workspace]`; a member package inside a workspace
@@ -7165,10 +7089,10 @@ pub(crate) fn manifests(root: &Path) -> Result<Vec<PathBuf>, String> {
 /// but "is this the workspace's own directory", and a nested workspace answers
 /// it for itself.
 fn is_a_build_directory(parent: &Path) -> bool {
-    // **A `[workspace]` line, not a `[workspace]` table.** This read the
-    // manifest as lines and asked whether any trimmed to `[workspace]` — and a
-    // manifest is text an author controls. The line inside a TOML *string*
-    // satisfies it while leaving a perfectly valid member manifest:
+    // **A `[workspace]` table, not a `[workspace]` line.** A manifest is text
+    // an author controls, and asking whether any of its lines trims to
+    // `[workspace]` is satisfied by the line inside a TOML *string*, which
+    // leaves a perfectly valid member manifest:
     //
     // ```toml
     // description = """
@@ -7178,7 +7102,7 @@ fn is_a_build_directory(parent: &Path) -> bool {
     // """
     // ```
     //
-    // `cargo metadata` accepts it, and a `target/` inside `nc-log` then became a
+    // `cargo metadata` accepts it, and a `target/` inside `nc-log` then becomes a
     // hiding place both this predicate and `census` skip together — a `.env`
     // holding a production password and a `String::leak` inside the crate whose
     // whole purpose is that no run-time string reaches the log, with the
@@ -7197,10 +7121,10 @@ fn is_a_build_directory(parent: &Path) -> bool {
 /// Whether a directory on [`SKIP`] is, here, a place this repository's own files
 /// could sit.
 ///
-/// **All three names were matched at any depth, and only `target` was anchored.**
-/// The same measurement that closed `target` reopens for the other two: a
-/// committed `.env` under a `node_modules` or a `.git` inside a crate's own
-/// sources is invisible to every walk-based gate, with the path count unmoved —
+/// **None of the three names is a skip at any depth.** What holds for `target`
+/// holds for the other two: matched at any depth, a committed `.env` under a
+/// `node_modules` or a `.git` inside a crate's own sources is invisible to every
+/// walk-based gate, with the path count unmoved —
 ///
 /// ```text
 /// walked=151 findings=[]                        both files present
@@ -7227,10 +7151,10 @@ fn is_somewhere_source_can_hide(parent: &Path, name: &str) -> bool {
         // repository's and is walked like any directory.
         "target" | ".git" => !is_a_build_directory(parent),
         // A node package tree sits beside the node manifest that declares it.
-        // **Nothing here is a node package.** This asked whether a node manifest
-        // sat beside the directory — and this is a Rust monorepo with no such
-        // manifest anywhere and no gate on one, so *adding* one made
-        // `node_modules` a hiding place again: two lines took the `.env` gate,
+        // **Nothing here is a node package.** Asking whether a node manifest
+        // sits beside the directory does not hold in a Rust monorepo with no
+        // such manifest anywhere and no gate on one: *adding* one makes
+        // `node_modules` a hiding place, and two lines took the `.env` gate,
         // the type-wall source gate, the compile-time-query gate, the
         // ignored-test gate, the citation gates and the excuse census off
         // everything inside it, with the path count going *up* because it
@@ -7247,28 +7171,28 @@ fn is_somewhere_source_can_hide(parent: &Path, name: &str) -> bool {
 
 /// How many Rust lines there are, counted by code that is not a gate.
 ///
-/// **`> 0` is a floor with everything in it.** Two gates print a number of source
-/// files read and both were guarded by nothing else, so a one-line early return
-/// inside either left `ok 1 source file(s)` with a real defect underneath — a
-/// blanket `#![allow(clippy::all)]` over acceptance criterion 3's own tamper
-/// suite, and a hand-written `NC-KERN-4242` in no registry. This is the second
-/// count the repository already uses for the path walk, restricted to the files
-/// those two gates are about.
+/// **`> 0` is a floor with everything in it.** Measured on two gates that
+/// printed a number of source files read and were floored on `> 0` alone: a
+/// one-line early return inside either left `ok 1 source file(s)` with a real
+/// defect underneath — a blanket `#![allow(clippy::all)]` over acceptance
+/// criterion 3's own tamper suite, and a hand-written `NC-KERN-4242` in no
+/// registry. This is the second count the repository uses for the path walk,
+/// restricted to the files those two gates are about.
 pub(crate) fn rust_lines(root: &Path, except: &Path) -> Result<usize, String> {
     lines_under(root, &["rs"], except)
 }
 
 /// The same, over whichever file kinds the walk being floored actually reads.
 ///
-/// **A ratio is not a floor when a whole crate fits inside it.** The `§15.1`
-/// floor allowed half, and one line — `if relative.starts_with("crates/
+/// **A ratio is not a floor when a whole crate fits inside it.** Under a
+/// `§15.1` floor that allowed half, one line — `if relative.starts_with("crates/
 /// nc-journal/") { return; }` — removed 31 % of the walk with a real
 /// `NC-KERN-4242` in the crate it skipped, printing `ok 17464 source line(s)`
-/// and `check passed`. The journal is the audit log. What made the ratio
-/// necessary was that the expected count was over the wrong ground: `.rs` only,
-/// while the walk also reads every `.sql` in `migrations/`, and the whole of
-/// `crates/` while the walk names two exclusions. Counted over the same ground,
-/// the two agree exactly and the floor needs no slack.
+/// and `check passed`. The journal is the audit log. A ratio is needed only
+/// when the expected count is over the wrong ground: `.rs` only, while the walk
+/// also reads every `.sql` in `migrations/`, or the whole of `crates/` while the
+/// walk names two exclusions. Counted over the same ground, the two agree
+/// exactly and the floor needs no slack.
 ///
 /// # Errors
 ///
@@ -7277,10 +7201,10 @@ pub(crate) fn lines_under(root: &Path, kinds: &[&str], except: &Path) -> Result<
     let mut found = 0_usize;
     // **A file is a scope too.** `read_dir` errors on one, and every caller
     // drops the error with `.ok()` — so naming a file in a floor's scope list
-    // silently contributed zero. The emitter's floor named
-    // `xtask/src/build.rs`, the stage that writes the bytes, and counted none
-    // of its 268 lines: `read = 7148` against `expected = 6880`, which is
-    // exactly that file, free.
+    // would silently contribute zero. Measured without this branch, on the
+    // emitter's floor, which names `xtask/src/build.rs`, the stage that writes
+    // the bytes: none of its 268 lines counted, `read = 7148` against
+    // `expected = 6880`, which is exactly that file, free.
     if root.is_file() {
         return Ok(std::fs::read_to_string(root)
             .map(|text| text.lines().count())
@@ -7295,9 +7219,9 @@ pub(crate) fn lines_under(root: &Path, kinds: &[&str], except: &Path) -> Result<
         // **The same rule `walk` uses, not a list of names.** `walk` descends
         // into a `.git`, a `node_modules`, or a `target` that is not beside a
         // `[workspace]` manifest — its own doc calls them places source can
-        // hide — and this skipped all three unconditionally. Every `.rs` line
-        // inside one therefore counted in the walk and not in the floor, which
-        // is free slack in the one comparison called exact: measured, 2000
+        // hide — so skipping all three unconditionally here counts every `.rs`
+        // line inside one in the walk and not in the floor, which is free slack
+        // in the one comparison called exact: measured, 2000
         // lines in a `.git` directory under a crate's `src/` paid for a filter
         // that removed `crates/nc-canon/src/` from the §15.1 walk with a real
         // `NC-KERN-4242` in it, and `check passed`.
@@ -7318,8 +7242,8 @@ pub(crate) fn lines_under(root: &Path, kinds: &[&str], except: &Path) -> Result<
             .is_some_and(|kind| kinds.iter().any(|wanted| kind == *wanted))
         {
             // **Lines, not files.** A per-file count is at full strength while
-            // a filter inside a line loop judges nothing, which is how two gates
-            // reported the whole tree and read one line of it.
+            // a filter inside a line loop judges nothing, which is how a gate
+            // reports the whole tree and reads one line of it.
             found += std::fs::read_to_string(&path)
                 .map(|text| text.lines().count())
                 .unwrap_or_default();
@@ -7332,18 +7256,19 @@ pub(crate) fn lines_under(root: &Path, kinds: &[&str], except: &Path) -> Result<
 /// nothing of its own.
 ///
 /// **A floor on the walk, not on a slice of it.** `every_member_was_walked`
-/// compares 33 paths — every cargo `src_path` plus four by name — against a walk
-/// that visits 153, so 120 were bounded by nothing. Two lines inside [`walk`],
-/// one skipping `fixtures` and one marker excusing the two citations that named
-/// it, took twelve files out of every walk-based gate with the floor green.
+/// compares the paths cargo names — every `src_path` plus four by name —
+/// against a walk that visits many more, so by that comparison alone the rest
+/// are bounded by nothing. Measured: two lines inside [`walk`], one skipping
+/// `fixtures` and one marker excusing the two citations that named it, took
+/// twelve files out of every walk-based gate with that floor green.
 ///
-/// **And it shared its exclusions with the walk, which made it a mirror.** The
-/// first version called `SKIP` and `is_somewhere_source_can_hide`, so a filter
-/// expressed through either moved both counts together. A reviewer added
-/// `if name == "vendor" { return true; }` to a helper both consulted, put a
-/// `.env` holding a production password and a signing key in
-/// a `vendor` directory inside a crate's sources, and the whole transcript came back
-/// **byte-identical** — `ok no .env is committed, in 153 path(s)`, with that
+/// **And it shares no list of exclusions with the walk, which would make it a
+/// mirror.** Were it to call `SKIP` and `is_somewhere_source_can_hide`, a
+/// filter expressed through either would move both counts together. Measured:
+/// `if name == "vendor" { return true; }` added to a helper both consulted,
+/// and a `.env` holding a production password and a signing key put in a
+/// `vendor` directory inside a crate's sources, and the whole transcript came
+/// back **byte-identical** — `ok no .env is committed, in 153 path(s)`, with that
 /// directory simultaneously invisible to the citation gates, the type wall, the
 /// compile-time-query gate and the hatch census.
 ///
@@ -7366,11 +7291,11 @@ pub(crate) fn census(root: &Path, except: &Path) -> Result<usize, String> {
         let path = entry
             .map_err(|error| format!("could not read an entry: {error}"))?
             .path();
-        // **Every cargo build directory, by the same rule `walk` uses.** This
-        // excluded one hard-coded path, so a *nested* workspace's `target/` was
+        // **Every cargo build directory, by the same rule `walk` uses.** With
+        // one hard-coded path excluded, a *nested* workspace's `target/` is
         // skipped by `walk` and counted here — two files of ordinary build
-        // output made the floor accuse its own walk of filtering. And the one
-        // excluded path was a blind spot on both sides: a `.env` holding a
+        // output made the floor accuse its own walk of filtering. And one
+        // excluded path is a blind spot on both sides: a `.env` holding a
         // password and a live `Box::leak` inside `target/` left the whole
         // transcript byte-identical, which is the shape this design exists to
         // prevent, reached through the hole the design concedes.
@@ -7407,11 +7332,9 @@ pub(crate) fn census(root: &Path, except: &Path) -> Result<usize, String> {
 /// counter on every path out of the judgement cannot be true when something was
 /// skipped, which is what no position for a single counter can do.
 ///
-/// **One function, because it was five.** `gates.rs` held two inline copies,
-/// `determinism.rs` a third, and `sections.rs` and `references.rs` a
-/// byte-identical `every_citation_reached_a_verdict` each. Five copies of one
-/// rule, and no test anywhere had ever handed any of them two numbers that
-/// disagree — `!=` widened to `> judged + 100` left every one of them silent.
+/// **One function, so one test decides every gate that calls it.** A copy
+/// that no test hands two disagreeing numbers can have its `!=` widened to
+/// `> judged + 100` with the gate left silent;
 /// `the_identity_is_an_identity` in `corpus.rs` is the negative case.
 ///
 /// `subject` is the word the count is in — `line`, `citation` — because the
@@ -7443,14 +7366,14 @@ pub(crate) fn everything_reached_a_verdict(
 
 /// Whether the walk steps over a directory of this name under `root`.
 ///
-/// **One rule, because a second copy of it disagreed.** `counts.rs` skipped
-/// `target`, `.git` and `node_modules` by *name at any depth* while this skips
-/// `target` only where cargo builds — the distinction the paragraph below
-/// records, and a real one, since a Rust module directory may be called
-/// anything. So a `README.md` under a module directory of that name inside this
-/// crate's sources, which every other gate accepts, was inside the citation walk
-/// and outside the floor that is supposed to be a second reading of it:
-/// measured on 2026-09-12,
+/// **One rule, so a second reader cannot disagree.** `counts.rs` asks this
+/// rather than keeping a copy: one skipping `target`, `.git` and `node_modules`
+/// by *name at any depth* disagrees with this, which skips `target` only where
+/// cargo builds — the distinction the paragraph below records, and a real one,
+/// since a Rust module directory may be called anything. With such a copy, a
+/// `README.md` under a module directory of that name inside this crate's
+/// sources, which every other gate accepts, is inside the citation walk and
+/// outside the floor that is supposed to be a second reading of it: measured,
 /// `error paragraphs: 2198 were judged and a second count of the same ground
 /// says 2195`, and `check failed` on a tree with no defect in it.
 pub(crate) fn is_skipped(root: &Path, name: &str) -> bool {
@@ -7464,15 +7387,6 @@ pub(crate) fn is_skipped(root: &Path, name: &str) -> bool {
 /// everywhere rather than in whichever gate remembered.
 ///
 /// Every file under `root` that is not build output, in no particular order.
-///
-/// **Its doc was taken by the function inserted above it.** `everything_reached_
-/// a_verdict` was written in the same edit that consolidated five copies of the
-/// two-counter identity, and a doc comment attaches to the next item — so the
-/// paragraph describing this walk ended up describing that one, and this was
-/// left with none. The sixth time in this repository, which is why
-/// `every_item_in_this_crate_is_documented` now exists — and the seventh was
-/// this same block, taken by `is_skipped` when that was inserted above this
-/// one. The gate named it in one line; nothing else did.
 pub(crate) fn walk(root: &Path, visit: &mut dyn FnMut(&Path)) -> Result<(), String> {
     let entries = std::fs::read_dir(root)
         .map_err(|error| format!("could not read {}: {error}", root.display()))?;
@@ -7489,10 +7403,11 @@ pub(crate) fn walk(root: &Path, visit: &mut dyn FnMut(&Path)) -> Result<(), Stri
             .to_string_lossy()
             .into_owned();
         if path.is_dir() {
-            // **`target` is build output only where cargo builds.** A skip
-            // matched by name at any depth, and a Rust module directory may be
-            // called anything — `nc-prune` already has a `Target` trait, so a
-            // module directory of that name is not hypothetical. Measured with
+            // **`target` is build output only where cargo builds.** Matched by
+            // name at any depth, a skip takes module directories too, and a Rust
+            // module directory may be called anything — `nc-prune` has a
+            // `Target` trait, so a module directory of that name is not
+            // hypothetical. Measured with
             // an ordinary logging call site in a module directory of that name
             // inside a crate's sources: the
             // type-wall gate read 18 files instead of 19, `no_compile_time_query`
@@ -7524,12 +7439,15 @@ mod tests {
 
     /// A wrapped attribute is one attribute, and a stray `]` is not one at all.
     ///
-    /// **The repair had no case, in three copies.** It was written after a plant
-    /// in `nc-journal` on 2026-09-13 and neutered in all three a day later with
-    /// every suite green — `nc-journal` has no multi-line attribute in it, and
-    /// neither does the tree this copy reads, so the branch decided nothing
-    /// anywhere. The bound is what stops a stray `]` above an item walking the
-    /// reader out of the block it is reading, and it is written down here too.
+    /// **The case the walk needs.** In a tree that holds no multi-line
+    /// attribute the branch decides nothing, so without a case of its own it
+    /// can be neutered: measured with no such case beside any of the three
+    /// copies of this reader — this one and those in
+    /// `crates/nc-journal/src/lib.rs` and
+    /// `xtask/tests/the_registry_reaches_the_code.rs` — all three neutered left
+    /// every suite green. The bound is what stops a stray `]` above an item
+    /// walking the reader out of the block it is reading, and it is written
+    /// down here too.
     #[test]
     fn a_doc_block_is_found_past_a_wrapped_attribute() {
         fn lines(text: &str) -> Vec<&str> {
@@ -7563,9 +7481,9 @@ mod tests {
             array.len() - 1
         );
         // **A doc line ending in an intra-doc link is not an attribute's last
-        // line.** `/// See [`other`]` ends in `]`, and the fallback walked out
-        // of the item, across a blank line and a whole other item, to land on
-        // an unrelated `#[inline]`. Found in wave 24.
+        // line.** `/// See [`other`]` ends in `]`, and an unguarded fallback
+        // walks out of the item, across a blank line and a whole other item, to
+        // land on an unrelated `#[inline]`.
         let linked = lines("#[inline]\nfn other() {}\n\n/// See [`other`]\nfn item() {}");
         assert_eq!(
             super::past_the_attributes(&linked, linked.len() - 1),
@@ -7573,10 +7491,9 @@ mod tests {
             "a doc line ending in an intra-doc link walked the reader out of the block \
              it is reading"
         );
-        // **The first repair to that was too strong, and this is the case that
-        // measured it.** A wrapped attribute list may hold a blank line, and
-        // stopping the inner walk at one made the item lose its doc block
-        // entirely. Found in wave 25.
+        // **Stopping at a blank line is too strong.** A wrapped attribute list
+        // may hold a blank line, and stopping the inner walk at one makes the
+        // item lose its doc block entirely.
         let spaced =
             lines("/// Doc.\n#[doc(\n    alias = \"a\",\n\n    alias = \"b\"\n)]\nfn item() {}");
         assert_eq!(
@@ -7584,8 +7501,8 @@ mod tests {
             1,
             "a blank line inside a wrapped attribute list cost the item its doc block"
         );
-        // And the two spellings that were still too weak: a `//` comment ending
-        // in `]`, and a macro call that does.
+        // And the two spellings a blank-line stop is too weak for: a `//`
+        // comment ending in `]`, and a macro call that does.
         for (what, text) in [
             (
                 "a plain comment ending in a bracket",
@@ -7617,13 +7534,13 @@ mod tests {
 
     /// A door behind a wrapped attribute is marked and said, and read as both.
     ///
-    /// **The instruction told its reader to add what was already there.** The
-    /// prologue walk climbed while each line opened `///` or `#[` or was blank,
-    /// and a wrapped attribute ends on a line that is none of those — so a door
-    /// carrying both its `#[doc(hidden)]` and its reason came back with an
-    /// empty prologue and was refused with "a `_for_tests` door is not marked
-    /// as one. Mark it, and say above it what it is for". The correct reader
-    /// was in this file behind `#[cfg(test)]`; see [`past_the_attributes`].
+    /// **Otherwise the instruction tells its reader to add what is already
+    /// there.** A prologue walk that climbs while each line opens `///` or `#[`
+    /// or is blank stops inside a wrapped attribute, which ends on a line that
+    /// is none of those — so a door carrying both its `#[doc(hidden)]` and its
+    /// reason comes back with an empty prologue and is refused with "a
+    /// `_for_tests` door is not marked as one. Mark it, and say above it what
+    /// it is for". See [`past_the_attributes`].
     ///
     /// The second door is the floor: the walk must still refuse a door that is
     /// genuinely unmarked, wrapped attribute or not, or this fixture would pass
@@ -7654,9 +7571,9 @@ mod tests {
                 // **The `cfg` itself wrapped, which is the third question.**
                 // `marked` and `said` need only some line of the prologue;
                 // this one needs `#[cfg(` and the feature name on one, and
-                // rustfmt puts them on different ones — so the spelling this
-                // rule's own remedy asks for was judged as being in the
-                // default build.
+                // rustfmt puts them on different ones — so read line by line,
+                // the spelling this rule's own remedy asks for is judged as
+                // being in the default build.
                 "#[cfg(any(\n",
                 "    test,\n",
                 "    feature = \"test-support\"\n",
@@ -7694,8 +7611,9 @@ mod tests {
         );
         // **And the third question the prologue answers.** `behind` needs
         // `#[cfg(` and the feature name, and rustfmt puts them on different
-        // lines — so the wrapped spelling this rule's own remedy asks for was
-        // read as a door in the default build. Neither door here is.
+        // lines — so read line by line, the wrapped spelling this rule's own
+        // remedy asks for reads as a door in the default build. Neither door
+        // here is.
         assert_eq!(
             said.iter()
                 .filter(|what| what.contains("is in the default"))
@@ -7709,17 +7627,16 @@ mod tests {
 
     /// A sibling crate is not the crate whose name its own begins with.
     ///
-    /// **The rule that holds invariant 13's default-build half compared a path
-    /// against a directory *name* with no separator**, so a crate whose
-    /// directory opens with another's was claimed by it: a crate declaring no
-    /// `test-support` feature would be told its door contradicts one, and the
-    /// remedy would send its author to a manifest key that is not there. This is
-    /// the too-strong half of the prefix family, and the type wall in
-    /// `xtask/src/wall.rs` already writes its own sibling case out.
+    /// **A path compared against a directory *name* with no separator lets a
+    /// crate whose directory opens with another's be claimed by it**: a crate
+    /// declaring no `test-support` feature is told its door contradicts one,
+    /// and the remedy sends its author to a manifest key that is not there.
+    /// This is the too-strong half of the prefix family, and the type wall in
+    /// `xtask/src/wall.rs` writes its own sibling case out too.
     ///
     /// Driven through the shipped walk over a scratch workspace rather than
-    /// through the predicate, because what was wrong was the *application* of
-    /// the set and the set itself was right.
+    /// through the predicate, because what is at stake is the *application* of
+    /// the set, not the set.
     #[test]
     fn a_sibling_crate_is_not_the_one_whose_name_it_begins_with() {
         let held = crate::check::LeavesNothingBehind::new("sibling-door");
@@ -7736,8 +7653,7 @@ mod tests {
         // dropping the header half leaves a crate that merely *depends* on
         // something called `test-support` counted as one that declares the
         // feature, so its doors are judged by a rule its manifest never opted
-        // into. Found in round sixty-four by running a plant a reviewer prepared
-        // and could not reach.
+        // into.
         for (named, declares) in [
             ("nc-shut", Manifest::Feature),
             // The sibling: its directory name opens with the other's and it
@@ -7793,13 +7709,14 @@ mod tests {
 
     /// The crates that shut their doors are the ones whose manifest says so.
     ///
-    /// **Invariant 13's default-build half could be switched off in one
-    /// character.** The rule fires only for a crate in this set, and nothing
-    /// drove the set: measured on 2026-09-10, one condition changed so it comes
-    /// back empty for every crate, and *"a `_for_tests` door is in the default
-    /// build of a crate whose `test-support` feature says its doors are not"*
-    /// can never fire again — with the whole suite and `check` green. The defect
-    /// it closes is dated in its own doc: a journal door in the shipped surface.
+    /// **Invariant 13's default-build half fires only for a crate in this set.**
+    /// One condition changed so the set comes back empty for every crate leaves
+    /// *"a `_for_tests` door is in the default build of a crate whose
+    /// `test-support` feature says its doors are not"* unable to fire; this
+    /// test fails on that, and so does
+    /// `a_sibling_crate_is_not_the_one_whose_name_it_begins_with` through the
+    /// shipped walk. The defect that rule closes is a journal door in the
+    /// shipped surface.
     ///
     /// Asked of the tree first, because a scratch alone would agree with a
     /// predicate that answers nothing about this repository.
@@ -7826,10 +7743,10 @@ mod tests {
         // And both directions, over manifests this test writes: a crate that
         // declares the feature is in, one that declares none is out, and one
         // that has a `[features]` table without it is out too.
-        // **Owned by a guard rather than removed by hand.** This removed the
-        // directory before writing it and never after, so it left one behind on
-        // *every* run rather than only on a failing one — 3,073 of the 9,250 in
-        // `/tmp` on 2026-09-27, a third of the total, from this test alone.
+        // **Owned by a guard rather than removed by hand.** Removed before
+        // writing and never after, the directory is left behind on *every* run
+        // rather than only on a failing one — measured, a third of the scratch
+        // directories in `/tmp`, from this test alone.
         // `LeavesNothingBehind` removes on `Drop`, which is the path a panicking
         // test takes too.
         let held = crate::check::LeavesNothingBehind::new("shutdoors");
@@ -7868,12 +7785,13 @@ mod tests {
 
     /// `[workspace.lints]` declares the lints written down here.
     ///
-    /// **Nothing pinned the contents.** The gate beside this one checks that
-    /// every member *opts in*; nothing checked there was anything to opt into.
-    /// Measured: `unsafe_code = "forbid"` deleted from the root manifest and a
-    /// raw-pointer dereference planted in `xtask/src/store.rs` — it compiles,
-    /// which is the proof the crate is outside the lints, and every printed line
-    /// was byte-identical to a clean run down to `check passed`.
+    /// **The contents, pinned.** The gate beside this one checks that every
+    /// member *opts in*, which says nothing about whether there is anything to
+    /// opt into. Measured without this: `unsafe_code = "forbid"` deleted from
+    /// the root manifest and a raw-pointer dereference planted in
+    /// `xtask/src/store.rs` — it compiles, which is the proof the crate is
+    /// outside the lints, and every printed line was byte-identical to a clean
+    /// run down to `check passed`.
     ///
     /// Written out rather than read from the manifest: a test that asked the
     /// file what the file says would agree with any file. `unsafe_code` is the
@@ -7906,8 +7824,8 @@ mod tests {
     /// The root manifest sets the profile keys written down here, and no others.
     ///
     /// **A profile key is the one way to disarm a check that no argument list
-    /// and no source census can see.** Measured in wave 37: three lines in the
-    /// root manifest,
+    /// and no source census can see.** Measured: three lines in the root
+    /// manifest,
     ///
     /// ```toml
     /// [profile.test]
@@ -7921,15 +7839,16 @@ mod tests {
     /// nothing about what the lines contain.
     ///
     /// **A whitelist, because the ways cargo can weaken a profile grow with
-    /// cargo.** A list of keys to refuse was tried on paper and three spellings
-    /// walked through it in one afternoon: `inherits = "release"`, which takes
-    /// `debug-assertions` and `overflow-checks` together without naming either;
+    /// cargo.** A list of keys to refuse lets three spellings through:
+    /// `inherits = "release"`, which takes `debug-assertions` and
+    /// `overflow-checks` together without naming either;
     /// the dotted form `profile.test.debug-assertions = false`, which no line
     /// scan sees; and a `CARGO_PROFILE_*` environment variable, which needs no
     /// manifest at all and is refused one file over. Equality against what is
     /// written here refuses all three, and whatever cargo adds next.
     ///
-    /// This is `[workspace.lints]`'s shape, one screen up, for the same reason.
+    /// This is the shape of the `[workspace.lints]` test above, for the same
+    /// reason.
     #[test]
     fn the_root_manifest_sets_the_profile_keys_written_down_here() {
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
@@ -7973,7 +7892,7 @@ mod tests {
         // there sets nothing and reads to the next person as though it did.
         //
         // **Every member cargo resolves, not the directories under `crates/`.**
-        // Measured by a reviewer: `[profile.release]` appended to
+        // Measured with only `crates/` read: `[profile.release]` appended to
         // `plugins/reference/Cargo.toml` left this test and the whole gate green
         // while `cargo metadata` warned that it would be ignored, and the same
         // lines in a crate's manifest failed it. The root manifest is a virtual
@@ -8002,12 +7921,10 @@ mod tests {
 
     /// Every shape of unpinned image the file pass can see is a finding.
     ///
-    /// **This gate had no test of any kind.** `grep` for `every_image_is_pinned`,
-    /// `pinned_by_digest`, `in_the_compose_files` and `is_a_build_key` across
-    /// every test file returned nothing, and its only guard was
-    /// `inspected_something(read, "images")` — `> 0`. Two one-line positional
-    /// filters, one per pass, plus the log store repointed at its own `latest`
-    /// tag, left `ok 4 image(s) in the stack, each pinned by digest`
+    /// **The gate's test, because `inspected_something(read, "images")` — `> 0`
+    /// — is no guard.** Measured with that as the only one: two one-line
+    /// positional filters, one per pass, plus the log store repointed at its
+    /// own `latest` tag, left `ok 4 image(s) in the stack, each pinned by digest`
     /// byte-identical to baseline while `cargo xtask dev` would pull whatever
     /// that tag resolves to today.
     ///
@@ -8050,8 +7967,8 @@ mod tests {
         ] {
             // **Two services, the unpinned one second.** Written alone, a
             // positional filter — `if read > 1 { continue; }`, the shape this
-            // gate had no defence against — never fires, and the test passes
-            // for having asked nothing.
+            // test is written against — never fires, and the test passes for
+            // having asked nothing.
             std::fs::write(
                 root.join("docker-compose.yml"),
                 format!(
@@ -8115,11 +8032,12 @@ mod tests {
 
     /// A code is read as raised however the file imported the enum.
     ///
-    /// **The floor `codes_something_raises` had none of, on the half a fixture
-    /// cannot reach.** Every mechanism beside this plants
-    /// `nc_catalog::ErrorCode::Planted*` — the one spelling the scan was written
-    /// for — so all of them agree with the needle rather than with rustc.
-    /// Measured on the real tree, `use nc_catalog::ErrorCode as Code;` and
+    /// **A floor for `codes_something_raises` on the half a fixture cannot
+    /// reach.** This plants the code under each spelling below, not the
+    /// default one alone: a mechanism that plants only
+    /// `nc_catalog::ErrorCode::Planted*` — the default spelling — agrees with
+    /// the needle rather than with rustc. Measured on the real tree with
+    /// only that spelling read, `use nc_catalog::ErrorCode as Code;` and
     /// `Code::PolicyUnreadable` in `crates/nc-journal/src/memory.rs` left the
     /// step at its baseline `ok 29 code(s) …`, while the unaliased control
     /// reported `NC-POL-0001` as produced. `docs/errors.md` is generated from
@@ -8236,14 +8154,14 @@ mod tests {
     /// A function whose whole body is one code is a name for it under every
     /// spelling of the import, not only under two literals.
     ///
-    /// **The exclusion was narrower than the finder five lines above it, and
-    /// that is the direction that costs a reader the gate.**
-    /// [`super::error_code_names`] resolves four import spellings;
-    /// [`super::without_bare_returns`] decided *mapping table* from *raise* by
-    /// matching `-> ErrorCode {` and a body opening `ErrorCode::`. Under a
-    /// rename or a bare import the exclusion stopped applying while the finder
-    /// kept working, so the walk reported a producer the registry's own comment
-    /// says is not one — `NC-IDS-0003`, whose only mention outside its tests is
+    /// **The exclusion is as wide as the finder, because narrower is the
+    /// direction that costs a reader the gate.** [`super::error_code_names`]
+    /// resolves four import spellings; if [`super::without_bare_returns`]
+    /// decided *mapping table* from *raise* by matching `-> ErrorCode {` and a
+    /// body opening `ErrorCode::` alone, then under a rename or a bare import
+    /// the exclusion would stop applying while the finder kept working, and the
+    /// walk would report a producer the registry's own comment says is not one
+    /// — `NC-IDS-0003`, whose only mention outside its tests is
     /// `MachineFlake::exhausted`, three lines that name the variant and are
     /// called by nothing.
     ///
@@ -8326,11 +8244,11 @@ mod tests {
 
     /// An import is not a producer, in either half of the scan.
     ///
-    /// **One rule written twice, and the second copy read different text.** The
-    /// bare-variant half already dropped the `use` lines — its own paragraph
-    /// says why — while the qualified-path loop above it ran over the whole
-    /// file, so `use nc_catalog::ErrorCode::Planted;` matched the `ErrorCode::`
-    /// needle and made the import the producer of the variant it imports.
+    /// **One rule, asked of both halves over the same text.** The bare-variant
+    /// half drops the `use` lines — its own paragraph says why — and a
+    /// qualified-path loop run over the whole file matches
+    /// `use nc_catalog::ErrorCode::Planted;` against the `ErrorCode::` needle,
+    /// which makes the import the producer of the variant it imports.
     ///
     /// Measured on the real tree, by a refactor of `nc-ids`'s `exhausted()`
     /// that is semantics-preserving, clippy clean and leaves no unused import —
@@ -8343,7 +8261,7 @@ mod tests {
     /// deleted keeps reading as produced for as long as one import survives,
     /// and `docs/errors.md` goes on publishing a subsystem that is gone.
     ///
-    /// All three spellings, because a repair that empties the finder passes the
+    /// All three spellings, because a change that empties the finder passes the
     /// first assertion alone.
     #[test]
     fn an_import_is_not_a_producer() {
@@ -8386,15 +8304,16 @@ mod tests {
     /// file, and a source directory called `tests` is still source.
     ///
     /// **Two holes in the walk's scope, both silent, both measured on the real
-    /// tree.** [`super::outside_the_tests`] counted braces before anything
-    /// stripped the literals, so `format!("{{")` in a `#[cfg(test)]` module took
-    /// `depth` away for ever and every line below it was blanked — five
-    /// producers in `crates/nc-canon/src/parse.rs` went dark at once, and the
-    /// quiet reading of the same hole is a `reserved` number produced below such
-    /// a test and reported by nothing. [`super::in_the_raising_scope`] excluded
-    /// any path holding `/tests/`, which is `crates/*/src/**/tests/` as well as
-    /// the integration tests it was written for — and the floor beside it asks
-    /// the same predicate, so both sides agreed about a directory neither read:
+    /// tree.** Counting braces before anything strips the literals,
+    /// [`super::outside_the_tests`] would let `format!("{{")` in a
+    /// `#[cfg(test)]` module take `depth` away for ever and blank every line
+    /// below it — five producers in `crates/nc-canon/src/parse.rs` went dark at
+    /// once, and the quiet reading of the same hole is a `reserved` number
+    /// produced below such a test and reported by nothing. Excluding any path
+    /// holding `/tests/`, [`super::in_the_raising_scope`] would exclude
+    /// `crates/*/src/**/tests/` as well as the integration tests it is written
+    /// for — and the floor beside it asks the same predicate, so both sides
+    /// agreed about a directory neither read:
     /// a public producer of the reserved `NC-DB-0002` in
     /// a module `nc-ids` called `tests` under its own `src` left
     /// `ok 29 code(s) …` and every number unmoved.
@@ -8422,7 +8341,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
 
         // And the module is still cut: a code named only inside it is not a
-        // producer, or the repair above has emptied the exclusion.
+        // producer, or the brace handling above has emptied the exclusion.
         let only_in_a_test = format!(
             "#[cfg(test)]\nmod probe {{\n    #[test]\n    fn braces() {{\n        \
              let _ = format!(\"{{{{\");\n        let _ = {path}::Planted;\n    }}\n}}\n\
@@ -8439,14 +8358,13 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
 
         // **A `#[cfg(test)]` item that ends in a semicolon ends there.** The
-        // region closes on `}` *or* `;` at `depth <= opened`; the `;` half was
-        // held by neither a test nor an instance under `crates/`. Measured, the
-        // clause removed: `cargo test -p xtask` gave 401 passed and
-        // `cargo run -p xtask -- check` printed `check passed`, console
-        // identical to a clean run. The tree has ten such items today and all
-        // ten are in `xtask/src`, which this walk never reads — so the clause is
-        // correct, load-bearing the moment one appears under `crates/*/src`,
-        // and was decided by nothing.
+        // region closes on `}` *or* `;` at `depth <= opened`, and without this
+        // case the `;` half is held by neither a test nor an instance under
+        // `crates/`: measured, the clause removed, `cargo test -p xtask` passed
+        // and `cargo run -p xtask -- check` printed `check passed`, console
+        // identical to a clean run, because such items sat only in `xtask/src`,
+        // which this walk never reads. The clause is load-bearing the moment
+        // one appears under `crates/*/src`, and this case decides it.
         let semicolon = format!(
             "#[cfg(test)]\npub const PROBE: u32 = 3;\n\
              pub fn raises() -> {path} {{ let it = {path}::Planted; it }}\n"
@@ -8461,9 +8379,9 @@ mod tests {
         );
         let _ = std::fs::remove_dir_all(&root);
 
-        // **A `#[cfg(test)]` arm or field ends at its comma.** A reviewer hid a
-        // producer of a reserved code behind one, the region running on to the
-        // enclosing brace; and a test-only function whose parameters span
+        // **A `#[cfg(test)]` arm or field ends at its comma.** Otherwise a
+        // producer of a reserved code hides behind one, the region running on
+        // to the enclosing brace; and a test-only function whose parameters span
         // lines, each ending in a comma, is still cut whole.
         for shape in [
             format!(
@@ -8504,14 +8422,13 @@ mod tests {
         for inside in [
             "crates/nc-ids/src/tests/mod.rs",
             "crates/nc-ids/src/store/tests/fixtures.rs",
-            // **The canary half of the same repair, which no case reached.**
-            // `directly_under_a_member` and `inside_a_canary_directory`
-            // replaced a bare `contains("/canaries/")` for the reason the
-            // `/tests/` half was replaced — and only the `/tests/` half got a
-            // case here. Measured: the canary predicate put back to
+            // **The canary half of the same rule.** `directly_under_a_member`
+            // and `inside_a_canary_directory` read the directory under the
+            // member rather than a bare `contains("/canaries/")`, for the reason
+            // the `/tests/` half does. Measured without this case: the canary
+            // predicate written as
             // `relative.starts_with("canaries/") || relative.contains("/canaries/")`
-            // and `cargo test -p xtask` gave 401 passed. One rule written twice
-            // and one copy tested.
+            // left `cargo test -p xtask` green.
             "crates/nc-ids/src/canaries/mod.rs",
             "crates/nc-ids/src/lib.rs",
         ] {
@@ -8538,11 +8455,12 @@ mod tests {
     /// Every tree-wide walk reaches a defect it could not have been told about.
     ///
     /// **The canaries and the line floors are defeated by the same one-line
-    /// filter, and it goes between them.** Both counters sit above the
-    /// judgement, so `read += 1;` then `continue;` leaves the number where it
-    /// was, and the canary lives at a path a filter can name. Measured, four
-    /// filters of one line each — `!relative.contains("/canaries/")` twice and
-    /// `index > 40` twice — with four real defects in the tree:
+    /// filter, when it goes between them.** With both counters above the
+    /// judgement, `read += 1;` then `continue;` leaves the number where it
+    /// was, and the canary lives at a path a filter can name. Measured that
+    /// way, four filters of one line each —
+    /// `!relative.contains("/canaries/")` twice and `index > 40` twice — with
+    /// four real defects in the tree:
     ///
     /// ```text
     /// ok    64653 source line(s) leave the workspace lints on      (baseline 64631)
@@ -8552,9 +8470,9 @@ mod tests {
     /// check passed
     /// ```
     ///
-    /// Every number *up*, every canary still reported, 248 xtask tests green.
-    /// A count cannot close this — the counter runs before the judgement, so a
-    /// filter after it is invisible to any floor derived from the counter. What
+    /// Every number *up*, every canary still reported, and every xtask test
+    /// green in that run. A count taken above the judgement cannot close this:
+    /// a filter after it is invisible to any floor derived from that count. What
     /// closes it is a fixture whose location the filter's author cannot know:
     /// the directory name, its depth, the file name and the line the defect
     /// sits on all come from the process id, so `contains("/canaries/")`,
@@ -8574,13 +8492,12 @@ mod tests {
         // a filter naming one of them by its real path is caught too.
         let (_held, root, mut planted) =
             in_every_real_directory("#![allow(clippy::all)]", "// nothing here");
-        // **And under the names this tree wears.** Wave 39 gave this to the
-        // include walk alone; wave 40 measured what the other three were left
-        // with. This walk reads every `.rs` in the tree and charges its counter
-        // per file, and the floor beside it counts the same files a second way,
-        // so a clause keyed on a name lowers both and the equality holds across
-        // — with every fixture green, because every `.rs` they planted was
-        // called `f{n}.rs`, a name nothing in this repository wears.
+        // **And under the names this tree wears.** This walk reads every `.rs`
+        // in the tree and charges its counter per file, and the floor beside it
+        // counts the same files a second way, so a clause keyed on a name
+        // lowers both and the equality holds across — with every fixture green
+        // if every `.rs` they plant is called `f{n}.rs`, a name nothing in this
+        // repository wears.
         and_a_file_under_every_name_it_opens(
             &root,
             &mut planted,
@@ -8594,17 +8511,17 @@ mod tests {
 
         the_two_walks_that_had_no_mechanism();
 
-        // **The walk that decides what a code's `raising` says**, which had no
-        // mechanism of any kind: no canary, no fixture, no corpus entry, no
-        // test, and a floor counting *variants found* rather than files read.
-        // One line naming a real crate left two `reserved` codes being produced
-        // by a public function, with `check passed`.
+        // **The walk that decides what a code's `raising` says.** With no
+        // canary, fixture, corpus entry or test over it, and a floor counting
+        // *variants found* rather than files read, one line naming a real crate
+        // left two `reserved` codes being produced by a public function, with
+        // `check passed`.
         //
         // **A distinct code per directory**, because one code repeated cannot
         // see a directory going missing: the walk finds the identical variant
         // in the twenty others and the assertion holds while the walk is short.
-        // Measured — a crate added to the skip chain left this green until each
-        // place got a code of its own.
+        // Measured — with one code repeated, a crate added to the skip chain
+        // left this green.
         let named = |index: usize| format!("Planted{index}");
         let (_held, root, all) = in_every_real_directory_each(
             &|index| {
@@ -8652,7 +8569,7 @@ mod tests {
         // **And the crates the scope must hold, by hand.** The floor beside this
         // asks `in_the_raising_scope` for the expectation, so a crate added to
         // the skip chain leaves both sides agreeing — the derived-expectation
-        // trap this file has now walked into twice. The list is written out.
+        // trap. The list is written out.
         for member in JUDGED_BY_THE_RAISING_RULE {
             assert!(
                 super::in_the_raising_scope(&format!("{member}src/lib.rs")),
@@ -8676,8 +8593,8 @@ mod tests {
     /// The `.env` walk reaches a secret at an unpredictable path and in every
     /// real directory.
     ///
-    /// Split from the caller, which crossed clippy's line limit with it inline
-    /// once wave 40 gave the three walks above it their name plantings.
+    /// Split from the caller, which would cross clippy's line limit with it
+    /// inline.
     fn the_env_walk_reaches_a_secret_wherever_it_sits() {
         // **The one gate here that is about a secret.** Its exact floor
         // compares the paths walked against a second enumeration, which says
@@ -8699,7 +8616,7 @@ mod tests {
 
         // **And a secret in every real directory, which is the worst of the
         // five.** `if relative_to(root, path).starts_with("crates/") { walked +=
-        // 1; return; }` left a `crates/nc-journal/.env.local` holding a password // allow-reference: `crates/nc-journal/.env.local` is the secret that measurement planted, and it was removed
+        // 1; return; }` left a `crates/nc-journal/.env.local` holding a password // allow-reference: `crates/nc-journal/.env.local` is the secret a measurement plants, not a file here
         // and an AWS key in the tree, and the printed path count went *up* —
         // the secret is itself one of the paths counted — with `check passed`.
         let (_held, root, planted) = in_every_real_directory("", "");
@@ -8728,23 +8645,23 @@ mod tests {
 
     /// The hatch walk reaches a defect in every real directory of its scope.
     ///
-    /// **The third walk with no mechanism**: no identity, no canary —
-    /// `xtask/canaries/` is returned from outright, so it can never hold one —
-    /// and not on this list. Its `read` charged `lines.len()` per file before
-    /// the loop that judges those lines, so a filter between the two left the
+    /// **`xtask/canaries/` cannot hold this walk's defect**: it is returned
+    /// from outright. And a `read` charged `lines.len()` per file before the
+    /// loop that judges those lines lets a filter between the two leave the
     /// printed number and the exact floor under it both whole while invariant
-    /// 15's only rule went unasked.
+    /// 15's only rule goes unasked.
     ///
     /// **The expectation is filtered through the walk's own predicate**, and the
-    /// filter is floored. Sixteen of the forty-six real directories are outside
-    /// `crates/` and `xtask/`, so an entry that planted everywhere and expected
-    /// everything refused a clean tree — measured. And the filler is blank
+    /// filter is floored. Many of the real directories are outside `crates/` and
+    /// `xtask/`, so an entry that plants everywhere and expects everything
+    /// refuses a clean tree — measured. And the filler is blank
     /// rather than `// nothing here`, because a plain `//` line directly above
     /// an allow *is* a written reason to this rule: with the usual filler the
     /// plant would be excused by its own padding and this fixture would prove
     /// the opposite of what it says.
     ///
-    /// Split from the caller, which crossed clippy's line limit with it inline.
+    /// Split from the caller, which would cross clippy's line limit with it
+    /// inline.
     fn the_hatch_walk_goes_everywhere_inside_its_scope() {
         let (_held, root, mut all) =
             in_every_real_directory("#[allow(dead_code)]\npub const PROBE: usize = 1;", "");
@@ -8808,15 +8725,15 @@ mod tests {
 
     /// Every source file of the listed crates, not only each crate's root.
     ///
-    /// **The hand list asked about `{member}src/lib.rs` and nothing else**, so a
-    /// clause keyed on a *file* passed it untouched — and everything else around
-    /// the raising walk asks `in_the_raising_scope` for its own expectation: the
-    /// fixture filters `planted` through it, and the equality beside that takes
-    /// its second count through it as well. Three readers, one predicate, and a
-    /// clause added inside it lowers all three together. Measured in wave 40,
-    /// with a public documented producer of the reserved `NC-DB-0002` written
-    /// into `crates/nc-journal/src/postgres.rs`: `&& !relative.ends_with(
-    /// "/postgres.rs")` left the whole 78-line transcript byte-identical, the
+    /// **The hand list asks about `{member}src/lib.rs` alone**, so a clause
+    /// keyed on any other *file* passes it untouched — and everything else
+    /// around the raising walk asks `in_the_raising_scope` for its own
+    /// expectation: the fixture filters `planted` through it, and the equality
+    /// beside that takes its second count through it as well. Three readers,
+    /// one predicate, and a clause added inside it lowers all three together.
+    /// Measured, with a public documented producer of the reserved `NC-DB-0002`
+    /// written into `crates/nc-journal/src/postgres.rs`: `&& !relative.ends_with(
+    /// "/postgres.rs")` left the whole transcript byte-identical, the
     /// declared-code count unmoved, and `check passed`.
     ///
     /// **The two classes those crates hold that the rule really does step over
@@ -8854,10 +8771,9 @@ mod tests {
         });
         // **Counted again by a reader of its own**, because a walk that reached
         // nothing asserts nothing: every `.rs` file of each crate but those in
-        // its `tests/` and its canaries, read with `std::fs` alone. The floor
-        // was a number written here — "the six crates hold thirty-four" — which
-        // stayed as the list doubled to twelve and their files to more than
-        // eighty, so a walk skipping all of `nc-kernel` still cleared it.
+        // its `tests/` and its canaries, read with `std::fs` alone. A number
+        // written here instead would stay put as the list and its files grow,
+        // so a walk skipping a whole crate would still clear it.
         let mut on_disk = 0_usize;
         for member in JUDGED_BY_THE_RAISING_RULE {
             let entries = std::fs::read_dir(tree.join(member)).expect("the crate is readable");
@@ -8886,13 +8802,12 @@ mod tests {
     /// directory its writers really have, under every name it opens there, and
     /// in the one file it reads alone.
     ///
-    /// **The walk counted a file before judging it, and nothing planted
-    /// anywhere but where its own tests looked**, which a reviewer found: a
-    /// filter keyed on one subtree, placed past the count, left the count and
-    /// every test green. It now counts both and is held to them being equal,
-    /// and this is what holds the filter placed past both — measured on
-    /// 2026-10-26, `crates/nc-kernel/src/host` skipped that way: 76 of 99
-    /// planted statements reported, and this test red.
+    /// **A count of files read cannot see a filter placed past it**: a filter
+    /// keyed on one subtree, placed past the count, leaves the count whole. The
+    /// walk counts both and is held to them being equal, and this is what holds
+    /// a filter placed past both — measured, `crates/nc-kernel/src/host`
+    /// skipped that way: 76 of 99 planted statements reported, and this test
+    /// red.
     #[test]
     fn the_local_sql_walk_goes_everywhere_its_writers_have() {
         let defect = |index: usize| format!("pub const S: &str = \"DROP TRIGGER main.t{index}\";");
@@ -8938,11 +8853,11 @@ mod tests {
     /// The unsafe-token walk reaches `unsafe` planted in every directory this
     /// tree really has, and under every name it opens.
     ///
-    /// **It had no mechanism but three files named by hand**, which a
-    /// reviewer found: a filter keyed on a subtree inside its closure leaves
-    /// those three read and every other file of that subtree unasked.
-    /// Measured on 2026-10-26, `crates/nc-kernel/tests` skipped that way:
-    /// 1384 of 1412 planted defects reported, and this test red.
+    /// **Three files named by hand are not a mechanism**: a filter keyed on a
+    /// subtree inside the walk's closure leaves those three read and every
+    /// other file of that subtree unasked. Measured, `crates/nc-kernel/tests`
+    /// skipped that way: 1384 of 1412 planted defects reported, and this test
+    /// red.
     #[test]
     fn the_unsafe_walk_goes_everywhere() {
         let defect = "pub fn f() { unsafe {} }";
@@ -8958,12 +8873,12 @@ mod tests {
     /// planted in every directory this tree really has and under every name it
     /// opens, and reports each.
     ///
-    /// **It sits inside a walk whose two counters a filter pays**, which a
-    /// reviewer found: the files the walk read and the files it judged stay
-    /// equal across a condition placed around the call, so nothing but a
-    /// planted statement in every place says the call was made for each.
-    /// Measured on 2026-10-26, the call skipped for `crates/nc-kernel/tests`:
-    /// 1384 of 1412 planted statements reported, and this test red.
+    /// **It sits inside a walk whose two counters a filter pays**: the files
+    /// the walk read and the files it judged stay equal across a condition
+    /// placed around the call, so nothing but a planted statement in every
+    /// place says the call was made for each. Measured, the call skipped for
+    /// `crates/nc-kernel/tests`: 1384 of 1412 planted statements reported, and
+    /// this test red.
     #[test]
     fn the_vouched_statement_walk_goes_everywhere() {
         let defect = "pub fn f(t: &str) { let _ = sqlx::query(sqlx::AssertSqlSafe(format!(\"SELECT \
@@ -8988,14 +8903,14 @@ mod tests {
 
     /// The canary walk and the include walk reach a defect in every real directory.
     ///
-    /// Split from the caller, which crossed clippy's line limit with it inline.
+    /// Split from the caller, which would cross clippy's line limit with it
+    /// inline.
     fn the_two_walks_that_had_no_mechanism() {
-        // **The two walks that had no mechanism at all.** Neither
-        // `no_crate_compiles_a_canary` nor
-        // `nothing_includes_what_the_gates_do_not_read` was named by any test,
-        // any canary, any corpus entry or any fixture — only a line floor, and
+        // **Two walks a line floor alone cannot hold.**
+        // `no_crate_compiles_a_canary` and
+        // `nothing_includes_what_the_gates_do_not_read` carry a line floor, and
         // that floor is paid at the top of the loop, so a `continue` below it
-        // leaves the number whole. Measured, one line in each:
+        // leaves the number whole. Measured, one line in each, with no fixture:
         //
         // ```text
         // if relative.starts_with("crates/nc-canon/") { continue; }
@@ -9013,15 +8928,15 @@ mod tests {
         // no gate reads, so §15.1 never sees the code either.
         // **Assembled, not written.** This gate reads its own source, and a line
         // holding the whole `#[path = "../canaries/…"]` form *is* the thing it
-        // refuses — written out, the fixture made `check` report itself. The
+        // refuses — written out, the fixture makes `check` report itself. The
         // citation fixture beside it is assembled for the same reason.
         // **A different spelling per directory, because one repeated decides
-        // one.** The list this gate matches on holds five forms and the fixture
-        // planted the first of them everywhere — so, measured on 2026-09-27,
-        // deleting `include!`, `include_str!`, `include_bytes!` or the unspaced
-        // `path=` from that list left the whole suite green: four of the five
-        // rows were decided by nothing, in the gate whose subject is that cargo
-        // must not compile a canary. `_each` exists for exactly this — its doc
+        // one.** The list this gate matches on holds five forms, and with the
+        // first of them planted everywhere, deleting `include!`,
+        // `include_str!`, `include_bytes!` or the unspaced `path=` from that
+        // list left the whole suite green — measured: four of the five rows
+        // decided by nothing, in the gate whose subject is that cargo must not
+        // compile a canary. `_each` exists for exactly this — its doc
         // says one defect repeated cannot see a directory going missing, and it
         // cannot see a *spelling* going missing either.
         let spellings = the_spellings_that_reach_a_canary();
@@ -9033,7 +8948,7 @@ mod tests {
         // Assembled like the `.rs` reach above and for the same reason. It is
         // planted at the same unpredictable line: at line 1 a clause keyed on
         // the name *and* the line escapes, which is exactly the shape measured
-        // one gate over in §15.1's fixture in this same wave.
+        // one gate over in §15.1's fixture.
         and_a_manifest_beside_each_source(&root, &mut planted);
         // Except the `canaries/` directories themselves, which this walk skips by
         // design and says so through its own predicate — a canary naming another
@@ -9057,16 +8972,16 @@ mod tests {
         let (_held, root, mut planted) =
             in_every_real_directory("include!(concat!(\"hid\", \"den.in\"));", "// nothing here");
         // **And under every name this walk opens, for the reason the canary
-        // fixture carries one screen up.** This walk pays its counter at the
-        // top of the line loop and judges below it, and the floor beside it
-        // compares that counter against a raw line count of the same ground —
-        // so a clause keyed on a file name, written between the two, lowers
-        // both and leaves the equality exact. Every `.rs` this fixture planted
-        // was called `f{n}.rs`, a name nothing in the tree wears: measured in
-        // wave 39, `relative.starts_with("crates/nc-") && relative.ends_with(
+        // fixture above carries.** This walk pays its counter at the top of the
+        // line loop and judges below it, and the floor beside it compares that
+        // counter against a raw line count of the same ground — so a clause
+        // keyed on a file name, written between the two, lowers both and leaves
+        // the equality exact. Measured with every `.rs` planted as `f{n}.rs`, a
+        // name nothing in the tree wears:
+        // `relative.starts_with("crates/nc-") && relative.ends_with(
         // "/lib.rs")` took 14,294 lines — the eight library roots, which is
         // where this gate's own doc records the attack living — out of the walk
-        // with the whole suite green at 652.
+        // with the whole suite green.
         and_a_file_under_every_name_it_opens(
             &root,
             &mut planted,
@@ -9077,10 +8992,10 @@ mod tests {
             super::nothing_includes_what_the_gates_do_not_read(&root).expect("the scratch walks");
         reached_every_one(&findings, &planted, "the include walk");
 
-        // **A code the registry *declares*, not only one it does not.** Both
-        // committed fixtures used area `KERN`, which has no declared code, so
-        // the branch that says "a declared code counts too" was never exercised
-        // from the declared side — and narrowing the rule to
+        // **A code the registry *declares*, not only one it does not.** With
+        // area `KERN` alone, which has no declared code, the branch that says
+        // "a declared code counts too" is never exercised from the declared
+        // side — measured, narrowing the rule to
         // `if declared.contains(&code) { continue; }` left every fixture green
         // while `crates/nc-prune` shipped a hand-written `NC-DB-0004` and the
         // printed count went *up*. The rule is that the identity is the
@@ -9123,27 +9038,25 @@ mod tests {
             "pub const PROBE: &str = \"NC-KERN-4242\";",
             "// nothing here",
         );
-        // **And under the names this tree wears.** Measured in wave 40, with
-        // wave 39's repair in the tree: `!relative.ends_with("parse.rs")`
-        // inside this walk hid a hand-written `NC-KERN-4242` in
-        // `crates/nc-canon/src/parse.rs` and left the whole transcript
-        // byte-identical, because the counter it pays is paid per file and the
-        // floor beside it recounts the same ground. Wave 39 wrote the answer
-        // and gave it to one walk of the four.
+        // **And under the names this tree wears.** Measured without them:
+        // `!relative.ends_with("parse.rs")` inside this walk hid a hand-written
+        // `NC-KERN-4242` in `crates/nc-canon/src/parse.rs` and left the whole
+        // transcript byte-identical, because the counter it pays is paid per
+        // file and the floor beside it recounts the same ground.
         and_a_file_under_every_name_it_opens(
             &root,
             &mut all,
             "pub const PROBE: &str = \"NC-KERN-4242\";",
             "// nothing here",
         );
-        // **And a `.sql`, because this gate reads one and no fixture ever
-        // planted one.** §15.1's scope is `crates/` plus `migrations/`, and
-        // `migrations/` holds nothing but `.sql`; every fixture wrote
-        // `/f{n}.rs`, and the corpus's single `.sql` case puts its code on line
-        // 2. So a clause keyed on the comment marker *and* a line — measured in
-        // wave 38 — cleared both at once, and a registry code written out as
-        // text inside a live `RAISE EXCEPTION` in the journal's append-only
-        // trigger left the whole transcript byte-identical. The depth is not
+        // **And a `.sql`, because this gate reads one.** §15.1's scope is
+        // `crates/` plus `migrations/`, and `migrations/` holds nothing but
+        // `.sql`; with every other fixture writing `/f{n}.rs`, and the corpus's
+        // single `.sql` case putting its code on line 2, a clause keyed on the
+        // comment marker *and* a line clears both at once — measured: a
+        // registry code written out as text inside a live `RAISE EXCEPTION` in
+        // the journal's append-only trigger left the whole transcript
+        // byte-identical. The depth is not
         // enough on its own: this plants at the same unpredictable line the
         // `.rs` plant uses.
         and_a_sql_file_beside_each_source(&root, &mut all);
@@ -9153,12 +9066,11 @@ mod tests {
             .cloned()
             .collect();
         // **The floor on the filter, and it is a count of what is left rather
-        // than a fraction.** It was `planted * 2 > all`, which held while the
-        // fixture only enumerated `crates/*/src|tests`; walking the whole tree
-        // put `catalog/`, `docs/`, `.github/` and twenty others into `all`, and
-        // §15.1's scope is `crates/` plus `migrations/` by design — so the
-        // fraction failed for the gate being correctly scoped. What matters is
-        // that enough directories remain to be filtered around.
+        // than a fraction.** The fixture walks the whole tree, so `all` holds
+        // `catalog/`, `docs/`, `.github/` and many others, and §15.1's scope is
+        // `crates/` plus `migrations/` by design — so a fraction such as
+        // `planted * 2 > all` fails for the gate being correctly scoped. What
+        // matters is that enough directories remain to be filtered around.
         assert!(
             planted.len() > 8,
             "only {} of {} directories are inside §15.1's scope, so this fixture is \
@@ -9272,13 +9184,13 @@ mod tests {
 
         let (findings, read) =
             crate::sections::every_section_cited_exists(&here).expect("the scratch walks");
-        // **`==`, not `ends_with`.** The reference half beside this one compares
-        // exactly, and this one did not — which is what let the section gate give
-        // a repository file a second spelling: it tries the workspace prefix
-        // first with no `inside` guard, and the repository is *inside* the
-        // workspace, so one file came out as `<workspace>/repos/noctua-central/…`
-        // here and as `crates/…` from the gate next to it. `counts.rs` documents
-        // fixing exactly that.
+        // **`==`, not `ends_with`, as the reference half beside this one
+        // compares.** With `ends_with`, a section gate that gives a repository
+        // file a second spelling passes: one that tries the workspace prefix
+        // first with no `inside` guard — and the repository is *inside* the
+        // workspace — writes one file as `<workspace>/repos/noctua-central/…`
+        // here and as `crates/…` from the gate next to it. `counts.rs` records
+        // the same trap.
         assert!(
             findings
                 .iter()
@@ -9287,13 +9199,13 @@ mod tests {
              read {read} citation(s): {findings:#?}"
         );
 
-        // **And one above the repository**, which is where eight of the documents
-        // this gate reads actually live. Every plant sat under `repos/`, so a
-        // branch keyed on which *tree* a file is in — `if !path.starts_with(root)
-        // { reached += 1; continue; }` — skipped all eight with the citation
-        // count going *up* and `check passed`. Widening the plant past the
-        // longest file closed the index-shaped filter and says nothing about this
-        // one.
+        // **And one above the repository**, which is where several of the
+        // documents this gate reads actually live. With every plant under
+        // `repos/`, a branch keyed on which *tree* a file is in —
+        // `if !path.starts_with(root) { reached += 1; continue; }` — skipped
+        // every one of them with the citation count going *up* and
+        // `check passed`: measured. Planting past the longest file closes the
+        // index-shaped filter and says nothing about this one.
         let deep = "The rule is written out in NOCTUA.md \u{a7}98.98, which nobody wrote.\n";
         std::fs::write(
             above.join("AGENTS.md"),
@@ -9323,10 +9235,11 @@ mod tests {
     fn the_citation_gates_go_everywhere(dangling: &str) {
         // **And the same defect in every directory the repository really has.**
         // Both plants above sit at one path, and the part inside the repository
-        // is a literal — so `if relative.starts_with("crates/nc-")` skipped every
-        // crate's source, 44 % of the section gate's corpus, with the static
-        // canaries still reported, both fixtures green and `check passed`. The
-        // counters cannot say it: the filter is inside the loop they are in.
+        // is a literal — so, measured, `if relative.starts_with("crates/nc-")`
+        // skipped every crate's source, 44 % of the section gate's corpus, with
+        // the static canaries still reported, both fixtures green and
+        // `check passed`. The counters cannot say it: the filter is inside the
+        // loop they are in.
         let (_held, root, mut planted) = in_every_real_directory(dangling, "// nothing here");
         // **The workspace is a guard of its own, because this is the one place
         // a scratch leaves the guard that owns it.** The tree is *renamed* into
@@ -9334,15 +9247,14 @@ mod tests {
         // how a path escapes containment — the guard is then holding an empty
         // directory and refusing nothing, while 2.2 MB sits wherever the rename
         // put it until the last line of the function, which a failing assertion
-        // never reaches. Measured by a reviewer on 2026-09-27.
+        // never reaches.
         //
-        // Naming it was the first repair and it was not enough: the guard calls
-        // its own root `scratch` in every instance, so a name built from
-        // `root.file_name()` was one constant path for every caller and every
-        // process — two test binaries under `cargo test --workspace` removed it
-        // from under each other. A second guard fixes both: the name carries a
-        // pid and a counter again, and the directory is removed on the path a
-        // panicking test takes.
+        // A name built from `root.file_name()` is not enough: the guard calls
+        // its own root `scratch` in every instance, so that is one constant path
+        // for every caller and every process — two test binaries under
+        // `cargo test --workspace` remove it from under each other. A second
+        // guard answers both: the name carries a pid and a counter, and the
+        // directory is removed on the path a panicking test takes.
         let workspace = crate::check::LeavesNothingBehind::new("mirrored-workspace");
         let above = workspace.root.clone();
         let here = above.join("repos/noctua-central");
@@ -9351,12 +9263,11 @@ mod tests {
         std::fs::rename(&root, &here).expect("movable");
 
         // **And one file of every kind both gates open, in every one of those
-        // directories.** Every plant these two fixtures have ever made is a
-        // `.rs` file — `somewhere_unpredictable` and `in_every_real_directory_
-        // each` both write `/f{n}.rs` — so a rule keeping `rs` and dropping
-        // another kind under a named subtree was invisible to both, while
-        // `references.rs` wrote down the opposite: that these fixtures are what
-        // refuses a clause added to `reads`. Measured in wave 37: a clause
+        // directories.** `somewhere_unpredictable` and `in_every_real_directory_
+        // each` both write `/f{n}.rs`, so with `.rs` plants alone a rule keeping
+        // `rs` and dropping another kind under a named subtree is invisible to
+        // both — and `references.rs` relies on these fixtures to refuse a clause
+        // added to `reads`. Measured: a clause
         // dropping `cedarschema` under `policy/` took the eighteen live
         // citations in `policy/schema.cedarschema` out of the gate with every
         // fixture green and the floor beside them silent, because that floor
@@ -9367,44 +9278,38 @@ mod tests {
         // the repository gains is planted the day the list names it. Line 1
         // rather than past the longest file: the `.rs` plant beside this one
         // carries the unpredictable depth already, and this asks the other
-        // question — whether the walk opens the kind at all. A filter would
-        // have to key on kind *and* line together to escape both, which is the
-        // bound this pair leaves, written here rather than left to a reader.
+        // question — whether the walk opens the kind at all.
         let real = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         for (index, directory) in the_directories_that_really_exist(real).iter().enumerate() {
             // `the_directories_that_really_exist` collects entries, so the
             // repository root is never among them and this is a path with a
-            // directory in it, always. The branch that handled an empty one was
-            // unreachable and read as though root-level files were planted;
-            // what holds the root is elsewhere and was measured in wave 38 —
-            // `WHAT_MAY_SIT_AT_THE_ROOT` is a closed list checked both ways,
-            // and a `.env` holding a password there fails by name.
+            // directory in it, always — so no root-level file is planted here.
+            // What holds the root is elsewhere: `WHAT_MAY_SIT_AT_THE_ROOT` is a
+            // closed list checked both ways, and a `.env` holding a password
+            // there fails by name, measured.
             let at = format!("{directory}/");
-            // **And under the names the tree really wears, which is the half
-            // wave 37 wrote a false bound about.** That bound said "a filter
-            // would have to key on kind *and* line together to escape both".
-            // It does not: `reads` is handed a `&Path`, so a clause keyed on a
-            // file *name* escapes with one clause and no line condition at all,
-            // and every file this fixture planted was called `k{n}.{kind}`, a
-            // name nothing in the tree wears. Measured in wave 38: one clause
-            // refusing `Cargo.toml` takes 26 live citations out of both gates
-            // with every fixture green, and one refusing `lib.rs` would take
-            // 101.
+            // **And under the names the tree really wears.** A filter need not
+            // key on kind *and* line together to escape the plants above:
+            // `reads` is handed a `&Path`, so a clause keyed on a file *name*
+            // escapes with one clause and no line condition at all when every
+            // planted file is called `k{n}.{kind}`, a name nothing in the tree
+            // wears. Measured: one clause refusing `Cargo.toml` takes 26 live
+            // citations out of both gates with every fixture green, and one
+            // refusing `lib.rs` would take 101.
             //
-            // **And where the tree wears each one, which wave 38 left to
-            // chance.** Every read name is planted somewhere, so a clause
-            // naming one loses a finding — but a name planted in an arbitrary
-            // directory answers nothing keyed on a *path*, and 127 of this
-            // tree's 138 read names sit in exactly one directory. Measured in
-            // wave 40: `schema.cedarschema` was planted under
-            // `crates/nc-log/src`, so a clause in `reads` refusing that file
-            // by its real relative path took its eighteen live citations out
-            // of the gate with the transcript one count line short of a clean
-            // run. So each name is planted in every directory this tree really
-            // wears it in, the eleven worn in several in all of them, and the
-            // spread by index stays on top of that so no real directory goes
-            // unplanted. The names come from the tree, so a name it gains is
-            // planted the day it appears.
+            // **And where the tree wears each one.** Every read name is planted
+            // somewhere, so a clause naming one loses a finding — but a name
+            // planted in an arbitrary directory answers nothing keyed on a
+            // *path*, and most of this tree's read names sit in exactly one
+            // directory. Measured with `schema.cedarschema` planted under
+            // `crates/nc-log/src`: a clause in `reads` refusing that file by its
+            // real relative path took its eighteen live citations out of the
+            // gate with the transcript one count line short of a clean run. So
+            // each name is planted in every directory this tree really wears it
+            // in, those worn in several in all of them, and the spread by index
+            // stays on top of that so no real directory goes unplanted. The
+            // names come from the tree, so a name it gains is planted the day
+            // it appears.
             let named = crate::sections::READ
                 .iter()
                 .map(|kind| format!("{at}k{index}.{kind}"))
@@ -9463,22 +9368,22 @@ mod tests {
     /// Every workspace member is either judged by `§15.1` or named as not, by
     /// hand.
     ///
-    /// **The exclusion list had no case per member and could only grow.** See
-    /// `JUDGED_BY_THE_ERROR_CODE_RULE`: every consumer of
+    /// **A case per member, because the exclusion list can only grow.** See
+    /// `JUDGED_BY_THE_ERROR_CODE_RULE`: every other consumer of
     /// `OUTSIDE_THE_ERROR_CODE_SCOPE` derives its expectation from it, so one
     /// added line switched the gate off over the audit crate with every count
-    /// consistent and `check passed`.
+    /// consistent and `check passed` — measured.
     ///
     /// Both directions, and the list of members is cargo's, so a member added is
     /// a case added: one that is in neither written list fails here rather than
     /// being quietly judged or quietly not.
     ///
-    /// **Cargo's list, not `crates/`.** This read the members with
-    /// `read_dir("crates")`, so a member anywhere else was in no list and
-    /// nothing disagreed — the one-directional list the message below warns
-    /// about. Measured when `plugins/` became a member tree: `nc-plugin-reference`
-    /// was in neither list, and a hand-written `NC-JRNL-0003` in its source left
-    /// §15.1's line identical to a clean run.
+    /// **Cargo's list, not `crates/`.** Read with `read_dir("crates")`, a
+    /// member anywhere else is in no list and nothing disagrees — the
+    /// one-directional list the message below warns about. Measured with a
+    /// plugin member: `nc-plugin-reference` was in neither list, and a
+    /// hand-written `NC-JRNL-0003` in its source left §15.1's line identical to
+    /// a clean run.
     #[test]
     fn every_member_crate_is_judged_or_named_as_not() {
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
@@ -9559,9 +9464,9 @@ mod tests {
     /// `in_the_hatch_scope`, so a directory leaving the scope leaves the
     /// expectation in the same edit and nothing disagrees — the same
     /// derived-expectation trap `JUDGED_BY_THE_RAISING_RULE` below exists for,
-    /// one gate over. The floor on the filter does not close it either: thirty
-    /// real directories are in scope and the floor asks for more than eight, so
-    /// twenty-one could leave with the fixture green.
+    /// one gate over. The floor on the filter does not close it either: it asks
+    /// for more than eight directories in scope, so most of the real ones could
+    /// leave with the fixture green.
     ///
     /// `xtask/canaries/` is absent on purpose — it holds the inputs the other
     /// gates are measured against, with the reason written in
@@ -9569,12 +9474,11 @@ mod tests {
     ///
     /// **The place has to be there**, which the assertion asks separately:
     /// `in_the_hatch_scope` is pure text and answers `true` for a name that is
-    /// no longer a directory, so for a wave the list could name a crate this
-    /// tree does not have and say nothing. The paragraph here sent a reader to
-    /// `cargo xtask check` for that half, and the exact count there cannot close
-    /// it either — its expectation is computed from the same directories on
-    /// disk, so a place removed lowers both sides of an equality. Found in
-    /// wave 32.
+    /// no longer a directory, so without that half the list can name a crate
+    /// this tree does not have and say nothing. The exact count in
+    /// `cargo xtask check` cannot close it either — its expectation is computed
+    /// from the same directories on disk, so a place removed lowers both sides
+    /// of an equality.
     ///
     /// **What this still does not catch**: a place that exists and that the walk
     /// reads, but whose `.rs` files it never reaches for some reason inside the
@@ -9584,8 +9488,7 @@ mod tests {
     // of the meta-gate's operators rewrites a line of `OUTSIDE_THE_ERROR_CODE_
     // SCOPE` naming the compiler's crate, and a second copy of that text
     // anywhere in this file leaves the operator with nothing unique to apply to
-    // — reported as `not applicable`, which is a clause with no coverage. Found
-    // in wave 30.
+    // — reported as `not applicable`, which is a clause with no coverage.
     const READ_BY_THE_HATCH_WALK: [&str; 15] = [
         "crates/nc-authz",
         "crates/nc-canon",
@@ -9608,8 +9511,8 @@ mod tests {
     ///
     /// Written out, because the floor beside it asks `in_the_raising_scope` for
     /// its expectation — so a crate added to the skip chain moves both sides
-    /// together and nothing disagrees. That is the same trap the §15.1
-    /// exclusion list fell into, one gate over.
+    /// together and nothing disagrees. That is the trap the §15.1 exclusion
+    /// list's own hand list exists for, one gate over.
     ///
     /// The registry's own crate and its compiler are absent on purpose: they are
     /// the declaration rather than a producer.
@@ -9630,7 +9533,8 @@ mod tests {
 
     /// The determinism walk reaches a clock in each of `EMITS`, not one of three.
     ///
-    /// Split from its caller, which crossed clippy's line limit with it inline.
+    /// Split from its caller, which would cross clippy's line limit with it
+    /// inline.
     fn the_emitter_walk_reads_every_place_it_is_written_to_read() {
         // **And one in every place the walk reads, not one of three.** The
         // fixture above plants in a single entry of `EMITS`, and the walk's
@@ -9654,8 +9558,8 @@ mod tests {
         let mut expected = Vec::new();
         // **A directory or a file**, because `EMITS` holds both: two crate source
         // directories and `xtask/src/build.rs`, the one file that pipes every
-        // generated byte through rustfmt. A fixture assuming all three were
-        // directories made a directory *named* `build.rs`, and the walk found
+        // generated byte through rustfmt. A fixture assuming all three are
+        // directories makes a directory *named* `build.rs`, and the walk finds
         // nothing to read in it.
         for (index, under) in crate::determinism::EMITS.iter().enumerate() {
             let clock =
@@ -9712,12 +9616,13 @@ mod tests {
 
     /// Every walk that must be reached by the planted fixture, and the proof it is.
     ///
-    /// **The mechanisms are held by nothing.** `xtask/canaries/README.md` argues
-    /// that five mechanisms cover the walks — and the *set* of walks each one
-    /// covers is itself a list, which nothing enumerated. Two walks turned out to
-    /// have none of them at all; and deleting the four lines of a fixture test
-    /// that plant for a given walk moves **no test count**, because removing
-    /// statements from a body removes no `#[test]` attribute:
+    /// **Without this, the mechanisms are held by nothing.**
+    /// `xtask/canaries/README.md` argues that five mechanisms cover the walks —
+    /// and the *set* of walks each one covers is itself a list, which this
+    /// constant writes down. A walk can have none of them at all; and deleting the
+    /// four lines of a fixture test that plant for a given walk moves **no test
+    /// count**, because removing statements from a body removes no `#[test]`
+    /// attribute:
     ///
     /// ```text
     /// ok    80312 source line(s) leave the workspace lints on
@@ -9732,8 +9637,7 @@ mod tests {
     /// deleted is exactly that.
     ///
     /// It is a hand list on purpose. Deriving it from the source would make it
-    /// agree with whatever the source does, which is the trap three gates in
-    /// this file have already fallen into.
+    /// agree with whatever the source does — the derived-expectation trap.
     const REACHED_BY_THE_PLANTED_FIXTURE: [(&str, &str); 10] = [
         (
             "the blanket-allow walk",
@@ -9761,13 +9665,13 @@ mod tests {
 
     /// Every clause of the `include!` gate, decided.
     ///
-    /// **Two of its branches were dead to this suite.** A reviewer removed the
-    /// `is_rust` filter and the empty-argument filter and the whole gate suite
-    /// stayed green at `849 test(s)`, so what this gate lets through was
-    /// decided by reading it. The first filter is the entire *allow* side of a
-    /// deliberately positive rule — with it gone every ordinary
-    /// `include!("generated.rs")` in the tree becomes a finding — and the
-    /// second is what keeps the gate from reporting its own source.
+    /// **Every branch, each decided here.** Measured with no test of them: the
+    /// `is_rust` filter and the empty-argument filter removed, and the whole
+    /// gate suite stayed green — what this gate lets
+    /// through was decided by reading it. The first filter is the entire
+    /// *allow* side of a deliberately positive rule — with it gone every
+    /// ordinary `include!("generated.rs")` in the tree becomes a finding — and
+    /// the second is what keeps the gate from reporting its own source.
     ///
     /// The calls are assembled at run time rather than written out. A literal
     /// `include!` of a non-Rust name in this file is one the gate would read
@@ -9832,11 +9736,12 @@ mod tests {
 
     /// Every clause of the `include:` block reader, decided.
     ///
-    /// **Three of its branches were dead to this suite.** A reviewer deleted the
+    /// **Every branch, each decided here.** Measured with no test of them: the
     /// block-closing clause, the `is_rust` filter above it and the
-    /// empty/`:`-terminated/absolute entry filter, and `cargo xtask check`
-    /// printed the same lines and `849 test(s)`. The function has one call site
-    /// and had no test at all, so what it returns was decided by reading it.
+    /// empty/`:`-terminated/absolute entry filter deleted, and
+    /// `cargo xtask check` printed the same lines. The function has one call
+    /// site, so with no test of its own what it returns is decided by reading
+    /// it.
     ///
     /// The last case is what the closing clause is *for*: without it the reader
     /// runs to the end of the file and every later list in the workflow becomes
@@ -9903,9 +9808,9 @@ mod tests {
         // suite unchanged, which is precisely the invisibility this list exists
         // to end.
         //
-        // The first repair asked `!line.trim_start().starts_with("//")`, and a
-        // block comment is not a line that starts with `//`: the same call
-        // wrapped in `/* … */` passed again, after which one filter naming
+        // Asking `!line.trim_start().starts_with("//")` is not enough either: a
+        // block comment is not a line that starts with `//`, so the same call
+        // wrapped in `/* … */` passes, after which one filter naming
         // `crates/nc-journal` and a hand-written `NC-KERN-4242` inside it left
         // `ok 32432 source line(s) name no error code as text (§15.1)` — the
         // baseline number, because a filter that pays both counters moves
@@ -9952,17 +9857,16 @@ mod tests {
             })
         };
         // **And the list itself has a floor.** Everything below asks whether
-        // each *named* walk still calls the helper, and nothing asked whether
-        // the names are still all of them — so deleting an entry and its call
-        // site together left all 295 unit tests green with the §15.1 walk's
-        // fixture assertion gone. The list is the only memory of the six; the
-        // count of real calls is the second reader it did not have.
+        // each *named* walk still calls the helper, which says nothing about
+        // whether the names are still all of them — measured, deleting an entry
+        // and its call site together left every unit test green with the §15.1
+        // walk's fixture assertion gone. The list is the only memory of the
+        // walks; the count of real calls is its second reader.
         // Counted as *plantings*, not as assertions. Counting the assertions
         // compares the list against the thing the list is about, so deleting an
-        // entry and its call together leaves both smaller and this silent —
-        // which is the edit a reviewer used, with all 295 unit tests green and
-        // the §15.1 walk's coverage gone. A planting is a test saying "this walk
-        // is under test"; the assertion is what it then proves. The first is the
+        // entry and its call together leaves both smaller and this silent. A
+        // planting is a test saying "this walk is under test"; the assertion is
+        // what it then proves. The first is the
         // population and the second is the claim, and only the first is
         // independent of the list.
         let plantings = count_of(&bare, "in_every_real_directory");
@@ -9978,19 +9882,18 @@ mod tests {
         for (walk, test) in REACHED_BY_THE_PLANTED_FIXTURE {
             // The assertion helper, with this walk's label: the fixture plants
             // in every real directory and this is what says the walk arrived at
-            // all of them — and **the whole call**, not its argument tail. The
-            // needle was `&planted, "…")`, which
-            // `let _ = (&findings, &planted, "…");` satisfies without calling
-            // anything.
+            // all of them — and **the whole call**, not its argument tail. A
+            // needle of `&planted, "…")` alone is satisfied by
+            // `let _ = (&findings, &planted, "…");`, which calls nothing.
             //
-            // **And once, because two copies are not two proofs.** The rule
-            // asked whether the call is written *anywhere* in this file, so the
-            // call could be deleted from the walk's own test and written a
-            // second time inside another walk's — where it runs against that
-            // walk's findings and proves nothing about this one. Measured: the
-            // §15.1 walk's call moved into the section gate's test, with
-            // `plantings` and the fixture list untouched, left all 48 tests and
-            // the whole gate green.
+            // **And once, because two copies are not two proofs.** Asked
+            // whether the call is written *anywhere* in this file, the call can
+            // be deleted from the walk's own test and written a second time
+            // inside another walk's — where it runs against that walk's
+            // findings and proves nothing about this one. Measured: the §15.1
+            // walk's call moved into the section gate's test, with `plantings`
+            // and the fixture list untouched, left every test and the whole gate
+            // green.
             let calls: Vec<String> = ["planted", "judged"]
                 .into_iter()
                 .map(|over| format!("reached_every_one(&findings, &{over}, \"{walk}\")"))
@@ -9999,20 +9902,20 @@ mod tests {
             // `is_code` answers whether it is code; this answers how many there
             // are and whether the one there is sits in a test that plants.
             // Comments are spent — a doc comment in this file quotes the call
-            // verbatim, which is the string-literal twin `is_code` was hardened
+            // verbatim, which is the string-literal twin `is_code` guards
             // against, seen from the other side — and literals are kept, because
             // the label is one.
-            // **And in the test that plants for it.** The rule asked whether the
-            // call is written *anywhere* in this file, so it could be deleted
-            // from its own test and written a second time inside another's —
-            // where it runs against that walk's findings and proves nothing
-            // about this one. Measured: the §15.1 walk's call moved into the
-            // citation gates' test, with the fixture list untouched, left all 48
-            // tests and the whole gate green.
+            // **And in the test that plants for it.** Asked whether the call is
+            // written *anywhere* in this file, it can be deleted from its own
+            // test and written a second time inside another's — where it runs
+            // against that walk's findings and proves nothing about this one.
+            // Measured: the §15.1 walk's call moved into the citation gates'
+            // test, with the fixture list untouched, left every test and the
+            // whole gate green.
             //
             // Comments are spent first, because a doc comment in this file
             // quotes one of these calls verbatim — the string-literal twin
-            // `is_code` was hardened against, seen from the other side.
+            // `is_code` guards against, seen from the other side.
             let spent = super::without_comments(raw, "//");
             let holds = spent
                 .split("\n    fn ")
@@ -10041,16 +9944,16 @@ mod tests {
 
     /// `reached_every_one` is still the proof, read whole.
     ///
-    /// Split from the caller, which crossed clippy's line limit with it inline
-    /// once wave 40 gave the helper its second reader.
+    /// Split from the caller, which would cross clippy's line limit with it
+    /// inline.
     fn the_proof_helper_is_still_the_proof(raw: &str) {
         // And the helper itself is still an assertion. A `reached_every_one`
         // that stopped asserting would satisfy every line above.
         // **The definition, not this line.** `split_once("fn reached_every_one(")`
         // finds *this test's own source* first — the needle is written here —
-        // so the "body" it read was the rest of this function, which of course
-        // contains an `assert!`. The helper could be gutted entirely and this
-        // stayed green. The definition is the one at column four.
+        // so the "body" it reads is the rest of this function, which of course
+        // contains an `assert!`, and the helper could be gutted entirely with
+        // this green. The definition is the one at column four.
         //
         // Read from the comment-stripped `code` for the same reason as above: an
         // `assert!` inside the helper that had been commented out would satisfy
@@ -10061,16 +9964,15 @@ mod tests {
             .expect("the helper is here")
             .1;
         let body = helper.split_once("\n    }\n").expect("it closes").0;
-        // **Read whole, because neither pin tied the value asserted to the
-        // value computed.** Two assertions stood here — that the body still
-        // holds `assert!(` and `missed.is_empty()` — and one statement between
-        // the computation and the assertion satisfies both: `let mut missed`,
-        // then `missed.clear();`, and all six walks above prove
-        // `assert!(empty.is_empty())` over an emptied vector. Measured on
-        // 2026-09-11 together with a one-line filter hiding `crates/nc-canon/`
-        // from the canary walk — the attack this fixture exists for, and the one
-        // its own doc quotes — at `gates::` `48 passed; 0 failed` and
-        // `check passed`.
+        // **Read whole, because a pin on words does not tie the value asserted
+        // to the value computed.** Asking that the body still holds `assert!(`
+        // and `missed.is_empty()` is satisfied by one statement between the
+        // computation and the assertion: `let mut missed`, then
+        // `missed.clear();`, and every walk above proves
+        // `assert!(empty.is_empty())` over an emptied vector. Measured together
+        // with a one-line filter hiding `crates/nc-canon/` from the canary walk
+        // — the attack this fixture exists for, and the one its own doc quotes
+        // — with every `gates::` test passing and `check passed`.
         //
         // `code_without_text` has already blanked every string, so what is left
         // after dropping empty lines is the helper's statements and nothing
@@ -10121,8 +10023,7 @@ mod tests {
     /// The repository's real directories, as a walk would name them.
     ///
     /// Read from the tree rather than listed, so a crate added later is covered
-    /// without anyone remembering to add it — the same reason `SCOPED_OUT` is
-    /// wrong to keep by hand.
+    /// without anyone remembering to add it.
     /// A manifest beside each planted source, because cargo acts on manifests.
     ///
     /// Its own function because the fixture it serves is at clippy's line limit,
@@ -10133,9 +10034,9 @@ mod tests {
     /// The plantings this walk skips are in this tree's two canary directories.
     ///
     /// Its own function for clippy's line limit. **It counts directories, not
-    /// plantings**: the earlier form compared excused *plantings* against a
-    /// literal, which held while the fixture planted two files per directory
-    /// and broke the moment it planted one per name the tree wears.
+    /// plantings**: excused *plantings* compared against a literal hold only
+    /// while the fixture plants a fixed number of files per directory, and it
+    /// plants one per name the tree wears.
     fn the_canary_directories_are_this_trees_two(planted: &[(String, usize)]) {
         let named = "canaries";
         let excused: std::collections::BTreeSet<&str> = planted
@@ -10154,9 +10055,9 @@ mod tests {
     /// cargo resolves — a plugin's included — and the word deeper in a path
     /// is not.
     ///
-    /// **A reviewer found a real bug with it**: the predicate's member helper
-    /// knew `crates/*` and `xtask`, so a plugin's `canaries/` was read by the
-    /// raising walk as shipped code while a crate's was excused.
+    /// **Every member tree**: a member helper that knows only `crates/*` and
+    /// `xtask` makes the raising walk read a plugin's `canaries/` as shipped
+    /// code while a crate's is excused.
     #[test]
     fn a_canary_directory_is_one_at_the_root_of_every_member() {
         for canary in [
@@ -10183,12 +10084,10 @@ mod tests {
     /// where this tree wears it, and every name it wears in more than one
     /// directory planted in all of them.
     ///
-    /// **The filler comes from the caller.** It was `// nothing here`, written
-    /// here, and the hatch walk's own fixture says why that is not a detail: a
-    /// plain `//` line directly above an allow *is* a written reason to that
-    /// rule, so padding of that shape excuses the plant and the fixture proves
-    /// the opposite of what it says. Wave 39 wrote this for one caller and
-    /// wave 40 gave it to the other three.
+    /// **The filler comes from the caller.** The hatch walk's own fixture says
+    /// why that is not a detail: a plain `//` line directly above an allow *is*
+    /// a written reason to that rule, so padding of that shape excuses the plant
+    /// and the fixture proves the opposite of what it says.
     fn and_a_file_under_every_name_it_opens(
         root: &Path,
         planted: &mut Vec<(String, usize)>,
@@ -10222,12 +10121,12 @@ mod tests {
                 // **Where the tree really wears it, and everywhere if it wears
                 // it in several.** A name planted in an arbitrary directory
                 // answers a clause keyed on the *name* and nothing keyed on the
-                // **path**: measured in wave 40, 127 of this tree's 138 read
-                // names sit in exactly one directory and were planted somewhere
-                // else entirely — `policy/schema.cedarschema` in
-                // `crates/nc-log/src` — so `!path.ends_with(<that path>)` took
-                // its eighteen live citations out of the gate with the whole
-                // transcript one count line short of the clean run.
+                // **path**: most of this tree's read names sit in exactly one
+                // directory, and measured with them planted somewhere else
+                // entirely — `policy/schema.cedarschema` in `crates/nc-log/src`
+                // — `!path.ends_with(<that path>)` took its eighteen live
+                // citations out of the gate with the whole transcript one count
+                // line short of the clean run.
                 let everywhere = wears_it.len() > 1;
                 if !everywhere
                     && !wears_it.iter().any(|at| at == directory)
@@ -10263,8 +10162,8 @@ mod tests {
         // Assembled so that no line here holds both halves at once: this
         // file is read by the gate the fixture drives, and a line carrying
         // `path =` beside the directory name *is* the thing it refuses. The
-        // reach above says so; written as one line, this made `check` report
-        // itself, which is how wave 38 learned the lesson a second time.
+        // reach above says so; written as one line, this makes `check` report
+        // itself.
         let directory = "canaries";
         let names = format!("path = \"{directory}/a_code_written_by_hand.rs\"");
         let mut filler = String::new();
@@ -10274,21 +10173,20 @@ mod tests {
         // **Names, not only the manifest, and the reason is measured.** The walk
         // and the floor beside it both ask `is_read_by_the_canary_walk`, so a
         // clause added inside that predicate lowers what is read and what is
-        // expected by the same lines and the equality holds straight across —
-        // this campaign's own sentence, applied to a predicate. The only thing
-        // that can refuse it is a fixture planting what the clause would
-        // exclude, and this planted `f{n}.rs` plus a manifest: `f{n}.rs` is a
-        // name nothing in this tree wears. Measured on 2026-09-27,
+        // expected by the same lines and the equality holds straight across.
+        // The only thing that can refuse it is a fixture planting what the
+        // clause would exclude, and `f{n}.rs` is a name nothing in this tree
+        // wears: measured with that plant and a manifest,
         // `&& !relative.ends_with("/main.rs")` inside the predicate left the
-        // **whole suite green at 652** while the gate read nothing of `xtask`'s
-        // own binary root, one directory from the canaries. `/lib.rs` was
-        // caught by a single test, and only because a scratch in `check.rs`
-        // happens to wear that name by house convention.
+        // **whole suite green** while the gate read nothing of `xtask`'s own
+        // binary root, one directory from the canaries, and `/lib.rs` was
+        // caught by a single test only because a scratch in `check.rs` happens
+        // to wear that name by house convention.
         //
         // The names come from the tree, filtered by the walk's own two lists:
         // every one planted somewhere, and every one the tree wears in more
-        // than one directory planted in all of them — the shape wave 38 gave
-        // the citation fixture, for the same reason.
+        // than one directory planted in all of them — the shape of the citation
+        // fixture, for the same reason.
         let opened: Vec<(String, Vec<String>)> = the_names_this_tree_wears(tree)
             .into_iter()
             .filter(|(name, _)| {
@@ -10310,12 +10208,12 @@ mod tests {
                 // **Where the tree really wears it, and everywhere if it wears
                 // it in several.** A name planted in an arbitrary directory
                 // answers a clause keyed on the *name* and nothing keyed on the
-                // **path**: measured in wave 40, 127 of this tree's 138 read
-                // names sit in exactly one directory and were planted somewhere
-                // else entirely — `policy/schema.cedarschema` in
-                // `crates/nc-log/src` — so `!path.ends_with(<that path>)` took
-                // its eighteen live citations out of the gate with the whole
-                // transcript one count line short of the clean run.
+                // **path**: most of this tree's read names sit in exactly one
+                // directory, and measured with them planted somewhere else
+                // entirely — `policy/schema.cedarschema` in `crates/nc-log/src`
+                // — `!path.ends_with(<that path>)` took its eighteen live
+                // citations out of the gate with the whole transcript one count
+                // line short of the clean run.
                 let everywhere = wears_it.len() > 1;
                 if !everywhere
                     && !wears_it.iter().any(|at| at == directory)
@@ -10339,14 +10237,12 @@ mod tests {
     /// Read from the tree for the same reason the directories are: a name it
     /// gains is planted on the day it gains it, not on the day somebody
     /// remembers. The second half of the pair is what decides *where*, and it
-    /// was a `bool` — "in more than one directory" — until wave 40 measured
-    /// what that costs. A name-keyed clause loses a finding wherever the name
-    /// is planted; a *path*-keyed one only loses it where the tree really
-    /// wears that name, and 127 of this tree's 138 read names sit in exactly
-    /// one directory each. So the directories are returned rather than their
-    /// count, and a caller plants each name where this tree wears it as well
-    /// as wherever its spread by index lands. Found in wave 38, bounded in
-    /// wave 40.
+    /// is the directories rather than a `bool` — "in more than one directory" —
+    /// because a name-keyed clause loses a finding wherever the name is
+    /// planted, while a *path*-keyed one only loses it where the tree really
+    /// wears that name, and most of this tree's read names sit in exactly one
+    /// directory each. So a caller plants each name where this tree wears it as
+    /// well as wherever its spread by index lands.
     ///
     /// **What it cannot return is a kind `sections::READ` does not name.** The
     /// walk below filters on that list, so a caller narrowing the result to a
@@ -10393,20 +10289,19 @@ mod tests {
     }
 
     fn the_directories_that_really_exist(root: &Path) -> Vec<String> {
-        // **Walked, not shaped.** This was `crates/*/src`, `crates/*/tests` and
-        // `xtask/`'s two — a fraction of the directories this
-        // repository has. It named none of `migrations/`, `catalog/`, `policy/`,
-        // `docs/`, `.github/`, `.cargo/`, any crate's `fixtures/` or
+        // **Walked, not shaped.** A shape such as `crates/*/src`,
+        // `crates/*/tests` and `xtask/`'s two is a fraction of the directories
+        // this repository has: it names none of `migrations/`, `catalog/`,
+        // `policy/`, `docs/`, `.github/`, `.cargo/`, any crate's `fixtures/` or
         // `canaries/`, or the root itself, and four of those are in `COVERED`
         // as "the directories the gates exist for". So the fixture that exists
-        // because a filter can name a real subtree could not see a filter naming
-        // one of those: measured, `if relative.starts_with("policy/") { walked
-        // += 1; return; }` in the `.env` walk left a committed `.env.local`
-        // holding a password and an AWS key on disk, with the printed path count
-        // going *up* to 167 and `check passed`.
+        // because a filter can name a real subtree cannot see a filter naming
+        // one of those: measured with that shape, `if relative.starts_with(
+        // "policy/") { walked += 1; return; }` in the `.env` walk left a
+        // committed `.env.local` holding a password and an AWS key on disk,
+        // with the printed path count going *up* to 167 and `check passed`.
         //
-        // A shape is a list with extra steps, and this file has removed several.
-        // The tree is the list.
+        // A shape is a list with extra steps. The tree is the list.
         let mut found = Vec::new();
         let mut stack = vec![root.to_path_buf()];
         while let Some(at) = stack.pop() {
@@ -10421,15 +10316,15 @@ mod tests {
                 let name = entry.file_name().to_string_lossy().into_owned();
                 // What `walk` itself skips, asked of `walk`'s own predicate —
                 // a directory this list leaves out is a directory no fixture
-                // ever plants in. The three names spelled out here said the
-                // same thing and were not the same thing: `super::is_skipped`
+                // ever plants in. Three names spelled out here would not be the
+                // same thing as the predicate: `super::is_skipped`
                 // unskips a `target` with no workspace manifest beside it, and
                 // unskips `.git` and `node_modules` outright, because a module
                 // directory may be called anything and this repository has
                 // neither a git directory (`§5.3`) nor a node package. The
-                // walk descends into all three; this list left them out, so
-                // the fixture that exists because a filter can name a real
-                // subtree could not name one of them.
+                // walk descends into all three, so a list that leaves them out
+                // keeps the fixture that exists because a filter can name a
+                // real subtree from planting in any of them.
                 if super::is_skipped(&at, &name) {
                     continue;
                 }
@@ -10439,9 +10334,9 @@ mod tests {
         }
         found.sort();
         // The floor: a tree with a handful of directories would satisfy every
-        // assertion below by having nothing to be filtered around. Forty-five
-        // today, and the number is a floor rather than a pin because a crate
-        // added is a directory added.
+        // assertion below by having nothing to be filtered around. The number
+        // is a floor rather than a pin because a crate added is a directory
+        // added.
         assert!(
             found.len() > 30,
             "only {} real directory/directories were found under {}",
@@ -10454,9 +10349,9 @@ mod tests {
     /// A defect in **every** directory the real repository has, at a line and a
     /// name no filter can predict.
     ///
-    /// **The path was the one thing a fixture never varied.** `somewhere_
-    /// unpredictable` randomises the depth, the directory name, the file name
-    /// and the line, and takes the part *inside* the repository — `"crates"`,
+    /// **The path is the one thing `somewhere_unpredictable` does not vary.**
+    /// It randomises the depth, the directory name, the file name and the line,
+    /// and takes the part *inside* the repository — `"crates"`,
     /// `"crates/nc-catalog-compiler/src"` — as a literal from its caller. So a
     /// filter naming a real subtree is invisible to it: the scratch tree has no
     /// `crates/nc-journal/` in it to be skipped. Paying the counter on the way
@@ -10498,11 +10393,10 @@ mod tests {
     /// assertion.
     ///
     /// **The guard comes back with the tree, because a helper cannot outlive its
-    /// caller's failure.** This removed the directory before writing it and
-    /// never after, so every caller that asserted its way out left the whole
-    /// mirrored tree behind — and eight callers share it. The guard is returned
-    /// so the caller holds it, and `Drop` removes the tree on the path a
-    /// panicking test takes. Found in the machine census of 2026-09-27.
+    /// caller's failure.** Removed before writing and never after, the whole
+    /// mirrored tree is left behind by every caller that asserts its way out —
+    /// and many callers share it. The guard is returned so the caller holds it,
+    /// and `Drop` removes the tree on the path a panicking test takes.
     fn in_every_real_directory_each(
         defect: &dyn Fn(usize) -> String,
         filler: &str,
@@ -10513,8 +10407,8 @@ mod tests {
     ) {
         use core::fmt::Write as _;
 
-        // The counter that kept two trees in one process apart is the guard's
-        // now, and it names the test as well as the run.
+        // The counter that keeps two trees in one process apart is the
+        // guard's, and it names the test as well as the run.
         let seed = std::process::id() as usize;
         let held = crate::check::LeavesNothingBehind::new("mirrored-tree");
         let root = held.root.clone();
@@ -10550,14 +10444,13 @@ mod tests {
 
     /// A `.sql` carrying the same code, in every real directory.
     ///
-    /// Its own function for clippy's line limit, which the caller crossed once
-    /// its `.rs` plantings learned the names this tree wears. §15.1's scope is
-    /// `crates/` plus `migrations/`, and `migrations/` holds nothing but
-    /// `.sql`; every fixture wrote `/f{n}.rs`, and the corpus's single `.sql`
-    /// case puts its code on line 2. So a clause keyed on the comment marker
-    /// *and* a line — measured in wave 38 — cleared both at once, and a
-    /// registry code written out as text inside a live `RAISE EXCEPTION` in the
-    /// journal's append-only trigger left the whole transcript byte-identical.
+    /// Its own function for clippy's line limit. §15.1's scope is `crates/`
+    /// plus `migrations/`, and `migrations/` holds nothing but `.sql`; with
+    /// every other fixture writing `/f{n}.rs`, and the corpus's single `.sql`
+    /// case putting its code on line 2, a clause keyed on the comment marker
+    /// *and* a line clears both at once — measured: a registry code written out
+    /// as text inside a live `RAISE EXCEPTION` in the journal's append-only
+    /// trigger left the whole transcript byte-identical.
     /// The depth is not enough on its own: this plants at the same
     /// unpredictable line the `.rs` plant uses.
     fn and_a_sql_file_beside_each_source(root: &Path, planted: &mut Vec<(String, usize)>) {
@@ -10579,15 +10472,12 @@ mod tests {
 
     /// Every planted defect was reported, and the walk says which was not.
     ///
-    /// **And the fixture planted under paths this tree really wears**, which is
-    /// the half no list held. Wave 39 wrote the answer — plant every name the
-    /// tree opens, not `f{n}.rs`, which is a name it wears nowhere — and gave
-    /// it to one walk of the six; wave 40 measured the other five and found the
-    /// same hole in all of them. A hand list of which fixtures plant names
-    /// would have the shape this file has been burned by twice: three of the
-    /// walks share one test body, so a list keyed on the body is satisfied by
-    /// one of the three. This asks the fixture instead, at run time, and it
-    /// asks it inside the helper every one of them already calls.
+    /// **And the fixture planted under paths this tree really wears** — every
+    /// name the tree opens, not only `f{n}.rs`, which is a name it wears
+    /// nowhere. A hand list of which fixtures plant names would not hold this:
+    /// three of the walks share one test body, so a list keyed on the body is
+    /// satisfied by one of the three. This asks the fixture instead, at run
+    /// time, inside the helper every one of them calls.
     fn reached_every_one(findings: &[super::Finding], planted: &[(String, usize)], what: &str) {
         let missed: Vec<&str> = planted
             .iter()
@@ -10630,12 +10520,12 @@ mod tests {
     /// nothing but `f{n}.rs` satisfies completely — and `f{n}.rs` is a name this
     /// repository wears nowhere, so a clause keyed on a real name, or on a real
     /// relative path, walks past every one of them and the fixture says the walk
-    /// went everywhere. Measured in wave 40, each with wave 39's repair already
-    /// in the tree: `!relative.ends_with("parse.rs")` hid a hand-written
-    /// `NC-KERN-4242` in `crates/nc-canon` from §15.1's walk with the whole
-    /// transcript byte-identical, and one clause naming the policy schema by its
-    /// real relative path took eighteen live citations out of the section gate
-    /// with the transcript one count line short of a clean run.
+    /// went everywhere. Measured with such a fixture:
+    /// `!relative.ends_with("parse.rs")` hid a hand-written `NC-KERN-4242` in
+    /// `crates/nc-canon` from §15.1's walk with the whole transcript
+    /// byte-identical, and one clause naming the policy schema by its real
+    /// relative path took eighteen live citations out of the section gate with
+    /// the transcript one count line short of a clean run.
     ///
     /// Read from the tree, so a name it gains is required of every fixture on
     /// the day it appears — and gutting this to return nothing makes the
@@ -10672,12 +10562,12 @@ mod tests {
     ) {
         use core::fmt::Write as _;
 
-        // **A number of its own per call.** The name was the pid and the
-        // defect's length, so two plants of the same length in one process
-        // shared a root — and each begins by removing it. Alone the test
-        // passed; under the whole suite it failed on
-        // `a writable scratch: Os { code: 2, kind: NotFound }`, which is the
-        // same collision `nc-lints-{pid}` produced between two other tests.
+        // **A number of its own per call.** Named from the pid and the
+        // defect's length, two plants of the same length in one process share
+        // a root — and each begins by removing it: alone the test passes, and
+        // under the whole suite it fails on
+        // `a writable scratch: Os { code: 2, kind: NotFound }`, the same
+        // collision a `nc-lints-{pid}` name produces between two other tests.
         let seed = std::process::id() as usize;
         let held = crate::check::LeavesNothingBehind::new("planted");
         let root = held.root.clone();
@@ -10690,10 +10580,10 @@ mod tests {
         std::fs::create_dir_all(path.parent().expect("a parent")).expect("a writable scratch");
         // Past every line bound a filter is likely to carry, and not on a round
         // number. The defect is the last line, so `at` is the file's length.
-        // **Past the longest file this suite reads, not between 200 and 296.**
-        // The window was ninety-seven lines wide and written on this line, so a
-        // filter carrying a constant above it — `if index > 300 { … }`, the same
-        // shape with a different digit — was invisible to every fixture while
+        // **Past the longest file this suite reads, not in a fixed window.** A
+        // window written here — between 200 and 296, say — lets a filter
+        // carrying a constant above it — `if index > 300 { … }`, the same shape
+        // with a different digit — stay invisible to every fixture while
         // turning the walk off for the rest of each file. Measured: a blanket
         // allow inside a `mod` block near the end of criterion 3's own suite,
         // with both counters kept honest, gave `ok 73702 source line(s) leave the
@@ -10740,7 +10630,7 @@ mod tests {
 
     /// A blanket allow is one however the attribute is written.
     ///
-    /// **The gate read one line and asked it to open and close.** rustfmt wraps
+    /// **An attribute is not one line asked to open and close.** rustfmt wraps
     /// an attribute once its list is long enough, so the hole opens by itself:
     ///
     /// ```rust
@@ -10753,20 +10643,20 @@ mod tests {
     /// at the top of `crates/nc-journal/tests/tampering.rs` — acceptance
     /// criterion 3's own suite, with four real clippy violations underneath —
     /// gave `ok 64872 source line(s) leave the workspace lints on` and
-    /// `check passed`. `cfg_attr` and `expect` were holes of their own: the
-    /// first is the same wrapper that defeated the test census and the
-    /// ignored-test gate in earlier rounds, and the second suppresses exactly
-    /// as `allow` does.
+    /// `check passed` to a gate reading one line at a time. This test also
+    /// writes the attribute under `cfg_attr` and as `expect`: the first is the
+    /// same wrapper the test census and the ignored-test gate read through, and
+    /// the second suppresses exactly as `allow` does.
     ///
-    /// Driven through the walk rather than through the parser, because what was
-    /// wrong was the line loop and not the name matching.
+    /// Driven through the walk rather than through the parser, because the line
+    /// loop, not the name matching, is what this decides.
     #[test]
     fn a_blanket_allow_is_found_however_the_attribute_is_written() {
-        // **A name of its own.** Two tests in this module built
-        // `nc-lints-{pid}` — same process, same path, run concurrently by
-        // libtest, each removing the directory the other was using. Measured, 12
-        // runs at `--test-threads=4`: six red on nothing but that, with
-        // `a writable scratch: Os { code: 2, kind: NotFound }`. It also failed
+        // **A name of its own.** Two tests in one module building
+        // `nc-lints-{pid}` share a path, run concurrently under libtest, and
+        // each removes the directory the other is using. Measured, 12 runs at
+        // `--test-threads=4`: six red on nothing but that, with
+        // `a writable scratch: Os { code: 2, kind: NotFound }`. It also fails
         // in the safe direction: this test's floor half asserts
         // `findings.is_empty()`, which passes for having inspected nothing when
         // the other has just wiped the tree.
@@ -10816,31 +10706,28 @@ mod tests {
         for allowed in [
             "#![allow(clippy::needless_pass_by_value)]\nfn main() {}\n",
             "#![doc = \"a page with // in it\"]\n#[allow(clippy::all)]\nfn main() {}\n",
-            // **A literal that spans a wrapped attribute.** Stripped per line
-            // the quote state never balanced, the accumulator ran to its bound
-            // and the gate said "an inner attribute here never closes its
+            // **A literal that spans a wrapped attribute.** Stripped per line,
+            // the quote state never balances, the accumulator runs to its bound
+            // and the gate says "an inner attribute here never closes its
             // brackets" — of an *outer* attribute, closed one line down, whose
-            // author had written nothing wrong, while everything below it went
-            // unjudged. The whole text goes through the stripper now, which is
-            // what the sibling walk fifty lines up in this file already did.
+            // author has written nothing wrong, while everything below it goes
+            // unjudged. The whole text goes through the stripper, as it does in
+            // the hatch walk.
             // **A literal continued with a backslash, whose closing bracket sits
             // on the continuation line.** Read per line, that line's trailing
             // quote is an *opening* one, so the `]` is spent as string content,
             // the `[` never closes, and the accumulator runs to its bound — the
             // gate then says "an inner attribute here never closes its brackets"
             // of an outer attribute that closes correctly, and everything below
-            // it goes unjudged. Measured on `crates/nc-prune/src/postgres.rs`
-            // by a reviewer in wave 21; the whole text goes through the
-            // stripper now, which is what the sibling walk in this file already
-            // did.
+            // it goes unjudged. Measured on `crates/nc-prune/src/postgres.rs`.
             "#[must_use = \"a message that \\\n              asks nothing\"]\npub fn f() {}\n",
             // **A shebang is not an inner attribute.** `#!` opens one only with
             // the `[`, and a script's first line carries neither brackets to
             // balance nor a lint to find — but read as an attribute it opens an
             // accumulator that swallows the file, and the counter below then
-            // reports that nothing reached a verdict. Wave 21's mutation pass
-            // found that clause surviving: every fixture the tree had was
-            // decided the same way under both spellings, because a shebang
+            // reports that nothing reached a verdict. Without this case the
+            // mutation pass reports that clause surviving: every other fixture
+            // is decided the same way under both spellings, because a shebang
             // without a bracket closes on the line below it either way.
             "#!shebang(\nfn main() {}\n",
         ] {
@@ -10859,7 +10746,7 @@ mod tests {
 
     /// A code written by hand is one however its pieces are put together.
     ///
-    /// **Four spellings assembled the same code past a scan of the literal
+    /// **Four spellings assemble the same code past a scan of the literal
     /// text**, all four measured green in a crate the gate walks. Three of them
     /// are string glue and are read here; the fourth builds the digits at run
     /// time and cannot be, which is written down rather than pretended about.
@@ -10887,8 +10774,8 @@ mod tests {
             assert!(found > 0, "a code written {way} was not read: {line}");
         }
         // **And the prose that is not a code**, measured as a false `error`:
-        // removing every space made an English sentence with spaced hyphens
-        // read as `NC-CANON-0001`, and the gate reported a doc attribute in
+        // removing every space makes an English sentence with spaced hyphens
+        // read as `NC-CANON-0001`, and the gate then reports a doc attribute in
         // `nc-canon` as a hand-written code — in one of two byte-equivalent
         // spellings of the same comment.
         for prose in [
@@ -10919,11 +10806,11 @@ mod tests {
 
     /// A condition above a test is a hidden test, however it is spelled.
     ///
-    /// Every entry below was free before this gate stopped being a list of
-    /// spellings: each one hides a test and each was invisible both to the gate
-    /// and — for the last two — to the census in `check.rs` that is supposed to
-    /// floor it. `#[cfg(target_os = "vxworks")]` is the one a reviewer reached
-    /// for, and it needed no feature declaration and no `any()` trick.
+    /// Every entry below is free to a gate that is a list of spellings: each one
+    /// hides a test and each is invisible to such a gate, and the last two were
+    /// measured invisible to the census in `check.rs` that floors it as well.
+    /// `#[cfg(target_os = "vxworks")]` needs no feature declaration and no
+    /// `any()` trick.
     #[test]
     fn a_condition_above_a_test_is_a_hidden_test_however_it_is_spelled() {
         for hiding in [
@@ -10953,11 +10840,11 @@ mod tests {
         }
     }
 
-    /// The spellings a formatter or an ordinary author produces, and the ones a
-    /// reviewer reached for.
+    /// The spellings a formatter or an ordinary author produces, and the ones
+    /// written to get past the gate.
     ///
-    /// Every entry was measured **passing** against the version of this gate
-    /// that read the attribute run as "lines beginning with `#[`". None needed
+    /// Every entry was measured **passing** against a gate that reads the
+    /// attribute run as "lines beginning with `#[`". None needed
     /// ingenuity: a blank line between two attributes, a doc comment between the
     /// attribute and the item, and a `cfg_attr` wrapped across lines are all
     /// things `cargo fmt` and ordinary editing produce. The last two are the
@@ -11009,10 +10896,10 @@ mod tests {
 
     /// The census and the gate agree on what a test attribute is.
     ///
-    /// They were two lists, and the gap between them was worth one hidden test
-    /// per spelling: the census counted `#[test]` and `#[tokio::test]` exactly,
-    /// the gate matched two other prefixes, and `#[tokio::test(flavor = …)]` was
-    /// in neither. Now there is one predicate and this is it.
+    /// One predicate, because two lists leave a gap worth one hidden test per
+    /// spelling: a census counting `#[test]` and `#[tokio::test]` exactly beside
+    /// a gate matching two other prefixes leaves `#[tokio::test(flavor = …)]` in
+    /// neither.
     #[test]
     fn every_way_of_writing_a_test_is_a_test_to_both() {
         for spelling in [
@@ -11020,8 +10907,9 @@ mod tests {
             "    #[test]",
             "#[tokio::test]",
             // Absolute paths, which are ordinary Rust and which `rustc --test`
-            // runs. `::tokio::test` was invisible to this predicate and, because
-            // the census shares it, to the count that is supposed to floor it.
+            // runs. A predicate blind to `::tokio::test` leaves it invisible to
+            // the count that is supposed to floor it too, because the census
+            // shares the predicate.
             "#[::tokio::test]",
             "#[::std::prelude::v1::test]",
             "#[std::prelude::v1::test]",
@@ -11029,8 +10917,8 @@ mod tests {
             "#[tokio::test(start_paused = true)]",
             "#[cfg_attr(all(), test)]",
             "#[cfg_attr(all(), tokio::test)]",
-            // Absolute paths inside a `cfg_attr`, which the bare form was made
-            // to resolve and this branch was not.
+            // Absolute paths inside a `cfg_attr`, resolved as the bare form
+            // resolves them.
             "#[cfg_attr(all(), ::tokio::test)]",
             "#[cfg_attr(unix, ::std::prelude::v1::test)]",
             // A condition holding its own commas.
@@ -11076,19 +10964,18 @@ mod tests {
 
     /// A test module is one by what it holds, whatever it is called.
     ///
-    /// **Thirty of this tree's test modules are not called `tests`.** The gate
-    /// keyed `about_a_test` on the name, so `query_tests` (50 tests),
-    /// `the_frozen_path_rule` (52), `hostile_store_tests` (18),
-    /// `every_report_wire` (16) and `narrowing` (7) were none of them about a
-    /// test, and a second condition on one was invisible.
+    /// **Many of this tree's test modules are not called `tests`.** Keyed on
+    /// the name, `about_a_test` is false for `query_tests`,
+    /// `the_frozen_path_rule`, `hostile_store_tests`, `every_report_wire` and
+    /// `narrowing`, and a second condition on one is invisible.
     ///
-    /// Measured, `#[cfg(test)]` and `#[cfg(not(test))]` together above
-    /// `mod width_tests` in `crates/nc-ids/src/base32.rs`: `cargo test -p xtask`
-    /// gave 401 passed and `cargo run -p xtask -- check` printed
-    /// `check passed`, the only trace being `1072 test(s)` becoming `1070`. The
-    /// census in `check.rs` is the only other reader, and it carries two tests
-    /// of slack — doctests count towards `passed` and are not `#[test]`
-    /// attributes — so hiding one or two moved no number anywhere.
+    /// Measured with the name as the key, and with the census in `check.rs`
+    /// counting doc-tests towards `passed` — two tests of slack, since doc-tests
+    /// are not `#[test]` attributes: `#[cfg(test)]` and `#[cfg(not(test))]`
+    /// together above `mod width_tests` in `crates/nc-ids/src/base32.rs` left
+    /// `cargo test -p xtask` passing and `cargo run -p xtask -- check` printing
+    /// `check passed`, the only trace being the test count falling by two.
+    /// `doctests_in` takes that slack out of the census's floor.
     ///
     /// Both directions, because widening this without widening the exemption
     /// beside it turns every `#[cfg(test)]` module in the tree into a finding.
@@ -11104,7 +10991,7 @@ mod tests {
              other reader is a census with two tests of slack"
         );
         // The ordinary spelling of a test module, under any name, is not a
-        // finding — or thirty modules in this tree become one each.
+        // finding — or every such module in this tree becomes one.
         for allowed in [
             "#[cfg(test)]\nmod width_tests {\n    #[test]\n    fn a_test() {}\n}\n",
             "#[cfg(test)]\npub mod query_tests {\n    #[test]\n    fn a_test() {}\n}\n",
@@ -11186,8 +11073,8 @@ mod tests {
         // file that defines the gate. `COMPILE_TIME_QUERIES` is built the same
         // way and for the same reason.
         let call = format!("sqlx::{}(\"S\")", concat!("query", "!"));
-        // **The one the last fix broke.** `r#"…"#` was closed correctly and
-        // `r"…"` — no hashes — closed at its own opening quote, because
+        // **No hashes at all.** A reader that closes `r#"…"#` correctly can
+        // still close `r"…"` at its own opening quote, because
         // `closes_raw(_, _, 0)` is `(0..0).all(…)`, which is true.
         for opener in ["r", "r#", "r##", "br", "br#", "cr", "cr#"] {
             let hashes = opener.trim_start_matches(['r', 'b', 'c']);
@@ -11201,9 +11088,9 @@ mod tests {
         }
 
         // **A char literal holding a quote**, which this file's own source
-        // contains — it inverted the quote state for the rest of the line, so
-        // the `//` of an ordinary URL after it was read as a comment and
-        // everything past it was dropped. Measured: **0** findings.
+        // contains — read as a quote it inverts the quote state for the rest of
+        // the line, so the `//` of an ordinary URL after it is read as a comment
+        // and everything past it is dropped. Measured that way: **0** findings.
         //
         // A string with a `//` in it has to follow the literal, or the mis-read
         // costs nothing: `without_comments` keeps strings verbatim and only
@@ -11226,10 +11113,10 @@ mod tests {
         let url = format!("let e = \"http://x\"; let n = {call};\n");
         assert_eq!(no_compile_time_query("src/x.rs", &url).len(), 1);
 
-        // **SQL's string quote is `'`, and the stripper only knew `\"`.** Both
-        // directions, measured: real content cut out of the first, and in the
-        // second the exact hole the migration-comment fix closed, reopened by
-        // one `\"`.
+        // **SQL's string quote is `'`, not only `\"`.** Both directions,
+        // measured with `\"` alone: real content cut out of the first, and in
+        // the second a migration's `--` comment kept as code because of one
+        // `\"`.
         let sql = super::without_comments("INSERT INTO t VALUES ('a -- b'); CODE\n", "--");
         assert!(
             sql.contains("CODE") && sql.contains("-- b"),
@@ -11288,9 +11175,9 @@ mod tests {
             );
         }
 
-        // **A char literal is Rust's too**, and the `rust &&` on that branch had
-        // no test while five of its siblings did. Most inputs cannot tell the
-        // two apart: consuming a literal and opening-then-closing a string end
+        // **A char literal is Rust's too**, and this is the test of the
+        // `rust &&` on that branch. Most inputs cannot tell the two apart:
+        // consuming a literal and opening-then-closing a string end
         // at the same character, so the fixture has to be one where the quotes
         // do *not* pair up.
         //
@@ -11307,10 +11194,11 @@ mod tests {
 
         // **A raw-string opener is Rust's, and these files are not Rust.** A
         // raw string does not reset at a newline — that is what makes it a raw
-        // string — so one `-r"` in a shell or YAML line put the scanner inside
-        // a string for the rest of the file, and every `#` comment after it was
-        // read as code. `no_unread_variable` then counts a variable named only
-        // in a comment as read, which is that gate's own stated failure.
+        // string — so, recognised there, one `-r"` in a shell or YAML line puts
+        // the scanner inside a string for the rest of the file, and every `#`
+        // comment after it is read as code. `no_unread_variable` then counts a
+        // variable named only in a comment as read, which is that gate's own
+        // stated failure.
         let yaml = super::without_comments(
             "run: grep -r\"x\n# NC_AUDIT_PROBE is prose here.\nrun: cargo test\n",
             "#",
@@ -11328,7 +11216,7 @@ mod tests {
         );
         assert!(!sql.contains("NC_AUDIT_PROBE"), "{sql:?}");
 
-        // And `'` is a quote in shell and YAML too, where it was not one.
+        // And `'` is a quote in shell and YAML too.
         let shell = super::without_comments("echo 'a # b'; CODE # gone\n", "#");
         assert!(
             shell.contains("a # b") && shell.contains("CODE") && !shell.contains("gone"),
@@ -11368,8 +11256,8 @@ mod tests {
              read as string content: {code:?}"
         );
 
-        // And the same source with one more hash, because the bug was written as
-        // a constant width and a fix can be too.
+        // And the same source with one more hash, because a closer of constant
+        // width is the defect and a fix can carry one too.
         let wider = format!("let a = r{hash}{hash}\"x\"{hash}{hash};\nlet b = 1;\nlet c = 2;\n");
         let code = super::without_string_contents(&super::without_comments(&wider, "//"));
         assert!(code.contains("let c = 2"), "{code:?}");
@@ -11389,11 +11277,11 @@ mod tests {
 
     /// The manifest is read the way cargo reads it, not scanned for a word.
     ///
-    /// **Two spellings walked past a text scan in succession.** `split('#')` cut
-    /// the line wherever the character stood, so a fragment in a git URL hid the
-    /// rest of it; the shared comment stripper closed that and nothing else, and
-    /// then `"noctua\u002Dcolors" = "0.4"` held no literal `noctua-colors`
-    /// anywhere in the file. Measured, that key in the root
+    /// **Two spellings walk past a text scan.** `split('#')` cuts the line
+    /// wherever the character stands, so a fragment in a git URL hides the rest
+    /// of it; a comment stripper closes that and nothing else, and
+    /// `"noctua\u002Dcolors" = "0.4"` holds no literal `noctua-colors` anywhere
+    /// in the file. Measured, that key in the root
     /// `[workspace.dependencies]`: `ok 10 manifest(s) reach the colour system
     /// through the design system` and `check passed`, while `tomllib` and cargo
     /// both read the key as `noctua-colors`.
@@ -11452,10 +11340,9 @@ mod tests {
 
     #[test]
     fn every_finding_carries_a_remedy_that_is_not_the_defect_restated() {
-        // Length is not the test: a reviewer defeated the old version of this by
-        // writing a hundred and forty characters saying only what was wrong.
-        // What is checked now is that a remedy exists in its own field and says
-        // something the defect did not.
+        // Length is not the test: a hundred and forty characters can say only
+        // what is wrong. What is checked is that a remedy exists in its own
+        // field and says something the defect did not.
         let findings = colours_come_through_the_design_system(
             "Cargo.toml",
             "[dependencies]\nnoctua-colors = \"1\"\n",
@@ -11471,8 +11358,8 @@ mod tests {
 
     #[test]
     fn a_committed_env_file_is_found_at_any_depth_and_a_missing_one_is_not() {
-        // The gate had no test at all until a reviewer replaced its body with
-        // `Ok(Vec::new())` and watched the whole suite stay green.
+        // Emptying the gate's body so it reports nothing fails this test: a
+        // nested `.env` must come back as exactly one finding.
         let scratch = std::env::temp_dir().join(format!("nc-env-gate-{}", std::process::id()));
         let nested = scratch.join("services").join("auth");
         std::fs::create_dir_all(&nested).expect("the scratch directory is writable");
@@ -11505,9 +11392,9 @@ mod tests {
 
         // **Every shape, not the one spelling.** `.env.example` promises "the
         // gate is absolute so that nobody has to remember which `.env` was the
-        // safe one" — and it matched `.env` exactly, so `.env.local` and
-        // `.env.production` were neither ignored by git nor caught here. Three
-        // credential-bearing files would have gone into a clone.
+        // safe one" — and where `.gitignore` and this gate both match `.env`
+        // exactly, `.env.local` and `.env.production` are neither ignored by
+        // git nor caught here, so credential-bearing files go into a clone.
         std::fs::remove_file(nested.join(".env")).expect("writable");
         for carries_secrets in [".env.local", ".env.production", ".env.development.local"] {
             std::fs::write(nested.join(carries_secrets), "SECRET=1\n").expect("writable");
@@ -11533,9 +11420,10 @@ mod tests {
 
     #[test]
     fn a_member_outside_the_workspace_lints_is_a_finding() {
-        // Two deleted lines took `unsafe_code = "forbid"` and `missing_docs`
-        // off a crate with `check passed`. A crate added without the stanza is
-        // unlinted from birth, which is the more likely way it happens.
+        // Without the gate, two deleted lines take `unsafe_code = "forbid"` and
+        // `missing_docs` off a crate with `check passed`. A crate added without
+        // the stanza is unlinted from birth, which is the more likely way it
+        // happens.
         let scratch = std::env::temp_dir().join(format!("nc-lints-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&scratch);
         std::fs::create_dir_all(scratch.join("crates/free/src")).expect("writable");
@@ -11555,11 +11443,11 @@ mod tests {
             "a member outside the lints was not reported: {findings:#?}"
         );
 
-        // **A `workspace = true` in some *other* table is not the stanza.** The
-        // gate asked two unrelated questions — is there a line reading
-        // `workspace = true`, and does the text contain `[lints]` — so moving
-        // the key into `[dev-dependencies.proptest]` and mentioning `[lints]` in
-        // a comment satisfied both, with `unsafe_code = "forbid"` off and
+        // **A `workspace = true` in some *other* table is not the stanza.**
+        // Asked as two unrelated questions — is there a line reading
+        // `workspace = true`, and does the text contain `[lints]` — moving the
+        // key into `[dev-dependencies.proptest]` and mentioning `[lints]` in a
+        // comment satisfies both, with `unsafe_code = "forbid"` off and
         // `check passed`.
         std::fs::write(
             scratch.join("crates/free/Cargo.toml"),
@@ -11652,12 +11540,12 @@ mod tests {
 
     /// The gate and `.gitignore` decide the same names.
     ///
-    /// They are two statements of one rule and they disagreed in both
-    /// directions, each disagreement a real loss. `env.production` and
-    /// `secrets.env.local` were neither ignored nor caught, so a real
-    /// credentials file would have gone into a clone. `.env.local.example` and <!-- allow-reference: names `.env.local.example` — names the rule judges, not files here -->
-    /// `example.env` are templates that were ignored, so a clone was missing the
-    /// file it needs to start. `env.rs` was a Rust module git hid. <!-- allow-reference: names `env.rs` — a name the rule judges, not a file here -->
+    /// They are two statements of one rule, and a disagreement in either
+    /// direction is a real loss. `env.production` and `secrets.env.local`,
+    /// left neither ignored nor caught, would put a real
+    /// credentials file into a clone; `.env.local.example` and <!-- allow-reference: names `.env.local.example` — names the rule judges, not files here -->
+    /// `example.env` are templates, and ignoring them leaves a clone without the
+    /// file it needs to start. `env.rs` is a Rust module git must not hide. <!-- allow-reference: names `env.rs` — a name the rule judges, not a file here -->
     ///
     /// The third column is `git check-ignore`'s own verdict, measured against
     /// this file in a throwaway repository — `hidden_by_ignore` is checked
@@ -11675,10 +11563,10 @@ mod tests {
             ("secrets.env.local", true),
             (".env.local.private", true),
             ("env", true),
-            // **direnv's file**, which both halves missed together: it splits to
-            // one part, so the gate's part rule never saw it, and this list of
-            // nineteen names did not hold it either — so the test that exists to
-            // keep the two honest agreed with both of them being wrong.
+            // **direnv's file**, which both halves can miss together: no part of
+            // it is `env`, so a part rule alone never sees it, and a list that
+            // does not hold it lets the test that exists to keep the two honest
+            // agree with both of them being wrong.
             (".envrc", true),
             (".envrc.local", true),
             (".env.example", false),
@@ -11689,23 +11577,23 @@ mod tests {
             ("secrets.example.env", false),
             ("template.env", false),
             ("env.sample", false),
-            // **Case, which neither half looked at.** Every `.gitignore`
-            // pattern was lower case and so was every name here, so the two
-            // agreed about the wrong answer — measured, a `.ENV` at the root
-            // holding a password and an AWS secret hidden by neither.
+            // **Case.** Every `.gitignore` pattern is lower case, and with every
+            // name here lower case too the two agree about the wrong answer —
+            // measured, a `.ENV` at the root holding a password and an AWS
+            // secret hidden by neither.
             (".ENV", false),
             (".Env.local", false),
             ("PRODUCTION.ENV", false),
             ("env.rs", false),
-            // **A config format is an environment, and this said otherwise.**
-            // The ignore file un-ignored all twelve kinds and the gate exempted
-            // all twelve, so the two agreed — about the wrong answer. Measured,
+            // **A config format is an environment.** An ignore file that
+            // un-ignores all twelve kinds and a gate that exempts all twelve
+            // agree — about the wrong answer. Measured,
             // one such file under `policy/` holding `DATABASE_URL` and
             // `AWS_SECRET_ACCESS_KEY`: `check passed`, and the whole run
             // differing from a clean one by the path count going up by one.
             ("env.toml", true),
-            // A doubled or a trailing dot: git ignores these and the gate said
-            // they were modules, which is 48 names' worth of disagreement.
+            // A doubled or a trailing dot: git ignores these, and a gate that
+            // calls them modules disagrees with it over 48 generated names.
             ("env..rs", true),
             ("env.rs.", true),
             ("environment.rs", false),
@@ -11735,9 +11623,9 @@ mod tests {
 
     /// What counts as an environment file, and what is a template.
     ///
-    /// **The rule had no test at all**, so its whole shape could be reverted to
-    /// the `.env` prefix it replaced with the suite green — and it was wrong in
-    /// both directions anyway:
+    /// **The shape, held against a `.env` prefix**, which is wrong in both
+    /// directions. Reverted to one, the rule fails this test, and the gate
+    /// says:
     ///
     /// ```text
     /// .env.local.example   -> error: it holds real credentials
@@ -11745,9 +11633,9 @@ mod tests {
     /// secrets.env.local    -> ok  no .env is committed
     /// ```
     ///
-    /// `env_file:` in a compose file names exactly the shapes it missed, and
-    /// `.gitignore` has the same blind spot, so neither this nor the ignore file
-    /// stopped one reaching a clone.
+    /// `env_file:` in a compose file names exactly the shapes a prefix misses,
+    /// and an ignore rule on the same prefix has the same blind spot, so
+    /// neither would stop one reaching a clone.
     #[test]
     fn an_environment_file_is_one_whose_name_says_so() {
         for holds in [
@@ -11790,13 +11678,14 @@ mod tests {
     #[test]
     /// A module directory called `target` is source, and is walked.
     ///
-    /// **The skip matched by name at any depth**, and this repository's own
-    /// `nc-prune` has a `Target` trait, so the name is one a module would
-    /// plausibly take. Measured with an ordinary logging call site in such a
-    /// directory: the type-wall gate read one file fewer, `no_compile_time_query`
-    /// never opened it either, and `check passed` — while the byte-identical
-    /// file one directory up was a finding. `SKIP`'s own doc says every entry is
-    /// "build output or somebody else's tree", and this was neither.
+    /// **A skip matched by name at any depth takes it out**, and this
+    /// repository's own `nc-prune` has a `Target` trait, so the name is one a
+    /// module would plausibly take. Measured with such a skip and an ordinary
+    /// logging call site in such a directory: the type-wall gate read one file
+    /// fewer, `no_compile_time_query` never opened it either, and
+    /// `check passed` — while the byte-identical file one directory up was a
+    /// finding. `SKIP`'s own doc says every entry is "build output or somebody
+    /// else's tree", and this is neither.
     fn a_module_named_target_is_source_and_a_build_directory_is_not() {
         let scratch = std::env::temp_dir().join(format!("nc-skip-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&scratch);
@@ -11854,11 +11743,11 @@ mod tests {
                 "a module directory named `target` was skipped: {seen:?}"
             );
         }
-        // **The workspace's own build directory, and only that one.** The first
-        // form of this rule asked whether a `Cargo.toml` sat beside the
-        // directory, and one sits beside every member — so every crate got a
-        // directory nothing looks in. Measured on the real tree, the same file
-        // in two places:
+        // **The workspace's own build directory, and only that one.** A
+        // `Cargo.toml` sits beside every member, so asking whether one sits
+        // beside the directory gives every crate a directory nothing looks in.
+        // Measured on the real tree under that question, the same file in two
+        // places:
         //
         // ```text
         // migrations/.env.production   -> error: `.env.production` is committed here
@@ -11910,9 +11799,9 @@ mod tests {
                 "a directory with a familiar name hid a committed secret: {seen:?}"
             );
         }
-        // **A node manifest does not buy a hiding place**, which is what made
-        // this a two-line switch: adding one beside a `node_modules` took every
-        // walk-based gate off the files inside it.
+        // **A node manifest does not buy a hiding place**: if it did, adding
+        // one beside a `node_modules` would take every walk-based gate off the
+        // files inside it, a two-line switch.
         assert!(
             seen.contains(&"web/node_modules/left-pad/index.js".to_owned()),
             "a node manifest bought a directory nothing looks in: {seen:?}"
@@ -11963,12 +11852,11 @@ mod tests {
     #[test]
     fn the_exclusion_list_does_not_cover_what_the_gates_are_for() {
         // **And the list itself, because both tests here iterate it.** An entry
-        // deleted deletes its own case: measured in round sixty-five, dropping
+        // deleted deletes its own case: measured without this pin, dropping
         // `"policy"` — seven Cedar invariants and the schema — left
         // `check passed`, so the claim that the gates must reach that directory
-        // could be withdrawn with nothing said. `SKIP` is pinned exactly this
-        // way against `NOTHING_ELSE_MAY_BE_SKIPPED`; the list it is checked
-        // against was not.
+        // could be withdrawn with nothing said. `SKIP` is pinned the same way
+        // against `NOTHING_ELSE_MAY_BE_SKIPPED`.
         assert_eq!(
             COVERED,
             [
@@ -12028,23 +11916,21 @@ mod tests {
 
     /// A char literal is spent, and a lifetime is not.
     ///
-    /// **The clause this holds had no test at all.** Round 54 taught
-    /// `without_string_contents` to blank the *contents* of a char literal,
-    /// because `'{'` and `'}'` were braces to every brace-counting scan
-    /// downstream — and reverting that one clause left `cargo test -p xtask`
-    /// at `327 passed; 0 failed`. Nothing in the crate names this function;
-    /// its four call sites are floored only by counts that the tree happens to
+    /// **The test of one clause of `without_string_contents`.** It blanks the
+    /// *contents* of a char literal, because `'{'` and `'}'` are braces to every
+    /// brace-counting scan downstream — and measured without this test,
+    /// reverting that one clause left `cargo test -p xtask` green. Without it,
+    /// the call sites would be floored only by counts that the tree happens to
     /// leave balanced, because a body holding `'{' => depth += 1` and
     /// `'}' => …` cancels out.
     ///
     /// What the clause buys, measured in `ui.rs`'s counter-reader rule: a test
     /// reading a process-wide counter without the hold, with
     /// `let at = "x}y".find('}');` above the read, is **invisible** with the
-    /// clause reverted and **named** with it in place. A repair is a claim, and
-    /// this is the claim's case.
+    /// clause reverted and **named** with it in place.
     #[test]
     fn a_char_literal_is_spent_and_a_lifetime_is_kept() {
-        // The two that were braces to every scan downstream.
+        // The two that a brace-counting scan downstream would count.
         assert_eq!(
             super::without_string_contents("let a = '}';"),
             "let a = ' ';"
@@ -12053,8 +11939,8 @@ mod tests {
             super::without_string_contents("let a = '{';"),
             "let a = ' ';"
         );
-        // A quote inside one must not open a string, which is the older reason
-        // this branch exists at all.
+        // A quote inside one must not open a string, which is the other reason
+        // this branch exists.
         assert_eq!(
             super::without_string_contents("let a = '\"'; let b = \"x\";"),
             "let a = ' '; let b = \" \";"
@@ -12091,14 +11977,14 @@ mod tests {
     /// is the one its neighbour does not have. `without_string_contents` writes
     /// the closing `"#` of a raw string back as a single `"`, so every offset
     /// after the first raw string in a file is short by the number of hashes —
-    /// which is the third of the four failed attempts recorded on
-    /// [`super::the_test_modules`]. That difference is measured here rather
+    /// which is the third of the four simpler readings
+    /// [`super::the_test_modules`] lists. That difference is measured here rather
     /// than asserted in prose, because the day it stops being true is the day
     /// this function could be deleted in favour of the other one.
     ///
     /// The rest is what a brace-counting caller trips over: a `{` in a comment,
     /// a `{` in a string, a `{` in a raw string, and `'{'` — a char literal,
-    /// which is the fourth failed attempt.
+    /// which is the fourth.
     #[test]
     fn a_blanked_file_holds_no_comment_no_literal_and_the_same_offsets() {
         let same_length = |source: &str| {
@@ -12120,19 +12006,18 @@ mod tests {
         );
         // A string, a raw string with hashes, and a char literal.
         assert_eq!(super::blanked("let a = \"{\";"), "let a = \" \";");
-        // **Both sides of a raw string's hashes, not one.** This pinned
-        // `r#" " ;` — the opening hashes kept and the closing ones spent —
-        // which is a raw string that opens and never closes, so any reader
-        // scanning the result runs one delimiter out of phase for the rest of
-        // the file. The expectation was the defect: measured by a reviewer on
-        // 2026-09-12, one `let _ = r#"x"#;` in `check.rs` turned the floor
-        // census red with a list of garbage naming no floor.
+        // **Both sides of a raw string's hashes, not one.** `r#" " ;` — the
+        // opening hashes kept and the closing ones spent — is a raw string that
+        // opens and never closes, so any reader scanning the result runs one
+        // delimiter out of phase for the rest of the file: measured, one
+        // `let _ = r#"x"#;` in `check.rs` turned the floor census red with a
+        // list of garbage naming no floor.
         assert_eq!(super::blanked("let a = r#\"{\"#;"), "let a = r \" \" ;");
         assert_eq!(super::blanked("let a = '{';"), "let a = ' ';");
         // **A string may span lines.** A raw newline inside quotes is part of
-        // the literal, and the braces around it are not braces — the case that
-        // `without_string_contents`' own comment gets wrong, and the one that
-        // made this walk find an unbalanced file the first time it ran.
+        // the literal, and the braces around it are not braces — to a reader
+        // that ends a string at the newline, the walk below finds an
+        // unbalanced file.
         assert_eq!(super::blanked("let a = \"{\n}\";"), "let a = \" \n \";");
         // A lifetime is not a literal, and spending it would eat the code after.
         assert_eq!(
@@ -12169,16 +12054,15 @@ mod tests {
         // that balance — a scanner that reads a comment or a literal as code
         // finds one that does not.
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
-        // **Two counters, and the one that matters is incremented last.**
-        // `read` stood at the top of this callback and the floor beneath the
-        // walk was `read > 50`, so it counted files *opened* rather than files
-        // *judged* — measured, `if read > 0 { return; }` on the line under it:
-        // 88 files opened, none of them checked for length preservation or for
-        // brace balance, and this test `ok`. It is the shape
-        // `everything_reached_a_verdict` exists for, and the one repaired
-        // twenty lines away in `check.rs`: a filter between the counter at the
-        // top of a loop and the judgement at the bottom leaves every printed
-        // number whole while the rule is never asked.
+        // **Two counters, and the one that matters is incremented last.** One
+        // counter at the top of this callback, floored at `> 50`, counts files
+        // *opened* rather than files *judged* — measured,
+        // `if read > 0 { return; }` on the line under it: 88 files opened, none
+        // of them checked for length preservation or for brace balance, and
+        // this test `ok`. It is the shape `everything_reached_a_verdict` exists
+        // for: a filter between the counter at the top of a loop and the
+        // judgement at the bottom leaves every printed number whole while the
+        // rule is never asked.
         //
         // `opened` is the walk's own count of `.rs` files and `judged` is what
         // came out the far end of the assertions, so anything that leaves early
@@ -12238,8 +12122,8 @@ mod tests {
 
     /// The modules of tests are cut out, and only those.
     ///
-    /// **The boundary `xtask/src/release.rs` needs, and the four ways of
-    /// finding it that did not bind** are on [`super::the_test_modules`]. What
+    /// **The boundary `xtask/src/release.rs` needs, and the four simpler ways
+    /// of finding it that do not bind,** are on [`super::the_test_modules`]. What
     /// is watched here is the three ways it can be wrong: a `#[cfg(test)]` that
     /// is not a module, a second module of tests, and the words `#[cfg(test)]`
     /// written where they are not code — which is what a scanner reading its
@@ -12304,11 +12188,10 @@ mod tests {
 
     /// A compose file beside the stack's own is a finding, and only those are.
     ///
-    /// **The rule was a repair with no test.** `grep` found `a_second_compose_file`
-    /// at its definition and its one call site and nowhere else; `corpus.rs`'s
-    /// compose driver exercises `every_image_is_pinned`, not this, and the only
-    /// floor was `looked >= 7`. Measured: `if true { continue; }` before the push,
-    /// with a real override file in the tree, gave
+    /// **The rule's own test.** `corpus.rs`'s compose driver exercises
+    /// `every_image_is_pinned`, not this, and `looked >= 7` says nothing about
+    /// the verdict. Measured without this test: `if true { continue; }` before
+    /// the push, with a real override file in the tree, gave
     /// `ok the stack is one compose file` and `check passed`.
     ///
     /// Every name after the first, because `docker compose` merges any of them
@@ -12361,9 +12244,9 @@ mod tests {
 
     #[test]
     fn the_manifest_walk_finds_every_member_of_the_workspace() {
-        // Named rather than counted. `>= 2` passed while two of the four
-        // manifests were invisible, which is the shape of assertion §19.5 calls
-        // vacuous: true, and true of a broken walk too.
+        // Named rather than counted. `>= 2` passes with half the manifests
+        // invisible, which is the shape of assertion §19.5 calls vacuous: true,
+        // and true of a broken walk too.
         let found = manifests(root()).expect("the tree is readable");
         let paths: Vec<String> = found
             .iter()
@@ -12383,11 +12266,11 @@ mod tests {
 
     /// Every lint group `rustc` names is on the list this gate refuses.
     ///
-    /// **The list named two of the thirteen.** `warnings` and `unused` were on
-    /// it and the other eleven were not, so `#![allow(nonstandard_style)]` at a
-    /// crate root — or `future_incompatible`, or `rust_2024_compatibility` —
-    /// turned a whole group off for everything below it and the verdict printed
-    /// `ok lints` over it. The gate's own header says what it is for: an allow
+    /// **Every group, not two of them.** Measured with only `warnings` and
+    /// `unused` on the list: `#![allow(nonstandard_style)]` at a crate root — or
+    /// `future_incompatible`, or `rust_2024_compatibility` — turned a whole
+    /// group off for everything below it and the verdict printed `ok lints`
+    /// over it. The gate's own header says what it is for: an allow
     /// is a judgement about one lint, and a group is all of them at once.
     ///
     /// **Asked of the compiler rather than of a reader**, because a
@@ -12471,10 +12354,10 @@ mod tests {
 /// **The number a planted fixture has to sit past.** A fixture placed by
 /// `pid % k + c` lands in a window of `k` lines, and `k` is written in the test —
 /// so a filter carrying a constant *above* that window is invisible to it while
-/// turning the gate off for every real file. Measured: the four fixtures added
-/// for exactly this purpose sat in windows of 97, 40, 60 and 30 lines, and
-/// `if index > 300 { … }` planted in the blanket-allow walk passed all of them
-/// with a real blanket allow underneath and every count *up*.
+/// turning the gate off for every real file. Measured with four fixtures in
+/// windows of 97, 40, 60 and 30 lines: `if index > 300 { … }` planted in the
+/// blanket-allow walk passed all of them with a real blanket allow underneath
+/// and every count *up*.
 ///
 /// A fixture longer than the longest real file has no such window: any filter
 /// that would let a real file's tail through lets the fixture's defect through
@@ -12485,12 +12368,14 @@ mod tests {
 pub(crate) fn longest_file_read(root: &Path) -> usize {
     // **The workspace as well as the repository, and every kind a gate reads.**
     // Two of the gates this serves — the citation walk and the counts walk — read
-    // the workspace documents *above* the repository, and `<workspace>/NOCTUA.md`
-    // is 308 lines longer than the longest file here. So the fixtures planted
-    // inside that gap and a filter written in it was invisible again: measured,
-    // `if index > 5200 { reached += 1; continue; }` with a dangling citation at
-    // line 5352 of the Master Technical Reference gave `ok 1520 section
-    // citation(s) name a real section` — up from baseline — and `check passed`.
+    // the workspace documents *above* the repository, and one of those can be
+    // longer than every file here. Measured with `<workspace>/NOCTUA.md` the
+    // longer and the repository alone counted, the fixtures planted inside
+    // that gap, and a filter written in it was invisible:
+    // `if index > 5200 { reached += 1; continue; }` with a dangling citation
+    // at line 5352 of the Master Technical Reference gave
+    // `ok 1520 section citation(s) name a real section` — up from baseline —
+    // and `check passed`.
     //
     // The extension list is the union of what the gates read, not a private
     // three: nothing is live today at the other kinds, and a measurement that

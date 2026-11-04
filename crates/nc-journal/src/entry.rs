@@ -128,16 +128,16 @@ impl Outcome {
 
     /// Every outcome there is, and the only list of them.
     ///
-    /// **`parse` carried a second copy and nothing compared the two.** `as_str`
-    /// above is a match the compiler forces to be complete, so a variant added
-    /// to this enum must be given a spelling — and `parse` was a hand-written
-    /// array of six, as were both of the tests written over it. Measured: a
-    /// seventh variant compiled and left `cargo xtask check` at `check passed`,
-    /// `ok 1252 test(s)`, while being **writable and unreadable**. The writer
-    /// spells it, the row lands, and `Postgres::entry_from` cannot read it back
-    /// — so `verify` answers `EntryIsNotReadable` about a row nobody touched,
-    /// which is the sentence that means somebody with write access altered the
-    /// table.
+    /// **`parse` reads this list, not a second copy nothing
+    /// compares.** `as_str` above is a match the compiler forces to be
+    /// complete, so a variant added to this enum must be given a spelling — and
+    /// a hand-written array of six in `parse`, and in both of the tests written
+    /// over it, would not follow. Measured that way: a seventh variant compiles
+    /// and leaves `cargo xtask check` at `check passed` while being **writable
+    /// and unreadable**. The writer spells it, the row lands,
+    /// and `Postgres::entry_from` cannot read it back — so `verify`
+    /// answers `EntryIsNotReadable` about a row nobody touched, which is the
+    /// sentence that means somebody with write access altered the table.
     ///
     /// `the_list_of_outcomes_holds_every_variant_the_compiler_knows_about` is
     /// what keeps this complete, by counting the arms of the match above.
@@ -169,11 +169,11 @@ impl Outcome {
 /// **Sealed against construction, because its fields undo `Record`'s
 /// guarantee.** This file's own header says a `Record` "cannot carry a sequence
 /// number or a hash, so no caller can place an entry anywhere but the end or
-/// claim a link it did not compute" — and `Entry` carries both, `pub`, while
-/// `Store::append` takes an `Entry`. `Entry { sequence: 9_999, previous:
-/// Some([7; 32]), hash: [0; 32] }` compiled, and the only thing between it and
-/// a table was `readable`, called under a trait contract the trait cannot
-/// enforce.
+/// claim a link it did not compute" — and `Entry` carries both, `pub`,
+/// while `Store::append` takes
+/// an `Entry`. Unsealed, `Entry { sequence: 9_999, previous: Some([7; 32]), hash: [0; 32] }`
+/// compiles, and the only thing between it and a table is `readable`, called
+/// under a trait contract the trait cannot enforce.
 ///
 /// The fields stay readable — every consumer of a history reads them — and
 /// [`Entry::chain`] is the only way to make one. A test that needs a forged
@@ -230,8 +230,8 @@ impl Entry {
         // and not added below is a field no test can see: it would not change any
         // hash, so every tamper test still passes while the new value can be
         // edited in the table invisibly. The crate header calls that out as the
-        // hazard, and left it to whoever remembered. This makes it a compile
-        // error at the one site that has to know.
+        // hazard; this makes it a compile error at the one site that has to
+        // know, rather than something whoever adds the field must remember.
         let Record {
             realm,
             principal,
@@ -246,15 +246,16 @@ impl Entry {
             work_unit,
             recorded_at,
         } = &self.record;
-        // **And `Entry`'s own fields, for the same reason.** The paragraph above
-        // was written about `Record` and the two fields read through `self.` —
-        // `sequence` and `previous` — were read by field access, so `Entry` had
-        // no such compile error. Measured: `pub decided_by: String` added to
-        // `Entry`, initialised in `chain`, in `forged_for_tests` and in
-        // `postgres.rs`'s row reader so it round-trips through the shipped
-        // store, gave `check passed` with `ok 955 test(s)` — the exact baseline
-        // — and rewriting it left the digest unmoved. The kernel populates the
-        // authorization fields and `§14.9` adds more, which is where that bites.
+        // **And `Entry`'s own fields, for the same reason.** The paragraph
+        // above is about `Record`, and the two fields read through `self.` —
+        // `sequence` and `previous` — are read by field access, so without this
+        // `Entry` would have no such compile error. Measured:
+        // `pub decided_by: String` added to `Entry`, initialised in `chain`, in
+        // `forged_for_tests` and in `postgres.rs`'s row reader so it
+        // round-trips through the shipped store, gives `check passed` at the
+        // baseline — and rewriting it leaves the digest unmoved. The kernel
+        // populates the authorization fields and `§14.9` adds more, which is
+        // where that bites.
         //
         // `hash` is excluded by name: it is the output of this function, and a
         // hash over itself is not a hash.
@@ -265,13 +266,13 @@ impl Entry {
             hash: _,
         } = self;
         Value::object([
-            // **Every `u64` goes in as text.** They used to go in as
-            // `i64::try_from(x).unwrap_or(i64::MAX)`, which collapses every
-            // value at or above 2^63 onto one — so two entries differing only
-            // above that boundary hashed identically, and a tamper of
-            // `recorded_at` or `policy_epoch` verified clean. A saturating cast
-            // inside a hash is a collision by construction, and two of these
-            // fields carry values that come from outside this crate.
+            // **Every `u64` goes in as text.**
+            // `i64::try_from(x).unwrap_or(i64::MAX)` collapses every value at
+            // or above 2^63 onto one — so two entries differing only above that
+            // boundary would hash identically, and a tamper of `recorded_at` or
+            // `policy_epoch` verify clean. A saturating cast inside a hash is a
+            // collision by construction, and two of these fields carry values
+            // that come from outside this crate.
             ("sequence", Value::text(sequence.to_string())),
             (
                 "previous",
@@ -313,22 +314,22 @@ impl Entry {
 
     /// An entry with a hash somebody else chose. **For tests that forge one.**
     ///
-    /// `Entry` is `#[non_exhaustive]`, so a struct literal outside this crate no
-    /// longer compiles — which is the point: a hash a caller supplies is a link
-    /// it did not compute. The tamper suite exists to prove such an entry is
-    /// refused, and this is the door it goes through, named so that a reader of
-    /// a call site can see what is happening.
+    /// `Entry` is `#[non_exhaustive]`, so a struct literal outside this crate
+    /// does not compile — which is the point: a hash a caller supplies is a
+    /// link it did not compute. The tamper suite exists to prove such an entry
+    /// is refused, and this is the door it goes through, named so that a reader
+    /// of a call site can see what is happening.
     ///
-    /// **Behind the feature, and it was not.** This crate's manifest says
-    /// `test-support` is "off by default, so a shipped library cannot be
-    /// tampered with through its own public surface" — and this door is the one
-    /// that walks straight past `#[non_exhaustive]`, taking the hash as an
-    /// argument, while `Store::append` takes an `Entry`. Measured on 2026-09-08
-    /// with a `const _:` binding under `#[cfg(not(any(test, feature =
-    /// "test-support")))]`: `cargo build -p nc-journal` compiled, so the
-    /// sentence in the manifest was false. The gate that holds it now is in
-    /// `every_hatch_carries_its_reason`, and it asks the question of every crate
-    /// that declares such a feature rather than of this door alone.
+    /// **Behind the feature.** This crate's manifest says `test-support` is
+    /// "off by default, so a shipped library cannot be tampered with through
+    /// its own public surface" — and this door is the one that walks straight
+    /// past `#[non_exhaustive]`, taking the hash as an argument,
+    /// while `Store::append` takes an `Entry`. Measured with a `const _:`
+    /// binding under `#[cfg(not(any(test, feature = "test-support")))]`:
+    /// without the gate, `cargo build -p nc-journal` compiles, and the sentence
+    /// in the manifest is false. The gate that holds it is
+    /// in `every_hatch_carries_its_reason`, and it asks the question of every
+    /// crate that declares such a feature rather than of this door alone.
     #[cfg(any(test, feature = "test-support"))]
     #[doc(hidden)]
     #[must_use]
@@ -360,11 +361,10 @@ fn optional(value: Option<&str>) -> Value {
 /// Every edit that must change an entry's hash, in one place.
 ///
 /// **Behind the `test-support` feature, and shared rather than copied.** The
-/// tamper suite is an integration test, so it cannot reach a list inside a
-/// `#[cfg(test)]` module — an earlier version therefore kept a second copy and
-/// claimed in its own header that the two could not drift, while they already
-/// had, by one entry. A list a test can actually import is the only version of
-/// that claim that is true.
+/// tamper suite is an integration test, so it cannot reach a list inside
+/// a `#[cfg(test)]` module — and a second copy claiming in its own header that
+/// the two cannot drift would be a claim that drifts. A list a test can
+/// actually import is the only version of that claim that is true.
 ///
 /// Adding a field to [`Record`] means adding it here, and both suites then cover
 /// it without either being edited.
@@ -383,18 +383,19 @@ pub mod tamper {
 
     /// The same text with every letter's case flipped, and nothing else moved.
     ///
-    /// **What every edit below was missing.** Each one replaced a value with a
-    /// *different* value, so a `hashed_form` that normalised the field before
-    /// hashing it was still injective on every input this list owns: measured,
-    /// `Value::text(principal.to_string().to_lowercase())` in `hashed_form`
-    /// passed all 122 of `nc-journal`'s tests and printed `check passed`
-    /// byte-identical to a clean run, while `OpaqueId::new("Operator-1")` and
-    /// `"operator-1"` hashed the same and `verify` answered `Ok` over the swap.
-    /// Seven weakenings of that family survived — `realm`, `principal`,
-    /// `actor_chain`, `deciding_policy`, `policy_pack` and `grant_used`
-    /// lower-cased, and `realm` and `principal` truncated to twelve characters —
-    /// because every identifier this suite writes is already lower-case and
-    /// short, so every normalising rendering is the identity on every input.
+    /// **What every edit below would otherwise miss.** Each replaces a value
+    /// with a *different* value, so a `hashed_form` that normalised the field
+    /// before hashing it would still be injective on every input this list
+    /// owns: measured, `Value::text(principal.to_string().to_lowercase())`
+    /// in `hashed_form` passes the rest of `nc-journal`'s tests and
+    /// prints `check passed` byte-identical to a clean run,
+    /// while `OpaqueId::new("Operator-1")` and `"operator-1"` hash the same
+    /// and `verify` answers `Ok` over the swap. Seven weakenings of that family
+    /// survive without it — `realm`, `principal`, `actor_chain`,
+    /// `deciding_policy`, `policy_pack` and `grant_used` lower-cased,
+    /// and `realm` and `principal` truncated to twelve characters — because
+    /// every identifier this suite writes is already lower-case and short, so
+    /// every normalising rendering is the identity on every input.
     ///
     /// `nc-ids` accepts `[A-Za-z0-9-_.:]` verbatim and normalises nothing, so
     /// `Realm-1` and `realm-1` are two realms and a stored one can be respelled
@@ -416,41 +417,41 @@ pub mod tamper {
 
     /// The same text with a space on the end.
     ///
-    /// **The identifier fields cannot carry one and three fields can.**
-    /// `realm`, `principal`, `actor_chain` and `grant_used` are `OpaqueId`,
-    /// whose grammar `[A-Za-z0-9-_.:]` excludes whitespace — so trimming those
-    /// genuinely is the identity, and [`recased`] is the whole story for them.
-    /// `action`, `deciding_policy` and `policy_pack` are unconstrained
-    /// `String`s, and every value this suite wrote into them was already
-    /// trimmed ASCII.
+    /// **The identifier fields cannot carry one and three fields
+    /// can.** `realm`, `principal`, `actor_chain` and `grant_used`
+    /// are `OpaqueId`, whose grammar `[A-Za-z0-9-_.:]` excludes whitespace — so
+    /// trimming those genuinely is the identity, and [`recased`] is the whole
+    /// story for them. `action`, `deciding_policy` and `policy_pack` are
+    /// unconstrained `String`s, and every other value this suite writes into
+    /// them is already trimmed ASCII.
     ///
-    /// Measured: `hashed_form` rendering those three through `str::trim` —
-    /// `("action", Value::text(action.trim()))` and the two `Option`s through
-    /// `map(str::trim)` — gave `check passed, with 4 warn line(s) above` and
-    /// `ok 1072 test(s)`, the baseline verdict line for line, while two records
-    /// differing only in a trailing space on `action` landed on one digest. An
-    /// earlier entry's action can then be rewritten from `Delete` to `Delete `
-    /// and `verify` answers `Ok`.
+    /// Measured with neither these edits nor the whitespace shapes of
+    /// `crates/nc-journal/tests/tampering.rs`: `hashed_form` rendering those
+    /// three through `str::trim` — `("action", Value::text(action.trim()))` and
+    /// the two `Option`s through `map(str::trim)` — gives `check passed` at the
+    /// baseline verdict line for line, while two records differing only in a
+    /// trailing space on `action` land on one digest. An earlier entry's action
+    /// can then be rewritten from `Delete` to `Delete ` and `verify`
+    /// answers `Ok`.
     ///
-    /// The corpus was indexed by *field* and the property is (field ×
-    /// normalisation class); `the_corpus_can_tell_a_normalisation_from_the_
-    /// identity` in `crates/nc-journal/tests/tampering.rs` now walks the product.
+    /// The property is (field × normalisation class), not field
+    /// alone; `the_corpus_can_tell_a_normalisation_from_the_identity`
+    /// in `crates/nc-journal/tests/tampering.rs` walks the product.
     fn padded(text: &str) -> String {
         format!("{text} ")
     }
 
     /// The same edit at the other end.
     ///
-    /// **Every space in this apparatus was a trailing one.** [`padded`] appends
-    /// and so did every whitespace-carrying value in
-    /// `crates/nc-journal/tests/tampering.rs`, so a `hashed_form` that trimmed
-    /// only the *front* — `action.trim_start()` — was the identity on every
-    /// record and every edit here, and two records differing by a leading space
-    /// on `action` landed on one digest with the whole suite green and
-    /// `check passed` at its baseline count. That corpus's own normalisation
-    /// class is `str::trim`, which is symmetric and could not tell the two ends
-    /// apart either. Each repair to this file added the *value* it needed
-    /// rather than the class; a class needs both ends.
+    /// **A class needs both ends.** [`padded`] appends, and without this so
+    /// would every whitespace-carrying value in
+    /// `crates/nc-journal/tests/tampering.rs` — so a `hashed_form` that trimmed
+    /// only the *front*, `action.trim_start()`, would be the identity on every
+    /// record and every edit there, and two records differing by a leading
+    /// space on `action` would land on one digest with the whole suite green
+    /// and `check passed` at its baseline. That corpus's own normalisation
+    /// class is `str::trim`, which is symmetric and cannot tell the two ends
+    /// apart either.
     fn led(text: &str) -> String {
         format!(" {text}")
     }
@@ -458,11 +459,11 @@ pub mod tamper {
     /// Every field of a record, and one edit that changes it.
     ///
     /// **This list carries criterion 3's "any mutation of any field" clause**,
-    /// and nothing carried the list. Emptying it left the whole of `nc-journal`
-    /// green at 46 tests: `changing_any_field_changes_the_hash` and
-    /// `changing_any_field_of_any_entry_breaks_verification` both loop over it,
-    /// so an empty list means zero iterations and two tests that assert nothing.
-    /// Dropping a single field — `policy_epoch` — was green too.
+    /// and its floor carries the list. Emptied, it would leave the whole
+    /// of `nc-journal` green: `changing_any_field_changes_the_hash`
+    /// and `changing_any_field_of_any_entry_breaks_verification` both loop over
+    /// it, so an empty list means zero iterations and two tests that assert
+    /// nothing. Dropping a single field — `policy_epoch` — would be green too.
     ///
     /// `hashed_form` is protected by exhaustive destructuring, which is a
     /// compile error when a field is added. This is protected by
@@ -471,11 +472,11 @@ pub mod tamper {
     /// needed: the first says a new field reaches the hash, the second says
     /// somebody proved it can be noticed.
     ///
-    /// **Named and not linked**, because the target is a `#[cfg(test)]` item and
-    /// rustdoc can never resolve it: this was written as an intra-doc link, and
-    /// it was an `unresolved link` error the moment anything documented this
-    /// module — which nothing did, because `cargo doc` ran with no features and
-    /// `tamper` is behind `test-support`.
+    /// **Named and not linked**, because the target is a `#[cfg(test)]` item
+    /// and rustdoc can never resolve it: as an intra-doc link it is
+    /// an `unresolved link` error the moment anything documents this module,
+    /// and `cargo doc` with no features does not, because `tamper` is
+    /// behind `test-support`.
     ///
     /// # Panics
     ///
@@ -521,9 +522,9 @@ pub mod tamper {
                 );
             }),
             ("recorded_at", |entry| entry.record.recorded_at += 1),
-            // The one an earlier version could not catch at all: every `u64`
-            // went into the hash through a saturating cast, so anything at or
-            // above 2^63 collapsed onto a single value.
+            // The one a saturating cast cannot catch at all: every `u64` going
+            // into the hash through one, anything at or above 2^63 collapses
+            // onto a single value.
             ("recorded_at past the signed range", |entry| {
                 entry.record.recorded_at = u64::MAX;
             }),
@@ -559,7 +560,8 @@ pub mod tamper {
             }),
             // **And the three fields that are not identifiers**, whose values
             // an `OpaqueId`'s grammar does not bound. See `padded`: a rendering
-            // that trims these was the identity on every value this suite held.
+            // that trims these is otherwise the identity on every value this
+            // suite holds.
             ("action with its whitespace moved", |entry| {
                 entry.record.action = padded(&entry.record.action);
             }),
@@ -580,13 +582,14 @@ pub mod tamper {
             ("policy_pack with whitespace led onto it", |entry| {
                 entry.record.policy_pack = entry.record.policy_pack.as_deref().map(led);
             }),
-            // **And a character outside ASCII**, which no edit here could move.
-            // Every value this suite writes is ASCII, so a rendering that keeps
-            // only ASCII was the identity on all of them: measured, `action`
-            // rendered through `chars().filter(char::is_ascii)` left the whole
-            // of `nc-journal` green and `"Delete"` colliding with
-            // `"Delete\u{2028}"`. `recased`'s own doc says ASCII is the whole of
-            // what `OpaqueId::new` admits — and these three fields are `String`s
+            // **And a character outside ASCII**, which no other edit here
+            // moves. Every other value this list writes is ASCII, so a
+            // rendering that keeps only ASCII would be the identity on all of
+            // them: `action` rendered through `chars().filter(char::is_ascii)`
+            // would pass every other edit here with `"Delete"` colliding with
+            // `"Delete\u{2028}"`.
+            // `recased`'s own doc says ASCII is the whole of what
+            // `OpaqueId::new` admits — and these three fields are `String`s
             // that admit anything.
             ("action outside ASCII", |entry| {
                 entry.record.action.push('\u{2028}');
@@ -661,11 +664,11 @@ fn past_a_literal(characters: &[char], at: usize) -> Option<usize> {
 
 /// The text between a struct's own braces, with those braces matched.
 ///
-/// **`split_once("\n}")` is not that, and it cut the struct short.** The body
-/// ended at the first newline followed by a brace at column zero — and a `}` at
-/// column zero is what the *inside* of a multi-line string literal holds
-/// whenever somebody writes one. Measured, a `source_address` field added to
-/// [`Record`] under
+/// **`split_once("\n}")` is not that: it cuts the struct short.** The body
+/// would end at the first newline followed by a brace at column zero — and
+/// a `}` at column zero is what the *inside* of a multi-line string literal
+/// holds whenever somebody writes one. Measured, a `source_address` field added
+/// to [`Record`] under
 ///
 /// ```text
 /// #[doc = "Where the dispatch came from. The shape of a source address is
@@ -673,20 +676,21 @@ fn past_a_literal(characters: &[char], at: usize) -> Option<usize> {
 ///     one of a small set."]
 /// ```
 ///
-/// and threaded through `Record::new`, the exhaustive destructure as
-/// `source_address: _` and `postgres.rs`'s row reader, so it round-trips through
-/// the shipped store: all 122 of `nc-journal`'s tests green, including
-/// `every_field_of_a_record_has_an_edit`, whose whole job is to say that every
-/// field of a record has an edit that proves a change to it is noticed. The
-/// control — the same field under an ordinary `///` line — fails that test at
-/// once. The field is stored, is read back, and is hashed by nothing, which is
-/// acceptance criterion 3 false for it.
+/// and threaded through `Record::new`, the exhaustive destructure
+/// as `source_address: _` and `postgres.rs`'s row reader, so it round-trips
+/// through the shipped store: through that cut, every other test
+/// of `nc-journal` is green, including `every_field_of_a_record_has_an_edit`,
+/// whose whole job is to say that every field of a record has an edit that
+/// proves a change to it is noticed. The control — the same field under an
+/// ordinary `///` line — fails that test at once. The field is stored, is read
+/// back, and is hashed by nothing, which is acceptance criterion 3 false for
+/// it.
 ///
 /// A `//` line, a `/* … */` comment and a string literal are all spent here
 /// rather than counted, so a brace inside any of them is not a brace. That
 /// leaves nothing in a struct body that can hold an unmatched one. The block
-/// form was the second spelling of this defect and was found the same way: see
-/// the comment on that branch for the field it hid past 122 green tests.
+/// form is the second spelling of this defect: see the comment on that branch
+/// for the field it would hide past a green suite.
 ///
 /// # Panics
 ///
@@ -711,11 +715,11 @@ fn the_body_of_the_struct(source: &str, named: &str) -> String {
             }
             continue;
         }
-        // **And the block form, which is the same hole respelled.** A `//` line
-        // was spent and a `/* … */` was not, so a `}` inside one closed the
-        // struct at `depth == 0` and every field below it left the list. The
-        // doc gate does not cover it either: `opens_a_block_doc_comment` refuses
-        // `/**` and `/*!` and leaves a plain `/*` alone.
+        // **And the block form, which is the same hole respelled.** A `/* … */`
+        // that is not spent like a `//` line lets a `}` inside one close the
+        // struct at `depth == 0`, and every field below it leaves the list. The
+        // doc gate does not cover it either: `opens_a_block_doc_comment`
+        // refuses `/**` and `/*!` and leaves a plain `/*` alone.
         //
         // Measured, a `source_address: String` added to [`Record`] under
         //
@@ -726,11 +730,11 @@ fn the_body_of_the_struct(source: &str, named: &str) -> String {
         // ```
         //
         // and threaded through `Record::new`, `postgres.rs`'s row reader and
-        // the exhaustive destructure as `source_address: _`: `cargo fmt` clean,
-        // clippy clean, **122 of `nc-journal`'s tests green** and
-        // `cargo xtask check` printing `check passed` with every semantic number
-        // identical to a clean run. The field is stored, read back through the
-        // shipped store, and hashed by nothing.
+        // the exhaustive destructure as `source_address: _`: without the block
+        // form spent, `cargo fmt` clean, clippy clean, **`nc-journal`'s tests
+        // green** and `cargo xtask check` printing `check passed` with every
+        // semantic number identical to a clean run. The field is stored, read
+        // back through the shipped store, and hashed by nothing.
         //
         // Nested, because Rust nests block comments and rustc counts them.
         if here == '/' && characters.get(at + 1) == Some(&'*') {
@@ -801,16 +805,16 @@ fn the_body_of_the_struct(source: &str, named: &str) -> String {
 ///
 /// **Behind `test-support` rather than `#[cfg(test)]`, for the reason
 /// [`tamper`] gives.** The tamper suite is an integration test and could not
-/// reach this, so `tampering.rs`'s field comparator —
-/// `every_field_and_whether_it_differs` — was a *third* hand list, pinned
-/// against `MUST_HOLD`'s union and against the derived `PartialEq` and against
-/// nothing that reads `Record`. Measured: the four `epoch …` shapes deleted
-/// with their four `MUST_HOLD` rows and the comparator's one `policy_epoch`
-/// line, and `policy_epoch` put back through a saturating cast — every
-/// assertion in that file holds, `cargo xtask check` is byte-identical to a
-/// clean run, and `verify` answers `Ok` for any `policy_epoch` respelled at or
-/// above 2^63. The sentence four paragraphs up is the one that names the trap:
-/// two hand lists agree about a field neither knows.
+/// reach a `#[cfg(test)]` item, which would leave `tampering.rs`'s field
+/// comparator — `every_field_and_whether_it_differs` — a *third* hand list,
+/// pinned against `MUST_HOLD`'s union and against the derived `PartialEq` and
+/// against nothing that reads `Record`. Measured that way: the four `epoch …`
+/// shapes deleted with their four `MUST_HOLD` rows and the comparator's
+/// one `policy_epoch` line, and `policy_epoch` put back through a saturating
+/// cast — every assertion in that file holds, `cargo xtask check` is
+/// byte-identical to a clean run, and `verify` answers `Ok` for
+/// any `policy_epoch` respelled at or above 2^63. The sentence four paragraphs
+/// up names the trap: two hand lists agree about a field neither knows.
 ///
 /// # Panics
 ///
@@ -824,16 +828,16 @@ pub fn fields_of_the_struct(named: &str) -> Vec<String> {
     let source = include_str!("entry.rs");
     let body = the_body_of_the_struct(source, named);
     let body = body.as_str();
-    // **Every field, whatever its visibility.** This read `strip_prefix("pub ")`,
-    // and `pub(crate) source_address: String` does not start with `pub ` — nor
-    // does a private field. Such a field is stored, is bound by the exhaustive
-    // destructure below (as `source_address: _`, which warns about nothing), and
-    // is hashed by nothing: measured, added to `Record` and initialised in
-    // `Record::new`, `cargo xtask check` printed `check passed` over `872
-    // test(s)`, `every_field_of_a_record_has_an_edit` passed, the tamper suite
-    // passed — and rewriting that field left the digest unmoved, so `verify`
-    // reported a forged history clean. That is acceptance criterion 3 turned
-    // false by one word of visibility.
+    // **Every field, whatever its visibility.** `strip_prefix("pub ")` misses
+    // `pub(crate) source_address: String`, and a private field too. Such a
+    // field is stored, is bound by the exhaustive destructure below (as
+    // `source_address: _`, which warns about nothing), and is hashed by
+    // nothing: measured under that prefix, added to `Record` and initialised in
+    // `Record::new`, `cargo xtask check` prints `check passed`,
+    // `every_field_of_a_record_has_an_edit` passes, the tamper suite passes —
+    // and rewriting that field leaves the digest unmoved, so `verify` reports a
+    // forged history clean. That is acceptance criterion 3 turned false by one
+    // word of visibility.
     //
     // A field is a line inside the struct body that binds a name to a type. An
     // attribute, a doc comment and a nested `#[cfg]` are not.
@@ -851,14 +855,15 @@ pub fn fields_of_the_struct(named: &str) -> Vec<String> {
         .filter(|name| {
             // **A raw identifier is a name.** `pub r#type: String` is rustfmt's
             // own spelling — `type` is a keyword and this is how Rust writes a
-            // field called that — and `#` is not alphanumeric, so the field was
-            // dropped here, stored, bound by the exhaustive destructure as
-            // `r#type: _`, and hashed by nothing. Measured: added to `Record`
-            // and initialised, `every_field_of_a_record_has_an_edit` passed, the
-            // tamper suite passed, and `cargo xtask check` was green. Unlike the
+            // field called that — and `#` is not alphanumeric, so read as one
+            // the field would be dropped here, stored, bound by the exhaustive
+            // destructure as `r#type: _`, and hashed by nothing. Measured that
+            // way: added to `Record` and initialised,
+            // `every_field_of_a_record_has_an_edit` passes, the tamper suite
+            // passes, and `cargo xtask check` is green. Unlike the
             // two-fields-on-one-line and same-line-`#[cfg]` variants, this one
-            // survives `cargo fmt --check`, which is what makes it the one worth
-            // closing here rather than leaving to the formatter.
+            // survives `cargo fmt --check`, which is what makes it the one
+            // worth closing here rather than leaving to the formatter.
             let bare = name.strip_prefix("r#").unwrap_or(name);
             !bare.is_empty()
                 && bare
@@ -880,24 +885,25 @@ mod tests {
 
     /// Nothing a struct body may hold can close it early.
     ///
-    /// **The comment forms are the same defect three times.** `split_once("\n}")`
-    /// cut the body at a `}` inside a string literal; a `#[doc = "…}…"]`
-    /// attribute did it again once literals were spent; and a plain `/* … */`
-    /// did it a third time, because the scanner spent `//` lines and knew
-    /// nothing of the block form — and `opens_a_block_doc_comment` in the doc
-    /// gate refuses `/**` and `/*!` while leaving a plain `/*` alone.
+    /// **The comment forms are the same defect three
+    /// times.** `split_once("\n}")` cuts the body at a `}` inside a string
+    /// literal; a `#[doc = "…}…"]` attribute does it again once literals are
+    /// spent; and a plain `/* … */` does it a third time for a scanner that
+    /// spends `//` lines and knows nothing of the block form —
+    /// and `opens_a_block_doc_comment` in the doc gate refuses `/**` and `/*!`
+    /// while leaving a plain `/*` alone.
     ///
     /// Measured for the block form: a `source_address: String` added to
-    /// [`super::Record`] under a `/* … } … */` comment, threaded through
-    /// `Record::new`, `postgres.rs`'s row reader and the exhaustive destructure
-    /// as `source_address: _` — `cargo fmt` clean, clippy clean, **122 of
-    /// `nc-journal`'s tests green** and `cargo xtask check` printing
-    /// `check passed` with every semantic number identical to a clean run. The
-    /// field is stored, is read back through the shipped store, and is hashed
-    /// by nothing: acceptance criterion 3 false for it.
+    /// [`super::Record`] under a `/* … } … */` comment, threaded
+    /// through `Record::new`, `postgres.rs`'s row reader and the exhaustive
+    /// destructure as `source_address: _` — `cargo fmt` clean, clippy clean,
+    /// the rest of **`nc-journal`'s tests green** and `cargo xtask check`
+    /// printing `check passed` with every semantic number identical to a clean
+    /// run. The field is stored, is read back through the shipped store, and is
+    /// hashed by nothing: acceptance criterion 3 false for it.
     ///
-    /// And the other direction, which the repair itself could break: a comment
-    /// is *spent*, so nothing written inside one is read as a field.
+    /// And the other direction, which spending block comments could itself
+    /// break: a comment is *spent*, so nothing written inside one is read as a field.
     #[test]
     fn nothing_a_struct_may_hold_closes_it_early() {
         for (how, hidden) in [
@@ -909,11 +915,11 @@ mod tests {
             // **A raw literal holding the quote that would end an ordinary
             // one**, which is the only shape the raw branch decides. The row
             // above it is spent by the plain-literal path anyway — measured,
-            // the whole raw branch written `let raw = false;` left all 148
-            // tests green, that row included. Here the inner `"` closes a plain
-            // literal early, the `}` after it is then read as the struct's, and
-            // every field below leaves the list: stored, destructured as `_`,
-            // and hashed by nothing.
+            // the whole raw branch written `let raw = false;` leaves every
+            // other test green, that row included. Here the inner `"` closes a
+            // plain literal early, the `}` after it is then read as the
+            // struct's, and every field below leaves the list: stored,
+            // destructured as `_`, and hashed by nothing.
             (
                 "a raw doc attribute holding a quote",
                 "    #[doc = r#\"a\"}\"#]\n",
@@ -1008,24 +1014,24 @@ mod tests {
 
     /// `sequence` is hashed as the whole number it is, not a prefix of it.
     ///
-    /// **Every rendering floor this crate owns is scoped to `Record`.**
-    /// `CARRIES_TEXT` is `fields_of_the_struct("Record")` minus `result`, and
-    /// the truncation walk, the variant walk, the key walk and the nesting walk
-    /// are all indexed by those names — so `Entry`'s own two hashed fields sit
-    /// outside all of it. `previous` survives that gap because the test below
-    /// pins its rendered value; `sequence` had no value-level pin at all and was
-    /// never fed anything but a single digit, plus two extremes that differ in
-    /// their first one.
+    /// **Every rendering floor this crate owns is scoped
+    /// to `Record`.** `CARRIES_TEXT` is `fields_of_the_struct("Record")`
+    /// minus `result`, and the truncation walk, the variant walk, the key walk
+    /// and the nesting walk are all indexed by those names — so `Entry`'s own
+    /// two hashed fields sit outside all of it. `previous` survives that gap
+    /// because the test below pins its rendered value; without this `sequence`
+    /// has no value-level pin at all and is fed nothing but a single digit,
+    /// plus two extremes that differ in their first one.
     ///
-    /// Measured by a reviewer in wave 14: rendering it
-    /// `sequence.to_string().chars().take(3)` — the truncation class the corpus
-    /// already walks at every length for all eleven `Record` fields — left
-    /// `cargo xtask check` printing `ok 1440 test(s)` and `check passed`, with
-    /// all thirty-three of `tampering.rs`, which *is* acceptance criterion 3,
-    /// green, while `Entry::chain(1003, …)` and `Entry::chain(1007, …)` over the
-    /// same record landed on one digest. The sentence `hashed_form` states — two
-    /// entries with the same contents at different positions do not hash the
-    /// same — was decided only on `{0, 1, 2, i64::MAX, u64::MAX}`.
+    /// Measured: rendering it `sequence.to_string().chars().take(3)` — the
+    /// truncation class the corpus already walks at every length for all
+    /// eleven `Record` fields — leaves `cargo xtask check`
+    /// printing `check passed`, with all of `tampering.rs`, which *is*
+    /// acceptance criterion 3, green, while `Entry::chain(1003, …)`
+    /// and `Entry::chain(1007, …)` over the same record land on one digest. The
+    /// sentence `hashed_form` states — two entries with the same contents at
+    /// different positions do not hash the same — would be decided only
+    /// on `{0, 1, 2, i64::MAX, u64::MAX}`.
     #[test]
     fn the_position_is_hashed_as_the_whole_number_it_is() {
         for sequence in [0_u64, 1, 1003, 1007, 20_250_917, u64::MAX] {
@@ -1051,30 +1057,30 @@ mod tests {
 
     /// `prev_hash` is excused because `previous` carries its **value**.
     ///
-    /// **The excuse was a claim nothing checked.** Its list says, per column,
-    /// the hashed key the value reaches the digest under — and the assertion
-    /// beside it only asked whether the hashed form has *a* key of that name.
-    /// Measured: changing the shipped pair to `("prev_hash", "principal")` left
-    /// the test `ok`, so any hashed key's name would do. Carried through — a
-    /// `decided_by` column added to `Entry`, the destructure, the `INSERT`, the
-    /// row reader and a migration — `nc-journal`'s whole suite went green,
-    /// including the 27 tampering tests that *are* acceptance criterion 3,
-    /// while that column was rewritten in place through the shipped store with
-    /// `verify` clean.
+    /// **The excuse is a claim, so it is checked.** Its list says, per column,
+    /// the hashed key the value reaches the digest under — and an assertion
+    /// asking only whether the hashed form has *a* key of that name lets any
+    /// name do: measured, the shipped pair changed
+    /// to `("prev_hash", "principal")` leaves such a test `ok`. Carried through
+    /// — a `decided_by` column added to `Entry`, the destructure, the `INSERT`,
+    /// the row reader and a migration — `nc-journal`'s whole suite would then
+    /// go green, including the tampering tests that *are* acceptance
+    /// criterion 3, while that column is rewritten in place through the shipped
+    /// store with `verify` clean.
     ///
     /// So the one excuse that names a key is proved rather than asserted, and
     /// the list is closed: a third entry needs its own proof.
     #[test]
     fn the_link_is_hashed_under_the_name_it_is_excused_by() {
         // **Thirty-two bytes that differ, because thirty-two that do not prove
-        // nothing about a rendering.** This read `Some([7; 32])`, and every
-        // rendering that is the identity on a constant array but lossy on a
-        // real digest walked through it: measured in wave 15, rendering the
-        // link as `to_hex(&[hash[0]; 32])` throws away thirty-one of its
-        // thirty-two bytes and this assertion — the one named for the excuse —
-        // stayed green, along with all fifty unit tests and thirty-two of the
-        // thirty-three tampering tests, whose link-width loop flips bytes 1, 2,
-        // 4, 16 and 31 and so never touches the one that survives.
+        // nothing about a rendering.** Against `Some([7; 32])`, every rendering
+        // that is the identity on a constant array but lossy on a real digest
+        // walks through: measured, rendering the link as
+        // `to_hex(&[hash[0]; 32])` throws away thirty-one of its thirty-two
+        // bytes and such an assertion — the one named for the excuse — stays
+        // green, along with the unit tests and all but one of the tampering
+        // tests, whose link-width loop flips bytes 1, 2, 4, 16 and 31 and so
+        // never touches the one that survives.
         let link: [u8; 32] = core::array::from_fn(|byte| {
             u8::try_from(byte)
                 .unwrap_or(0)
@@ -1098,12 +1104,12 @@ mod tests {
 
     /// One excused column, proved by the value the digest carries.
     ///
-    /// **The assertion asked only whether *a* key of that name existed**, so
-    /// `("prev_hash", "principal")` passed — and so did a third entry with any
-    /// hashed key's name beside it, which is the whole distance between this
-    /// list and a column the store persists outside the digest. The repair
-    /// beside it hardcoded `previous` and never read the list, so it stood next
-    /// to the excuse rather than proving it.
+    /// **Not whether *a* key of that name exists**: asked that
+    /// way, `("prev_hash", "principal")` passes — and so does a third entry
+    /// with any hashed key's name beside it, which is the whole distance
+    /// between this list and a column the store persists outside the digest. A
+    /// check that hardcodes `previous` and never reads the list stands next to
+    /// the excuse rather than proving it.
     fn the_excuse_is_carried_by_value(column: &str, hashed_as: &str) {
         // value, because a name beside the column is not a proof.
         let linked = super::Entry::chain(1, Some([7; 32]), record());
@@ -1115,12 +1121,12 @@ mod tests {
             "prev_hash" => linked
                 .previous
                 .map(|hash| Value::text(nc_canon::to_hex(&hash))),
-            // **This arm was `None`, which inverted the assertion below.** For
-            // any column but `prev_hash` it required the hashed form *not* to
-            // carry a key of that name — the inverse of the sentence it prints.
-            // A third excuse naming a real hashed key failed; one naming a key
-            // that does not exist passed. Loud now, so a third entry cannot be
-            // added without writing its proof here.
+            // **Loud, not `None`.** A `None` arm would invert the assertion
+            // below: for any column but `prev_hash` it would require the hashed
+            // form *not* to carry a key of that name — the inverse of the
+            // sentence it prints — so a third excuse naming a real hashed key
+            // would fail and one naming a key that does not exist pass. Loud, a
+            // third entry cannot be added without writing its proof here.
             other => panic!(
                 "`{other}` is excused by a name, and this function knows how to prove \
                  only `prev_hash`. Write the proof beside the excuse"
@@ -1137,14 +1143,15 @@ mod tests {
 
     /// Every column the store's `SELECT` list puts back into an `Entry`.
     ///
-    /// **The cross-check scanned the `INSERT` alone**, and `postgres.rs` names
-    /// columns in two places: `const COLUMNS` is the read list behind `tail()`
-    /// and `from()`, and it decides what a row becomes. Measured: a `decided_by`
-    /// added to `COLUMNS`, to the row reader and to a migration but *not* to the
-    /// `INSERT`, left `nc-journal` green at 31 + 3 + 57 + 27 — including the 27
-    /// tampering tests that are acceptance criterion 3 — while
-    /// `ALTER TABLE … ALTER COLUMN … TYPE text USING` rewrote the column in
-    /// every row with `verify` clean.
+    /// **The `INSERT` is not the only list.** `postgres.rs` names columns in
+    /// two places: `const COLUMNS` is the read list behind `tail()`
+    /// and `from()`, and it decides what a row becomes. Measured with
+    /// the `INSERT` scanned alone: a `decided_by` added to `COLUMNS`, to the
+    /// row reader and to a migration but *not* to the `INSERT`
+    /// leaves `nc-journal` green — including the tampering tests that are
+    /// acceptance criterion 3 —
+    /// while `ALTER TABLE … ALTER COLUMN … TYPE text USING` rewrites the column
+    /// in every row with `verify` clean.
     fn every_column_the_store_reads_is_hashed(
         store: &str,
         present: &[&str],
@@ -1187,14 +1194,15 @@ mod tests {
 
     /// Every field of `Entry` is hashed, or is named here as not hashed.
     ///
-    /// **`Record` had two guards and `Entry` had none.** `hashed_form`
-    /// destructures the record exhaustively and `every_field_of_a_record_has_an_edit`
-    /// reads the struct out of the source; `Entry`'s own fields were read
-    /// through `self.`, which is not a compile error when a field is added.
-    /// Measured, `pub decided_by: String` added to `Entry` and threaded through
-    /// `chain`, `forged_for_tests` and `postgres.rs`'s row reader so it
-    /// round-trips through the shipped store: `check passed`, `ok 955 test(s)`,
-    /// the exact baseline, with the field editable in the table and the digest
+    /// **`Record` has two guards, and this gives `Entry` one.** `hashed_form`
+    /// destructures the record exhaustively
+    /// and `every_field_of_a_record_has_an_edit` reads the struct out of the
+    /// source; `Entry`'s own fields, read through `self.`, are not a compile
+    /// error when a field is added. Measured without
+    /// this, `pub decided_by: String` added to `Entry` and threaded
+    /// through `chain`, `forged_for_tests` and `postgres.rs`'s row reader so it
+    /// round-trips through the shipped store: `check passed` at the exact
+    /// baseline, with the field editable in the table and the digest
     /// unmoved. That is acceptance criterion 3 — "*any* mutation of *any*
     /// earlier entry breaks verification" — false for that field.
     ///
@@ -1241,29 +1249,28 @@ mod tests {
             );
         }
 
-        // **And the excuse list is read by the store, not only by itself.**
-        // The list above is two names in an array; adding a third is one token,
-        // and nothing counted it — measured, `pub decided_by: String` added to
-        // `Entry`, threaded through `chain`, `forged_for_tests` and
-        // `postgres.rs`'s row reader, bound as `decided_by: _` in the
-        // destructure and named here: `check passed`, `ok 960 test(s)`, and the
-        // pinned golden digests still matching, which is itself the proof the
-        // field is outside the hash while being `pub`, stored, and read back.
+        // **And the excuse list is read by the store, not only by itself.** The
+        // list above is two names in an array, and adding a third is one token
+        // — measured without this, `pub decided_by: String` added to `Entry`,
+        // threaded through `chain`, `forged_for_tests` and `postgres.rs`'s row
+        // reader, bound as `decided_by: _` in the destructure and named here:
+        // `check passed`, and the pinned golden digests still matching, which
+        // is itself the proof the field is outside the hash while being `pub`,
+        // stored, and read back.
         //
         // What makes a field dangerous is that the store persists it, so the
         // store's own `INSERT` is the second reader: a column it names is a
         // column somebody can rewrite in the table, and it has to be under the
         // digest. `sequence` and `prev_hash` are `Entry`'s two hashed fields
         // under the names the schema gives them; `hash` is the digest itself.
-        // **The column, and the hashed key it reaches the digest under.** This
-        // was a bare pair of names with none of the guards its sibling
+        // **The column, and the hashed key it reaches the digest under.** A
+        // bare pair of names with none of the guards its sibling
         // `NOT_HASHED_DIRECTLY` has — no stale-exemption check, no floor, no
-        // count — so one token undid the whole cross-check above it: the same
+        // count — lets one token undo the whole cross-check above it: the same
         // `pub decided_by`, threaded through `chain`, `forged_for_tests`, the
-        // row reader and the `INSERT`, and then added here, gave
-        // `30 passed` on this crate and `27 passed` on the tampering suite that
-        // *is* acceptance criterion 3. An excuse list is only as good as what
-        // reads it.
+        // row reader and the `INSERT`, and then added here, would pass this
+        // crate and the tampering suite that *is* acceptance criterion 3. An
+        // excuse list is only as good as what reads it.
         //
         // So each entry says what makes it safe, and the assertion below decides
         // it: a column is excused only if the value it carries is hashed under
@@ -1339,10 +1346,10 @@ mod tests {
 
     #[test]
     fn every_field_of_a_record_has_an_edit() {
-        // **The floor `edits()` had none of.** Emptying it left every test that
-        // uses it green, because they loop over it — so the clause criterion 3
-        // is written in ("*any* mutation of *any* field") was carried by a list
-        // nothing counted.
+        // **The floor `edits()` needs.** Without it, emptying the list leaves
+        // every test that uses it green, because they loop over it — so the
+        // clause criterion 3 is written in ("*any* mutation of *any* field")
+        // would be carried by a list nothing counted.
         //
         // The names are written out here rather than derived, so a field
         // renamed in `edits()` and not here is a failure rather than a silent
@@ -1366,9 +1373,10 @@ mod tests {
         // `tamper::edits()` are two hand lists, so they agree by construction
         // about any field *neither* knows: adding a real hashed field to
         // `Record` — struct, `Record::new`, and the exhaustive destructure in
-        // `hashed_form` — left this test green, and the tamper suite green with
-        // it. The only thing that fired was the golden vector, whose message
-        // points the author at the hashed shape and not at the missing proof:
+        // `hashed_form` — would leave a test of those two green, and the tamper
+        // suite green with it. The only thing that fires then is the golden
+        // vector, whose message points the author at the hashed shape and not
+        // at the missing proof:
         //
         // ```text
         // the hashed shape of an entry changed, and every entry already written
@@ -1430,13 +1438,13 @@ mod tests {
 
         // **And each edit changes the field it is named for.** Everything above
         // compares *names* — `FIELDS` against the struct, `FIELDS` against the
-        // labels `edits()` carries — and nothing tied a label to what its
-        // closure does. Measured: the edit labelled `grant_used` changed
-        // `record.action` instead, and the whole workspace stayed green, because
-        // `changing_any_field_of_any_entry_breaks_verification` and
+        // labels `edits()` carries — and this ties a label to what its closure
+        // does. Measured without it: the edit labelled `grant_used` changed to
+        // edit `record.action` instead leaves the whole workspace green,
+        // because `changing_any_field_of_any_entry_breaks_verification` and
         // `changing_any_field_changes_the_hash` both only require that
-        // *something* changed. "Any mutation of any field" was proved as "some
-        // mutation of some field".
+        // *something* changed. "Any mutation of any field" would be proved as
+        // "some mutation of some field".
         //
         // Read from the canonical form, which is where a hashed field is
         // visible by name: apply the edit to a fresh record and require the
@@ -1516,10 +1524,9 @@ mod tests {
 
     #[test]
     fn a_value_past_the_signed_range_still_changes_the_hash() {
-        // It did not: every `u64` went into the hash through a saturating cast
-        // to `i64`, so everything at or above 2^63 collapsed onto one value and
-        // a tamper in that range verified clean. Two of these fields carry
-        // values that come from outside this crate.
+        // Through a saturating cast to `i64`, every `u64` at or above 2^63
+        // collapses onto one value and a tamper in that range verifies clean.
+        // Two of these fields carry values that come from outside this crate.
         let mut high = record();
         high.recorded_at = i64::MAX as u64;
         let mut higher = record();
@@ -1545,18 +1552,17 @@ mod tests {
 
     /// Every spelling an outcome is written as, by hand.
     ///
-    /// **Three of the six were in no assertion and in no migration.**
-    /// `migrations/0001_journal.sql` writes `result TEXT NOT NULL` with no
-    /// `CHECK`, so nothing on disk records the vocabulary; `unit-committed` and
-    /// `unit-aborted` are written out in the crate's PostgreSQL tests and `allowed` is
-    /// in the golden vector, and `denied`, `failed` and `unit-begun` were held
-    /// by nothing. Each could be respelled with the whole suite green at
-    /// `865 test(s)`.
+    /// **Three of the six are in no other assertion and in no
+    /// migration.** `migrations/0001_journal.sql` writes `result TEXT NOT NULL`
+    /// with no `CHECK`, so nothing on disk records the
+    /// vocabulary; `unit-committed` and `unit-aborted` are written out in the
+    /// crate's PostgreSQL tests and `allowed` is in the golden vector,
+    /// and `denied`, `failed` and `unit-begun` are held only here. Without
+    /// this, each could be respelled with the whole suite green.
     ///
-    /// The only test over them was `an_outcome_round_trips_through_its_text`,
-    /// which asserts `parse(as_str(x)) == Some(x)` — an expectation derived from
-    /// the thing it tests, and true of any injective mapping, `"zzz-1"`
-    /// included.
+    /// `an_outcome_round_trips_through_its_text`
+    /// asserts `parse(as_str(x)) == Some(x)` — an expectation derived from the
+    /// thing it tests, and true of any injective mapping, `"zzz-1"` included.
     ///
     /// What a respelling costs is written in `unit.rs`, about the sibling
     /// constants: **there is no migration for a hashed column.** `denied`
@@ -1593,9 +1599,10 @@ mod tests {
     /// forces**, and `as_str` is one. Everything else here — `ALL`, and the
     /// written spellings below — is a hand list, so the two are compared: the
     /// arms of that match are counted and held against the length of the list
-    /// `parse` reads. A variant added to the enum gives the compiler an error in
-    /// `as_str` and nothing else; before this, giving it a spelling there was
-    /// enough to make the whole workspace green with the outcome unreadable.
+    /// `parse` reads. A variant added to the enum gives the compiler an error
+    /// in `as_str` and nothing else; without this, giving it a spelling there
+    /// would be enough to make the whole workspace green with the outcome
+    /// unreadable.
     #[test]
     fn the_list_of_outcomes_holds_every_variant_the_compiler_knows_about() {
         let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/entry.rs"))
@@ -1642,8 +1649,8 @@ mod tests {
             // text, so a reader that accepts more spellings than the writer
             // emits is a row that can be respelled without moving the digest.*
             //
-            // Measured with `parse` made case-insensitive: the whole workspace
-            // stayed green, and
+            // Measured with `parse` made case-insensitive and nothing here: the
+            // whole workspace stays green, and
             // `ALTER TABLE journal_entries ALTER COLUMN result TYPE text USING
             // upper(result)` then rewrites the heap, fires no row trigger — 0001
             // gives the column no `CHECK`, and this file says so — and every

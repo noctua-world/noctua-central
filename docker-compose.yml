@@ -11,12 +11,12 @@
 # would be serving an unauthenticated database to the room. This is the one line
 # that prevents it, and it is the reason each port is written the long way.
 
-# **No `name:` here, deliberately.** It was `noctua-central`, and `-p` on the
-# command line does win — `cargo xtask dev` is safe either way — but a bare
-# `docker compose` run by hand in *any* checkout then addressed one shared
-# project. So a developer's own `docker compose ps` showed nothing while the
-# xtask stack ran, and their `docker compose down -v` took down a project
-# `dev --down` would never clean up. `xtask/src/dev.rs`'s `project_for` derives
+# **No `name:` here, deliberately.** `-p` on the command line wins over one —
+# `cargo xtask dev` is safe either way — but with a fixed name a bare
+# `docker compose` run by hand in *any* checkout addresses one shared project:
+# a developer's own `docker compose ps` shows nothing while the xtask stack
+# runs, and their `docker compose down -v` takes down a project `dev --down`
+# would never clean up. `xtask/src/dev.rs`'s `project_for` derives
 # the name from the checkout's canonical path and prints it; without a `name:`
 # here, a hand-run `docker compose` falls back to the directory's name, which is
 # at least this checkout's own.
@@ -24,8 +24,7 @@
 services:
   postgres:
     # **Pinned by digest**, which is the only pin a tag cannot slide out from
-    # under. `postgres:18-alpine` was here alone, and the comment beside it
-    # defended that against `latest` — a different question: `18-alpine` still
+    # under. A tag that is not `latest` is not a pin either: `18-alpine` still
     # moves on every 18.x patch and every Alpine base rebuild, and a
     # `docker compose pull` takes whichever one is current. A major upgrade
     # rewrites the data directory and is a decision; so, in a smaller way, is
@@ -52,24 +51,25 @@ services:
       # image refuses to start against the older mount point and says why: with
       # the data one level down inside a single mount, a future major upgrade can
       # use `pg_upgrade --link`, which cannot cross a mount boundary. Measured
-      # here — the container restart-looped with "there appears to be PostgreSQL
-      # data in /var/lib/postgresql/data (unused mount/volume)" until this moved.
+      # here — on the older mount point the container restart-loops with "there
+      # appears to be PostgreSQL data in /var/lib/postgresql/data (unused
+      # mount/volume)".
       - postgres-data:/var/lib/postgresql
     healthcheck:
       # **A query over TCP, because `pg_isready` answers a different question.**
-      # This was `pg_isready -U … -d …`, with a comment saying the two flags were
-      # what stopped the migrations racing initialisation. They are inert:
-      # `pg_isready` pings the postmaster and never authenticates or opens the
-      # database it is given a name for. Measured against this stack:
+      # Its `-U` and `-d` flags do not stop the migrations racing
+      # initialisation, because they are inert: `pg_isready` pings the
+      # postmaster and never authenticates or opens the database it is given a
+      # name for. Measured against this stack:
       #
       #   pg_isready -U noctua     -d noctua                    -> accepting, exit 0
       #   pg_isready -U noctua     -d this_database_is_not_there -> accepting, exit 0
       #   pg_isready -U nosuchuser -d nosuchdb                   -> accepting, exit 0
       #
       # and against a fresh container it reported healthy for three polls while
-      # `POSTGRES_DB` did not exist yet. What actually kept the race from biting
-      # is that the entrypoint's initialisation server listens on the unix socket
-      # only — which is worth nobody's memory, and is not what the comment said.
+      # `POSTGRES_DB` did not exist yet. All that keeps the race from biting under
+      # `pg_isready` is that the entrypoint's initialisation server listens on
+      # the unix socket only — which is worth nobody's memory.
       #
       # `psql -h …` asks the question the caller cares about: is there a server
       # on the port I will connect to, does this role authenticate, and does this
@@ -85,11 +85,11 @@ services:
       #   PGPASSWORD=definitely-not-the-password psql -h 172.18.0.3 … ->  FATAL:
       #                                password authentication failed for "noctua"
       #
-      # So a wrong `POSTGRES_PASSWORD` left the stack `healthy` while every
-      # application connection failed — the green-healthcheck-broken-service
-      # shape this block's own comment argues against. The container's own
-      # routable address matches the scram rule, and `PGPASSWORD` is what makes
-      # the answer mean anything.
+      # So against `127.0.0.1` a wrong `POSTGRES_PASSWORD` leaves the stack
+      # `healthy` while every application connection fails — the
+      # green-healthcheck-broken-service shape this block's own comment argues
+      # against. The container's own routable address matches the scram rule,
+      # and `PGPASSWORD` is what makes the answer mean anything.
       test:
         - "CMD-SHELL"
         - >-
@@ -103,8 +103,8 @@ services:
 
   logs:
     # The central log store (`NOCTUA.md §15.4`, `§18.5`). Verified against that
-    # section's five requirements on 2026-08-25, on this machine, rather than
-    # taken from a name in a document:
+    # section's five requirements by running the image, rather than taken
+    # from a name in a document:
     #
     #   Apache-2.0            yes, github.com/VictoriaMetrics/VictoriaLogs
     #   a single binary       the image has no shell at all — `docker exec sh`
@@ -115,8 +115,8 @@ services:
     #   JSON lines over HTTP  POST /insert/jsonline accepted two lines and both
     #                         came back through /select/logsql/query
     # Pinned by digest, for the reason written beside `postgres` above: a tag is
-    # a name somebody else can repoint. This image carries `:latest` on the same
-    # digest today, which is exactly the slide the digest closes.
+    # a name somebody else can repoint. `:latest` on this image moves with every
+    # release, which is exactly the slide the digest closes.
     image: victoriametrics/victoria-logs:v1.52.0@sha256:47b820890d64c4575a2a0a46415dcd8a4fd59a0f1fcd6a377693d7aea639442e
     restart: unless-stopped
     ports:
@@ -138,11 +138,10 @@ services:
       # a single request. Measured: it exits 0 and the container reports
       # `healthy` with the HTTP server never asked anything.
       #
-      # The comment here used to say it "runs the binary's own health endpoint",
-      # which it does not. What proves the store is serving is
-      # `GET /health`, and that has to be asked from outside the container —
-      # `cargo xtask dev` does it, over a socket, and refuses to print the URL
-      # until it answers 200.
+      # It does not run the binary's own health endpoint. What proves the store
+      # is serving is `GET /health`, and that has to be asked from outside the
+      # container — `cargo xtask dev` does it, over a socket, and refuses to
+      # print the URL until it answers 200.
       test: ["CMD", "/victoria-logs-prod", "--help"]
       interval: 5s
       timeout: 3s

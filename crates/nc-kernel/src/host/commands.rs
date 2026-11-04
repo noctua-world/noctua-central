@@ -726,10 +726,10 @@ mod tests {
         state.commit(committed).await.expect("committed");
         let _denials = state.leave();
         assert_eq!(doomed(&tree), None, "returned with it committed");
-        // **The handle of a unit that was kept ends with its command too**,
-        // and a later command calling on it is told the handle ended — never
-        // that a unit was aborted, which a reviewer found it told, the kept
-        // unit and the asking command's own both standing.
+        // **The handle of a unit that was kept ends with its command too**, and
+        // a later command calling on it is told the handle ended — never that a
+        // unit was aborted, which would be false, the kept unit and the asking
+        // command's own both standing.
         let frame = Frame::for_tests(true, Some(unit()));
         let asking = frame.tree_for_tests();
         state.enter(frame);
@@ -872,8 +872,8 @@ mod tests {
     /// callback's own unit waits on it; the clock is paused, so the deadline
     /// passes the moment nothing else can run, and the outer bound turns a
     /// missing deadline into a failure instead of a test that never ends.
-    /// **Written by a reviewer**: with the deadline taken out of `owned`, every
-    /// suite of this crate stayed green.
+    /// **The deadline is held in `owned`**: with it taken out, this times out
+    /// at twice the host call's deadline and fails.
     #[tokio::test(start_paused = true)]
     async fn a_timers_begin_whose_journal_never_answers_traps_at_the_deadline() {
         let (kernel, ana) = crate::host::tests::a_kernel_for_ana().await;
@@ -904,10 +904,9 @@ mod tests {
     /// of its own holds, so what holds it is each wait of the dispatch nested
     /// in the tree. The command is unknown, so the dispatch is refused at the
     /// registry, and that refusal is journaled before it is answered, on a
-    /// journal whose lock the test holds. **A reviewer found a real bug with
-    /// it**: the wait had no bound, and the plugin was not stopped when its
-    /// tree's time was up — a timer's callback held the pump and the bus for
-    /// as long as the journal stalled.
+    /// journal whose lock the test holds. **The wait has a bound**: with none,
+    /// the plugin would not be stopped when its tree's time is up — a timer's
+    /// callback would hold the pump and the bus while the journal stalled.
     #[tokio::test(start_paused = true)]
     async fn a_dispatch_whose_journal_never_answers_waits_no_longer_than_a_host_call() {
         let (kernel, ana) = crate::host::tests::a_kernel_for_ana().await;
@@ -945,8 +944,8 @@ mod tests {
 
     /// A dispatch from a call tree with no time left, whose journal never
     /// answers, is answered at once: what the tree has left is nearer than a
-    /// host call's deadline. **Written by a reviewer**, who found it pending
-    /// past twice that deadline.
+    /// host call's deadline. A dispatch still waiting on the journal when
+    /// that deadline comes fails it.
     #[tokio::test(start_paused = true)]
     async fn a_dispatch_from_a_tree_with_no_time_left_is_answered_though_the_journal_never_is() {
         let (kernel, ana) = crate::host::tests::a_kernel_for_ana().await;

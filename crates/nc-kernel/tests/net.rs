@@ -603,10 +603,10 @@ async fn a_request_body_past_the_bound_is_refused_and_one_exactly_at_it_is_sent(
 /// together — of exactly the catalog's bound is sent, and one byte more is
 /// refused before the transport sees it, and logged by its headers.
 ///
-/// **Found by a reviewer: nothing bounded the head**, and a request the kernel
-/// accepted and `http` could not write — a URL past its length, a header past
-/// ureq's buffer — was told to the plugin as a network that did not answer,
-/// which may pass, and logged as nothing.
+/// **Unbounded, the head reaches what `http` cannot write**: a request the
+/// kernel accepted and `http` could not write — a URL past its length, a header
+/// past ureq's buffer — would be told to the plugin as a network that did not
+/// answer, which may pass, and logged as nothing.
 #[tokio::test]
 async fn a_request_head_past_the_bound_is_refused_and_one_exactly_at_it_is_sent() {
     let fixture = opened().await;
@@ -844,8 +844,8 @@ async fn a_refused_fetch_is_logged_once_for_its_reason_and_names_nothing_the_plu
 /// transport: what leaves a mark is sent only from a command that changes
 /// state, and a callback is none, whatever unit it holds.
 ///
-/// **No test held it before**: a reviewer let a timer's callback holding a
-/// unit send what leaves a mark, noted in its unit, and every suite passed.
+/// **A unit does not make a callback a change**: were a timer's callback
+/// holding one let send what leaves a mark, noted in its unit, this would fail.
 #[tokio::test]
 async fn a_timers_callback_holding_a_unit_may_get_and_is_refused_what_leaves_a_mark() {
     let fixture = opened_under(CALLED_BACK, &[]).await;
@@ -921,10 +921,9 @@ async fn an_events_callback_granted_the_network_may_get() {
 /// that it left the machine, so its step is no barrier to undo; one that may
 /// have reached its host keeps it.
 ///
-/// **Written by a reviewer, who found a real bug with it**: a `POST` whose name
-/// resolved to no public address — dialled nowhere — was kept as having left,
-/// and `kernel.undo` answered that the step did one thing that left the
-/// machine, never reaching past it.
+/// **What it holds against**: a `POST` whose name resolved to no public address
+/// — dialled nowhere — kept as having left, and `kernel.undo` answering that
+/// the step did one thing that left the machine, never reaching past it.
 #[tokio::test]
 async fn a_request_the_transport_refused_unwritten_leaves_no_note_and_bars_no_undo() {
     use nc_kernel::net::TransportError;
@@ -1000,11 +999,10 @@ async fn a_request_the_transport_refused_unwritten_leaves_no_note_and_bars_no_un
 /// its step is a barrier to undo: the request was sent, and its host may have
 /// acted on it, whatever the size of what came back.
 ///
-/// **Written by a reviewer (wave 5, net)**: `net.rs` says an answer too large
-/// was sent for, and nothing held it — `TooLarge` taken as sent nothing, in
-/// `sent_nothing` or in the condition that takes the note back, left the whole
-/// gate green, and `kernel.undo` then reached past a `POST` that reached its
-/// host.
+/// **What `net.rs` says, held**: an answer too large was sent for. With
+/// `TooLarge` taken as sent nothing, in `sent_nothing` or in the condition that
+/// takes the note back, `kernel.undo` would reach past a `POST` that reached
+/// its host, which this test refuses.
 #[tokio::test]
 async fn a_request_answered_too_large_keeps_its_note_and_bars_undo() {
     use nc_kernel::net::TransportError;

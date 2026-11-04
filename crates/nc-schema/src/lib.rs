@@ -161,43 +161,42 @@ const EXCERPT: usize = 64;
 /// Every code point a reader sees nothing of, as inclusive ranges.
 ///
 /// **Here, because a schema is refused by it, and one table for every reader.**
-/// It stood in the catalog compiler, where its escapers read it and where a
-/// command's argument schema was held to it; the kernel judges a plugin's
-/// schema through [`judge`], which never reached that check, so a direction
-/// override and a run of tag characters passed there. The compiler re-exports
+/// In the catalog compiler alone it would hold a command's argument schema and
+/// not a plugin's: the kernel judges a plugin's schema through [`judge`], and a
+/// check outside it lets a direction override and a run of tag characters
+/// pass there. The compiler re-exports
 /// this array and [`shows_nothing`] rather than keeping a copy, for the reason
 /// the next paragraph gives.
 ///
-/// **There were two of these lists and they disagreed.** The sweep in
-/// `crates/nc-catalog-compiler/tests/the_gates_fire.rs` transcribed the set a
-/// second time and then iterated a third set of ranges, and no reader of the
-/// three reached `U+110BD`/`U+110CD`, `U+00AD`, `U+180E`, `U+FFF9`–`U+FFFB` or
-/// `U+1D17B`–`U+1D182` — so five clauses of [`shows_nothing`], fifteen code
-/// points, were decided by nothing. Measured: all five deleted and
-/// `cargo test -p nc-catalog-compiler` stayed green at 48, 90 and 3 passed.
-/// With the Kaithi pair gone, `catalog/i18n/pt-BR.toml`'s
-/// `error.journal.chain-broken` — `NC-JRNL-0001`, critical, non-retryable, the
-/// journal-tampering message — filed as the **English** sentence plus `U+110BD`
-/// was accepted by `cargo xtask build`, published that English sentence in the
-/// pt-BR column of `docs/errors.md`, and reached the generated crate carrying
-/// the character as itself. That is the `U+070F` incident below, one plane up.
+/// **One list, not two that disagree.** A sweep
+/// in `crates/nc-catalog-compiler/tests/the_gates_fire.rs` that transcribed
+/// the set a second time and iterated a third set of ranges would reach none
+/// of `U+110BD`/`U+110CD`, `U+00AD`, `U+180E`, `U+FFF9`–`U+FFFB`
+/// or `U+1D17B`–`U+1D182`, leaving those fifteen code points decided by
+/// nothing — measured, all of them deleted from [`shows_nothing`]
+/// and `cargo test -p nc-catalog-compiler` green. With the Kaithi pair
+/// gone, `catalog/i18n/pt-BR.toml`'s `error.journal.chain-broken`
+/// — `NC-JRNL-0001`, critical, non-retryable, the journal-tampering message —
+/// filed as the **English** sentence plus `U+110BD` is accepted
+/// by `cargo xtask build`, publishes that English sentence in the pt-BR column
+/// of `docs/errors.md`, and reaches the generated crate carrying the character
+/// as itself. That is the `U+070F` case below, one plane up.
 ///
 /// A hand list bound to another hand list is not a check, so there is one list:
 /// [`shows_nothing`] answers from it and the sweep iterates it. What the sweep
 /// proves is then a fact about each character — that it reaches no doc line, no
 /// string literal, no published cell and not the reservation ledger — rather
-/// than a fact about the predicate, which is the earlier defect that test's own
-/// comments record.
+/// than a fact about the predicate.
 ///
-/// **The eleven `Cf` points the first transcription left out.** Its docstring
-/// said the category was `Cc` and `Cf` and the Arabic number and sign marks were
-/// missing — measured, `U+070F` appended to the English sentence and filed as
-/// the pt-BR translation of `NC-JRNL-0001`: `cargo xtask build` accepted it,
-/// `cargo xtask check` printed `check passed`, `docs/errors.md` published the
-/// identical English sentence in both language columns, and the character
-/// reached a generated Rust string literal as itself. The same plant with
-/// `U+2063` — which the list did name — is refused. Byte-identical sentences,
-/// opposite verdicts, decided by one code point.
+/// **The eleven `Cf` points a hand transcription of `Cc` and `Cf` can miss**,
+/// the Arabic number and sign marks among them — measured with one that did:
+/// `U+070F` appended to the English sentence and filed as the pt-BR
+/// translation of `NC-JRNL-0001` is accepted by `cargo xtask build`,
+/// `docs/errors.md` publishes the identical English sentence in both language
+/// columns, and the character reaches a generated Rust string literal as
+/// itself. The same plant with `U+2063` —
+/// which that list did name — is refused. Byte-identical sentences, opposite
+/// verdicts, decided by one code point.
 ///
 /// **Only what a reader sees nothing of.** Widening the ranges to make the sweep
 /// look thorough is the opposite error: `U+2010` is a hyphen and belongs in the
@@ -246,17 +245,17 @@ pub const INVISIBLE_RANGES: [(u32, u32); 25] = [
 /// question is different.** That predicate is about *direction*, and it is the
 /// right one for a message that could be made to render backwards. This one is
 /// about whether two strings a reader cannot tell apart are the same string —
-/// which is what the untranslated-message rule asks, and it was asking it with
-/// `split_whitespace`, which drops none of these.
+/// which is what the untranslated-message rule asks, and `split_whitespace`
+/// drops none of these.
 ///
-/// Measured: `catalog/i18n/pt-BR.toml`'s `NC-JRNL-0001` — `critical`,
-/// non-retryable, the journal-tampering message — set to the **English**
-/// sentence plus one `U+2063 INVISIBLE SEPARATOR`. `cargo xtask build` accepted
-/// it, `cargo xtask check` printed `check passed` at `ok 1082 test(s)`, and
-/// `docs/errors.md` published the English sentence in the pt-BR column of the
-/// row a reader consults when the audit chain does not add up. `U+200B` is
-/// caught, but by `clippy::invisible_characters` on the generated crate — the
-/// catalog's own rule never fired either way.
+/// With `split_whitespace` in the rule, `catalog/i18n/pt-BR.toml`'s
+/// `NC-JRNL-0001` — `critical`, non-retryable, the journal-tampering message —
+/// set to the **English** sentence plus one `U+2063 INVISIBLE SEPARATOR` is
+/// accepted by `cargo xtask build`, and `docs/errors.md` publishes the English
+/// sentence in the pt-BR column of the row a reader consults when the audit
+/// chain does not add up. `U+200B` would be caught, but by
+/// `clippy::invisible_characters` on the generated crate rather than by the
+/// catalog's own rule.
 ///
 /// The general category is `Cc` and `Cf`, and the answer comes from
 /// [`INVISIBLE_RANGES`] rather than from clauses written here: `is_control()`
@@ -272,10 +271,10 @@ pub fn shows_nothing(character: char) -> bool {
 
 /// Every further code point a reader sees nothing of, as inclusive ranges.
 ///
-/// **[`INVISIBLE_RANGES`] was one array answering two questions, and only one of
-/// them is its own.** It decides [`shows_nothing`], which four escapers read to
-/// say what must not reach a generated file — and it also decided the
-/// untranslated-message rule, which asks something else: whether two sentences a
+/// **[`INVISIBLE_RANGES`] answers one question, not two.** It decides
+/// [`shows_nothing`], which four escapers read to say what must not reach a
+/// generated file. The untranslated-message rule asks something else, whether
+/// two sentences a
 /// reader cannot tell apart are the same sentence. `U+3164 HANGUL FILLER` is the
 /// character that pulls the two apart: category `Lo`, a letter, and drawn as
 /// nothing. Measured, `catalog/i18n/pt-BR.toml`'s `error.journal.chain-broken` —
@@ -291,16 +290,17 @@ pub fn shows_nothing(character: char) -> bool {
 ///
 /// One sentence in both language columns of the row a reader consults when the
 /// audit chain does not add up, under a clean build. That is the `U+2063`
-/// incident and the `U+070F` incident a third time, and the three are one class.
+/// case and the `U+070F` case a third time, and the three are one class.
 ///
-/// **Nothing mechanical keeps these out of the escapers' array — what keeps
-/// them out is what the escapers do.** Measured, all 27 points below inserted
-/// into [`INVISIBLE_RANGES`] in order, its length taken to 33 and the frozen
-/// count in the sweep from 4244 to 4271: the crate suite passes, and
-/// `char::escape_debug` — the guard that stops that array widening into visible
-/// characters — declines to print every one of the 27, so it says nothing
-/// either. What the escapers then do to three ordinary sentences is the
-/// argument:
+/// **What keeps these out of the escapers' array is what the escapers do.**
+/// Measured, all 27 points below inserted into [`INVISIBLE_RANGES`] in order,
+/// its length taken to 33 and the frozen count in the sweep from 4244 to 4271:
+/// this crate's suite passes (the compiler's
+/// `the_blank_set_is_a_second_set_and_no_escaper_reads_it` is what refuses it),
+/// and `char::escape_debug` — the guard that stops that array widening into
+/// visible characters — declines to print every one of the 27, so it says
+/// nothing either. What the escapers then do to three ordinary sentences is
+/// the argument:
 ///
 /// ```text
 /// "⚠\u{FE0F} the disk is full"  ->  /// ⚠  the disk is full
@@ -348,11 +348,11 @@ pub const BLANK_RANGES: [(u32, u32); 8] = [
 /// **The refusing reader's question, which is neither of the other two.** An
 /// escaper replaces what [`shows_nothing`] holds with a space, and must leave
 /// [`BLANK_RANGES`] alone, since those sit inside words; a schema's text, a
-/// command's title, and a surface's title and texts are refused instead, and
-/// a refusal damages no word — so they are held to both, and a line or a label
-/// shown to a person has either replaced by `U+FFFD`. A reviewer found sixteen
-/// variation selectors, a byte in every two of them, carried unseen through a
-/// schema's description and a title.
+/// command's title, and a surface's title and texts are refused instead, and a
+/// refusal damages no word — so they are held to both, and a line or a label
+/// shown to a person has either replaced by `U+FFFD`. The measured case is
+/// sixteen variation selectors, a byte in every two of them, carried unseen
+/// through a schema's description and a title.
 #[must_use]
 pub fn unseen(character: char) -> bool {
     let point = character as u32;
@@ -1561,10 +1561,11 @@ mod tests {
 
     /// Every keyword the subset admits decides something, or says it cannot.
     ///
-    /// Found by review: this compared the keyword list with the table it is
-    /// read from, so `uniqueItems` added to the table compiled, reached every
-    /// schema as a keyword of the subset, and constrained nothing — with every
-    /// suite green. That is the defect the crate's own header exists to refuse.
+    /// Compared with the table it is read from, the keyword list cannot
+    /// fail: `uniqueItems` added to the table compiles, reaches every schema as
+    /// a keyword of the subset, and constrains nothing — with every suite
+    /// green, measured. That is the defect the crate's own header exists to
+    /// refuse.
     #[test]
     fn every_keyword_in_the_subset_decides_something_or_is_an_annotation() {
         let shown: BTreeSet<&str> = WHAT_EACH_KEYWORD_DOES
@@ -1685,9 +1686,9 @@ mod tests {
 
     /// A key written twice is refused, because two readers keep different ones.
     ///
-    /// Found while writing this: `serde_json` keeps the second of two equal
-    /// keys, so `additionalProperties` written `true` then `false` compiled as
-    /// closed while any reader keeping the first saw it open.
+    /// `serde_json` keeps the second of two equal keys, so without this
+    /// `additionalProperties` written `true` then `false` compiles as closed
+    /// while any reader keeping the first sees it open.
     #[test]
     fn a_key_written_twice_is_refused_rather_than_read_as_either() {
         let twice = r#"{"type":"object","additionalProperties":true,"additionalProperties":false}"#;
@@ -1701,13 +1702,12 @@ mod tests {
 
     /// A character a reader sees nothing of is refused wherever the text holds it.
     ///
-    /// Found by review: the rule stood in the catalog compiler alone, so
-    /// [`crate::judge`] — which the kernel asks of a plugin's command at
-    /// `activate` — accepted a description spelled in tag characters and a
-    /// property named with a zero-width space, and the header's one rule for
-    /// two callers was two. The characters are written here by hand rather
-    /// than read out of the table, so a row dropped from it is a refusal this
-    /// stops seeing.
+    /// With the rule standing in the catalog compiler alone, [`crate::judge`] —
+    /// which the kernel asks of a plugin's command at `activate` — accepts a
+    /// description spelled in tag characters and a property named with a
+    /// zero-width space, measured, and the header's one rule for two callers is
+    /// two. The characters are written here by hand rather than read out of the
+    /// table, so a row dropped from it is a refusal this stops seeing.
     #[test]
     fn a_character_a_reader_sees_nothing_of_is_refused_in_a_schemas_text() {
         for hidden in [
@@ -1748,11 +1748,11 @@ mod tests {
         }
     }
 
-    /// A description carrying bytes as variation selectors — four bits each,
-    /// so two to a byte, and drawn as nothing — is refused, as a run of tag
-    /// characters is. **Written by a reviewer, who found a real bug with it**:
-    /// `rm -rf` as twelve selectors compiled, read by an agent and unseen by
-    /// the person who reviewed the schema.
+    /// A description carrying bytes as variation selectors — four bits each, so
+    /// two to a byte, and drawn as nothing — is refused, as a run of tag
+    /// characters is. **A real bug of this shape**: `rm -rf` as twelve
+    /// selectors compiled, read by an agent and unseen by the person who
+    /// reviewed the schema.
     #[test]
     fn a_description_carrying_bytes_as_variation_selectors_is_refused() {
         let smuggled: String = "rm -rf"
@@ -2254,14 +2254,14 @@ mod tests {
         assert_eq!(refused[0].to_string(), "`/a~1b~0c`: is not a boolean");
     }
 
-    /// Far above what the lookups below cost, and far below what the scans did.
+    /// Far above what the lookups below cost, and far below what a scan costs.
     const BOUND: std::time::Duration = std::time::Duration::from_secs(2);
 
     /// Runs `work` until one run fits inside [`BOUND`], at most three times.
     ///
     /// **A bound in time, and the only way to hold these.** No count of
     /// comparisons can be read from outside a lookup. So each case is sized so
-    /// that the scan it refuses, planted back, took at least four times the
+    /// that the scan it refuses, planted back, takes at least four times the
     /// bound in a debug build, while the lookups take a small part of it. A
     /// run slowed by a loaded machine gets three tries; one past four times the
     /// bound is not a slow machine, and ends them. `scan` names what a failure
@@ -2285,11 +2285,10 @@ mod tests {
 
     /// Names are looked up, not scanned, when compiling and when validating.
     ///
-    /// Found by review: `required` and every argument key were each found by
-    /// a scan of the declared names, so what a schema of many names cost was
-    /// their square — on the host, at `activate` and at every dispatch, with no
-    /// fuel to meter it — while the crate's header said the schema alone
-    /// bounded the work.
+    /// With `required` and every argument key each found by a scan of the
+    /// declared names, what a schema of many names costs is their square — on
+    /// the host, at `activate` and at every dispatch, with no fuel to meter it
+    /// — while the crate's header says the schema alone bounds the work.
     #[test]
     fn many_names_cost_their_count_and_not_its_square() {
         /// Enough names that a scan of them costs many times a lookup.
@@ -2319,11 +2318,10 @@ mod tests {
 
     /// An enum is a set, when compiled and when a string is looked up in it.
     ///
-    /// Found by review, after the names above were repaired: an option was
-    /// refused as a duplicate by a scan of the options before it, and a string
-    /// was found by a scan of them all. Measured in a debug build, 40,000
-    /// options took 4.9 s to compile, and 50,000 strings against 20,000
-    /// options took 6.1 s to validate.
+    /// An option refused as a duplicate by a scan of the options before it, and
+    /// a string found by a scan of them all, cost the same square: measured in
+    /// a debug build, 40,000 options took 4.9 s to compile, and 50,000 strings
+    /// against 20,000 options took 6.1 s to validate.
     #[test]
     fn many_options_cost_their_count_and_not_its_square() {
         /// Enough options that a scan of them costs many times a lookup.
@@ -2349,8 +2347,8 @@ mod tests {
 
     /// An object costs the keys it holds, not the names its schema declares.
     ///
-    /// Found by review: every object in the arguments walked every name its
-    /// schema declared and looked each one up among its own keys, so 100,000
+    /// Every object in the arguments walking every name its schema declares and
+    /// looking each one up among its own keys costs the same: measured, 100,000
     /// objects of one key, against a schema of 20,000 names, took 33 s.
     #[test]
     fn many_objects_cost_their_own_keys_and_not_the_names_declared() {
@@ -2376,12 +2374,12 @@ mod tests {
 
     /// A full list stops the walk, however much of the arguments is left.
     ///
-    /// Found by review: the early return that stops the walk once the list is
-    /// full could be taken out with every suite green, because the list stays
-    /// at its bound either way and only the time to fill it changes. Here
-    /// every object lacks all but one of its schema's required names, so the
-    /// first object fills the list, and without the return each object after
-    /// it walks those names again.
+    /// Taken out, the early return that stops the walk once the list is full
+    /// changes nothing a test of the list can see: the list stays at its bound
+    /// either way, and only the time to fill it changes. Here every object lacks
+    /// all but one of its schema's required names, so the first object fills
+    /// the list, and without the return each object after it walks those names
+    /// again.
     #[test]
     fn a_full_list_stops_the_walk_however_much_is_left() {
         /// Enough required names that walking them costs many times one lookup.
@@ -2438,12 +2436,12 @@ mod tests {
 
     /// A name repeated in a diagnostic is escaped and cut short.
     ///
-    /// Escaped for every character the table holds and not only the controls.
-    /// Found while repairing the schema rule: an argument named with a
-    /// right-to-left override came back in a violation as the override itself,
-    /// turning the rest of the printed line around — and so would a property
-    /// named with one written as a JSON escape, which that rule lets pass
-    /// because the text shows six characters a reviewer can see.
+    /// Escaped for every character the table holds and not only the controls:
+    /// otherwise an argument named with a right-to-left override comes back in
+    /// a violation as the override itself, turning the rest of the printed line
+    /// around — and so would a property named with one written as a JSON
+    /// escape, which the schema rule lets pass because the text shows six
+    /// characters a reviewer can see.
     #[test]
     fn a_name_repeated_in_a_diagnostic_is_escaped_and_cut_short() {
         assert_eq!(excerpt("plain"), "plain");
@@ -2484,10 +2482,10 @@ mod tests {
 
     /// The pointer beside a fault repeats its names as the fault does.
     ///
-    /// Found by review: the fault was escaped and cut short while the pointer
-    /// printed beside it repeated the same name raw, so a property named with
-    /// an escape sequence cleared the terminal it was reported to, and a
-    /// keyword a megabyte long came back as a diagnostic a megabyte long.
+    /// A fault escaped and cut short while the pointer printed beside it
+    /// repeats the same name raw lets a property named with an escape sequence
+    /// clear the terminal it is reported to, and a keyword a megabyte long come
+    /// back as a diagnostic a megabyte long.
     #[test]
     fn a_pointer_repeats_a_name_escaped_and_cut_short() {
         // `ESC [2J` clears a terminal's screen.
@@ -2530,11 +2528,10 @@ mod tests {
 
     /// A key written twice, a `type`, a `required` name and an `x-entity`, cut short.
     ///
-    /// Each is a megabyte long and opens with `ESC [2J`. Found by review: each
-    /// of the four could repeat the name raw with every suite green, and a
-    /// probe then printed diagnostics of a million characters carrying the
-    /// escape — while the header promises a name from outside is escaped and
-    /// cut short wherever a fault repeats it.
+    /// Each is a megabyte long and opens with `ESC [2J`. Any of the four could
+    /// repeat the name raw, and a probe would then print diagnostics of a
+    /// million characters carrying the escape — while the header promises a
+    /// name from outside is escaped and cut short wherever a fault repeats it.
     fn the_four_other_places_a_schemas_words_come_back_are_cut_short() {
         let name = format!(r"\u001b[2J{}", "n".repeat(1_000_000));
         for (text, reached) in [

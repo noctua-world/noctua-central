@@ -240,10 +240,10 @@ pub fn judge_at(found: &[Found], applied: Option<&[i64]>) -> Result<(), String> 
 ///
 /// **By kind and name, never by name alone.** SQLite keeps triggers in a
 /// namespace of their own, so a trigger may bear the name of a table or an
-/// index, and a view the name of a trigger. A reviewer planted a trigger
-/// called `blobs` that rewrote every value committed, and another called
-/// `store_units_by_principal`: matched by name, each found the listed object
-/// and passed for it, and the file opened.
+/// index, and a view the name of a trigger. Matched by name, a trigger planted
+/// under `blobs` that rewrites every value committed, and another under
+/// `store_units_by_principal`, would each find the listed object and pass for
+/// it, and the file would open.
 fn judge_against(expected: &[Object<'_>], found: &[Found]) -> Result<(), String> {
     let mut wrong: Vec<String> = Vec::new();
     for object in expected {
@@ -320,31 +320,34 @@ pub fn at_least(version: &str, floor: (u32, u32, u32)) -> bool {
 /// build carries; and `sqlite_schema` holds what that history built and
 /// nothing else ([`judge_at`]).
 ///
-/// **Before, because the migrator writes.** It ran first, and a file the
-/// self-check then refused had been written to already — measured by a review:
-/// a file one migration behind with a trigger dropped had `0002_blobs.sql`
-/// applied and then came back `NC-DB-0007`, whose message to the user ends
-/// "Nothing was changed"; and one whose index `quick_check` called damaged had
-/// a `CREATE TABLE` written into it first. A write into a damaged file is how a
-/// damaged page becomes a lost one.
+/// **Before, because the migrator writes.** Run first, it would write to a
+/// file the self-check then refused — measured: a file one migration behind
+/// with a trigger dropped would have `0002_blobs.sql` applied and then come
+/// back `NC-DB-0007`, whose message to the user ends "Nothing was changed"; and
+/// one whose index `quick_check` calls damaged would have a `CREATE TABLE`
+/// written into it first. A write into a damaged file is how a damaged page
+/// becomes a lost one.
 ///
 /// **Everything the migrator would refuse, refused here first**: a version
 /// this build does not carry — a newer build's database — a version recorded
 /// as other SQL than this build carries for it, and one that did not run to
-/// its end, still told as the migration that failed (`NC-DB-0002`). They were the migrator's to refuse, and a reviewer found the file
-/// written to before it did: the pool that runs it sets `journal_mode = WAL`
-/// as it connects, which converted a file in rollback mode under a message
-/// saying nothing was changed. The migrator's refusal stays the second net;
+/// its end, still told as the migration that failed (`NC-DB-0002`). Left to the
+/// migrator, the file would be written to before it refused: the pool that
+/// runs it sets `journal_mode = WAL` as it connects, which would convert a file
+/// in rollback mode under a message saying nothing was changed. The migrator's
+/// refusal stays the second net;
 /// `a_newer_builds_file_is_refused_by_its_version_and_left_as_it_was` and
 /// `a_migration_edited_after_it_ran_is_refused` hold a file in rollback mode
 /// to its bytes.
 ///
 /// **The floor is handed in so its refusal can be driven**: the SQLite linked
 /// is the lockfile's, and no test can link an older one. Measured, with the
-/// comparison switched off — `if false && !at_least(…)` — every target of
-/// `cargo test -p nc-local` passed, and the one sentence that names
-/// CVE-2025-6965 to a user was a branch nothing entered. A floor above every
-/// SQLite there is enters it.
+/// floor fixed inside, the comparison switched off —
+/// `if false && !at_least(…)` — would leave every target of
+/// `cargo test -p nc-local` passing, and the one sentence that names
+/// CVE-2025-6965 to a user a branch nothing entered. Handed in, a floor above
+/// every SQLite there is enters it
+/// (`a_sqlite_below_the_floor_is_refused_naming_both`).
 ///
 /// # Errors
 ///
@@ -711,8 +714,8 @@ mod tests {
     ///
     /// **No file reaches it from outside**: what a file holds is judged before
     /// the migrator runs, so one that differs from the list is refused there
-    /// first — measured, with this judgement ignored, every target of
-    /// `cargo test -p nc-local` passed. What it alone sees is the migrator's own
+    /// first — measured, with this judgement ignored, every other test of
+    /// `cargo test -p nc-local` passes. What it alone sees is the migrator's own
     /// work, migrations that build what the list does not say. Driven here with
     /// the header stamped and nothing built, which differs from the list in
     /// every object.

@@ -365,10 +365,10 @@ impl<E: Environment> world::HostWriter for HostState<E> {
         let (blobs, store) = (Arc::clone(&self.blobs), Arc::clone(&self.store));
         // **The row is read before the bytes are named**, by the hash the
         // writer holds so far. The unit records the blob only once both have
-        // answered, so a row refused or never answered after the bytes were
-        // named left them under a hash no row names, which the unit let go did
-        // not know of. Read first, a refusal or the deadline drops the writer
-        // instead, and that deletes the writing.
+        // answered, so a row refused or never answered after the bytes are
+        // named would leave them under a hash no row names, which the unit let
+        // go does not know of. Read first, a refusal or the deadline drops the
+        // writer instead, and that deletes the writing.
         let named = blobs.hash_so_far(&taken);
         let made = in_time("blobs#[method]writer.finish", self.left(), async move {
             let row = store
@@ -721,8 +721,8 @@ mod tests {
 
     #[tokio::test]
     async fn a_timers_callback_that_began_a_unit_writes_no_blob_itself_and_is_told_why() {
-        // **A review found the old sentence false**: it said a callback runs
-        // in no unit of work, and a timer's callback may begin one.
+        // **The refusal's end is read**: a timer's callback may begin a unit, so
+        // the refusal says how it changes state, not that it runs in no unit.
         let mut state = granted(Some(
             Frame::for_tests(false, Some(a_unit()))
                 .calling_for_tests(Call::Timer { may_change: true }),

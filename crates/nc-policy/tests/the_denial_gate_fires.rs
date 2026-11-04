@@ -22,14 +22,13 @@ struct Scratch {
     root: PathBuf,
 }
 
-/// **A test cleans up on the way out.** This removed its directory only on the
-/// way in, so every run left one behind and nothing counted them: one passing
-/// `cargo test -p nc-policy --test the_denial_gate_fires` left 45 directories in
-/// `/tmp`, and 1,275 had accumulated over an afternoon of `cargo xtask check`.
-/// Its two sibling fixtures — `xtask/src/corpus.rs` and
-/// `crates/nc-catalog-compiler/tests/the_gates_fire.rs` — have carried this since
-/// they
-/// were written; this one was missed.
+/// **A test cleans up on the way out.** Removed only on the way in, every run
+/// leaves its directory behind and nothing counts them: measured that way, one
+/// passing `cargo test -p nc-policy --test the_denial_gate_fires` leaves 45
+/// directories in `/tmp`, and 1,275 accumulate over an afternoon of `cargo xtask check`.
+/// Its two sibling fixtures, `xtask/src/corpus.rs` and
+/// `crates/nc-catalog-compiler/tests/the_gates_fire.rs`, carry the same `Drop`
+/// for the same reason.
 impl Drop for Scratch {
     fn drop(&mut self) {
         let _ = std::fs::remove_dir_all(&self.root);
@@ -93,9 +92,8 @@ impl Scratch {
 
     /// The pack still loads: an edit that changes no rule changes no verdict.
     ///
-    /// The other direction of `must_fail`, and the one this suite lacked. A gate
-    /// that refuses ordinary prose is refused here rather than found by somebody
-    /// writing a comment.
+    /// The other direction of `must_fail`. A gate that refuses ordinary prose
+    /// is refused here rather than found by somebody writing a comment.
     fn must_pass(&self) {
         let problems = self.problems();
         assert!(
@@ -147,8 +145,8 @@ impl Scratch {
 
 /// Where a diagnostic has to name what broke.
 ///
-/// **`naming` was satisfied by the file path, and six rows across two suites
-/// paid for it.** `problem.what.contains(naming) || problem.file.contains(naming)`
+/// **`naming` is not satisfied by the file path when it is a datum.**
+/// `problem.what.contains(naming) || problem.file.contains(naming)`
 /// is the right question when `naming` is a path — a problem about a whole file
 /// names it in `file` and has nothing to repeat in `what` — and the wrong one
 /// when `naming` is a *datum the sentence computed*. Measured, `case.name`
@@ -183,13 +181,13 @@ fn copy(from: &Path, to: &Path) {
 
 /// The flag has to be true of the case that sets it.
 ///
-/// **`the_action_is_the_boundary` is a per-case opt-out and nothing verified
-/// it.** It relaxes the pairing rule so an action list can be pinned at all —
+/// **`the_action_is_the_boundary` is a per-case opt-out, and this is what
+/// verifies it.** It relaxes the pairing rule so an action list can be pinned at all —
 /// a case denied *because* the verb is outside the list has, by construction, a
 /// verb the permit never allows. What it does not do is check that the verb
 /// really is what refuses the request. Measured: the guardian boundary case
 /// retargeted at a principal who is not a guardian, using an action the permit
-/// *does* allow, kept its flag and its name and produced no
+/// *does* allow, keeps its flag and its name and, unverified, produces no
 /// `boundary-without-a-control` at all.
 ///
 /// The claim is one question: run the same request with a verb the permit
@@ -222,8 +220,8 @@ fn a_case_that_says_the_action_is_the_boundary_has_to_mean_it() {
 /// another kind of principal, which is the only way a `principal is User` can
 /// be pinned at all. What it must not do is let a case refused for some *other*
 /// reason buy that pairing. The device case moved to a realm it is not in keeps
-/// its flag and its name, and is now refused by membership: asked again as
-/// the principal of the permit's own `allow`, it is still denied.
+/// its flag and its name, and is then refused by membership: asked again as the
+/// principal of the permit's own `allow`, it is still denied.
 ///
 /// **This fixture holds only while no control is written on `Realm::"office"`.**
 /// The claim is that *some* principal the permit allows is permitted — see the
@@ -254,15 +252,15 @@ fn a_case_that_says_the_principal_is_the_boundary_has_to_mean_it() {
 
 /// The principal flag is met by one principal the permit allows, not by all.
 ///
-/// **Found by a reviewer: one correct `allow` turned both correct cases red.**
-/// A flagged case's controls match it on the resource's *type*, and the request
-/// asked again keeps the case's own resource and context — so a control the
-/// permit allows on another realm is refused on this one, by membership, and
-/// that refusal says nothing about who is asking. The claim was judged against
-/// every control, and `mallory Write Realm::"office"`, which Cedar allows,
-/// reported the device case and the agent case as
-/// `boundary-is-not-the-principal` with not one rule changed. The claim is that
-/// *some* principal the permit allows is permitted here.
+/// **One correct `allow` must not turn both correct cases red.** A flagged
+/// case's controls match it on the resource's *type*, and the request asked
+/// again keeps the case's own resource and context — so a control the permit
+/// allows on another realm is refused on this one, by membership, and that
+/// refusal says nothing about who is asking. Judged against every
+/// control, `mallory Write Realm::"office"`, which Cedar allows, reports the
+/// device case and the agent case as `boundary-is-not-the-principal` with not
+/// one rule changed. The claim is that *some* principal the permit allows is
+/// permitted here.
 ///
 /// The control is written in a file that sorts before `realm.toml`, so it is
 /// the first one judged — which is what a claim judged against the first
@@ -336,13 +334,13 @@ fn the_principal_flag_is_met_by_some_control_and_not_refuted_by_another_realms()
 
 /// A boundary flag on a case with no boundary is refused, not ignored.
 ///
-/// **Both flags are judged where the pairing is, and that reads
-/// `no_permit_matched` cases alone.** Found by a reviewer:
-/// `the_principal_is_the_boundary` added to the history permit's `allow` case
-/// left `cargo xtask check` printing the policy block unchanged, and the census
-/// shipped `/boundary=principal` beside an `Allow` — a claim no code evaluates,
-/// which `NOCTUA.md §19.5` calls a title rather than an assertion. The same flag
-/// on a denial a `forbid` caused was green too.
+/// **Both flags are judged where the pairing is, and that
+/// reads `no_permit_matched` cases alone.** Without
+/// this, `the_principal_is_the_boundary` added to the history permit's `allow`
+/// case leaves `cargo xtask check` printing the policy block unchanged, and the
+/// census prints `/boundary=principal` beside an `Allow` — a claim no code
+/// evaluates, which `NOCTUA.md §19.5` calls a title rather than an
+/// assertion. The same flag on a denial a `forbid` caused is green too.
 #[test]
 fn a_boundary_flag_on_a_case_with_no_boundary_is_refused() {
     let allow = Scratch::new("boundary-flag-on-an-allow");
@@ -374,13 +372,13 @@ fn a_boundary_flag_on_a_case_with_no_boundary_is_refused() {
 
 /// A pack's floor narrowed to one kind of resource in its condition is refused.
 ///
-/// **Found by a reviewer, on the shipped frozen-account floor.**
-/// `principal.status == "suspended"` rewritten as
-/// `(principal.status == "suspended" && resource is Content)` printed the policy
-/// block byte-identical and `check passed`, and a suspended account had its undo
-/// and redo back. A type test was excused anywhere in a pack floor's condition,
-/// and the mutation loops never drop a disjunct. It is excused there now only
-/// where it guards a read of the same subject, which this does not.
+/// **On the shipped frozen-account floor.** `principal.status == "suspended"`
+/// rewritten as `(principal.status == "suspended" && resource is Content)`
+/// prints the policy block byte-identical and `check passed` when a type test
+/// is excused anywhere in a pack floor's condition, and a suspended account has
+/// its undo and redo back; the mutation loops never drop a disjunct. A type
+/// test is excused there only where it guards a read of the same subject, which
+/// this does not.
 ///
 /// The cases in `accounts.toml` would also answer `wrong-decision` here, since
 /// each status is decided on every kind of resource a permit reaches. This asks
@@ -431,15 +429,14 @@ fn the_principal_flag_does_not_free_the_action_too() {
 
 /// A person's history is a person's: the type test saying so is pinned.
 ///
-/// **Found by a reviewer, shipped deleted.**
-/// `family.a_member_steps_through_their_own_history` went out without its
-/// `principal is User`, beside a note saying no request the schema can build
-/// shows the type test working. Two do: an attested device and an agent acting
-/// openly as one, each writing the realm — the undo and redo of a history that
-/// is not theirs — and both were allowed. The gate could not pin the type test
-/// then, because a denial for a device could only pair with an `allow` for a
-/// device. Now the two cases say the principal is their boundary, and deleting
-/// the type test turns both of them around.
+/// **The type test, held.** `family.a_member_steps_through_their_own_history`
+/// without its `principal is User`, beside a note saying no request the schema
+/// can build shows the type test working, is wrong twice over: two requests do
+/// — an attested device and an agent acting openly as one, each writing the
+/// realm, the undo and redo of a history that is not theirs — and both are
+/// allowed. A denial for a device that can only pair with an `allow` for a
+/// device cannot pin the type test; the two cases here say the principal is
+/// their boundary, and deleting the type test turns both of them around.
 #[test]
 fn the_type_test_that_keeps_devices_out_of_a_persons_history_is_pinned() {
     let scratch = Scratch::new("history-type-test");
@@ -461,14 +458,14 @@ fn the_type_test_that_keeps_devices_out_of_a_persons_history_is_pinned() {
 
 /// A permit widened by one token is caught, and the check is reached to catch it.
 ///
-/// **Nothing held the call site.** `check_every_permit_constraint_is_tested` is
+/// **This holds the call site.** `check_every_permit_constraint_is_tested` is
 /// the check that makes "every policy has a denial test" mean something — a
 /// permit widened to a bare `action` keeps its denial test and stops being the
-/// rule it was — and its only coverage was two unit tests on synthetic strings.
-/// Deleting the one line that calls it left `check passed` with the same 675
-/// tests and the same `13 policy(ies) each have a denial test`, and the three
-/// `the_action_is_the_boundary` cases written to satisfy it became decoration
-/// with nothing saying so.
+/// rule it was — and two unit tests on synthetic strings do not reach it:
+/// deleting the one line that calls it leaves `check passed` with the same test
+/// count and the same `N policy(ies) each have a denial test`, and
+/// the `the_action_is_the_boundary` cases written to satisfy it become
+/// decoration with nothing saying so.
 ///
 /// Driven through `run`, which is the door `xtask` uses.
 #[test]
@@ -478,15 +475,15 @@ fn widening_a_permit_by_one_token_is_reported() {
     // which is the mechanism working; what this drives is the *other*
     // direction, the one that says nothing pins the constraint at all.
     //
-    // **One case, so the constraint has to be one only that case pins.** This
-    // took away the guardian permit's action case, and the pack's permits over
-    // the realm then pinned that same list several times over — a guardian is
-    // refused `Share` on the realm, `Read` on another realm and `Delete` on her
-    // own account, and each of those becomes an `allow` if her
-    // `Grant`/`Revoke` list is widened — so taking that case away left the
-    // list pinned and the pack clean. The permit here is `Read` on shared content, and the one other case
-    // sending another verb at content the household shares is refused by a
-    // `forbid`, which a wider permit does not move.
+    // **One case, so the constraint has to be one only that case pins.** Taking
+    // away the guardian permit's action case leaves the list pinned and the
+    // pack clean, because the pack's permits over the realm pin that same list
+    // several times over — a guardian is refused `Share` on the realm, `Read`
+    // on another realm and `Delete` on her own account, and each of those
+    // becomes an `allow` if her `Grant`/`Revoke` list is widened. The permit
+    // here is `Read` on shared content, and the one other case sending another
+    // verb at content the household shares is refused by a `forbid`, which a
+    // wider permit does not move.
     let scratch = Scratch::new("unpinned");
     scratch.edit("policy/packs/family/tests/permissions.toml", |text| {
         let at = text
@@ -503,17 +500,16 @@ fn widening_a_permit_by_one_token_is_reported() {
         "a_member_reads_shared_content",
     );
 
-    // **A `.toml` outside a `tests/` directory is not a case.** The clause that
-    // says so decided nothing: deleted on its own, every test in this crate and
-    // the whole of `cargo xtask check` stayed green — measured by a reviewer on
-    // 2026-09-13 — because the pack's own files happen to parse as nothing a
-    // case loader complains about. The pack's `permissions.toml` is the file
-    // this protects: read as a case it is not a case, and the count a gate
-    // compares against a written number would move under it.
-    // **And a case file one directory deeper is still a case.** The rule asked
-    // whether the *immediate* parent is `tests`, while its own doc said any
-    // such directory: a file one level deeper ran nowhere and the
-    // count stayed where it was. Reported on 2026-09-13.
+    // **A `.toml` outside a `tests/` directory is not a case.** Deleted on its
+    // own, the clause that says so reads every `.toml` under `policy/` as a
+    // case file, the family pack's `pack.toml` among them, and the suite fails
+    // on `case-file-malformed` — measured. That manifest is the file this
+    // protects: read as a case it is not a case, and the count a gate compares
+    // against a written number would move under it.
+    // **And a case file one directory deeper is still a case.** A rule asking
+    // whether the *immediate* parent is `tests`, while its own doc says any
+    // such directory, runs a file one level deeper nowhere and leaves the count
+    // where it was.
     let deeper = Scratch::new("deeper");
     let (before, _) = cases::load(&deeper.root).expect("the copied cases load");
     let grouped = deeper.root.join("policy/packs/family/tests/grouped");
@@ -570,17 +566,15 @@ fn widening_a_permit_by_one_token_is_reported() {
 
 /// Every case reports the line its name is declared on.
 ///
-/// **Eleven diagnostics carry a line and nothing in this crate read one back.**
-/// `Case::line` feeds every `line: case.line` in the judge, and no test in
-/// `nc-policy` or in `xtask/src/policy.rs` ever looked at `Problem::line` — so
-/// the whole locator could be replaced by a constant, or by the line of the
-/// first `[[case]]` header in the file, and every suite stayed green. Measured
-/// in round sixty-two by a reviewer sweeping the clauses no mutation operator
-/// reaches. `nc-catalog-compiler` has been repaired twice for this exact class;
-/// this crate never was.
+/// **Every diagnostic that carries a line is read back here.** `Case::line`
+/// feeds every `line: case.line` in the judge, and nothing else in `nc-policy`
+/// or in `xtask/src/policy.rs` checks `Problem::line` — so without this the
+/// whole locator could be replaced by a constant, or by the line of the
+/// first `[[case]]` header in the file, with every suite green, measured.
 ///
-/// Reading the reported line *back off the file* is the repair, and it is the
-/// same shape `the_gates_fire.rs` uses for `blank-message` and `name-collision`.
+/// Reading the reported line *back off the file* is the check, and it is the
+/// same shape `the_gates_fire.rs` uses for `blank-message`
+/// and `name-collision`.
 #[test]
 fn every_case_reports_the_line_its_name_is_declared_on() {
     let (cases, files) = cases::load(&repository()).expect("the cases load");
@@ -638,11 +632,11 @@ fn a_comment_that_quotes_a_case_name_is_not_where_the_case_is_declared() {
         .clone();
     // **The declaration, quoted.** A comment naming the case in prose is
     // already refused by the needle — `line_of` is handed `name = "…"`, which
-    // prose does not hold — so the comment clause beneath it was decided by
-    // nothing and could be deleted with every suite green. Measured in round
-    // sixty-three. What reaches the clause is a comment quoting the declaration
-    // itself, which is how these files are written when somebody copies a case
-    // to explain it.
+    // prose does not hold — so the comment clause beneath it is decided by
+    // nothing else and can be deleted with every other suite green, measured.
+    // What reaches the clause is a comment quoting the declaration itself,
+    // which is how these files are written when somebody copies a case to
+    // explain it.
     scratch.edit(relative, |text| {
         format!(
             "# name = \"{}\" is what this file opens with.\n{text}",
@@ -734,9 +728,9 @@ fn the_pack_this_repository_ships_is_clean() {
     assert!(problems.is_empty(), "{problems:#?}");
     // **Every case, not fifteen of them.** `ran >= 15` against 40 leaves
     // twenty-five cases payable by any filter between the loop's head and its
-    // verdicts — which is what `ran += 1` sitting first in the body was: three
-    // lines skipping one file left the printed count byte-identical. The
-    // counter is the last statement now, so the number falls when a case is
+    // verdicts — which is what `ran += 1` sitting first in the body is: three
+    // lines skipping one file leave the printed count byte-identical. The
+    // counter is the last statement, so the number falls when a case is
     // skipped, and this is what says it may not.
     //
     // Equality, because every case in this pack is well-formed: the one
@@ -763,12 +757,13 @@ fn the_pack_this_repository_ships_is_clean() {
 
 #[test]
 fn an_allow_case_is_not_a_denial_test_however_it_is_written() {
-    // `coverage` credited a `no_permit_matched` case as a denial test whatever
-    // its decision, so an `allow` case naming a permit counted as that permit's
-    // negative test. `run` catches that shape by another route today, and
-    // `coverage` is called on its own by the gate — so deleting the guard left
-    // the whole suite green, which is the "wired, and can regress out of
-    // existence without a red light" shape the two checks above were fixed for.
+    // Crediting a `no_permit_matched` case as a denial test whatever its
+    // decision, `coverage` would count an `allow` case naming a permit as that
+    // permit's negative test. `run` catches that shape by another route, and
+    // `coverage` is called on its own by the gate — so without this, deleting
+    // the guard leaves the whole suite green, which is the "wired, and can
+    // regress out of existence without a red light" shape the two checks above
+    // are held against.
     let scratch = Scratch::new("allow-is-not-a-denial");
     scratch.edit("policy/packs/family/tests/permissions.toml", |text| {
         text.replace(
@@ -790,10 +785,10 @@ fn an_allow_case_is_not_a_denial_test_however_it_is_written() {
 fn a_statement_that_is_not_a_policy_is_refused_rather_than_ignored() {
     // **A Cedar template parses and is not a policy.** `PolicySet::from_str`
     // accepts it and `policies()` yields nothing, so a Cedar file in
-    // `policy/core/` written this way was read as in force and was in force
+    // `policy/core/` written this way would be read as in force and be in force
     // nowhere: no `@id` requirement, no narrowing check, no denial test, and the
-    // `13 policy(ies) parse and validate` count did not move — so `§19.3`'s
-    // floor could not see it either.
+    // `13 policy(ies) parse and validate` count unmoved — so `§19.3`'s floor
+    // could not see it either.
     let templated = Scratch::new("policy-template");
     templated.edit("policy/core/fail_closed.cedar", |text| {
         text.replace("  principal,\n", "  principal == ?principal,\n")
@@ -802,9 +797,9 @@ fn a_statement_that_is_not_a_policy_is_refused_rather_than_ignored() {
 
     // **And the template written the way a person writes an annotation.**
     // `@id ("…")`, with a space, is legal Cedar and `policy.annotation("id")`
-    // reads it — and the rule this test drives used to count the four-byte
-    // literal `@id("`, so the space made the whole statement invisible: a
-    // sixteenth rule on disk, in force nowhere, with `check passed`.
+    // reads it — and a rule counting the four-byte literal `@id("` misses it:
+    // the space makes the whole statement invisible, a sixteenth rule on disk,
+    // in force nowhere, with `check passed`.
     let spaced = Scratch::new("policy-template-spaced");
     spaced.edit("policy/core/fail_closed.cedar", |text| {
         text.replace("  principal,\n", "  principal == ?principal,\n")
@@ -812,12 +807,12 @@ fn a_statement_that_is_not_a_policy_is_refused_rather_than_ignored() {
     });
     spaced.must_fail("policy-is-not-in-force", "fail_closed.cedar");
 
-    // **And a comment that mentions an annotation is not one.** Two ordinary
-    // lines of prose above the `@id` — the kind this tree writes everywhere —
-    // refused the whole file, `load` returned `Err`, and every later policy
-    // check stopped running: 32 of this harness's 36 tests failed naming the
-    // wrong one. `fail_closed.cedar` already writes the words one character
-    // from tripping it.
+    // **And a comment that mentions an annotation is not one.** Refusing the
+    // whole file for two ordinary lines of prose above the `@id` — the kind
+    // this tree writes everywhere — makes `load` return `Err` and every later
+    // policy check stop running: 32 of this harness's 36 tests failing, naming
+    // the wrong one, measured. `fail_closed.cedar` writes the words one
+    // character from tripping it.
     let commented = Scratch::new("policy-commented");
     commented.edit("policy/core/fail_closed.cedar", |text| {
         format!(
@@ -828,8 +823,7 @@ fn a_statement_that_is_not_a_policy_is_refused_rather_than_ignored() {
 
     // A second statement with no annotation of its own is a *policy* — Cedar
     // enforces it — so what it lacks is a stable name, and that is the rule
-    // that says so. It was reported as "not in force", which is the one thing
-    // it is not.
+    // that says so, not "not in force", which is the one thing it is not.
     let extra = Scratch::new("policy-extra-statement");
     extra.edit("policy/core/fail_closed.cedar", |text| {
         format!("{text}\nforbid (principal, action, resource) when {{ false }};\n")
@@ -839,9 +833,9 @@ fn a_statement_that_is_not_a_policy_is_refused_rather_than_ignored() {
 
 #[test]
 fn a_core_invariant_that_turns_itself_off_for_an_entity_type_is_refused() {
-    // **Two exemptions, both added with the whole suite green.** Every case in
-    // the pack used a `User` principal and a `Content` or `User` resource, so a
-    // core invariant could exclude the types nothing tested:
+    // **Two exemptions, one per kind of entity type.** A case catches an
+    // exemption only for a type it names, so the gate refuses the shape
+    // itself, whatever the cases name:
     //
     //   provenance: `unless { … || principal is Agent }` — an agent acting with
     //               no grant at all, which is what invariant 2 exists to stop;
@@ -849,7 +843,7 @@ fn a_core_invariant_that_turns_itself_off_for_an_entity_type_is_refused() {
     //               a platform capability alone.
     //
     // Covering the space case by case cannot close this: the schema declares
-    // three principal types and three resource types, and a permit for every
+    // three principal types and four resource types, and a permit for every
     // pair is a product decision nobody has made. The rule is structural.
     let scratch = Scratch::new("core-narrows");
     scratch.edit("policy/core/provenance.cedar", |text| {
@@ -873,12 +867,13 @@ fn a_core_invariant_that_turns_itself_off_for_an_entity_type_is_refused() {
         "core.destructive_needs_quorum",
     );
 
-    // **`has` is the same test in different words**, and it defeated this check
-    // with one token. Every entity type in the schema declares a required
+    // **`has` is the same test in different words**, and it can defeat this
+    // check with one token. Every entity type in the schema declares a required
     // attribute no other type has — `Agent` has `autonomy` and
     // `budget_remaining`, `Device` has `node_key`, `Feature` has `tier` — so
     // `unless { principal has budget_remaining }` is an exact test for "is an
-    // Agent". It turned invariant 1 off for every agent with `check passed`.
+    // Agent". Unrefused, it turns invariant 1 off for every agent with
+    // `check passed`.
     for attribute in ["budget_remaining", "node_key", "tier", "autonomy"] {
         let spelled = Scratch::new(&format!("core-narrows-has-{attribute}"));
         spelled.edit("policy/core/fail_closed.cedar", |text| {
@@ -913,12 +908,12 @@ fn a_core_invariant_that_turns_itself_off_for_an_entity_type_is_refused() {
         "a declared exception in the scope was refused: {problems:#?}"
     );
 
-    // **And a marker excuses the constraint it names and no other.** It was per
-    // *policy*: the shipped marker on `core.destructive_needs_quorum`, written
-    // about `action == Action::"Delete"`, also covered a `principal is User`
-    // added beside it — measured turning invariant 5 off for every `Agent` and
-    // every `Device`, with `check passed`. `limits.rs` fixed exactly this class
-    // for its own hatch and this had not.
+    // **And a marker excuses the constraint it names and no other.** Per
+    // *policy*, the shipped marker on `core.destructive_needs_quorum`, written
+    // about `action == Action::"Delete"`, would also cover a
+    // `principal is User` added beside it — measured turning invariant 5 off
+    // for every `Agent` and every `Device`, with `check passed`. `limits.rs`
+    // holds its own hatch to the same rule.
     let beside = Scratch::new("core-narrows-beside-a-marker");
     beside.edit("policy/core/quorum.cedar", |text| {
         text.replace("  principal,\n", "  principal is User,\n")
@@ -969,9 +964,9 @@ fn the_marker_names_a_constraint_and_its_operator() {
 
     // **And a realm scoping, which Cedar renders with the same `op`.**
     // `principal is Agent in Realm::"home"` is `op: "is"` with an `in` beside
-    // it, so reading only the operator collapsed it onto the plain type test
+    // it, so reading only the operator collapses it onto the plain type test
     // and the shipped marker — whose reason says *a type test and not a named
-    // entity* — excused it. The invariant would hold in one realm and be absent
+    // entity* — excuses it. The invariant would hold in one realm and be absent
     // in every other one a deployment creates; `policy/world.json` has two and
     // every agent lives in `home`, so no case could see it either.
     let scoped = Scratch::new("core-narrows-to-one-realm");
@@ -989,7 +984,7 @@ fn the_marker_names_a_constraint_and_its_operator() {
     // **And the fuller quote is accepted, because too strong is the other way
     // to be wrong.** `principal is Agent` is the constraint as the author reads
     // it on the policy's first line; requiring the truncated rendering exactly
-    // refused it and told them to quote what they had quoted.
+    // refuses it and tells them to quote what they have quoted.
     let fuller = Scratch::new("core-narrows-quoted-in-full");
     fuller.edit("policy/core/agent_authority.cedar", |text| {
         text.replace(
@@ -1007,13 +1002,13 @@ fn the_marker_names_a_constraint_and_its_operator() {
 
     // **And a reason may quote the thing it warns against.**
     // `core.no_self_escalation`'s paragraph quotes `action == Action::"Read"` to
-    // say what once went wrong to `core.provenance` — and the prefix rule read
-    // *any* backtick span in the prose, so that quotation satisfied the
+    // say what can go wrong to `core.provenance` — and a prefix rule reading
+    // *any* backtick span in the prose lets that quotation satisfy the
     // constraint `action ==` as well as the marker's own `action in`.
-    // Rescoping invariant 4 to any `action == …` was excused by the sentence
-    // written to warn about exactly that, and only two `wrong-decision` cases
-    // fired — a core policy whose scope no case happens to cover would go
-    // through in silence.
+    // Rescoping invariant 4 to any `action == …` is then excused by the
+    // sentence written to warn about exactly that, and only two
+    // `wrong-decision` cases fire — a core policy whose scope no case happens
+    // to cover would go through in silence.
     let counterexample = Scratch::new("core-narrows-reason-quotes-a-counterexample");
     counterexample.edit("policy/core/no_self_escalation.cedar", |text| {
         text.replace(
@@ -1025,13 +1020,13 @@ fn the_marker_names_a_constraint_and_its_operator() {
 
     // **And with the entity the warning itself names**, which is the one the
     // entity rule above cannot tell from an excuse. `Delete` differs from the
-    // `Read` the paragraph quotes, so the span was refused for saying the wrong
-    // thing rather than for sitting in the wrong place; rescoping invariant 4 to
-    // `action == Action::"Read"` matched that sentence word for word and
-    // produced no finding at all. Measured on 2026-09-11: `load()` succeeded and
-    // only `wrong-decision` fired, from the two cases that happen to cover this
-    // policy's scope. The reason is now the marker's own line, and the paragraph
-    // under it is prose.
+    // `Read` the paragraph quotes, so the span is refused for saying the wrong
+    // thing rather than for sitting in the wrong place; rescoping invariant 4
+    // to `action == Action::"Read"` matches that sentence word for word, and
+    // read to the end of the run it produces no finding at all — measured,
+    // `load()` succeeds and only `wrong-decision` fires, from the two cases
+    // that happen to cover this policy's scope. The reason is the marker's own
+    // line, and the paragraph under it is prose.
     let quoted = Scratch::new("core-narrows-reason-quotes-the-very-rescoping");
     quoted.edit("policy/core/no_self_escalation.cedar", |text| {
         text.replace(
@@ -1041,15 +1036,16 @@ fn the_marker_names_a_constraint_and_its_operator() {
     });
     quoted.must_fail("core-narrows-by-entity-type", "core.no_self_escalation");
 
-    // **And the marker a careful author writes is accepted.** The rule above is
-    // wrong in the other direction too, and was: `action in [Action::"Share",
-    // Action::"Grant"]` renders with an `entities` array and no `entity`, so the
-    // constraint was read as naming nothing and only a reason stopping at the
-    // operator could be accepted. The pack's own marker rewritten to the list
-    // its policy actually names — strictly more informative, and the spelling
-    // the printed `fix` asks for — was refused. Measured on 2026-09-11: `check`
-    // reported `family.giving_out_encrypted_content_needs_quorum` as a pack's
-    // floor leaving part of its own class uncovered.
+    // **And the marker a careful author writes is accepted.** The rule above
+    // can be wrong in the other direction too:
+    // `action in [Action::"Share", Action::"Grant"]` renders with an `entities`
+    // array and no `entity`, so read that way the constraint names nothing and
+    // only a reason stopping at the operator could be accepted. The pack's own
+    // marker rewritten to the list its policy actually names — strictly more
+    // informative, and the spelling the printed `fix` asks for — is then
+    // refused: measured, `check` reports
+    // `family.giving_out_encrypted_content_needs_quorum` as a pack's floor
+    // leaving part of its own class uncovered.
     let fuller = Scratch::new("core-narrows-reason-names-a-whole-list");
     fuller.edit("policy/packs/family/permissions.cedar", |text| {
         text.replace(
@@ -1075,11 +1071,11 @@ fn the_marker_names_a_constraint_and_its_operator() {
 
 /// The marker's reach: what it excuses, and what it does not.
 fn a_marker_excuses_only_what_it_names() {
-    // **Every marked policy, every subject the marker does not name.** The scan
-    // returned at the first constrained subject, so a marker excusing that one
-    // left the other two unexamined: eight of nine constraints added across the
-    // marked core policies went unreported, and every case still decided as
-    // written — so case coverage could not see any of them either.
+    // **Every marked policy, every subject the marker does not name.** A scan
+    // returning at the first constrained subject leaves the other two
+    // unexamined for a marker excusing that one: eight of nine constraints
+    // added across the marked core policies go unreported, and every case still
+    // decides as written — so case coverage cannot see any of them either.
     for (file, policy, added, subject) in [
         (
             "quorum.cedar",
@@ -1113,10 +1109,10 @@ fn a_marker_excuses_only_what_it_names() {
         beside.must_fail("core-narrows-by-entity-type", policy);
     }
 
-    // **And the reason judged is the marker's own text.** The comment lines were
-    // collected with `.rev()` and joined, so everything *above* a marker landed
-    // *after* it and was read as part of its reason — `nc:narrows: reasons` was
-    // excused for `principal` by a sentence written eight lines earlier about
+    // **And the reason judged is the marker's own text.** Comment lines
+    // collected with `.rev()` and joined put everything *above* a marker
+    // *after* it, read as part of its reason — `nc:narrows: reasons` excused
+    // for `principal` by a sentence written eight lines earlier about
     // something else.
     let borrowed = Scratch::new("core-narrows-borrowed-reason");
     borrowed.edit("policy/core/fail_closed.cedar", |text| {
@@ -1130,12 +1126,12 @@ fn a_marker_excuses_only_what_it_names() {
     });
     borrowed.must_fail("core-narrows-by-entity-type", "core.fail_closed");
 
-    // **And the same marker does not excuse a condition.** It used to excuse the
-    // policy, so writing one for `core.destructive_needs_quorum`'s
-    // `action == Action::"Delete"` — a real, documented proxy — also excused a
-    // `|| resource is Feature` smuggled into its condition, which is one person
-    // removing a platform capability alone. A scope constraint is on the first
-    // line; a condition is where an exemption hides.
+    // **And the same marker does not excuse a condition.** Excusing the policy,
+    // one written for `core.destructive_needs_quorum`'s
+    // `action == Action::"Delete"` — a real, documented proxy — would also
+    // excuse a `|| resource is Feature` smuggled into its condition, which is
+    // one person removing a platform capability alone. A scope constraint is on
+    // the first line; a condition is where an exemption hides.
     let hidden = Scratch::new("core-narrows-hidden");
     hidden.edit("policy/core/provenance.cedar", |text| {
         text.replace(
@@ -1151,9 +1147,10 @@ fn a_marker_excuses_only_what_it_names() {
     });
     hidden.must_fail("core-narrows-by-entity-type", "core.provenance");
 
-    // **The action, which was exempt wholesale.** `core.provenance` rescoped to
-    // one action gave every write a pass with no grant at all, and passed —
-    // every provenance case uses `Read`, so case coverage could not see it.
+    // **The action, which is not exempt wholesale.** `core.provenance`
+    // rescoped to one action gives every write a pass with no grant at all,
+    // and exempt, it passes — every provenance case uses `Read`, so case
+    // coverage cannot see it.
     let scoped = Scratch::new("core-narrows-action");
     scoped.edit("policy/core/provenance.cedar", |text| {
         text.replace("  action,\n", "  action == Action::\"Read\",\n")
@@ -1161,8 +1158,8 @@ fn a_marker_excuses_only_what_it_names() {
     scoped.must_fail("core-narrows-by-entity-type", "core.provenance");
 
     // **And a bare marker with no reason excuses nothing.** The sibling hatch in
-    // `xtask/src/limits.rs` has exactly this test; this one did not, so
-    // `references_marked`'s requirement that the marker carry a reason was
+    // `xtask/src/limits.rs` has exactly this test; without this one,
+    // `references_marked`'s requirement that the marker carry a reason is
     // asserted by nothing — `§19.5` in the escape hatch.
     let bare = Scratch::new("core-narrows-bare-marker");
     bare.edit("policy/core/provenance.cedar", |text| {
@@ -1182,21 +1179,21 @@ fn a_marker_excuses_only_what_it_names() {
 
 /// A guard that fails open is reported, in every spelling of the path.
 ///
-/// **`guard-fails-open` had no test at all.** It is the check that holds
-/// `§14.9`'s invariants against the decision point that forgets the schema — a
-/// `forbid` whose condition errors is *skipped*, so a rule written
-/// `context.grant.source != "policy"` stops being asked the moment the
-/// attribute is absent and whatever permit is behind it answers. Its only
-/// exercise was the shipped pack, which passes, so every way it could be
-/// unwired looked exactly the same as working.
+/// **`guard-fails-open` has its test here.** It is the check that
+/// holds `§14.9`'s invariants against the decision point that forgets the
+/// schema — a `forbid` whose condition errors is *skipped*, so a rule
+/// written `context.grant.source != "policy"` stops being asked the moment the
+/// attribute is absent and whatever permit is behind it answers. The shipped
+/// pack passes it, so against the pack alone every way it could be unwired
+/// looks exactly the same as working.
 ///
-/// **And two of the four spellings were unwired.** Cedar writes the same
-/// dereference as `a.b.c`, `a.b["c"]`, `a["b"].c` and `a["b"]["c"]`, and its
-/// renderer keeps whichever the author used. `attributes_read` looked for the
-/// second segment only after a `.`, so the two ending in an index came back
-/// with no second segment and the guard on `source` was never asked about.
-/// Measured before the fix, with the `has` guard deleted and the read written
-/// `context.grant["source"]`: no `guard-fails-open`, and `check passed`.
+/// **And all four spellings are wired.** Cedar writes the same dereference
+/// as `a.b.c`, `a.b["c"]`, `a["b"].c` and `a["b"]["c"]`, and its renderer keeps
+/// whichever the author used. `attributes_read` looking for the second segment
+/// only after a `.` brings the two ending in an index back with no second
+/// segment, and the guard on `source` is never asked about — measured that way,
+/// with the `has` guard deleted and the read written `context.grant["source"]`:
+/// no `guard-fails-open`, and `check passed`.
 #[test]
 fn a_guard_that_fails_open_is_reported_however_the_path_is_written() {
     for (about, dereference) in [
@@ -1222,8 +1219,8 @@ fn a_guard_that_fails_open_is_reported_however_the_path_is_written() {
     let clean = Scratch::new("guard-open-shipped");
     assert!(
         // **Empty, not merely free of one check.** `all(… != …)` over an empty
-        // list is true however the gate behaves, and this closure was measured
-        // never seeing an element. The shipped pack reports *nothing*, which is
+        // list is true however the gate behaves, and this closure, measured,
+        // never sees an element. The shipped pack reports *nothing*, which is
         // both stronger and what the sentence below already claims.
         clean.problems().is_empty(),
         "the pack as shipped reports a problem: {:#?}",
@@ -1233,14 +1230,16 @@ fn a_guard_that_fails_open_is_reported_however_the_path_is_written() {
 
 /// A denial nothing would otherwise permit proves nothing about its guard.
 ///
-/// **`guard-unprovable` was named by no test in the tree** —
-/// `grep -rn 'guard-unprovable' crates xtask` returned one hit, its own
-/// definition — and deleting it left `cargo xtask check` green. It is the other
-/// half of `guard-fails-open`: that one says a guard must refuse when the
-/// attribute is absent, and this one says the *case* used to prove it has to be
-/// a request the pack would otherwise permit. A denial case pointed at a
-/// resource nothing permits is denied by Cedar's default, so removing the whole
-/// policy changes nothing and every proof about it passes by saying nothing.
+/// **`guard-unprovable` is named by this test**, and without it deleting the
+/// check leaves `cargo xtask check` green — outside this test,
+/// `grep -rn 'guard-unprovable' crates xtask` finds only the check's definition
+/// in `crates/nc-policy/src/lib.rs` and a sentence in `xtask/canaries/README.md`.
+/// It is the other half of `guard-fails-open`: that one says a guard must
+/// refuse when the attribute is absent, and this one says the *case* that
+/// proves it has to be a request the pack would otherwise permit. A denial
+/// case pointed at a resource nothing permits is denied by Cedar's default, so
+/// removing the whole policy changes nothing and every proof about it passes by
+/// saying nothing.
 ///
 /// `Content::"recipe"` belongs to `carla` and is `private`: the family pack's
 /// `Read` permit stops at `realm`, and its owner permit needs the principal to be
@@ -1260,11 +1259,11 @@ fn a_denial_case_that_nothing_would_permit_is_refused() {
 
 /// A case that exists but names a different policy proves nothing about this one.
 ///
-/// **The two questions were one, and they are not.** The denial-coverage gate
-/// asks whether a policy has a case; `guards_fail_closed` needs a case whose
-/// `because` names *this* policy, and when it found none it returned in silence
-/// — so retyping one `because` left coverage green, every guard in the policy
-/// unproven, and the only trace was `inspected` getting smaller.
+/// **Two questions, not one.** The denial-coverage gate asks whether a policy
+/// has a case; `guards_fail_closed` needs a case whose `because` names *this*
+/// policy, and returning in silence when it finds none, retyping one `because`
+/// leaves coverage green, every guard in the policy unproven, and the only
+/// trace `inspected` getting smaller.
 ///
 /// `core.grants_expire` reads `grant.valid_until`. Point its case at the sibling
 /// policy in the same file and coverage still counts a case for the file, while
@@ -1284,10 +1283,10 @@ fn a_case_that_names_another_policy_leaves_the_guard_unproven() {
 
 /// A confusable identifier is a rule that protects nothing.
 ///
-/// **`pack-warns` had no case, and it is the only reader of Cedar's own
-/// warnings.** `grep -rn 'pack-warns'` found one line: its own. Measured, the
-/// loop replaced with `let _ = result.validation_warnings().count();` — the
-/// policy step byte-identical to a clean run, down to `check passed`.
+/// **`pack-warns` has its case here, and it is the only reader of Cedar's own
+/// warnings.** Measured without it, the loop replaced
+/// with `let _ = result.validation_warnings().count();` — the policy step
+/// byte-identical to a clean run, down to `check passed`.
 ///
 /// And the guard is live rather than decorative: `Content::"di\u{430}ry"` with a
 /// Cyrillic `а` is a *different entity* from `Content::"diary"`, so a `forbid`
@@ -1370,10 +1369,10 @@ fn a_denial_that_would_happen_anyway_is_refused() {
 
 #[test]
 fn a_case_whose_expectation_does_not_match_cedar_is_refused() {
-    // **The one assertion that gives every case in this pack its meaning** — that
-    // Cedar's answer is the answer the case claims — and nothing held it in
-    // place. Deleting the whole `if got != expected` block left the full suite
-    // green: `17 case(s) in 6 file(s) decide as written`, `check passed`.
+    // **The one assertion that gives every case in this pack its meaning** —
+    // that Cedar's answer is the answer the case claims — and this holds it in
+    // place: without it, deleting the whole `if got != expected` block leaves
+    // the full suite green and `check passed`.
     //
     // Broken by flipping a shipped case's expectation, which is the smallest
     // edit that makes Cedar and the file disagree.
@@ -1392,9 +1391,8 @@ fn a_case_whose_expectation_does_not_match_cedar_is_refused() {
 
 #[test]
 fn a_boundary_case_with_no_control_showing_the_permit_fires_is_refused() {
-    // The first review's own headline fix, and nothing held *it* in place
-    // either: deleting the entire `boundary-without-a-control` loop left
-    // `check passed` with 380 tests. The check was wired — it just could
+    // And the `boundary-without-a-control` loop, held the same way: without
+    // this, deleting it entirely leaves `check passed`. A wired check can
     // regress out of existence without a red light.
     //
     // Broken by moving the boundary case onto a verb no `allow` case pairs it
@@ -1417,12 +1415,12 @@ fn a_boundary_case_with_no_control_showing_the_permit_fires_is_refused() {
 
 #[test]
 fn a_boundary_case_aimed_at_a_resource_the_permit_cannot_reach_is_refused() {
-    // **How the previous rule was satisfied while proving nothing.** It matched
-    // the control on the action alone, so retargeting the boundary case at an
-    // entity type the permit can never apply to kept `10 policy(ies) each have a
-    // denial test` green — and the permit's whole sensitivity condition could
-    // then be deleted, opening `private` and `restricted` content to the entire
-    // household with acceptance criterion 11 reporting satisfied.
+    // **A control matched on the action alone proves nothing.** Matched that
+    // way, retargeting the boundary case at an entity type the permit can never
+    // apply to keeps `10 policy(ies) each have a denial test` green — and the
+    // permit's whole sensitivity condition can then be deleted, opening
+    // `private` and `restricted` content to the entire household with
+    // acceptance criterion 11 reporting satisfied.
     let scratch = Scratch::new("wrong-resource-type");
     scratch.edit("policy/packs/family/tests/permissions.toml", |text| {
         text.replace(
@@ -1438,14 +1436,14 @@ fn a_boundary_case_aimed_at_a_resource_the_permit_cannot_reach_is_refused() {
 
 /// The flag's claim is judged against every matching control, not the first.
 ///
-/// **The repair that replaced `cases.iter().find(…)` with a loop was held by
-/// nothing**: appending `.take(1)` to the filter — which is exactly the old
-/// lookup — left all 58 `nc-policy` tests passing.
+/// **The loop that judges every matching control is held here**:
+/// appending `.take(1)` to the filter — which is exactly a `find` — leaves
+/// every other `nc-policy` test passing.
 ///
 /// The hole is reachable, not theoretical. `cases::load` sorts by path, so
 /// `policy/core/tests/agent_authority.toml` precedes `quorum.toml`, which holds
 /// the control that decides this case today. Put a second matching control in
-/// the earlier file and the old lookup selects *that* one — and the flagged
+/// the earlier file and a `find` selects *that* one — and the flagged
 /// case, whose refusal is really `core.irreversible_needs_a_human` firing on
 /// `via_agent` with no human, keeps its pairing exemption with no verdict at
 /// all. That exemption is the one per-case opt-out of the rule that makes
@@ -1472,15 +1470,15 @@ fn the_flag_is_judged_against_every_control_and_not_the_first() {
 
 /// The flag path's control is of the case's own resource type too.
 ///
-/// **One rule written twice, and only the principal half had a case.** The
-/// filter requires the control to match the case on *both* entity types, and
-/// deleting the resource clause left the whole workspace green while its
-/// principal sibling on the next line was held by the test below.
+/// **One rule written twice, and each half has a case.** The filter requires
+/// the control to match the case on *both* entity types, and without this
+/// deleting the resource clause leaves the whole workspace green, while its
+/// principal sibling on the next line is held by the test below.
 ///
 /// The direction is a widening — more controls judged means the check fires
 /// more — so the failure it allows is a false `boundary-is-not-the-action`
 /// against a permit that cannot reach the case's resource type, not a hole. It
-/// is still half a rule nothing was reading.
+/// is still, without this, half a rule nothing reads.
 #[test]
 fn the_flag_paths_control_is_of_the_cases_own_resource_type() {
     let scratch = Scratch::new("flag-control-resource");
@@ -1509,14 +1507,14 @@ fn the_flag_paths_control_is_of_the_cases_own_resource_type() {
 #[test]
 /// The flag path's control has to be of the case's own principal type.
 ///
-/// **The second copy of the pairing rule, and it was held by nothing.**
-/// `the_action_is_the_boundary` has its own control lookup, and deleting
-/// `entity_type(&other.principal) == entity_type(&case.principal)` from it left
-/// all 57 `nc-policy` tests green — the sibling test below drives the *other*
-/// closure.
+/// **The second copy of the pairing rule, held
+/// here.** `the_action_is_the_boundary` has its own control lookup, and
+/// deleting `entity_type(&other.principal) == entity_type(&case.principal)`
+/// from it leaves every other `nc-policy` test green — the sibling test below
+/// drives the *other* closure.
 ///
-/// It could not be given a case while the lookup used `find`: `cases::load`
-/// sorts by path, so a control written in the pack's own file was never the one
+/// It cannot be given a case while the lookup uses `find`: `cases::load` sorts
+/// by path, so a control written in the pack's own file is never the one
 /// selected. With the lookup judging every matching control, an `Agent`
 /// principal allowed by a permit whose other cases are all `User` is what
 /// distinguishes the conjunct.
@@ -1529,8 +1527,8 @@ fn the_flag_paths_control_is_of_the_cases_own_principal_type() {
     });
     // **The assertion is an absence, and it has to be.** The fixture is itself a
     // wrong decision, so `must_fail("wrong-decision", …)` passes whether or not
-    // the conjunct is there — a first attempt at this test did exactly that and
-    // proved nothing. What the conjunct changes is the *second* problem: without
+    // the conjunct is there, and asserting it proves nothing. What the
+    // conjunct changes is the *second* problem: without
     // it, an `Agent` control is paired with a `User` case and the flag path
     // reports `boundary-is-not-the-action` against a permit that never reaches
     // an `Agent` at all.
@@ -1552,21 +1550,21 @@ fn the_flag_paths_control_is_of_the_cases_own_principal_type() {
 
 /// A control is an `allow` case. A denial naming the permit is not one.
 ///
-/// **The pairing rule's own decision clause, untested in both copies.**
-/// `other.decision == Expected::Allow` appears twice — once in `coverage`'s
-/// `paired` closure and once in `the_flag_means_what_it_says`' control lookup —
-/// and deleting it from either left all 60 `nc-policy` tests green. This test
-/// is the `coverage` copy, which is the dangerous direction: without the
-/// clause, a boundary case pairs with another **denial** naming the same
-/// permit, and the requirement that the permit somewhere *allows* the same
+/// **The pairing rule's own decision clause, in both
+/// copies.** `other.decision == Expected::Allow` appears twice — once
+/// in `coverage`'s `paired` closure and once in `the_flag_means_what_it_says`'
+/// control lookup — and deleting it from either leaves the rest of `nc-policy`
+/// green. This test is the `coverage` copy, which is the dangerous direction:
+/// without the clause, a boundary case pairs with another **denial** naming the
+/// same permit, and the requirement that the permit somewhere *allows* the same
 /// action stops requiring an allow at all. A permit that never fires would then
 /// satisfy acceptance criterion 11 on a pair of denials, which is the exact
-/// failure the pairing rule was written to close.
+/// failure the pairing rule exists to close.
 ///
-/// **The assertion is on this check and not on "some problem exists".** A first
-/// attempt turned the pack's allow case into a denial and asserted
-/// `!problems.is_empty()`, which is true either way — the edit raises a
-/// `wrong-decision` on the flipped case whatever the closure does. What moves
+/// **The assertion is on this check and not on "some problem exists".** Turning
+/// the pack's allow case into a denial and asserting `!problems.is_empty()` is
+/// true either way — the edit raises a `wrong-decision` on the flipped case
+/// whatever the closure does. What moves
 /// with the clause is whether `boundary-without-a-control` fires **for the case
 /// that lost its only control**, so that is what is named.
 #[test]
@@ -1597,10 +1595,10 @@ fn a_denial_naming_the_permit_is_not_the_control_a_boundary_case_needs() {
 ///
 /// **The second copy of the clause above.** `the_flag_means_what_it_says` runs
 /// its own control lookup, and deleting `other.decision == Expected::Allow`
-/// from it left all 60 tests green as well. The direction here is a widening —
+/// from it leaves the rest green as well. The direction here is a widening —
 /// more cases judged as controls means the check fires more often — so what it
 /// allows is a false `boundary-is-not-the-action` against a case that is
-/// correct, not a hole. It is still half a rule nothing was reading, and the
+/// correct, not a hole. It is still half a rule nothing else reads, and the
 /// sibling tests above take the same shape for the same reason.
 ///
 /// The planted case is a denial that names the permit, on the case's own two
@@ -1642,16 +1640,15 @@ fn the_flag_paths_control_is_an_allow_case() {
 
 #[test]
 fn a_boundary_case_aimed_at_a_principal_the_permit_cannot_reach_is_refused() {
-    // **The other half of the same conjunct, and it had no case.** The pairing
-    // rule says "the same action, and the same two entity types" — and only the
-    // resource type was held. Deleting
-    // `entity_type(&other.principal) == entity_type(&case.principal)` left
-    // `cargo test -p nc-policy` at 29 passed and the full gate reporting
-    // `15 policy(ies) each have a denial test`.
+    // **The other half of the same conjunct.** The pairing rule says "the same
+    // action, and the same two entity types" — and without this only the
+    // resource type is held: deleting
+    // `entity_type(&other.principal) == entity_type(&case.principal)` leaves
+    // `cargo test -p nc-policy` green and the full gate reporting
+    // `N policy(ies) each have a denial test`.
     //
-    // Two halves of one rule satisfied by different occurrences is a shape this
-    // fleet has found repeatedly; here it was one half satisfied and the other
-    // unwritten.
+    // Two halves of one rule satisfied by different occurrences is a recurring
+    // shape; here it is one half satisfied and the other unwritten.
     let scratch = Scratch::new("wrong-principal-type");
     scratch.edit("policy/packs/family/tests/permissions.toml", |text| {
         text.replace(
@@ -1689,24 +1686,25 @@ fn a_rule_caused_denial_cannot_be_called_a_missing_permit() {
 
 /// `no_permit_matched` names a permit, and a `forbid` is not one.
 ///
-/// **The arm that says so was reached by no test.** It is the only thing
-/// stopping a `forbid` from being credited with a denial test through
-/// `no_permit_matched` — and replacing it with an early return left
-/// `cargo xtask check` byte-identical to a clean run. Deleting it outright is
-/// caught only by clippy's `match_same_arms`, which is a lint and not a case.
+/// **The arm that says so is reached by this test.** It is the only thing
+/// stopping a `forbid` from being credited with a denial test
+/// through `no_permit_matched` — and without this, replacing it with an early
+/// return leaves `cargo xtask check` byte-identical to a clean run. Deleting it
+/// outright is caught only by clippy's `match_same_arms`, which is a lint and
+/// not a case.
 ///
 /// `a_rule_caused_denial_cannot_be_called_a_missing_permit` is the other
 /// direction: that one is about a case *mislabelled* as a boundary; this one is
 /// about the name in the label being a rule that forbids.
 /// A conjunct no case sits on the boundary of is reported.
 ///
-/// **`condition-untested` had no negative case, and could not be given one**
-/// until `guards_a_dereference` was narrowed: it excused `!(x has y) || …`
-/// whole, so a guarded conjunct was outside the mutation, while
-/// `guards_fail_closed` claimed every unguarded one. Four attempts produced
-/// `guard-fails-open`, `guard-fails-open`, `wrong-decision`, and then nothing
-/// at all — `must_fail`'s own floor reporting "the pack was broken on purpose
-/// and every check accepted it".
+/// **`condition-untested`'s negative case, which exists
+/// because `guards_a_dereference` is narrow.** Excusing `!(x has y) || …` whole
+/// puts a guarded conjunct outside the mutation, while `guards_fail_closed`
+/// claims every unguarded one. Four attempts at a case under that excuse
+/// produce `guard-fails-open`, `guard-fails-open`, `wrong-decision`, and then
+/// nothing at all — `must_fail`'s own floor reporting "the pack was broken on
+/// purpose and every check accepted it".
 ///
 /// The conjunct here is guarded the way its neighbour is, and implied by it:
 /// `<= 0` already gives `< 1` for an integer, so removing it flips no case.
@@ -1725,13 +1723,14 @@ when { !(context has policy_epoch) || context.policy_epoch < 1 };",
 
 /// A comparison no case sits on both sides of is reported.
 ///
-/// **`branch-untested` had no negative case for four rounds**, and could be
-/// switched off for every policy this repository ships with `check` byte-
-/// identical: `if !noticed && !name.starts_with("core.") && !name.starts_with("family.")`
-/// left `40 case(s) … 38 constraint(s) and condition(s) are pinned` unmoved,
+/// **`branch-untested`'s negative case.** Without it, `branch-untested` can be
+/// switched off for every policy this repository ships with `check`
+/// byte-identical:
+/// `if !noticed && !name.starts_with("core.") && !name.starts_with("family.")`
+/// leaves `40 case(s) … 38 constraint(s) and condition(s) are pinned` unmoved,
 /// because the counter is below the verdict.
 ///
-/// Two earlier attempts failed for reasons worth keeping: an unguarded
+/// Two other shapes do not reach it, for reasons worth keeping: an unguarded
 /// dereference is claimed by `guards_fail_closed` first, and a *redundant*
 /// conjunct is claimed by `condition-untested`, whose removal is also unnoticed.
 /// The shape that reaches this verdict is a comparison **inside** a conjunct
@@ -1754,10 +1753,10 @@ fn a_branch_no_case_decides_is_reported() {
 
 /// Every file the pack is loaded from is refused when it cannot be read.
 ///
-/// **Seven of `nc-policy`'s thirty checks appeared nowhere but where they are
-/// produced.** `nc-catalog-compiler` has a `must_fail` case for all twenty-four
-/// of its own; these were the gap. A verdict nothing has watched fire is a
-/// verdict nobody knows can.
+/// **Every check is watched firing, not only produced.** `nc-catalog-compiler`
+/// has a `must_fail` case for every one of its own, and these are the
+/// `nc-policy` checks no other case reaches. A verdict nothing has watched fire
+/// is a verdict nobody knows can.
 #[test]
 fn a_pack_that_cannot_be_read_is_refused_by_name() {
     for (named, body, check) in [
@@ -1794,12 +1793,12 @@ fn a_file_that_cannot_be_read_is_refused_by_name() {
         ("policy/schema.cedarschema", "schema-unreadable"),
         ("policy/world.json", "world-unreadable"),
         ("policy/core/fail_closed.cedar", "policy-unreadable"),
-        // **The fourth, whose identity had one occurrence in the repository:
-        // its own emission.** Coverage is attributed by a policy's `@id`
-        // wherever the case is written, so an unreadable case file takes its
-        // policies' denial tests with it — and §14.9's seventh invariant then
-        // fails for rules that are in fact tested. Suppressing this identity
-        // left `check passed` and 987 tests green.
+        // **The fourth, whose identity has one other occurrence in the
+        // repository: its own emission.** Coverage is attributed by a policy's
+        // `@id` wherever the case is written, so an unreadable case file takes
+        // its policies' denial tests with it — and §14.9's seventh invariant
+        // then fails for rules that are in fact tested. Without this,
+        // suppressing the identity leaves `check passed`.
         ("policy/core/tests/fail_closed.toml", "case-file-unreadable"),
         // And the pack's version, without which every realm of its profile is
         // held to nothing.
@@ -1823,11 +1822,12 @@ fn a_file_that_cannot_be_read_is_refused_by_name() {
 
 /// A context value with no Cedar form is refused, by name.
 ///
-/// **The other identity nothing asked for.** `context-value-unconvertible`
-/// appeared exactly once in the repository — the line that emits it — so
-/// dropping it before `load` returns left `cargo xtask check` byte-identical.
-/// A context the runner cannot build is a case whose verdict means nothing, and
-/// silently skipping it is how a boundary claim gets bought without a check.
+/// **The other identity, asked for here.** `context-value-unconvertible`
+/// otherwise appears exactly once in the repository — the line that emits it —
+/// so dropping it before `load` returns leaves `cargo xtask check`
+/// byte-identical. A context the runner cannot build is a case whose verdict
+/// means nothing, and silently skipping it is how a boundary claim gets bought
+/// without a check.
 ///
 /// A table is how this format writes an extension value (`{ datetime = … }`) or
 /// an entity reference (`{ entity = … }`); a table that is neither has no Cedar
@@ -1931,7 +1931,7 @@ fn a_case_whose_request_the_schema_refuses_is_reported() {
 
 /// The outsider the deferral case turns on is an outsider.
 ///
-/// **The case is the pin and the fixture it rests on was pinned by nothing.**
+/// **The case is the pin, and this pins the fixture it rests on.**
 /// `policy/packs/family/tests/permissions.toml` names
 /// `User::"mallory"` reading what the household shares, and records the `allow`
 /// as the gap that `reference/identity-and-authorization.md §3` leaves —
@@ -1983,18 +1983,18 @@ fn the_outsider_the_deferral_rests_on_belongs_to_another_realm() {
 /// A case about somebody the world does not hold is refused.
 ///
 /// **A `no_permit_matched` case with a ghost entity is a test of Cedar's
-/// default.** It is the only kind of denial test criterion 11 accepts for a
-/// `permit`, and a nonexistent entity has no attributes — so the permit's
+/// default.** It is the only kind of denial test criterion 11 accepts for
+/// a `permit`, and a nonexistent entity has no attributes — so the permit's
 /// condition errors, Cedar skips it, and *"denied because nothing permitted
-/// it"* is true of any request at all. Measured on 2026-09-08, one character
-/// changed in the family pack's `permissions.toml`, `Content::"vault"` to
-/// `Content::"vault-typo"`: `ok 40 case(s) in 8 file(s) decide as written, and
-/// 38 constraint(s) and condition(s) are pinned by one of them`, line for line
-/// what a clean run prints. With a clause-count-preserving widening planted in
-/// the permit that case exists to hold, the two together were still green,
-/// while `restricted` content became readable by every household member and by
-/// the other realm's user — and the widening *alone* is red, which is what makes
-/// the typo the finding.
+/// it"* is true of any request at all. Without the `absent-entity` check, the
+/// gate answers one character changed in the family pack's `permissions.toml`,
+/// `Content::"vault"` to `Content::"vault-typo"`, with
+/// `ok 40 case(s) in 8 file(s) decide as written, and 38 constraint(s) and condition(s) are pinned by one of them`,
+/// line for line what a clean run prints. With a clause-count-preserving
+/// widening planted as well, in the permit that case exists to hold, the two
+/// together stay green, while `restricted` content becomes readable by every
+/// household member and by the other realm's user — and the widening *alone* is
+/// red, which is what makes the typo the finding.
 #[test]
 fn a_case_about_somebody_the_world_does_not_hold_is_refused() {
     let scratch = Scratch::new("ghost");
@@ -2038,14 +2038,14 @@ fn an_empty_pack_is_refused_rather_than_passing_everything() {
     }
     // **Every policy, and the list is checked.** A new Cedar file that this
     // list does not name leaves the pack non-empty, so this fails for a reason
-    // that has nothing to do with what it tests — which is how it read when
-    // the chain-depth policy arrived.
+    // that has nothing to do with what it tests — which is how it reads when
+    // a policy file is added.
     //
-    // **All of `policy/`, not `policy/core/`.** The check read the core's
-    // directory alone, so a pack's new file was the one kind it could not name:
-    // left off the list above, it kept the pack non-empty and the assertion
-    // below failed saying that nothing reported `empty-pack` — the reason this
-    // check exists to replace with the file's name.
+    // **All of `policy/`, not `policy/core/`.** Reading the core's directory
+    // alone, a pack's new file is the one kind this could not name: left off
+    // the list above, it keeps the pack non-empty and the assertion below fails
+    // saying that nothing reported `empty-pack` — the reason this check exists
+    // to replace with the file's name.
     let mut left: Vec<String> = Vec::new();
     let mut unread = vec![scratch.root.join("policy")];
     while let Some(directory) = unread.pop() {
@@ -2072,10 +2072,11 @@ fn an_empty_pack_is_refused_rather_than_passing_everything() {
 
 /// A core invariant still denies when the decision point forgets the schema.
 ///
-/// **Cedar skips a policy whose condition errors, and answers from the rest.**
-/// Every core `forbid` dereferenced a context attribute directly, so a request
-/// missing one was not refused — it was *allowed*, by whatever permit remained.
-/// Measured with the shipped pack and a request with no `policy_epoch`:
+/// **Cedar skips a policy whose condition errors, and answers from the
+/// rest.** A core `forbid` that dereferences a context attribute directly does
+/// not refuse a request missing one — the request is *allowed*, by whatever
+/// permit remains. Measured with the shipped pack unguarded and a request with
+/// no `policy_epoch`:
 ///
 /// ```text
 /// with the schema:    refused: while parsing context, expected the record to
@@ -2085,9 +2086,9 @@ fn an_empty_pack_is_refused_rather_than_passing_everything() {
 ///   errors:  ["… record does not have the attribute `policy_epoch`"]
 /// ```
 ///
-/// The gate could never see it, because `build_request` always passes the
-/// schema. Nothing in `policy/` said the invariant depended on Stage 11's
-/// decision point doing the same — so the conditions are written
+/// The gate cannot see it, because `build_request` always passes the schema,
+/// and the invariant cannot rest on the decision point in `nc-authz` doing the
+/// same — so the conditions are written
 /// `!(context has x) || …` and `unless { context has x && … }`, and a missing
 /// attribute forbids.
 ///
@@ -2128,13 +2129,13 @@ fn a_request_missing_a_context_attribute_is_refused_with_no_schema_to_catch_it()
 
 /// An `absent` this builder does not hold is refused, and `None` removes nothing.
 ///
-/// **A name that matched no key removed nothing and said nothing.** The answer
-/// came back as the complete request's own decision, so a caller asking what the
-/// pack says without an attribute could not tell that from an attribute that was
-/// still there — measured on the shipped pack, where `policy_epoch` answers
-/// `Deny` and `policy_epochh` answers `Allow`. Refusing outright was measured as
-/// too strong, because "remove nothing" is a legitimate question, so that is
-/// what `None` is for. Found in wave 31.
+/// **A name that matches no key must not remove nothing and say
+/// nothing.** Answered as the complete request's own decision, a caller asking
+/// what the pack says without an attribute could not tell that from an
+/// attribute that is still there — measured on the shipped pack,
+/// where `policy_epoch` answers `Deny` and `policy_epochh`
+/// answers `Allow`. Refusing outright is too strong, because "remove nothing"
+/// is a legitimate question, so that is what `None` is for.
 #[test]
 fn an_absent_attribute_this_builder_does_not_hold_is_refused() {
     let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
@@ -2460,10 +2461,10 @@ fn an_id_is_lower_case_words_joined_by_dots() {
 /// An `@id`'s first word is the pack its file is in: `core` under
 /// `policy/core/`, the profile under `policy/packs/<profile>/`.
 ///
-/// **A reviewer found a real bug with it**: a family file's `permit` named
-/// `core.a_member_reads_the_realm` compiled beside one named `org.…`, so the
-/// journal's record of which policy decided could name an invariant every pack
-/// holds for a rule one pack wrote — the confusion the id rules exist to
+/// **A real bug of this shape**: without the rule, a family file's `permit`
+/// named `core.a_member_reads_the_realm` compiles beside one named `org.…`, so
+/// the journal's record of which policy decided could name an invariant every
+/// pack holds for a rule one pack wrote — the confusion the id rules exist to
 /// prevent (`NOCTUA.md §14.9`).
 #[test]
 fn an_ids_first_word_is_the_pack_its_file_is_in() {
@@ -2634,14 +2635,14 @@ fn a_realm_pinning_another_version_of_its_pack_is_refused() {
 
 /// A realm pinning another profile's pack is refused, carried or not.
 ///
-/// **The pin rule worked one way only.** The version was compared for a
-/// realm whose profile selects a carried pack and nothing was asked of any
-/// other, so `office`, whose profile is `org`, could pin `family@1` and the
-/// gate accepted it — while a decision point comparing only the pin with the
-/// family pack it carries would let that realm through on rules nobody chose
-/// for it. Found by a reviewer planting exactly that realm: the policy step
-/// all `ok`, and both suites green. The second pin is the prefix read to its
-/// end: `organic` begins with `org`, and is another profile.
+/// **The pin rule works both ways.** Comparing the version only for a realm
+/// whose profile selects a carried pack, and asking nothing of any other,
+/// lets `office`, whose profile is `org`, pin `family@1` and the gate accept it
+/// — while a decision point comparing only the pin with the family pack it
+/// carries would let that realm through on rules nobody chose for it. Measured
+/// by planting exactly that realm: the policy step all `ok`, and both suites
+/// green. The second pin is the prefix read to its end: `organic` begins
+/// with `org`, and is another profile.
 #[test]
 fn a_realm_pinning_another_profiles_pack_is_refused() {
     for (pin, slug) in [
@@ -2738,13 +2739,13 @@ fn a_toml_nothing_reads_is_refused_by_name() {
 
 /// A policy in no pack is refused by name, however near a pack it sits.
 ///
-/// **A rule the gate held and no decision point loads.** The gate compiles
-/// and cases every `.cedar` under `policy/`, and a decision point compiles the
-/// core and its realm's pack, so a file in neither passed every check while
-/// it protected nothing. Found by a reviewer who moved the family pack's only
-/// `forbid` into a file directly under `policy/packs/`: the policy step all
-/// `ok`, both suites green, and the core and the family pack compiled alone
-/// allowing the request that `forbid`'s own case denies.
+/// **A rule the gate holds and no decision point loads.** The gate compiles and
+/// cases every `.cedar` under `policy/`, and a decision point compiles the core
+/// and its realm's pack, so a file in neither would pass every check while it
+/// protects nothing. Measured by moving the family pack's only `forbid` into a
+/// file directly under `policy/packs/`: the policy step all `ok`, both suites
+/// green, and the core and the family pack compiled alone allowing the request
+/// that `forbid`'s own case denies.
 #[test]
 fn a_policy_in_no_pack_is_refused_by_name() {
     for (at, slug) in [
@@ -2798,9 +2799,10 @@ fn a_policy_in_no_pack_is_refused_by_name() {
 
 /// A checkout under a directory called `tests` reads no manifest as a case.
 ///
-/// **This found a real defect.** The case loader asked whether *any* ancestor
-/// of a file was called `tests`, all the way up the absolute path, so under
-/// such a checkout the manifest was a case file and failed to parse as one.
+/// **Inside `policy`, not along the absolute path.** A case loader asking
+/// whether *any* ancestor of a file is called `tests`, all the way up the
+/// absolute path, reads the manifest under such a checkout as a case file, and
+/// it fails to parse as one.
 #[test]
 fn a_repository_under_a_directory_named_tests_reads_no_manifest_as_a_case() {
     let scratch = Scratch::new("under-tests");
@@ -2818,13 +2820,13 @@ fn a_repository_under_a_directory_named_tests_reads_no_manifest_as_a_case() {
 
 /// The guard removes its directory when it is dropped.
 ///
-/// **What this type does was decided by its name.** `BUILDS_A_SCRATCH` in
-/// `xtask/src/check.rs` counts a site as guarded when the body around it names a
-/// type from `REMOVES_ITS_SCRATCH_ON_THE_WAY_OUT`, and `Scratch` is on that
-/// list — so gutting this `Drop` left the census reporting every site in this
-/// file as removed however the test leaves, while one run of this suite left 85
-/// directories in the temporary directory. Reported on 2026-09-14, with the
-/// whole gate green.
+/// **What this type does is decided by its name.** `BUILDS_A_SCRATCH`
+/// in `xtask/src/check.rs` counts a site as guarded when the body around it
+/// names a type from `REMOVES_ITS_SCRATCH_ON_THE_WAY_OUT`, and `Scratch` is on
+/// that list — so a gutted `Drop` here would leave the census reporting every
+/// site in this file as removed however the test leaves, while one run of this
+/// suite left 85 directories in the temporary directory, with the whole gate
+/// green.
 ///
 /// A name is not a guarantee. This is.
 #[test]

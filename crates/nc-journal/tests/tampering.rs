@@ -5,11 +5,10 @@
 //!
 //! # That sentence is false, and this is where the true one is written
 //!
-//! The approved plan asked whether criterion 3 *as worded* is satisfied by a
+//! The approved plan asks whether criterion 3 *as worded* is satisfied by a
 //! chain that notices neither a truncated end nor an appended forged entry, and
-//! required the answer in a document rather than in a test name. A reviewer
-//! answered it in round seventy-one, and the answer is worth more than the
-//! question:
+//! requires the answer in a document rather than in a test name. The answer is
+//! worth more than the question:
 //!
 //!   * **For those two holes, yes — and the word doing the work is "earlier".**
 //!     Truncation mutates no entry; it changes which history you hold, and
@@ -22,8 +21,8 @@
 //!     wording does cover.** Rewrite an earlier entry and recompute every hash
 //!     after it, and `verify` answers `Ok`. Measured on a six-entry history with
 //!     entry 2 rewritten to `principal=attacker action=Escalate` and hashes 3–5
-//!     relinked: `verify(0)` answered `Ok(6)`. `NOCTUA.md §14.9` has said so
-//!     since before anyone asked, and so has this crate's own header.
+//!     relinked: `verify(0)` answers `Ok(6)`. `NOCTUA.md §14.9` says so, and
+//!     so does this crate's own header.
 //!
 //! So the sentence above is quoted because it is the criterion as written, not
 //! because it is true. The true one is `nc_journal`'s own header, verbatim: *it
@@ -52,16 +51,15 @@
 //! separately applies **every** edit the entry module lists, and checks that
 //! verification stops exactly where the damage is and says why.
 //!
-//! **The edit list is imported, not copied.** It used to be a second list in
-//! this file under a header claiming the two could not drift — and they already
-//! had, by one entry. `nc_journal::entry::tamper::edits` is behind the
-//! `test-support` feature precisely so an integration test can reach it, which
-//! is the only version of that claim that is true.
+//! **The edit list is imported, not copied.** A second list in this file under
+//! a header claiming the two cannot drift is a claim that
+//! drifts. `nc_journal::entry::tamper::edits` is behind the `test-support`
+//! feature precisely so an integration test can reach it, which is the only
+//! version of that claim that is true.
 //!
-//! **Every branch of `verify` is named by a test.** One was not: the
-//! contiguity branch had no coverage at all, because the removal test asserted
-//! only *where* verification stopped and never *why*, so the link branch caught
-//! the removal instead and the suite stayed green with contiguity deleted.
+//! **Every branch of `verify` is named by a test.** A removal test asserting
+//! only *where* verification stopped and never *why* would let the link branch
+//! catch the removal instead, and the suite stay green with contiguity deleted.
 
 use nc_canon::Value;
 use nc_ids::{OpaqueId, Snowflake};
@@ -73,8 +71,8 @@ const LENGTH: u64 = 40;
 /// A minter for a test, with a flake of its own.
 ///
 /// One per `Journal`, because two journals sharing a flake mint the same
-/// work-unit identifiers — the defect the constructor's signature now makes
-/// visible instead of hiding.
+/// work-unit identifiers — which the constructor's signature makes visible
+/// instead of hiding.
 fn minter() -> nc_ids::Minter<nc_ids::SystemClock> {
     use core::sync::atomic::{AtomicU16, Ordering};
     static NEXT: AtomicU16 = AtomicU16::new(1);
@@ -106,8 +104,8 @@ async fn history() -> Journal<InMemory> {
         // **Every identifier field carries something.** `Record::new` leaves
         // `actor_chain` empty and the four optionals `None`, so the case-only
         // edits in `tamper::edits()` — the ones that tell an injective
-        // `hashed_form` from a case-folding one — had nothing to respell in this
-        // history and would have set a value instead, which any rendering
+        // `hashed_form` from a case-folding one — would have nothing to respell
+        // in this history and would set a value instead, which any rendering
         // distinguishes from `Null`. A sweep over a history whose authorization
         // fields are all empty is a sweep over none of the fields the kernel
         // fills.
@@ -141,13 +139,14 @@ async fn an_untouched_history_verifies_end_to_end() {
 
 #[tokio::test]
 async fn changing_any_entry_breaks_verification_at_that_entry() {
-    // **The loop bound is the whole claim, and nothing held it.** Criterion 3
-    // says *any* mutation of *any* earlier entry, and the only thing saying this
-    // sweeps more than one entry was the range on the line below: narrowed to
-    // `0..1` the whole suite stayed green and `check passed`, with the chain
-    // proven at exactly one position — the one an attacker never edits. So the
-    // positions are counted as they are tampered and the count is the assertion,
-    // the way `edits()` is floored by `every_field_of_a_record_has_an_edit`.
+    // **The loop bound is the whole claim, so it is held.** Criterion 3 says
+    // *any* mutation of *any* earlier entry, and the only thing saying this
+    // sweeps more than one entry is the range on the line below: narrowed to
+    // `0..1`, without the count, the whole suite stays green and
+    // `check passed`, with the chain proven at exactly one position — the one
+    // an attacker never edits. So the positions are counted as they are
+    // tampered and the count is the assertion, the way `edits()` is floored by
+    // `every_field_of_a_record_has_an_edit`.
     let mut tampered = 0_u64;
     for position in 0..LENGTH {
         let mut journal = history().await;
@@ -179,8 +178,8 @@ async fn changing_any_field_of_any_entry_breaks_verification() {
     // pass the test above, which only ever changes the action.
     for (field, edit) in edits() {
         // **And where each edit was tried, for the reason above.** This list is
-        // the other unguarded bound: narrowed to `[0]` every field was still
-        // proven, at the first entry only, and the suite stayed green. Collected
+        // the other bound: narrowed to `[0]`, every field would still be
+        // proven, at the first entry only, with the suite green. Collected
         // rather than counted, because "three" is satisfied by three copies of
         // the same position — what the sweep is for is the first entry, the
         // middle one and the last.
@@ -246,9 +245,9 @@ async fn re_hashing_an_edited_entry_still_breaks_the_link_to_the_next_one() {
 
 #[tokio::test]
 async fn a_skipped_sequence_is_caught_as_a_skipped_sequence() {
-    // The branch that had no test. A removal was caught by the *link* branch
-    // instead, and the removal test never asserted which — so deleting the
-    // contiguity check left the whole suite green.
+    // The contiguity branch, asserted by name: a removal caught by the *link*
+    // branch instead would leave the whole suite green with the contiguity
+    // check deleted, unless the test asserts which.
     let mut swept = 0_u64;
     for position in 1..LENGTH - 1 {
         let mut journal = history().await;
@@ -266,11 +265,11 @@ async fn a_skipped_sequence_is_caught_as_a_skipped_sequence() {
             .await
             .unwrap_or_else(|| panic!("a renumbered entry at {position} passed"));
         // **Reported where the break is, with the claimed number beside it.**
-        // This asserted the number the entry now *claims* — and that number is
-        // the attacker's: renumbering the forged row to 500000 and re-hashing it
-        // made the verdict say `sequence: 500000`, sending a responder to a row
-        // that is not in the table. The position is what they can trust; the
-        // claimed number is what they grep for, and it is in `detail`.
+        // The number the entry now *claims* is the attacker's: renumbering the
+        // forged row to 500000 and re-hashing it would make a verdict built
+        // from it say `sequence: 500000`, sending a responder to a row that is
+        // not in the table. The position is what they can trust; the claimed
+        // number is what they grep for, and it is in `detail`.
         assert_eq!(failure.sequence, position);
         assert_eq!(
             failure.detail.as_deref(),
@@ -295,12 +294,12 @@ async fn a_skipped_sequence_is_caught_as_a_skipped_sequence() {
 
 /// A tampered entry is reported where it sits, not where it says it sits.
 ///
-/// **Three repairs in `chained_and_contiguous` reverted with the gate green.**
-/// The contiguity arm has had this case since the round that wrote it; the hash
-/// arm and the link arm carry the same `where_it_is` and the same `detail`, and
-/// nothing reached either. So `sequence: where_it_is` could go back to
-/// `entry.sequence` in both, and the hash arm's `detail` back to `None`, with
-/// all 118 `nc-journal` tests and the whole gate passing.
+/// **Three rules in `chained_and_contiguous`, each held.** The contiguity arm
+/// has its own case; the hash arm and the link arm carry the same `where_it_is`
+/// and the same `detail`, and without this nothing reaches either — so
+/// `sequence: where_it_is` could be `entry.sequence` in both, and the hash
+/// arm's `detail` `None`, with every `nc-journal` test and the whole gate
+/// passing.
 ///
 /// One rule written three times, with one copy tested. The number the entry
 /// claims is the attacker's — renumbering a forged row to 500000 makes the
@@ -349,17 +348,16 @@ async fn a_tampered_entry_is_reported_where_it_sits_and_not_where_it_claims() {
 
 /// Verifying a suffix is clean: its first entry legitimately links backwards.
 ///
-/// **`verify(from)` with a non-zero `from` had no case at all.** Every existing
-/// test goes through `broken`, which calls `verify(0)`, so the whole suffix path
-/// — the anchor read, `first.sequence != from`, the reached count — was walked
-/// by nothing.
+/// **`verify(from)` with a non-zero `from`, from every position.** The tests
+/// that go through `broken` call `verify(0)`, so this is where the suffix path
+/// — the anchor read, `first.sequence != from`, the reached count — is walked
+/// over a history with nothing wrong in it.
 ///
-/// The sibling below holds the head-of-history guard, which used to carry a
-/// `from == 0` conjunct. I read `previous` as always seeded from the anchor and
-/// called the conjunct an identity; it is not. `anchor` is `Some` only when the
-/// row at `from - 1` is really there, so a suffix whose boundary row was removed
-/// reaches that branch with `from` non-zero — and the conjunct answered `Ok`
-/// over it.
+/// The sibling below holds the head-of-history guard, and a `from == 0`
+/// conjunct on it is not an identity: `anchor` is `Some` only when the row
+/// at `from - 1` is really there, so a suffix whose boundary row was removed
+/// reaches that branch with `from` non-zero — and the conjunct would
+/// answer `Ok` over it.
 #[tokio::test]
 async fn verifying_from_partway_through_an_intact_history_is_clean() {
     let journal = history().await;
@@ -390,12 +388,12 @@ async fn verifying_from_partway_through_an_intact_history_is_clean() {
 
 /// A suffix whose boundary row was removed is not a clean history.
 ///
-/// **The conjunct that suppressed this was held by nothing**, and deleting it
-/// left all 121 `nc-journal` tests green — in the direction that *reports* the
+/// **A conjunct that would suppress this.** Without this case, deleting it
+/// leaves every `nc-journal` test green — in the direction that *reports* the
 /// removal. This is the case in the other direction: with `from == 0 &&` in
-/// front of the guard, removing row `k` and verifying from `k + 1` answered
-/// `Ok`, because `previous` is `None` when the anchor row is missing and the
-/// conjunct read that as "this is the head of the history".
+/// front of the guard, removing row `k` and verifying from `k + 1`
+/// answers `Ok`, because `previous` is `None` when the anchor row is missing
+/// and the conjunct reads that as "this is the head of the history".
 ///
 /// `NOCTUA.md §15.8` carves the journal out of row-count pruning, so there is no
 /// legitimate way for the row before `from` to be absent: a predecessor that is
@@ -441,10 +439,10 @@ async fn removing_an_entry_breaks_the_chain_where_it_was() {
         let failure = broken(&journal)
             .await
             .unwrap_or_else(|| panic!("removing entry {position} was not noticed"));
-        // **Where the entry was, which is what this test is named for.** It
-        // asserted the number of the entry that *followed* the removal — a
-        // number the row itself carries, and therefore one an attacker choosing
-        // it decides. The position is `position`: the place the chain stopped
+        // **Where the entry was, which is what this test is named for.** Not
+        // the number of the entry that *followed* the removal — a number the
+        // row itself carries, and therefore one an attacker choosing it
+        // decides. The position is `position`: the place the chain stopped
         // being contiguous, which is where the removed entry was.
         assert_eq!(
             failure.sequence, position,
@@ -496,8 +494,8 @@ async fn an_entry_that_links_to_something_at_the_head_of_a_history_is_noticed() 
 
 #[tokio::test]
 async fn a_read_that_returns_nothing_is_not_a_clean_history() {
-    // It used to be `Ok(0)`, so a caller writing `if verify(0)?.is_ok()`
-    // accepted a wiped table — the count reported and never enforced.
+    // Reported as `Ok(0)`, a caller writing `if verify(0)?.is_ok()` would
+    // accept a wiped table — the count reported and never enforced.
     let journal = history().await;
     let wiped = Journal::new(
         ShortStore(journal, 0),
@@ -515,19 +513,19 @@ async fn a_read_that_returns_nothing_is_not_a_clean_history() {
 
 #[tokio::test]
 async fn a_read_that_stops_short_of_the_stores_own_tail_is_not_clean() {
-    // The evidence used to be fetched and thrown away: a store whose read hid
+    // Fetched and thrown away, the evidence would let a store whose read hid
     // entries in the middle, while still reporting the real last sequence,
-    // verified clean over the ones it did return.
-    // **One row short as well as five.** The five-row case leaves any tolerance
-    // up to four invisible: `if last + 4 < tail.sequence` in `verify` left
-    // `cargo xtask check` green, and one row is the boundary this branch is
-    // about — the shape a chain of links cannot see, because every remaining
-    // link is still consistent with the one before it.
-    // **And the gaps tried, which are the property here.** This list is the
-    // whole of what says the tolerance is zero: narrowed to `[5]` the branch
-    // `if last + 4 < tail.sequence` is green again and a read four rows short
-    // of the tail is a clean history. Collected and asserted, because a count
-    // of two is satisfied by two copies of the five-row case.
+    // verify clean over the ones it did return. **One row short as well as
+    // five.** The five-row case leaves any tolerance up to four invisible:
+    // `if last + 4 < tail.sequence` in `verify` leaves `cargo xtask check`
+    // green against it, and one row is the boundary this branch is about — the
+    // shape a chain of links cannot see, because every remaining link is still
+    // consistent with the one before it. **And the gaps tried, which are the
+    // property here.** This list is the whole of what says the tolerance is
+    // zero: narrowed to `[5]` the branch `if last + 4 < tail.sequence` is green
+    // again and a read four rows short of the tail is a clean history.
+    // Collected and asserted, because a count of two is satisfied by two copies
+    // of the five-row case.
     let mut tried: Vec<u64> = Vec::new();
     for short_by in [1_u64, 5] {
         let journal = history().await;
@@ -570,15 +568,15 @@ async fn a_read_that_stops_short_of_the_stores_own_tail_is_not_clean() {
 
 #[tokio::test]
 async fn a_store_that_forgot_its_tail_while_still_holding_entries_is_not_clean() {
-    // The one `verify` branch that genuinely had no test. It is reached only
-    // when `tail()` says the store is empty while `from()` returns rows — the
-    // shape of a truncated index, a replica that lost its last page, or a
-    // `tail()` implemented as a separate query that raced the read. Without
-    // this, `return Ok(Ok(0))` in its place left the whole suite green.
+    // The `verify` branch reached when `tail()` says the store is empty while
+    // `from()` returns rows — the shape of a truncated index, a replica that
+    // lost its last page, or a `tail()` implemented as a separate query that
+    // raced the read. Without this, `return Ok(Ok(0))` in its place leaves the
+    // whole suite green.
     //
-    // The test it replaced constructed `ShortStore(journal, 0)`, character for
-    // character the same as `a_read_that_returns_nothing_is_not_a_clean_history`
-    // above, and so exercised the branch below this one twice.
+    // `ShortStore(journal, 0)` would be character for character the same as
+    // `a_read_that_returns_nothing_is_not_a_clean_history` above, and so would
+    // exercise the branch below this one twice.
     let journal = history().await;
     let forgetful = Journal::new(
         ForgetfulStore(journal),
@@ -596,10 +594,10 @@ async fn a_store_that_forgot_its_tail_while_still_holding_entries_is_not_clean()
 
 #[tokio::test]
 async fn two_journals_mint_different_work_unit_identifiers() {
-    // They did not. `Journal::new` used to build its own minter from a hardcoded
-    // machine flake of zero, so two journals in one process handed out the same
-    // work-unit identifiers — the hazard `Minter::new` documents as the
-    // caller's, under a comment here claiming Snowflakes prevented it.
+    // They do not: a `Journal::new` that built its own minter from a hardcoded
+    // machine flake of zero would make two journals in one process hand out the
+    // same work-unit identifiers — the hazard `Minter::new` documents as the
+    // caller's.
     let mut left = Journal::new(InMemory::default(), id("realm-1"), id("kernel"), minter());
     let mut right = Journal::new(InMemory::default(), id("realm-1"), id("kernel"), minter());
     let one = {
@@ -630,11 +628,10 @@ impl nc_ids::Clock for Frozen {
 
 /// Journals of two realms sharing their machine's one minter never mint the
 /// same work-unit identifier, in one millisecond on one flake — and the same
-/// two with minters of their own on that flake do, which is what sharing it
-/// is for (`NOCTUA.md §16.2`, one flake for each computer). **A reviewer found
-/// a real bug with it**: the kernels of two realms on one machine numbered
-/// their units alike, and the local file they share keeps a unit by its
-/// number.
+/// two with minters of their own on that flake do, which is what sharing it is
+/// for (`NOCTUA.md §16.2`, one flake for each computer): the kernels of two
+/// realms on one machine would number their units alike, and the local file
+/// they share keeps a unit by its number.
 #[tokio::test]
 async fn journals_sharing_their_machines_minter_never_mint_the_same_unit() {
     use std::sync::{Arc, Mutex};
@@ -704,7 +701,8 @@ async fn truncating_the_end_is_not_noticed_and_that_is_stated_rather_than_hidden
 async fn a_record_the_caller_wrote_wrong_is_named_before_anything_about_the_store() {
     // **Why the readable check is made twice.** Every `Store` applies it too,
     // so the call in `Journal::append` is behaviour-preserving for a record
-    // that is only unreadable — and deleting it left the whole suite green.
+    // that is only unreadable — and deleting it would leave the rest of the
+    // suite green.
     // What it decides is the order: a record the *caller* built wrong is named
     // as that, before the journal asks the store anything about work units and
     // before a sequence is taken for it.
@@ -811,8 +809,8 @@ async fn verification_reports_how_many_entries_it_checked() {
 
 #[tokio::test]
 async fn a_store_that_fails_part_way_leaves_what_it_wrote_and_says_so() {
-    // There was no failing store anywhere in the workspace, so the whole
-    // `Unavailable` branch had no test and the error was never constructed.
+    // A failing store, so the `Unavailable` branch has a test and the error is
+    // constructed.
     let mut journal = Journal::new(
         FailingStore::after(3),
         id("realm-1"),
@@ -850,7 +848,7 @@ async fn a_store_that_fails_part_way_leaves_what_it_wrote_and_says_so() {
 /// A store whose reads stop at `1`, while its tail still reports the truth.
 ///
 /// What a wiped or partly-hidden table looks like from the journal's side — and
-/// the shape whose evidence `verify` used to hold and discard.
+/// the shape whose evidence `verify` holds rather than discards.
 #[derive(Debug)]
 struct ShortStore(Journal<InMemory>, u64);
 
@@ -991,19 +989,19 @@ impl nc_journal::Store for FailingStore {
 
 #[tokio::test]
 async fn the_hashed_form_is_pinned_by_a_measured_vector() {
-    // **Nothing pinned the on-disk hash format.** All of these left the whole
-    // suite green: renaming `"realm"` to `"realm_id"`, writing `recorded_at` as
-    // an integer instead of text, passing a different domain to `nc_canon::hash`,
-    // and emptying `DOMAIN`. Each one makes every entry ever written
-    // unverifiable, silently — and the versioned-domain rationale in `entry.rs`
-    // depends on the shape being pinned, which nothing did.
+    // **The on-disk hash format, pinned.** Without this, all of these leave the
+    // whole suite green: renaming `"realm"` to `"realm_id"`, writing
+    // `recorded_at` as an integer instead of text, passing a different domain
+    // to `nc_canon::hash`, and emptying `DOMAIN`. Each one makes every entry
+    // ever written unverifiable, silently — and the versioned-domain rationale
+    // in `entry.rs` depends on the shape being pinned.
     //
-    // One vector pins all of it at once: the domain, the key names, their order,
-    // the u64-as-text encoding and the hex of the link. The constants below were
-    // measured from this code on 2026-08-26, and a deliberate change to the
-    // hashed shape is a change to `DOMAIN` **and** to these two lines — which is
-    // what makes it deliberate rather than discovered a year later by a chain
-    // that no longer verifies.
+    // One vector pins all of it at once: the domain, the key names, their
+    // order, the u64-as-text encoding and the hex of the link. The constants
+    // below are measured from this code, and a deliberate change to the hashed
+    // shape is a change to `DOMAIN` **and** to these two lines — which is what
+    // makes it deliberate rather than discovered a year later by a chain that
+    // no longer verifies.
     let mut record = Record::new(
         id("principal-1"),
         "Read",
@@ -1041,10 +1039,11 @@ async fn the_hashed_form_is_pinned_by_a_measured_vector() {
 #[tokio::test]
 async fn a_caller_cannot_write_another_realms_history_through_this_journal() {
     // `Record.realm` is a public field, seeded from the principal by
-    // `Record::new` and overwritten by `Journal::append`. Deleting that one line
-    // left the whole suite green — so a caller could set the field and write
-    // into another realm's history, which is the thing `Journal::new`'s and
-    // `Record::new`'s documentation both say cannot happen.
+    // `Record::new` and overwritten by `Journal::append`. Without this,
+    // deleting that one line would leave the whole suite green — so a caller
+    // could set the field and write into another realm's history, which is the
+    // thing `Journal::new`'s and `Record::new`'s documentation both say cannot
+    // happen.
     //
     // It is not a tidiness rule. `catalog/limits.toml` bounds this table from the
     // policy pack **per realm** (`§15.8`), and a pruner reads this column to know
@@ -1082,10 +1081,10 @@ async fn a_caller_cannot_write_another_realms_history_through_this_journal() {
 ///
 /// **Exactly what a concurrent append looks like to `verify`**, and made
 /// deterministic. `verify` reads the tail and then the entries, so a write that
-/// lands between the two leaves the read holding more than the tail did — and
-/// the comparison used to be `last != tail.sequence`, which called that
-/// tampering. Two live queries reproduce it only sometimes; this reproduces it
-/// every run, which is what a regression test needs.
+/// lands between the two leaves the read holding more than the tail did — and a
+/// comparison of `last != tail.sequence` would call that tampering. Two live
+/// queries reproduce it only sometimes; this reproduces it every run, which is
+/// what a regression test needs.
 struct TailIsOneBehind {
     entries: Vec<Entry>,
 }
@@ -1145,10 +1144,10 @@ impl nc_journal::Store for TailIsOneBehind {
     // guessing.
     // **Neither of these two ever sees an entry, and that is not a defect.**
     // The trait requires them; no case in this file writes a work unit, so an
-    // iterator probe over the whole suite measured both closures running zero
-    // times. Written the way the real store writes them anyway — the realm,
-    // the unit, the bracket's action and its outcome — so that a case added
-    // here gets the same answers, and said out loud so nobody reads them as
+    // iterator probe over the whole suite measures both closures running zero
+    // times. Written the way the real store writes them anyway — the realm, the
+    // unit, the bracket's action and its outcome — so that a case added here
+    // gets the same answers, and said out loud so nobody reads them as
     // behaviour this file tests.
     fn unit_opened(
         &self,
@@ -1209,20 +1208,20 @@ async fn a_read_that_reaches_past_the_tail_it_saw_is_not_tampering() {
 
 /// Verification compares the whole hash, not a prefix of it.
 ///
-/// **Every test above survives a comparison over four bytes.** The check is
-/// `entry.hash != entry.compute_hash()`, and narrowing it to `[..4]` leaves the
-/// twenty-one tests in this file green — a real edit changes the prefix with
-/// probability essentially one, so every case here still fires. What it costs is
-/// the property the chain exists for: a forgery then needs about 2³² work, which
-/// is seconds, and `verify` calls the result a clean history.
+/// **Every other test here survives a comparison over four bytes.** The check
+/// is `entry.hash != entry.compute_hash()`, and narrowing it to `[..4]` leaves
+/// the rest of the tests in this file green — a real edit changes the prefix
+/// with probability essentially one, so every case still fires. What it costs
+/// is the property the chain exists for: a forgery then needs about 2³² work,
+/// which is seconds, and `verify` calls the result a clean history.
 ///
 /// So this plants a hash that agrees with the true one on its first bytes and
 /// differs only late, which is exactly what such a forgery produces and what no
 /// ordinary tamper case can reach.
 #[tokio::test]
 async fn a_hash_that_differs_only_after_its_first_bytes_is_still_a_break() {
-    // **And the widths, which are the property and were held by nothing.**
-    // The list above is a hand list like any other: narrowed to one element,
+    // **And the widths, which are the property and are held here.** The list
+    // above is a hand list like any other: narrowed to one element,
     // `entry.hash[..4] != entry.compute_hash()[..4]` in `verify` leaves this
     // file and the whole workspace green, and the forgery this test exists to
     // price at 2²⁵⁶ costs 2³². So the widths are collected and asserted, and
@@ -1266,21 +1265,21 @@ async fn a_hash_that_differs_only_after_its_first_bytes_is_still_a_break() {
         digest * 8
     );
 
-    // **And the link, which is the same comparison one field along — and this
-    // loop did not test it.** It planted a near-miss into `entry.previous` and
-    // left `entry.hash` alone, so `entry.hash != entry.compute_hash()` fired
-    // first and the assertion (`sequence`, with no `reason`) was satisfied by
-    // the *hash* check every time. Measured: narrowing the link comparison to
-    // two bytes left all 22 tests here and all 34 against the live database
-    // green, and a forgery ground in 27,687 tries rewrote entry 3 to
+    // **And the link, which is the same comparison one field along.** A
+    // near-miss planted into `entry.previous` with `entry.hash` left alone
+    // makes `entry.hash != entry.compute_hash()` fire first, so the assertion
+    // (`sequence`, with no `reason`) would be satisfied by the *hash* check
+    // every time. Measured that way: narrowing the link comparison to two bytes
+    // leaves the tests here and against the live database green, and a forgery
+    // ground in 27,687 tries rewrites entry 3 to
     // `action=Escalate, principal=attacker` with **nothing after it touched** —
-    // `verify(0)` answered `Ok(6)`.
+    // `verify(0)` answers `Ok(6)`.
     //
     // So the entry is re-hashed after the link is planted. Then the hash check
     // cannot fire, the break has to land on the entry *after* it, and the reason
     // has to be the link's.
     // The widths here are the property for the same reason they are above, and
-    // this list is the one the two-byte link comparison walked through.
+    // this list is the one a two-byte link comparison walks through.
     let mut linked: Vec<usize> = Vec::new();
     for shared in [1_usize, 2, 4, 16, 31] {
         let mut journal = history().await;
@@ -1325,11 +1324,11 @@ async fn a_hash_that_differs_only_after_its_first_bytes_is_still_a_break() {
 
 /// `verify(n)` checks the link of the entry at `n`, not only the ones after it.
 ///
-/// **The head branch fires at `from == 0` and nothing fired anywhere else.** A
-/// read starting at `from` had no predecessor to compare the first link against,
-/// so the one entry a checkpointed verification is *about* was the one entry
-/// whose link went unchecked. Measured on a six-entry history with entry 5
-/// relinked and re-hashed:
+/// **The head branch fires at `from == 0`, and this fires elsewhere.** A read
+/// starting at `from` has no predecessor to compare the first link against, so
+/// without the anchor the one entry a checkpointed verification is *about*
+/// would be the one entry whose link goes unchecked. Measured that way, on a
+/// six-entry history with entry 5 relinked and re-hashed:
 ///
 /// ```text
 /// verify(0) -> Err(Broken { sequence: 5, reason: LinkDoesNotMatchPredecessor })
@@ -1392,9 +1391,9 @@ async fn verifying_from_a_checkpoint_checks_the_link_at_the_checkpoint() {
 /// A closing bracket is a bracket, and a unit is opened once.
 ///
 /// **Two doors into somebody else's work unit, both measured against a real
-/// database.** `unit_closed` filtered on realm, unit and result and never on
-/// `action`, so an ordinary `Write` carrying `Outcome::UnitCommitted` closed a
-/// group it had nothing to do with:
+/// database.** A `unit_closed` filtering on realm, unit and result and never
+/// on `action` lets an ordinary `Write` carrying `Outcome::UnitCommitted` close
+/// a group it has nothing to do with:
 ///
 /// ```text
 /// seq 0  kernel   kernel.begin  unit-begun
@@ -1404,23 +1403,19 @@ async fn verifying_from_a_checkpoint_checks_the_link_at_the_checkpoint() {
 ///
 /// The group's remaining entries are lost, no `kernel.unit` bracket exists in
 /// the history at all, and a reader looking for the close by action finds none
-/// while the store says closed. `CLOSES` was named so that "when did this unit
+/// while the store says closed. `CLOSES` is named so that "when did this unit
 /// end" has one answer.
 ///
-/// And the other bracket: a hand-set `work_unit` with `Outcome::UnitBegun` wrote
-/// a *second* opening for an open unit, with a different principal and a
-/// different label, and `verify` called the history clean.
+/// And the other bracket: a hand-set `work_unit` with `Outcome::UnitBegun`,
+/// unrefused, writes a *second* opening for an open unit, with a different
+/// principal and a different label, and `verify` calls the history clean.
 #[tokio::test]
 async fn a_bracket_is_a_bracket_and_a_unit_is_opened_once() {
     let mut journal = Journal::new(InMemory::default(), id("realm-1"), id("kernel"), minter());
-    // The handle borrows the journal, so the unit is opened and its identifier
-    // taken before anything else touches it — every write below goes through
-    // `Journal::record`, which is the door these two rules were missing.
     // The opening bracket is written by hand rather than through `begin`: the
     // handle borrows the journal, and dropping it without `commit` *aborts* —
     // which would close the unit before either rule below is asked. Every write
-    // here goes through `Journal::record`, which is the door both rules were
-    // missing.
+    // here goes through `Journal::record`, which is the door both rules guard.
     let id_of = nc_ids::Snowflake::from_crockford("2CY4Q0GM0400").expect("a valid identifier");
     let mut opening = Record::new(
         id("kernel"),
@@ -1504,11 +1499,10 @@ async fn a_bracket_is_a_bracket_and_a_unit_is_opened_once() {
 
 /// The tail can be rewritten in place, and only a kept head hash sees it.
 ///
-/// **The cheapest of the three attacks the crate header names**, and the one it
-/// did not name until it was measured: the last entry has nothing after it, so
-/// changing it costs no downstream rewrites. Recompute its own hash and `verify`
-/// answers `Ok` about a history whose last line now says somebody else did
-/// something else.
+/// **The cheapest of the three attacks the crate header names**: the last entry
+/// has nothing after it, so changing it costs no downstream rewrites. Recompute
+/// its own hash and `verify` answers `Ok` about a history whose last line now
+/// says somebody else did something else.
 ///
 /// This test is the mitigation made concrete rather than promised. `Store::head`
 /// returns the sequence and hash of the last entry; a caller that keeps that
@@ -1562,13 +1556,14 @@ async fn a_rewritten_tail_is_invisible_to_verify_and_visible_to_a_kept_head() {
 
 /// An entry whose hash is not its contents' hash cannot be appended, in either store.
 ///
-/// **The one guard in front of a permanent, unrepairable row was reached by
-/// nothing.** `Entry`'s fields are all `pub`, so a struct literal builds an
+/// **The one guard in front of a permanent, unrepairable row,
+/// reached.** `Entry`'s fields are all `pub`, so a struct literal builds an
 /// entry with any hash at all — no raw SQL, no test-support feature, no
-/// privilege. `readable()` checks depth, NUL bytes and integer range; the hash
-/// check beside them was added for exactly this and had no test. Deleting the
-/// whole `if entry.hash != entry.compute_hash()` block left the entire workspace
-/// green, and the consequence is not a wrong answer, it is an outage:
+/// privilege. `readable()` checks depth, NUL bytes and integer range, and the
+/// hash check beside them is what this reaches. Deleting the
+/// whole `if entry.hash != entry.compute_hash()` block without this leaves the
+/// entire workspace green, and the consequence is not a wrong answer, it is an
+/// outage:
 ///
 /// ```text
 /// with the check deleted:
@@ -1579,10 +1574,11 @@ async fn a_rewritten_tail_is_invisible_to_verify_and_visible_to_a_kept_head() {
 ///   verify(0) -> Broken { sequence: 0, reason: HashDoesNotMatchContents }
 /// ```
 ///
-/// The row lands permanently — `DELETE`, `UPDATE` and `TRUNCATE` are all refused
-/// by the migrations' triggers — and `verify` condemns the history at it for
-/// ever. That is the class `0009_a_hash_is_sixty_four_hex_characters.sql` was
-/// written for, reached through the public API.
+/// The row lands permanently — `DELETE`, `UPDATE` and `TRUNCATE` are all
+/// refused by the migrations' triggers — and `verify` condemns the history at
+/// it for ever. That is the
+/// class `0009_a_hash_is_sixty_four_hex_characters.sql` guards, reached through
+/// the public API.
 ///
 /// Driven through `Store::append` on the in-memory store, which is the same
 /// `readable()` the PostgreSQL store calls first — and the assertion is on the
@@ -1603,15 +1599,15 @@ async fn an_entry_whose_hash_is_not_its_contents_is_refused_by_the_store() {
     );
 
     // **And where the forged digest differs from the true one, which is the
-    // whole of what this check is worth.** The single fixture here was
-    // `[0x11; 32]`, which differs at byte 0: narrowing `readable`'s comparison
-    // to `entry.hash[..1] != entry.compute_hash()[..1]` left this test and the
+    // whole of what this check is worth.** A single fixture of `[0x11; 32]`
+    // differs at byte 0: narrowing `readable`'s comparison to
+    // `entry.hash[..1] != entry.compute_hash()[..1]` leaves such a test and the
     // whole workspace green, and a forger who matches one byte walks in through
     // the public `Store::append`. So the flipped byte is swept across the
     // digest, the positions are collected, and the last of them has to be the
     // digest's last byte — the same shape, and the same reason, as the width
-    // sweeps in `a_hash_that_differs_only_after_its_first_bytes_is_still_a_break`
-    // above.
+    // sweeps in
+    // `a_hash_that_differs_only_after_its_first_bytes_is_still_a_break` above.
     let width = honest.hash.len();
     let mut flipped: Vec<usize> = Vec::new();
     for at in [0_usize, 1, 4, 16, width - 1] {
@@ -1619,8 +1615,8 @@ async fn an_entry_whose_hash_is_not_its_contents_is_refused_by_the_store() {
         let mut planted = honest.hash;
         planted[at] ^= 0x01;
         // Through the door named for what it does: `Entry` is
-        // `#[non_exhaustive]` now, so a struct literal here would not compile —
-        // a hash a caller supplies is a link it did not compute, and this suite
+        // `#[non_exhaustive]`, so a struct literal here would not compile — a
+        // hash a caller supplies is a link it did not compute, and this suite
         // is the only place that is ever the point.
         let forged = nc_journal::Entry::forged_for_tests(
             honest.sequence,
@@ -1643,13 +1639,13 @@ async fn an_entry_whose_hash_is_not_its_contents_is_refused_by_the_store() {
             ),
             Err(refused) => refused,
         };
-        // **`Unstorable`, and the code it carries.** This expected
-        // `Undecodable`, whose own doc reads *"a row is in the table and this
-        // code cannot read it — that is tampering"* and whose code is
-        // `critical`: a caller handing the store a badly built value was
-        // reported as the audit chain being broken, which pages somebody.
-        // Nothing has been stored at this point, and the two sibling checks in
-        // the same function say so with `Unstorable`.
+        // **`Unstorable`, and the code it carries.** Not `Undecodable`, whose
+        // own doc reads *"a row is in the table and this code cannot read it —
+        // that is tampering"* and whose code is `critical`: a caller handing
+        // the store a badly built value would be reported as the audit chain
+        // being broken, which pages somebody. Nothing has been stored at this
+        // point, and the two sibling checks in the same function say so with
+        // `Unstorable`.
         assert!(
             matches!(refused, nc_journal::Error::Unstorable { field: "hash", .. }),
             "a digest forged at byte {at} drew the wrong refusal: {refused:?}"
@@ -1709,12 +1705,11 @@ fn the_base_record() -> Record {
     // **The realm, apart from the principal.** `Record::new` copies the
     // principal into the realm — a journal overwrites it on append — and a base
     // record whose two identifier fields hold one value cannot be *exchanged*:
-    // the corpus entry named "realm and principal exchanged" set
+    // an entry named "realm and principal exchanged", set to
     // `realm = principal-1, principal = realm-1` against a base holding
-    // `realm-1` in both, so it departed in `realm` alone and the collapse it is
-    // named for — a realm rendered as bare text absorbing a principal — was
-    // compared against nothing. Found by the field check below, which is what
-    // that check is for.
+    // `realm-1` in both, would depart in `realm` alone, and the collapse it is
+    // named for — a realm rendered as bare text absorbing a principal — be
+    // compared against nothing. The field check below is what catches that.
     record.realm = id("realm-1");
     record
 }
@@ -1773,9 +1768,10 @@ fn every_field_and_whether_it_differs(shape: &Record, base: &Record) -> Vec<(Str
 
 /// Records built around every boundary where two could collapse into one.
 ///
-/// Split from the test, which crossed clippy's line limit with it inline. The
-/// corpus is the substance: each entry names a way a field's rendering could
-/// absorb a neighbour's content, which is what a collision needs.
+/// Split from the test, which with it inline would cross clippy's line
+/// limit. The corpus is the substance: each entry names a way a field's
+/// rendering could absorb a neighbour's content, which is what a collision
+/// needs.
 fn the_shapes_a_flattening_would_collapse() -> Vec<(String, Record)> {
     let base = the_base_record;
 
@@ -1805,12 +1801,13 @@ fn the_shapes_a_flattening_would_collapse() -> Vec<(String, Record)> {
     add("an actor chain of one, spelled together", one_actor);
 
     // **The same two actors the other way round, and the same actor twice.**
-    // Every multi-actor chain in this file was already in sorted order — this
-    // corpus's `[a, b]` and the golden vector's `[agent-1, principal-1]` — and
-    // `tamper::edits()` only ever pushes one actor onto an *empty* chain. So a
-    // `hashed_form` that sorted the chain, or de-duplicated it, was
-    // byte-identical to the honest one on every input the suite had, and both
-    // weakenings passed at `865 test(s)`. Measured with the sorting version:
+    // Without these, every multi-actor chain in this file is already in sorted
+    // order — this corpus's `[a, b]` and the golden vector's
+    // `[agent-1, principal-1]` — and `tamper::edits()` only ever pushes one
+    // actor onto an *empty* chain. So a `hashed_form` that sorted the chain, or
+    // de-duplicated it, would be byte-identical to the honest one on every
+    // input the suite has, and both weakenings pass. Measured with the sorting
+    // version:
     //
     // ```text
     // chain A = ["operator-1", "agent-x"]      hash 315e43605fabd8ab…
@@ -1844,14 +1841,13 @@ fn the_shapes_a_flattening_would_collapse() -> Vec<(String, Record)> {
     // Numbers at the boundary where a signed rendering would collapse them.
     //
     // **Both fields that carry one, not one of them.** `entry.rs`'s own note
-    // records the collision this encoding exists to prevent — *"they used to go
-    // in as `i64::try_from(x).unwrap_or(i64::MAX)`, which collapses every value
-    // at or above 2^63 onto one … **two of these fields** carry values that come
-    // from outside this crate"* — and the corpus varied only `recorded_at`.
-    // Reintroducing exactly that saturation on `policy_epoch` alone left
-    // `cargo xtask check` green over an injectivity claim that was false; the
-    // golden vector could not see it either, because its own `policy_epoch` is
-    // small.
+    // records the collision this encoding prevents —
+    // `i64::try_from(x).unwrap_or(i64::MAX)` collapses every value at or above
+    // 2^63 onto one, and **two of these fields** carry values that come from
+    // outside this crate. With only `recorded_at` varied, that exact saturation
+    // on `policy_epoch` alone leaves `cargo xtask check` green over an
+    // injectivity claim that is false; the golden vector cannot see it either,
+    // because its own `policy_epoch` is small.
     for (what, at) in [
         ("recorded at zero", 0),
         ("recorded at i64::MAX as u64", 9_223_372_036_854_775_807),
@@ -1898,21 +1894,19 @@ fn the_shapes_a_flattening_would_collapse() -> Vec<(String, Record)> {
         action.clone_into(&mut record.action);
         add(what, record);
     }
-    // **`a resource that is the text of the id` was a second copy of
-    // `the same resource written as text`.** Both held `Value::text("1")`, so
-    // eighty-seven labels stood over eighty-three records rather than
-    // eighty-four, and the one unit of slack the distinct floor carried was
-    // spent on a duplicate nothing declared. The flattening it named — the
-    // base's `{"id":1}` rendered as the text of its id — is still ruled out by
-    // the base against that same record, which `VARIANT_PAIRS` names and which
-    // therefore has a floor of its own.
+    // **One record per shape.** `a resource that is the text of the id` and
+    // `the same resource written as text` would both hold `Value::text("1")` —
+    // two labels over one record, spending on a duplicate nothing declared the
+    // one unit of slack the distinct floor carries. The flattening such a label
+    // names — the base's `{"id":1}` rendered as the text of its id — is ruled
+    // out by the base against that same record, which `VARIANT_PAIRS` names and
+    // which therefore has a floor of its own.
     let mut nested = base();
     nested.resource = Value::object([("id", Value::text("1"))]);
     add("an id that is text rather than a number", nested);
 
-    // **Every outcome, and this said so while listing three of six.** The result
-    // is what an attacker most wants to change, and `Failed`, `UnitCommitted`
-    // and `UnitAborted` were hashed by no test at all.
+    // **Every outcome.** The result is what an attacker most wants to change,
+    // so each of the six is an entry of its own here.
     for outcome in [
         Outcome::Allowed,
         Outcome::Denied,
@@ -1932,16 +1926,16 @@ fn the_shapes_a_flattening_would_collapse() -> Vec<(String, Record)> {
 
 /// The three spellings of one qualified name, for every field that can hold one.
 ///
-/// **`OpaqueId` admits `.` and `:` on purpose and nothing here used either.**
-/// Its own doc names `did:key:z…` and `urn:uuid:…` as the candidates `§5.1` is
-/// left open for, and not one value in this whole apparatus carried a separator
-/// — so a `hashed_form` rendering an identifier as one of its *segments* was the
-/// identity on every record here and on every edit `tamper::edits()` makes.
-/// Measured on 2026-09-08, `realm` rendered as the part after its last `:`: the
-/// whole of `nc-journal` and `nc-canon` green at 182 tests, `cargo xtask check`
-/// `check passed` at `ok 1185 test(s)`, and `urn:uuid:alpha` colliding with
-/// `did:web:alpha` on `3a82c132…` with `verify` answering `Ok(4)` over the
-/// rewrite. Five more fields the same way.
+/// **`OpaqueId` admits `.` and `:` on purpose.** Its own doc names `did:key:z…`
+/// and `urn:uuid:…` as the candidates `§5.1` is left open for, and without
+/// these no value in this apparatus carries a separator — so a `hashed_form`
+/// rendering an identifier as one of its *segments* would be the identity on
+/// every record here and on every edit `tamper::edits()` makes. Measured that
+/// way, `realm` rendered as the part after its last `:`: the whole
+/// of `nc-journal` and `nc-canon` green, `cargo xtask check`
+/// printing `check passed`, and `urn:uuid:alpha` colliding with `did:web:alpha`
+/// on `3a82c132…` with `verify` answering `Ok(4)` over the rewrite. Five more
+/// fields the same way.
 ///
 /// Three values close both ends and both separators at once. Two of them differ
 /// only *before* the first separator, so every rendering that keeps a suffix —
@@ -2095,11 +2089,11 @@ fn the_shapes_a_combining_mark_would_collapse() -> Vec<(String, Record)> {
         resource_marked,
     );
 
-    // **And the same accent written the other way**, which every record above
-    // lacked: each of them carries a mark on a letter that has no composed
-    // form, so a rendering that *joins* a base and its mark — Unicode NFC,
-    // which is what somebody adds when they normalise before hashing — was the
-    // identity on all of them. See [`composed`].
+    // **And the same accent written the other way.** Each record above carries
+    // a mark on a letter that has no composed form, so a rendering that *joins*
+    // a base and its mark — Unicode NFC, which is what somebody adds when they
+    // normalise before hashing — would be the identity on all of them. See
+    // [`composed`].
     let mut action_apart = base();
     "Cafe\u{301}".clone_into(&mut action_apart.action);
     add("an action whose accent is written apart", action_apart);
@@ -2139,15 +2133,15 @@ fn the_shapes_a_combining_mark_would_collapse() -> Vec<(String, Record)> {
 
     // **And the variants a rendering could collapse into text.** Every class in
     // `NORMALISATIONS` is a `fn(&str) -> String` reached through `the_text_of`,
-    // so a rendering over the *type* is outside the product entirely: measured,
-    // `hashed_form` turning `Integer`, `Bool` and `Null` into their text gave
-    // `check passed` at `ok 1085 test(s)`, the baseline verdict line for line,
-    // with `Integer(1)` and `Text("1")` on `3218ffca9528cfcf…`, `Bool(true)` and
-    // `Text("true")` on `1a14877ac424c154…`, and `Null` and `Text("")` on
-    // `f53f6180361eeb31…`. The corpus's only variant pair was *nested*
-    // (`{"id":1}` against `{"id":"1"}`), which a recursive collapse fails and a
-    // top-level one does not. What it admits: an attacker who can write only
-    // text into `resource` produces the digest of a structured one.
+    // so a rendering over the *type* is outside the product entirely: measured
+    // without these, `hashed_form` turning `Integer`, `Bool` and `Null` into
+    // their text gives `check passed` at the baseline verdict line for line,
+    // with `Integer(1)` and `Text("1")` on `3218ffca9528cfcf…`, `Bool(true)`
+    // and `Text("true")` on `1a14877ac424c154…`, and `Null` and `Text("")` on
+    // `f53f6180361eeb31…`. A *nested* variant pair (`{"id":1}` against
+    // `{"id":"1"}`) is failed by a recursive collapse and not by a top-level
+    // one. What it admits: an attacker who can write only text into `resource`
+    // produces the digest of a structured one.
     let mut resource_number = base();
     resource_number.resource = Value::Integer(1);
     add("a resource that is a number", resource_number);
@@ -2172,20 +2166,20 @@ fn the_shapes_a_combining_mark_would_collapse() -> Vec<(String, Record)> {
 
 /// Records a rendering that *normalises* an identifier would collapse.
 ///
-/// Split from [`the_shapes_a_flattening_would_collapse`], which crossed
-/// clippy's line limit with these inline — the same reason that function was
+/// Split from [`the_shapes_a_flattening_would_collapse`], which with these
+/// inline would cross clippy's line limit — the same reason that function is
 /// split from its own test.
 ///
 /// A flattening absorbs a neighbour's content; a normalisation throws part of a
-/// field's own content away, and no entry above could see one. Every identifier
-/// this file wrote was already lower-case and shorter than thirteen characters,
-/// so a `hashed_form` that folded the case of an identifier field, or cut one
-/// short, was the identity on the whole corpus **and** on every edit
-/// `tamper::edits()` makes. Measured, seven such weakenings — `realm`,
-/// `principal`, `actor_chain`, `deciding_policy`, `policy_pack` and
-/// `grant_used` lower-cased, and `realm` and `principal` truncated to twelve
-/// characters — passed the whole of `nc-journal` and printed `check passed`
-/// byte-identical to a clean run.
+/// field's own content away, and no entry above can see one. With every
+/// identifier lower-case and shorter than thirteen characters, a `hashed_form`
+/// that folded the case of an identifier field, or cut one short, would be the
+/// identity on the whole corpus **and** on every edit `tamper::edits()`
+/// makes. Measured, seven such weakenings
+/// — `realm`, `principal`, `actor_chain`, `deciding_policy`, `policy_pack`
+/// and `grant_used` lower-cased, and `realm` and `principal` truncated to
+/// twelve characters — pass the whole of `nc-journal` without these and
+/// print `check passed` byte-identical to a clean run.
 ///
 /// `nc-ids` accepts `[A-Za-z0-9-_.:]` verbatim and normalises nothing, so
 /// `Realm-1` and `realm-1` are two realms: under a folding rendering a stored
@@ -2257,8 +2251,8 @@ fn the_shapes_a_normalising_rendering_would_collapse() -> Vec<(String, Record)> 
     add("a grant respelled in another case", granted_cased);
 
     // **And the same four fields with a character outside ASCII.** See
-    // `NORMALISATIONS` for the rendering this rules out: every value anywhere in
-    // this apparatus was ASCII, so keeping only ASCII changed nothing anywhere.
+    // `NORMALISATIONS` for the rendering this rules out: with every value in
+    // this apparatus ASCII, keeping only ASCII would change nothing anywhere.
     let mut action_wide = base();
     "Read\u{2028}".clone_into(&mut action_wide.action);
     add("an action carrying a character outside ASCII", action_wide);
@@ -2287,14 +2281,14 @@ fn the_shapes_a_normalising_rendering_would_collapse() -> Vec<(String, Record)> 
     resource_spaced.resource = Value::text("1 ");
     add("a resource whose text carries whitespace", resource_spaced);
 
-    // **The case class named six identifier fields and left the two that carry
-    // free text.** Every `action` in this corpus was `Read`, `Write` or a
-    // spelling of the resource, and every `resource` was `1`, `{"id":1}` or
-    // `{"id":"1"}` — all caseless. Measured, `hashed_form` rendering
-    // `Value::Text` through `to_lowercase`: all 123 of `nc-journal`'s tests
-    // green, and `Contract-Alice` colliding with `contract-alice` in the field
-    // that says *what was acted on*. `action` was caught, but only by the
-    // golden vector, whose one literal happens to spell `Read` with a capital.
+    // **The case class, for the two fields that carry free text too.** Every
+    // other `action` in this corpus is `Read`, `Write` or a spelling of the
+    // resource, and every other `resource` is `1`, `{"id":1}` or `{"id":"1"}` —
+    // all caseless. Measured without these, `hashed_form` rendering
+    // `Value::Text` through `to_lowercase`: every `nc-journal` test green, and
+    // `Contract-Alice` colliding with `contract-alice` in the field that says
+    // *what was acted on*. `action` is caught then only by the golden vector,
+    // whose one literal happens to spell `Read` with a capital.
     let mut action_cased = base();
     "READ".clone_into(&mut action_cased.action);
     add("the same action in another case", action_cased);
@@ -2317,7 +2311,7 @@ fn the_shapes_a_normalising_rendering_would_collapse() -> Vec<(String, Record)> 
 /// The three fields whose bytes reach the digest as a caller wrote them.
 ///
 /// Its own builder because the class is a *class* — a rendering that touches
-/// whitespace anywhere touches all of it — and because the parent had grown
+/// whitespace anywhere touches all of it — and because the parent would grow
 /// past what one function should hold.
 fn the_shapes_a_whitespace_rendering_would_collapse() -> Vec<(String, Record)> {
     let base = the_base_record;
@@ -2327,12 +2321,13 @@ fn the_shapes_a_whitespace_rendering_would_collapse() -> Vec<(String, Record)> {
     // **The three fields that are not identifiers.** Every field the parent
     // varies is an `OpaqueId`, whose grammar `[A-Za-z0-9-_.:]` cannot hold a
     // space — so a trimming rendering of those genuinely is the identity, and
-    // the case and length pairs are the whole story for them. `action`, `deciding_policy`
-    // and `policy_pack` are unconstrained `String`s, and every value this file
-    // gave them was already trimmed ASCII: measured, `hashed_form` rendering
-    // all three through `str::trim` gave `check passed` and `ok 1072 test(s)`,
-    // the baseline verdict line for line, while two records differing only in a
-    // trailing space on `action` landed on one digest.
+    // the case and length pairs are the whole story for them. `action`,
+    // `deciding_policy` and `policy_pack` are unconstrained `String`s, and
+    // without these every value this file gives them is already trimmed ASCII:
+    // measured with these and `entry.rs`'s whitespace edits both absent,
+    // `hashed_form` rendering all three through `str::trim` gives
+    // `check passed` at the baseline verdict line for line, while two records
+    // differing only in a trailing space on `action` land on one digest.
     let mut spaced_action = base();
     "Read ".clone_into(&mut spaced_action.action);
     add("an action carrying whitespace", spaced_action);
@@ -2346,14 +2341,14 @@ fn the_shapes_a_whitespace_rendering_would_collapse() -> Vec<(String, Record)> {
     pack_spaced.policy_pack = Some("family-1 ".to_owned());
     add("the same policy pack carrying whitespace", pack_spaced);
 
-    // **And a tab where the record beside it has a space.** Every whitespace
-    // witness in this apparatus was a single ASCII space at one *end*: `padded`
-    // appends one, `led` prepends one, and the values above are `"Read "`,
-    // `"core.no_self_escalation "`, `"family-1 "`. So a `hashed_form`
-    // normalising a **different** member of the same class was the identity on
-    // all of it — measured, `action.replace('\t', " ")` left `nc-journal` green
-    // at 34 and 31 tests and `check passed` at its baseline, with
-    // `"Read\tthe file"` and `"Read the file"` on one digest.
+    // **And a tab where the record beside it has a space.** Every other
+    // whitespace witness in this apparatus is a single ASCII space at one
+    // *end*: `padded` appends one, `led` prepends one, and the values above are
+    // `"Read "`, `"core.no_self_escalation "`, `"family-1 "`. So a
+    // `hashed_form` normalising a **different** member of the same class would
+    // be the identity on all of it — measured, `action.replace('\t', " ")`
+    // leaves `nc-journal` green and `check passed` at its baseline without
+    // these, with `"Read\tthe file"` and `"Read the file"` on one digest.
     //
     // **A tab is one member and the class has twenty-four.** These pairs stay
     // because the corpus is what `MUST_HOLD` censuses and what every other
@@ -2399,18 +2394,17 @@ fn the_shapes_a_whitespace_rendering_would_collapse() -> Vec<(String, Record)> {
     pack_tabbed.policy_pack = Some("family\t1".to_owned());
     add("the same policy pack parted by a tab instead", pack_tabbed);
 
-    // **And `resource`, which is the field that says what was acted on.** The
-    // paragraph above used to argue that a `resource` witness for this class
-    // could not be built, and two thirds of that argument were false:
-    // `the_text_of`'s `resource` arm is `Value::Text(text) => text.clone()`, so
-    // the top-level witness reads the raw text — which is why the trailing-space
-    // witness beside it works — and `with_its_keys_rendered` walks the `Value`
-    // tree, so a key pair is constructible too. Measured while the argument
-    // stood: `hashed_form` rendering `Value::Text` through
-    // `text.replace('\t', " ")` left every one of `nc-journal`'s tests green and
-    // `cargo xtask check` byte-identical to a clean run except for four raw line
-    // counters, with `Contract\tAlice` and `Contract Alice` landing on one
-    // digest. A front-only `trim_start` was the same.
+    // **And `resource`, which is the field that says what was acted on.** A
+    // witness for this class can be built for it: `the_text_of`'s `resource`
+    // arm is `Value::Text(text) => text.clone()`, so the top-level witness
+    // reads the raw text — which is why the trailing-space witness beside it
+    // works — and `with_its_keys_rendered` walks the `Value` tree, so a key
+    // pair is constructible too. Measured without these: `hashed_form`
+    // rendering `Value::Text` through `text.replace('\t', " ")` leaves every
+    // one of `nc-journal`'s tests green and `cargo xtask check` byte-identical
+    // to a clean run except for four raw line counters, with `Contract\tAlice`
+    // and `Contract Alice` landing on one digest. A front-only `trim_start` is
+    // the same.
     //
     // What genuinely cannot be built is the *nested* witness, and the reason is
     // in the rendering rather than in the probe. `to_canonical` escapes a tab to
@@ -2418,12 +2412,10 @@ fn the_shapes_a_whitespace_rendering_would_collapse() -> Vec<(String, Record)> {
     // with wrapping — `a_rendering_reaches_inside` answers `false` for it, and
     // a class it answers `false` for is asked for no nested witness at all.
     //
-    // **This paragraph used to say the probe carried no tab and therefore
-    // answered `true` for a rendering it never exercised.** Both halves were
-    // stale by round thirty-two: the probe is `" A\u{0301}b\tc\u{2028}e\u{0301} "`
-    // and does carry one, and the answer is `false`. The conclusion it drew was
-    // right for a reason it did not name, which is the shape this file's own
-    // header warns about.
+    // **The probe carries a tab, and the answer for this rendering is
+    // `false`.** The probe is `" A\u{0301}b\tc\u{2028}e\u{0301} "`, so the
+    // nested witness is not asked for because the rendering does not commute
+    // with wrapping, not because the probe never exercised it.
     let mut resource_gapped = base();
     resource_gapped.resource = Value::text("Contract Alice");
     add(
@@ -2445,20 +2437,20 @@ fn the_shapes_a_whitespace_rendering_would_collapse() -> Vec<(String, Record)> {
 
 /// Every character Rust calls whitespace, other than the space itself.
 ///
-/// **The class was one character deep.** The pairs above are a tab beside a
-/// space, and the repair that added them closed exactly that one member: a
-/// newline is in no value this apparatus holds, `readable_record` refuses only a
-/// NUL in `action`, `deciding_policy` and `policy_pack`, and nothing anywhere
-/// carries `\r`, a vertical tab, a form feed or any of the Unicode spaces. So a
-/// `hashed_form` folding a *different* member of the same class was the identity
-/// on the whole corpus again. Measured on 2026-09-08, `hashed_form` rendering
-/// `action` through `action.replace('\n', " ")`: `nc-journal` green at 34 and 31
-/// tests, with `Read\nthe file` and `Read the file` both on
-/// `cad9d3b88ab85ff6…` while the tab the repair closed stayed apart.
+/// **The class is more than one character deep.** The pairs above are a tab
+/// beside a space, and that closes exactly one member: a newline is in no other
+/// value this apparatus holds, `readable_record` refuses only a NUL
+/// in `action`, `deciding_policy` and `policy_pack`, and nothing anywhere
+/// carries `\r`, a vertical tab, a form feed or any of the Unicode spaces. So
+/// a `hashed_form` folding a *different* member of the same class would be the
+/// identity on the whole corpus again. Measured, `hashed_form`
+/// rendering `action` through `action.replace('\n', " ")`: `nc-journal` green
+/// without this, with `Read\nthe file` and `Read the file` both
+/// on `cad9d3b88ab85ff6…` while the tab stays apart.
 ///
 /// So the class is stated over the alphabet rather than over the members
 /// somebody thought to write, the way [`every_nesting_the_corpus_holds_has_a_witness`]
-/// quantified depth instead of listing it. The table is held against
+/// quantifies depth instead of listing it. The table is held against
 /// `char::is_whitespace` by the test below, so a character Unicode adds to the
 /// property arrives here as a failure rather than as a silence.
 const WHITESPACE_ALPHABET: [(&str, char); 24] = [
@@ -2564,12 +2556,12 @@ fn every_whitespace_character_this_file_names_is_told_from_a_space() {
 
 /// Resources that are structured, varying only *inside* the nesting.
 ///
-/// **The sixteenth falsification of criterion 3, and it was two of them.**
-/// Every structured value in the whole apparatus was `{"id":1}`, `{"id":"1"}` or
-/// the golden vector's two lower-case texts, `tamper::edits()` writes a
-/// top-level `Value::text`, and no `resource` anywhere held a list at all. So a
-/// `hashed_form` that reached one level down was the identity on all of it.
-/// Measured on 2026-09-03, each with all thirty tests of this file green:
+/// **Inside the nesting, two ways.** Every other structured value in the whole
+/// apparatus is `{"id":1}`, `{"id":"1"}` or the golden vector's two lower-case
+/// texts, `tamper::edits()` writes a top-level `Value::text`, and no
+/// other `resource` holds a list at all. So a `hashed_form` that reached one
+/// level down would be the identity on all of it. Measured, each with every
+/// other test of this file green:
 ///
 /// ```text
 /// a nested Value::Text lower-cased
@@ -2635,15 +2627,15 @@ fn the_shapes_a_rendering_reaching_inside_would_collapse() -> Vec<(String, Recor
 
 /// Resources whose text sits deeper than one container, and inside a list.
 ///
-/// **The seventeenth falsification of criterion 3.** Every structured resource
-/// in [`the_shapes_a_rendering_reaching_inside_would_collapse`] varies a direct
-/// string value of the top-level object, and the only text the corpus held any
-/// deeper was the `a` and `b` of a nested list, which no pair respells — so a
-/// `hashed_form` that reached one container further in was the identity on every
-/// record here and on every edit `tamper::edits()` makes. Measured on
-/// 2026-09-03, `hashed_form` lower-casing every text more than one container
-/// down: all thirty tests of this file green and `nc-journal`'s library at
-/// thirty-two, with
+/// **Further in than one container.** Every structured resource in
+/// [`the_shapes_a_rendering_reaching_inside_would_collapse`] varies a direct
+/// string value of the top-level object, and the only text the corpus holds any
+/// deeper is the `a` and `b` of a nested list, which no pair respells — so
+/// without these a `hashed_form` that reached one container further in would be
+/// the identity on every record here and on every edit `tamper::edits()`
+/// makes. Measured, `hashed_form` lower-casing every text more than one
+/// container down: every other test of this file and `nc-journal`'s library
+/// green, with
 ///
 /// ```text
 /// {"id":["Contract-Alice"]}          and {"id":["contract-alice"]}
@@ -2674,7 +2666,7 @@ fn the_shapes_a_deeper_nesting_would_collapse() -> Vec<(String, Record)> {
             "carrying a character outside ASCII",
             "Contract-Alice\u{2028}",
         ),
-        // Six spellings now: `composed` reaches inside a container as the three
+        // Six spellings: `composed` reaches inside a container as the three
         // above do, so `every_nesting_the_corpus_holds_has_a_witness` asks it
         // for a pair at every nesting too.
         ("whose accent is written apart", "Contract-Cafe\u{301}"),
@@ -2693,14 +2685,13 @@ fn the_shapes_a_deeper_nesting_would_collapse() -> Vec<(String, Record)> {
 
 /// Resources that differ in the key of a nested object and nowhere else.
 ///
-/// **The eighteenth falsification, and no rendering of a text can state it.**
-/// Every nested object in this file is keyed `id` and the golden vector's are
-/// keyed `kind` and `id` — all lower-case ASCII — so a `hashed_form` that
-/// normalised the *keys* of a structured resource was the identity on the whole
-/// apparatus. Measured on 2026-09-03, `hashed_form` lower-casing every key of
-/// the value a caller supplied: all thirty tests of this file green and
-/// `nc-journal`'s library at thirty-two, with `{"Owner":"alice"}` and
-/// `{"owner":"alice"}` on one digest.
+/// **A key, which no rendering of a text can state.** Every other nested object
+/// in this file is keyed `id` and the golden vector's are keyed `kind` and `id`
+/// — all lower-case ASCII — so a `hashed_form` that normalised the *keys* of a
+/// structured resource would be the identity on the whole
+/// apparatus. Measured, `hashed_form` lower-casing every key of the value a
+/// caller supplied: every other test of this file and `nc-journal`'s library
+/// green, with `{"Owner":"alice"}` and `{"owner":"alice"}` on one digest.
 ///
 /// A key says which part of the resource was acted on, so the collapse renames
 /// what the entry is about while the row still hashes to its stored digest and
@@ -2720,25 +2711,23 @@ fn the_shapes_a_rendering_of_the_keys_would_collapse() -> Vec<(String, Record)> 
         ("in another case", "Owner"),
         ("with whitespace", "owner "),
         // **And a key whose whitespace is a tab where the one beside it is a
-        // space.** Every whitespace witness in this apparatus was a single
+        // space.** Every other whitespace witness in this apparatus is a single
         // space at one *end*, so a rendering that normalised a different member
-        // of the class — `key.replace('\t', " ")` — was the identity on all of
-        // it. The paragraph in
-        // `the_shapes_a_whitespace_rendering_would_collapse` used to say a key
-        // pair could not be built; `with_its_keys_rendered` walks the `Value`
-        // tree rather than canonical text, so it can, and this is it.
+        // of the class — `key.replace('\t', " ")` — would be the identity on
+        // all of it. `with_its_keys_rendered` walks the `Value` tree rather
+        // than canonical text, so a key pair can be built, and this is it.
         ("with a space inside it", "owner name"),
         ("with a tab inside it instead", "owner\tname"),
         ("with a combining mark", "owner\u{0301}"),
         // **And a key whose accent is written apart from a key that composes
-        // it**, because `NORMALISATIONS` renders a resource one more way than
-        // it did and every class that reaches a value has to reach a key.
+        // it**, because `NORMALISATIONS` renders a resource that way too, and
+        // every class that reaches a value has to reach a key.
         ("with an accent written apart", "owner-cafe\u{301}"),
         ("with the same accent composed", "owner-caf\u{e9}"),
         ("with a character outside ASCII", "owner\u{2028}"),
-        // **And a key that is a qualified name**, which the key apparatus
-        // lacked for the same reason the value apparatus did: no separator
-        // anywhere. These two differ from the pair above at one end each, so a
+        // **And a key that is a qualified name**, which a key apparatus with
+        // no separator anywhere cannot see, for the same reason a value
+        // apparatus cannot. These two differ from the pair above at one end each, so a
         // rendering of the *keys* that keeps a segment collapses one of them.
         ("with a qualified name", "urn:uuid.owner"),
         ("under another authority", "did:uuid.owner"),
@@ -2755,14 +2744,13 @@ fn the_shapes_a_rendering_of_the_keys_would_collapse() -> Vec<(String, Record)> 
 /// A pair per text field, as long as the field admits and differing only in the
 /// final character.
 ///
-/// **The truncation class was pinned at twelve characters and named two
-/// fields.** The only length pairs in this corpus diverged at character 25, and
-/// nothing anywhere pinned a longer prefix — so a `hashed_form` that cut every
-/// text field to twenty-six characters was the identity on the whole of it.
-/// Measured, exactly that: all 123 of `nc-journal`'s tests green, and
-/// `cargo xtask check` against a clean run moving *only* the four raw
-/// line-counters, by the lines the plant added — `35 linted`, `9 documented`,
-/// `1077 test(s)`, `check passed`, identical. The collisions it admitted:
+/// **Every length, not twelve characters over two fields.** With the only other
+/// length pairs diverging at character 25 and nothing pinning a longer prefix,
+/// a `hashed_form` that cut every text field to twenty-six characters would be
+/// the identity on the whole corpus. Measured, exactly that: every `nc-journal`
+/// test green, and `cargo xtask check` against a clean run moving *only* the
+/// four raw line-counters, by the lines the plant added — `check passed`,
+/// identical. The collisions it admits:
 ///
 /// ```text
 /// realm       acme-production-eu-west-1-a / -b        one digest
@@ -2861,10 +2849,10 @@ fn the_longest_values_each_field_admits() -> Vec<(String, Record)> {
 
     // **And the fields whose type is a number.** They reach the hash as text —
     // `epoch.to_string()`, `unit.to_crockford()`, `recorded_at.to_string()` —
-    // so a cut applies to them exactly as it does to an identifier, and the
-    // corpus held nothing long enough to see one. `u64::MAX` is twenty digits
-    // and only that one value in the corpus had twenty, so a cut at nineteen
-    // was the identity on every epoch here.
+    // so a cut applies to them exactly as it does to an identifier, and without
+    // these the corpus holds nothing long enough to see one. `u64::MAX` is
+    // twenty digits and only that one value has twenty, so a cut at nineteen
+    // would be the identity on every epoch here.
     let mut long_epoch = base();
     long_epoch.policy_epoch = Some(18_446_744_073_709_551_610);
     add("an epoch as long as the type admits", long_epoch);
@@ -2884,8 +2872,8 @@ fn the_longest_values_each_field_admits() -> Vec<(String, Record)> {
 
     // **Thirteen characters, not twelve.** A work unit is sixty-three bits and
     // Crockford writes five to a digit, so its widest rendering is thirteen —
-    // the pair here was twelve, which is the width `to_crockford` pads *up* to,
-    // so a cut at twelve was the identity on every work unit in this corpus.
+    // and twelve is the width `to_crockford` pads *up* to, so a cut at twelve
+    // would be the identity on every work unit in a corpus of twelve.
     // `the_reach_a_field_must_have` measures that width by rendering the widest
     // value the layout holds, so shortening these two fails there.
     let mut long_unit = base();
@@ -2905,22 +2893,22 @@ fn the_longest_values_each_field_admits() -> Vec<(String, Record)> {
 
 /// Every collapse this corpus exists to rule out is still in it.
 ///
-/// **The floor was a count, and a count cannot carry a set.** `corpus.len() > 15`
-/// over thirty-two hand-written entries is satisfied by any sixteen of them, and
-/// the ones a weakening needs gone are reached first: delete the two actor-order
-/// entries from [`the_shapes_a_flattening_would_collapse`] and `hashed_form` may
-/// sort the chain, at which point
+/// **A count cannot carry a set.** `corpus.len() > 15` over hand-written
+/// entries is satisfied by any sixteen of them, and the ones a weakening needs
+/// gone are reached first: delete the two actor-order entries from
+/// [`the_shapes_a_flattening_would_collapse`] and `hashed_form` may sort the
+/// chain, at which point
 ///
 /// ```text
 /// chain A = ["operator-1", "agent-x"]      hash 315e43605fabd8ab…
 /// chain B = ["agent-x", "operator-1"]      hash 315e43605fabd8ab…
 /// ```
 ///
-/// — the swap is forgeable in place, the row still hashes to its stored digest,
-/// `verify` answers `Ok`, and `cargo xtask check` is byte-identical to a clean
-/// run at the same `1023 test(s)`. Nothing else sees it: the golden vector's
-/// chain is already sorted, and `tamper::edits()` only ever pushes one actor
-/// onto an *empty* chain.
+/// — the swap is forgeable in place, the row still hashes to its stored
+/// digest, `verify` answers `Ok`, and `cargo xtask check` is byte-identical to
+/// a clean run. Nothing else sees it: the golden vector's chain is already
+/// sorted, and `tamper::edits()` only ever pushes one actor onto an *empty*
+/// chain.
 ///
 /// So the shapes are named, the way `every_field_of_a_record_has_an_edit` names
 /// `FIELDS` against the struct rather than counting them. Written out rather
@@ -2928,22 +2916,22 @@ fn the_longest_values_each_field_admits() -> Vec<(String, Record)> {
 /// rather than a silent agreement: adding a shape needs a line here, and
 /// removing one cannot be done quietly.
 ///
-/// **And the names were still only names.** A label pins nothing about the
-/// record filed under it: measured, `reversed.actor_chain` given `[b, c]`
-/// instead of `[b, a]` — so the entry called "the same two actors, outermost
-/// last" was the reverse of no other entry in the corpus — while `hashed_form`
-/// sorted the chain, and every line of `cargo xtask check` was identical to a
-/// clean run. Nothing here read a field. So each entry of [`MUST_HOLD`] now
-/// carries the fields its name claims to vary, compared against
-/// [`the_base_record`], and the two chain entries are compared to each other.
+/// **And the names are still only names.** A label pins nothing about the
+/// record filed under it: measured with no field read, `reversed.actor_chain`
+/// given `[b, c]` instead of `[b, a]` — so the entry called "the same two
+/// actors, outermost last" is the reverse of no other entry in the corpus —
+/// and `hashed_form` sorting the chain leave every line of `cargo xtask check`
+/// identical to a clean run. So each entry of [`MUST_HOLD`] carries
+/// the fields its name claims to vary, compared against [`the_base_record`],
+/// and the two chain entries are compared to each other.
 const MUST_HOLD: [(&str, &[&str]); 160] = [
     // The record everything else is a departure from.
     ("the base record", &[]),
     // Two identifier fields that could absorb each other as bare text.
     ("realm and principal exchanged", &["realm", "principal"]),
-    // **The same field respelled, and nothing else moved.** Every identifier
-    // here was lower-case and under thirteen characters, so a folding or
-    // truncating `hashed_form` was the identity on the whole corpus and on
+    // **The same field respelled, and nothing else moved.** With every other
+    // identifier lower-case and under thirteen characters, a folding or
+    // truncating `hashed_form` would be the identity on the whole corpus and on
     // every edit `tamper::edits()` makes. The two length pairs are the only
     // records in this file that a truncation collapses.
     ("a realm respelled in another case", &["realm"]),
@@ -2982,9 +2970,9 @@ const MUST_HOLD: [(&str, &[&str]); 160] = [
     ("a policy pack that is named", &["policy_pack"]),
     ("the same policy pack in another case", &["policy_pack"]),
     // **Both fields carrying a number from outside this crate**, at every
-    // boundary where a signed rendering would collapse them. Varying one
-    // and not the other is how a saturating cast on `policy_epoch` stayed
-    // green over an injectivity claim that was false.
+    // boundary where a signed rendering would collapse them. Varying one and
+    // not the other lets a saturating cast on `policy_epoch` stay green over an
+    // injectivity claim that is false.
     ("recorded at zero", &["recorded_at"]),
     ("recorded at i64::MAX as u64", &["recorded_at"]),
     ("recorded one past it", &["recorded_at"]),
@@ -3007,26 +2995,26 @@ const MUST_HOLD: [(&str, &[&str]); 160] = [
     ("action Write", &["action"]),
     ("action with the resource's text in it", &["action"]),
     ("an id that is text rather than a number", &["resource"]),
-    // **Every outcome.** The result is what an attacker most wants to
-    // change, and three of these six were once hashed by no test at all.
+    // **Every outcome.** The result is what an attacker most wants to change,
+    // so each of the six is named here.
     ("outcome Allowed", &[]),
     ("outcome Denied", &["result"]),
     ("outcome Failed", &["result"]),
     ("outcome UnitBegun", &["result"]),
     ("outcome UnitCommitted", &["result"]),
     ("outcome UnitAborted", &["result"]),
-    // **The whitespace class**, which no entry above could see: every value the
-    // corpus held for these four was already trimmed, so a `hashed_form` that
-    // trimmed them was the identity on the whole of it.
+    // **The whitespace class**, which no entry above can see: every other value
+    // the corpus holds for these four is already trimmed, so a `hashed_form`
+    // that trimmed them would be the identity on the whole of it.
     ("an action carrying whitespace", &["action"]),
     (
         "the same deciding policy carrying whitespace",
         &["deciding_policy"],
     ),
     ("the same policy pack carrying whitespace", &["policy_pack"]),
-    // **A tab where the record beside it has a space**, which is the pair the
-    // trimming rows above never held: a trim reaches the ends, and a space
-    // cannot witness a tab. `hashed_form` reading one as the other was the
+    // **A tab where the record beside it has a space**, which the trimming rows
+    // above cannot hold: a trim reaches the ends, and a space cannot witness a
+    // tab. `hashed_form` reading one as the other would otherwise be the
     // identity on the whole corpus and on every edit `tamper::edits()` makes.
     ("an action whose words are parted by a space", &["action"]),
     ("the same action parted by a tab instead", &["action"]),
@@ -3061,14 +3049,14 @@ const MUST_HOLD: [(&str, &[&str]); 160] = [
         "the same resource keyed with a tab inside it instead",
         &["resource"],
     ),
-    // **The case class left the two free-text fields out**, and every value they
-    // held here was caseless. See the corpus for the collision that admitted.
+    // **The case class, for the two free-text fields too**: every other value
+    // they hold here is caseless. See the corpus for the collision that admits.
     ("the same action in another case", &["action"]),
     ("a resource that is named", &["resource"]),
     ("the same resource in another case", &["resource"]),
     // **The longest value each field admits, and its neighbour one character
-    // different.** The only length pairs here diverged at character 25, so a cut
-    // at twenty-six was the identity on the whole corpus.
+    // different.** With the only other length pairs diverging at character 25,
+    // a cut at twenty-six would be the identity on the whole corpus.
     ("a realm as long as the type admits", &["realm"]),
     ("another realm differing in its last character", &["realm"]),
     ("a principal as long as the type admits", &["principal"]),
@@ -3160,11 +3148,12 @@ const MUST_HOLD: [(&str, &[&str]); 160] = [
     ("the same flag written as text", &["resource"]),
     ("a resource that is absent", &["resource"]),
     ("the same absence written as empty text", &["resource"]),
-    // **The shapes that vary one level down.** Every structured value here was
-    // `{"id":1}` or `{"id":"1"}` and no resource held a list at all, so a
-    // rendering that reached inside a nesting was the identity on the whole
-    // corpus. See `the_shapes_a_rendering_reaching_inside_would_collapse` for
-    // the two digests that measured.
+    // **The shapes that vary one level down.** Every other structured value
+    // here is `{"id":1}` or `{"id":"1"}` and no other resource holds a list at
+    // all, so a rendering that reached inside a nesting would be the identity
+    // on the whole corpus. See
+    // `the_shapes_a_rendering_reaching_inside_would_collapse` for the two
+    // digests that measures.
     ("a nested resource that is named", &["resource"]),
     ("the same nested resource in another case", &["resource"]),
     ("a nested resource carrying a combining mark", &["resource"]),
@@ -3178,10 +3167,10 @@ const MUST_HOLD: [(&str, &[&str]); 160] = [
     // **The shapes that vary further in than one container.** The three rows of
     // `NESTED_PAIRS` all vary a direct string value of the top-level object, so
     // a rendering that reached a text inside a list, or under a second object,
-    // was the identity on the whole corpus. See
+    // would be the identity on the whole corpus without these. See
     // `the_shapes_a_deeper_nesting_would_collapse` for the two digests that
-    // measured, and `every_nesting_the_corpus_holds_has_a_witness` for the floor
-    // that asks each nesting for its own pairs.
+    // measures, and `every_nesting_the_corpus_holds_has_a_witness` for the
+    // floor that asks each nesting for its own pairs.
     (
         "a resource two containers down that is named",
         &["resource"],
@@ -3208,10 +3197,11 @@ const MUST_HOLD: [(&str, &[&str]); 160] = [
         "a resource inside a list carrying a character outside ASCII",
         &["resource"],
     ),
-    // **And the keys, which every rendering of a text is indexed too coarsely to
-    // reach.** Every nested object here is keyed `id`, so a `hashed_form` that
-    // normalised the keys of a structured resource was the identity on all of
-    // it. See `the_shapes_a_rendering_of_the_keys_would_collapse`.
+    // **And the keys, which every rendering of a text is indexed too coarsely
+    // to reach.** Every other nested object here is keyed `id`, so a
+    // `hashed_form` that normalised the keys of a structured resource would be
+    // the identity on all of it. See
+    // `the_shapes_a_rendering_of_the_keys_would_collapse`.
     ("a resource keyed plainly", &["resource"]),
     (
         "the same resource keyed with a qualified name",
@@ -3295,8 +3285,7 @@ const MUST_HOLD: [(&str, &[&str]); 160] = [
     ),
     // **The composed shapes**, a pair per field a composing rendering can
     // reach, at the top level, one container in, two containers in, inside a
-    // list, and in a key. See [`composed`] for what was invisible without
-    // them.
+    // list, and in a key. See [`composed`] for what is invisible without them.
     ("an action whose accent is written apart", &["action"]),
     ("the same action with the accent composed", &["action"]),
     (
@@ -3353,22 +3342,22 @@ const MUST_HOLD: [(&str, &[&str]); 160] = [
 
 /// Every field of a record is a field some named shape departs in.
 ///
-/// **The floor under the floor, and it was the one thing missing.** Each entry
-/// of [`MUST_HOLD`] is bound to the fields its own label claims, and
-/// [`where_a_record_departs`] is bound to the derived `PartialEq` — so a shape
-/// given a value its name does not claim fails, and a field added to `Record`
-/// and forgotten by the comparator fails. Neither of those is *coverage*: the
-/// comparator's binding only fires for a field some entry varies, so a field
-/// that drops out of the corpus altogether is a field nothing here can see.
+/// **The floor under the floor.** Each entry of [`MUST_HOLD`] is bound to the
+/// fields its own label claims, and [`where_a_record_departs`] is bound to the
+/// derived `PartialEq` — so a shape given a value its name does not claim
+/// fails, and a field added to `Record` and forgotten by the comparator
+/// fails. Neither of those is *coverage*: the comparator's binding only fires
+/// for a field some entry varies, so a field that drops out of the corpus
+/// altogether is a field nothing else here can see.
 ///
-/// Measured, three parts one commit would carry together: the four `epoch …`
+/// Measured, three parts one commit could carry together: the four `epoch …`
 /// shapes setting `record.recorded_at` instead of `record.policy_epoch`, their
-/// four rows of [`MUST_HOLD`] saying `&["recorded_at"]` to match, and
-/// `entry.rs` returning `policy_epoch` to
-/// `Value::text(i64::try_from(epoch).unwrap_or(i64::MAX).to_string())`. Every
-/// per-entry assertion above holds — each shape departs exactly where its label
-/// says — and `policy_epoch` is varied by nothing at all, so the saturating
-/// cast collides in silence: `30 passed`, `check passed`, every gate line
+/// four rows of [`MUST_HOLD`] saying `&["recorded_at"]` to match,
+/// and `entry.rs` returning `policy_epoch`
+/// to `Value::text(i64::try_from(epoch).unwrap_or(i64::MAX).to_string())`.
+/// Every per-entry assertion above holds — each shape departs exactly where its
+/// label says — and `policy_epoch` is varied by nothing at all, so without this
+/// the saturating cast collides in silence: `check passed`, every gate line
 /// byte-identical to a clean run. The control — the encoding alone, with the
 /// corpus left as it is — fails here, three collisions at and above 2^63.
 ///
@@ -3396,22 +3385,22 @@ fn every_field_is_departed_in_by_some_named_shape() {
          way it likes — a saturating cast, a flattening into a neighbour — and every \
          assertion here still passes"
     );
-    // **And the comparator itself is bound to the struct, which nothing here
-    // did.** The two sets above are a hand list held against a hand list:
-    // `MUST_HOLD` names fields, `every_field_and_whether_it_differs` names
-    // fields, and the derived `PartialEq` says only that an empty answer means
-    // the records are equal — which is true of a comparator that walks eleven
-    // of twelve fields as long as no corpus entry varies the twelfth. Measured:
-    // the four `epoch …` shapes deleted with their four `MUST_HOLD` rows and the
+    // **And the comparator itself is bound to the struct.** The two sets above
+    // are a hand list held against a hand list: `MUST_HOLD` names fields,
+    // `every_field_and_whether_it_differs` names fields, and the derived
+    // `PartialEq` says only that an empty answer means the records are equal —
+    // which is true of a comparator that walks eleven of twelve fields as long
+    // as no corpus entry varies the twelfth. Measured without this binding: the
+    // four `epoch …` shapes deleted with their four `MUST_HOLD` rows and the
     // comparator's one `policy_epoch` line, and `entry.rs` returning
-    // `policy_epoch` through a saturating cast again — every assertion in this
-    // file holds, `cargo xtask check` is byte-identical to a clean run, and
-    // `verify` answers `Ok` for a `policy_epoch` respelled at or above 2^63.
+    // `policy_epoch` through a saturating cast — every assertion in this file
+    // holds, `cargo xtask check` is byte-identical to a clean run, and `verify`
+    // answers `Ok` for a `policy_epoch` respelled at or above 2^63.
     //
     // `Record` is the authority, and `fields_of_the_struct` is the scanner that
     // reads it — the same one `every_field_of_a_record_has_an_edit` holds
-    // `FIELDS` against, now behind `test-support` so an integration test can
-    // reach it rather than keeping a copy that agrees with itself.
+    // `FIELDS` against, behind `test-support` so an integration test can reach
+    // it rather than keeping a copy that agrees with itself.
     let declared: std::collections::BTreeSet<String> =
         nc_journal::entry::fields_of_the_struct("Record")
             .into_iter()
@@ -3447,19 +3436,20 @@ const COMPOSES: [(char, char, char); 6] = [
 /// A text with every pair of [`COMPOSES`] written as the one character it is.
 ///
 /// **The composing half of Unicode normalisation, which the deleting class
-/// beside it cannot stand for.** `stripped of its combining marks` maps
-/// `Cafe\u{301}` onto `Cafe`; NFC maps it onto `Caf\u{e9}`, and no value
-/// anywhere in this apparatus was precomposed — the census of every non-ASCII
-/// code point it held was `U+001F`, `U+0300`, `U+0301`, `U+036F`, `U+200B` and
-/// `U+2028`, not one of them a composed character. So NFC and NFD were both the
-/// identity on all 144 records, on every edit `tamper::edits()` makes and on
-/// [`PROBES`], and "normalise before you hash" — the single most ordinary thing
-/// somebody adds to a text field — was a weakening this file could not see.
-/// Measured on 2026-09-08, `hashed_form` rendering `action` through
-/// `action.replace("e\u{301}", "\u{e9}")`: `nc-journal` green at 34 and 31
-/// tests and `check passed, with 9 warn line(s) above` at `ok 1201 test(s)`,
-/// every line identical to a clean run, with `Caf\u{e9}` and `Cafe\u{301}`
-/// both on `2d0f5d64d0504023…` in the field that says what was done.
+/// beside it cannot stand for.** `stripped of its combining marks`
+/// maps `Cafe\u{301}` onto `Cafe`; NFC maps it onto `Caf\u{e9}`, and without
+/// this no value anywhere in this apparatus is precomposed — the census of
+/// every other non-ASCII code point it holds is `U+001F`, `U+0300`, `U+0301`,
+/// `U+036F`, `U+200B` and `U+2028`, not one of them a composed
+/// character. So NFC and NFD would both be the identity on every record, on
+/// every edit `tamper::edits()` makes and on [`PROBES`], and "normalise before
+/// you hash" — the single most ordinary thing somebody adds to a text field —
+/// would be a weakening this file could not see. Measured, `hashed_form`
+/// rendering `action`
+/// through `action.replace("e\u{301}", "\u{e9}")`: `nc-journal` green
+/// and `check passed` with every line identical to a clean run,
+/// with `Caf\u{e9}` and `Cafe\u{301}` both on `2d0f5d64d0504023…` in the field
+/// that says what was done.
 fn composed(text: &str) -> String {
     let mut written = String::with_capacity(text.len());
     for character in text.chars() {
@@ -3538,17 +3528,16 @@ type Normalisation = (&'static str, fn(&str) -> String, &'static [&'static str])
 /// The renderings this corpus must be able to tell from the identity, and the
 /// fields each one can collapse.
 ///
-/// **The corpus was indexed by field and the property is (field × class).**
-/// [`MUST_HOLD`] says every field is departed in by some shape, and
-/// `every_field_of_a_record_has_an_edit` says every field has an edit — both
-/// true, and both satisfied by departures a *normalising* rendering still
+/// **The corpus is indexed by field and the property is (field × class).**
+/// [`MUST_HOLD`] says every field is departed in by some shape,
+/// and `every_field_of_a_record_has_an_edit` says every field has an edit —
+/// both true, and both satisfied by departures a *normalising* rendering still
 /// distinguishes. `action` is varied by three shapes and edited by one, all of
-/// them by a different value, so `str::trim` applied to it was the identity on
-/// the whole suite: measured, `hashed_form` rendering `action`,
-/// `deciding_policy` and `policy_pack` through `trim` gave
-/// `check passed, with 4 warn line(s) above` and `ok 1072 test(s)` — the
-/// baseline verdict line for line — while two records differing only in a
-/// trailing space on `action` landed on one digest.
+/// them by a different value, so without this `str::trim` applied to it is the
+/// identity on the whole suite: measured, `hashed_form`
+/// rendering `action`, `deciding_policy` and `policy_pack` through `trim`
+/// gives `check passed` at the baseline verdict line for line, while two
+/// records differing only in a trailing space on `action` land on one digest.
 ///
 /// So the floor is the product. Adding a class is one row here plus the pairs
 /// it needs; dropping a class, or letting a field fall out of one, is a failure
@@ -3576,29 +3565,27 @@ const NORMALISATIONS: [Normalisation; 7] = [
         |text| text.trim().to_owned(),
         &["action", "deciding_policy", "policy_pack", "resource"],
     ),
-    // **Everything in this apparatus is ASCII, so a rendering that keeps only
-    // ASCII was the identity on all of it.** `recased` says so in its own doc —
-    // *"ASCII, because that is the whole of what `OpaqueId::new` admits"* — and
-    // it is applied to three fields whose type is an unconstrained `String` and
-    // one that is a `Value::Text` with no grammar at all. Measured,
-    // `hashed_form` rendering `action` through
-    // `chars().filter(char::is_ascii)`: the whole of `nc-journal` green at 123
-    // tests, `check passed`, `ok 1081 test(s)`, every line identical to a clean
-    // run — and `"Delete"` colliding with `"Delete\u{2028}"`, in the field that
+    // **With everything else in this apparatus ASCII, a rendering that keeps
+    // only ASCII would be the identity on all of it.** `recased` says so in its
+    // own doc — *"ASCII, because that is the whole of what `OpaqueId::new`
+    // admits"* — and it is applied to three fields whose type is an
+    // unconstrained `String` and one that is a `Value::Text` with no grammar at
+    // all. The row that strips what is not ASCII asks whether the corpus can
+    // tell `hashed_form` rendering `action` through
+    // `chars().filter(char::is_ascii)` from the identity — a rendering that
+    // puts `"Delete"` and `"Delete\u{2028}"` on one digest, in the field that
     // says what was done.
     //
     // These four fields are exactly the ones whose type admits a character
-    // outside ASCII; the identifier fields cannot hold one.
-    // **And a Unicode-normalising rendering**, which nothing here could see:
-    // every value in the whole apparatus is ASCII or ASCII plus `U+2028`, and
-    // `U+2028` is unchanged by NFC and NFD alike — so no pair could tell a
-    // rendering that folds combining marks from the identity. Measured,
-    // `hashed_form` rendering `action` through
-    // `action.replace('\u{0301}', "")`: all thirty of this file's tests green,
-    // `cargo xtask check` `check passed` with every printed line identical to a
-    // clean run, and `"Delete\u{0301}"` colliding with `"Delete"` on
-    // `b5d5b03c7abc710b…`. A decomposed-versus-composed pair is exactly what a
-    // non-ASCII principal or resource name produces in the wild.
+    // outside ASCII; the identifier fields cannot hold one. **And a
+    // Unicode-normalising rendering**: were every other value in the apparatus
+    // ASCII or ASCII plus `U+2028`, which NFC and NFD leave unchanged alike, no
+    // pair could tell a rendering that folds combining marks from the identity.
+    // The row that strips combining marks asks it of
+    // `action.replace('\u{0301}', "")`, which puts `"Delete\u{0301}"` and
+    // `"Delete"` on one digest, `b5d5b03c7abc710b…`. A decomposed-versus-composed
+    // pair is exactly what a non-ASCII principal or resource name produces in
+    // the wild.
     (
         "stripped of its combining marks",
         |text| {
@@ -3614,25 +3601,24 @@ const NORMALISATIONS: [Normalisation; 7] = [
         &["action", "deciding_policy", "policy_pack", "resource"],
     ),
     // **And the composing half of the same alphabet**, which the deleting row
-    // above could not stand for: it maps `Cafe\u{301}` onto `Cafe`, and the
-    // rendering a person actually writes — NFC — maps it onto `Caf\u{e9}`.
-    // Nothing in this apparatus was precomposed, so both directions of Unicode
-    // normalisation were the identity on every record here. See [`composed`]
-    // for the measurement and for why the alphabet is written out.
+    // above cannot stand for: it maps `Cafe\u{301}` onto `Cafe`, and the
+    // rendering a person actually writes — NFC — maps it onto `Caf\u{e9}`. With
+    // nothing else in this apparatus precomposed, both directions of Unicode
+    // normalisation would be the identity on every record here. See
+    // [`composed`] for the measurement and for why the alphabet is written out.
     (
         "composed",
         composed,
         &["action", "deciding_policy", "policy_pack", "resource"],
     ),
-    // **And a rendering that keeps one segment of a qualified name**, which
-    // nothing here could see: `OpaqueId` admits `.` and `:` on purpose — its doc
-    // names `did:key:z…` and `urn:uuid:…` — and not one value in this apparatus
-    // carried either, so taking a segment was the identity on all of it.
-    // Measured on 2026-09-08, `realm` rendered as the part after its last `:`:
-    // 182 tests green across `nc-journal` and `nc-canon`, `check passed` at
-    // `ok 1185 test(s)`, and `urn:uuid:alpha` colliding with `did:web:alpha` on
-    // `3a82c132…` while `verify` answered `Ok(4)` over the rewrite. Five more
-    // fields the same way, and `realm` again on the dot.
+    // **And a rendering that keeps one segment of a qualified name**:
+    // `OpaqueId` admits `.` and `:` on purpose — its doc names `did:key:z…` and
+    // `urn:uuid:…` — and with no other value in this apparatus carrying either,
+    // taking a segment would be the identity on all of it. Measured that way,
+    // `realm` rendered as the part after its last `:`: `nc-journal` and
+    // `nc-canon` green, `check passed`, and `urn:uuid:alpha` colliding with
+    // `did:web:alpha` on `3a82c132…` while `verify` answers `Ok(4)` over the
+    // rewrite. Five more fields the same way, and `realm` again on the dot.
     //
     // Both ends, because `recased`'s doc says a class needs them: the pairs that
     // witness these two are the same three values seen from either side.
@@ -3673,13 +3659,13 @@ const NORMALISATIONS: [Normalisation; 7] = [
 
 /// Every field whose value is text a caller chose.
 ///
-/// The truncation floor walks this rather than a list somebody wrote for it:
-/// the class was `&["realm", "principal"]` while eight fields carry text, and
-/// six of them could be cut with nothing noticing. **How far into each one a cut
-/// must be visible is [`the_reach_a_field_must_have`] and no longer a number in
-/// this table** — see there for what the numbers were hiding. The list itself is
-/// held against the struct by [`the_corpus_can_see_a_truncation_at_every_length`],
-/// so a field cannot leave it quietly either.
+/// The truncation floor walks this rather than a list somebody wrote for it: a
+/// class of `&["realm", "principal"]`, while eight fields carry text, lets six
+/// of them be cut with nothing noticing. **How far into each one a cut must be
+/// visible is [`the_reach_a_field_must_have`], not a number in this
+/// table.** The list itself is held against the struct by
+/// [`the_corpus_can_see_a_truncation_at_every_length`], so a field cannot leave
+/// it quietly either.
 const CARRIES_TEXT: [&str; 11] = [
     "realm",
     "principal",
@@ -3699,9 +3685,9 @@ const CARRIES_TEXT: [&str; 11] = [
 
 /// The longest text `OpaqueId` takes, measured by asking it.
 ///
-/// Asked rather than read: `OPAQUE_ID_MAX` is the constant the corpus builds its
-/// long pairs from, so a table reading it would agree with those pairs whatever
-/// either of them became — which is the whole of what went wrong below.
+/// Asked rather than read: `OPAQUE_ID_MAX` is the constant the corpus builds
+/// its long pairs from, so a table reading it would agree with those pairs
+/// whatever either of them became.
 fn the_longest_text_an_identifier_admits() -> usize {
     (1..=1024)
         .take_while(|length| OpaqueId::new("a".repeat(*length)).is_ok())
@@ -3711,15 +3697,14 @@ fn the_longest_text_an_identifier_admits() -> usize {
 
 /// How far into a field a cut has to be visible here.
 ///
-/// **The reach was a column of 64s while the pairs are 128 characters, and
-/// nothing pinned the stem they are built from.** Measured on 2026-09-03, the
-/// stem cut from 127 characters to 77: every floor in this file stayed green, at
-/// all thirty of its tests, with the longest value the corpus holds at 78 rather
-/// than 128 — and `hashed_form` cutting `realm` to a hundred characters passed
-/// with it, invisible to the whole file. That same cut against
-/// the stem as it stands fails, which is the whole difference: what these pairs
-/// can see is their own length, and the only thing holding that length was the
-/// line that writes it.
+/// **The reach is asked of the types, not written as a column of 64s against
+/// pairs of 128 characters.** Measured with such a column, the stem cut from
+/// 127 characters to 77: every floor in this file stays green with the longest
+/// value the corpus holds at 78 rather than 128 — and `hashed_form`
+/// cutting `realm` to a hundred characters passes with it, invisible to the
+/// whole file. That same cut against the stem as it stands fails, which is the
+/// whole difference: what these pairs can see is their own length, and without
+/// this the only thing holding that length is the line that writes it.
 ///
 /// So the reach is asked of the types. An identifier's is measured by handing
 /// `OpaqueId::new` longer and longer text until it refuses; a `u64` reaches the
@@ -3767,18 +3752,17 @@ fn the_text_of(record: &Record, field: &str) -> String {
             .as_ref()
             .map(|grant| grant.as_str().to_owned())
             .unwrap_or_default(),
-        // **A value that is not text used to be rendered through `Debug`,
-        // which never enters any hash.** `hashed_form` puts the `Value` in
-        // whole, so what a cut or a normalisation of `resource` actually
-        // reaches is the canonical text `nc-canon` writes — `{"id":1}`, not
-        // `Object({"id": Integer(1)})`. Measured on 2026-09-03 against the
+        // **A value that is not text is rendered as the hash renders it, not
+        // through `Debug`, which never enters any hash.** `hashed_form` puts
+        // the `Value` in whole, so what a cut or a normalisation of `resource`
+        // actually reaches is the canonical text `nc-canon` writes —
+        // `{"id":1}`, not `Object({"id": Integer(1)})`. Measured against the
         // nested pairs below: `nc-canon` writes every character above the
         // control range literally and Rust's `Debug` for a string escapes both
         // `U+0301` and `U+2028`, so under `format!("{other:?}")` the two halves
-        // of each of those pairs were pure ASCII and carried no combining mark
-        // — a rendering that strips either one was the identity on both, and
-        // `the_corpus_can_see_a_rendering_that_reaches_inside` could not be
-        // satisfied at all.
+        // of each of those pairs would be pure ASCII and carry no combining
+        // mark — a rendering that strips either one the identity on both, and
+        // `the_corpus_can_see_a_rendering_that_reaches_inside` unsatisfiable.
         //
         // `Value::Text` stays as its own text: a class in `NORMALISATIONS` is a
         // `fn(&str) -> String`, and the weakening it stands for renders the
@@ -3787,14 +3771,14 @@ fn the_text_of(record: &Record, field: &str) -> String {
             Value::Text(text) => text.clone(),
             other => other.to_canonical(),
         },
-        // **The numeric fields enter the hash as text too.** `CARRIES_TEXT` was
-        // the eight fields whose *type* is text, so no length witness existed
-        // for any of these — measured, `policy_epoch` cut to nineteen
-        // characters: `check passed` at `ok 1081 test(s)`, with
-        // `18446744073709551615` and `18446744073709551610` on one digest. The
-        // corpus's four epoch entries sit at the signed boundary the saturating
-        // cast was about, and only `u64::MAX` has twenty digits, so a cut at
-        // nineteen was the identity on all four.
+        // **The numeric fields enter the hash as text too.** A `CARRIES_TEXT`
+        // of the eight fields whose *type* is text leaves no length witness for
+        // any of these — measured, `policy_epoch` cut to nineteen characters:
+        // `check passed`, with `18446744073709551615` and
+        // `18446744073709551610` on one digest. The corpus's four epoch entries
+        // sit at the signed boundary the saturating cast is about, and only
+        // `u64::MAX` has twenty digits, so a cut at nineteen would be the
+        // identity on all four.
         //
         // Rendered exactly as `hashed_form` renders them, or the witness would
         // be about a different string than the one that is hashed.
@@ -3813,15 +3797,15 @@ fn the_text_of(record: &Record, field: &str) -> String {
 
 /// The three pairs a rendering over the `Value` *type* would collapse.
 ///
-/// **Named, and until now pinned by nothing.** The six entries were added as
-/// three pairs and `MUST_HOLD` binds each to "departs from base in `resource`" —
-/// which one literal satisfies just as well: measured,
-/// `Value::Integer(1)` changed to `Value::Integer(7)` left all thirty tests
-/// green, and with `hashed_form` also collapsing `Integer` into its text the
-/// suite was *still* green and `cargo xtask check` printed `check passed` at
-/// `ok 1086 test(s)`, verdict line for line. Every other class here has a floor
-/// — `NORMALISATIONS` has one, the truncation walk has one — and this class,
-/// which is outside the `fn(&str) -> String` product by construction, had none.
+/// **Named, and pinned.** The six entries are three pairs, and `MUST_HOLD`
+/// binds each to "departs from base in `resource`" — which one literal
+/// satisfies just as well: measured without this, `Value::Integer(1)` changed
+/// to `Value::Integer(7)` leaves every other test green, and with `hashed_form`
+/// also collapsing `Integer` into its text the suite is *still* green
+/// and `cargo xtask check` prints `check passed`, verdict line for line. Every
+/// other class here has a floor — `NORMALISATIONS` has one, the truncation walk
+/// has one — and this class is outside the `fn(&str) -> String` product by
+/// construction.
 const VARIANT_PAIRS: [(&str, &str); 3] = [
     (
         "a resource that is a number",
@@ -3837,7 +3821,7 @@ const VARIANT_PAIRS: [(&str, &str); 3] = [
 /// Each named pair differs in `resource` alone and collapses onto one value
 /// under a rendering of the type.
 ///
-/// The floor the class did not have: a pair whose two records stop being a pair
+/// The floor the class needs: a pair whose two records stop being a pair
 /// fails here rather than keeping its label and ruling out nothing.
 #[track_caller]
 fn the_corpus_can_tell_a_variant_from_its_text(corpus: &[(String, Record)]) -> usize {
@@ -3920,11 +3904,11 @@ const NESTED_PAIRS: [NestedPair; 4] = [
 
 /// Each nested pair is two structured resources that one named class collapses.
 ///
-/// The floor that class did not have, and the reason [`the_text_of`] renders a
-/// resource that is not text the way the hash renders it: under the `Debug`
-/// string that arm used to hand back, the last two rows below cannot be
-/// satisfied by any pair at all, because Rust escapes a combining mark and a
-/// line separator and leaves the rendering pure ASCII.
+/// The floor that class needs, and the reason [`the_text_of`] renders a
+/// resource that is not text the way the hash renders it: under a `Debug`
+/// string the last two rows below could not be satisfied by any pair at all,
+/// because Rust escapes a combining mark and a line separator and leaves the
+/// rendering pure ASCII.
 #[track_caller]
 fn the_corpus_can_see_a_rendering_that_reaches_inside(corpus: &[(String, Record)]) -> usize {
     let held = |what: &str| -> &Record {
@@ -3981,9 +3965,9 @@ fn the_corpus_can_see_a_rendering_that_reaches_inside(corpus: &[(String, Record)
 /// de-duplicates a list inside `resource` leaves every character of it in place,
 /// so no `fn(&str) -> String` collapses the pair and only two records standing
 /// in a relation to each other rule it out — the same shape as the two actor
-/// chains in [`the_named_shapes_are_all_here`]. Measured on 2026-09-03, with
-/// `hashed_form` sorting and de-duplicating the lists inside `resource`: all
-/// thirty tests of this file green, and `{"id":["a","b"]}` and `{"id":["b","a"]}`
+/// chains in [`the_named_shapes_are_all_here`]. Measured, with `hashed_form`
+/// sorting and de-duplicating the lists inside `resource`: every other test of
+/// this file green, and `{"id":["a","b"]}` and `{"id":["b","a"]}`
 /// on `9556c5009fc2a5c5…`.
 #[track_caller]
 fn the_nested_lists_keep_their_order_and_their_repeats(corpus: &[(String, Record)]) {
@@ -4038,18 +4022,18 @@ fn the_nested_lists_keep_their_order_and_their_repeats(corpus: &[(String, Record
 /// commutes with a second, so a class witnessed at some nesting is witnessed at
 /// any nesting built of the same steps.
 fn a_rendering_reaches_inside(render: fn(&str) -> String) -> bool {
-    // **Every class this apparatus names, in one string.** The probe carried a
-    // combining mark, a line separator and a trailing space, and nothing else —
-    // so for a rendering that touches only a *tab* it answered `true` without
-    // exercising anything: the rendering left the probe alone at every nesting
-    // and at the top, and "reaches inside" was read off two identities. A probe
-    // that a class cannot move is a probe that agrees with any rendering of that
-    // class. The interior gap is here for that reason, and so is the leading
-    // space: `trim_start` and `trim_end` are different renderings.
-    // **And a pair a composing rendering joins**, which the probe lacked for the
-    // same reason: `A\u{0301}` is not a composition this file names — the
-    // alphabet is lower-case — so `composed` left the whole probe alone and
-    // "reaches inside" would have been read off two identities again.
+    // **Every class this apparatus names, in one string.** A probe carrying
+    // only a combining mark, a line separator and a trailing space would answer
+    // `true` for a rendering that touches only a *tab* without exercising
+    // anything: the rendering leaves such a probe alone at every nesting and at
+    // the top, and "reaches inside" would be read off two identities. A probe
+    // that a class cannot move is a probe that agrees with any rendering of
+    // that class. The interior gap is here for that reason, and so is the
+    // leading space: `trim_start` and `trim_end` are different renderings.
+    // **And a pair a composing rendering joins**, for the same reason:
+    // `A\u{0301}` is not a composition this file names — the alphabet is
+    // lower-case — so without one `composed` would leave the whole probe alone
+    // and "reaches inside" be read off two identities again.
     let probe = " A\u{0301}b\tc\u{2028}e\u{0301} ";
     [
         (
@@ -4159,7 +4143,7 @@ fn a_pair_differs_only_inside(
 /// **The floor [`NESTED_PAIRS`] cannot carry, and it is stated over the
 /// structure rather than over a list of depths.** All three of those rows vary a
 /// direct string value of the top-level object, so a rendering reaching one
-/// container further in was the identity on every record here — and a row per
+/// container further in is the identity on every record those rows hold — and a row per
 /// depth would floor the depths somebody thought to write, while `resource`
 /// takes a `Value` of any shape at all. So the nestings are read off the corpus
 /// itself, the renderings that reach into one are read off [`NORMALISATIONS`]
@@ -4305,7 +4289,7 @@ fn with_its_keys_rendered(value: &Value, render: fn(&str) -> String) -> Value {
 /// Each key pair is two resources one named class collapses through the keys
 /// alone.
 ///
-/// The floor that class did not have: the pairs are two objects holding the same
+/// The floor that class needs: the pairs are two objects holding the same
 /// value under a key spelled two ways, so what the rendering below collapses is
 /// the key, and a pair whose two records stop standing in that relation fails
 /// here rather than keeping its label and ruling out nothing.
@@ -4383,12 +4367,12 @@ fn the_corpus_can_see_a_rendering_of_the_keys(corpus: &[(String, Record)]) -> us
 /// For every text field, a pair the corpus holds that a cut at *any* length
 /// collapses.
 ///
-/// **A length somebody chose is not the property.** The class was
-/// `cut to twelve characters` over `realm` and `principal`, and this corpus's
-/// only length pairs diverged at character 25 — so a `hashed_form` cutting every
-/// text field to twenty-six characters was the identity on all of it, with all
-/// 123 of `nc-journal`'s tests green and `cargo xtask check` moving nothing but
-/// its raw line counters. `deciding_policy` cut at twenty-four passed alone,
+/// **A length somebody chose is not the property.** A class
+/// of `cut to twelve characters` over `realm` and `principal`, with length
+/// pairs diverging at character 25, lets a `hashed_form` cutting every text
+/// field to twenty-six characters be the identity on all of it, with
+/// every `nc-journal` test green and `cargo xtask check` moving nothing but its
+/// raw line counters. `deciding_policy` cut at twenty-four passes alone,
 /// too: `core.no_self_escalation.v1` and `…v2` on one digest.
 ///
 /// So the floor is every length from one up to the longest value that field
@@ -4476,31 +4460,30 @@ const PROBES: [&str; 14] = [
     "a",
     "A",
     "a ",
-    // **And whitespace at the front, which the whole apparatus lacked.** Every
-    // whitespace-carrying probe here and every whitespace-carrying record in
-    // the corpus *appended* one, and `padded` in `entry.rs` is `format!("{text}
-    // ")` — so a `hashed_form` that trimmed only the **front** was the identity
-    // on every one of them, and two records differing by a leading space on
-    // `action` landed on one digest with the suite green. `NORMALISATIONS`
-    // could not tell the two ends apart either: its class is `str::trim`, which
-    // is symmetric.
+    // **And whitespace at the front.** Every other whitespace-carrying probe
+    // here and every whitespace-carrying record in the corpus *appends* one,
+    // and `padded` in `entry.rs` is `format!("{text} ")` — so a `hashed_form`
+    // that trimmed only the **front** would be the identity on every one of
+    // them, and two records differing by a leading space on `action` land on
+    // one digest with the suite green. `NORMALISATIONS` cannot tell the two
+    // ends apart either: its class is `str::trim`, which is symmetric.
     " a",
     "a\u{0301}",
     // **And the same letter precomposed**, without which `composed` is a class
-    // no field is asked for: every probe here was ASCII or ASCII plus one
-    // combining character, so a composing rendering mapped each of them to
-    // itself and hid nothing anywhere.
+    // no field is asked for: every other probe here is ASCII or ASCII plus one
+    // combining character, so a composing rendering would map each of them to
+    // itself and hide nothing anywhere.
     "\u{e1}",
     "a\u{2028}",
     "1",
     "2",
     "ZZZZZZZZZZZJ",
     "zzzzzzzzzzzj",
-    // **And a qualified name, which nothing here carried.** `OpaqueId` admits
+    // **And a qualified name, which nothing else here carries.** `OpaqueId` admits
     // `.` and `:` on purpose — its doc names `did:key:z…` and `urn:uuid:…` — so
     // a rendering that keeps one *segment* of an identifier is a rendering the
-    // types allow, and with no probe holding a separator this reader concluded
-    // no field could hide one. Three spellings close both ends: two differ only
+    // types allow, and with no probe holding a separator this reader would
+    // conclude no field could hide one. Three spellings close both ends: two differ only
     // before the first separator, two only after the last.
     "urn:uuid.alpha",
     "did:uuid.alpha",
@@ -4531,13 +4514,12 @@ fn a_field_admits(field: &str, text: &str) -> bool {
 
 /// The (rendering, field) pairs the types say this corpus has to be able to see.
 ///
-/// **The floor was the table against itself.** Both sides of the equality that
-/// stood in the test read `NORMALISATIONS`, so a deleted row moved them
-/// together, and the only live floor — twelve pairs against a table naming
-/// twenty — left eight pairs of slack: measured on 2026-09-03, `action` dropped
-/// from the `trimmed of its whitespace` row, with all thirty tests of this file
-/// green and `str::trim` witnessed by nothing in the field that says what was
-/// done.
+/// **A table held against itself is not a floor.** Both sides of an equality
+/// reading `NORMALISATIONS` move together when a row is deleted, and a floor of
+/// twelve pairs against a table naming twenty leaves eight pairs of slack:
+/// measured, `action` dropped from the `trimmed of its whitespace` row, with
+/// every other test of this file green and `str::trim` witnessed by nothing in
+/// the field that says what was done.
 ///
 /// So what each field can hide is decided by [`a_field_admits`], which asks the
 /// types, and the walk below is held against that. Asking instead that every
@@ -4628,12 +4610,12 @@ fn the_named_shapes_are_all_here(corpus: &[(String, Record)]) -> usize {
         missing.len()
     );
 
-    // **And the other direction, which [`MUST_HOLD`]'s own doc claims and
-    // nothing held.** That doc says adding a shape needs a line here; measured,
-    // a corpus entry carrying a label no row names left all thirty tests green.
-    // A shape nothing names is a record whose collapse this file has no
-    // opinion about, arriving unremarked — which is how the corpus stops being
-    // the census the counts below read it as.
+    // **And the other direction, which [`MUST_HOLD`]'s own doc claims.** That
+    // doc says adding a shape needs a line here; measured without this, a
+    // corpus entry carrying a label no row names leaves every test green. A
+    // shape nothing names is a record whose collapse this file has no opinion
+    // about, arriving unremarked — which is how the corpus would stop being the
+    // census the counts below read it as.
     let unnamed: Vec<&str> = labels
         .iter()
         .filter(|what| !MUST_HOLD.iter().any(|(named, _)| named == *what))
@@ -4655,14 +4637,14 @@ fn the_named_shapes_are_all_here(corpus: &[(String, Record)]) -> usize {
     };
 
     // **The label is not the shape, and the shape is what a weakening needs
-    // gone.** Every assertion above this line reads a *string*: measured, the
-    // named entry hollowed out — `reversed.actor_chain` given `[b, c]` instead
-    // of `[b, a]`, so it is no longer the reverse of anything — while
-    // `hashed_form` sorted the chain, and every `ok` line was identical to a
-    // clean run. `labels.len() == corpus.len()` held, nothing was missing, and
-    // `distinct >= named - 3` came to exactly 29. The corpus was intact by
-    // every measure this file took and the collapse it exists to rule out was
-    // live.
+    // gone.** Every assertion above this line reads a *string*: measured, with
+    // the named entry hollowed out — `reversed.actor_chain` given `[b, c]`
+    // instead of `[b, a]`, so it is no longer the reverse of anything — and
+    // `hashed_form` sorting the chain, every `ok` line is identical to a clean
+    // run. `labels.len() == corpus.len()` holds, nothing is missing, and
+    // `distinct >= named - 3` comes to exactly 29: the corpus intact by every
+    // other measure this file takes, while the collapse it exists to rule out
+    // is live.
     //
     // So each named shape is compared to `the_base_record()` in the field its
     // own name claims. A shape given a value it does not name, or given nothing
@@ -4767,15 +4749,15 @@ fn no_pair_of_them_lands_on_one_digest(hashed: &[(String, String, [u8; 32])]) {
 
 /// The labels that stand over one record, which must be the base's and no other.
 ///
-/// **The distinct floor's allowance was one unit wider than the collapse it was
-/// paying for.** `n` labels over one record cost `n - 1` distinct shapes, not
-/// `n`, so `named - restate_the_base` left a unit of slack — and it was spent by
-/// a duplicate nothing declared. Measured on 2026-09-03, before either half was
-/// repaired: `corpus = 87`, `named = 87`, `distinct = 83`,
+/// **The distinct floor's allowance is exactly the collapse it pays for.** `n`
+/// labels over one record cost `n - 1` distinct shapes, not `n`,
+/// so `named - restate_the_base` would leave a unit of slack — spendable by a
+/// duplicate nothing declared. Measured with that
+/// allowance: `corpus = 87`, `named = 87`, `distinct = 83`,
 /// `restate_the_base = 4`, `83 >= 83` green, with two repeated shapes in the
-/// corpus rather than one — the base's four labels, and
-/// `a resource that is the text of the id` beside
-/// `the same resource written as text`, both holding `Value::text("1")`.
+/// corpus rather than one — the base's four labels,
+/// and `a resource that is the text of the id`
+/// beside `the same resource written as text`, both holding `Value::text("1")`.
 ///
 /// So the arithmetic below is derived rather than allowed for, and this says the
 /// only record written twice is the one the table declares. A second undeclared
@@ -4838,11 +4820,11 @@ fn no_two_different_records_hash_the_same() {
     // are indexed too coarsely to say anything about.
     let classes = the_corpus_can_tell_a_normalisation_from_the_identity(&corpus);
     // **Floored against the types, because a table held against itself is an
-    // agreement and not a floor.** Both sides of the equality that stood here
-    // were `NORMALISATIONS`, so a deleted row moved them together, and the live
-    // floor beside it — twelve pairs against a table naming twenty — left eight
-    // pairs of slack. What each field's type can hide is settled somewhere else
-    // entirely, so that is what the product is held against.
+    // agreement and not a floor.** Both sides of an equality reading
+    // `NORMALISATIONS` move together when a row is deleted, and a floor of
+    // twelve pairs against a table naming twenty leaves eight pairs of slack.
+    // What each field's type can hide is settled somewhere else entirely, so
+    // that is what the product is held against.
     assert_eq!(
         classes,
         the_renderings_each_field_can_hide(),
@@ -4892,10 +4874,10 @@ fn no_two_different_records_hash_the_same() {
          different number of ways, so one of those renderings is claimed by no key pair"
     );
     let lengths = the_corpus_can_see_a_truncation_at_every_length(&corpus);
-    // **The same arithmetic, and now it comes from the types.** `8 * 63` was 504
-    // against 1065 proved, so the three numeric rows — 49 pairs — could be
-    // dropped with this green, and neither floor moved when the stem the long
-    // pairs are built from was cut from 127 characters to 77.
+    // **The same arithmetic, coming from the types.** With `8 * 63` — 504 —
+    // against 1065 proved, the three numeric rows — 49 pairs — could be dropped
+    // with this green, and neither floor would move when the stem the long
+    // pairs are built from is cut from 127 characters to 77.
     let reach: usize = CARRIES_TEXT
         .into_iter()
         .map(|field| the_reach_a_field_must_have(field) - 1)
@@ -4907,8 +4889,8 @@ fn no_two_different_records_hash_the_same() {
     );
 
     // **Distinct records, judged by the struct rather than by the digest.** The
-    // corpus is written by hand and three of its entries restated a value
-    // `base()` already had — so they *are* the base record, and reporting those
+    // corpus is written by hand and three of its entries restate a value
+    // `base()` already has — so they *are* the base record, and reporting those
     // as colliding reports only that one record hashes consistently. What is
     // being asked is whether two records that *differ* can land on one digest,
     // and `Debug` is the faithful rendering of what differs.
@@ -4944,10 +4926,10 @@ fn no_two_different_records_hash_the_same() {
         .iter()
         .filter(|(_, fields)| fields.is_empty())
         .count();
-    // And the arithmetic is `n - 1` and not `n`: labels over one record cost one
-    // fewer distinct shape than there are labels. See
-    // `the_only_record_written_twice_is_the_base` for the unit that cost and
-    // what was spending it. `saturating_sub`, because a table naming no
+    // And the arithmetic is `n - 1` and not `n`: labels over one record cost
+    // one fewer distinct shape than there are labels. See
+    // `the_only_record_written_twice_is_the_base` for the unit that costs and
+    // what would spend it. `saturating_sub`, because a table naming no
     // restatement at all costs nothing and must floor at `named`.
     let written_twice = the_only_record_written_twice_is_the_base(&hashed);
     assert_eq!(
@@ -4985,17 +4967,17 @@ type BuriedPair = (&'static str, fn() -> (Value, Value), fn(&Value) -> Value);
 
 /// The differences a `hashed_form` must keep, whatever they are wrapped in.
 ///
-/// **Every structural floor in this file was pinned at one container, and
-/// `resource` takes a `Value` of any shape.** [`every_nesting_the_corpus_holds_has_a_witness`]
-/// generalised the floor about *text* over depth, and that repair was read as
-/// though it had generalised the others: the keys a rendering may rename, the
+/// **Every structural floor in this file holds past one container,
+/// because `resource` takes a `Value` of any shape.**
+/// [`every_nesting_the_corpus_holds_has_a_witness`] generalises the floor about
+/// *text* over depth, and the others — the keys a rendering may rename, the
 /// order and repeats of a list, and the variants it may collapse into their
-/// text were each held at exactly one container, and are the identity one
-/// container further in. Measured on the shipped rendering with each collapse
-/// planted in turn, `cargo xtask check` printed `check passed` while
-/// `{"target":{"Owner":"alice"}}` and `{"target":{"owner":"alice"}}` landed on
-/// one digest, `{"target":{"id":["a","b"]}}` on the digest of `["b","a"]`, and
-/// `{"elevated":true}` on the digest of `{"elevated":"true"}`.
+/// text — held at exactly one container would be the identity one container
+/// further in. Measured on the shipped rendering with each collapse planted in
+/// turn and nothing deeper asked, `cargo xtask check` prints `check passed`
+/// while `{"target":{"Owner":"alice"}}` and `{"target":{"owner":"alice"}}` land
+/// on one digest, `{"target":{"id":["a","b"]}}` on the digest of `["b","a"]`,
+/// and `{"elevated":true}` on the digest of `{"elevated":"true"}`.
 ///
 /// So the property is stated where it belongs — over the digest rather than
 /// over the corpus — and the depth is quantified rather than chosen.
@@ -5181,8 +5163,10 @@ fn no_pair_that_must_differ_survives_being_buried() {
         );
         Entry::chain(0, None, record).hash_hex()
     };
-    // **The depth is floored by the corpus, not chosen.** `AS_DEEP_AS_THIS_GOES`
-    // set to 0 left this test green and `cargo xtask check` byte-identical.
+    // **The depth is floored by the corpus, not chosen.** A depth held to
+    // nothing but itself could be set to 0 with this test green and
+    // `cargo xtask check` byte-identical — measured — so it is held above the
+    // deepest text the corpus holds.
     let mut texts = Vec::new();
     for (_, record) in the_shapes_a_flattening_would_collapse() {
         where_a_value_keeps_its_texts(&record.resource, "", &mut texts);
@@ -5238,10 +5222,11 @@ fn no_pair_that_must_differ_survives_being_buried() {
          test is weaker than it reads"
     );
     // **And a buried row per class of `NORMALISATIONS`, derived rather than
-    // written.** The eight rows above close `trimmed` and `stripped of what is
-    // not ASCII` at depth; `case-folded` and `stripped of its combining marks`
-    // had no row at all, and a `hashed_form` folding case three containers in
-    // passed `cargo xtask check`.
+    // written.** The eight rows above close `trimmed` and
+    // `stripped of what is not ASCII` at depth; without these, `case-folded`
+    // and `stripped of its combining marks` have no row at all, and a
+    // `hashed_form` folding case three containers in passes
+    // `cargo xtask check`.
     let mut classes = 0_usize;
     for (how, render, fields) in NORMALISATIONS {
         if !fields.contains(&"resource") {

@@ -723,9 +723,9 @@ impl BlobStore for DirectoryBlobs {
 /// order.
 ///
 /// **A directory is never a blob's bytes or a writing**, and no unlink deletes
-/// one. Listed, one under a hash's name stopped every sweep at it for good —
-/// each refused at the same entry, and the writings no writer holds, which a
-/// sweep deletes last, were never deleted at all.
+/// one. Listed, one under a hash's name would stop every sweep at it for good —
+/// each refused at the same entry — and the writings no writer holds, which a
+/// sweep deletes last, would never be deleted at all.
 fn names_in(root: &Path) -> Result<Vec<String>, BlobError> {
     let listing = |error: std::io::Error| failed(&format!("listing `{}`", root.display()), &error);
     let mut names = Vec::new();
@@ -1015,10 +1015,10 @@ const SWEPT_AT_ONCE: u32 = 1_000;
 ///
 /// **And only bytes no one has named for `blob_orphan_grace_ms`**, row or no
 /// row. The bus is one kernel's, and the kernels of the realms one person
-/// belongs to share the file and the bytes: a reviewer found one realm's
-/// sweep deleting, as an orphan, the bytes another realm's unit had made and
-/// not yet committed, whose step was then kept pinning bytes that were gone.
-/// A unit in flight names its bytes — again, when they are held already
+/// belongs to share the file and the bytes: judging by rows alone, one realm's
+/// sweep would delete, as an orphan, the bytes another realm's unit has made
+/// and not yet committed, whose step would then be kept pinning bytes that are
+/// gone. A unit in flight names its bytes — again, when they are held already
 /// ([`BlobStore::hashes`]) — so they are never old while it is.
 ///
 /// **And never a blob a reversal still owed pins again.** An undo whose close
@@ -1026,10 +1026,10 @@ const SWEPT_AT_ONCE: u32 = 1_000;
 /// store refused, or another realm's stopped process's, sharing the file — is
 /// held from the pruner (`nc_local::LocalStore::commit_held`), and its
 /// reversal, when it comes, pins again each blob the undo took the pin off. A
-/// reviewer found the sweep forgetting such a row and its bytes after their
-/// grace, and the reversal then inserting a pinned row for bytes that were
-/// gone; so the blobs the notes of a held unit record as unpinned by it are
-/// left for after its reversal.
+/// sweep that forgot such a row and its bytes after their grace would leave the
+/// reversal inserting a pinned row for bytes that are gone; so the blobs the
+/// notes of a held unit record as unpinned by it are left for after its
+/// reversal.
 ///
 /// # Errors
 ///
@@ -1539,10 +1539,10 @@ mod tests {
     /// named before the refusal stay under their hash, which the sweep deletes
     /// as bytes no row names.
     ///
-    /// **What `finish` promised otherwise**, measured by a review: that nothing
-    /// a refused finish did not hold before is held under the hash. A directory
-    /// its owner may write in and enter but not read lets the rename through,
-    /// and refuses the handle the directory is synced through.
+    /// **The exception `finish` documents**: a refused finish may leave held
+    /// under the hash what was not held before. A directory its owner may write
+    /// in and enter but not read lets the rename through, and refuses the
+    /// handle the directory is synced through.
     #[tokio::test]
     async fn bytes_named_before_their_directory_refused_its_sync_are_left_for_the_sweep() {
         use std::os::unix::fs::PermissionsExt as _;
@@ -1743,9 +1743,9 @@ mod tests {
     /// bytes held already, or let go — so what it holds is only the writings in
     /// progress.
     ///
-    /// **What no test told apart**, measured by a review: with a name kept past
-    /// its writing's end, every suite passed, while the store held one name for
-    /// every blob ever written, for the life of the daemon.
+    /// **No name past its writing's end**: a name kept past it would leave the
+    /// store holding one name for every blob ever written, for the life of the
+    /// daemon, which this test refuses.
     #[test]
     fn a_store_holds_the_name_of_no_writing_that_has_ended() {
         one_blocking_thread().block_on(async {

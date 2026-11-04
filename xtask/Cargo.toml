@@ -49,13 +49,13 @@ clap.workspace = true
 # is the only thing that prints.
 anstream = "1.0"
 anstyle = "1.0"
-# **A manifest is TOML, and the type wall's scope gate used to read it as text.**
-# `can_log` enumerated the spellings it knew — `nc-log `, `nc-log=`,
-# `nc-log.workspace`, `[dependencies.nc-log]` — and cargo accepts more:
-# `[target.'cfg(unix)'.dependencies.nc-log]` and the quoted key
-# `"nc-log".workspace = true` both compile and both walked past it, switching the
-# gate off for a crate that really does log. A parser answers for every spelling
-# there is, and this one is already the workspace's.
+# **A manifest is TOML, and a gate that reads one as text misses spellings cargo
+# accepts.** A reader of text enumerates the spellings it knows — `nc-log `,
+# `nc-log=`, `nc-log.workspace`, `[dependencies.nc-log]` — and cargo accepts
+# more: `[target.'cfg(unix)'.dependencies.nc-log]` and the quoted key
+# `"nc-log".workspace = true` both compile and both walk past such a list, so a
+# gate scoped by one is switched off for a crate that really does log. A parser
+# answers for every spelling there is, and this one is already the workspace's.
 toml.workspace = true
 # **What turns a plugin into a component**, and the reason it is a dependency of
 # the gate rather than a tool somebody installs: `cargo xtask check` builds every
@@ -72,8 +72,8 @@ wit-component.workspace = true
 # under `wit-component`.
 wit-parser.workspace = true
 # **Cargo's own answer to who is in this workspace and what each depends on.**
-# `check` read the manifests itself and got both questions wrong for manifests
-# cargo accepts: a dependency renamed through `[workspace.dependencies]` hid the
+# A reader of the manifests would get both questions wrong for manifests cargo
+# accepts: a dependency renamed through `[workspace.dependencies]` would hide the
 # log from the type wall's scope, and a path dependency inside the workspace
 # directory is a member cargo builds without being listed in `members`. Both are
 # resolution rules, and re-deriving them is writing a second cargo. `cargo

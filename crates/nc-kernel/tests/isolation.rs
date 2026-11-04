@@ -901,9 +901,9 @@ async fn a_plugin_that_burns_its_fuel_is_killed_and_restarted() {
 /// mebibytes, and told apart from a trap by the guard's own error — and the
 /// instance it is started again in is held to the same bound.
 ///
-/// A verifier found the restart's bound held by nothing: built apart from the
-/// load's, the restarted instance could be given the catalog's sixteen times
-/// larger memory with every suite green.
+/// The restart's bound is read here: built apart from the load's, the
+/// restarted instance could be given the catalog's sixteen times larger
+/// memory, and its second grow would not be refused at the manifest's bound.
 #[tokio::test]
 async fn a_plugin_that_outgrows_its_memory_is_killed_and_restarted() {
     let fixture = opened("memory_bytes = 4_194_304\n").await;
@@ -940,9 +940,9 @@ fn denied(probed: &str) -> std::collections::BTreeMap<String, String> {
 /// more: every function its probe was denied before the kill, it is denied
 /// after it.
 ///
-/// A verifier found the restart's grants held by nothing: built apart from the
-/// load's, the restarted instance could be handed every capability with every
-/// suite green.
+/// The restart's grants are read here: built apart from the load's, the
+/// restarted instance could be handed every capability, and the probe after
+/// the kill would no longer be denied what it was denied before it.
 #[tokio::test]
 async fn a_restarted_plugin_is_granted_what_its_manifest_names_and_nothing_more() {
     let fixture = opened("").await;
@@ -992,9 +992,9 @@ const WAITED_ON_FOR_EVER: Duration = Duration::from_secs(3_600);
 /// runs in a unit, which the kill leaves unkept; and a delete is dispatched
 /// with an approval, which the family pack asks of one.
 ///
-/// **Journaled and said as a wait on the host**, which a verifier found held
-/// by nothing: the dispatch's entry could record the kill as `trapped`, and
-/// its refusal say so, with every suite green.
+/// **Journaled and said as a wait on the host**: the dispatch's entry and its
+/// refusal are read here, so a kill this dispatch recorded as `trapped`, or
+/// said was a trap, would fail this test.
 #[tokio::test(start_paused = true)]
 async fn a_host_call_that_never_returns_is_abandoned_and_the_plugin_killed() {
     for (hang, command, args, function, approved) in [
@@ -1041,11 +1041,11 @@ async fn a_host_call_that_never_returns_is_abandoned_and_the_plugin_killed() {
 ///
 /// **And no bytes, but one finish's own.** A finish asks for its blob's row
 /// before the bytes are named, so a row that never comes leaves nothing named.
-/// Found by a review: the row was asked for after, and its bytes outlived the
-/// kill under a name no row held and the doomed unit did not know. What is
-/// left is a finish the deadline abandons while the store goes on naming the
-/// bytes — the thread that renames them is not stopped by the kill — and the
-/// sweep deletes those, as bytes no row names.
+/// Asked for after, its bytes would outlive the kill under a name no row holds
+/// and the doomed unit does not know. What is left is a finish the deadline
+/// abandons while the store goes on naming the bytes — the thread that renames
+/// them is not stopped by the kill — and the sweep deletes those, as bytes no
+/// row names.
 #[tokio::test(start_paused = true)]
 async fn a_blob_host_call_that_never_returns_is_abandoned_and_the_plugin_killed() {
     let kept = Hash::of(b"kept").to_string();
@@ -1289,12 +1289,12 @@ async fn abandoned_at_its_deadline(
 /// which answers its revision the same way. Counted on the whole call, the
 /// plugin is interrupted as soon as its first read returns.
 ///
-/// **The two that answer a value found a real bug.** The allocator is the
-/// plugin running inside a host call, and the epoch check at its entry calls
-/// the host again: the account that only a call into the host opened was
-/// opened again there, the wait before it was counted as the plugin's own
-/// running, and a plugin waiting on a slow read was killed as `[NC-PLUG-0004]`
-/// the moment the read answered.
+/// **The two that answer a value are what an account opened only on a call
+/// into the host gets wrong.** The allocator is the plugin running inside a
+/// host call, and the epoch check at its entry calls the host again: such an
+/// account would be opened again there, the wait before it counted as the
+/// plugin's own running, and a plugin killed as `[NC-PLUG-0004]` the moment
+/// its slow read answered.
 #[tokio::test]
 async fn a_plugin_waiting_on_the_host_past_its_epoch_share_is_not_killed_for_it() {
     let fixture = opened("epoch_deadline_ticks = 5\n").await;
@@ -1356,15 +1356,15 @@ async fn a_plugin_waiting_on_the_host_past_its_epoch_share_is_not_killed_for_it(
 /// every time: the tree's kill counted against it would quarantine it at the
 /// last.
 ///
-/// **A reviewer found the tree outlasting its deadline**: a host call was held
-/// to its own deadline alone, so the second read ran to its end, past the
-/// tree's — and a tree of thirty seconds whose fetches each waited fourteen
-/// ran forty-two.
+/// **The tree does not outlast its deadline**: with a host call held to its own
+/// deadline alone, the second read would run to its end, past the tree's — and
+/// a tree of thirty seconds whose fetches each wait fourteen would run
+/// forty-two.
 ///
-/// **A verifier found the budget spent by it**: the same plugin, its store as
-/// slow, was quarantined at its third write, though every host answer came
-/// inside its deadline and the plugin ran microseconds — and the kill's
-/// journal word and log cause were held by nothing.
+/// **Nor is the budget spent by it**: were the kill counted, the same plugin,
+/// its store as slow, would be quarantined at its third write, though every
+/// host answer comes inside its deadline and the plugin runs microseconds —
+/// and this reads the kill's journal word and log cause as well.
 #[tokio::test]
 async fn a_plugin_killed_at_its_trees_deadline_is_restarted_and_spends_no_budget() {
     let late = Duration::from_millis(KERNEL.host_call_deadline_ms - 1_000);
@@ -1470,11 +1470,10 @@ async fn a_plugin_killed_at_its_trees_deadline_is_restarted_and_spends_no_budget
 /// peer's trap twice, going on through the first refusal: the first kill
 /// starts the peer again in nineteen seconds, inside the tree; the second
 /// leaves it eleven, which the tree's deadline cuts its activation at; the
-/// relay, waiting on it, is then past the deadline too. **A reviewer found a
-/// real bug with it**: each restart was held to a span of its own rather than
-/// to what the tree had left, so the tree ran on by the time each plugin on
-/// its stack took to come back — forty-nine seconds for one, sixty-eight for
-/// two.
+/// relay, waiting on it, is then past the deadline too. **Each restart is held
+/// to what the tree has left**: held to a span of its own, the tree would run
+/// on by the time each plugin on its stack took to come back — forty-nine
+/// seconds for one, sixty-eight for two.
 #[tokio::test]
 async fn a_restart_inside_a_call_tree_ends_with_the_tree_and_quarantines_nothing() {
     let late = Duration::from_millis(KERNEL.host_call_deadline_ms - 1_000);
@@ -1566,9 +1565,9 @@ async fn a_restart_inside_a_call_tree_ends_with_the_tree_and_quarantines_nothing
 /// timers. The first dispatches the reference plugin's `note.put`, whose two
 /// reads of the note each answer nineteen seconds late, so the tree's deadline
 /// kills the reference plugin, and the peer waiting on it with it, in a tree
-/// with nothing left. **Held by nothing before**: a reviewer took the pump's
-/// start before each callback out and every suite stayed green, while the
-/// second timer was spent with no callback run and counted as failed.
+/// with nothing left. **The pump starts its plugin again before each
+/// callback**: without that start, the second timer would be spent with no
+/// callback run and counted as failed, which this test refuses.
 #[tokio::test]
 async fn a_callback_killed_at_its_trees_deadline_leaves_the_next_callback_a_fresh_instance() {
     let late = Duration::from_millis(KERNEL.host_call_deadline_ms - 1_000);
@@ -1889,10 +1888,10 @@ async fn a_plugin_dispatching_into_itself_is_refused_rather_than_trapped() {
 /// through every refusal; each time, the peer dispatches once — into the
 /// reference plugin, refused as re-entry, a value it reads — and stops at its
 /// first refusal. Each pair spends two of the tree's dispatches, so the one
-/// past the count is the peer's own. **A reviewer found a real bug with it**:
-/// that dispatch trapped the peer, which was killed as `trap` and quarantined
-/// after `restart_budget` such trees, while the reference plugin, which spent
-/// the count, was never killed. Told instead, the peer answers its caller and
+/// past the count is the peer's own. **Told, not trapped**: trapped by that
+/// dispatch, the peer would be killed as `trap` and quarantined
+/// after `restart_budget` such trees, and the reference plugin, which spent
+/// the count, never killed. Told instead, the peer answers its caller and
 /// keeps its status, and the reference plugin, told in turn and asking on, is
 /// the one killed — round after round, until its own budget quarantines it.
 #[tokio::test]
@@ -1985,11 +1984,11 @@ async fn quarantine(fixture: &Fixture, namespace: &str, slot: PluginSlot) {
 ///
 /// The store holds the release's activation at its gate, and the caller gives
 /// up on it a step later, as a daemon's handler does when the person who asked
-/// goes away; the gate is then opened and the plugin released again. **A
-/// reviewer found a real bug with it**: awaited in place, the abandoned
-/// release left the slot claimed as starting, so every later release answered
-/// `Ok(())` and started nothing, and every dispatch to the plugin was refused
-/// as a quarantined one's for as long as the kernel ran.
+/// goes away; the gate is then opened and the plugin released again. **Awaited
+/// in place**, the abandoned release would leave the slot claimed as starting,
+/// so every later release would answer `Ok(())` and start nothing, and every
+/// dispatch to the plugin be refused as a quarantined one's for as long as the
+/// kernel runs.
 #[tokio::test(start_paused = true)]
 async fn a_release_its_caller_stops_waiting_for_leaves_the_plugin_releasable() {
     let fixture = opened("").await;
@@ -2023,9 +2022,9 @@ async fn a_release_its_caller_stops_waiting_for_leaves_the_plugin_releasable() {
 /// that one: one generation more and one restart. Meanwhile the plugin is
 /// quarantined still, and a dispatch to it is refused as a quarantined
 /// plugin's before the decision point goes near its slot. The store holds the
-/// first release's activation at its gate until all three are asked. **A
-/// verifier found it started twice**: each release saw the plugin stopped,
-/// and each started an instance of its own, the later put over the earlier.
+/// first release's activation at its gate until all three are asked. **Not
+/// started twice**: were each release to see the plugin stopped and start an
+/// instance of its own, the later would be put over the earlier.
 #[tokio::test(start_paused = true)]
 async fn two_releases_at_once_start_a_quarantined_plugin_once() {
     let fixture = opened("").await;
@@ -2097,10 +2096,10 @@ async fn two_releases_at_once_start_a_quarantined_plugin_once() {
 ///
 /// **The unload waits a step**, until the release's task has claimed the slot
 /// and is held at the gate. A release runs on a task of its own, and an unload
-/// asked for in the same poll ran before that task did: the release then found
-/// the slot unloaded and started nothing, so the race this test is named for
-/// never happened — measured, the restart's arm for an unloaded slot deleted,
-/// and this test green.
+/// asked for in the same poll runs before that task does: the release would
+/// then find the slot unloaded and start nothing, so the race this test is
+/// named for would never happen, and with the restart's arm for an unloaded
+/// slot deleted, a test asking for both in one poll would still pass.
 #[tokio::test(start_paused = true)]
 async fn a_plugin_unloaded_while_a_release_starts_it_stays_unloaded() {
     let fixture = opened("").await;
@@ -2143,10 +2142,10 @@ async fn a_plugin_unloaded_while_a_release_starts_it_stays_unloaded() {
 /// The peer's `pair.put` writes its note and then dispatches the peer's own
 /// `note.put`, and it runs while the second release would still be starting
 /// an instance: the store's gate opens to the first release's activation, then
-/// to the second's, then to the command's read of its note. **A verifier
-/// found it let in**: the second release put the instance it started over the
-/// one the command had taken out to run, and the dispatch from inside the
-/// command ran in that second instance of the same plugin.
+/// to the second's, then to the command's read of its note. **Not let in**: a
+/// second release that put the instance it started over the one the command had
+/// taken out to run would have the dispatch from inside the command run in that
+/// second instance of the same plugin.
 #[tokio::test(start_paused = true)]
 async fn a_plugin_released_twice_at_once_is_still_refused_when_it_dispatches_into_itself() {
     let fixture = opened("").await;
@@ -2216,8 +2215,8 @@ async fn a_plugin_released_twice_at_once_is_still_refused_when_it_dispatches_int
 /// request was handed to the transport once either way, and what was meant to
 /// set it right is named, since nothing will run it.
 ///
-/// Found by a review: what an abort answered named no compensation, though the
-/// abort's result is meant to name each one.
+/// What an abort answers names each compensation, as the abort's result is
+/// meant to.
 #[tokio::test(start_paused = true)]
 async fn an_aborted_unit_names_the_compensations_that_did_not_run() {
     let post = Value::object([
@@ -2283,10 +2282,10 @@ async fn an_aborted_unit_names_the_compensations_that_did_not_run() {
 /// so the call tree's deadline kills both with no time left to start them
 /// again in; the start before the second callback then waits on a store that
 /// reads the peer's activation past a host call's deadline, and quarantines
-/// it. **Written by a reviewer, who found a real bug with it**: the pump asked
-/// whether the peer was stopped before starting it, so the second timer was
-/// spent on a callback nobody could call — counted as fired and failed — and
-/// the release found nothing to fire.
+/// it. **Asked after the start, not before**: asked whether the peer is stopped
+/// before starting it, the pump would spend the second timer on a callback
+/// nobody could call — counted as fired and failed — and the release would find
+/// nothing to fire.
 #[tokio::test]
 async fn a_timer_whose_plugin_is_quarantined_as_it_fires_is_held_for_its_release() {
     let late = Duration::from_millis(KERNEL.host_call_deadline_ms - 1_000);

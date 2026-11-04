@@ -1724,8 +1724,8 @@ async fn an_undo_whose_compensation_fails_keeps_nothing() {
 /// history's code, in the case of what doomed it, and the step stays
 /// committed.
 ///
-/// Found by a review: both were dispatched and journaled as allowed, and the
-/// undo answered `[NC-KERN-0008]` rather than the history's own refusal.
+/// What it holds against: both dispatched and journaled as allowed, and the
+/// undo answering `[NC-KERN-0008]` rather than the history's own refusal.
 #[tokio::test]
 async fn a_compensation_that_lets_the_undos_unit_go_stops_the_ones_after_it() {
     let fixture = opened(in_memory().await, "", false).await;
@@ -1883,9 +1883,9 @@ async fn a_compensation_that_could_never_run_is_refused_when_it_is_registered() 
 /// written. A command of the kernel's is no more its own; one of its own it
 /// names as before, and an undo runs it.
 ///
-/// Found by a review: `commands.begin` alone let a plugin have its peer's
-/// command dispatched as the person, the plugin's own dispatch of the same
-/// command being refused.
+/// What it holds against: `commands.begin` alone letting a plugin have its
+/// peer's command dispatched as the person, the plugin's own dispatch of the
+/// same command being refused.
 #[tokio::test]
 async fn a_plugin_not_granted_dispatch_compensates_only_with_its_own_commands() {
     let fixture = opened_granting(in_memory().await, "", true, WITHOUT_DISPATCH).await;
@@ -1957,10 +1957,9 @@ async fn a_plugin_not_granted_dispatch_compensates_only_with_its_own_commands() 
 /// and is refused — and the plugin that registered it, loaded again, is the
 /// one the undo reaches.
 ///
-/// **Written by a reviewer, who found a real bug with it**: bound to the
-/// command's name alone, the undo dispatched the other plugin's command as
-/// ana, in her undo's unit, and that compensation lifted the barrier the
-/// step's request would have been.
+/// **Not by the command's name alone**: bound to it, the undo would dispatch
+/// the other plugin's command as ana, in her undo's unit, and that compensation
+/// would lift the barrier the step's request would have been.
 #[tokio::test]
 async fn a_compensation_never_reaches_a_plugin_that_took_its_command_since() {
     let fixture = opened_granting(in_memory().await, "", false, WITHOUT_DISPATCH).await;
@@ -2019,10 +2018,10 @@ async fn a_compensation_never_reaches_a_plugin_that_took_its_command_since() {
 /// the grant, the undo dispatches nothing and is refused, and loaded again
 /// with it, the undo runs it.
 ///
-/// **Written by a reviewer (wave 5, PEP), and it found a real bug**: the undo
-/// asked only that the command's holder was unchanged, so it dispatched the
-/// peer's command as ana for a plugin no longer granted to — and the
-/// compensation lifted the barrier the step's request would have been.
+/// **Not by the command's holder alone**: an undo that asked only that the
+/// command's holder is unchanged would dispatch the peer's command as ana for a
+/// plugin no longer granted to — and the compensation would lift the barrier
+/// the step's request would have been.
 #[tokio::test]
 async fn a_compensation_is_not_dispatched_for_a_plugin_no_longer_granted_dispatch() {
     let fixture = opened(in_memory().await, "", true).await;
@@ -2239,8 +2238,8 @@ async fn new_work_clears_redo() {
 /// rounds the person holds more units than the bound, and the step is undone
 /// once more.
 ///
-/// Found by a review: the bound counted every unit, the newest of which were
-/// then the rounds' own undos and redos, and the step was nothing to undo.
+/// Counting every unit, the bound would take in the rounds' own undos and redos
+/// as the newest, and the step would be nothing to undo.
 #[tokio::test]
 async fn a_step_redone_more_often_than_the_bound_counts_units_is_still_undone() {
     let fixture = opened(in_memory().await, "", false).await;
@@ -2717,9 +2716,9 @@ async fn a_blob_another_step_still_holds_keeps_its_pin_when_the_first_is_undone(
 /// no pin off. And ana's redo, finding the blob pinned already, records no pin
 /// of its own put back — which is what a reversal of it would take off.
 ///
-/// Found by a review: a redo pinned again only what its own undo had taken
-/// off, so carla's step was committed with its blob unpinned and, once the
-/// grace had passed, the sweep deleted the bytes.
+/// What it holds against: a redo that pinned again only what its own undo took
+/// off, so carla's step would be committed with its blob unpinned and, once the
+/// grace had passed, the sweep would delete the bytes.
 #[tokio::test]
 async fn a_step_redone_after_another_persons_undo_holds_its_blob_again() {
     let fixture = opened(in_memory().await, "", false).await;
@@ -2783,8 +2782,9 @@ async fn a_step_redone_after_another_persons_undo_holds_its_blob_again() {
 /// undo — the last step holding it gone, and the row made by a step no longer
 /// committed — takes it off.
 ///
-/// Found by a review: an undo never took off the pin of a blob held before its
-/// step, so a blob no committed unit held kept its pin for good.
+/// What it holds against: an undo that never took off the pin of a blob held
+/// before its step, so a blob no committed unit holds would keep its pin for
+/// good.
 #[tokio::test]
 async fn a_blob_two_peoples_steps_made_loses_its_pin_once_both_are_undone() {
     let fixture = opened(in_memory().await, "", false).await;
@@ -2840,8 +2840,8 @@ async fn a_blob_two_peoples_steps_made_loses_its_pin_once_both_are_undone() {
 /// the bytes the step before it had made: that undo is never redone, so what
 /// its compensation did stands, and it holds the blob as a step would.
 ///
-/// Found by a review: only a step counted as holding a blob, so undoing the
-/// first step took the pin off and the sweep took the bytes the undo kept.
+/// What it holds against: only a step counted as holding a blob, so undoing the
+/// first step would take the pin off and the sweep the bytes the undo kept.
 #[tokio::test]
 async fn a_blob_an_undos_compensation_made_keeps_its_pin_when_its_first_step_is_undone() {
     let fixture = opened(in_memory().await, "", false).await;
@@ -2959,10 +2959,10 @@ fn in_parts(parts: i64) -> String {
 /// over more than one unit could stage back is refused before it is kept, and
 /// one within the bound is undone whole.
 ///
-/// A verifier found a step that deleted twenty values of about a megabyte
-/// kept — what it wrote alone counted against the unit's bytes — and its undo
-/// refused with the bound's code at every attempt, so undo never reached past
-/// it: the step a large accidental change is.
+/// With what it wrote alone counted against the unit's bytes, a step that
+/// deleted twenty values of about a megabyte would be kept, and its undo
+/// refused with the bound's code at every attempt, so undo would never reach
+/// past it: the step a large accidental change is.
 #[tokio::test]
 async fn a_step_its_undo_could_not_stage_is_refused_and_one_it_can_is_undone_whole() {
     let fixture = opened(in_memory().await, "", false).await;
@@ -3167,10 +3167,10 @@ async fn filled_past_the_bound_after(store: &LocalStore, after: Snowflake, later
 /// beyond every undo, so what it made stays — when a later step that made the
 /// same bytes again is undone.
 ///
-/// **A reviewer found a real bug with it**: the undo of the later step asked
-/// which units held the blob of the notes the store keeps, the pruner had
-/// taken the first step's with it, and so the pin came off and the sweep
-/// deleted the bytes a step no undo reaches had made.
+/// **Not asked of the notes alone**: the undo of the later step asking which
+/// units hold the blob of the notes the store keeps would find none for the
+/// first step, whose notes the pruner took with it, and so the pin would come
+/// off and the sweep delete the bytes a step no undo reaches had made.
 #[tokio::test]
 async fn a_blob_a_step_the_pruner_took_made_keeps_its_pin_when_a_later_step_is_undone() {
     let fixture = opened(in_memory().await, "", false).await;
@@ -3223,9 +3223,9 @@ async fn a_blob_a_step_the_pruner_took_made_keeps_its_pin_when_a_later_step_is_u
 /// A redo whose step the pruner took is nothing to redo, as the migration
 /// reads a target that is gone.
 ///
-/// **A reviewer found a real bug with it**: it was answered as a store holding
-/// a row it did not write, `internal` with `[NC-DB-0007]`, every time it was
-/// asked until new work came.
+/// **Not a store holding a row it did not write**: answered so, `internal`
+/// with `[NC-DB-0007]`, it would be refused every time it was asked until new
+/// work came.
 #[tokio::test]
 async fn a_redo_whose_step_the_pruner_took_is_nothing_to_redo() {
     let fixture = opened(in_memory().await, "", false).await;
@@ -3316,9 +3316,9 @@ async fn a_kept_step(
 /// A step holding as many compensations as a unit may register is undone:
 /// each is a dispatch of the undo's own tree, and the undo's is the first.
 ///
-/// **A reviewer found a real bug with it**: a unit registered as many as a
-/// tree may dispatch, and every undo of such a step was refused at the last
-/// one, so undo never reached past it.
+/// **What it holds against**: a unit registering as many as a tree may
+/// dispatch, and every undo of such a step refused at the last one, so undo
+/// would never reach past it.
 #[tokio::test]
 async fn a_step_with_as_many_compensations_as_a_unit_may_register_is_undone() {
     let store = in_memory().await;
@@ -3362,10 +3362,10 @@ async fn a_step_with_as_many_compensations_as_a_unit_may_register_is_undone() {
 /// An undo whose compensation makes the blob its step made is kept, and holds
 /// that blob as a step does.
 ///
-/// **A reviewer found a real bug with it**: the undo took the blob's pin off
-/// before its compensation made the blob again, so its unit both pinned and
-/// unpinned it, and the store refused it as a unit no unit can be — every
-/// time it was asked, and undo reaches only the newest step.
+/// **What it holds against**: the undo taking the blob's pin off before its
+/// compensation made the blob again, so its unit would both pin and unpin it,
+/// and the store refuse it as a unit no unit can be — every time it was asked,
+/// undo reaching only the newest step.
 #[tokio::test]
 async fn an_undo_whose_compensation_makes_the_blob_its_step_made_is_kept() {
     const BYTES: &str = "compensated bytes";
@@ -3401,9 +3401,9 @@ async fn an_undo_whose_compensation_makes_the_blob_its_step_made_is_kept() {
         fixture.pinned(&made).await,
         "the undo's compensation made the blob, and the undo holds it"
     );
-    // **And says so, in its answer, its journal entry and its notes.** A
-    // reviewer found it answering and journaling `reverted.blobs: 1` and
-    // noting a `blob_unpinned` for the pin it kept on.
+    // **And says so, in its answer, its journal entry and its notes** —
+    // not `reverted.blobs: 1` answered and journaled, and a `blob_unpinned`
+    // noted, for the pin it kept on.
     let reverted = |answer: &str| {
         field(answer, "reverted")
             .into_object()
@@ -3502,11 +3502,11 @@ fn the_office_journal(clock: Still) -> nc_journal::Journal<nc_journal::InMemory,
 /// open in its journal is reverted when that realm's kernel opens, though a
 /// kernel of `home` — sharing the file — pruned it in between.
 ///
-/// **A reviewer found a real bug with it**: the pruner took the oldest units
-/// of every realm, holding back only the ones the pumping kernel itself left,
-/// so `home`'s pump took the record `office`'s recovery reverts from; the
-/// recovery then closed the unit as aborted and its write stayed. The unit is
-/// held from the pruner in the store now, whichever kernel prunes.
+/// **Held from the pruner in the store, whichever kernel prunes**: a pruner
+/// that took the oldest units of every realm, holding back only the ones the
+/// pumping kernel itself left, would let `home`'s pump take the record
+/// `office`'s recovery reverts from; the recovery would then close the unit as
+/// aborted and its write stay.
 #[tokio::test]
 async fn a_unit_another_realm_left_open_is_reverted_though_a_realm_pruned_meanwhile() {
     let store = in_memory().await;
@@ -3570,11 +3570,10 @@ async fn a_unit_another_realm_left_open_is_reverted_though_a_realm_pruned_meanwh
 /// the store and open in the journal, though a kernel of `home` — sharing the
 /// file — pruned the step that undo undid in between.
 ///
-/// **A reviewer found a real bug with it**: `home`'s pump took the step, the
-/// oldest unit in the file; the undo's reversal marks it committed again, the
-/// store refuses a mark of a unit it does not hold, and `office`'s kernel
-/// refused to open, every time. An undo holds the step whose state it moves
-/// now, as it holds itself.
+/// **An undo holds the step whose state it moves, as it holds itself**:
+/// unheld, `home`'s pump would take the step, the oldest unit in the file; the
+/// undo's reversal would mark it committed again, the store refuse a mark of a
+/// unit it does not hold, and `office`'s kernel refuse to open, every time.
 #[tokio::test]
 async fn a_realm_opens_over_its_undo_left_open_though_a_realm_pruned_meanwhile() {
     let store = in_memory().await;
@@ -3646,10 +3645,10 @@ async fn a_realm_opens_over_its_undo_left_open_though_a_realm_pruned_meanwhile()
 /// is on this machine once that realm's kernel reverts the undo, though a
 /// kernel of `home` — sharing the file and the blobs — swept a day later.
 ///
-/// **A reviewer found a real bug with it**: the sweep forgot a row unpinned
-/// for its grace whoever unpinned it, and the recovery's reversal of the undo
-/// then pinned the blob again — inserting a pinned row for bytes that were
-/// gone — and committed the step again as holding it.
+/// **What it holds against**: a sweep that forgot a row unpinned for its grace
+/// whoever unpinned it, after which the recovery's reversal of the undo would
+/// pin the blob again — inserting a pinned row for bytes that are gone — and
+/// commit the step again as holding it.
 #[tokio::test]
 async fn a_blob_an_undo_left_open_took_the_pin_off_survives_another_realms_sweep() {
     let store = in_memory().await;
@@ -3884,10 +3883,10 @@ impl Environment for HeldEnv {
 /// the bytes a unit of the first has made and not yet committed, whose step is
 /// then kept with its bytes.
 ///
-/// **Written by a reviewer, who found a real bug with it**: each kernel's
-/// sweep waits only for its own call trees, so `office`'s took the bytes of
-/// `home`'s blob, in flight, for bytes no row names — and `home`'s step was
-/// kept pinning a blob that was gone.
+/// **Each kernel's sweep waits only for its own call trees**, so judging by
+/// rows alone `office`'s would take the bytes of `home`'s blob, in flight, for
+/// bytes no row names — and `home`'s step would be kept pinning a blob that is
+/// gone.
 #[tokio::test]
 async fn another_realms_sweep_leaves_the_bytes_a_unit_in_flight_made() {
     let store = in_memory().await;
@@ -3979,11 +3978,10 @@ async fn another_realms_sweep_leaves_the_bytes_a_unit_in_flight_made() {
 /// open that its own minter numbered as `home`'s kept one, opens again over
 /// `home`'s note left as it was.
 ///
-/// **Written by a reviewer, who found a real bug with it**: the recovery read
-/// the unit back from the store by its number alone, and reverted `home`'s.
-/// The journals of one machine share one minter (`Journal::sharing`), which
-/// keeps their numbers apart; this is the kernel's own guard for two that do
-/// not.
+/// **Not by its number alone**: a recovery that read the unit back from the
+/// store by its number alone would revert `home`'s. The journals of one machine
+/// share one minter (`Journal::sharing`), which keeps their numbers apart; this
+/// is the kernel's own guard for two that do not.
 #[tokio::test]
 async fn a_realms_recovery_leaves_another_realms_unit_of_the_same_number() {
     let store = in_memory().await;
@@ -4037,10 +4035,10 @@ async fn a_realms_recovery_leaves_another_realms_unit_of_the_same_number() {
 /// confirmed and never approved — and what is issued for its own command once
 /// it holds it is redeemed.
 ///
-/// **Written by a reviewer, who found a real bug with it**: what the kernel
-/// issued was bound to the command's name, and not to the plugin holding it,
-/// so ana's confirmation of `noctua:reference`'s `reference.irreversible.do`
-/// ran `noctua:impostor`'s — the bound a compensation is held to
+/// **Bound to the plugin holding it, not the command's name alone**: bound to
+/// the name, ana's confirmation of `noctua:reference`'s
+/// `reference.irreversible.do` would run `noctua:impostor`'s — the bound a
+/// compensation is held to
 /// (`a_compensation_never_reaches_a_plugin_that_took_its_command_since`).
 #[tokio::test]
 async fn a_confirmation_is_not_redeemed_for_a_plugin_that_took_its_command_since() {
@@ -4134,11 +4132,11 @@ async fn a_confirmation_is_not_redeemed_for_a_plugin_that_took_its_command_since
 /// command runs.
 ///
 /// **What the registration refuses is what the core's rules make impossible
-/// on every resource** — a command that cannot be undone, one that deletes.
-/// A reviewer found the documents saying it refused every compensation that
-/// needs a quorum's approval, and this one passing it: a rule that reads the
-/// resource is decided by the undo, with what holds then, and a step whose
-/// compensation it refuses is one no undo reaches past while it holds.
+/// on every resource** — a command that cannot be undone, one that deletes —
+/// and not every compensation that needs a quorum's approval: this one passes
+/// it. A rule that reads the resource is decided by the undo, with what holds
+/// then, and a step whose compensation it refuses is one no undo reaches past
+/// while it holds.
 #[tokio::test]
 async fn a_compensation_a_packs_rule_holds_to_a_quorum_is_registered_and_decided_at_the_undo() {
     let fixture = opened(in_memory().await, "", false).await;

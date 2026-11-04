@@ -71,8 +71,8 @@ pub struct ErrorEntry {
     /// What this code is today: something the platform produces, or a number
     /// held for a stage that is not built.
     ///
-    /// **The page said "every error the platform can return" over six codes
-    /// nothing raises.** Measured by looking for `ErrorCode::…` outside the
+    /// **A page saying "every error the platform can return" must not say it
+    /// over codes nothing raises.** Measured by looking for `ErrorCode::…` outside the
     /// generated crate and outside test modules: `NC-DB-0002`, `NC-LOG-0001`,
     /// `NC-LOG-0002`, `NC-POL-0001` and `NC-POL-0002` have no producer at all,
     /// and `NC-IDS-0002` is recorded rather than returned — a fact that could
@@ -94,14 +94,13 @@ const fn raised() -> Raising {
 
 /// Whether anything in this tree produces a code.
 ///
-/// **Two states, and there were three.** `Recorded` — "produced, and only a log
-/// carries it" — is not a thing a gate can check: the gate looks for the code's
-/// variant in `crates/`, which says *produced* and says nothing about who reads
-/// the result. So it collapsed with `Raised` in the check, and declaring a
-/// `critical` chain-broken error as `recorded` passed with a byte-identical
-/// line while `docs/errors.md` began telling readers it never reaches a caller.
-/// It also named `NC-IDS-0002` as its one instance, which is `reserved`: the
-/// variant, its published sentence and its example were all unreachable.
+/// **Two states, not three.** A third, "produced, and only a log carries it",
+/// is not a thing a gate can check: the gate looks for the code's variant in
+/// `crates/`, which says *produced* and says nothing about who reads the
+/// result. So it would collapse with `Raised` in the check, and declaring a
+/// `critical` chain-broken error as that third state would pass with a
+/// byte-identical line while `docs/errors.md` told readers it never reaches a
+/// caller.
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum Raising {
@@ -714,9 +713,8 @@ impl KernelLimits {
 pub struct TableLimit {
     /// Which database holds it, and so which migrations must create it.
     ///
-    /// **`server` when it is not written**, because every table before the
-    /// local database was PostgreSQL's and an entry saying nothing still means
-    /// that. The gate over the migrations reads it both ways: a table created
+    /// **`server` when it is not written**, so an entry saying nothing is a
+    /// PostgreSQL table. The gate over the migrations reads it both ways: a table created
     /// in `local-migrations/` is bounded only by an entry that says `local`,
     /// and one in `migrations/` only by one that does not.
     #[serde(default)]
@@ -733,10 +731,10 @@ pub struct TableLimit {
     /// **Only under `refuse-at-limit`, where a writer can count one owner's
     /// rows.** The pruner always counts a whole table, and a `policy-pack`
     /// table has no number to count. Absent, the count is the whole table's.
-    /// `docs/limits.md` published `store_entries`' quota as the table's bound
-    /// while its writer refused per plugin in each realm, so the table held
-    /// that number for every plugin installed in every realm and only a
-    /// comment in `catalog/limits.toml` said so.
+    /// Without it, `docs/limits.md` publishes `store_entries`' quota as the
+    /// table's bound while its writer refuses per plugin in each realm, so the
+    /// table holds that number for every plugin installed in every realm and
+    /// only a comment in `catalog/limits.toml` says so.
     pub per: Option<Owner>,
     /// How many rows one pruning run removes. Absent under `policy-pack`.
     pub prune_batch: Option<u64>,
@@ -744,13 +742,12 @@ pub struct TableLimit {
     ///
     /// **Required under `policy-pack`, and refused otherwise.** That strategy is
     /// an exemption from the gate `§15.8` exists to be: the table declares no
-    /// bound, the pruner never touches it, and the census of escape hatches did
-    /// not count it — so an unbounded, never-pruned table could enter the tree
-    /// with three lines of TOML and no reason written anywhere a parser reads.
+    /// bound and the pruner never touches it — so without a required reason an
+    /// unbounded, never-pruned table could enter the tree with three lines of
+    /// TOML and no reason written anywhere a parser reads.
     ///
-    /// Its sibling hatch, `nc:bounded:`, has demanded a non-empty reason from
-    /// the first day and is counted with the rest. This is that rule, applied to
-    /// the hatch that had none.
+    /// Its sibling hatch, `nc:bounded:`, demands a non-empty reason and is
+    /// counted with the rest. This is that rule, applied to this hatch.
     pub pack_reason: Option<String>,
 }
 
@@ -827,11 +824,11 @@ impl Database {
 impl Strategy {
     /// What a reader is shown, which is the registry's own spelling.
     ///
-    /// **Not `{:?}`.** `docs/limits.md` published `OldestFirst` where
-    /// `catalog/limits.toml` says `strategy = "oldest-first"`, so the one page a
-    /// reader is sent to spelled the value differently from the file they have
-    /// to edit — and a variant rename would have changed the published page with
-    /// nothing to notice, because the test that pinned it re-used `{:?}` too.
+    /// **Not `{:?}`.** Through `{:?}`, `docs/limits.md` publishes `OldestFirst`
+    /// where `catalog/limits.toml` says `strategy = "oldest-first"`, so the one
+    /// page a reader is sent to spells the value differently from the file they
+    /// have to edit — and a variant rename changes the published page with
+    /// nothing to notice, because a test that pins it through `{:?}` moves too.
     pub(crate) const fn written(self) -> &'static str {
         match self {
             Self::OldestFirst => "oldest-first",
@@ -918,8 +915,8 @@ pub struct Budget {
     /// rule beside it: `load.rs` requires `lockout_after >= max_attempts` because
     /// attempts *continue* past this number under an escalating delay — *"or the
     /// escalating delay never runs and the curve above it is decoration"*. Both
-    /// sentences cannot be true, and the published page carried the first, which
-    /// made three of its own rows unreachable: `after 10 failed attempts` beside
+    /// sentences cannot be true, and a page carrying the first makes three of
+    /// its own rows unreachable: `after 10 failed attempts` beside
     /// `Attempts 5` reads as a lockout that can never happen.
     ///
     /// What actually happens: the first `max_attempts` are answered at once, the
@@ -929,10 +926,9 @@ pub struct Budget {
     /// The escalating delay after each failure, in milliseconds. The last value
     /// repeats. Checked to be non-decreasing **and to rise**: §15.5 says
     /// *escalating*, and a flat curve satisfies "has a curve" while defending
-    /// nothing — which is what this sentence said while the check accepted
-    /// exactly that. `curve-descends` refuses a curve that falls and
-    /// `curve-is-flat` refuses one that ends where it began, including a curve
-    /// of one value, whose one value repeats for ever.
+    /// nothing. `curve-descends` refuses a curve that falls and `curve-is-flat`
+    /// refuses one that ends where it began, including a curve of one value,
+    /// whose one value repeats for ever.
     pub delay_ms: Vec<u32>,
     /// The failure count at which the surface stops answering at all.
     pub lockout_after: Option<u32>,
@@ -949,8 +945,9 @@ pub struct Budget {
 
 /// What a surface does when a budget is exhausted.
 ///
-/// An enum and not a string: `on_lockout = "wipe-credentail"` used to parse as a
-/// value nothing recognised, and the device PIN silently stopped wiping.
+/// An enum and not a string: as a string, `on_lockout = "wipe-credentail"`
+/// parses as a value nothing recognises, and the device PIN silently stops
+/// wiping.
 #[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum OnLockout {
@@ -1166,8 +1163,8 @@ pub enum FieldType {
     ///
     /// **The identifier reaches the log**, which is what `§15.4`'s own table
     /// says the central log contains — "error codes, static messages, opaque
-    /// IDs, counts, durations, enum states". This said "its contents never reach
-    /// the log", and they do: `OpaqueId` renders whole.
+    /// IDs, counts, durations, enum states". Its contents reach the log too:
+    /// `OpaqueId` renders whole.
     ///
     /// What makes that safe is that it is an *identifier* and not free text.
     /// What it does not do is stop a caller minting one **out of** personal
@@ -1179,31 +1176,28 @@ pub enum FieldType {
     Id,
     /// A literal in the source, and nothing else.
     ///
-    /// **Named for what it is now.** It was `static_str`, after a wall built on
-    /// the lifetime — `LogValue` for `&'static str`, on the reasoning that a
-    /// borrowed `&'a str` cannot coerce to one. True, and beside the point:
+    /// **Named for what it is, not for a lifetime.** A wall built on the
+    /// lifetime — `LogValue` for `&'static str`, on the reasoning that a
+    /// borrowed `&'a str` cannot coerce to one — is true and beside the point:
     /// `String::leak` manufactures a real `&'static str` from anything at all.
-    /// The wall is now `nc_log::Literal`, whose field is private and whose
+    /// The wall is `nc_log::Literal`, whose field is private and whose
     /// constructor takes **no value at all**: it reads an associated `const`, and
     /// const evaluation happens before any run-time value exists. A macro
-    /// matching `$text:literal` was the second attempt and it was got past — the
-    /// expansion needs something reachable at the caller's site, and that was the
-    /// hole. Keeping the old name would have left the registry asking for the
-    /// type that was defeated.
+    /// matching `$text:literal` is not enough — the expansion needs something
+    /// reachable at the caller's site, and that is a hole.
     Literal,
     /// A Snowflake, written as its Crockford base32 text.
     ///
-    /// **The registry could not name the type the journal actually holds.**
-    /// `Record::work_unit` is an `Option<Snowflake>` and `journal.appended`
-    /// declared its `work_unit` field as `id` — a `nc_ids::OpaqueId` — so a
-    /// caller logging a work unit had to convert one into the other, and the
-    /// conversion available is `OpaqueId::new(…)`, which accepts anything in its
-    /// character set. A missing kind is how a type wall pushes a caller toward
-    /// the one field that takes free text.
+    /// **So the registry can name the type the journal actually holds.**
+    /// `Record::work_unit` is an `Option<Snowflake>`; a `work_unit` field
+    /// declared as `id` — a `nc_ids::OpaqueId` — makes a caller logging a work
+    /// unit convert one into the other, and the conversion available is
+    /// `OpaqueId::new(…)`, which accepts anything in its character set. A
+    /// missing kind is how a type wall pushes a caller toward the one field that
+    /// takes free text.
     ///
-    /// `impl LogValue for Snowflake` had existed in `nc-log` since the first
-    /// day and was reachable from nothing, which is the same gap seen from the
-    /// other end.
+    /// Without this kind, `impl LogValue for Snowflake` in `nc-log` is
+    /// reachable from nothing, which is the same gap seen from the other end.
     Snowflake,
     /// A variant of an enum the platform declares.
     ///
@@ -1307,13 +1301,13 @@ mod tests {
 
     /// Every spelling this file hands to the generator is the spelling meant.
     ///
-    /// **`model.rs` had no test module at all**, and both of these tables are
-    /// one-line-per-variant `match`es whose arms are strings — the shape where a
-    /// typo is a valid program. `Irreversible => "Irreversble"` generates a
-    /// variant nobody can name and a `§14.6` confirmation nobody can require;
-    /// `Trace => "verbose"` publishes a level the log store does not read. Both
-    /// left the workspace green, because everything downstream copies whatever
-    /// this returns and compares it against itself.
+    /// **Both of these tables are one-line-per-variant `match`es whose arms are
+    /// strings** — the shape where a typo is a valid program.
+    /// `Irreversible => "Irreversble"` generates a variant nobody can name and a
+    /// `§14.6` confirmation nobody can require; `Trace => "verbose"` publishes a
+    /// level the log store does not read. Without this test both leave the
+    /// workspace green, because everything downstream copies whatever this
+    /// returns and compares it against itself.
     ///
     /// So the expectation is written out here rather than derived, and as an
     /// exhaustive `match` — a variant added to either enum is a compile error in
@@ -1365,21 +1359,23 @@ mod tests {
 
     /// Every field kind's label and Rust type are the ones meant, all ten.
     ///
-    /// **Two of this file's string tables were guarded and the rest were not.**
+    /// **These two string tables are guarded like the two above.**
     /// `FieldType::label` and `FieldType::rust` are the same
     /// one-line-per-variant shape the module above names as "where a typo is a
-    /// valid program", and the registry declares 6 of the 10 variants — so the
-    /// `I64`, `Bool`, `Id` and `Enum` arms are dead, and the drift comparison
-    /// that holds the rest cannot see them. Measured, wrong strings on all four:
+    /// valid program", and the registry declares neither `i64` nor `id` — so
+    /// the `I64` and `Id` arms are dead, and the drift comparison that holds
+    /// the rest cannot see them. Measured without this test, wrong strings on
+    /// arms the registry does not reach:
     ///
     /// ```text
     /// cargo xtask check  ->  check passed, byte-identical
     /// ```
     ///
     /// The same corruption on a *used* kind gives
-    /// `2 generated file(s) out of sync` and EXIT=1, which is the whole of what
-    /// held these tables: a comparison between the emitter and its own output,
-    /// true by construction for anything neither of them reaches.
+    /// `2 generated file(s) out of sync` and EXIT=1, which is all the drift
+    /// comparison holds of these tables: a comparison between the emitter and
+    /// its own output, true by construction for anything neither of them
+    /// reaches.
     ///
     /// `label` is the field's doc comment in `nc-log`'s generated structs, and
     /// `FieldType::Id`'s is the sentence saying an identifier is in the log

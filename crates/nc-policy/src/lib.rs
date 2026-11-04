@@ -167,15 +167,15 @@ impl Pack {
 
     /// Every policy from a directory, by id, with whether it permits.
     ///
-    /// **One question over one list, because two were two prefixes.** The core's
-    /// *"every policy here is a `forbid`"* was decided by `ids_under` for the
-    /// count and `permits_under` for the verdict, each given the prefix
-    /// separately — so either could be pointed somewhere else on its own.
-    /// Measured on 2026-09-10: `permits_under` aimed at `policy/core/tests/`
-    /// left the step byte-identical — *11 core policy(ies) are forbid*, over
-    /// nothing examined — and `ids_under` ignoring its prefix left it printing
-    /// 15. A caller that reads the effects of the very list it counted
-    /// cannot have one half aimed elsewhere.
+    /// **One question over one list, because two would be two prefixes.** The
+    /// core's *"every policy here is a `forbid`"* decided by `ids_under` for
+    /// the count and `permits_under` for the verdict, each given the prefix
+    /// separately, lets either be pointed somewhere else on its
+    /// own. Measured: `permits_under` aimed at `policy/core/tests/` leaves the
+    /// step byte-identical — *11 core policy(ies) are forbid*, over nothing
+    /// examined — and `ids_under` ignoring its prefix leaves it printing 15. A
+    /// caller that reads the effects of the very list it counted cannot have
+    /// one half aimed elsewhere.
     #[must_use]
     pub fn effects_under(&self, under: &str) -> Vec<(String, bool)> {
         let mut found: Vec<(String, bool)> = self
@@ -190,14 +190,14 @@ impl Pack {
 
     /// Every policy from a directory whose effect is `permit`, by id.
     ///
-    /// **A sentence `policy/core/README.md` states and nothing held.** That file
-    /// says *"Every policy here is a `forbid`"*, and the argument beside it is
-    /// the whole design: Cedar denies by default, so an invariant expressed as a
-    /// `permit` is one that can only ever widen what is allowed. Measured on
-    /// 2026-09-09, the sentence changed to `permit` in the file: the whole gate
-    /// green, every number byte-identical to a clean run — nothing reads that
-    /// file for whether what it says is true, and its own header is where a
-    /// reader learns what the core is.
+    /// **A sentence `policy/core/README.md` states, held here.** That file says
+    /// *"Every policy here is a `forbid`"*, and the argument beside it is the
+    /// whole design: Cedar denies by default, so an invariant expressed as
+    /// a `permit` is one that can only ever widen what is allowed. Measured
+    /// without this, the sentence changed to `permit` in the file: the whole
+    /// gate green, every number byte-identical to a clean run — nothing else
+    /// reads that file for whether what it says is true, and its own header is
+    /// where a reader learns what the core is.
     ///
     /// Answered from the parsed policies rather than from their text, for the
     /// reason [`Self::actions`] is: what a file appears to say and what Cedar
@@ -208,10 +208,10 @@ impl Pack {
     /// packs — where three `permit`s live on purpose.
     ///
     /// **Nothing calls this, and gutting it leaves the whole suite green**,
-    /// which is what a function nothing calls does. The gate it was written for
-    /// reads [`Self::effects_under`] instead, for the reason that function's
-    /// own doc gives. It is kept as the shape a caller outside this crate would
-    /// reach for: a surface, not the mechanism.
+    /// which is what a function nothing calls does. The gate reads
+    /// [`Self::effects_under`] instead, for the reason that function's own doc
+    /// gives. It is kept as the shape a caller outside this crate would reach
+    /// for: a surface, not the mechanism.
     #[must_use]
     pub fn permits_under(&self, under: &str) -> Vec<String> {
         self.effects
@@ -229,15 +229,16 @@ impl Pack {
 
     /// The entity types the schema lets `action` apply to, as resources.
     ///
-    /// **The coordinate the command comparison did not read.** Both shipped
-    /// commands select the realm as their resource and the schema declared no
-    /// action that applies to a `Realm`, so the request either of them builds
-    /// was one Cedar's own schema refuses — measured by appending a case with
-    /// `resource = 'Realm::"home"'`: *"is not a request the schema allows:
+    /// **The coordinate a comparison by action alone does not read.** Both
+    /// shipped commands select the realm as their resource, and with no action
+    /// in the schema that applies to a `Realm`, the request either of them
+    /// builds is one Cedar's own schema refuses — measured by appending a case
+    /// with `resource = 'Realm::"home"'`: *"is not a request the schema allows:
     /// resource type `Realm` is not valid for `Action::\"Read\"`"*, while the
-    /// step over the same tree printed `ok 2 command(s) name an action the
-    /// schema declares`. Read from the parsed schema rather than from its text,
-    /// for the reason [`Self::actions`] is.
+    /// step over the same tree
+    /// printed `ok 2 command(s) name an action the schema declares`. Read from
+    /// the parsed schema rather than from its text, for the reason
+    /// [`Self::actions`] is.
     #[must_use]
     pub fn resources_for(&self, action: &str) -> Vec<String> {
         let Ok(uid) = EntityUid::from_str(&format!("Action::\"{action}\"")) else {
@@ -260,8 +261,8 @@ impl Pack {
     /// caller checks a name against is the same set the validator holds. The
     /// caller is `cargo xtask check`, which reads `catalog/commands.toml`'s
     /// `action` field: a command naming an action the schema has never heard of
-    /// is a command whose authorization request cannot be built, and until this
-    /// existed nothing compared the two sides at all.
+    /// is a command whose authorization request cannot be built, and this is the
+    /// one place the two sides are compared.
     #[must_use]
     pub fn actions(&self) -> Vec<String> {
         let mut names: Vec<String> = self
@@ -276,13 +277,13 @@ impl Pack {
 
 /// What Cedar's validator says about the pack, errors and warnings both.
 ///
-/// Lifted out of [`load`], which crossed clippy's line limit.
+/// Its own function because inside [`load`] it would cross clippy's line limit.
 ///
-/// **Only the errors were read.** `validation_warnings()` did not appear
-/// anywhere in this tree, and it is where Cedar puts `ImpossiblePolicy` — "this
-/// policy expression evaluates to false for all valid requests", which is a
-/// `forbid` that cannot fire and reads exactly like one that can — along with
-/// `BidiCharsInString`, `BidiCharsInIdentifier`, `MixedScriptIdentifier` and
+/// **The warnings as well as the errors.** `validation_warnings()` is where
+/// Cedar puts `ImpossiblePolicy` — "this policy expression evaluates to false
+/// for all valid requests", which is a `forbid` that cannot fire and reads
+/// exactly like one that can — along with `BidiCharsInString`,
+/// `BidiCharsInIdentifier`, `MixedScriptIdentifier` and
 /// `ConfusableIdentifier`.
 fn what_the_validator_says(schema: &Schema, policies: &PolicySet, problems: &mut Vec<Problem>) {
     // Validation last, so a pack that failed to parse is not also reported as
@@ -299,14 +300,13 @@ fn what_the_validator_says(schema: &Schema, policies: &PolicySet, problems: &mut
             check: "pack-invalid",
         });
     }
-    // **And the warnings, which were dropped on the floor.**
-    // `validation_errors()` was the only side read, and the other side is
-    // where Cedar puts `ImpossiblePolicy` — "this policy expression
-    // evaluates to false for all valid requests", which is a `forbid` that
-    // cannot fire and reads exactly like one that can — along with
-    // `BidiCharsInString`, `BidiCharsInIdentifier`, `MixedScriptIdentifier`
-    // and `ConfusableIdentifier`. `grep -rn validation_warnings` over this
-    // tree came back empty: the string did not appear in it.
+    // **And the warnings, which are not dropped on the floor.**
+    // `validation_errors()` is one side, and the other side is where Cedar puts
+    // `ImpossiblePolicy` — "this policy expression evaluates to false for all
+    // valid requests", which is a `forbid` that cannot fire and reads exactly
+    // like one that can — along with `BidiCharsInString`,
+    // `BidiCharsInIdentifier`, `MixedScriptIdentifier` and
+    // `ConfusableIdentifier`.
     //
     // A failure and not a `detail`, for the reason every other rule here
     // gives: a policy pack is the one artefact where a rule that decides
@@ -621,9 +621,9 @@ fn assemble(
             let Some(name) = policy.annotation("id") else {
                 problems.push(Problem {
                     file: relative.clone(),
-                    // **The file, not a line.** It reported the first `forbid`
-                    // in the file, so removing the second `@id` in a two-policy
-                    // file sent a reader to the *other* policy — one that is
+                    // **The file, not a line.** Reporting the first `forbid`
+                    // in the file, removing the second `@id` in a two-policy
+                    // file sends a reader to the *other* policy — one that is
                     // perfectly well formed. Cedar keeps no span, and
                     // `PolicySet` does not iterate in file order, so there is no
                     // honest line to give: naming the file is right, and naming
@@ -658,14 +658,15 @@ fn assemble(
             // better than an `else` branch nothing can reach.
             let id = PolicyId::new(name);
             // **A core invariant applies to everyone, or it is not one.**
-            // `unless { … || principal is Agent }` on `core.provenance` — an
-            // agent acting with no grant at all — and `|| resource is Feature`
-            // on the quorum rule were both added with the whole suite green,
-            // because every case in the pack used a `User` principal and a
-            // `Content` or `User` resource. Covering the space case by case
-            // cannot close that: the schema declares three principal types and
-            // three resource types, and a permit for every pair is a product
-            // decision nobody has made.
+            // `unless { … || principal is Agent }` on `core.provenance` would let
+            // an agent act with no grant at all, and `|| resource is Feature` on
+            // the quorum rule would let one person remove a platform capability
+            // alone. A case catches such an exemption only for a type it names —
+            // `policy/core/tests/provenance.toml` names an `Agent` and a `Device`
+            // for the first — and covering the space case by case cannot close
+            // that: the schema declares three principal types and four resource
+            // types, and a permit for every pair is a product decision nobody has
+            // made.
             //
             // So the rule is structural: a policy under `policy/core/` does not
             // narrow itself by entity type. A later invariant that genuinely
@@ -733,11 +734,11 @@ fn refused_id(name: &str, relative: &str, text: &str) -> Option<Problem> {
             check: "policy-id-malformed",
         });
     }
-    // **And its first word is the file's pack.** The id rule said
-    // `<pack>.<rule>` and held only the alphabet, so a reviewer
-    // compiled a family file's `permit` named `core.…` beside one named
-    // `org.…`: the journal's column of what decided then names an
-    // invariant every pack holds for a rule one pack wrote.
+    // **And its first word is the file's pack.** An id rule saying
+    // `<pack>.<rule>` and holding only the alphabet compiles a family file's
+    // `permit` named `core.…` beside one named `org.…`, measured: the journal's
+    // column of what decided then names an invariant every pack holds for a
+    // rule one pack wrote.
     if let Some(pack) = pack_of(relative)
         && name.split('.').next() != Some(pack)
     {
@@ -799,16 +800,16 @@ fn id_is_well_formed(id: &str) -> bool {
 /// Every statement in one file becomes a policy, or the file is refused.
 ///
 /// `PolicySet::from_str` parses a Cedar *template* happily and `policies()`
-/// yields nothing for it, so a Cedar file in `policy/core/` written as a
-/// template was read as in force and was in force nowhere: no `@id` requirement,
-/// no narrowing check, no denial test, and the policy count did not move — so
-/// `§19.3`'s floor could not see it either. A core invariant present on disk and
+/// yields nothing for it, so without this a Cedar file in `policy/core/` written
+/// as a template reads as in force and is in force nowhere: no `@id` requirement,
+/// no narrowing check, no denial test, and the policy count does not move — so
+/// `§19.3`'s floor cannot see it either. A core invariant present on disk and
 /// enforced by nothing is the worst shape a policy directory can be in.
 ///
-/// **Asked of Cedar's parse, not of the file's text.** This counted
-/// `text.matches("@id(\"")` — the four-byte literal — against
-/// `policies().count()`, and was wrong in both directions, each by one
-/// character. Measured on 2026-09-08:
+/// **Asked of Cedar's parse, not of the file's
+/// text.** Counting `text.matches("@id(\"")` — the four-byte literal —
+/// against `policies().count()` is wrong in both directions, each by one
+/// character. Measured:
 ///
 /// ```text
 /// @id ("family.a_guest_never_deletes")   on a template, in a new pack file
@@ -868,36 +869,37 @@ fn report_narrowings(
     relative: &str,
     problems: &mut Vec<Problem>,
 ) {
-    // **A pack's `forbid` is a floor, and a floor may not choose whose.** This
-    // read `policy/core/` only, and the mutation loop beside it proposes
-    // conjuncts rather than scopes — so a pack's `forbid` fell between them,
-    // and narrowing its scope to one named principal moved no number anywhere.
-    // Measured against the shipped pack:
+    // **A pack's `forbid` is a floor, and a floor may not choose whose.** With
+    // this reading `policy/core/` only, and the mutation loop beside it
+    // proposing conjuncts rather than scopes, a pack's `forbid` falls between
+    // them, and narrowing its scope to one named principal moves no number
+    // anywhere. Measured against the shipped pack:
     // `family.giving_out_encrypted_content_needs_quorum` — whose own paragraph
     // calls handing out encrypted content "the most irreversible thing this
-    // schema can express" — scoped to `principal == User::"ana"` left
+    // schema can express" — scoped to `principal == User::"ana"` leaves
     // `40 case(s) … decide as written`, `15 policy(ies) each have a denial
-    // test` and `check passed`, while a decision probe went from `Deny` to
+    // test` and `check passed`, while a decision probe goes from `Deny` to
     // `Allow` for a *different* user's private content, with no quorum. Its
     // denial case names ana, so removing the policy is still noticed and
-    // nothing else was.
+    // nothing else is.
     //
-    // **Per policy, written in the file — not per kind of constraint.** This
-    // read `principal` alone, on the argument that a pack rule says which
-    // actions and which resources it is about and reporting those would refuse
-    // it the right to have a subject. `policy/core/README.md` records that exact
-    // argument being tried for the core and being wrong: *"An action constraint
-    // used to be exempt wholesale, and that was a hole … `core.provenance`
-    // rescoped to `action == Action::\"Read\"` gave every `Write`, `Delete`,
-    // `Share`, `Grant` and `Revoke` a pass."* One rule written twice with the
-    // second copy narrower is this tree's commonest defect, and this was it.
+    // **Per policy, written in the file — not per kind of constraint.** Reading
+    // `principal` alone, on the argument that a pack rule says which actions
+    // and which resources it is about and reporting those would refuse it the
+    // right to have a subject, repeats the argument `policy/core/README.md`
+    // records being wrong for the core: an action constraint exempt wholesale
+    // is a hole, and `core.provenance` rescoped to `action == Action::\"Read\"`
+    // gives every `Write`, `Delete`, `Share`, `Grant` and `Revoke` a pass. One
+    // rule written twice with the second copy narrower is this tree's commonest
+    // defect.
     //
-    // Measured on the shipped pack: `family.giving_out_encrypted_content_needs_quorum`
-    // rescoped from `resource` to `resource in Folder::\"household\"` left every
-    // gate number byte-identical — 7 core files, 15 policies, 40 cases, 15
-    // denial tests, `check passed` — while restricted content in any *other*
-    // folder was handed out with no quorum at all. Folders are user-created and
-    // the shipped world has one, which is the only reason no case noticed.
+    // Measured with `principal` read alone:
+    // `family.giving_out_encrypted_content_needs_quorum` rescoped from
+    // `resource` to `resource in Folder::\"household\"` leaves every gate
+    // number byte-identical and `check passed`, while restricted content in any
+    // *other* folder is handed out with no quorum at all. Folders are
+    // user-created and the shipped world has one, which is the only reason no
+    // case notices.
     //
     // So every axis is reported and the exemption is the written one: a
     // narrowing a policy is entitled to carries `nc:narrows:` naming the
@@ -919,19 +921,19 @@ fn report_narrowings(
         // leave the rest of the class uncovered.
         //
         // Reported per *operator* rather than per axis, so the axis argument
-        // this paragraph used to make cannot come back: it is why a `resource`
-        // rescope walked through, and refusing the axis wholesale instead would
-        // refuse `forbid (principal is Agent, …)`, which is an ordinary pack
-        // rule with a subject. Only for a pack's floor — a core invariant holds
-        // for every type too, and says so in its own branch.
+        // cannot come back: it is why a `resource` rescope walks through, and
+        // refusing the axis wholesale instead would refuse
+        // `forbid (principal is Agent, …)`, which is an ordinary pack rule with
+        // a subject. Only for a pack's floor — a core invariant holds for every
+        // type too, and says so in its own branch.
         //
         // **In the scope, or in a condition beside a read of the same subject,
-        // and nowhere else.** The exemption reached every type test in a `when`,
-        // and the mutation loops never drop a disjunct. So the frozen-account
-        // floor with `principal.status == "suspended"` rewritten as
-        // `(principal.status == "suspended" && resource is Content)` printed
-        // the policy block byte-identical and `check passed`, and a suspended
-        // account had its undo and redo back. That type test says what the
+        // and nowhere else.** An exemption reaching every type test in a `when`
+        // meets mutation loops that never drop a disjunct. Measured that way,
+        // the frozen-account floor with `principal.status == "suspended"`
+        // rewritten as `(principal.status == "suspended" && resource is Content)`
+        // prints the policy block byte-identical and `check passed`, and a
+        // suspended account has its undo and redo back. That type test says what the
         // floor is about for one disjunct only, which takes the other kinds of
         // resource out from under the floor. A type test in a condition stays
         // excused where it guards a read, as in
@@ -1001,14 +1003,15 @@ fn report_narrowings(
 /// threaded through, because the message is what a reader sees and the two
 /// cannot then disagree.
 ///
-/// **The subject alone is not the constraint, and this returned the subject.**
-/// `principal is Agent` is a type test — the delegation shape `§14.6` allows —
+/// **The subject alone is not the constraint.** `principal is Agent` is a type
+/// test — the delegation shape `§14.6` allows —
 /// and `principal == Agent::"ana-assistant"` is invariant 1 holding for exactly
-/// one entity in the world. Both are "the principal", so one marker excused the
-/// other: measured, `core.an_agent_never_impersonates` rescoped to a single
-/// agent left the reason it already carries intact and `check passed`.
-/// `widenings` runs on permits only, so nothing else looks. What tells the two
-/// apart is the operator, which is why it is part of what a reason must name.
+/// one entity in the world. Both are "the principal", so with the subject alone
+/// one marker excuses the other: measured, `core.an_agent_never_impersonates`
+/// rescoped to a single agent leaves the reason it already carries intact
+/// and `check passed`. `widenings` runs on permits only, so nothing else
+/// looks. What tells the two apart is the operator, which is why it is part of
+/// what a reason must name.
 fn constraint_of(narrowing: &str) -> String {
     narrowing
         .trim_start_matches('`')
@@ -1025,15 +1028,15 @@ fn constraint_of(narrowing: &str) -> String {
 /// `principal in Realm::"home"` name the literal. Empty when the node names
 /// none, which is every shape where the operator is the whole constraint.
 ///
-/// **And a set is a name too, which is where this was blind.** Cedar renders
-/// `action in [Action::"Grant", Action::"Revoke"]` with an `entities` array and
-/// no `entity` at all, so this answered the empty string for it — and the rule
-/// downstream then had exactly one arm left, the one that accepts a reason
-/// stopping at the operator. Measured on 2026-09-11: the family pack's marker
-/// rewritten from `` `action in` `` to the list its policy actually names was
-/// **refused**, by a `fix` telling the author to name the entity they had just
-/// named. Every shipped marker passes through the short form, so nothing in the
-/// tree had ever exercised the other arm.
+/// **And a set is a name too.** Cedar
+/// renders `action in [Action::"Grant", Action::"Revoke"]` with an `entities`
+/// array and no `entity` at all, so reading `entity` alone answers the empty
+/// string for it — and the rule downstream then has exactly one arm left, the
+/// one that accepts a reason stopping at the operator. Measured that way: the
+/// family pack's marker rewritten from `` `action in` `` to the list its policy
+/// actually names is **refused**, by a `fix` telling the author to name the
+/// entity they have just named. Every shipped marker passes through the short
+/// form, so the shipped pack never exercises the other arm.
 ///
 /// Several names come back separated by spaces, which is how the caller reads
 /// them: it splits on whitespace and asks that each one be quoted.
@@ -1077,12 +1080,12 @@ fn the_entity_named(node: Option<&serde_json::Value>) -> String {
 ///
 /// # Read from the AST, not from the rendered text
 ///
-/// This matched strings in `policy.to_string()`, and every fix it took was
-/// another spelling: a string literal that happened to contain `principal is a`,
-/// a schema comment that made the attribute rule vacuous, `X has attr` as a type
-/// test in different words. The last one was the tell — the check could always
-/// be defeated by writing the same thing another way, and `unless {
-/// context.via_agent }` did it with one token that is neither `is` nor `has`.
+/// Matching strings in `policy.to_string()` is defeated by another spelling
+/// every time: a string literal that happens to contain `principal is a`, a
+/// schema comment that makes the attribute rule vacuous, `X has attr` as a type
+/// test in different words — the check can always be defeated by writing the
+/// same thing another way, and `unless { context.via_agent }` does it with one
+/// token that is neither `is` nor `has`.
 ///
 /// Cedar renders a policy to an EST — a real syntax tree — through
 /// [`Policy::to_json`]. Reading that removes the whole class: a string literal
@@ -1111,8 +1114,8 @@ fn narrows_itself(policy: &Policy, schema: &str) -> Vec<(Narrowing, String, Stri
     };
     let mut found = Vec::new();
     // **The conditions first, and the order is load-bearing.** A policy with a
-    // marked scope constraint and an unmarked condition reported the scope, was
-    // excused, and the condition was never looked at.
+    // marked scope constraint and an unmarked condition would otherwise report
+    // the scope, be excused, and never have the condition looked at.
     if let Some(conditions) = json.get("conditions").and_then(|node| node.as_array()) {
         for condition in conditions {
             if let Some(body) = condition.get("body") {
@@ -1122,10 +1125,10 @@ fn narrows_itself(policy: &Policy, schema: &str) -> Vec<(Narrowing, String, Stri
             }
         }
     }
-    // **Every scope subject, not the first one that is constrained.** This
-    // returned at the first non-`All` of the three, so a marker excusing that
-    // one left the other two unexamined — measured, eight of nine scope
-    // constraints added across the marked core policies went unreported, and
+    // **Every scope subject, not the first one that is constrained.** Returning
+    // at the first non-`All` of the three, a marker excusing that one leaves
+    // the other two unexamined — measured, eight of nine scope constraints
+    // added across the marked core policies unreported, and
     // `forbid (principal, action == Action::"Delete", resource is Content)`
     // means deleting a `User` or a `Feature` needs no quorum. That is the
     // file's own worked example, moved from the condition to the scope.
@@ -1139,10 +1142,10 @@ fn narrows_itself(policy: &Policy, schema: &str) -> Vec<(Narrowing, String, Stri
         };
         if op != "All" {
             // **`principal is X in Y` renders as `op: "is"` with an `in`
-            // beside it**, and reading only `op` collapsed it onto the plain
-            // type test — so `principal is Agent in Realm::"home"` was excused
+            // beside it**, and reading only `op` collapses it onto the plain
+            // type test — so `principal is Agent in Realm::"home"` is excused
             // by the shipped marker written for `principal is Agent`, and the
-            // invariant held in one realm and was absent in every other one a
+            // invariant holds in one realm and is absent in every other one a
             // deployment creates. `policy/world.json` has two realms and every
             // agent lives in one of them, so no case could see it either. The
             // operator is what tells a rule from a tenant scoping, and both
@@ -1176,8 +1179,8 @@ fn narrows_itself(policy: &Policy, schema: &str) -> Vec<(Narrowing, String, Stri
 /// floor that names one leaves every other member of the class uncovered.
 ///
 /// `is in` is deliberately not a type test: `principal is Agent in Realm::"home"`
-/// renders as an `is` with an `in` beside it, and reading it as the former is how
-/// an invariant came to hold in one realm and be absent in every other.
+/// renders as an `is` with an `in` beside it, and reading it as the former makes
+/// an invariant hold in one realm and be absent in every other.
 fn a_type_test(narrowing: &str) -> bool {
     let inside = narrowing.trim_start_matches('`');
     let inside = inside.split('`').next().unwrap_or_default();
@@ -1185,25 +1188,26 @@ fn a_type_test(narrowing: &str) -> bool {
     words.next();
     // Every word after the operator, not a substring of the whole: the scope
     // form is `principal is in` with nothing after it, so a `" in "` with two
-    // spaces never matched and the tenant scoping read as a plain type test.
+    // spaces never matches, and the tenant scoping would read as a plain type
+    // test.
     words.next() == Some("is") && !words.any(|word| word == "in")
 }
 
 /// The marker that excuses a core policy's scope constraint.
 ///
 /// A `pub const` because the census in `xtask/src/check.rs` counts every gate's
-/// escape hatch and this one was not among them: switching off a core Cedar
-/// invariant with a marker moved no number anywhere, in the one line whose
-/// stated job is "one per gate that has one". It had already been wrong once,
-/// the same way, by omitting `nc:bounded:`.
+/// escape hatch and reads this one from here: left out of it, switching off a
+/// core Cedar invariant with a marker moves no number anywhere, in the one line
+/// whose stated job is "one per gate that has one" — the same omission as
+/// leaving out `nc:bounded:`.
 pub const NARROWS: &str = "nc:narrows:";
 
 /// Where a narrowing came from, which decides whether the marker can excuse it.
 ///
-/// **`nc:narrows:` excuses a scope constraint and never a condition.** The
-/// marker used to excuse the whole policy, so writing one for
-/// `core.destructive_needs_quorum`'s `action == Action::"Delete"` — a real,
-/// documented proxy — also excused a `|| resource is Feature` smuggled into its
+/// **`nc:narrows:` excuses a scope constraint and never a condition.** A marker
+/// excusing the whole policy would let one written
+/// for `core.destructive_needs_quorum`'s `action == Action::"Delete"` — a real,
+/// documented proxy — also excuse a `|| resource is Feature` smuggled into its
 /// condition, which is one person removing a platform capability alone. A scope
 /// constraint is visible on the policy's first line and is what somebody means
 /// when they say a rule is about one kind of thing; a condition that turns the
@@ -1240,9 +1244,9 @@ fn narrowing_in(node: &serde_json::Value, schema: &str) -> Vec<String> {
     /// Operators whose operands are whole conditions rather than values.
     ///
     /// Gathering "a subject somewhere, an entity somewhere" across one of these
-    /// fired on `principal == resource || (context has grant &&
+    /// fires on `principal == resource || (context has grant &&
     /// context.grant.granted_by == User::"ana")` — two halves the gate accepts
-    /// individually — and named `&&` as the offending operator, pointing at the
+    /// individually — and names `&&` as the offending operator, pointing at the
     /// wrong node. Their children are judged on their own by the descent below.
     const COMBINATORS: [&str; 4] = ["&&", "||", "!", "if-then-else"];
 
@@ -1252,13 +1256,13 @@ fn narrowing_in(node: &serde_json::Value, schema: &str) -> Vec<String> {
         return Vec::new();
     };
     // **Whichever side *mentions* a scope variable, not whichever side *is*
-    // one.** This read `body["left"]["Var"]` and gave up with `?` when the left
-    // operand was anything else — which returned from the whole function, so the
-    // child walk below never ran either. Both halves of that were defeatable by
-    // one wrapper: `(if true then principal else principal) is Agent` is the
-    // same test as `principal is Agent`, and it loaded clean. Descending would
-    // not have been enough on its own — the `is` lives *above* the wrapper, and
-    // what is underneath is a bare `Var` that narrows nothing by itself.
+    // one.** Reading `body["left"]["Var"]` and giving up with `?` when the left
+    // operand is anything else returns from the whole function, so the child
+    // walk below never runs either. Both halves of that are defeatable by one
+    // wrapper: `(if true then principal else principal) is Agent` is the same
+    // test as `principal is Agent`, and it loads clean. Descending is not
+    // enough on its own — the `is` lives *above* the wrapper, and what is
+    // underneath is a bare `Var` that narrows nothing by itself.
     let subject = |at: &str| {
         body.get(at)
             .and_then(|side| mentions_a_subject(side, &SUBJECTS))
@@ -1278,27 +1282,26 @@ fn narrowing_in(node: &serde_json::Value, schema: &str) -> Vec<String> {
     // without the schema: Allow   errors: ["… record does not have the attribute …"]
     // ```
     //
-    // **This excused the shape and not the use of it, and that was a hole big
-    // enough to turn an invariant off.** The early return fired on the `!` node
-    // wherever it stood, so `when { !(principal has node_key) }` — written
-    // alone, as a whole condition — read as a fail-closed guard while saying the
-    // exact opposite: `node_key` is declared only by `Device`, so it is
-    // `principal is not a Device` in different words, and appending it to
-    // `core.fail_closed` left invariant 1 off for every principal but a device
-    // with the whole gate green and the policy block byte-identical. Three more
-    // spellings did the same to invariants 2, 4 and 5 — the last of them
-    // `!(resource has tier)` on `core.quorum`, which is verbatim the worked
-    // example `policy/core/README.md` names as the reason this gate exists.
-    // The README already claimed the shape was caught; it was prose stating the
-    // inverse of the code.
+    // **Excusing the shape and not the use of it is a hole big enough to turn
+    // an invariant off.** An early return on the `!` node wherever it stands
+    // reads `when { !(principal has node_key) }` — written alone, as a whole
+    // condition — as a fail-closed guard while it says the exact opposite:
+    // `node_key` is declared only by `Device`, so it is
+    // `principal is not a Device` in different words, and appended to
+    // `core.fail_closed` it leaves invariant 1 off for every principal but a
+    // device with the whole gate green and the policy block byte-identical,
+    // measured. Three more spellings do the same to invariants 2, 4 and 5 — the
+    // last of them `!(resource has tier)` on `core.quorum`, which is verbatim
+    // the worked example `policy/core/README.md` names as the reason this gate
+    // exists.
     //
-    // So the excuse now belongs to the `||`, which is where both halves are
+    // So the excuse belongs to the `||`, which is where both halves are
     // visible. The guard is skipped and **the other half is still judged**,
     // because it is an ordinary predicate and a narrowing hidden there would
-    // otherwise ride in behind the guard. A negated `has` standing anywhere else
-    // falls through to the descent below, which reaches the `has` inside it and
-    // reports it — the same verdict the unnegated spelling gets, which is right,
-    // because they are the same test.
+    // otherwise ride in behind the guard. A negated `has` standing anywhere
+    // else falls through to the descent below, which reaches the `has` inside
+    // it and reports it — the same verdict the unnegated spelling gets, which
+    // is right, because they are the same test.
     if kind == "||"
         && let Some(left) = body.get("left")
         && let Some(right) = body.get("right")
@@ -1319,16 +1322,15 @@ fn narrowing_in(node: &serde_json::Value, schema: &str) -> Vec<String> {
             if let Some(named) = subject("left")
                 && let Some(entity_type) = body.get("entity_type").and_then(|kind| kind.as_str())
             {
-                // **And the `in` beside it, which the scope reader splits and
-                // this one dropped.** `principal is Agent in Realm::"home"`
-                // renders as an `is` with an `in` hanging off it; the scope
-                // reader has carried a paragraph about that since a shipped
-                // marker written for `principal is Agent` excused it and an
-                // invariant held in one realm and was absent in every other.
-                // Here the same shape was rendered as a bare type test — and
-                // once a pack's floor was allowed to be a type test, that made
-                // `resource is Content in Folder::"household"` in a `when`
-                // invisible. Measured on the shipped floor: every `ok` line
+                // **And the `in` beside it, which the scope reader splits as
+                // well.** `principal is Agent in Realm::"home"` renders as an
+                // `is` with an `in` hanging off it; the scope reader's paragraph
+                // says why — read as the plain type test, a shipped marker
+                // written for `principal is Agent` excuses it and an invariant
+                // holds in one realm and is absent in every other. Rendered here
+                // as a bare type test, with a pack's floor allowed to be a type
+                // test, `resource is Content in Folder::"household"` in a `when`
+                // is invisible. Measured on the shipped floor: every `ok` line
                 // byte-identical, no case able to see it because the world has
                 // one folder, and the moment a deployment creates a second the
                 // floor stops holding for what is in it.
@@ -1348,17 +1350,17 @@ fn narrowing_in(node: &serde_json::Value, schema: &str) -> Vec<String> {
         _ => {}
     }
     // **Any operator that puts a scope variable and an entity literal together
-    // is a membership test**, whatever it is called. This matched `==` and `in`
-    // by name and descended only into *object* children — and a `Set`'s body is
-    // a JSON array, so `[Agent::"a"].contains(principal)` was invisible. It is
-    // the same test as `principal == Agent::"a"`, which the gate's own doc lists
-    // as one it catches, and it turned invariant 1 off for `Delete`, `Grant` and
-    // `Revoke` with the whole policy section green. `containsAny` and
-    // `containsAll` are the same shape again.
+    // is a membership test**, whatever it is called. Matching `==` and `in` by
+    // name and descending only into *object* children misses a `Set`, whose
+    // body is a JSON array, so `[Agent::"a"].contains(principal)` is invisible.
+    // It is the same test as `principal == Agent::"a"`, which the gate's own
+    // doc lists as one it catches, and it turns invariant 1 off for `Delete`,
+    // `Grant` and `Revoke` with the whole policy section green, measured.
+    // `containsAny` and `containsAll` are the same shape again.
     //
-    // Naming operators was the mistake, twice over: the first version named four
-    // and missed three, and a Cedar release adding a fourth membership operator
-    // would have re-opened it. What matters is what the operands are.
+    // Naming operators is the mistake: a list of four misses three, and a Cedar
+    // release adding a fourth membership operator would re-open it. What
+    // matters is what the operands are.
     // **Not the boolean combinators**, for the reason `COMBINATORS` gives.
     if !COMBINATORS.contains(&kind.as_str())
         && let Some(operands) = body.as_object()
@@ -1378,18 +1380,18 @@ fn narrowing_in(node: &serde_json::Value, schema: &str) -> Vec<String> {
         }
     }
     // And every child, **arrays included**: a `Set`'s body is an array, so
-    // descending only into objects stopped the walk at every set boundary. A
+    // descending only into objects would stop the walk at every set boundary. A
     // narrowing wrapped in `&&`, `!`, `if-then-else`, a set literal, or anything
     // Cedar adds later is still a narrowing.
-    // **Every child, not the first that answers.** This returned at the first
-    // one, so a condition written `resource is Content && resource == Content::"x"`
-    // reported only the type test — and once a pack's floor was allowed to *be* a
-    // type test, the rest of the condition was never examined at all. Measured on
-    // the shipped floor: `resource.sensitivity == "restricted"` replaced by
-    // `resource == Content::"diary"` left every `ok` line byte-identical and
-    // handed a guardian somebody else's private content with no quorum. The same
-    // constraint written one conjunct *earlier* was reported — the verdict
-    // depended on the order the conjuncts happened to be in.
+    // **Every child, not the first that answers.** Returning at the first one,
+    // a condition written `resource is Content && resource == Content::"x"`
+    // reports only the type test — and with a pack's floor allowed to *be* a
+    // type test, the rest of the condition is never examined at all. Measured
+    // on the shipped floor: `resource.sensitivity == "restricted"` replaced by
+    // `resource == Content::"diary"` leaves every `ok` line byte-identical and
+    // hands a guardian somebody else's private content with no quorum, while
+    // the same constraint written one conjunct *earlier* is reported — the
+    // verdict depends on the order the conjuncts happen to be in.
     let mut found = Vec::new();
     for child in children(body) {
         found.extend(narrowing_in(child, schema));
@@ -1400,10 +1402,10 @@ fn narrowing_in(node: &serde_json::Value, schema: &str) -> Vec<String> {
 /// The attribute a `!(subject has attr)` node tests, when a node is that.
 ///
 /// Written as its own reader because the shape has to be recognised exactly:
-/// `narrowing_in` used to excuse *any* `!` over a `has`, wherever it stood, and
-/// the header there records what that cost. A `!` over anything else, a `has` on
-/// something that is not a scope subject, and a `!` over a `has` nested inside a
-/// larger expression all answer `None` — the last because what is excused is one
+/// excusing *any* `!` over a `has`, wherever it stands, costs what the header
+/// in `narrowing_in` records. A `!` over anything else, a `has` on something
+/// that is not a scope subject, and a `!` over a `has` nested inside a larger
+/// expression all answer `None` — the last because what is excused is one
 /// operand of a `||`, and a guard buried deeper is not that operand.
 fn the_attribute_a_negated_has_tests(
     node: &serde_json::Value,
@@ -1461,8 +1463,8 @@ fn children(node: &serde_json::Value) -> Vec<&serde_json::Value> {
 ///
 /// **Anywhere inside it**, because `principal in [Group::"role.guardian"]` is
 /// the same test as `principal in Group::"role.guardian"` and the square
-/// brackets put the literal one level down, inside a `Set`. That pair of
-/// brackets turned the rule off on the shipped schema.
+/// brackets put the literal one level down, inside a `Set`. Read only at the
+/// top, that pair of brackets turns the rule off on the shipped schema.
 fn names_an_entity(node: &serde_json::Value) -> bool {
     if node.get("__entity").is_some() {
         return true;
@@ -1478,8 +1480,8 @@ fn names_an_entity(node: &serde_json::Value) -> bool {
 ///
 /// A wrapper does not change what a test is about: `(if true then principal else
 /// principal)`, `principal.owner` and a `Set` holding one all still name the
-/// principal, and a check that only recognised a bare `Var` was defeated by any
-/// of them.
+/// principal, and a check that only recognised a bare `Var` would be defeated by
+/// any of them.
 fn mentions_a_subject(node: &serde_json::Value, subjects: &[&str]) -> Option<String> {
     if let Some(named) = node.get("Var").and_then(|var| var.as_str())
         && subjects.contains(&named)
@@ -1518,9 +1520,9 @@ fn declared_by_every_entity(schema: &str, attribute: &str) -> bool {
 /// How many entity types the schema declares.
 ///
 /// Split out of [`declared_by_every_entity`] so a test can compare it with the
-/// file: the walk counted three of the schema's own sentences as types, and the
-/// only symptom was a rule that never returned `true` — a miscount that makes
-/// the check vacuous is invisible from the check's own answer.
+/// file: a walk that counts three of the schema's own sentences as types shows
+/// it only as a rule that never returns `true` — a miscount that makes the
+/// check vacuous is invisible from the check's own answer.
 #[cfg(test)]
 fn entity_types(schema: &str) -> usize {
     walk_entities(schema, "").0
@@ -1528,16 +1530,16 @@ fn entity_types(schema: &str) -> usize {
 
 /// The entity types in the schema, and how many declare `attribute`.
 ///
-/// **Each declaration ends at its own `;`.** This looked for the next `{` and
-/// treated whatever it found as the entity's attribute block — so
-/// `entity Group in [Realm];`, which has none, borrowed the *next* entity's
-/// block and then skipped past it: the shipped schema declares nine types and
-/// the walk saw seven. Two of them were invisible to a rule about what every
-/// type declares.
+/// **Each declaration ends at its own `;`.** Looking for the next `{` and
+/// treating whatever it finds as the entity's attribute block,
+/// `entity Group in [Realm];`, which has none, borrows the *next* entity's
+/// block and then skips past it: the shipped schema declares nine types and
+/// such a walk sees seven. Two of them are then invisible to a rule about what
+/// every type declares.
 ///
 /// Comments are stripped here rather than by the caller, because a schema
-/// arriving with them was the first version of the same defect — three of the
-/// schema's own sentences were counted as types.
+/// arriving with them is the same defect — three of the schema's own sentences
+/// counted as types.
 fn walk_entities(schema: &str, attribute: &str) -> (usize, usize) {
     let schema = without_line_comments(schema);
     let mut types = 0_usize;
@@ -1599,22 +1601,21 @@ fn quotes_the_constraint(reason: &str, constraint: &str, target: &str) -> bool {
     let folded = reason.to_lowercase();
     let target = target.to_lowercase();
     // **Every quoted span, and each judged whole.** Reading only the span the
-    // reason opens with was the answer to a reason that quotes the thing it
-    // warns *against* — `core.no_self_escalation`'s paragraph quotes
-    // `action == Action::"Read"` to say what once went wrong there — and it made
-    // the rule wrong the other way at once: an author who names the type before
-    // the constraint, which is how the sentence reads best, was refused by a
-    // `fix` telling them to quote what they had just quoted. What separates the
+    // reason opens with answers a reason that quotes the thing it warns
+    // *against* — `core.no_self_escalation`'s paragraph quotes
+    // `action == Action::"Read"` to say what can go wrong there — and makes
+    // the rule wrong the other way: an author who names the type before the
+    // constraint, which is how the sentence reads best, is refused by a `fix`
+    // telling them to quote what they have just quoted. What separates the
     // two is not *where* the span sits but *what it says*, which is the rule
     // below: the subject, the operator, and — when the constraint names an
     // entity — that entity and no other.
     //
-    // That was not the whole of it, and the same paragraph proved it: this rule
-    // reads what it is given, and `references_marked` was giving it the whole
-    // comment run, so the warning four lines under the marker still matched on
-    // its own terms. Where is now the caller's question — it hands over the
-    // marker's line — and what remains here is what a span says. Neither half
-    // is sufficient alone.
+    // That is not the whole of it: this rule reads what it is given, and handed
+    // the whole comment run by `references_marked`, the warning four lines
+    // under the marker still matches on its own terms. Where is the caller's
+    // question — it hands over the marker's line — and what remains here is
+    // what a span says. Neither half is sufficient alone.
     folded.split('`').skip(1).step_by(2).any(|span| {
         let words: Vec<&str> = span.split_whitespace().collect();
         if words.first() != Some(&subject.as_str()) || words.get(1) != Some(&first.as_str()) {
@@ -1636,10 +1637,10 @@ fn quotes_the_constraint(reason: &str, constraint: &str, target: &str) -> bool {
             return false;
         }
         // **And the entity, which is what a type test is.** `principal is` is
-        // the shape; `principal is Agent` is the rule. A reason arguing about
-        // `Device` excused a policy narrowed to `Agent` — a type appearing
-        // nowhere in that file — because everything past the operator was
-        // unread. So a span that stops at the operator is the constraint named
+        // the shape; `principal is Agent` is the rule. With everything past the
+        // operator unread, a reason arguing about `Device` excuses a policy
+        // narrowed to `Agent` — a type appearing nowhere in that file. So a
+        // span that stops at the operator is the constraint named
         // in the shortest form there is, and a span that goes on has to go on
         // with the entity this policy actually names.
         //
@@ -1650,7 +1651,7 @@ fn quotes_the_constraint(reason: &str, constraint: &str, target: &str) -> bool {
         // them — quoting one verb of a two-verb list is a reason for a
         // constraint this policy does not have. Extra words stay legal: the
         // `is in` shape renders as `principal is Agent in Realm::"home"`, whose
-        // realm is past the entity and was always allowed to be there.
+        // realm is past the entity and is allowed to be there.
         //
         // Brackets and commas are punctuation of the list and not part of a
         // name, so they are trimmed before the comparison. Without that, the
@@ -1667,16 +1668,16 @@ fn quotes_the_constraint(reason: &str, constraint: &str, target: &str) -> bool {
         // **And no more than it names, where more is a different rule.** The
         // test above is a subset test, and a subset accepts a reason naming a
         // *larger* list than the policy has — so a marker written honestly for
-        // `action in [Action::"Grant", Action::"Revoke"]` went on excusing that
-        // policy after somebody rescoped it to `[Action::"Grant"]`. Measured on
-        // 2026-09-11: invariant 4 narrowed that way produced no
-        // `core-narrows-by-entity-type` at all, with the marker still naming the
-        // verb the invariant had just stopped covering. That is the drift a
-        // marker per constraint exists to catch, and it is the same sentence as
-        // the one-verb direction, which was refused.
+        // `action in [Action::"Grant", Action::"Revoke"]` would go on excusing
+        // that policy after somebody rescoped it to `[Action::"Grant"]`.
+        // Measured with the subset test alone: invariant 4 narrowed that way
+        // produces no `core-narrows-by-entity-type` at all, with the marker
+        // still naming the verb the invariant has just stopped covering. That
+        // is the drift a marker per constraint exists to catch, and it is the
+        // same sentence as the one-verb direction, which is refused.
         //
-        // The exception is the type test, and it is why the subset rule was
-        // written: Cedar renders `principal is Agent in Realm::"home"` as an
+        // The exception is the type test, and it is why the subset rule
+        // exists: Cedar renders `principal is Agent in Realm::"home"` as an
         // `is` with an `in` beside it, so the realm is an extra word of one
         // constraint rather than a second entity of the same kind. An `is` may
         // carry more; an `==` or an `in` is exactly the entities it names.
@@ -1689,13 +1690,13 @@ fn quotes_the_constraint(reason: &str, constraint: &str, target: &str) -> bool {
 
 /// Whether a comment above `name` in `text` marks it as a deliberate exception.
 ///
-/// **The annotation, not the first place the file writes it.** The anchor was
-/// `text.find("@id(\"<name>\")")` — the first *text* occurrence — so ordinary
-/// prose naming the policy's own id moved it, and both directions were live.
-/// Measured on 2026-09-08, two comment lines added under
-/// `policy/core/no_self_escalation.cedar`'s header, saying that every journal
-/// entry it writes records its own `@id`, with the policy and its existing
-/// marker untouched:
+/// **The annotation, not the first place the file writes it.** Anchored
+/// at `text.find("@id(\"<name>\")")` — the first *text* occurrence — ordinary
+/// prose naming the policy's own id moves it, and both directions are
+/// live. Measured: two comment lines added
+/// under `policy/core/no_self_escalation.cedar`'s header, saying that every
+/// journal entry it writes records its own `@id`, with the policy and its
+/// existing marker untouched:
 ///
 /// ```text
 /// error policy/core/no_self_escalation.cedar:3 — `core.no_self_escalation` is a
@@ -1709,26 +1710,24 @@ fn quotes_the_constraint(reason: &str, constraint: &str, target: &str) -> bool {
 /// character from tripping it.
 ///
 /// And the other way: the marker moved to the top of the file with such a
-/// sentence under it left `check passed` while a `forbid` narrowed to two
-/// actions carried its excuse thirty lines away, behind the header — which is
+/// sentence under it leaves `check passed` while a `forbid` narrowed to two
+/// actions carries its excuse thirty lines away, behind the header — which is
 /// the opposite of what the hatch's own argument rests on, that a constraint in
 /// the scope is where a reader meets it.
 ///
 /// So the anchor is the last `@id("<name>")` that *begins a line*, which is
-/// where an annotation is written and where prose is not.
-/// `every_statement_is_a_policy` records this exact class costing a run once
-/// already, and the repair went in there and not here. The same anchor bug was
-/// in a second place — `the_written_numbers_are_the_numbers` counted every
-/// `@id(` in a file, so the same comment made a one-rule file hold two — and it
-/// is repaired the same way.
+/// where an annotation is written and where prose is
+/// not. `every_statement_is_a_policy` holds the same class,
+/// and `the_written_numbers_are_the_numbers` counts `@id(` the same way, so the
+/// same comment cannot make a one-rule file hold two.
 ///
-/// **What this does not close, said plainly.** The marker may still sit anywhere
-/// in the contiguous comment run above the annotation, and in a file whose whole
-/// header is comments that run is the whole file: moved to the top with a
-/// sentence under it, a marker thirty lines from the constraint it excuses is
-/// accepted. Bounding it would need a rule about *how close* is close enough,
-/// and this file has none — the honest half is that the anchor is now the
-/// annotation, so ordinary prose can no longer move it in either direction, and
+/// **What this does not close, said plainly.** The marker may still sit
+/// anywhere in the contiguous comment run above the annotation, and in a file
+/// whose whole header is comments that run is the whole file: moved to the top
+/// with a sentence under it, a marker thirty lines from the constraint it
+/// excuses is accepted. Bounding it would need a rule about *how close* is
+/// close enough, and this file has none — the honest half is that the anchor is
+/// the annotation, so ordinary prose cannot move it in either direction, and
 /// what remains is a placement question rather than a reader that can be fooled
 /// by a sentence.
 fn references_marked(text: &str, name: &str, constraint: &str, target: &str) -> bool {
@@ -1744,12 +1743,12 @@ fn references_marked(text: &str, name: &str, constraint: &str, target: &str) -> 
         .filter(opens_a_line)
         .collect();
     // **And no line-opening annotation is "not marked", not "look anywhere".**
-    // This fell through to `text.find(&annotation)` — the first *text*
-    // occurrence, which is precisely the anchor the paragraph above records
-    // removing, and which ordinary prose naming a policy's own id can move in
-    // either direction. A silent fall-through that fails *open*, and decided by
-    // nothing: every `@id(` this pack ships opens its line, so the clause was
-    // never run and deleting it left both suites green.
+    // Falling through to `text.find(&annotation)` — the first *text*
+    // occurrence, which is precisely the anchor the paragraph above rejects,
+    // and which ordinary prose naming a policy's own id can move in either
+    // direction — would be a silent fall-through that fails *open*. Every
+    // `@id(` this pack ships opens its line, so the pack never reaches this
+    // clause.
     //
     // Fail closed. A policy whose annotation this reader cannot anchor is a
     // policy with no marker, which is what `§2.4` asks of a check that cannot
@@ -1764,12 +1763,13 @@ fn references_marked(text: &str, name: &str, constraint: &str, target: &str) -> 
             let trimmed = line.trim_start();
             trimmed.starts_with("//") || trimmed.is_empty()
         })
-        // **In reading order, and each marker's reason is its own.** The lines
-        // were collected with `.rev()` and joined, so everything *above* the
-        // marker landed *after* it and was read as part of its reason —
-        // `nc:narrows: reasons` was excused for `principal` by a sentence
-        // written eight lines earlier about something else. A reason is the
-        // text of the marker, and of the comment lines that follow it.
+        // **In reading order, and each marker's reason is its own.** Collected
+        // with `.rev()` and joined as they are, everything *above* the marker
+        // would land *after* it and be read as part of its reason —
+        // `nc:narrows: reasons` excused for `principal` by a sentence written
+        // eight lines earlier about something else. So the run is reversed
+        // back below: a reason is the text of the marker, and of the comment
+        // lines that follow it.
         //
         // **Joined with the newlines kept**, because the line the marker is
         // written on is load-bearing below and a space would erase it.
@@ -1781,12 +1781,12 @@ fn references_marked(text: &str, name: &str, constraint: &str, target: &str) -> 
         .split(NARROWS)
         .skip(1)
         .any(|reason| {
-            // **The reason has to name what it excuses.** The marker was per
-            // *policy*, so one written honestly about
-            // `action == Action::"Delete"` silently covered a
+            // **The reason has to name what it excuses.** A marker per
+            // *policy*, written honestly about
+            // `action == Action::"Delete"`, silently covers a
             // `principal is User` added later — measured turning invariant 5 off
             // for every `Agent` and `Device`, with `check passed`. `limits.rs`
-            // fixed exactly this class for its own hatch: "a marker excuses one
+            // holds its own hatch to the same rule: "a marker excuses one
             // table … it excused both, which is how an unbounded table rode in
             // beside a genuinely bounded one".
             //
@@ -1800,45 +1800,46 @@ fn references_marked(text: &str, name: &str, constraint: &str, target: &str) -> 
             // shape this repository refuses everywhere else.
             //
             // **What is asked of the quoted span is that it *begins* with the
-            // constraint, not that it equals it.** Requiring equality refused
+            // constraint, not that it equals it.** Requiring equality refuses
             // ``principal is Agent`` — the constraint as the author reads it on
             // the policy's first line, and a strictly more informative reason —
-            // with a diagnostic that told them to quote the constraint they had
+            // with a diagnostic that tells them to quote the constraint they have
             // just quoted. Too strong is the other way to be wrong, and a `fix`
             // that restates the failure is what `NOCTUA.md §15.1` is against.
             //
             // The reason is prose and is never otherwise parsed; this asks only
             // that it quote the constraint it is about, which is the least a
             // reason can do and still say which one it excuses.
-            // **And the quote is on the marker's own line.** The reason runs
-            // to the end of the comment run, and one paragraph in this pack
-            // quotes a constraint in order to warn *against* it:
+            // **And the quote is on the marker's own line.** The reason runs to
+            // the end of the comment run, and one paragraph in this pack quotes
+            // a constraint in order to warn *against* it:
             // `core.no_self_escalation`'s marker records, four lines below
             // itself, that `core.provenance` was once rescoped to
-            // `action == Action::"Read"`. That sentence then excused exactly
-            // that rescoping of the policy it sits on — measured on 2026-09-11,
-            // invariant 4 narrowed to `action == Action::"Read"` produced no
-            // `core-narrows-by-entity-type` at all, `load()` succeeded, and only
-            // the two cases in `policy/core/tests/` were left holding it.
+            // `action == Action::"Read"`. Read to the end of the run, that
+            // sentence excuses exactly that rescoping of the policy it sits on
+            // — measured, invariant 4 narrowed to `action == Action::"Read"`
+            // produces no `core-narrows-by-entity-type` at all, `load()`
+            // succeeds, and only the two cases in `policy/core/tests/` are left
+            // holding it.
             //
             // Every marker this pack ships names its constraint on the marker's
             // line, which is where an excuse belongs: beside the thing it
             // excuses, not four lines away inside a story about another policy.
             // The lines under it are still the reason a person reads; they are
-            // no longer where the gate looks for the quote.
+            // not where the gate looks for the quote.
             //
-            // **What this must not refuse** is the ordering the rule above was
+            // **What this must not refuse** is the ordering the rule above is
             // widened for — an author who names the type before the constraint,
             // ``a rule about `principal is Agent` ``. That is one line, so both
-            // spans are still on it. Nor is it the earlier repair coming back:
-            // that one read the *first* span on the line and refused the rest;
-            // this reads every span on the line and refuses the lines below.
-            // `split_once` rather than `split(…).next()`: `str::split` always
-            // yields one item, so the fallback arm of an `unwrap_or` there is
-            // decided by nothing — a clause this tree refuses everywhere else.
-            // Both arms here are driven: a marker with lines under it takes the
-            // `Some` arm, and one written on the last comment line of the run
-            // takes the `None` arm, which is the whole reason.
+            // spans are still on it. Nor is this a reader of the *first* span
+            // on the line that refuses the rest: this reads every span on the
+            // line and refuses the lines below. `split_once` rather than
+            // `split(…).next()`: `str::split` always yields one item, so the
+            // fallback arm of an `unwrap_or` there is decided by nothing — a
+            // clause this tree refuses everywhere else. Both arms here are
+            // driven: a marker with lines under it takes the `Some` arm, and
+            // one written on the last comment line of the run takes the `None`
+            // arm, which is the whole reason.
             let named = reason.split_once('\n').map_or(reason, |(first, _)| first);
             !named.trim().is_empty() && quotes_the_constraint(named, constraint, target)
         })
@@ -1850,7 +1851,7 @@ fn references_marked(text: &str, name: &str, constraint: &str, target: &str) -> 
 /// its files is visible rather than green (`§19.3`) — and how many clauses each
 /// policy has pinned by a case, keyed by policy id.
 ///
-/// **The third is a map and was a total.** One number over thirteen policies is
+/// **The third is a map, not a total.** One number over thirteen policies is
 /// a count where the property is a set: a policy gaining a pinned conjunct pays
 /// for another losing one, and the number written down in `xtask/src/policy.rs`
 /// never moves.
@@ -1923,13 +1924,14 @@ pub fn run(pack: &Pack, cases: &[Case]) -> (Vec<Problem>, usize, BTreeMap<String
         }
 
         // **The last statement a verdict reaches, not the first of the body.**
-        // `ran` sat directly under the `request_for` guard, above the
-        // authorization call and above every verdict below it — so three lines
-        // here, `if case.file.ends_with("chain_depth.toml") { continue; }`, left
-        // `40 case(s) in 8 file(s) decide as written` byte-identical while a case
-        // naming the wrong policy went unjudged. `xtask/canaries/README.md` lists
-        // `asked`, `read` and `judged` as repaired for exactly this; `ran` was not
-        // among them, and `run` is the door `xtask/src/policy.rs` calls.
+        // `ran` directly under the `request_for` guard, above the authorization
+        // call and above every verdict below it, lets three lines here,
+        // `if case.file.ends_with("chain_depth.toml") { continue; }`, leave
+        // `N case(s) in M file(s) decide as written` byte-identical while a
+        // case naming the wrong policy goes unjudged.
+        // `xtask/canaries/README.md` lists `asked`, `read` and `judged` for
+        // exactly this; `ran` is the fourth, and `run` is the door
+        // `xtask/src/policy.rs` calls.
         ran += 1;
     }
     let pinned = check_every_permit_constraint_is_tested(pack, cases, &authorizer, &mut problems);
@@ -2037,8 +2039,8 @@ fn check_nothing_permitted_it(
 
 /// A case claiming the action is the boundary is refused if it is not.
 ///
-/// Split out because [`coverage`] crossed a hundred lines when the claim gained
-/// a check. What it asks is one question: run the same request with a verb the
+/// Split out because inside [`coverage`] it would cross a hundred lines. What it
+/// asks is one question: run the same request with a verb the
 /// permit allows, and it must be *permitted*. If it is still denied, something
 /// other than the action refuses it and the flag buys a pairing it has not
 /// earned.
@@ -2051,13 +2053,13 @@ fn the_flag_means_what_it_says(
     problems: &mut Vec<Problem>,
 ) {
     // **And the flag has to be true of the case that sets it.** It is a
-    // per-case opt-out of the pairing rule, and nothing asked whether the
-    // action really is what puts the request outside the permit: a case
-    // could set it and be denied by the resource, the context or a `when`
-    // clause, with the flag buying it a pairing it did not earn. Measured —
-    // the guardian boundary case retargeted at a principal who is not a
-    // guardian, with an action the permit *does* allow, kept the flag, kept
-    // its name, and `boundary-without-a-control` stayed silent.
+    // per-case opt-out of the pairing rule, and without this nothing asks
+    // whether the action really is what puts the request outside the permit: a
+    // case could set it and be denied by the resource, the context or a `when`
+    // clause, with the flag buying it a pairing it did not earn. Measured — the
+    // guardian boundary case retargeted at a principal who is not a guardian,
+    // with an action the permit *does* allow, keeps the flag, keeps its name,
+    // and `boundary-without-a-control` stays silent.
     //
     // What the claim means, in one question: run the same request with a
     // verb the permit allows, and it must be *permitted*. If it is still
@@ -2066,13 +2068,13 @@ fn the_flag_means_what_it_says(
     if !case.the_action_is_the_boundary {
         return;
     }
-    // **Every matching control, not whichever one is loaded first.** This was
-    // `cases.iter().find(…)`, and `cases::load` sorts by path — so every
-    // `policy/core/tests/*.toml` precedes a pack's, and a control written in
-    // `policy/packs/family/tests/permissions.toml` was never the one selected.
-    // The claim was judged against one arbitrarily-chosen case, which is why an
-    // attempt to write a case for the principal conjunct below reported a
-    // different check entirely and proved nothing.
+    // **Every matching control, not whichever one is loaded first.**
+    // `cases.iter().find(…)` over `cases::load`'s path order puts every
+    // `policy/core/tests/*.toml` before a pack's, so a control written in
+    // `policy/packs/family/tests/permissions.toml` is never the one selected,
+    // and the claim is judged against one arbitrarily-chosen case — a case
+    // written for the principal conjunct below then reports a different check
+    // entirely and proves nothing.
     //
     // The flag claims one thing — swap the verb for one the permit allows and
     // the request is permitted — and a claim of that shape is false as soon as
@@ -2149,12 +2151,12 @@ fn the_principal_is_what_refuses_it(
         return;
     }
     // **Some principal the permit allows is permitted here, and that is the
-    // whole claim.** This asked the opposite quantifier — refused as *any*
-    // control's principal, the flag was false — and was wrong the moment a
-    // control stood on another resource. Measured by a reviewer: one correct
-    // `allow`, `mallory Write Realm::"office"`, reported both shipped cases
-    // about the history permit's type test, which no rule had changed. None
-    // permitted is reported against the first, as the one to read.
+    // whole claim.** The opposite quantifier — refused as *any* control's
+    // principal, the flag is false — is wrong the moment a control stands on
+    // another resource. Measured: one correct `allow`,
+    // `mallory Write Realm::"office"`, reports both shipped cases about the
+    // history permit's type test, which no rule has changed. None permitted is
+    // reported against the first, as the one to read.
     let permitted = controls.iter().any(|control| {
         build_request(
             pack,
@@ -2201,20 +2203,20 @@ fn the_principal_is_what_refuses_it(
 #[must_use]
 pub fn coverage(pack: &Pack, cases: &[Case]) -> (Vec<Problem>, usize) {
     let authorizer = Authorizer::new();
-    // **One set, not two.** There was a second, `exercised`, and a branch below
-    // reporting a policy denied by a case that never exercised it — which every
-    // insert made impossible, since the two were written together at both sites.
-    // `denied_by ⊆ exercised` held by construction, so the branch was
-    // unreachable: its body replaced with `panic!` left all eleven tests that
-    // break the real pack on purpose green.
+    // **One set, not two.** A second set, `exercised`, written beside this one
+    // at both sites, would make `denied_by ⊆ exercised` hold by construction,
+    // so a branch reporting a policy denied by a case that never exercised it
+    // could never fire. Measured with such a set: the branch's body replaced
+    // with `panic!`, every test that breaks the real pack on purpose stays
+    // green.
     let mut denied_by: BTreeSet<&str> = BTreeSet::new();
     for case in cases {
         if case.decision != Expected::Deny {
             // An `allow` case is not a denial test, whichever field it fills in.
-            // `no_permit_matched` was credited regardless of the decision, so an
-            // `allow` case naming a permit counted as that permit's negative
-            // test. `run` catches that shape today by another route, and
-            // `coverage` is called on its own by the gate.
+            // With `no_permit_matched` credited regardless of the decision, an
+            // `allow` case naming a permit would count as that permit's negative
+            // test. `run` catches that shape by another route, and `coverage` is
+            // called on its own by the gate.
             continue;
         }
         if let Some(named) = &case.because {
@@ -2227,13 +2229,14 @@ pub fn coverage(pack: &Pack, cases: &[Case]) -> (Vec<Problem>, usize) {
 
     let mut problems = Vec::new();
 
-    // **A permit's denial case has to be about that permit.** Checking only that
-    // the request stays denied with every forbid removed is true of *any*
-    // request nothing permits — so a `no_permit_matched` case proved nothing
-    // about the permit it named. Two things got through: a policy that can never
-    // fire satisfied acceptance criterion 11, and all three shipped cases
-    // retargeted at one unrelated request stayed green, which meant a
-    // `Grant`/`Revoke` permit passed its denial test on a `Read`.
+    // **A permit's denial case has to be about that permit.** Checking only
+    // that the request stays denied with every forbid removed is true of *any*
+    // request nothing permits — so a `no_permit_matched` case would prove
+    // nothing about the permit it named. Two things would get through that way:
+    // a policy that can never fire would satisfy acceptance criterion 11, and
+    // every shipped `no_permit_matched` case retargeted at one unrelated
+    // request would stay green, so a `Grant`/`Revoke` permit would pass its
+    // denial test on a `Read`.
     //
     // The pairing is what makes it mean something: somewhere in the suite the
     // same permit has to *allow* the same action. Then the denial is a request
@@ -2243,22 +2246,23 @@ pub fn coverage(pack: &Pack, cases: &[Case]) -> (Vec<Problem>, usize) {
             continue;
         };
         // **The same action, and the same two entity types.** Matching only on
-        // the verb left the denial free to be about a different universe: the
+        // the verb leaves the denial free to be about a different universe: the
         // one case testing `family.a_member_reads_shared_content`'s sensitivity
-        // boundary, retargeted from `Content::"diary"` to `Feature::"gallery"` —
-        // a type that permit can never apply to — kept `10 policy(ies) each have
-        // a denial test` green, and the permit's whole `when` clause could then
-        // be deleted, opening `private` and `restricted` content to the entire
-        // household with criterion 11 reporting satisfied.
+        // boundary, retargeted from `Content::"diary"` to `Feature::"gallery"`
+        // — a type that permit can never apply to — keeps
+        // `N policy(ies) each have a denial test` green, and the permit's whole
+        // `when` clause can then be deleted, opening `private` and `restricted`
+        // content to the entire household with criterion 11 reporting
+        // satisfied.
         //
         // **Unless the action is what is being tested**, which the case says of
         // itself. Requiring the same verb makes a permit's action list
         // untestable by construction — a case denied *because* the verb is
         // outside the list has a verb the permit never allows — and every
-        // action list in the pack was pinned by nothing as a result. Widening
+        // action list in the pack is then pinned by nothing. Widening
         // `action in [Action::"Grant", Action::"Revoke"]` to a bare `action`
-        // gave every guardian Read, Write, Delete and Share over every resource
-        // in the realm, with the whole gate green.
+        // then gives every guardian Read, Write, Delete and Share over every
+        // resource in the realm, with the whole gate green.
         //
         // The two entity types still have to match, so the permit is still one
         // that demonstrably fires on this kind of request — what changes is
@@ -2267,8 +2271,9 @@ pub fn coverage(pack: &Pack, cases: &[Case]) -> (Vec<Problem>, usize) {
         // **Or the principal's type, which the case says of itself the same
         // way.** A permit written `principal is User` refuses a `Device` for
         // being one, so requiring a control of the case's own principal type
-        // made every such type test unpinnable — and one shipped deleted, with
-        // a device and an agent then allowed to undo a person's history. The
+        // would make every such type test unpinnable — and a shipped one
+        // deletable, with a device and an agent then allowed to undo a
+        // person's history. The
         // controls are kept rather than counted, because they are what that
         // claim is judged against.
         let controls: Vec<&Case> = cases
@@ -2309,13 +2314,11 @@ pub fn coverage(pack: &Pack, cases: &[Case]) -> (Vec<Problem>, usize) {
         }
     }
 
-    // **Counted inside the loop, because the returned number was `pack.len()`
-    // read from the same object.** `assert_eq!(checked, pack.len())` in the
-    // gate's own test was `x == x` and could not fail, while promising "coverage
-    // looked at N of M policies" — so `pack.effects.iter().take(1)` left the gate
-    // printing `ok 15 policy(ies) each have a denial test` with fourteen
-    // unexamined and the assertion reading `15 == 15`. This file already demands
-    // the opposite of its twin one screen down.
+    // **Counted inside the loop, because a number read from the same object
+    // cannot fail.** `assert_eq!(checked, pack.len())` with `checked` being
+    // `pack.len()` is `x == x`, while promising "coverage looked at N of M
+    // policies" — so `pack.effects.iter().take(1)` leaves the gate printing
+    // `ok N policy(ies) each have a denial test` with all but one unexamined.
     let mut asked = 0_usize;
     for (id, effect) in &pack.effects {
         let file = pack.origins.get(id).cloned().unwrap_or_default();
@@ -2343,14 +2346,13 @@ pub fn coverage(pack: &Pack, cases: &[Case]) -> (Vec<Problem>, usize) {
                 check: "no-denial-test",
             });
         }
-        // **Counted where the verdict is, not where the loop is entered.** The
-        // increment was the first line of the body, so a `continue` anywhere
-        // below it left the number exact: measured, one `if id ==
-        // "core.grants_expire" { continue; }` gave `ok 14 policy(ies) each have a
-        // denial test` over thirteen examined, with the gate's own assertion
-        // reading `14 == 14`. That is the defect the paragraph above says was
-        // just repaired — the counter moved inside the loop and stayed above the
-        // rule, which is half the distance.
+        // **Counted where the verdict is, not where the loop is entered.** With
+        // the increment as the first line of the body, a `continue` anywhere
+        // below it leaves the number exact: measured, one
+        // `if id == "core.grants_expire" { continue; }` gives
+        // `ok N policy(ies) each have a denial test` over one fewer examined,
+        // with the gate's own assertion still equal. A counter inside the loop
+        // and above the rule is half the distance.
         asked += 1;
     }
     (problems, asked)
@@ -2366,12 +2368,12 @@ fn entity_type(uid: &str) -> &str {
 
 /// A variant this code could not build is a clause it did not pin.
 ///
-/// **And it used to be counted as one**: the increment sat above both
-/// `continue`s, so a mutation that never ran raised the number. Measured, with
-/// every proposed variant made unparseable, the count fell from 28 to 20 and
-/// eight are reported here — before this, it stayed 28 with zero evaluated. That
-/// number is the only thing standing behind `condition-untested` and
-/// `branch-untested`, the two findings with no negative test.
+/// **And it is not counted as one**: with the increment above both `continue`s,
+/// a mutation that never ran would raise the number. Measured, with every
+/// proposed variant made unparseable, the count falls from 28 to 20 and eight
+/// are reported here — with the increment above, it stays 28 with zero
+/// evaluated. On the shipped pack, where neither fires, that number is the
+/// only sign that `condition-untested` and `branch-untested` ran at all.
 ///
 /// Zero today; what this asserts is that it stays zero.
 fn unbuildable_variants(unbuildable: usize) -> Vec<Problem> {
@@ -2395,8 +2397,8 @@ fn unbuildable_variants(unbuildable: usize) -> Vec<Problem> {
 
 /// Every widening of one permit's constraints that no case would notice.
 ///
-/// Split out of [`check_every_permit_constraint_is_tested`] only because that
-/// function grew past the line limit.
+/// Split out of [`check_every_permit_constraint_is_tested`] only because inline
+/// it takes that function past the line limit.
 fn the_widenings_nothing_notices(
     pack: &Pack,
     name: &str,
@@ -2443,14 +2445,13 @@ fn the_widenings_nothing_notices(
                 check: "permit-constraint-untested",
             });
         }
-        // **The last statement a verdict reaches, not the first of the
-        // body.** `guards_fail_closed` says this at the bottom of the file and
-        // three of the four mutation loops did not do it — so one filter placed
-        // under the increment paid `PINNED` and left the whole policy block
-        // byte-identical: `40 case(s) … and 32 constraint(s) and condition(s) are
-        // pinned by one of them`, `check passed`. What it hides is a permit that
-        // stops constraining its action list, which is `permit-constraint-untested`'s
-        // whole subject.
+        // **The last statement a verdict reaches, not the first of the body.**
+        // `guards_fail_closed` says this at the bottom of the file, and every
+        // mutation loop follows it: one filter placed under an increment at the
+        // top pays `PINNED` and leaves the whole policy block byte-identical —
+        // `… constraint(s) and condition(s) are pinned by one of them`,
+        // `check passed`. What it hides is a permit that stops constraining its
+        // action list, which is `permit-constraint-untested`'s whole subject.
         *inspected += 1;
     }
     problems
@@ -2458,12 +2459,12 @@ fn the_widenings_nothing_notices(
 
 /// Every permit's own constraints are held in place by some case.
 ///
-/// **The check criterion 11 could not make.** `coverage` requires every policy
-/// to have a denial test and pairs each with a control, and both were satisfied
-/// by a permit that was simply too broad: widening
+/// **The check criterion 11 cannot make.** `coverage` requires every policy
+/// to have a denial test and pairs each with a control, and a permit that is
+/// simply too broad satisfies both: without this, widening
 /// `family.a_guardian_administers_the_realm` from
 /// `action in [Action::"Grant", Action::"Revoke"]` to a bare `action` — one
-/// token — gave every guardian Read, Write, Delete and Share over everything in
+/// token — gives every guardian Read, Write, Delete and Share over everything in
 /// the realm, including `restricted` content, with the gate reporting
 /// `11 policy(ies) each have a denial test` and `check passed`.
 ///
@@ -2493,24 +2494,23 @@ fn check_every_permit_constraint_is_tested(
     let mut by_policy: BTreeMap<String, usize> = BTreeMap::new();
     // **How many constraints it looked at, because a step that inspected
     // nothing has not passed.** `policy.rs`'s own module doc says every check
-    // there reports its count; this one returned nothing, so it could go to
-    // zero invisibly — which is the state it was already in for its whole life
-    // before the `widenings` fix, and the state deleting its one call line puts
-    // it back into with the entire suite green.
+    // there reports its count; returning nothing, this could go to zero
+    // invisibly — and deleting its one call line would do exactly that with the
+    // entire suite green.
     let mut inspected = 0_usize;
     // Variants this code proposed and could not build. A mutation that never
-    // ran pinned nothing, and counting it as one is how `inspected` became a
+    // ran pinned nothing, and counting it as one would make `inspected` a
     // fingerprint of assembled strings rather than of evaluated clauses.
     let mut unbuildable = 0_usize;
     for policy in pack.policies.policies() {
         let name = policy.id().to_string();
         let rendered = policy.to_string();
         let before_this_policy = inspected;
-        // **Every conjunct of every condition, for both effects.** This ran on
-        // `permit` scopes alone, so the conditions that carry every core
-        // invariant were mutated by nothing at all: each of the seven is a
-        // `forbid`, and `Effect::Permit` skipped the lot. One conjunct added to
-        // one of them turned it off with the whole gate green —
+        // **Every conjunct of every condition, for both effects.** Run on
+        // `permit` scopes alone, the conditions that carry every core invariant
+        // would be mutated by nothing at all: each of the seven is a `forbid`,
+        // and `Effect::Permit` would skip the lot. One conjunct added to one of
+        // them turns it off with the whole gate green —
         //
         // ```text
         // core.fail_closed:  when { … <= 0 }  ->  when { … <= 0 && context.via_agent == false }
@@ -2518,8 +2518,8 @@ fn check_every_permit_constraint_is_tested(
         // ```
         //
         // — and `context.via_agent` is a caller-supplied flag, so every
-        // agent-mediated request bypassed fail-closed while every case, which
-        // sets it to `false`, stayed green.
+        // agent-mediated request bypasses fail-closed while every case, which
+        // sets it to `false`, stays green.
         //
         // Removing one conjunct is the mutation, and it is the right one in both
         // directions: dropping a term from a `forbid`'s `when` makes it deny
@@ -2546,17 +2546,17 @@ fn check_every_permit_constraint_is_tested(
                 continue;
             }
             // **Counted after the variant has been built, parsed and
-            // substituted.** The increment was above both `continue`s, so a
-            // mutation this code cannot construct still raised the number:
-            // measured, making every proposed variant unparseable left
+            // substituted.** Above both `continue`s, the increment would count a
+            // mutation this code cannot construct: measured that way, making
+            // every proposed variant unparseable leaves
             // `28 constraint(s) and condition(s) are pinned by one of them`
-            // unchanged with **zero** of them actually evaluated. That number is
-            // the only thing standing behind `condition-untested` and
-            // `branch-untested`, the two findings with no negative test — and it
-            // was a fingerprint of how many strings were assembled. This file's
-            // own `widenings` paragraph records the same failure: *`Policy::parse`
-            // refused all of them, and the `else { continue; }` swallowed the
-            // lot. This check has never fired.*
+            // unchanged with **zero** of them actually evaluated. On the shipped
+            // pack, where neither fires, that number is the only sign that
+            // `condition-untested` and `branch-untested` ran at all — and it
+            // would be a fingerprint of how many strings were assembled. This
+            // file's own `widenings` paragraph records the same failure from the
+            // other side: a check whose every variant `Policy::parse` refuses,
+            // swallowed by an `else { continue; }`, never fires.
             let Ok(replacement) = Policy::parse(None, &without) else {
                 unbuildable += 1;
                 continue;
@@ -2593,25 +2593,27 @@ fn check_every_permit_constraint_is_tested(
                 });
             }
             // **The last statement a verdict reaches, not the first of the
-            // body.** `guards_fail_closed` says this at the bottom of the file and
-            // three of the four mutation loops did not do it — so one filter placed
-            // under the increment paid `PINNED` and left the whole policy block
-            // byte-identical: `40 case(s) … and 32 constraint(s) and condition(s) are
-            // pinned by one of them`, `check passed`. What it hides is a permit that
-            // stops constraining its action list, which is `permit-constraint-untested`'s
-            // whole subject.
+            // body.** `guards_fail_closed` says this at the bottom of the file,
+            // and every mutation loop follows it: one filter placed under an
+            // increment at the top pays `PINNED` and leaves the whole policy
+            // block byte-identical —
+            // `… constraint(s) and condition(s) are pinned by one of them`,
+            // `check passed`. What it hides is a permit that stops constraining
+            // its action list, which is `permit-constraint-untested`'s whole
+            // subject.
             inspected += 1;
         }
         // **And inside a conjunct, not only whole ones.** The loop above drops
         // a conjunct; `guards_a_dereference` excuses the shape
         // `!(x has y) || <predicate>` because a request missing `y` cannot be
-        // written as a case — and it excused the **predicate on the right of the
-        // `||` along with the guard on its left**. Two core branches lived
-        // there untested: turning `!(context has now) || expired` into
-        // `context has now && expired` deletes `core.grant_not_expired`'s
-        // fail-closed half, and turning `source != "policy"` into
-        // `source == "manual"` lets an *inherited* grant be perpetual — both
-        // measured green against the whole suite and `cargo xtask check`.
+        // written as a case — and excusing it whole would excuse the
+        // **predicate on the right of the `||` along with the guard on its
+        // left**. Two core branches live there: turning
+        // `!(context has now) || expired` into `context has now && expired`
+        // deletes `core.grant_not_expired`'s fail-closed half, and turning
+        // `source != "policy"` into `source == "manual"` lets an *inherited*
+        // grant be perpetual — both measured green against the whole suite and
+        // `cargo xtask check` when excused.
         //
         // So each is mutated where it lives: the guard's fail-closed half is
         // flipped to the fail-open one, and every comparison against a value is
@@ -2644,18 +2646,19 @@ fn check_every_permit_constraint_is_tested(
                 &mut unbuildable,
             ));
         }
-        // **An `if`, where a `continue` was.** The row below has to be written
+        // **An `if`, not a `continue`.** The row below has to be written
         // for a `forbid` as well, and a `continue` past it would leave every
         // core invariant out of the table that is supposed to hold them.
         by_policy.insert(name, inspected - before_this_policy);
     }
-    // **A variant this code could not build is a clause it did not pin**, and it
-    // used to be counted as one: the increment sat above both `continue`s, so a
-    // mutation that never ran raised the number. Measured, with every proposed
-    // variant made unparseable, `28 constraint(s) and condition(s) are pinned by
-    // one of them` was unchanged while **zero** were evaluated — and that number
-    // is the only thing standing behind `condition-untested` and
-    // `branch-untested`, the two findings with no negative test.
+    // **A variant this code could not build is a clause it did not pin**, and
+    // it is not counted as one: with the increment above both `continue`s, a
+    // mutation that never ran would raise the number. Measured, with every
+    // proposed variant made unparseable,
+    // `28 constraint(s) and condition(s) are pinned by one of them` unchanged
+    // while **zero** are evaluated — and on the shipped pack, where neither
+    // fires, that number is the only sign that `condition-untested` and
+    // `branch-untested` ran at all.
     //
     // Reported rather than absorbed, so the count stays a count of clauses really
     // evaluated. Zero today; the assertion is that it stays zero.
@@ -2673,19 +2676,19 @@ fn guard_is_the_whole_clause(text: &str) -> bool {
     let Some((left, right)) = text.split_once("||") else {
         return false;
     };
-    // **Asked the other way, because a list consulted to excuse fails open.**
-    // This was nine literal shapes the right-hand side must *not* hold, and a
-    // shape missing from it took its conjunct out of the mutation loop in
-    // silence. Four were measured missing by a reviewer in wave 14: a negated
-    // assertion, an assertion about a *different* attribute, a method call —
-    // which the sentence here claimed to catch, while a list of punctuation has
-    // no way to see one — and everything past the *first* `||`, since the split
-    // is `split_once` and `|| a || b` is two clauses read as one.
+    // **Asked the other way, because a list consulted to excuse fails open.** A
+    // list of nine literal shapes the right-hand side must *not* hold takes a
+    // conjunct out of the mutation loop in silence for every shape missing from
+    // it, and four are measured missing: a negated assertion, an assertion
+    // about a *different* attribute, a method call — which a list of
+    // punctuation has no way to see — and everything past the *first* `||`,
+    // since the split is `split_once` and `|| a || b` is two clauses read as
+    // one.
     //
     // What the excuse is for is one shape and only one: a request that does not
     // carry `y` cannot be written as a case, so `!(x has y) || x.y` has nothing
-    // to mutate. Anything else on the right is a predicate a case can decide, so
-    // the question is now an equality against the dereference the guard names.
+    // to mutate. Anything else on the right is a predicate a case can decide,
+    // so the question is an equality against the dereference the guard names.
     let Some((subject, attribute)) = left
         .trim()
         .trim_start_matches('!')
@@ -2702,10 +2705,11 @@ fn guard_is_the_whole_clause(text: &str) -> bool {
 
 /// A policy's text with its annotations and its string literals spent.
 ///
-/// An annotation is prose the author attached to the policy; a string literal is
-/// a value the policy compares against. Neither is an expression that reads an
-/// attribute, and both are rendered by `to_string` — so both were being read as
-/// dereferences. Spending rather than cutting keeps every offset where it was.
+/// An annotation is prose the author attached to the policy; a string literal
+/// is a value the policy compares against. Neither is an expression that reads
+/// an attribute, and both are rendered by `to_string` — so both would be read
+/// as dereferences. Spending rather than cutting keeps every offset where it
+/// was.
 fn what_a_policy_evaluates(rendered: &str) -> String {
     let mut out = String::with_capacity(rendered.len());
     for line in rendered.lines() {
@@ -2765,21 +2769,21 @@ fn guards_a_dereference(conjunct: &str, rendered: &str) -> bool {
     // `!(x has y) || <predicate>` — the guard, and **not** the predicate beside
     // it.
     //
-    // **This excused the whole shape**, so a conjunct written that way was
-    // removed from the mutation entirely: `condition-untested` could not be
-    // reached by a guarded clause, and `guards_fail_closed` claims every
-    // unguarded one, so between them the verdict had no reachable input on a
-    // core policy. Measured across four attempts — a bare `has`, an unguarded
-    // comparison, a guarded one that changed an answer, and a guarded one
-    // implied by the clause above it: `guard-fails-open`, `guard-fails-open`,
-    // `wrong-decision`, and then *nothing at all*, with `must_fail`'s own floor
-    // reporting "the pack was broken on purpose and every check accepted it".
+    // **Excusing the whole shape removes a conjunct written that way from the
+    // mutation entirely**: `condition-untested` cannot be reached by a guarded
+    // clause, and `guards_fail_closed` claims every unguarded one, so between
+    // them the verdict has no reachable input on a core policy. Measured across
+    // four attempts — a bare `has`, an unguarded comparison, a guarded one that
+    // changed an answer, and a guarded one implied by the clause above it:
+    // `guard-fails-open`, `guard-fails-open`, `wrong-decision`, and then
+    // *nothing at all*, with `must_fail`'s own floor reporting "the pack was
+    // broken on purpose and every check accepted it".
     //
-    // The same hole was fixed one level down — the doc on the conjunct loop
-    // records that two core branches lived on the right of a `||` untested, and
-    // names them. What is excused here is that a request *missing* `y` cannot be
-    // written as a case; what is on the right of the `||` is an ordinary
-    // predicate, and removing it is an ordinary mutation.
+    // The same boundary holds one level down: the comment on the conjunct loop
+    // names the two core branches that live on the right of a `||`, and they
+    // are mutated where they live. What is excused here is that a request
+    // *missing* `y` cannot be written as a case; what is on the right of the
+    // `||` is an ordinary predicate, and removing it is an ordinary mutation.
     if text.starts_with("!(")
         && text.contains(" has ")
         && text.contains("||")
@@ -2789,30 +2793,31 @@ fn guards_a_dereference(conjunct: &str, rendered: &str) -> bool {
     }
     // `x has y`, alone — and **not** `!(x has y)`, alone.
     //
-    // **A leading `!` reached this branch and was excused by it**, because
-    // `"!(principal has node_key)".split(" has ").count()` is also 2. So the one
-    // spelling that turns an invariant off for a whole entity type was removed
-    // from the mutation loop by the branch written for the spelling that is a
-    // type test the gate reports. The two are the same test and want opposite
+    // **A leading `!` is kept out of this branch**, because
+    // `"!(principal has node_key)".split(" has ").count()` is also 2. Let in, the
+    // one spelling that turns an invariant off for a whole entity type would be
+    // removed from the mutation loop by the branch written for the spelling that
+    // is a type test the gate reports. The two are the same test and want opposite
     // treatment: `x has y` alone is a narrowing `narrows_itself` names, and
     // there is nothing to mutate; `!(x has y)` alone is the same narrowing
     // negated, and a case can be written for it.
     //
-    // **And something beside it has to read the attribute, which this did not
-    // ask.** The `is` branch four lines below enforces exactly that — it excuses
-    // `x is T` only where `rendered` also holds `x.` — and this one excused
-    // `x has y` whether or not a single byte of the policy dereferences `y`. One
-    // rule written twice inside one function, with the second copy narrower,
-    // which is the shape this file's own header warns about.
+    // **And something beside it has to read the attribute.**
+    // The `is` branch four lines below enforces exactly that — it excuses
+    // `x is T` only where `rendered` also holds `x.` — and this one asks the
+    // same of `x has y`. Without it, `x has y` is excused whether or not a
+    // single byte of the policy dereferences `y`: one rule written twice inside
+    // one function, with the second copy narrower, which is the shape this
+    // file's own header warns about.
     //
-    // What it cost, measured by a reviewer in round seventy-one wave 10: a line
-    // `when { context has quorum_met }` added to `core.fail_closed` — invariant
-    // 1, deny by default — narrows that policy to requests whose context
-    // carries `quorum_met`, and **nothing went red**. `cargo test -p nc-policy`
-    // answered `35 passed` and `42 passed`, and `cargo xtask check` printed the
-    // policy section byte for byte as on a clean tree. The conjunct was removed
+    // What that costs, measured without it: a line
+    // `when { context has quorum_met }` added to `core.fail_closed` —
+    // invariant 1, deny by default — narrows that policy to requests whose
+    // context carries `quorum_met`, and **nothing goes red**:
+    // `cargo test -p nc-policy` green and `cargo xtask check` printing the
+    // policy section byte for byte as on a clean tree. The conjunct is removed
     // from the mutation loop by an excuse whose own name is
-    // `guards_a_dereference`, about a clause that guarded no dereference.
+    // `guards_a_dereference`, about a clause that guards no dereference.
     if single
         && !text.starts_with('!')
         && !text.contains("||")
@@ -2822,18 +2827,19 @@ fn guards_a_dereference(conjunct: &str, rendered: &str) -> bool {
         let subject = subject.trim();
         let attribute = attribute.trim().trim_end_matches(['}', ' ', ';']);
         // **The whole attribute, not a prefix of one.** `contains` cannot tell
-        // `resource.owner` from `resource.owner_id`, so `resource has owner` was
-        // excused whenever the policy read *any* attribute starting with those
-        // letters — the conjunct dropped from the mutation loop and a narrowing
-        // `has` on a core `forbid` unreported, which is the defect this branch
-        // was repaired for one wave earlier. Named by a reviewer in wave 11.
+        // `resource.owner` from `resource.owner_id`, so with it
+        // `resource has owner` would be excused whenever the policy reads *any*
+        // attribute starting with those letters — the conjunct dropped from the
+        // mutation loop and a narrowing `has` on a core `forbid` unreported,
+        // which is the defect this branch exists for.
         // **What the policy *evaluates*, not everything it prints.**
-        // `to_string` renders annotations verbatim, so `@doc("context.quorum_met")`
-        // — prose, reading nothing — satisfied this excuse and took its conjunct
-        // out of the mutation loop. A gate satisfied by a string literal, which
-        // is the shape this file's own header names. Measured in round
-        // seventy-one wave 12: with that annotation added to `core.fail_closed`,
-        // the `condition-untested` finding for it disappeared.
+        // `to_string` renders annotations verbatim, so
+        // `@doc("context.quorum_met")` — prose, reading nothing — would satisfy
+        // this excuse and take its conjunct out of the mutation loop. A gate
+        // satisfied by a string literal, which is the shape this file's own
+        // header names. Measured with the raw render: with that annotation
+        // added to `core.fail_closed`, the `condition-untested` finding for it
+        // disappears.
         //
         // Spent here rather than at the call site, because `rendered` is also
         // what the scope rules read, and a `Group::"g"` with its name spent is
@@ -2853,14 +2859,14 @@ fn guards_a_dereference(conjunct: &str, rendered: &str) -> bool {
         && let Some((subject, _)) = text.split_once(" is ")
     {
         let subject = subject.trim();
-        // **Through the same reader as the branch above.** That one was repaired
-        // in wave 12 to spend annotations and literals before asking whether the
-        // policy dereferences, and its comment says *"the `is` branch four lines
-        // below enforces exactly that"*. It did not: this asked the raw render,
-        // so `@doc("principal.status")` — prose — or a value the policy merely
-        // compares against turned the excuse on and lifted the conjunct out of
-        // the mutation loop. One rule written twice inside one function, and the
-        // repair that named the sibling fixed one of the two.
+        // **Through the same reader as the branch above.** That one spends
+        // annotations and literals before asking whether the policy
+        // dereferences, and its comment says *"the `is` branch four lines below
+        // enforces exactly that"* — which holds only if this asks the same
+        // reader: asking the raw render, `@doc("principal.status")` — prose —
+        // or a value the policy merely compares against turns the excuse on and
+        // lifts the conjunct out of the mutation loop. One rule written twice
+        // inside one function has to be one rule.
         return matches!(subject, "principal" | "action" | "resource" | "context")
             && what_a_policy_evaluates(rendered).contains(&format!("{subject}."));
     }
@@ -2869,8 +2875,8 @@ fn guards_a_dereference(conjunct: &str, rendered: &str) -> bool {
 
 /// Every branch inside `name`'s conditions that no case sits on the boundary of.
 ///
-/// Extracted so the loop it came from stays readable; the reasoning is at the
-/// call site and on [`inside_a_conjunct`].
+/// Its own function so the loop that calls it stays readable; the reasoning is
+/// at the call site and on [`inside_a_conjunct`].
 fn branches_nothing_notices(
     pack: &Pack,
     name: &str,
@@ -2917,14 +2923,13 @@ fn branches_nothing_notices(
                 check: "branch-untested",
             });
         }
-        // **The last statement a verdict reaches, not the first of the
-        // body.** `guards_fail_closed` says this at the bottom of the file and
-        // three of the four mutation loops did not do it — so one filter placed
-        // under the increment paid `PINNED` and left the whole policy block
-        // byte-identical: `40 case(s) … and 32 constraint(s) and condition(s) are
-        // pinned by one of them`, `check passed`. What it hides is a permit that
-        // stops constraining its action list, which is `permit-constraint-untested`'s
-        // whole subject.
+        // **The last statement a verdict reaches, not the first of the body.**
+        // `guards_fail_closed` says this at the bottom of the file, and every
+        // mutation loop follows it: one filter placed under an increment at the
+        // top pays `PINNED` and leaves the whole policy block byte-identical —
+        // `… constraint(s) and condition(s) are pinned by one of them`,
+        // `check passed`. What it hides is a permit that stops constraining its
+        // action list, which is `permit-constraint-untested`'s whole subject.
         *inspected += 1;
     }
     problems
@@ -2932,22 +2937,27 @@ fn branches_nothing_notices(
 
 /// Every `!(x has y) ||` guard, proven to deny when `y` is absent.
 ///
-/// **The half of every core invariant that no test reached.** Each of these
-/// guards is written so that a request *missing* the attribute is refused rather
-/// than sailing past a condition Cedar would skip for erroring. That is the
-/// whole point of writing it `!(x has y) || …` instead of `x has y && …` — and
-/// flipping one to the other left the entire suite and `cargo xtask check`
-/// green, in eight places, one of them `core.grant_not_expired`: an expired
-/// grant allowed, for any decision point that did not send `now`.
+/// **The half of every core invariant a case cannot reach.** Each of these
+/// guards is written so that a request *missing* the attribute is refused
+/// rather than sailing past a condition Cedar would skip for erroring. That is
+/// the whole point of writing it `!(x has y) || …` instead of `x has y && …`,
+/// and no case tells the two apart, because every case's request carries the
+/// attribute (below).
+/// `a_request_missing_a_context_attribute_is_refused_with_no_schema_to_catch_it`
+/// tells them apart only where its one request lacks the attribute a guard
+/// reads, `policy_epoch` and `actor_chain_depth` among them; this asks it of
+/// every guard a `forbid` reads, against that policy's own denial cases.
+/// `core.budget_is_a_permission` written the other way round would stop
+/// refusing an agent whose entity carries no `budget_remaining`.
 ///
-/// It could not be a case. Every attribute named here — `now`, `via_agent`,
-/// `actor_chain_depth`, `policy_epoch`, `budget_remaining`, `sensitivity`,
-/// `source` — is declared **required** by `policy/schema.cedarschema`, and a
-/// case's request and the world's entities are both built against the schema,
-/// which refuses to omit a required key. So the branch is unreachable *with the
-/// schema on*, which is exactly why it kept passing, and exactly why the guard
-/// is worth having: the decision point that forgets to pass a schema is the one
-/// it holds the line for.
+/// It cannot be a case. Every attribute named here
+/// — `now`, `via_agent`, `actor_chain_depth`, `policy_epoch`,
+/// `budget_remaining`, `sensitivity`, `source` — is declared **required**
+/// by `policy/schema.cedarschema`, and a case's request and the world's
+/// entities are both built against the schema, which refuses to omit a required
+/// key. So the branch is unreachable *with the schema on*, which is exactly why
+/// no case proves it, and exactly why the guard is worth having: the decision
+/// point that forgets to pass a schema is the one it holds the line for.
 ///
 /// So the proof is direct, and it is the one `decide_without_a_schema`'s own
 /// doc describes: build the request with the attribute gone and no schema to
@@ -2955,7 +2965,8 @@ fn branches_nothing_notices(
 ///
 /// Each guard is proven twice, because `Deny` on its own proves nothing — Cedar
 /// denies by default, so a request nothing permits denies whatever the guard
-/// says. The same request **with** the attribute must be permitted first.
+/// says. The same request **with** the attribute, and without this policy,
+/// must be permitted first.
 fn guards_fail_closed(
     pack: &Pack,
     name: &str,
@@ -2976,25 +2987,25 @@ fn guards_fail_closed(
         return problems;
     }
     // **The policy's own denial cases, not any permitted request.** Asked
-    // against a request the pack merely permits, four guards reported fail-open
-    // and were not: a `forbid` that does not apply to a request is not a guard
+    // against a request the pack merely permits, four guards report fail-open
+    // and are not: a `forbid` that does not apply to a request is not a guard
     // that failed, it is a rule about something else. What has to hold is
-    // narrower and is the thing that broke — a request **this policy denies**
-    // must still be denied when the attribute is gone.
+    // narrower and is the thing that can break — a request **this policy
+    // denies** must still be denied when the attribute is gone.
     let mine: Vec<&Case> = cases
         .iter()
         .filter(|case| case.because.as_deref() == Some(name))
         .collect();
     if mine.is_empty() {
         // **A finding, because this is a different question from coverage.**
-        // This used to return silently, on the argument that the denial-coverage
-        // gate already reports a policy with no case — but that gate asks
-        // whether a case *exists*, and this needs one that says `because =
-        // "<this policy>"`. Retype a `because` and coverage stays green while
-        // every guard in the policy stops being proven, with `inspected` simply
-        // getting smaller: a filter between the subject and the counter, which
-        // `xtask/canaries/README.md` names as the shape a printed number cannot
-        // show.
+        // Returning silently, on the argument that the denial-coverage gate
+        // already reports a policy with no case, is wrong: that gate asks
+        // whether a case *exists*, and this needs one that says
+        // `because = "<this policy>"`. Retype a `because` and coverage stays
+        // green while every guard in the policy stops being proven, with
+        // `inspected` simply getting smaller: a filter between the subject and
+        // the counter, which `xtask/canaries/README.md` names as the shape a
+        // printed number cannot show.
         problems.push(Problem {
             file: pack.origins.get(name).cloned().unwrap_or_default(),
             line: 0,
@@ -3013,17 +3024,17 @@ fn guards_fail_closed(
         return problems;
     }
     // **The counter is the last statement a verdict reaches, not the first
-    // statement of the body.** `*inspected += 1` stood at the top of this loop,
-    // so one line below it turned the whole proof off for a named policy with
-    // the printed number unchanged. Measured: `core.an_agent_never_impersonates`
+    // statement of the body.** At the top of this loop, `*inspected += 1` lets
+    // one line below it turn the whole proof off for a named policy with the
+    // printed number unchanged. Measured: `core.an_agent_never_impersonates`
     // flipped to its fail-open form is `guard-fails-open` and two red tests;
     // add `if name == "core.an_agent_never_impersonates" { continue; }` under
     // the counter and the policy step is byte-identical to a clean run —
     // `ok 40 case(s) … and 32 constraint(s) and condition(s) are pinned`. §14.6
     // then goes unasked for every decision point that omits `via_agent`.
     //
-    // `AGENTS.md` states this rule; it was written for this crate's coverage
-    // loop a round ago and not carried across to this one.
+    // `AGENTS.md` states this rule, and this crate's coverage loop follows it
+    // too.
     for (subject, attribute) in guards {
         let mut proven = 0_usize;
         for case in &mine {
@@ -3036,12 +3047,12 @@ fn guards_fail_closed(
                 continue;
             }
             // **And this policy must be what denies it.** Cedar denies by
-            // default, so a request nothing permits is denied whatever the guard
-            // says — and every denial case is such a request until proven
+            // default, so a request nothing permits is denied whatever the
+            // guard says — and every denial case is such a request until proven
             // otherwise. Measured: with `core.grant_not_expired` flipped to its
-            // fail-open form and `now` removed, the answer was still `Deny`,
-            // because no permit reaches that request at all. The proof was
-            // green against a rule that had been switched off.
+            // fail-open form and `now` removed, the answer is still `Deny`,
+            // because no permit reaches that request at all — a proof green
+            // against a rule that has been switched off.
             //
             // So the case is used only if taking this policy *out of the pack*
             // makes the request `Allow`. Then `Deny` with the policy in is this
@@ -3187,11 +3198,11 @@ fn decide_case(pack: &Pack, case: &Case, gone: Option<(&str, &str)>) -> Result<S
 
 /// Every attribute a policy reads, whatever guards it.
 ///
-/// **Not the guard's spelling.** This asked for `!(x has y) ||` and the defect
-/// it exists to catch *deletes that text* — flipping the guard to
-/// `x has y &&` left nothing for the rule to look at, so the proof passed on a
-/// policy that had just been switched off. A gate keyed to the shape of the
-/// thing it guards is a gate the fix for that thing removes.
+/// **Not the guard's spelling.** Asking for `!(x has y) ||` fails because the
+/// defect it exists to catch *deletes that text* — flipping the guard
+/// to `x has y &&` leaves nothing for the rule to look at, so the proof passes
+/// on a policy that has just been switched off. A gate keyed to the shape of
+/// the thing it guards is a gate the fix for that thing removes.
 ///
 /// So the subject is what the policy **dereferences**: every `context.x`,
 /// `principal.x`, `resource.x` and `context.grant.x` in its text. A request
@@ -3200,15 +3211,16 @@ fn decide_case(pack: &Pack, case: &Case, gone: Option<(&str, &str)>) -> Result<S
 /// whether there is one at all.
 fn attributes_read(rendered: &str) -> Vec<(String, String)> {
     let mut found = Vec::new();
-    // **Both spellings, because Cedar has two.** This matched `subject.name` and
+    // **Both spellings, because Cedar has two.** Matching `subject.name` and
     // not `subject["name"]`, which is the same dereference written the other
-    // way — so rewriting `!(principal has budget_remaining) ||
-    // principal.budget_remaining <= 0` as `principal["budget_remaining"] <= 0`
-    // left this returning nothing, `guards_fail_closed` returned before proving
-    // anything, and `check passed` with §14.6's budget rule failing open.
-    // Measured against the pack with no schema: `Allow` for the index form,
-    // `Deny` for the shipped one. Cedar's renderer keeps whichever the author
-    // wrote, so reading one spelling is reading half the language.
+    // way, means rewriting
+    // `!(principal has budget_remaining) || principal.budget_remaining <= 0` as
+    // `principal["budget_remaining"] <= 0` leaves this returning nothing,
+    // `guards_fail_closed` returns before proving anything, and `check passed`
+    // with §14.6's budget rule failing open. Measured against the pack with no
+    // schema: `Allow` for the index form, `Deny` for the shipped one. Cedar's
+    // renderer keeps whichever the author wrote, so reading one spelling is
+    // reading half the language.
     for subject in [
         "context.grant.",
         "context.grant[\"",
@@ -3234,18 +3246,19 @@ fn attributes_read(rendered: &str) -> Vec<(String, String)> {
                 .take_while(|c| c.is_alphanumeric() || *c == '_')
                 .collect();
             // **And the segment after it, because a path can be two deep.**
-            // `resource.owner.status` yielded `("resource", "owner")` and never
-            // `status`, so a guard written `!(resource has owner) ||
-            // resource.owner.status != "deceased"` was proven by removing
-            // `owner` — which it handles — and never by removing the attribute
-            // it actually reads. Measured against the pack with no schema:
+            // Read one deep, `resource.owner.status` yields `("resource",
+            // "owner")` and never `status`, so a guard written
+            // `!(resource has owner) || resource.owner.status != "deceased"` is
+            // proven by removing `owner` — which it handles — and never by
+            // removing the attribute it actually reads. Measured against the
+            // pack with no schema:
             // `Allow` with `status` gone, `Deny` for the shipped form, and
             // `check passed`. The entity stripper works by attribute name, so
             // naming the second segment is all this needs.
-            // **`.name` and `["name"]`, because Cedar has both here too.** The
-            // second segment was read only after a `.`, so `a["b"].c` fell
-            // between the two spellings — `context["grant"].source` yielded
-            // nothing and invariant 3 failed open with the gate silent.
+            // **`.name` and `["name"]`, because Cedar has both here too.** With
+            // the second segment read only after a `.`, `a["b"].c` falls
+            // between the two spellings — `context["grant"].source` yields
+            // nothing and invariant 3 fails open with the gate silent.
             let after = &rendered[at + subject.len() + attribute.len()..];
             let after = after.strip_prefix("\"]").unwrap_or(after);
             if let Some(second) = next_segment(after) {
@@ -3277,14 +3290,15 @@ fn attributes_read(rendered: &str) -> Vec<(String, String)> {
 
 /// The attribute name one dereference along, in either of Cedar's spellings.
 ///
-/// **Reading the second segment only after a `.` left two of the four paths
-/// through a two-deep read unwatched.** The spellings mix: `a.b["c"]` and
-/// `a["b"]["c"]` are the same read as `a.b.c`, and both came back with no
-/// second segment at all — so `guards_fail_closed` proved invariant 3 by
-/// removing `grant`, which the guard handles, and never `source`, which is what
-/// it reads. Measured against the pack with no schema, `context.grant["source"]
-/// == "delegation"` rewritten from the dotted form: `Allow` with `source` gone,
-/// `Deny` for the shipped form, and `check passed` throughout.
+/// **Reading the second segment only after a `.` leaves two of the four paths
+/// through a two-deep read unwatched.** The spellings mix: `a.b["c"]`
+/// and `a["b"]["c"]` are the same read as `a.b.c`, and read that way both come
+/// back with no second segment at all — so `guards_fail_closed` proves
+/// invariant 3 by removing `grant`, which the guard handles, and
+/// never `source`, which is what it reads. Measured against the pack with no
+/// schema, `context.grant["source"] == "delegation"` rewritten from the dotted
+/// form: `Allow` with `source` gone, `Deny` for the shipped form,
+/// and `check passed` throughout.
 fn next_segment(after: &str) -> Option<String> {
     let rest = after
         .strip_prefix('.')
@@ -3327,12 +3341,11 @@ fn without_attribute(world: &str, attribute: &str) -> Result<String, String> {
     };
     for entity in entities {
         if let Some(attributes) = entity.get_mut("attrs") {
-            // **Everywhere, not only at the top.** This removed top-level keys
-            // only, so the whole second-segment mechanism was a no-op for a
-            // record-valued attribute: the pair was "proven" by a removal that
-            // never happened. Latent while the schema declares no record
-            // attributes, and live the day one is added — which the comment
-            // this replaces assumed was already covered.
+            // **Everywhere, not only at the top.** Removing top-level keys
+            // only would make the whole second-segment mechanism a no-op for a
+            // record-valued attribute: the pair "proven" by a removal that
+            // never happens. Latent while the schema declares no record
+            // attributes, and live the day one is added.
             remove_everywhere(attributes, attribute);
         }
     }
@@ -3341,7 +3354,7 @@ fn without_attribute(world: &str, attribute: &str) -> Result<String, String> {
 
 /// Each branch *inside* a condition, and the policy with it reversed.
 ///
-/// One operator, chosen because a core invariant was defeated by exactly it with
+/// One operator, chosen because a core invariant is defeated by exactly it with
 /// the suite green. The other half of that finding — the `!(x has y) ||` guards
 /// — is proven directly by [`guards_fail_closed`] instead, because the request
 /// that notices it cannot be written as a case at all:
@@ -3360,13 +3373,13 @@ fn inside_a_conjunct(rendered: &str) -> Vec<(String, String)> {
             // Only inside a condition body: the scope's `principal == User::"…"`
             // is what the policy is *about*, and the widening loop is what tests
             // that. A `when`/`unless` body starts after the scope's `)`.
-            // **Inside a condition body, asked by walking the bodies.** This
-            // took the *last* `)` before the operator and looked for
-            // `when`/`unless` between them — so whenever the body itself holds
-            // parentheses, that paren is inside the body and the slice holds
+            // **Inside a condition body, asked by walking the bodies.** Taking
+            // the *last* `)` before the operator and looking for
+            // `when`/`unless` between them fails whenever the body itself holds
+            // parentheses: that paren is inside the body and the slice holds
             // neither word. Every guarded comparison in this pack is written
-            // `!(x has y) || x.y <op> v`, so every one was dropped: measured, 4
-            // flips proposed where there are 7.
+            // `!(x has y) || x.y <op> v`, so every one would be dropped:
+            // measured, 4 flips proposed where there are 7.
             if !in_a_condition_body(rendered, at) {
                 continue;
             }
@@ -3401,7 +3414,8 @@ fn inside_a_conjunct(rendered: &str) -> Vec<(String, String)> {
 ///
 /// The same walk `conjuncts` uses, asked of one position. Reading backwards for
 /// the nearest `)` cannot answer it, because a body may hold parentheses of its
-/// own — which is what made the scope filter drop every guarded comparison.
+/// own — which is what makes a scope filter reading backwards drop every
+/// guarded comparison.
 fn in_a_condition_body(rendered: &str, at: usize) -> bool {
     let mut from = 0_usize;
     while let Some((clause, open)) = ["\nwhen {", "\nunless {", "when {", "unless {"]
@@ -3557,10 +3571,11 @@ fn widenings(rendered: &str) -> Vec<(String, String)> {
     // **The scope's parenthesis, not the first one in the text.** Cedar renders
     // the annotations first, and every policy in this pack is *required* to
     // carry `@id("…")` — a policy without one is a hard failure. So the first
-    // `(` was always `@id`'s, every variant this built was `@id(principal)…`,
-    // `Policy::parse` refused all of them, and the `else { continue; }` at the
-    // call site swallowed the lot. **This check has never fired.** Measured, on
-    // the shipped pack: one widening per policy, each one unparseable.
+    // `(` is always `@id`'s: built from it, every variant is `@id(principal)…`,
+    // `Policy::parse` refuses all of them, the `else { continue; }` at the call
+    // site swallows the lot, and **the check never fires**. Measured, built
+    // from the first `(` on the shipped pack: one widening per policy, each
+    // one unparseable.
     //
     // ```text
     // @id("family.a_guardian_administers_the_realm")
@@ -3569,10 +3584,10 @@ fn widenings(rendered: &str) -> Vec<(String, String)> {
     // widenings -> [("`\"family.a_guardian_…\"`", "@id(principal)\npermit ( … ")]
     // ```
     //
-    // What that cost: dropping `action in [Action::"Grant", Action::"Revoke"]`
+    // What that costs: dropping `action in [Action::"Grant", Action::"Revoke"]`
     // to a bare `action` — which gives every guardian Read, Write, Delete and
     // Share over every resource in the realm, `restricted` content included —
-    // passed the whole gate green. That is verbatim the defect this function's
+    // passes the whole gate green. That is verbatim the defect this function's
     // own doc says it exists to catch.
     //
     // The effect keyword is what the scope belongs to, so the search starts
@@ -3582,8 +3597,8 @@ fn widenings(rendered: &str) -> Vec<(String, String)> {
         .or_else(|| rendered.find("\nforbid"))
         .map_or_else(
             || {
-                // No annotation rendered above it, which is the shape the unit
-                // tests below used to be written in.
+                // No annotation rendered above it, which is the shape a bare
+                // fixture has.
                 if rendered.starts_with("permit") || rendered.starts_with("forbid") {
                     Some(0)
                 } else {
@@ -3602,9 +3617,9 @@ fn widenings(rendered: &str) -> Vec<(String, String)> {
         return found;
     };
     // **Top-level commas only.** `action in [Action::"Grant", Action::"Revoke"]`
-    // holds one, so splitting on every comma gave four parts for three
-    // constraints — and every variant built from them failed to re-parse and was
-    // skipped, which is how the widening this check exists for went unreported.
+    // holds one, so splitting on every comma gives four parts for three
+    // constraints — every variant built from them fails to re-parse and is
+    // skipped, and the widening this check exists for goes unreported.
     let scope = &rendered[open + 1..open + close];
     let parts = top_level_parts(scope);
     for (index, part) in parts.iter().enumerate() {
@@ -3646,12 +3661,12 @@ fn pack_without(policies: &PolicySet, drop: impl Fn(&str) -> bool) -> Option<Pol
 /// Whether a case is about a principal or a resource `world.json` does not hold.
 ///
 /// **A ghost entity turns a `no_permit_matched` case into a test of Cedar's
-/// default.** That is the only kind of denial test criterion 11 accepts for a
-/// `permit`, and a nonexistent entity has no attributes — so the permit's
+/// default.** That is the only kind of denial test criterion 11 accepts for
+/// a `permit`, and a nonexistent entity has no attributes — so the permit's
 /// condition errors, Cedar skips it, and *"denied because nothing permitted
-/// it"* is trivially true. Measured on 2026-09-08, one character changed in
-/// `policy/packs/family/tests/permissions.toml`, `Content::"vault"` to
-/// `Content::"vault-typo"`:
+/// it"* is trivially true. Without this, one character changed
+/// in `policy/packs/family/tests/permissions.toml`, `Content::"vault"`
+/// to `Content::"vault-typo"`, prints:
 ///
 /// ```text
 /// ok    40 case(s) in 8 file(s) decide as written, and 38 constraint(s) and
@@ -3659,12 +3674,12 @@ fn pack_without(policies: &PolicySet, drop: impl Fn(&str) -> bool) -> Option<Pol
 /// ```
 ///
 /// — line for line what a clean run prints. And with a widening planted in the
-/// permit that case exists to hold, the pair together is *still* green, while
+/// permit that case exists to hold, the pair together stays green, while
 /// `restricted` content is readable by every household member and by the other
 /// realm's user. The widening alone is RED, which is what makes the typo the
 /// finding.
 ///
-/// The `forbid` half already had this protection from the other side —
+/// The `forbid` half has this protection from the other side —
 /// `denial-proves-nothing` re-runs with the policy removed — and it cannot
 /// stand in for this one: a request nothing permits is denied whether the
 /// forbids are there or not, and a ghost entity is always such a request.
@@ -3730,7 +3745,7 @@ fn build_request(pack: &Pack, case: &Case) -> Result<Request, String> {
 /// What the pack answers a request whose context is missing one attribute, with
 /// no schema to refuse it first.
 ///
-/// **The seam the gate could not reach.** `build_request` always passes
+/// **The seam the gate cannot reach.** `build_request` always passes
 /// `Some(&pack.schema)`, and the schema refuses a malformed context before any
 /// policy runs — so a policy that would have *errored* on a missing attribute,
 /// and been skipped by Cedar while a permit answered, looks identical here to
@@ -3744,17 +3759,16 @@ fn build_request(pack: &Pack, case: &Case) -> Result<Request, String> {
 /// only bite on an agent-mediated request, and dropping the attribute they read
 /// proves nothing about a request they were never going to judge.
 ///
-/// **A name this builder does not hold removed nothing, and said nothing.**
-/// `absent` was a `&str` compared against a fixed seven-key list, so a typo, a
-/// renamed attribute or an empty string handed the caller a *complete* request
-/// and the ordinary decision, with nothing in the answer to tell that from a
-/// removal. Measured on the shipped pack: `policy_epoch` answered `Deny` and
-/// `policy_epochh` answered `Allow`, and for one row the two were the same
-/// either way. Refusing an unknown name outright was measured and is too
-/// strong — it refuses the legitimate "remove nothing" call — so the absence is
-/// an `Option` and the complete decision comes back beside the reduced one,
-/// because a removal that changes nothing is a row proving nothing and only the
-/// caller can see that. Found in wave 31.
+/// **A name this builder does not hold removes nothing, and would say
+/// nothing.** With `absent` a `&str` compared against a fixed seven-key list, a
+/// typo, a renamed attribute or an empty string hands the caller a *complete*
+/// request and the ordinary decision, with nothing in the answer to tell that
+/// from a removal. Measured on the shipped pack with such a list: `policy_epoch`
+/// answers `Deny` and `policy_epochh` answers `Allow`, and for one row the two
+/// are the same either way. Refusing an unknown name outright is too strong — it refuses the
+/// legitimate "remove nothing" call — so the absence is an `Option` and the
+/// complete decision comes back beside the reduced one, because a removal that
+/// changes nothing is a row proving nothing and only the caller can see that.
 ///
 /// # Errors
 ///
@@ -3885,13 +3899,13 @@ mod narrowing {
 
     /// A policy whose annotation opens no line carries no marker.
     ///
-    /// **The anchor's fall-through reinstated the anchor it removed.** When no
-    /// `@id("<name>")` began a line, the reader fell back to the first *text*
-    /// occurrence — which is the anchor whose removal
-    /// [`super::references_marked`]'s own doc records, and which any sentence
-    /// naming the policy's id can move. Decided by nothing: every annotation
-    /// this pack ships opens its line, so the clause was never run and deleting
-    /// it left both suites green. A silent fall-through that fails open.
+    /// **The anchor's fall-through must not reinstate the anchor it
+    /// replaces.** When no `@id("<name>")` begins a line, falling back to the
+    /// first *text* occurrence — the anchor [`super::references_marked`]'s own
+    /// doc rejects, which any sentence naming the policy's id can move — fails
+    /// open, and every annotation this pack ships opens its line, so the pack
+    /// never runs the clause and, without this test, deleting it leaves both
+    /// suites green.
     ///
     /// What it must not do is refuse a marker on an ordinary policy, so both
     /// shapes are here: the annotation at the start of a line, and the same
@@ -3918,12 +3932,12 @@ mod narrowing {
 
     /// A marker's reason names the constraint it excuses, entity and all.
     ///
-    /// **Both directions, because this rule has been wrong in both.** It read
-    /// the subject and the operator and stopped, so a reason arguing about
-    /// `Device` excused a policy narrowed to `Agent` — a type appearing nowhere
-    /// in that file. Then it read only the span the reason opens with, so an
-    /// author who names the type first, which is how the sentence reads best,
-    /// was refused by a message telling them to quote what they had just quoted.
+    /// **Both directions, because this rule can be wrong in both.** Reading the
+    /// subject and the operator and stopping, a reason arguing about `Device`
+    /// excuses a policy narrowed to `Agent` — a type appearing nowhere in that
+    /// file. Reading only the span the reason opens with, an author who names
+    /// the type first, which is how the sentence reads best, is refused by a
+    /// message telling them to quote what they have just quoted.
     #[test]
     fn a_reason_names_the_entity_the_constraint_names() {
         for (accepted, reason) in [
@@ -3962,8 +3976,8 @@ mod narrowing {
         }
         // **And a type test may still carry the realm it renders beside.**
         // `principal is Agent in Realm::"home"` is one constraint with an extra
-        // word, not two entities, and refusing it is how this rule was wrong
-        // before.
+        // word, not two entities, and refusing it is one way for this rule to
+        // be wrong.
         assert!(quotes_the_constraint(
             "`principal is Agent in Realm::\"home\"` — the household's own agents",
             "principal is in",
@@ -3988,10 +4002,10 @@ mod narrowing {
 
         // **A list is a name too, and it is the whole list.** Cedar renders
         // `action in [Action::"Grant", Action::"Revoke"]` with an `entities`
-        // array, which `the_entity_named` read as naming nothing — so the only
-        // reason this rule could accept was one that stopped at the operator,
-        // and an author quoting the constraint off the policy's own first line
-        // was refused by a `fix` telling them to name what they had just named.
+        // array; read as naming nothing, the only reason this rule could
+        // accept would be one that stops at the operator, and an author quoting
+        // the constraint off the policy's own first line would be refused by a
+        // `fix` telling them to name what they have just named.
         // A reason for one verb of a two-verb list is a reason for a constraint
         // this policy does not have, and stays refused.
         let both = "Action::\"Grant\" Action::\"Revoke\"";
@@ -4017,9 +4031,9 @@ mod narrowing {
                 "`action in [Action::\"Grant\", Action::\"Delete\"]` — a pair this policy \
                  does not name",
             ),
-            // **And a list longer than the policy's**, which the subset rule
-            // accepted: a marker written for two verbs went on excusing the
-            // policy after it was rescoped to one, which is the drift a marker
+            // **And a list longer than the policy's**, which a subset rule
+            // accepts: a marker written for two verbs would go on excusing the
+            // policy after it is rescoped to one, which is the drift a marker
             // per constraint exists to catch.
             (
                 false,
@@ -4028,9 +4042,9 @@ mod narrowing {
             ),
             // **And a list an author spaces out.** The brackets and commas are
             // trimmed off each word, so `[ Action::"Grant" , Action::"Revoke" ]`
-            // leaves empty words behind them — and the filter that drops those
-            // was decided by no row, which is the frozen-not-covered shape this
-            // file carries elsewhere.
+            // leaves empty words behind them — and without this row the filter
+            // that drops those is decided by none, which is the
+            // frozen-not-covered shape this file carries elsewhere.
             (
                 true,
                 "`action in [ Action::\"Grant\" , Action::\"Revoke\" ]` — the two verbs *are* \
@@ -4052,18 +4066,17 @@ mod narrowing {
     /// **The reason a marker carries is not the same length as the reason a
     /// person reads.** `core.no_self_escalation`'s marker is followed, four
     /// lines down, by the sentence that explains why it is written at all: a
-    /// blanket exemption once let `core.provenance` be rescoped to
-    /// `action == Action::"Read"`. That sentence quotes the constraint it warns
-    /// *against*, and the whole comment run was one reason, so it excused
-    /// exactly that rescoping of the policy it sits on. Measured on 2026-09-11:
-    /// invariant 4 narrowed to `action == Action::"Read"` produced no
-    /// `core-narrows-by-entity-type` at all.
+    /// blanket exemption once let `core.provenance` be rescoped
+    /// to `action == Action::"Read"`. That sentence quotes the constraint it
+    /// warns *against*, and with the whole comment run as one reason, it
+    /// excuses exactly that rescoping of the policy it sits on. Measured:
+    /// invariant 4 narrowed to `action == Action::"Read"` produces
+    /// no `core-narrows-by-entity-type` at all.
     ///
     /// The first fixture below is that file's shape, reduced to the two lines
     /// that matter. The third is what this must not cost: the constraint named
-    /// after the type it is about, which is how the sentence reads best and is
-    /// what the earlier repair here was reverted for — one line, so both spans
-    /// are still on it.
+    /// after the type it is about, which is how the sentence reads best — one
+    /// line, so both spans are still on it.
     #[test]
     fn the_excuse_is_on_the_markers_own_line() {
         let warned = "// nc:narrows: `action in` — the action *is* the rule.\n\
@@ -4107,10 +4120,8 @@ mod narrowing {
     ///
     /// Goes through [`super::report_narrowings`] rather than
     /// [`super::narrows_itself`], because the rule under test is the *filter*
-    /// in front of it and nothing reached that filter before: `report_narrowings`
-    /// had no caller in this module, the shipped pack's one `forbid` carried no
-    /// narrowing, and the whole pack branch could be deleted with every test in
-    /// the workspace green.
+    /// in front of it, and this drives that filter over scopes no shipped floor
+    /// carries.
     fn floor_problems(scope: &str, relative: &str) -> Vec<String> {
         let text = format!("@id(\"pack.floor\")\nforbid (\n  {scope}\n);\n");
         let policy: Policy = text.parse().expect("the fixture parses");
@@ -4134,14 +4145,14 @@ mod narrowing {
     /// an ordinary pack rule. Naming an entity takes that entity's class
     /// partly out from under the floor, and the class is what a floor is for.
     ///
-    /// **The axis is not the line, and reading it as one was the defect.** The
-    /// rule reported `principal` narrowings only, on the argument that a pack
-    /// says which actions and resources it governs. `policy/core/README.md`
-    /// records the same argument being tried for the core and being a hole.
-    /// Measured on the shipped pack: rescoping its floor from `resource` to
-    /// `resource in Folder::"household"` left all four `ok` lines byte-identical
-    /// while restricted content in every other folder was shareable with no
-    /// quorum.
+    /// **The axis is not the line.** A rule reporting `principal` narrowings
+    /// only, on the argument that a pack says which actions and resources it
+    /// governs, repeats the argument `policy/core/README.md` records being a
+    /// hole for the core. Measured on the shipped pack with such a rule:
+    /// rescoping its floor on sharing from `resource` to
+    /// `resource in Folder::"household"` leaves all four `ok` lines
+    /// byte-identical while restricted content in every other
+    /// folder is shareable with no quorum.
     #[test]
     fn a_pack_floor_that_names_an_entity_is_reported() {
         /// A path under `policy/packs/`, which is what makes a `forbid` a
@@ -4172,8 +4183,9 @@ mod narrowing {
     /// Asserted against the filter rather than through a fixture policy,
     /// because the fixture schema declares no realm to scope into — the
     /// end-to-end path is [`super::narrows_itself`]'s own, which splits the two
-    /// operators and has the measurement that an invariant held in one realm
-    /// and was absent in every other one a device could be enrolled into.
+    /// operators and has the measurement that, unsplit, an invariant holds in
+    /// one realm and is absent in every other one a device can be enrolled
+    /// into.
     #[test]
     fn a_scoping_that_wears_a_type_tests_operator_is_not_a_type_test() {
         assert!(super::a_type_test("`principal is` in its scope"));
@@ -4190,12 +4202,12 @@ mod narrowing {
     /// A pack's floor narrowed in a `when` is reported, and a type test there is
     /// excused only as a guard.
     ///
-    /// The scope reader splits `is in` from `is` and has carried a paragraph
-    /// about why since a marker written for `principal is Agent` excused
-    /// `principal is Agent in Realm::"home"`. The condition reader rendered the
-    /// same shape as a bare type test, and once a pack's floor was allowed to be
-    /// a type test that made `resource is Content in Folder::"household"` in a
-    /// `when` invisible — measured on the shipped floor, every `ok` line
+    /// The scope reader splits `is in` from `is`, and its paragraph says why: a
+    /// marker written for `principal is Agent` would otherwise excuse
+    /// `principal is Agent in Realm::"home"`. A condition reader rendering the
+    /// same shape as a bare type test, with a pack's floor allowed to be a type
+    /// test, makes `resource is Content in Folder::"household"` in a `when`
+    /// invisible — measured on the shipped floor, every `ok` line
     /// byte-identical, and no case able to see it because the shipped world has
     /// exactly one folder.
     ///
@@ -4230,10 +4242,10 @@ mod narrowing {
             condition_problems("resource is User && resource.realm == \"home\"").is_empty(),
             "a pack rule may say what kind of thing it governs, beside what it reads"
         );
-        // **One that guards nothing is not.** The exemption covered every type
-        // test in a condition, so a floor rewritten as `(principal.status ==
-        // "suspended" && resource is Content)` held for one kind of resource and
-        // printed the policy block byte-identical. The same test belongs in the
+        // **One that guards nothing is not.** An exemption covering every type
+        // test in a condition lets a floor rewritten as `(principal.status ==
+        // "suspended" && resource is Content)` hold for one kind of resource and
+        // print the policy block byte-identical. The same test belongs in the
         // scope, and in a condition it is reported: alone, beside a read of
         // another subject, and negated.
         for condition in [
@@ -4261,8 +4273,8 @@ mod narrowing {
     ///
     /// A core invariant holds for every principal, every action and every
     /// resource the schema declares — including every *type* — so the type-test
-    /// exemption above must not reach it. Written because the exemption was
-    /// added for packs and the two branches share one loop.
+    /// exemption above must not reach it. Held here because the exemption is
+    /// for packs and the two branches share one loop.
     #[test]
     fn the_type_test_exemption_does_not_reach_a_core_invariant() {
         let found = floor_problems(
@@ -4275,7 +4287,7 @@ mod narrowing {
         );
     }
 
-    /// One policy, parsed — which is what the check reads now.
+    /// One policy, parsed — which is what the check reads.
     fn parsed(scope: &str, condition: &str) -> Policy {
         format!("permit(\n  {scope}\n) when {{ {condition} }};")
             .parse()
@@ -4284,9 +4296,9 @@ mod narrowing {
 
     /// Whether the check reports this policy as narrowing itself, and how.
     ///
-    /// **Every narrowing, not the first.** The function returned one, so a
-    /// policy with two — a marked scope constraint and an unmarked one beside
-    /// it — reported only the one the loop reached first.
+    /// **Every narrowing, not the first.** Returning one, a policy with two — a
+    /// marked scope constraint and an unmarked one beside it — would report
+    /// only the one the loop reaches first.
     fn narrows(scope: &str, condition: &str) -> Option<String> {
         narrows_itself(&parsed(scope, condition), SCHEMA)
             .into_iter()
@@ -4310,10 +4322,10 @@ mod narrowing {
     #[test]
     fn a_scope_splits_at_its_top_level_commas() {
         // `action in [Action::"Grant", Action::"Revoke"]` holds one, so
-        // splitting on every comma gave four parts for three constraints — and
-        // every variant built from them failed to re-parse and was skipped,
-        // which is how the widening `permit-constraint-untested` exists for went
-        // unreported by the check that was written to catch it.
+        // splitting on every comma gives four parts for three constraints — and
+        // every variant built from them fails to re-parse and is skipped, which
+        // is how the widening `permit-constraint-untested` exists for would go
+        // unreported by the check written to catch it.
         let parts = super::top_level_parts(
             "principal in Group::\"role.guardian\", action in [Action::\"Grant\", \
              Action::\"Revoke\"], resource",
@@ -4340,15 +4352,14 @@ mod narrowing {
             [] as [(std::string::String, std::string::String); 0]
         );
 
-        // **The shape the production path actually hands it**, which is the one
-        // this test did not have. Cedar renders the annotations first, and every
-        // policy in this pack is required to carry `@id("…")` — so the first `(`
-        // in a real rendering is `@id`'s, and this function was reading the id
-        // as the scope. It produced one unparseable variant per policy, the call
-        // site's `else { continue; }` swallowed it, and the check had never
-        // fired for any policy the loader accepts.
+        // **The shape the production path actually hands it.** Cedar renders
+        // the annotations first, and every policy in this pack is required to
+        // carry `@id("…")` — so the first `(` in a real rendering is `@id`'s.
+        // Read as the scope, it produces one unparseable variant per policy,
+        // the call site's `else { continue; }` swallows it, and the check never
+        // fires for any policy the loader accepts.
         //
-        // The fixture above has no annotation, so it was green about a shape
+        // The fixture above has no annotation, so it is green about a shape
         // nothing meets. Both are kept: the difference between them is the
         // defect.
         let annotated = "@id(\"pack.a_rule\")\npermit (\n  principal in Group::\"g\",\n  \
@@ -4379,13 +4390,13 @@ mod narrowing {
     fn a_constrained_scope_is_a_narrowing() {
         // A core invariant is written `forbid (principal, action, resource)` —
         // unconstrained, because it applies to everyone. These never touch a
-        // condition, so a rule reading only `when`/`unless` never saw them.
-        // **The action too.** It was excluded on the argument that an action
+        // condition, so a rule reading only `when`/`unless` never sees them.
+        // **The action too.** Excluding it, on the argument that an action
         // constraint is how a rule says what it governs — true of
-        // `core.no_self_escalation`, and measured to be a hole everywhere else:
-        // `core.provenance` rescoped to `action == Action::"Read"` gave every
-        // write a pass with no grant at all and passed the whole gate. The two
-        // policies that need one now carry `nc:narrows:` with the reason.
+        // `core.no_self_escalation` — is measured to be a hole everywhere else:
+        // `core.provenance` rescoped to `action == Action::"Read"` gives every
+        // write a pass with no grant at all and passes the whole gate. The two
+        // policies that need one carry `nc:narrows:` with the reason.
         for scope in [
             "principal, action == Action::\"Read\", resource",
             "principal, action in [Action::\"Grant\", Action::\"Revoke\"], resource",
@@ -4405,9 +4416,9 @@ mod narrowing {
 
     #[test]
     fn a_condition_narrows_however_it_is_spelled() {
-        // **Every one of these was a separate fix to a string matcher**, and the
-        // last of them — one token, neither `is` nor `has` — is what said the
-        // matcher was the wrong shape. Read from the EST, they are five node
+        // **Each of these would be a separate case for a string matcher**, and
+        // the last of them — one token, neither `is` nor `has` — is what says a
+        // matcher is the wrong shape. Read from the EST, they are five node
         // kinds rather than five spellings.
         for condition in [
             "principal is Agent",
@@ -4418,14 +4429,14 @@ mod narrowing {
             // And wrapped, because a narrowing inside an operator is still one.
             "true && principal is Agent",
             "!(resource is Content)",
-            // **The negated `has`, which was excused wherever it stood.** An
+            // **The negated `has`, which is not excused wherever it stands.** An
             // attribute only one entity type declares makes `!(x has y)` an
             // exact test for *is not that type* — so this is `resource is not a
             // Feature` in different words, and the early return written for the
-            // fail-closed disjunction `!(x has y) || x.y <op> v` covered it.
-            // Measured, appending one of these to `core.fail_closed` left
-            // invariant 1 off for every principal but a device with the whole
-            // gate green.
+            // fail-closed disjunction `!(x has y) || x.y <op> v` would cover it.
+            // Measured, appending one of these to `core.fail_closed` under that
+            // return leaves invariant 1 off for every principal but a device
+            // with the whole gate green.
             "!(principal has node_key)",
             "!(resource has tier)",
             "true && !(principal has node_key)",
@@ -4434,12 +4445,12 @@ mod narrowing {
             "!(principal has node_key) || resource is Content",
             "resource is Content || !(principal has node_key)",
             "principal is Agent || resource is Content",
-            // **The spellings a syntax-tree walk was supposed to make
-            // impossible**, and did not: the scan asked whether an operand *was*
-            // a bare variable and gave up on the whole node when it was not.
-            // Each of these is the same test as one above with a wrapper round
-            // it, and each loaded clean against the shipped schema — one of them
-            // turning `core.fail_closed`, invariant 1, off for every agent.
+            // **The spellings a syntax-tree walk has to make impossible.** A
+            // scan asking whether an operand *is* a bare variable, and giving
+            // up on the whole node when it is not, misses them: each of these
+            // is the same test as one above with a wrapper round it, and each
+            // loads clean against the shipped schema — one of them turning
+            // `core.fail_closed`, invariant 1, off for every agent.
             "(if true then principal else principal) is Agent",
             "(if true then principal else principal) has autonomy",
             "principal in [Group::\"role.guardian\"]",
@@ -4447,10 +4458,10 @@ mod narrowing {
             "resource in [Feature::\"gallery\"]",
             "principal == (if true then User::\"carla\" else User::\"ana\")",
             "principal.operator == User::\"ana\"",
-            // **The membership family this walk could not see at all**, because
-            // a `Set`'s body is a JSON array and the descent read only objects.
+            // **The membership family**, which a descent reading only objects
+            // cannot see: a `Set`'s body is a JSON array.
             // `[Agent::"a"].contains(principal)` is the same test as
-            // `principal == Agent::"a"`, and it turned invariant 1 off for
+            // `principal == Agent::"a"`, and unseen it turns invariant 1 off for
             // `Delete`, `Grant` and `Revoke` with the policy section green.
             "[Agent::\"a\"].contains(principal)",
             "[Agent::\"a\", Agent::\"b\"].containsAny([principal])",
@@ -4482,8 +4493,8 @@ mod narrowing {
             "if context.via_agent then true else false",
             // An attribute *every* entity type declares is not a type test.
             "principal has realm",
-            // **The fail-closed disjunction, which is why the negated `has` was
-            // ever excused.** The half beside the guard *uses* the value the
+            // **The fail-closed disjunction, which is where the negated `has` is
+            // excused.** The half beside the guard *uses* the value the
             // guard proved is there, and that is what makes the pair a floor
             // rather than a type test: the `forbid` then applies to a principal
             // whose type does not declare the attribute, which is what a floor
@@ -4499,11 +4510,11 @@ mod narrowing {
             "context.grant.reason != \"the principal is a device\"",
             // Comparing two values, neither of them an entity literal.
             "principal.realm == resource.realm",
-            // **A subject in one half and an entity in the other.** The operand
-            // rule gathered both across a boolean combinator, so these — each
-            // half individually accepted, and the second half being
-            // `core.no_self_escalation`'s own condition — were reported as
-            // turning the invariant off, naming `&&` as the operator.
+            // **A subject in one half and an entity in the other.** An operand
+            // rule gathering both across a boolean combinator reports these —
+            // each half individually accepted, and the second half being
+            // `core.no_self_escalation`'s own condition — as turning the
+            // invariant off, naming `&&` as the operator.
             "principal == principal && User::\"ana\" == User::\"ana\"",
             "principal == resource || (context has grant \
              && context.grant.granted_by == User::\"ana\")",
@@ -4518,9 +4529,10 @@ mod narrowing {
 
     #[test]
     fn every_scope_subject_is_examined_and_not_only_the_first() {
-        // **This returned at the first non-`All` subject**, so a marker excusing
-        // that one left the other two unexamined — measured, eight of nine scope
-        // constraints added across the marked core policies went unreported.
+        // **Every subject, not the first non-`All` one.** Returning at the
+        // first, a marker excusing that one leaves the other two unexamined —
+        // measured, eight of nine scope constraints added across the marked
+        // core policies unreported.
         // `forbid (principal, action == Action::"Delete", resource is Content)`
         // means deleting a `User` or a `Feature` needs no quorum, which is the
         // file's own worked example moved from the condition to the scope.
@@ -4552,8 +4564,8 @@ mod narrowing {
 
     #[test]
     fn the_shipped_schema_answers_both_ways() {
-        // **The rule was measured returning `false` for every attribute**, which
-        // makes the `has` branch fire on everything and the exemption it grants
+        // **A rule returning `false` for every attribute** makes the `has`
+        // branch fire on everything and the exemption it grants
         // unreachable — a check that always says yes decides nothing. Both
         // answers have to be reachable against the schema that ships, or this is
         // a rule with one outcome.
@@ -4569,8 +4581,7 @@ mod narrowing {
         // at all, and the three principal types share none. Every `has` in a
         // core invariant is a type test today, which is the safe direction. It
         // is written down here because a branch with no instance is otherwise
-        // indistinguishable from a branch that does not work, and this one was
-        // reported as the second.
+        // indistinguishable from a branch that does not work.
         for discriminating in ["realm", "budget_remaining", "autonomy", "node_key", "tier"] {
             assert!(
                 !super::declared_by_every_entity(&schema, discriminating),
@@ -4611,11 +4622,11 @@ mod narrowing {
 
     #[test]
     fn a_comment_in_the_schema_is_not_an_entity_declaration() {
-        // `declared_by_every_entity` counted three of the schema's own sentences
-        // as types — two borrowed a neighbouring attribute block and one
-        // incremented the count without reading a block at all, which is the
-        // only reason it never returned `true`. A comment was load-bearing for
-        // whether a core invariant could narrow itself.
+        // Reading comments, `declared_by_every_entity` counts three of the
+        // schema's own sentences as types — two borrow a neighbouring attribute
+        // block and one increments the count without reading a block at all —
+        // and then never returns `true`: a comment load-bearing for whether a
+        // core invariant can narrow itself.
         let commented = "// never as an entity with a schema of its own\nentity User = { \"realm\": String };\n";
         assert!(!without_line_comments(commented).contains("never as an entity"));
         assert!(without_line_comments(commented).contains("entity User"));
@@ -4626,12 +4637,12 @@ mod narrowing {
 mod the_mutation_that_would_not_build {
     /// A proposed variant that will not parse is reported, not counted.
     ///
-    /// **`mutation-unbuildable` was the last of `nc-policy`'s thirty checks with
-    /// no case.** Its own doc says "Zero today; what this asserts is that it
-    /// stays zero" — and nothing asserted that it would report one: deleting the
-    /// body left the suite green. The number it guards is what stands behind
-    /// `condition-untested` and `branch-untested`, because a mutation that never
-    /// compiled is a mutation no case could have noticed.
+    /// **`mutation-unbuildable` has a case here.** Its own doc says "Zero
+    /// today; what this asserts is that it stays zero" — and without this
+    /// nothing asserts that it would report one: deleting the body leaves the
+    /// suite green. The number it guards is what stands
+    /// behind `condition-untested` and `branch-untested`, because a mutation
+    /// that never compiled is a mutation no case could have noticed.
     ///
     /// It is a pure function of a count, so the case is a call.
     #[test]
@@ -4659,15 +4670,14 @@ mod the_dereference_excuse {
     /// Every conjunct shape the dereference excuse is asked about, and what
     /// it answers.
     ///
-    /// Out of the test it drives because the test was 109 lines and clippy's
-    /// limit is 100 — the table is the thing worth reading, so the table is
-    /// what got the name.
+    /// Out of the test it drives because inline the test is past clippy's
+    /// limit of 100 lines — the table is the thing worth reading, so the table
+    /// is what has the name.
     const THE_SHAPES_THE_EXCUSE_IS_ASKED_ABOUT: [(&str, &str, bool); 21] = [
-        // **The shape the excuse is for, and the four it is not.** Measured
-        // by a reviewer in wave 14: each of the last four was excused by the
-        // nine-shape list, and the table had no row at all in which this
-        // branch answered `true`, so the shape it exists for was pinned by
-        // nothing either.
+        // **The shape the excuse is for, and the four it is not.** Measured:
+        // each of the last four is excused by a nine-shape list, and without
+        // the first row the branch answers `true` in no row at all, so the
+        // shape it exists for would be pinned by nothing either.
         (
             "!(context has via_agent) || context.via_agent",
             "when { !(context has via_agent) || context.via_agent }",
@@ -4697,22 +4707,19 @@ mod the_dereference_excuse {
         (
             "!(context has policy_epoch) || context.policy_epoch <= 0",
             "when { !(context has policy_epoch) || context.policy_epoch <= 0 }",
-            // **Not excused any more.** The guard is on the left and an
-            // ordinary predicate is on the right, and a predicate is a
-            // clause a case can decide. Excusing the pair whole put this
-            // clause outside the mutation, so `condition-untested` could
-            // not be reached by a guarded conjunct while
-            // `guards_fail_closed` claimed every unguarded one — between
-            // them the verdict had no reachable input on a core policy.
-            // Narrowing it raised the pinned count from 32 to 35 with no
-            // new finding: all three clauses it freed are held by cases.
+            // **Not excused.** The guard is on the left and an ordinary
+            // predicate is on the right, and a predicate is a clause a case can
+            // decide. Excusing the pair whole puts this clause outside the
+            // mutation, so `condition-untested` cannot be reached by a guarded
+            // conjunct while `guards_fail_closed` claims every unguarded one —
+            // between them the verdict has no reachable input on a core policy.
+            // Not excusing it frees three clauses, all of them held by cases.
             false,
         ),
-        // **A `has` that guards nothing is a condition, not a guard.** This
-        // row asserted `true` and was the place the weaker behaviour was
-        // written down: a `has` with no dereference anywhere in the policy,
-        // excused out of the mutation loop. Its sibling row two below has
-        // always held the same rule for `is`.
+        // **A `has` that guards nothing is a condition, not a guard.**
+        // Excused, a `has` with no dereference anywhere in the policy leaves
+        // the mutation loop. Its sibling row two below holds the same rule
+        // for `is`.
         ("resource has owner", "when { resource has owner }", false),
         // And the same clause where something does read the attribute,
         // which is what the excuse is for: the `has` is there so the line
@@ -4722,16 +4729,16 @@ mod the_dereference_excuse {
             "when { resource has owner && resource.owner == principal }",
             true,
         ),
-        // **And an attribute that merely starts with this one.** `contains`
-        // read `resource.owner_id` as a dereference of `owner`.
+        // **And an attribute that merely starts with this one.** A `contains`
+        // would read `resource.owner_id` as a dereference of `owner`.
         (
             "resource has owner",
             "when { resource has owner && resource.owner_id == principal }",
             false,
         ),
         // **And an annotation, which reads nothing.** `to_string` renders
-        // one verbatim, so prose naming the path satisfied this excuse and
-        // took the conjunct out of the mutation loop.
+        // one verbatim, so prose naming the path would satisfy this excuse and
+        // take the conjunct out of the mutation loop.
         (
             "resource has owner",
             "@doc(\"resource.owner\")\npermit(principal, action, resource)\nwhen { resource has owner };",
@@ -4744,8 +4751,8 @@ mod the_dereference_excuse {
             "when { resource has owner && resource.kind == \"resource.owner\" }",
             false,
         ),
-        // And the same two shapes on the `is` branch, which asked the raw
-        // render until wave 13.
+        // And the same two shapes on the `is` branch, which reads the same
+        // spent render.
         (
             "principal is User",
             "@doc(\"principal.status\")\npermit(principal, action, resource)\nwhen { principal is User };",
@@ -4757,8 +4764,8 @@ mod the_dereference_excuse {
             false,
         ),
         // **And a conjunct that is not single, which is what `single`
-        // decides.** Widening the `has` branch to require a dereference left
-        // `let single = !text.contains("&&")` surviving mutation: with
+        // decides.** With the `has` branch requiring a dereference, and without
+        // this row, `let single = !text.contains("&&")` survives mutation: with
         // `single = true` this row is excused — one ` has `, and the
         // attribute *is* read beside it — while the clause is two tests, the
         // second of which is an ordinary predicate a case can decide.
@@ -4767,14 +4774,14 @@ mod the_dereference_excuse {
             "when { resource has owner && resource.owner == principal }",
             false,
         ),
-        // **And the branch `single` actually decides, which is the `is`
-        // one.** Widening the `has` branch to require a dereference made
-        // `single` redundant there — the attribute it reads out of a
-        // two-test conjunct is never a path the policy holds — and
-        // `let single = !text.contains("&&")` then survived mutation. Here
-        // it is load-bearing: with `single = true` this conjunct is excused
-        // as a type guard while it is two tests, the second of which is an
-        // ordinary predicate a case can decide.
+        // **And the branch `single` actually decides, which is the `is` one.**
+        // With the `has` branch requiring a dereference, `single` is redundant
+        // there — the attribute it reads out of a two-test conjunct is never a
+        // path the policy holds — and `let single = !text.contains("&&")`
+        // survives mutation on it. Here it is load-bearing: with
+        // `single = true` this conjunct is excused as a type guard while it is
+        // two tests, the second of which is an ordinary predicate a case can
+        // decide.
         (
             "principal is User && principal.status == \"active\"",
             "when { principal is User && principal.status == \"active\" }",
@@ -4818,13 +4825,14 @@ mod the_dereference_excuse {
 
     /// The one excuse that skips a conjunct, on both of its answers.
     ///
-    /// **It had no test at all**, and `condition-untested` — the finding it
-    /// suppresses — appears in exactly one place in this repository: where it is
-    /// produced. So `if true { return true; }` at the top of this function
-    /// excused every conjunct, took the pinned count from 28 to 21, and let
+    /// **An excuse that answers `true` to everything turns the mutation off.**
+    /// `condition-untested` is the finding it suppresses, so
+    /// `if true { return true; }` at the top of this function excuses every
+    /// conjunct, takes each one out of the pinned count, and lets
     /// `core.fail_closed` grow `&& !(context has via_agent && context.via_agent)`
-    /// with `check passed` — every agent-mediated request out from under the
-    /// fail-closed rule, reported by nothing.
+    /// with no case deciding it — every agent-mediated request out from under
+    /// the fail-closed rule. This holds each shape below to its answer, and
+    /// `a_condition_no_case_decides_is_reported` watches the finding fire.
     ///
     /// A guard is a clause that makes the *next* clause legal to write: `x has y`
     /// before `x.y`, `x is T` before `x.field`. Anything else is a condition, and
@@ -4844,19 +4852,19 @@ mod the_dereference_excuse {
 
     /// An attribute inside a set is removed too.
     ///
-    /// **`remove_everywhere`'s `Array` arm was driven by nothing.**
-    /// `policy/world.json` declares no set-valued attribute, so the recursion is
-    /// never handed one — found by instrumenting all 146 loop and closure bodies
-    /// in these four crates and running the suite once: 137 fired, and this was
-    /// one of the two real cold sites. The arm can be deleted with nothing red,
-    /// which makes `guards_fail_closed`'s proof a no-op the day a set attribute
-    /// is added: the attribute would still be there, the guard would still read
-    /// it, and "denies with the attribute gone" would be answered about a world
-    /// where it is not gone.
+    /// **`remove_everywhere`'s `Array` arm is driven here and nowhere
+    /// else.** `policy/world.json` declares no set-valued attribute, so the
+    /// pack never hands the recursion one — instrumenting all 146 loop and
+    /// closure bodies in these four crates and running the suite once shows 137
+    /// firing, and this as one of the two real cold sites. Without this the arm
+    /// can be deleted with nothing red, which makes `guards_fail_closed`'s
+    /// proof a no-op the day a set attribute is added: the attribute would
+    /// still be there, the guard would still read it, and "denies with the
+    /// attribute gone" would be answered about a world where it is not gone.
     ///
-    /// The sibling comment one level up records fixing exactly this shape —
+    /// The sibling comment one level up argues exactly this shape —
     /// *"Everywhere, not only at the top … Latent while the schema declares no
-    /// record attributes"* — and this arm arrived without a case.
+    /// record attributes"* — and this is the arm's case.
     #[test]
     fn an_attribute_inside_a_set_is_removed_too() {
         let mut world: serde_json::Value = serde_json::from_str(

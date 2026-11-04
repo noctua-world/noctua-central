@@ -42,10 +42,10 @@ rust-version = "1.96"
 # dependency is added in the change that first needs it, with the paragraph that
 # justifies it (`NOCTUA.md §2.3`).
 #
-# **One is the second kind today, and saying "every entry is used" was
-# false.** `noctua-design` is Stage 16's: it is declared here so that the crate
-# taking it writes one line rather than a version, which is the whole point of
-# this table, and what it is not is resolved — `cargo` never builds it at all.
+# **One is the second kind today, so "every entry is used" is not a claim this
+# table makes.** `noctua-design` is Stage 16's: it is declared here so that the
+# crate taking it writes one line rather than a version, which is the whole point
+# of this table, and what it is not is resolved — `cargo` never builds it at all.
 # `check` says "the design system's manifest is at …" rather than "resolves",
 # for exactly that reason.
 #
@@ -73,7 +73,7 @@ nc-canon = { path = "crates/nc-canon" }
 # **No TLS feature at all.** `docker-compose.yml` binds PostgreSQL to
 # `127.0.0.1` and `NOCTUA.md §18.5` puts the store on the same machine as the
 # platform, so the connection never crosses a network. `rustls`, `ring` and
-# Mozilla's CA bundle are in the graph now, for the kernel's `net.fetch`
+# Mozilla's CA bundle are in the graph, for the kernel's `net.fetch`
 # (`ureq` below), and that changes nothing here: this feature would be one
 # more trust store and handshake wired into a socket that never leaves the
 # machine, to encrypt loopback.
@@ -82,10 +82,10 @@ nc-canon = { path = "crates/nc-canon" }
 # **in the change that needs it**, which is this repository's rule for every
 # dependency (`§2.3`).
 # **`macros` is on, and the promise above is about which macros are used.**
-# The paragraph said "no `query!` macros" and a reader took it as "the `macros`
-# feature is off"; `AGENTS.md` said so outright. It is not off, and it cannot
-# be: `sqlx::migrate!` — which is how `migrations/` is embedded at compile time,
-# needing no database — comes from `macros`, and removing the feature fails as
+# "No `query!` macros" does not mean "the `macros` feature is off". It is not
+# off, and it cannot be: `sqlx::migrate!` — which is how `migrations/` is
+# embedded at compile time, needing no database — comes from `macros`, and
+# removing the feature fails as
 # `cannot find `migrate` in `sqlx``.
 #
 # What the promise is really about is the `query!` family, which checks SQL
@@ -101,7 +101,7 @@ nc-canon = { path = "crates/nc-canon" }
 # `&'static str` and `sqlx::AssertSqlSafe(..)` implement, so a schema, a role or
 # a table name `format!`ted into a statement does not compile until it is
 # wrapped — and the wrap is a claim the compiler takes on trust.
-# `gates::ASSERTED_STATEMENTS` is where each file's claim was read: how many
+# `gates::ASSERTED_STATEMENTS` is where each file's claim is recorded: how many
 # statements it vouches for and every value their text is built from, held to
 # the tree in both directions by the same walk as the query gate. **What the
 # compiler leaves open is listed on `gates::Asserted`, with how each is held**,
@@ -111,7 +111,7 @@ nc-canon = { path = "crates/nc-canon" }
 # plain `&str` and are read the way a wrap is, so one built from values needs a
 # row; and two that nothing holds — a `String` leaked into a `&'static str`,
 # and the migrator's own table and schema names, which no migrator here sets.
-# Two things changed underneath: a PostgreSQL error's `Display` now ends
+# Two more things follow from 0.9: a PostgreSQL error's `Display` ends
 # `at line N`, a line of the server's C source, so a sentence for a person is
 # composed from `DatabaseError::message()`; and the SQLite `sqlx` bundles is chosen by
 # `Cargo.lock`, not by this line — `sqlx-sqlite` accepts `libsqlite3-sys`
@@ -250,7 +250,7 @@ wit-bindgen = { version = "0.61.1", default-features = false, features = ["macro
 # `ComponentEncoder` reads the worlds embedded in the module and refuses an
 # import none of them describes. **Every world, not the plugin's**: a dependency
 # with bindings of its own embeds another, the encoder merges them, and
-# `wasip2`'s `wasi:random` import was measured encoding without a word — so
+# `wasip2`'s `wasi:random` import, measured, encodes without a word — so
 # `xtask/src/plugins.rs` decodes the component with this crate's `decode` and
 # holds each import to the world `plugin` itself. It has no default features
 # today, and `default-features = false` keeps it that way when a release adds
@@ -268,10 +268,10 @@ wit-component = { version = "0.258.0", default-features = false }
 # turns them on for itself; nothing here asks this line for them.
 wit-parser = { version = "0.258", default-features = false, features = ["std"] }
 
-# The HTTPS client behind `net.fetch` (`NOCTUA.md §11.3`), the one way a plugin
-# reaches the network — decided with the developer on 2026-09-28: real HTTPS,
-# with the kernel owning every rule about what may be asked and this crate only
-# carrying a request the kernel already judged. **Blocking, and small**: no
+# The HTTPS client behind `net.fetch` (`NOCTUA.md §4` [CLOSED], `§11.3`), the
+# one way a plugin reaches the network: real HTTPS, with the kernel owning every
+# rule about what may be asked and this crate only carrying a request the
+# kernel already judged. **Blocking, and small**: no
 # runtime of its own, so the kernel runs it on the blocking pool under the host
 # call's deadline, and a resolver and a configuration the kernel replaces —
 # `crates/nc-kernel/src/net/ureq.rs` dials only public addresses, and turns off
@@ -331,11 +331,12 @@ serde = { version = "1.0", features = ["derive"] }
 # **`preserve_order`, declared rather than inherited.** `serde_json::Map` is a
 # sorted `BTreeMap` unless this feature is on, and the catalog emitter writes
 # `Command::arguments` "in the order `args_schema` declares them" — a sentence
-# that was true only because `cedar-policy-core`, reached through `nc-policy`,
-# happens to turn the feature on for the whole graph. Built without `nc-policy`
-# in it, the same emitter over the same catalog wrote `["dry_run", "table"]`
-# where the committed file says `["table", "dry_run"]`, and both determinism
-# gates ran inside one binary and could not see it. An emitter whose output
+# that, without this line, is true only because `cedar-policy-core`, reached
+# through `nc-policy`, happens to turn the feature on for the whole graph. Built
+# that way without `nc-policy` in it, the same emitter over the same catalog
+# writes `["dry_run", "table"]` where the committed file says
+# `["table", "dry_run"]`, and both determinism gates run inside one binary and
+# cannot see it. An emitter whose output
 # depends on the feature set of whatever links it is an emitter whose output is
 # not a function of its input.
 serde_json = { version = "1.0", features = ["preserve_order"] }

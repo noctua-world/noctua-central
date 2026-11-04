@@ -2,11 +2,11 @@
 //!
 //! Every `*.toml` under any `tests/` directory, read into one list.
 //!
-//! **Not paired by file name**, though two comments used to say so — renaming
-//! `policy/core/tests/fail_closed.toml` to anything at all keeps the gate green. The
-//! real mechanism is stronger: coverage is attributed by `@id`, through
-//! `Pack::origins`, so a policy moved to another file keeps its denial test and
-//! a file holding two policies is understood as holding two.
+//! **Not paired by file name** — renaming `policy/core/tests/fail_closed.toml`
+//! to anything at all keeps the gate green. The real mechanism is stronger:
+//! coverage is attributed by `@id`, through `Pack::origins`, so a policy moved
+//! to another file keeps its denial test and a file holding two policies is
+//! understood as holding two.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -63,10 +63,10 @@ struct Written {
     /// case denied because the verb is outside the list has, by definition, a
     /// verb the permit never allows.
     ///
-    /// Which left every action list in the pack pinned by nothing. Widening
-    /// `action in [Action::"Grant", Action::"Revoke"]` to a bare `action` gives
-    /// every guardian Read, Write, Delete and Share over every resource in the
-    /// realm — and passed the whole gate green.
+    /// Without it, every action list in the pack is pinned by
+    /// nothing. Widening `action in [Action::"Grant", Action::"Revoke"]` to a
+    /// bare `action` gives every guardian Read, Write, Delete and Share over
+    /// every resource in the realm — and passes the whole gate green.
     ///
     /// So a case may say that the action is what it is testing. The pairing
     /// then asks for the same permit allowing the same two entity types on
@@ -82,11 +82,11 @@ struct Written {
     /// permit never allows — and the pairing, which asks for an `allow` on the
     /// same two entity types, could not be satisfied by any request at all.
     ///
-    /// Which left the type test pinned by nothing, and a type test nothing pins
-    /// is one that can be deleted in silence. Measured on 2026-09-29 by a
-    /// reviewer: `family.a_member_steps_through_their_own_history` shipped
-    /// without its `principal is User`, a note beside it saying no request could
-    /// show the type test working, and an attested device and an agent both
+    /// Without it, the type test is pinned by nothing, and a type test nothing
+    /// pins is one that can be deleted in
+    /// silence. Measured: `family.a_member_steps_through_their_own_history`
+    /// without its `principal is User`, beside a note saying no request could
+    /// show the type test working, leaves an attested device and an agent both
     /// allowed to write the realm — the undo and redo of a person's history.
     ///
     /// So a case may say that the principal is what it is testing. The pairing
@@ -309,12 +309,12 @@ fn judge(relative: &str, written: &Written, line: usize, problems: &mut Vec<Prob
     // **A boundary flag is a claim about a boundary, and only a
     // `no_permit_matched` case has one.** Both flags are judged where the
     // pairing is, and that loop reads `no_permit_matched` cases alone. On an
-    // `allow`, or on a denial a `forbid` caused, a flag was a claim no code
-    // evaluated, and the census in `xtask/src/policy.rs` shipped
-    // `/boundary=principal` beside an `Allow`. Measured by a reviewer: the flag
-    // on the history permit's `allow` case left the policy block unchanged and
-    // `check passed`, and on a `because` case `cargo test -p nc-policy` stayed
-    // green.
+    // `allow`, or on a denial a `forbid` caused, a flag would be a claim no
+    // code evaluates, and the census in `xtask/src/policy.rs` would print
+    // `/boundary=principal` beside an `Allow`. Measured without this refusal:
+    // the flag on the history permit's `allow` case leaves the policy block
+    // unchanged and `check passed`, and on a `because` case
+    // `cargo test -p nc-policy` stays green.
     let flags: Vec<&str> = [
         (
             written.the_action_is_the_boundary,
@@ -373,9 +373,9 @@ fn parse(relative: &str, text: &str) -> Result<Vec<Case>, Vec<Problem>> {
     let mut cases = Vec::new();
     for written in file.cases {
         // **The declaration, not the name.** A case name is a sentence, and a
-        // sentence can open another: `line_of` answered with the *first* line
-        // holding the text, so a case whose name begins an earlier one was filed
-        // against that earlier case. Asking for the line that declares it is one
+        // sentence can open another: `line_of` answers with the *first* line
+        // holding the text, so asked by name, a case whose name begins an
+        // earlier one would be filed against that earlier case. Asking for the line that declares it is one
         // needle rather than a rule about which occurrence to take, and a case
         // file that writes the key some other way reports line zero — which
         // `every_case_reports_the_line_its_name_is_declared_on` refuses over the

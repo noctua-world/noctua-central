@@ -31,8 +31,8 @@
 //! a decoder is compiled in — `gzip` and `brotli` are its features, and its
 //! defaults turn the first on — and its limit counts the bytes under the
 //! decoder, so one answer at the bound would be read whole however large it
-//! inflates. Measured by a reviewer with `gzip` on: 33,665 bytes on the wire,
-//! 34,603,008 handed on against a bound of 33,554,432, at 1027 to 1. So no
+//! inflates. Measured with `gzip` on: 33,665 bytes on the wire, 34,603,008
+//! handed on against a bound of 33,554,432, at 1027 to 1. So no
 //! decoder is built, no encoding is asked for, and both are held — by the wire
 //! test below, and by `xtask` reading the features cargo resolves for ureq. **An answer with more
 //! headers than ureq's parser holds is too large**, as one past
@@ -61,7 +61,7 @@
 //! `ureq::unversioned`, which a minor release may change.
 //!
 //! **Measured on the public network, which no test of this tree reaches**, in
-//! the spike of 2026-09-28 against ureq 3.4.2 (the gate must not depend on the
+//! a spike against ureq 3.4.2 (the gate must not depend on the
 //! network, so the evidence is written here): google.com answered `301` with
 //! its `location`, and nothing was followed; github.com's `404` was an answer;
 //! example.com under a head bound of 256 bytes was refused as a head too
@@ -132,9 +132,9 @@ const HEAD_BYTES: usize = 65_536;
 /// The default ureq ships, written out beside [`HEAD_BYTES`] because the two
 /// are one bound: **a head past this is never refused as one** — ureq stops
 /// making progress, and the read fails as a network that did not answer, which
-/// a plugin is told it may retry. A reviewer measured it so with `HEAD_BYTES`
-/// raised to a megabyte, the gate green: a 70,000-byte head read whole, and a
-/// 200,000-byte one told as `[NC-PLUG-0015]`.
+/// a plugin is told it may retry. Measured with `HEAD_BYTES` raised to a
+/// megabyte: a 70,000-byte head is read whole, and a 200,000-byte one told
+/// as `[NC-PLUG-0015]`.
 const INPUT_BYTES: usize = 131_072;
 
 /// The transport a daemon sends a plugin's fetch with: HTTPS to a public
@@ -293,10 +293,10 @@ fn unwritable(refused: &http::Error) -> TransportError {
 /// What a request that did not complete is told, whatever stopped it.
 ///
 /// **One sentence, so the failure tells nothing of the address.** ureq's own
-/// text told a closed port (`Connection refused`) from an open one that spoke
-/// no TLS to it (`received corrupt message`), and a reviewer, resolving a
-/// declared name to this machine's own global IPv6 address, read which ports
-/// of it were listening from the sentence a plugin is handed.
+/// text tells a closed port (`Connection refused`) from an open one that speaks
+/// no TLS to it (`received corrupt message`), so with a declared name resolving
+/// to this machine's own global IPv6 address, which ports of it are listening
+/// can be read from ureq's sentence.
 const UNANSWERED: &str = "the request did not complete: no answer came from the host it names, \
                           in time and in HTTP over TLS";
 
@@ -504,7 +504,7 @@ mod tests {
     /// holds, is too large, and anything else — no name, a timeout, a
     /// connection that failed, an answer that is not HTTP — is a request that
     /// did not complete, told in the one sentence and never in ureq's words,
-    /// which told a closed port from an open one.
+    /// which tell a closed port from an open one.
     #[test]
     fn what_ureq_could_not_do_is_told_as_the_kernel_tells_it() {
         assert!(matches!(
@@ -566,8 +566,8 @@ mod tests {
     /// order each first appears — what `http`'s map holds, and the one order
     /// HTTP gives a meaning to (RFC 9110 §5.3).
     ///
-    /// A reviewer found the documents saying more — the plugin's order, the
-    /// host's — while a name written around another was regrouped both ways.
+    /// No more than that: a name written around another is regrouped both ways,
+    /// so neither the plugin's order nor the host's is kept.
     #[test]
     fn headers_are_kept_grouped_by_name_with_each_names_values_in_order() {
         let request = to_example(
@@ -955,9 +955,9 @@ mod tests {
     /// An answer whose head is past [`HEAD_BYTES`] is too large over the wire,
     /// naming the head — one just past it, and one past [`INPUT_BYTES`] too.
     ///
-    /// **Written by a reviewer (wave 5, net)**: no test sent one, the error
-    /// being built by hand, and `HEAD_BYTES` raised past ureq's input buffer
-    /// left the whole gate green.
+    /// **Sent over the wire, not built by hand**: with `HEAD_BYTES` raised past
+    /// ureq's input buffer, a test building the error by hand would still pass,
+    /// and this fails.
     #[test]
     fn an_answer_whose_head_is_past_its_bound_is_too_large_on_the_wire() {
         let get = to_example(Method::Get, &[], None);
@@ -977,9 +977,8 @@ mod tests {
     /// none beside it: the kernel's name is what a request says it is from
     /// only when the plugin says nothing.
     ///
-    /// **From a reviewer's probe (wave 5, net)**, which found `AGENTS.md`
-    /// promising the kernel's name on every request. The sentence says what
-    /// is sent now, and this holds the transport to it.
+    /// **What `AGENTS.md` says is sent**: the kernel's name only when the plugin
+    /// sets no `User-Agent`, and this holds the transport to it.
     #[test]
     fn a_user_agent_the_plugin_sets_is_sent_instead_of_the_kernels_name() {
         let request = judged(
@@ -1010,8 +1009,8 @@ mod tests {
     /// wire carried it, whatever encoding it names, and no request asks for
     /// one: the body bound counts what the plugin is handed.
     ///
-    /// **A reviewer found nothing holding it**: with ureq's `gzip` feature
-    /// turned on and the gate green, a compressed answer was read whole
+    /// **Held on the wire, beside `xtask`'s check of ureq's features**: with
+    /// ureq's `gzip` feature turned on, a compressed answer would be read whole
     /// through the bound, which counts the bytes under the decoder.
     #[test]
     fn an_encoded_answer_is_handed_on_as_the_wire_carried_it() {
@@ -1118,8 +1117,8 @@ mod tests {
     /// the kernel refuses it again; past that, ureq refuses to parse it, and
     /// the refusal is told as an answer too large — the code the kernel's own
     /// bound gives — and never as a network that did not answer, which a
-    /// plugin is told to ask again for ever. Found by a reviewer: an answer of
-    /// 129 headers was `[NC-PLUG-0015]`, and was logged as nothing.
+    /// plugin is told to ask again for ever. Told as a protocol error, an
+    /// answer of 129 headers would be `[NC-PLUG-0015]`, and logged as nothing.
     #[test]
     fn an_answer_with_more_headers_than_the_transport_parses_is_too_large() {
         let bound = usize::try_from(KERNEL.net_header_count).expect("fits");

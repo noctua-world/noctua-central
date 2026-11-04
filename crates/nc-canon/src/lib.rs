@@ -59,19 +59,18 @@ pub enum Value {
     Object(BTreeMap<String, Value>),
 }
 
-/// **Every one of these is iterative**, and the derives they replace were not.
+/// **Every one of these is iterative**, and a derive would not be.
 ///
-/// `Value::write` and [`Value::drop`] were made iterative because a deeply
-/// nested value aborted the process — `fatal runtime error: stack overflow` in
-/// the function every journal entry and every log line goes through. The three
-/// derived traits recurse for exactly the same reason and were left alone, so
-/// the hazard survived the fix in a quieter place: measured, `Value::clone`,
-/// `==` and `{:?}` all abort at about two thousand levels, and
-/// `Entry::chain` reaches `clone` through `hashed_form` with no bound anywhere
-/// between a caller and the crash.
+/// A deeply nested value walked by recursion aborts the process —
+/// `fatal runtime error: stack overflow` in the function every journal entry
+/// and every log line goes through — which is why `Value::write` and
+/// [`Value::drop`] are loops. The three derived traits recurse for exactly the
+/// same reason: derived, `Value::clone`, `==` and `{:?}` all abort at about two
+/// thousand levels, and `Entry::chain` reaches `clone` through `hashed_form`
+/// with no bound anywhere between a caller and the crash.
 ///
 /// The variants are public, so any caller can build one. That is the whole
-/// argument, and it does not stop at the two functions that were noticed first.
+/// argument, and it holds for every function that walks a value.
 impl Clone for Value {
     fn clone(&self) -> Self {
         /// What the walk still has to do.
@@ -225,8 +224,8 @@ impl Value {
     /// one.** `match value { Value::Text(held) => held, … }` is
     /// `error[E0509]: cannot move out of type Value, which implements the Drop
     /// trait` — and the `Drop` is there on purpose, to dismantle a deep value
-    /// without recursing. Every caller was therefore obliged to `clone()`, with
-    /// nothing saying so. These three take the contents and leave the value
+    /// without recursing. Without these, every caller is obliged to `clone()`,
+    /// with nothing saying so. These three take the contents and leave the value
     /// behind.
     #[must_use]
     pub fn into_text(mut self) -> Option<String> {
@@ -289,10 +288,10 @@ impl Value {
     /// **An explicit stack, and that is not a style choice.** [`parse()`] bounds
     /// its depth at [`parse::MAX_DEPTH`] because a recursive-descent parser on
     /// adversarial input is a stack overflow — and this, on the other side of
-    /// the same crate, had no bound at all. A `Value` nested a few hundred deep
-    /// (which any caller may build; the variants are public) aborted the process
-    /// with `fatal runtime error: stack overflow`, in the function every journal
-    /// entry and every log line goes through.
+    /// the same crate, has no bound at all. Written recursively, a `Value` nested
+    /// a few hundred deep (which any caller may build; the variants are public)
+    /// aborts the process with `fatal runtime error: stack overflow`, in the
+    /// function every journal entry and every log line goes through.
     fn write(&self, out: &mut String) {
         // Popped in order, so each is pushed after what must follow it.
         enum Step<'a> {
@@ -356,11 +355,10 @@ impl Drop for Value {
     /// Dismantles the value without recursing.
     ///
     /// **The derived drop is recursive, and a drop cannot return an error.** So
-    /// a deeply nested value aborted the process on the way *out* even after the
-    /// writer stopped recursing on the way in — same signal, same stack, one
-    /// scope later. It is the quieter half of the same hazard: nothing in the
-    /// source says "recurse here", which is why it survived the fix to
-    /// `Value::write`.
+    /// with it a deeply nested value aborts the process on the way *out* even
+    /// though the writer does not recurse on the way in — same signal, same
+    /// stack, one scope later. It is the quieter half of the same hazard:
+    /// nothing in the source says "recurse here".
     ///
     /// Children are moved into a flat stack and each value then drops holding
     /// none, so the recursion is one level deep whatever the value is.
@@ -406,18 +404,17 @@ fn write_string(text: &str, out: &mut String) {
             // defers string escaping to ECMAScript, whose `UnicodeEscape` is
             // "a four-digit **lowercase** hexadecimal number" — and this crate's
             // whole premise is that interoperating with a specification that
-            // exists beats inventing one. `{:04X}` here was invisible: measured
-            // on 2026-09-08, one character changed, `cargo run --quiet -p xtask
-            // -- check --offline` answered `check passed` at `ok 1219 test(s)`
-            // with the report `diff`-identical to a clean run, and `U+000B`
-            // became `\u000B`. Nothing saw it because the only escape any test
-            // named was `U+0001`, whose four digits hold no hex letter, and
-            // `parse::hex4` accepts either case — so the round trip and
-            // `canonical_form_is_a_fixed_point` both survive. `to_hex` beside
-            // this has a whole test about lower case being load-bearing;
-            // this is the same argument in the escape that goes into every
-            // digest. `a_control_character_is_escaped_in_the_case_the_specification_writes`
-            // is what holds it now.
+            // exists beats inventing one. Without the test named below,
+            // `{:04X}` here — one character changed — leaves
+            // `cargo xtask check --offline` passing with its report
+            // `diff`-identical to a clean run, while `U+000B` becomes `\u000B`:
+            // an escape of `U+0001` alone holds no hex letter in its four
+            // digits, and `parse::hex4` accepts either case — so the round trip
+            // and `canonical_form_is_a_fixed_point` both survive. `to_hex` beside
+            // this has a whole test about lower case being load-bearing; this is
+            // the same argument in the escape that goes into every digest.
+            // `a_control_character_is_escaped_in_the_case_the_specification_writes`
+            // is what holds it.
             control if control < '\u{20}' => {
                 let _ = write!(out, "\\u{:04x}", control as u32);
             }
@@ -459,8 +456,8 @@ pub fn hash(domain: &str, value: &Value) -> [u8; 32] {
 ///
 /// **A message that names a control character must not contain one.** Several
 /// refusals in this fleet exist *because* a newline or a quote would forge a
-/// line or a field — and each of them wrote the offending character out raw, so
-/// the one place that names it was the one place it appeared. `§15.1` asks a
+/// line or a field — and one that wrote the offending character out raw would
+/// make the one place that names it the one place it appears. `§15.1` asks a
 /// diagnostic to point at an exact location, and a message with a line break in
 /// it does not.
 ///
@@ -468,10 +465,10 @@ pub fn hash(domain: &str, value: &Value) -> [u8; 32] {
 /// comes back as `U+XXXX`** — which is what a person would have to look up
 /// anyway.
 ///
-/// This said "printable characters come back as themselves", and that is false
-/// for the two characters the function exists for. `"` and `\` are printable
-/// and both are escaped, because both are what would end a field or a line in
-/// the formats this crate writes:
+/// "Printable characters come back as themselves" is false for the two
+/// characters the function exists for. `"` and `\` are printable and both are
+/// escaped, because both are what would end a field or a line in the formats
+/// this crate writes:
 ///
 /// ```text
 /// shown('a')  = "a"        shown('"')  = "U+0022"
@@ -479,19 +476,19 @@ pub fn hash(domain: &str, value: &Value) -> [u8; 32] {
 /// shown('\'') = "'"        shown('\n') = "U+000A"
 /// ```
 ///
-/// The test that pinned it hand-picked `'a'`, `'Z'`, `'9'`, `'é'`, `'—'`, `' '`,
-/// `'/'`, `'\''` and `'中'` — nine ordinary characters, and neither of the two
-/// this is written for.
+/// So the tests hold both: `'a'`, `'Z'`, `'9'`, `'é'`, `'—'`, `' '`, `'/'`,
+/// `'\''` and `'中'` are nine ordinary characters, and neither of the two this
+/// is written for.
 ///
 /// # Which characters
 ///
 /// `char::is_control` is the Unicode `Cc` category, and **that is not the set of
 /// characters that end a line**. `U+2028 LINE SEPARATOR` and `U+2029 PARAGRAPH
 /// SEPARATOR` are `Zl` and `Zp`, so `is_control` says no to both — and this
-/// repository has already named all three together, in `OpaqueId`'s refusal and
-/// in the naming rules. A function whose whole purpose is that a diagnostic
-/// cannot be broken across lines had two of the three ways to break one still
-/// passing straight through it.
+/// repository names all three together, in `OpaqueId`'s refusal and in the
+/// naming rules. A function whose whole purpose is that a diagnostic cannot be
+/// broken across lines would, on `is_control` alone, let two of the three ways
+/// to break one pass straight through it.
 #[must_use]
 pub fn shown(character: char) -> String {
     if is_unsafe_in_a_message(character) {
@@ -529,10 +526,10 @@ pub fn to_hex(bytes: &[u8]) -> String {
 /// Why some text is not lowercase hex.
 ///
 /// An enum rather than a `char`, because the three failures are different and a
-/// `char` could only express one of them: an odd length was encoded as the null
-/// character — a magic value — and a non-ASCII character was reported as its
-/// first UTF-8 *byte* reinterpreted as Latin-1, which is a character the input
-/// does not contain.
+/// `char` could only express one of them: an odd length would be encoded as the
+/// null character — a magic value — and a non-ASCII character as its first
+/// UTF-8 *byte* reinterpreted as Latin-1, which is a character the input does
+/// not contain.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HexError {
     /// Hex is two characters per byte, and this had an odd number.
@@ -552,9 +549,9 @@ pub enum HexError {
 impl HexError {
     /// The catalog code this maps to.
     ///
-    /// It had none, and the manifest said every error in this crate carries one.
-    /// `from_hex` is how a hash is read back out of a database row, so a failure
-    /// here is a failure the central log has to be queryable by (`§15.1`).
+    /// The manifest says every error in this crate carries one. `from_hex` is
+    /// how a hash is read back out of a database row, so a failure here is a
+    /// failure the central log has to be queryable by (`§15.1`).
     #[must_use]
     pub const fn code(self) -> nc_catalog::ErrorCode {
         nc_catalog::ErrorCode::CanonUnparsable
@@ -567,20 +564,19 @@ mod hex_error_tests {
 
     #[test]
     fn a_failure_reading_a_hash_back_is_reported_under_this_crates_area() {
-        // The method had no caller at all, so the mapping it declares was never
-        // exercised by anything. What matters about it is not that it compiles —
+        // Nothing else calls the method, so this is what exercises the mapping
+        // it declares. What matters about it is not that it compiles —
         // `ErrorCode` is an enum, so that much is free — but that a hash which
         // will not read back is reported under *this* crate's area, where a
         // responder chasing it will look (`NOCTUA.md §15.1`).
-        // **The code, not only the area.** `CANON` has two codes and the
-        // assertion below read only the first half of one: measured on
-        // 2026-09-08, `CanonUnparsable` replaced by `CanonNumber`,
-        // `cargo run --quiet -p xtask -- check --offline` answered
-        // `check passed` at `ok 1219 test(s)` with the report `diff`-identical
+        // **The code, not only the area.** `CANON` has two codes, and an
+        // assertion on the area alone reads only the first half of one: with
+        // `CanonUnparsable` replaced by `CanonNumber`,
+        // `cargo xtask check --offline` passes with its report `diff`-identical
         // to a clean run — an unreadable digest reported as *"A payload holds a
-        // number this model cannot represent"*. The sibling mapping,
-        // `ParseError::code`, is pinned code by code in `properties.rs`; two
-        // mappings in one crate, one held to the code and one only to the area.
+        // number this model cannot represent"*. The sibling mapping, `ParseError::code`, is pinned
+        // code by code in `properties.rs`, so both mappings in this crate are
+        // held to the code.
         for error in [
             HexError::OddLength { length: 3 },
             HexError::NotHex {
@@ -648,9 +644,9 @@ mod messages_are_one_line {
 
     #[test]
     fn the_two_places_that_reach_a_reader_carry_the_rule() {
-        // **The rule is only worth having where it is used.** `shown` was correct
-        // and its two call sites had no test in this crate at all, so a refusal
-        // that stopped calling it would have gone out with a raw newline in it.
+        // **The rule is only worth having where it is used.** A correct `shown`
+        // with untested call sites lets a refusal that stops calling it go out
+        // with a raw newline in it.
         for bad in WOULD_FORGE {
             // An even number of characters, so the length arm does not answer
             // first and leave the arm under test unreached.
@@ -666,9 +662,9 @@ mod messages_are_one_line {
                 "from_hex's refusal does not name what it refused: {message}"
             );
         }
-        // **The other call site**, which had none: `parse`'s duplicate-key
-        // refusal is the one message a caller-supplied key reaches, and
-        // replacing its `shown` with the key itself left the whole workspace
+        // **The other call site**: `parse`'s duplicate-key refusal is the one
+        // message a caller-supplied key reaches, and without this loop replacing
+        // its `shown` with the key itself would leave the rest of the workspace
         // green. A key is where a control character arrives from outside.
         for bad in WOULD_FORGE {
             let document = format!("{{\"a{}b\":1,\"a{}b\":2}}", escaped(bad), escaped(bad));
@@ -721,15 +717,14 @@ mod deep_values {
             Value::Array(vec![Value::Null, nested(5), Value::Null]).depth(),
             6
         );
-        // **And the same of an object, which nothing asked.** Every object this
-        // sentence was written against had one key per level, so a walk that
-        // followed only the first value of each — `fields.values().take(1)` —
-        // answered the same for all of them, and the whole workspace stayed
-        // green. Measured: a resource whose deep branch sits under its *second*
-        // key reported `depth() = 2` against a real 67, and
-        // `nc_journal::readable_record` — the one thing between a caller and a
-        // row that, once written, makes the journal unreadable for ever, because
-        // the trigger refuses `DELETE` — answered `Ok`.
+        // **And the same of an object.** Over objects with one key per level, a
+        // walk that follows only the first value of each —
+        // `fields.values().take(1)` — answers the same for all of them. Such a
+        // walk reports `depth() = 2` for a resource whose deep branch sits
+        // under its *second* key, against a real 67, and
+        // `nc_journal::readable_record` — which stands between a caller and a
+        // row that, once written, makes the journal unreadable for ever,
+        // because the trigger refuses `DELETE` — then answers `Ok`.
         //
         // Both directions, so a `.skip(1)` walk is caught too.
         assert_eq!(
@@ -744,12 +739,13 @@ mod deep_values {
 
     #[test]
     fn nothing_a_caller_can_do_with_a_deep_value_aborts_the_process() {
-        // **Four operations, not two.** `write` and `drop` were made iterative
-        // after a deep value aborted with `fatal runtime error: stack overflow`;
-        // `Clone`, `PartialEq` and `Debug` were still derived, so the same
-        // hazard survived in three quieter places. Measured at the time: all
-        // three aborted at about two thousand levels, and `Entry::chain` reaches
-        // `clone` through `hashed_form` with nothing bounding it.
+        // **Four operations, not two.** `write` and `drop` are iterative
+        // because a deep value walked by recursion aborts with
+        // `fatal runtime error: stack overflow`; derived, `Clone`, `PartialEq`
+        // and `Debug` carry the same hazard in three quieter places. Measured:
+        // all three, derived, abort at about two thousand levels, and
+        // `Entry::chain` reaches `clone` through `hashed_form` with nothing
+        // bounding it.
         //
         // Ten thousand, not sixty-five: the point is that no depth reaches any
         // of them.
@@ -766,12 +762,12 @@ mod deep_values {
 
     #[test]
     fn writing_a_value_far_deeper_than_the_parser_reads_does_not_abort_the_process() {
-        // **`to_canonical` had no depth bound and recursed.** A `Value` nested a
-        // few hundred deep — which any caller can build, since the variants are
-        // public — aborted the process with `fatal runtime error: stack
-        // overflow`, in the function every journal entry and every log line goes
-        // through. `parse::MAX_DEPTH`'s own doc names that exact hazard, on the
-        // other side of the same crate.
+        // **`to_canonical` has no depth bound.** Written recursively, a `Value`
+        // nested a few hundred deep — which any caller can build, since the
+        // variants are public — aborts the process with `fatal runtime error:
+        // stack overflow`, in the function every journal entry and every log
+        // line goes through. `parse::MAX_DEPTH`'s own doc names that exact
+        // hazard, on the other side of the same crate.
         //
         // Ten thousand, not sixty-five: the point is that no depth reaches it.
         let canonical = nested(10_000).to_canonical();
@@ -787,9 +783,9 @@ mod deep_values {
         assert_eq!(parse(&written).expect("at the limit"), at_the_limit);
 
         // Past it, the writer still writes and the parser still refuses — which
-        // is the asymmetry that bricked the journal. Nothing here can close it;
-        // what closes it is the caller refusing to *store* such a value, which
-        // `nc_journal` now does. This test exists so the asymmetry is a stated
+        // is the asymmetry that can brick the journal. Nothing here can close
+        // it; what closes it is the caller refusing to *store* such a value,
+        // which `nc_journal` does. This test exists so the asymmetry is a stated
         // fact rather than a surprise.
         let past_it = nested(parse::MAX_DEPTH + 2);
         let written = past_it.to_canonical();
@@ -859,14 +855,14 @@ mod tests {
 
     /// Every arm and both separators of the hand-written `Debug`.
     ///
-    /// **It was written as a work stack and driven by nothing.** The impl is an
-    /// explicit `Vec<Step>` rather than the derive, and the only reason to
-    /// write one that way is to print a value too deeply nested to recurse
-    /// through — the same hazard `Value::write`, `Value::clone` and
-    /// `Value::drop` are iterative for. Measured, with two variant names
-    /// changed in the output and both `if index > 0` separators deleted, so
-    /// that `Array([1, 2])` printed as `Array([12])`: `cargo xtask check`
-    /// printed `check passed`.
+    /// **A work stack, held arm by arm.** The impl is an explicit
+    /// `Vec<Step>` rather than the derive, and the only reason to write one
+    /// that way is to print a value too deeply nested to recurse through — the
+    /// same hazard `Value::write`, `Value::clone` and `Value::drop` are
+    /// iterative for. Measured, with two variant names changed in the output
+    /// and both `if index > 0` separators deleted, so that `Array([1, 2])`
+    /// prints as `Array([12])`: without this test, `cargo xtask check`
+    /// prints `check passed`.
     ///
     /// What that costs is every diagnostic that prints a `Value`: a panic
     /// message, an assertion's left-hand side, a test failure. A separator is
@@ -920,8 +916,7 @@ mod tests {
     ///
     /// Ten thousand levels, the depth `clone`, `to_canonical` and `drop` are
     /// each already driven at above — the impl is a work stack for the same
-    /// reason they are loops, and it was the one of the four with nothing
-    /// behind the claim.
+    /// reason they are loops, and this is what stands behind its claim.
     ///
     /// Compared whole rather than by counting the opening brackets: a printer
     /// that wrote every `Array([` and then stopped would satisfy a count, and
@@ -959,18 +954,18 @@ mod tests {
 
     /// Nothing above U+001F is escaped, which is the other half of the rule.
     ///
-    /// **The complement was asserted for three characters.** U+0085, U+2028 and
-    /// U+2029 were pinned as written literally, and every other code point was
-    /// free: adding `'/' => out.push_str("\\/")` — the single most common
-    /// divergence between JSON writers, and what `json_encode` does without
-    /// `JSON_UNESCAPED_SLASHES` — left `check passed`, rustfmt clean and clippy
+    /// **The complement, for every code point.** With only U+0085, U+2028 and
+    /// U+2029 pinned as written literally, every other code point is free:
+    /// adding `'/' => out.push_str("\\/")` — the single most common divergence
+    /// between JSON writers, and what `json_encode` does without
+    /// `JSON_UNESCAPED_SLASHES` — leaves `check passed`, rustfmt clean and clippy
     /// clean, while producing a digest no conforming implementation agrees with.
     /// A `/` is in nearly every resource selector this journal stores.
     ///
     /// The likelier accident is U+007F: `is_unsafe_in_a_message` eighty lines
     /// below uses `char::is_control`, which is U+0000–U+001F **and**
     /// U+007F–U+009F, so anyone unifying the two predicates rebases every digest
-    /// ever written. That plant was green too.
+    /// ever written. Against three pinned characters, that plant is green too.
     ///
     /// This crate's premise is that interoperating with a specification that
     /// exists is worth more than inventing one, so the rule is the
@@ -978,15 +973,15 @@ mod tests {
     /// nothing else.
     #[test]
     fn nothing_a_specification_writes_literally_is_escaped() {
-        // **Every scalar value, because a list is a spelling.** The loop ran
-        // `0x20..=0xffff` — one plane of seventeen — and wave 13 widened it with
-        // seven code points past the BMP, which held the complement for seven
-        // and for none of the million beside them: a reviewer in wave 14 added
-        // an escape for U+1F601, one code point from the one the list held, and
-        // the crate stayed green with a digest no conforming implementation
-        // agrees with. The whole range costs 0.23s against 0.02s and needs no
-        // generator, so the list bought nothing. `char::from_u32` refuses the
-        // surrogate range, which is what the `else { continue }` is for.
+        // **Every scalar value, because a list is a spelling.** A loop over
+        // `0x20..=0xffff` would cover one plane of seventeen, and a list of
+        // seven code points past the BMP holds the complement for those seven
+        // and for none of the million beside them: an escape for U+1F601, one
+        // code point from a point on such a list, leaves the crate green with a
+        // digest no conforming implementation agrees with. The whole range
+        // costs 0.23s against 0.02s and needs no generator, so a list buys
+        // nothing. `char::from_u32` refuses the surrogate range, which is what
+        // the `else { continue }` is for.
         for code in 0x20_u32..=0x10_ffff {
             let Some(character) = char::from_u32(code) else {
                 continue;
@@ -1005,12 +1000,11 @@ mod tests {
 
     /// A hex failure names where it is, and not only the first character.
     ///
-    /// **Pinned at zero, which is where every wrong formula agrees.** The two
-    /// tests that read `HexError::NotHex`'s offset both offend at the first
-    /// character of the first pair, so `index * 2` could be `index`, and
-    /// `at + 1` could be `at`, with the whole crate green — and the reader is
-    /// told *"`z` at 3 is not a lowercase hex digit"*, which is an offset into
-    /// the input a person counts along. Named by a reviewer in wave 13.
+    /// **Not pinned at zero, which is where every wrong formula agrees.** A
+    /// test whose input offends at the first character of the first pair lets
+    /// `index * 2` be `index`, and `at + 1` be `at`, with the whole crate green
+    /// — and the reader is told *"`z` at 3 is not a lowercase hex digit"*,
+    /// which is an offset into the input a person counts along.
     #[test]
     fn a_hex_failure_names_where_it_is_and_not_only_the_first_pair() {
         let Err(HexError::NotHex { character, at }) = from_hex("00zz") else {
@@ -1040,9 +1034,9 @@ mod tests {
         assert_eq!(Value::text("a\u{8}b").to_canonical(), "\"a\\bb\"");
         assert_eq!(Value::text("a\"b\\c").to_canonical(), r#""a\"b\\c""#);
         // **All five short escapes, not two of them.** RFC 8785 names
-        // `\b \t \n \f \r` and this pinned `\n` and `\b`; the other three
-        // could fall through to the generic `\u00XX` form with the whole suite
-        // green, because the round trip still holds — `parse("a\u0009b")`
+        // `\b \t \n \f \r`, and with only `\n` and `\b` pinned the other
+        // three can fall through to the generic `\u00XX` form with the whole
+        // suite green, because the round trip still holds — `parse("a\u0009b")`
         // renders as `"a\u0009b"` again — and nothing else looks at the bytes.
         // The crate's premise is interoperating with a standard that exists, and
         // a digest over a payload holding a tab would then be one only this code
@@ -1109,16 +1103,15 @@ mod tests {
     fn two_domains_hash_one_value_differently() {
         let value = Value::Integer(1);
         assert_ne!(hash("journal.entry", &value), hash("journal.unit", &value));
-        // **And a domain this function may not normalise**, which nothing here
-        // could see. Every domain string in the workspace is lower-case,
-        // trimmed, unpadded ASCII — the journal entry's own versioned domain,
-        // `test`, `nc-canon.test`, `journal.entry`, `journal.unit`, `x`, `x-`,
-        // `ab`, `a` — so `to_lowercase`, `str::trim` and an ASCII filter were each the
-        // identity on all of them. Measured on 2026-09-08, one line added to
-        // `hash` (`let domain = domain.to_lowercase();`):
-        // `cargo run --quiet -p xtask -- check --offline` at `check passed`,
-        // `ok 1219 test(s)`, the report moving only in its raw source-line
-        // counters, with
+        // **And a domain this function may not normalise.** Every domain string
+        // in the workspace is lower-case, trimmed, unpadded ASCII — the journal
+        // entry's own versioned domain, `test`, `nc-canon.test`,
+        // `journal.entry`, `journal.unit`, `x`, `x-`, `ab`, `a` — so
+        // `to_lowercase`, `str::trim` and an ASCII filter are each the identity
+        // on all of them. Measured, one line added to `hash`
+        // (`let domain = domain.to_lowercase();`): without this test,
+        // `cargo xtask check --offline` passes, the report moving only in its
+        // raw source-line counters, with
         //
         // ```text
         // hash("Journal.Entry", Integer(1)) = 0fff8a45ac115421…
@@ -1126,10 +1119,10 @@ mod tests {
         // ```
         //
         // `a_domain_boundary_cannot_be_moved` proves the *boundary* cannot move
-        // and never that the domain reaches the hasher verbatim. This is the
-        // repair `tampering.rs` applied to the record's fields, applied to the
-        // domain of the hash function itself — `hash` is public API and later
-        // stages add domains.
+        // and never that the domain reaches the hasher verbatim. This is what
+        // `tampering.rs` holds of the record's fields, held of the domain of the
+        // hash function itself — `hash` is public API and later stages add
+        // domains.
         for (one, other) in [
             ("Journal.Entry", "journal.entry"),
             ("journal.entry ", "journal.entry"),
@@ -1151,7 +1144,7 @@ mod tests {
     #[test]
     fn every_control_character_is_escaped_deterministically() {
         // The property test covers this, but under-powered: with `U+0002`
-        // emitted raw it caught the defect in 7 of 12 default-sized runs, because
+        // emitted raw it catches the defect in 7 of 12 default-sized runs, because
         // the generator has to happen to draw that one character. A loop over the
         // range costs nothing and catches it every time.
         for code in 0x00_u32..=0x1f {
@@ -1174,8 +1167,8 @@ mod tests {
         // Both hex letters and both nibbles: `U+000B` puts one in the last
         // position, `U+001F` puts one there over a different high nibble, and
         // `U+000E` is the plain case beside them. An assertion over `U+0001`
-        // alone — which is what stood here — cannot tell the two cases apart at
-        // all, because none of its four digits is a letter.
+        // alone cannot tell the two cases apart at all, because none of its four
+        // digits is a letter.
         for (character, written) in [
             ('\u{b}', "\"\\u000b\""),
             ('\u{e}', "\"\\u000e\""),
@@ -1194,15 +1187,14 @@ mod tests {
         }
     }
 
-    /// Two hashes this crate has measured, byte for byte.
+    /// The hashes this crate has measured, byte for byte.
     ///
-    /// **The first two survivors `xtask/mutants.py` reported when `nc-canon` was
-    /// carried into it**, on 2026-09-08, and they are the same clause seen
-    /// twice: `hasher.update(&(domain.len() as u64).to_le_bytes())` replaced by
-    /// `&(0_u64).to_le_bytes()`, and the same for the payload's prefix, both
-    /// left `cargo test -q -p nc-canon` green at 46 and 11. A prefix whose value
-    /// is constant is not a length prefix — it is a separator, and what the
-    /// length is for is that a *caller-supplied* domain cannot forge one.
+    /// **Two survivors of `xtask/mutants.py` without it, and they are the same
+    /// clause seen twice:** `hasher.update(&(domain.len() as u64).to_le_bytes())`
+    /// replaced by `&(0_u64).to_le_bytes()`, and the same for the payload's
+    /// prefix, both leave `cargo test -q -p nc-canon` green. A prefix whose
+    /// value is constant is not a length prefix — it is a separator, and what
+    /// the length is for is that a *caller-supplied* domain cannot forge one.
     ///
     /// Every other property this crate asserts about `hash` is relational: two
     /// digests differ, or two agree. A relation cannot see a change that moves
@@ -1211,7 +1203,7 @@ mod tests {
     /// of a whole entry for exactly that reason and its own doc says so; this is
     /// the same instrument one crate down, over the function `nc-journal` calls.
     ///
-    /// The two vectors are measured rather than derived. Changing one means
+    /// The vectors are measured rather than derived. Changing one means
     /// changing what this crate writes into every hash chain in the system, and
     /// that is a decision rather than an edit.
     #[test]
@@ -1228,18 +1220,18 @@ mod tests {
                 "385add4100f2872175b515ea375feac98e7c7afc2d9df9fd472942bd12e9f2ee",
             ),
             // **One vector where a byte count and a character count differ.**
-            // Every digest pinned anywhere in this tree was pure ASCII, so the
-            // two length prefixes were held only where the two numbers agree:
-            // measured on 2026-09-10, both `len()` calls written
-            // `chars().count()` left `cargo test --workspace --locked` green
-            // across 21 targets and `cargo xtask check` at `check passed` with
-            // every verdict line identical. What that changes is the digest of
+            // Over pure-ASCII digests the two length prefixes are held only
+            // where the two numbers agree: without this vector, both `len()`
+            // calls written `chars().count()` leave
+            // `cargo test --workspace --locked` green and `cargo xtask check`
+            // at `check passed` with every verdict line identical. What that
+            // changes is the digest of
             // every entry whose payload holds one non-ASCII character — and
             // `action` and `resource` are the two fields `nc-journal`'s own
             // tamper corpus fills with `Cafe\u{301}`, `U+200B` and `U+2028`.
             //
             // The domain carries one too, because it is prefixed by the same
-            // rule and was pinned by nothing.
+            // rule and the other two vectors' domains are ASCII.
             (
                 "journal.entr\u{e9}e",
                 Value::object([("caf\u{e9}", Value::text("\u{2028}na\u{ef}ve"))]),
@@ -1258,13 +1250,12 @@ mod tests {
 
     #[test]
     fn a_domain_boundary_cannot_be_moved() {
-        // **A pair that genuinely collides without the prefixes.** The pair here
-        // used to be `("ab", "c")` against `("a", "bc")`, under a comment saying
-        // those two would hash the same bytes without them — they would not.
-        // Their canonical forms are `"c"` and `"bc"` *with the quotes*, so the
-        // concatenations are `ab"c"` and `a"bc"`, which differ. Deleting both
-        // prefixes left the test green: it asserted a consequence rather than the
-        // property, in the one place guarding hash-domain confusion (`§19.5`).
+        // **A pair that genuinely collides without the prefixes.** `("ab", "c")`
+        // against `("a", "bc")` does not: their canonical forms are `"c"` and
+        // `"bc"` *with the quotes*, so the concatenations are `ab"c"` and
+        // `a"bc"`, which differ, so a test over that pair alone stays green with
+        // both prefixes deleted — it asserts a consequence rather than the
+        // property that guards against hash-domain confusion (`§19.5`).
         //
         // These two do collide. A canonical integer carries no quotes, so
         // `"x" + "-1"` and `"x-" + "1"` are the same eight bytes.
@@ -1290,8 +1281,8 @@ mod tests {
 
     #[test]
     fn a_hex_failure_names_the_character_the_input_actually_holds() {
-        // It used to report the first UTF-8 byte of a multi-byte character,
-        // reinterpreted as Latin-1 — a character the input does not contain.
+        // Not the first UTF-8 byte of a multi-byte character, reinterpreted as
+        // Latin-1 — a character the input does not contain.
         assert_eq!(
             from_hex("çç"),
             Err(super::HexError::NotHex {
