@@ -40,20 +40,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # acceptance criterion 5, and a predicate no operator can reach is a predicate
 # this reports nothing about.
 #
-# **And what it does not reach is not written here, on purpose.** It used to be,
-# and the inventory was wrong in every clause both times somebody checked.
-#
-# The first time it named `counts.rs`'s claim reader and *every* crate as
-# outside while `SOURCES` held both — two of the seven things it listed as
-# uncovered were covered, and a reviewer trusting it would have skipped them
-# while the real gaps went unstated. The repair was to shorten the list. The
-# second time, on 2026-09-15, every clause of what was left was false: it said
-# this runs `corpus::` only (the default filter is two, twelve `SUITES` entries
-# add more, and thirty-three `ELSEWHERE` entries run other commands in seven
-# other packages); over *six* files (`SOURCES` names forty-nine); that it names
-# none of them (it named five); that five named files and every crate but the
-# compiler are outside (all five are inside, as are seven crates); and that no
-# such repair is under coverage (all five carry operators).
+# **And what it does not reach is not written here, on purpose.** Inventories
+# of it have been measured wrong in every clause: a written list of what was
+# outside named covered files as uncovered — so a reader trusting it skips them
+# while the real gaps go unstated — and a shortened list was false about the
+# filters, the sources, the packages and the crates alike.
 #
 # **So the rule is that this paragraph states no inventory at all.** Nothing
 # pins prose — no test in the tree reads this comment, and the operator gate in
@@ -74,126 +65,118 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SOURCES = {
     "gates": os.path.join(ROOT, "xtask/src/gates.rs"),
     "limits": os.path.join(ROOT, "xtask/src/limits.rs"),
-    # **The eighth file, and the one that judges the others.** Five of the
-    # eleven findings of round 27 were in `check.rs`, and a reviewer said the
-    # thing plainly: a repair there is uncovered by mutation, so it has to
-    # carry its own corpus row and nothing measures whether it does. The rows
-    # exist — `a_plain_count_is_told_from_arithmetic`,
+    # **The file that judges the others.** A repair in `check.rs` uncovered by
+    # mutation has to carry its own corpus row, and without an operator here
+    # nothing measures whether it does. The rows exist —
+    # `a_plain_count_is_told_from_arithmetic`,
     # `a_plain_expectation_is_told_from_a_pin`,
     # `no_floor_is_handed_a_count_that_cannot_be_zero`,
-    # `everything_the_gate_can_say_is_written_down` — so this is the file being
-    # added last in the order this script prescribes, not first.
+    # `everything_the_gate_can_say_is_written_down` — so the file is here in the
+    # order this script prescribes: the corpus case first.
     "check": os.path.join(ROOT, "xtask/src/check.rs"),
-    # **The ninth, and it is the hatch reader.** `references.rs` decides whether
+    # **The hatch reader.** `references.rs` decides whether
     # a citation is excused, which is a gate switched off for one line — the
     # class `EXCUSED` counts and `AGENTS.md` invariant 15 is written about. Its
     # own suite decides these clauses; none of them is reachable from the
     # corpus, which is why the suite is named beside the file rather than
     # assumed.
     "references": os.path.join(ROOT, "xtask/src/references.rs"),
-    # **The tenth, and the one no checkout ever runs.** `sections.rs` reads the
+    # **The one no checkout ever runs.** `sections.rs` reads the
     # workspace documents above this repository, so in CI it announces a skip
     # and judges nothing — which makes it the gate most in need of a runner
     # locally, and the least likely to be noticed rotting. Its own suite decides
     # these clauses.
     "sections": os.path.join(ROOT, "xtask/src/sections.rs"),
-    # **The eleventh, and it judges the thing that judges everything.**
+    # **It judges the thing that judges everything.**
     # `workflow.rs` decides whether CI runs the gate at all and whether the gate,
     # once run, can fail — a `rustflags` entry in the cargo config was measured
     # turning eight real clippy violations into `ok lints`. CI has never run, so
     # nothing but this file's own suite has ever exercised it.
     "workflow": os.path.join(ROOT, "xtask/src/workflow.rs"),
-    # **The seventh file, added in the order this script prescribes.**
+    # **Here in the order this script prescribes.**
     # A corpus case first — `the_absolute_path_predicate_decides_every_clause`
     # — then the operators over it, then the file here. Added the other way
     # round, every operator on a new source SURVIVES and reports a hole in
     # this script rather than one in the tree.
     "determinism": os.path.join(ROOT, "xtask/src/determinism.rs"),
-    # **Where the rule about a reason actually lives.** `is_the_marker` used to
-    # spell the word-boundary rule itself, and the compiler spelled it again for
-    # `pack_reason`; the duplicate was deleted and the one implementation is
-    # here, so this is where a weakening of it has to be applied for the corpus
-    # to see one.
+    # **Where the rule about a reason actually lives.** The word-boundary rule
+    # `is_the_marker` and the compiler's `pack_reason` share has one
+    # implementation, here, so this is where a weakening of it has to be
+    # applied for the corpus to see one.
     "compiler": os.path.join(ROOT, "crates/nc-catalog-compiler/src/lib.rs"),
-    # **The twelfth, and the first whose judge is in another crate.** Both
-    # findings of one review round were in `ledger.rs`, and the reason is the
-    # one this list keeps demonstrating: every file carried in here has produced
-    # a defect on its first run, and this one was outside `SOURCES` because the
-    # source above it is that crate's `lib.rs` and nothing else of the crate
-    # was. What it decides is acceptance criterion 7 — that an error code cannot
-    # be renumbered — and the guard that a ledger one line short is refused was
-    # added by hand after a reviewer measured it, with no operator to say the
-    # clause was ever exercised.
+    # **A judge in another crate.** A crate's `lib.rs` in this list says
+    # nothing about its other files, and `ledger.rs` decides acceptance
+    # criterion 7 — that an error code cannot be renumbered. The guard that a
+    # ledger one line short is refused needs an operator to say the clause is
+    # exercised at all.
     #
     # Its clauses are decided by that crate's own `ledger::` suite, which is why
     # `ELSEWHERE` exists: `-p xtask` cannot reach them.
     "ledger": os.path.join(ROOT, "crates/nc-catalog-compiler/src/ledger.rs"),
-    # **The two predicates added when two gates were repaired.** A repair is
-    # where a plausible-but-wrong fix hides, and both of these decide whether a
-    # gate fires at all: `caret_uses` says whether a compile-fail fixture's
+    # **Two predicates that decide whether a gate fires at all.** A repair is
+    # where a plausible-but-wrong fix hides: `caret_uses` says whether a compile-fail fixture's
     # refusal came from the door it is named for, and `COUNTS_THEM` says whether
     # a numeral in a document is a count or a label.
     "wall": os.path.join(ROOT, "xtask/src/wall.rs"),
     "counts": os.path.join(ROOT, "xtask/src/counts.rs"),
-    # **The forward-only migration rule, which nothing could reach.** `dev` was
-    # outside this list and `migrate` has no test, so the clause deciding
-    # whether a backdated migration is refused was decided from neither
-    # direction: measured, the condition replaced by `false` left
-    # `cargo test --workspace --locked` at exit 0 with all 34 targets `ok`,
-    # while `cargo xtask dev` applied version 0 after version 12 and printed
-    # `ok 1 migration(s) applied`.
+    # **The forward-only migration rule.** Written inline in `migrate`, which no
+    # test runs, and outside this list, the clause deciding whether a backdated
+    # migration is refused is decided from neither direction: measured that way,
+    # the condition replaced by `false` left `cargo test --workspace --locked` at
+    # exit 0 with every target `ok`, while `cargo xtask dev` applied version 0
+    # after version 12 and printed `ok 1 migration(s) applied`. So it is
+    # `dev::is_backdated`, driven by
+    # `corpus::the_forward_only_predicate_decides_every_clause` and weakened here.
     "dev": os.path.join(ROOT, "xtask/src/dev.rs"),
-    # **The thirteenth and fourteenth, and the first outside `xtask` and the
-    # compiler.** Every source above judges *the tree*; these two are the
-    # tree. `nc-canon` writes the bytes a journal entry is hashed over, so
-    # acceptance criterion 3 rests on the two of them more directly than on
-    # anything else here — and round thirty-two found four defects in them by
-    # hand, two of which (`{:04x}` written `{:04X}`, and `hash` normalising
-    # its domain) were invisible to the whole gate.
+    # **Outside `xtask` and the compiler: the tree itself.** Every source above
+    # judges *the tree*; these two are the tree. `nc-canon` writes the bytes a
+    # journal entry is hashed over, so acceptance criterion 3 rests on the two
+    # of them more directly than on anything else here — and defects of the
+    # kind found in them by hand (`{:04x}` written `{:04X}`, and `hash`
+    # normalising its domain) are invisible to the whole gate until a test holds
+    # each, as `a_control_character_is_escaped_in_the_case_the_specification_writes`
+    # holds the first; an operator here is what says that test still decides it.
     #
     # Their clauses are decided by that crate's own suite, which is why
     # `ELSEWHERE` carries them: `-p xtask` cannot reach one of them.
     "canon": os.path.join(ROOT, "crates/nc-canon/src/lib.rs"),
     "reader": os.path.join(ROOT, "crates/nc-canon/src/parse.rs"),
-    # **The fifteenth and sixteenth, and criteria 8 and 9 are theirs.** A
-    # reviewer went over the whole of `nc-ids` by hand and found it the
-    # best-held crate in the tree — every bound written out and checked at both
-    # ends, the Crockford alphabet pinned against an independently written
-    # constant, the layout read one field at a time with its neighbours
-    # zeroed. That is exactly the tree where a *runner* is worth having: what
-    # it measures is whether the holding is still there after the next edit,
-    # and no file of this crate had ever been weakened by anything.
+    # **Criteria 8 and 9 are theirs.** Read by hand, `nc-ids` is the best-held
+    # crate in the tree — every bound written out and checked at both ends, the
+    # Crockford alphabet pinned against an independently written constant, the
+    # layout read one field at a time with its neighbours zeroed. That is
+    # exactly the tree where a *runner* is worth having: what it measures is
+    # whether the holding is still there after the next edit.
     "base32": os.path.join(ROOT, "crates/nc-ids/src/base32.rs"),
     "snowflake": os.path.join(ROOT, "crates/nc-ids/src/snowflake.rs"),
-    # **The seventeenth and eighteenth, and acceptance criterion 2 is theirs.**
+    # **Acceptance criterion 2 is theirs.**
     # `value.rs` is the wall — the newtypes that keep a run-time string out of a
     # log line — and `ship.rs` is what puts a line on the wire. The wall's
-    # *types* are held by twelve compile-fail fixtures and by `xtask/src/wall.rs`,
-    # both already in this list; what no operator here has ever touched is the
-    # code either side of them, and that is where this crate's own comments
-    # record four clauses that were executed by nothing: the arm past what a
-    # number holds, the `snowflake` impl, `Field::Id`'s rendering, and the
-    # distinction between a store that closed and one that is merely silent.
-    # Each of those is now a line in a test, and each of those lines is now
-    # something a run of this script can be wrong about.
+    # *types* are held by compile-fail fixtures and by `xtask/src/wall.rs`,
+    # both in this list; what these operators touch is the code either side of
+    # them, where this crate's own comments record four clauses each held by a
+    # line in a test: the arm past what a number holds, the `snowflake` impl,
+    # `Field::Id`'s rendering, and the distinction between a store that closed
+    # and one that is merely silent. Each of those lines is something a run of
+    # this script can be wrong about.
     #
     # Their clauses are decided by that crate's own suite, which is why
     # `ELSEWHERE` carries them: `-p xtask` cannot reach either.
     "value": os.path.join(ROOT, "crates/nc-log/src/value.rs"),
     "ship": os.path.join(ROOT, "crates/nc-log/src/ship.rs"),
-    # **The nineteenth and twentieth, and the first that need a database.**
-    # Round thirty-five is the measurement of what leaving them out cost: a
-    # reviewer planted forty-three weakenings in `nc-journal`'s store by hand and
-    # four survived a whole `cargo xtask check` — `from()`'s `WHERE sequence >=
-    # $1` and its `ORDER BY sequence` each removed, `head()` ordered by the
-    # caller's column, and the arm that says *nothing is wrong* answering the
-    # error its own comment records as the defect it was repaired from. Three of
-    # those are a one-line edit inside a SQL string.
+    # **The ones that need a database.** Measured with no test holding the four
+    # clauses named here, forty-three weakenings planted in `nc-journal`'s store
+    # by hand: four survived a whole `cargo xtask check` — `from()`'s
+    # `WHERE sequence >= $1` and its `ORDER BY sequence` each removed, `head()`
+    # ordered by the caller's column, and the arm that says *nothing is wrong*
+    # answering the error its own comment records as the defect it guards
+    # against. Three of those are a one-line edit inside a SQL string, and each
+    # of the four is an operator here.
     #
-    # Their suites need the stack, which is why they were outside: a run of this
-    # script now needs `cargo xtask dev` up. That is stated rather than worked
-    # around — the alternative is a runner that reports `killed` for the half of
-    # criterion 3 and criterion 5 that a database decides.
+    # Their suites need the stack, so a run of this script needs
+    # `cargo xtask dev` up. That is stated rather than worked around — the
+    # alternative is a runner that reports `killed` for the half of criterion 3
+    # and criterion 5 that a database decides.
     #
     # **The migrations themselves stay out, and the reason is measurable.**
     # `sqlx`'s migrator refuses an applied migration whose text changed, so every
@@ -202,164 +185,152 @@ SOURCES = {
     # instead is `limits::every_condition_a_migration_tests_is_the_one_written_down`,
     # which pins the text of every `IF … THEN` in every migration, and the
     # `database.rs` census over each trigger's `tgenabled` and `md5(prosrc)`.
-    # **The crate root of acceptance criterion 3, which nothing had measured.**
+    # **The crate root of acceptance criterion 3.**
     # The crate root holding `verify`, `chained_and_contiguous`, `readable`,
     # `readable_record`, `Journal::append` and both `code()` maps — the whole of
-    # what criterion 3 rests on — and it was in no `SOURCES` entry. A reviewer
-    # swept it by hand in round forty-nine with 38 operators and killed 37; the
-    # three below are the clauses a reader would reach for first.
+    # what criterion 3 rests on. Swept by hand with 38 operators, its suite
+    # killed 37; the three below are the clauses a reader would reach for first.
     "journal": os.path.join(ROOT, "crates/nc-journal/src/lib.rs"),
     "journal_store": os.path.join(ROOT, "crates/nc-journal/src/postgres.rs"),
     "prune_store": os.path.join(ROOT, "crates/nc-prune/src/postgres.rs"),
-    # **The twenty-first, and acceptance criterion 11's step.** Neither this file
-    # nor `nc-policy` had ever been here. Measured on 2026-09-09, twelve one-line
-    # weakenings of it, each alone, each against the whole `-p xtask` suite:
-    # **nine survived**. Three of the twelve died and only one of those died in a
-    # test that exercises code — the other two were caught by
+    # **Acceptance criterion 11's step.** Measured with no test driving the four
+    # comparisons below, twelve one-line weakenings of it, each alone, each
+    # against the whole `-p xtask` suite: **nine survived**. Three of the twelve
+    # died and only one of those died in a test that exercises code — the
+    # other two were caught by
     # `every_verdict_is_pinned_to_where_it_is_said`, which pins the *source text*
     # of the arm a sentence sits in and noticed the text rather than the
     # behaviour.
     #
-    # The module has eight tests and none of them drove the four comparisons the
-    # step performs: the resource comparison round thirty-three added, the
-    # written case count its own doc calls "the one artefact of this step no
-    # written number held", the per-policy pinned table, and both directions of
-    # the schema against the reference that outranks it.
+    # These are the four comparisons the step performs — the resource
+    # comparison, the written case count its own doc calls "the one artefact of
+    # this step no written number held", the per-policy pinned table, and both
+    # directions of the schema against the reference that outranks it — and
+    # `policy::tests` is what decides them, which is why `SUITES` runs it for
+    # this source.
     "policy": os.path.join(ROOT, "xtask/src/policy.rs"),
-    # **The twenty-fourth and twenty-fifth, and both hold a repair from the round
-    # that found them outside.** `nc-ids`'s `lib.rs` is where `OpaqueId` lives —
-    # the type the realm column is, which `Journal::append` scopes every write by
-    # — and three of one reviewer's seven findings were in it. `nc-prune`'s
-    # `lib.rs` holds `refusal()` and `Pruned::code()`, the writer and the reader
-    # of the sentence a scheduler reads a failure out of; a prefix as small as
-    # `prune: ` left them disagreeing with the whole workspace green.
+    # **Both crates' roots, beside their `postgres.rs` and their siblings.**
+    # `nc-ids`'s `lib.rs` is where `OpaqueId` lives — the type the realm column
+    # is, which `Journal::append` scopes every write by. `nc-prune`'s `lib.rs`
+    # holds `refusal()` and `Pruned::code()`, the writer and the reader of the
+    # sentence a scheduler reads a failure out of; measured with a test that
+    # asked only that the code appear somewhere in the sentence, a prefix as small
+    # as `prune: ` left them disagreeing with the whole workspace green — which is
+    # why `the_code_reaches_whoever_reads_the_result` reads it off the front.
     #
-    # Both crates' roots were outside this list while their `postgres.rs` and
-    # their siblings were in it, on no argument — and a scope brief written from
-    # that assumption sent a reviewer past the file worth reading. Measured on
-    # 2026-09-10, ten one-line weakenings: nine died and one survived, and the
-    # survivor was a test comparing a reader against a writer that both go
-    # through the mutated function.
+    # A crate root left out while its siblings are in is left out on no
+    # argument. Measured, ten one-line weakenings: nine died and one survived,
+    # and the survivor was a test comparing a reader against a writer that both
+    # go through the mutated function.
     "ids": os.path.join(ROOT, "crates/nc-ids/src/lib.rs"),
     "pruner": os.path.join(ROOT, "crates/nc-prune/src/lib.rs"),
-    # **The twenty-sixth and twenty-seventh, and the last two any reviewer has
-    # named as outside.** `xtask/src/database.rs` holds every gate a live
-    # database decides — the applied-migration record and its checksum, the
-    # forty-four protections, the migrated functions' paths, the collation — and
-    # one of round forty-one's findings is in it, where the same statement was
-    # written a second time and only the copy with a test was right.
+    # **Every gate a live database decides, and what criterion 11 rests on.**
+    # `xtask/src/database.rs` holds the applied-migration record and its
+    # checksum, the forty-four protections, the migrated functions' paths, the
+    # collation — and a statement written there twice, with only the copy that
+    # has a test right, is the shape an operator catches.
     # `crates/nc-policy/src/lib.rs` holds `coverage`, `run`, `widenings` and the
-    # guard predicates acceptance criterion 11 rests on, while the *step* that
-    # calls them has been covered since round thirty-three.
+    # guard predicates acceptance criterion 11 rests on, beside the *step* that
+    # calls them.
     #
-    # Measured on 2026-09-11, five one-line weakenings: all five died. That is
-    # the first file carried in here that produced no finding on its first run,
-    # and it is worth saying so rather than only saying the number.
+    # Measured, five one-line weakenings: all five died.
     "database": os.path.join(ROOT, "xtask/src/database.rs"),
     "pack": os.path.join(ROOT, "crates/nc-policy/src/lib.rs"),
-    # **And the file that says *where* a problem is.** `problem.rs` was the
-    # only source this script had never edited whose clauses a round repaired:
-    # `line_of` decides the line number every pack refusal carries, and a
-    # comment quoting a policy is not where that policy is declared. A repair in
-    # a file no operator reaches is a repair nothing measures, which is the
-    # sentence `check.rs` was added under.
+    # **And the file that says *where* a problem is.** `line_of` decides the
+    # line number every pack refusal carries, and a comment quoting a policy is
+    # not where that policy is declared. A repair in a file no operator reaches
+    # is a repair nothing measures — the same reason `check.rs` is here.
     "problem": os.path.join(ROOT, "crates/nc-policy/src/problem.rs"),
-    # **And the log store's reader, named as uncovered two rounds running.**
-    # Round 62 listed `store.rs` among the four xtask sources this runner never
-    # edits and said its clauses were "held by fixtures, not by mutation"; round
-    # 66 then found three of them held by nothing at all — the status check, the
-    # header boundary, and the accessor a floor reads. A file named as uncovered
-    # twice is a file to cover.
+    # **And the log store's reader.** Its clauses are not "held by fixtures,
+    # not by mutation": measured without
+    # `a_flags_answer_is_read_only_when_it_was_served_and_only_its_body`, three of
+    # them were held by nothing at all — the status check, the header boundary,
+    # and the accessor a floor reads.
     "store": os.path.join(ROOT, "xtask/src/store.rs"),
-    # **And the five lines that hand each verb its flags.** Named as outside
-    # this runner in round 62 and found held by nothing at all in round 66:
+    # **And the five lines that hand each verb its flags**, which
+    # `check.rs`'s `each_verb_is_handed_what_its_flags_say` pins as text.
+    # Measured without that pin:
     # discarding `--reserve` there left `check passed` and a byte-identical
     # transcript, and `--reserve` is the one irreversible write in a tree with
     # no git.
     "main": os.path.join(ROOT, "xtask/src/main.rs"),
-    # **The generator's own writer, where round sixty-seven found three live
-    # clauses decided by nothing.** `build.rs` performs this tree's only
-    # irreversible write — reserving an error code — and inverting one condition
-    # in its write loop made `cargo xtask build` write nothing at all with a
-    # full `check` green. A file that writes permanently is the last one to
-    # leave uncovered.
+    # **The generator's own writer, whose live clauses need an operator.**
+    # `build.rs` performs this tree's only irreversible write — reserving an
+    # error code — and, without `a_run_writes_the_files_that_are_not_already_on_disk`,
+    # inverting one condition in its write loop made `cargo xtask build` write
+    # nothing at all with a full `check` green, measured. A file that writes
+    # permanently is the last one to leave uncovered.
     "generator": os.path.join(ROOT, "xtask/src/build.rs"),
     # **What the workspace is, which every floor in this tree is a set against.**
-    # Named as outside this runner in round sixty-two and still outside it in
-    # round sixty-seven, where a second reviewer had to plant five of its
-    # clauses by hand to find out they were decided.
+    # Outside this runner, whether five of its clauses are decided can be found
+    # out only by planting them by hand.
     "members": os.path.join(ROOT, "xtask/src/members.rs"),
-    # **And the crate sources two reviewers named as uncovered.** Each carries
-    # its own suite, and each held clauses no operator reached: the compiler's
-    # message rules and its model, the policy pack's cases and its value
-    # translation, and the log's events and crate root.
+    # **And the crate sources with clauses no other operator reaches.** Each
+    # carries its own suite: the compiler's message rules and its model, the
+    # policy pack's cases and its value translation, and the log's events and
+    # crate root.
     "compiler_problem": os.path.join(ROOT, "crates/nc-catalog-compiler/src/problem.rs"),
     "compiler_messages": os.path.join(ROOT, "crates/nc-catalog-compiler/src/messages.rs"),
     "pack_cases": os.path.join(ROOT, "crates/nc-policy/src/cases.rs"),
     "pack_value": os.path.join(ROOT, "crates/nc-policy/src/value.rs"),
-    # **The log's crate root, whose reason for being out was false.** It was
-    # excluded as "the type wall, enforced by rustc" — and three of its clauses
-    # are ordinary runtime rules its own crate's suite decides: the reserved
-    # field name, the origin-ordering loop, and the shipper's lost counter.
-    # Measured by the reviewer that closed F1.
+    # **The log's crate root, which is more than the type wall.** "The type
+    # wall, enforced by rustc" is no reason to leave it out: three of its
+    # clauses are ordinary runtime rules its own crate's suite decides — the
+    # reserved field name, the origin-ordering loop, and the shipper's lost
+    # counter, measured.
     "log_root": os.path.join(ROOT, "crates/nc-log/src/lib.rs"),
-    # **And the compiler's model, which was excluded as "declarations only".**
+    # **And the compiler's model, which is not "declarations only".**
     # It holds eight `const fn` predicates and their spellings are *published*:
     # `Raising::written` is a column of `docs/errors.md`. So what decides a
     # weakening here is the gate that rebuilds the pages and compares them with
     # disk — `a_second_generation_that_differs_is_a_failure`, in the xtask
     # binary's own tests.
     #
-    # **Measured, because the first reason written here was wrong.** With
+    # **Measured, because the obvious decider is not one.** With
     # `Self::Reserved`'s sentence rewritten to `"yes"`:
     # `cargo test -q -p xtask --bin xtask` fails on that gate, and
     # `cargo test -q -p xtask --test the_pages_reach_the_catalog` returns
     # `ok. 17 passed` — every word-mapping in that target is written out a second
     # time by hand and compared against the same page nobody rebuilt, so both
-    # sides of its comparison are untouched by an edit to the emitter. The
-    # command below was the wider `-p xtask` on the belief that the target was
-    # the decider. It is not, and the wider command spent a whole integration
-    # suite per operator to run a test that cannot fail.
+    # sides of its comparison are untouched by an edit to the emitter. So the
+    # command below is not the wider `-p xtask`, which would spend a whole
+    # integration suite per operator to run a test that cannot fail.
     "compiler_model": os.path.join(ROOT, "crates/nc-catalog-compiler/src/model.rs"),
-    # **The twenty-second and twenty-third, and the two files of `nc-ids` this
-    # list walked past.** `base32.rs` and `snowflake.rs` were carried in together
-    # and these two were left on no argument at all — and acceptance criterion 8
-    # is theirs: `naming.rs` is Denote's scheme transcribed, and `flake.rs` is the
-    # ten bits that say which machine minted an identifier.
+    # **The other two files of `nc-ids`, beside `base32.rs` and `snowflake.rs`**
+    # — and acceptance criterion 8 is theirs: `naming.rs` is Denote's scheme
+    # transcribed, and `flake.rs` is the ten bits that say which machine minted
+    # an identifier.
     #
-    # Measured on 2026-09-10, thirty-eight one-line weakenings, each alone,
-    # against that crate's own suite: **thirty-six died and two survived.** One
-    # was `with_label` ignoring the label its caller handed in — every test in
-    # that module passes the same two words, so the function could interpolate
-    # the placeholder's own name and the sentence still rendered with no brace
-    # left in it and its bounds in the right order. The other was a title
+    # Measured without a test for either clause below, thirty-eight one-line
+    # weakenings, each alone, against that crate's own suite: **thirty-six died
+    # and two survived.** One was `with_label` ignoring the label its caller
+    # handed in — with every test passing the same two words, the function could
+    # interpolate the placeholder's own name and the sentence still rendered
+    # with no brace left in it and its bounds in the right order. The other was a title
     # shortened to nothing kept as `Some("")` rather than dropped, which writes a
     # `--` into the name with nothing behind it and breaks the law `§16.3`
-    # calls this module's highest-value test. Each has a test now, and each is an
+    # calls this module's highest-value test. Each has a test, and each is an
     # operator here.
     #
     # Their clauses are decided by that crate's own suite, which is why
     # `ELSEWHERE` carries them: `-p xtask` cannot reach either.
     "naming": os.path.join(ROOT, "crates/nc-ids/src/naming.rs"),
     "flake": os.path.join(ROOT, "crates/nc-ids/src/flake.rs"),
-    # **The twenty-eighth to the thirty-first, and round forty-four found five
-    # of its thirteen findings in them.** `release.rs` is the verb nobody runs,
+    # **Four files whose rules no other operator drives.** `release.rs` is the verb nobody runs,
     # so its rules are the least driven in the tree; `ui.rs` holds the one-word
     # rule acceptance criterion 1 rests on — what counts as an announced skip;
     # `docs.rs` decides whether a page is rewritten; and
-    # `the_registry_reaches_the_code.rs` is the only place a generated limit is
-    # held against the file it came from. All four were outside this list, and
-    # the reviewer who found those five said so before any of them was written.
+    # `the_registry_reaches_the_code.rs` is where each generated limit is held
+    # against the file it came from.
     "release": os.path.join(ROOT, "xtask/src/release.rs"),
     "ui": os.path.join(ROOT, "xtask/src/ui.rs"),
     "docs": os.path.join(ROOT, "xtask/src/docs.rs"),
     "registry": os.path.join(ROOT, "xtask/tests/the_registry_reaches_the_code.rs"),
-    # **The thirty-second to the thirty-seventh, and reviewers keep finding
-    # defects in them by sweeping by hand.** Round forty-five found four here:
-    # the struct reader's raw-literal branch, a command's resource selector, a
-    # pack-bounded table's second number, and a locale file whose extension is
-    # written in capitals. Each was found by a person running mutations one at a
-    # time, which is the work this script exists to stop repeating.
+    # **Files where a sweep by hand has found defects.** The struct reader's
+    # raw-literal branch, a command's resource selector, a pack-bounded table's
+    # second number, and a locale file whose extension is written in capitals
+    # each held one, found by a person running mutations one at a time — which
+    # is the work this script exists to stop repeating.
     "entry": os.path.join(ROOT, "crates/nc-journal/src/entry.rs"),
     "memory": os.path.join(ROOT, "crates/nc-journal/src/memory.rs"),
     "unit": os.path.join(ROOT, "crates/nc-journal/src/unit.rs"),
@@ -483,12 +454,11 @@ SOURCES = {
     #
     # **The guest bindings are not here, and `NOT_MUTATED` in `check.rs` says
     # why.** `crates/nc-guest/src/lib.rs` is one `generate!` call, and every
-    # argument of it is decided when a plugin is compiled against it. Its one
-    # operator turned `pub_export_macro` off, which made the plugin's
-    # `export!` private: the build failed and this run said `does not
-    # compile`, which is right, because a weakening that does not build
-    # decides nothing. No weakening of that call both builds and changes
-    # what the kernel loads. Found in Stage 11's acceptance.
+    # argument of it is decided when a plugin is compiled against it. An
+    # operator turning `pub_export_macro` off makes the plugin's `export!`
+    # private: the build fails and this run says `does not compile`, which is
+    # right, because a weakening that does not build decides nothing. No
+    # weakening of that call both builds and changes what the kernel loads.
     "reference": os.path.join(ROOT, "plugins/reference/src/lib.rs"),
     "reference_behaviour": os.path.join(ROOT, "plugins/reference/src/behaviour.rs"),
     "reference_adapter": os.path.join(ROOT, "plugins/reference/src/adapter.rs"),
@@ -765,11 +735,12 @@ WEAKENINGS = [
      """    text.replace('\\\\', "\\\\\\\\").replace('<', "&lt;")"""),
 
     # -- declared_in: whether a fixture wrote its own sentence ---------------
-    # **The clause acceptance criterion 2 rests on.** A reviewer forged all four
-    # string fixtures by declaring `struct String;` and `struct str;` — every
-    # `//! EXPECT:` line byte-identical — and then deleted the wall itself, with
-    # `ok 11 fixture(s) refuse to compile` and `check passed`. The subject side
-    # of the rule is what closed it; `corpus.rs` decides both sides case by case.
+    # **The clause acceptance criterion 2 rests on.** Measured without its
+    # subject side: all four string fixtures forged by declaring `struct String;`
+    # and `struct str;` — every `//! EXPECT:` line byte-identical — and then the
+    # wall itself deleted, with `ok 11 fixture(s) refuse to compile` and
+    # `check passed`. The subject side of the rule closes that; `corpus.rs`
+    # decides both sides case by case.
     ("wall", "declared_in", "the subject side is asked at all",
      "        .filter(|part| only.is_empty() || only.contains(part))",
      "        .filter(|part| only.is_empty())"),
@@ -781,9 +752,8 @@ WEAKENINGS = [
      "            .find(|needle| source.starts_with(needle.as_str()));"),
 
     # -- canon: the bytes a journal entry is hashed over --------------------
-    # **The first crate in this list rather than a judge of one.** Round
-    # thirty-two found four defects here by hand; these are the clauses those
-    # findings and their neighbours turn on.
+    # **A crate rather than a judge of one.** These are the clauses that defects
+    # found here by hand, and their neighbours, turn on.
     ("canon", "write_string", "the escape's hex is lower case",
      'let _ = write!(out, "\\\\u{:04x}", control as u32);',
      'let _ = write!(out, "\\\\u{:04X}", control as u32);'),
@@ -823,9 +793,10 @@ WEAKENINGS = [
      "        if !text.chars().all(|character| character.is_ascii_hexdigit()) {",
      "        if false {"),
     # `width_of` decides how many bytes the reader steps by, and both ends of
-    # every class it names were decided by nothing: the generator draws the
-    # interior of each arm and never an end, so a rendering this crate had just
-    # written could not be read back with the whole gate byte-identical.
+    # every class it names need a case of their own: the generator draws the
+    # interior of each arm and never an end, so without one a rendering this
+    # crate has just written can fail to be read back with the whole gate
+    # byte-identical.
     ("reader", "width_of", "the three-byte class reaches its top",
      "            0xe0..=0xef => 3,",
      "            0xe0..=0xee => 3,"),
@@ -839,33 +810,31 @@ WEAKENINGS = [
      "            0x00..=0x7f => 1,",
      "            0x00..=0x7e => 1,"),
     # -- caret_uses: the fixture's refusal is the door's --------------------
-    # Two fixtures were rewritten to fail for reasons that had nothing to do
-    # with the wall, with `check passed` in both cases and `Origin`'s fields put
-    # back to `pub &'static str` under one of them. What answers is where rustc
-    # put the caret, which a fixture does not choose.
+    # Measured without `caret_uses`, two fixtures rewritten to fail for reasons
+    # that have nothing to do with the wall gave `check passed` in both cases,
+    # with `Origin`'s fields put back to `pub &'static str` under one of them.
+    # What answers is where rustc put the caret, which a fixture does not choose.
     ("wall", "caret_uses", "the caret's own line",
      "    if names(caret) {\n        return true;\n    }", "    if false {\n        return true;\n    }"),
     ("wall", "caret_uses", "the enclosing blocks, by indentation",
      "        if indent(above) >= deepest {\n            continue;\n        }",
      "        if false {\n            continue;\n        }"),
-    # The clause grew a `declared_locally` guard beside it and the operator was
-    # not repointed, so this weakening became unappliable — a hole in the fifth
-    # mechanism that `cargo xtask check` never runs and so never reported.
-        # The `//!` guard is gone: `caret_uses` reads `without_comment(text)` now,
-    # which subsumes it — a comment of either shape is not code. What is left to
-    # weaken is the door clause and the local-declaration guard beside it.
-    # **A comment and a string literal are both spent, in one copy.** The walk
-    # read `without_comment` and so a door inside a *literal* on a
-    # block-opening line was code — `let held = vec!["nc_log::LogValue", {`
-    # named the door in a value the fixture chose. Both questions read one
-    # blanked copy now, so this operator is anchored to that call.
+    # `caret_uses` reads its text with every comment spent — a comment of
+    # either shape is not code — and accepts only the qualified path, so what
+    # is left to weaken is the door clause.
+    # **A comment and a string literal are both spent, in one copy.** Read
+    # through `without_comment` alone, a door inside a *literal* on a
+    # block-opening line is code — `let held = vec!["nc_log::LogValue", {`
+    # names the door in a value the fixture chose. Both questions read one
+    # blanked copy, so this operator is anchored to that call.
     ("wall", "caret_uses", "a comment is not code",
      "crate::gates::blanked(text).contains(door)",
      "text.contains(door)"),
-    # **The half of the caret rule that read prose.** The door half above
-    # spends the comment and this one did not, three lines apart in the same
-    # function — and with `// version` on a caret line, `Origin::version` was
-    # demoted from `Literal` to `&'static str` with `check passed`.
+    # **The half of the caret rule that would read prose.** The door half above
+    # spends the comment, and so must this one, three lines apart in the same
+    # function — without it, `// version` on a caret line lets
+    # `Origin::version` be demoted from `Literal` to `&'static str` with
+    # `check passed`, measured.
     # A comment and a string literal are not the fixture's subject, and neither
     # is the door: both halves read the file through `readable`, so planting the
     # stripping away is planting both rules away at once.
@@ -874,9 +843,9 @@ WEAKENINGS = [
      "    let stripped = whole_fixture.to_owned();"),
 
     # -- claim: a numeral is a count, or a label ----------------------------
-    # Every digit form of every countable noun fell through, on the written
-    # grounds that "nothing in these documents does" it — a measurement of
-    # today's prose rather than a property of the rule.
+    # Every digit form of every countable noun falls through a rule written on
+    # the grounds that "nothing in these documents does" it — a measurement of
+    # one day's prose rather than a property of the rule.
     ("counts", "claim", "a counting word before the digits",
      "        let counted = preceding", "        let counted = false && preceding"),
     ("counts", "claim", "a digit mid-clause is still judged",
@@ -884,10 +853,10 @@ WEAKENINGS = [
      "let names_something_else = (in_digits && !opens_a_clause)"),
 
     # -- one_of_them_is: the digest a tag actually resolves to ---------------
-    # **A corpus block with no operator at all.** `corpus.rs` records that
+    # **A corpus block needs operators too.** `corpus.rs` records that
     # replacing this whole function with `Ok(true)` left the suite green, and
-    # the runner carried nothing for it — so the clauses below were decided by
-    # the corpus and weakened by nothing. It is the predicate that says whether
+    # without operators here the clauses below are decided by the corpus and
+    # weakened by nothing. It is the predicate that says whether
     # a pinned digest is the one its own tag names: wrong, and the stack a
     # developer brings up runs bytes anybody outside this repository can change.
     ("gates", "one_of_them_is", "the tag's repository, not the whole tag",
@@ -956,15 +925,16 @@ WEAKENINGS = [
     ("gates", "in_the_error_code_scope", "migrations/ too",
      '        || relative.starts_with("migrations/")\n        || relative.starts_with("local-migrations/")',
      '        || relative.starts_with("local-migrations/")'),
-    # `plugins/` joined the scope once the plugin tree became a member tree:
-    # measured, a hand-written code in the reference plugin passed the step.
+    # `plugins/` is in the scope because the plugin tree is a member tree:
+    # measured without it, a hand-written code in the reference plugin passed
+    # the step.
     ("gates", "in_the_error_code_scope", "plugins/ is inside the §15.1 scope",
      '        || relative.starts_with("local-migrations/")\n        || relative.starts_with("plugins/"))',
      '        || relative.starts_with("local-migrations/"))'),
     ("gates", "codes_something_raises", "the raising walk opens plugins/",
      '    if plugins.is_dir() {\n        walk(&plugins, &mut visit)?;',
      '    if false {\n        walk(&plugins, &mut visit)?;'),
-    # The scope moved into `in_the_error_code_scope` and its named list, so the
+    # The scope is `in_the_error_code_scope` and its named list, so the
     # walk, its floor and its fixture read one rule rather than three copies.
     # Both halves are weakened here: dropping the compiler from the exclusion
     # list, and dropping the list's use so nothing is excluded at all.
@@ -1065,10 +1035,10 @@ WEAKENINGS = [
      "let bare = run.item.trim_start();"),
 
     # -- excused + is_the_marker: an unbounded table --------------------------
-    # The two halves used to be `names(reason, table)` and a `.`-rule beside it,
-    # and they were satisfied by *different* occurrences — a reason about
+    # Two halves — a `names(reason, table)` and a `.`-rule beside it — can be
+    # satisfied by *different* occurrences: a reason about
     # `archive.login_attempts` plus a mention inside `login_attempts_history`
-    # excused a table with no entry at all. One scan decides it now, so these
+    # excuses a table with no entry at all. One scan decides it, so these
     # weaken the one scan: drop the word boundary before the name, and drop the
     # schema-qualifier rule.
     ("compiler", "names", "the reason names the table, not a longer word",
@@ -1077,15 +1047,16 @@ WEAKENINGS = [
     ("compiler", "names", "a schema qualifier is another table",
      "&& (before != Some('.') || public)", "&& true"),
     # **`public.` is the one schema that names this table, and the escape is its
-    # own clause.** Round seventy-one, on a reviewer's measured decision: the
-    # gate refused `public.login_attempts`, which is what `psql` prints.
+    # own clause.** Without it the gate refuses `public.login_attempts`, which
+    # is what `psql` prints, measured.
     ("compiler", "names", "`public.` is not another schema",
      "&& (before != Some('.') || public)", "&& before != Some('.')"),
     # -- a_reason_names_what_it_exempts: a name is not a reason ---------------
-    # The second half of both hatches — `nc:bounded:` and `pack_reason` — and it
-    # was decided by nothing: switched off, `cargo test --workspace --locked`
-    # stayed at exit 0 and a bare table name excused an unbounded table. It sits
-    # in a source this runner already edits and no operator was aimed at it.
+    # The second half of both hatches — `nc:bounded:` and `pack_reason`. With
+    # no corpus row whose reason is the bare table name, switching it off
+    # leaves `cargo test --workspace --locked` at exit 0 and a bare table name
+    # excuses an unbounded table, measured; `corpus.rs` carries that row, and
+    # this operator is what says it still decides the clause.
     ("compiler", "a_reason_names_what_it_exempts", "a name repeated is still a name",
      'let rest = reason.to_lowercase().replace(&table.to_lowercase(), " ");',
      'let rest = reason.to_lowercase().replacen(&table.to_lowercase(), " ", 1);'),
@@ -1104,14 +1075,14 @@ WEAKENINGS = [
      "|| written < 10 {", "|| written < 1 {"),
     # And what is counted: the characters of the words somebody wrote, not the
     # span they sit in. `rest.trim().len()` counts the runs of spaces between
-    # two words, so ten spaces satisfied "ten characters of prose".
+    # two words, so ten spaces satisfy "ten characters of prose".
     ("compiler", "a_reason_names_what_it_exempts", "the characters, not the span they sit in",
      "let written: usize = distinct.iter().map(|word| word.chars().count()).sum();",
      "let written: usize = rest.trim().len();"),
-    # A word has to hold a letter. Round sixty-five moved the digits from the
-    # *word* test to the *length* test — `at most 1 row` is a bound and was
-    # refused — so this is the clause that keeps `0000000000 0` from being two
-    # words, and it is its own.
+    # A word has to hold a letter. The digits are in the *length* test, not the
+    # *word* test — `at most 1 row` is a bound, and a word test refuses it — so
+    # this is the clause that keeps `0000000000 0` from being two words, and it
+    # is its own.
     ("compiler", "a_reason_names_what_it_exempts", "a word holds a letter, not any character",
      ".filter(|word| word.chars().any(char::is_alphabetic))",
      ".filter(|word| !word.is_empty())"),
@@ -1126,18 +1097,16 @@ WEAKENINGS = [
     ("compiler", "names", "an unquoted name is not folded at all",
      "    let folds = !table.chars().any(char::is_uppercase);\n    let reason",
      "    let folds = false;\n    let reason"),
-    # **Re-pointed when the trim became one pass over quotes alone.** The clause
-    # it weakens is the same one — a quoted qualifier is a qualifier — but it is
-    # now a single `trim_end_matches`, because whitespace is deliberately *not*
-    # trimmed: a `.` followed by a space is the end of a sentence, and reading it
-    # as a schema refused true markers. Decided 2026-09-15. Deleting the trim
-    # makes `archive."login_attempts"` name this table, which is the half of
-    # round sixty-six's finding that was kept.
+    # **One pass over quotes alone.** The clause it weakens — a quoted
+    # qualifier is a qualifier — is a single `trim_end_matches`, because
+    # whitespace is deliberately *not* trimmed: a `.` followed by a space is the
+    # end of a sentence, and reading it as a schema refuses true markers.
+    # Deleting the trim makes `archive."login_attempts"` name this table.
     #
-    # **And re-pointed again when a character a reader sees nothing of stopped
-    # standing between the dot and the name.** `archive.<U+200B>login_attempts`
-    # renders identically to the spelling above and was excused; the corpus
-    # carries both it and the tab now. Round seventy-one.
+    # **And a character a reader sees nothing of does not stand between the dot
+    # and the name.** `archive.<U+200B>login_attempts` renders identically to
+    # the spelling above and must not be excused; the corpus carries both it
+    # and the tab.
     ("compiler", "names", "a quoted schema qualifier is still a qualifier",
      "        let head = reason[..at].trim_end_matches(|it: char| {\n            matches!(it, '\"' | '`' | '\\'' | '[') || renders_as_nothing(it)\n        });",
      "        let head = &reason[..at];"),
@@ -1145,9 +1114,9 @@ WEAKENINGS = [
      "        let head = reason[..at].trim_end_matches(|it: char| {\n            matches!(it, '\"' | '`' | '\\'' | '[') || renders_as_nothing(it)\n        });",
      "        let head = reason[..at].trim_end_matches('\"');"),
     # **And the quotes prose actually uses, and whitespace winning over them.**
-    # A backtick is this repository's house style for an identifier and walked
-    # past the whole rule; a tab is in the C0 block that `shows_nothing` answers
-    # from, and renders as a gap rather than as nothing. Round seventy-one.
+    # A backtick is this repository's house style for an identifier and walks
+    # past a rule that reads only quotes; a tab is in the C0 block that
+    # `shows_nothing` answers from, and renders as a gap rather than as nothing.
     ("compiler", "names", "a backtick dresses a name as a quote does",
      "        let head = reason[..at].trim_end_matches(|it: char| {\n            matches!(it, '\"' | '`' | '\\'' | '[') || renders_as_nothing(it)\n        });",
      "        let head = reason[..at].trim_end_matches(|it: char| {\n            !it.is_whitespace() && (matches!(it, '\"') || shows_nothing(it))\n        });"),
@@ -1161,9 +1130,10 @@ WEAKENINGS = [
      'pub(crate) const BOUNDED: &str = "nc:bounded:";',
      'pub(crate) const BOUNDED: &str = "nc:bounded::";'),
     # **And the rename path, which is the same clause written twice.** The
-    # operator below rewrites the *create* path and reported `killed`, so the run
-    # printed a verdict reading "this rule is decided" over a copy decided by
-    # nothing: `alone: true` on the rename left the whole xtask suite green.
+    # second operator below rewrites the *create* path and reports `killed`, so
+    # without the first the run prints a verdict reading "this rule is decided"
+    # over a copy decided by nothing: `alone: true` on the rename left the whole
+    # xtask suite green, measured.
     ("limits", "what_one_file_declares", "a second rename on the line is not excused",
      "            alone: !rename.shares_its_line && rename.alone_in_its_statement,",
      "            alone: true,"),
@@ -1176,10 +1146,10 @@ WEAKENINGS = [
      "if !comments.contains(&at) {", "if false {"),
 
     # -- the redirect rule: search_path, and the statements that re-aim it -----
-    # This gate had no operator at all, and `corpus.rs` held no `search_path`
-    # anywhere. It was then found to be wired to nothing: handed the first 400
-    # bytes of every migration it refused nothing with `check`'s output
-    # byte-identical. `the_redirect_predicate_decides_every_clause` decides these.
+    # Without operators and a corpus, this gate can be wired to nothing
+    # unnoticed: measured, handed the first 400 bytes of every migration it
+    # refused nothing with `check`'s output byte-identical.
+    # `the_redirect_predicate_decides_every_clause` decides these.
     # The anchor carries the line below it, because `let all = statements(text);`
     # is written twice in this file and an operator that matches twice is one
     # `mutants.py` calls `not applicable` — which is a failure here, not a free
@@ -1189,18 +1159,17 @@ WEAKENINGS = [
      "for (index, statement) in statements_in(&text[..400.min(text.len())], dialect)\n        .into_iter()\n        .enumerate()\n    {\n        let tokens = &statement.tokens;"),
     ("limits", "unreadable_statements_in", "the count is taken before the loop, not inside it",
      "        judged = judged.wrapping_add(the_weight_of(tokens));", ""),
-    # **The token count, not the statement count.** `judged += 1` moved for every
-    # iteration whatever the body did with its tokens, so re-slicing them to
-    # nothing left the tail of every migration unjudged and both counts agreeing.
+    # **The token count, not the statement count.** A `judged += 1` per
+    # iteration moves whatever the body does with its tokens, so re-slicing them
+    # to nothing leaves the tail of every migration unjudged and both counts
+    # agreeing.
     ("limits", "unreadable_statements_in", "the rules are handed nothing after the eighth statement",
      "        let tokens = &statement.tokens;\n        let is =",
      "        let tokens = &statement.tokens[..statement.tokens.len() * usize::from(index < 8)];\n        let is ="),
     # The comparison itself carries no operator. Deleting it alone changes
     # nothing any fixture can see, because with both readers healthy the two
-    # counts agree — but the claim that used to stand here, that truncation is
-    # caught by the comparison "and by nothing else in the tree", was false and
-    # it was the half that argued the clause needs no coverage. The corpus case
-    # with a four-hundred-byte header catches truncation on its own.
+    # counts agree — and truncation is not caught by the comparison alone: the
+    # corpus case with a four-hundred-byte header catches truncation on its own.
     ("limits", "the_path_redirects_in", "`SET ROLE` only where the statement opens with it",
      "let aims_the_path = (0..tokens.len()).any(|at| {",
      "let aims_the_path = (0..1.min(tokens.len())).any(|at| {"),
@@ -1220,7 +1189,7 @@ WEAKENINGS = [
      'if !token.is("NOT_A_SQL_KEYWORD") {'),
     # **The hatch decided by presence rather than by position.** `UPDATE` is an
     # unreserved keyword and PL/pgSQL merges an `UPDATE` and a later `SET` into
-    # one statement, so "anywhere" let two real redirects through.
+    # one statement, so "anywhere" lets two real redirects through.
     ("limits", "the_path_redirects_in", "an UPDATE anywhere is an UPDATE statement",
      'if !opens_a_statement(before) {',
      'if false {'),
@@ -1228,10 +1197,11 @@ WEAKENINGS = [
      "        .any(|cleared| source == just_the_words(cleared))",
      "        .any(|cleared| source.contains(&just_the_words(cleared)))"),
 
-    # -- the refusals the driver could not see until its filter was widened ----
-    # A reviewer measured that 22 clauses of this file are killed only by
-    # `limits::tests`, which this script never runs. These are the ones a corpus
-    # case can reach now that the driver reads every verdict rather than one.
+    # -- the refusals the driver sees because its filter reads every verdict ----
+    # Measured, many clauses of this file were killed only by `limits::tests`,
+    # which is why the runner's filter holds that suite; these are the ones a
+    # corpus case can reach as well, because the driver reads every verdict
+    # rather than one.
     ("limits", "unreadable_statements_in", "`COPY … FROM stdin` is read as ordinary SQL",
      '''is(0, "COPY")''', "false"),
     ("limits", "unreadable_statements_in", "`IMPORT FOREIGN SCHEMA` needs its last word",
@@ -1247,29 +1217,28 @@ WEAKENINGS = [
     ("limits", "the_path_redirects_in", "a signature is a call",
      "&& !tokens[at.saturating_sub(3)..*at]", "&& !tokens[*at..*at]"),
 
-    # -- the positional hatch and the weight, each added after a reviewer got
-    # -- past its predecessor --------------------------------------------------
+    # -- the positional hatch and the weight -----------------------------------
     ("limits", "the_path_redirects_in", "a row write clears the whole chunk, not its segment",
      "writing_rows.contains(&segment_of(where_it_writes))", "!writing_rows.is_empty()"),
     ("limits", "the_weight_of", "a name and a word are the same kind",
      "Token::Name(_) => 2,", "Token::Name(_) => 1,"),
     ("limits", "the_weight_of", "a token holding nothing has no kind",
      "Token::Punct(_) => 3,", "Token::Punct(_) => 4,"),
-    # **The fingerprint's two halves.** A weight of lengths was blind to a
+    # **The fingerprint's two halves.** A weight of lengths is blind to a
     # same-length rename and, being a sum, to a reversal.
     ("limits", "the_weight_of", "the text is a length, not its bytes",
      "held.wrapping_mul(31).wrapping_add(byte as usize)", "held.wrapping_add(1)"),
     ("limits", "the_weight_of", "the sum is order-blind",
      "sum.wrapping_add(held.wrapping_mul(at.wrapping_add(1)))", "sum.wrapping_add(held)"),
 
-    # -- round 26's repairs, each one a clause that was decided by nothing -----
-    # A reviewer measured every one of these as a plant the whole suite walked
-    # past. `limits::tests` decides them, which is why the runner's filter now
-    # holds that suite as well as the corpus.
+    # -- clauses `limits::tests` decides ----------------------------------------
+    # Measured without the `limits::tests` rows that hold them, each of these,
+    # planted, walked past the whole suite. That suite decides them, which is
+    # why the runner's filter holds it as well as the corpus.
     ("limits", "renamed_table", "the verb is looked for below the name",
      "    let verb = after;\n    if tokens\n        .get(verb)\n        .is_none_or(|token| !token.is(\"RENAME\") && !token.is(\"SET\"))\n    {\n        return None;\n    }",
      "    let verb = after\n        + tokens\n            .get(after..)?\n            .iter()\n            .position(|token| token.is(\"RENAME\") || token.is(\"SET\"))?;"),
-    # -- round 27's repairs, each one a plant the whole suite walked past ------
+    # -- clauses a plant would walk past without these ------------------------
     ("limits", "the_existence_test_after_if", "an `IF` is always an existence test",
      "        [exists, ..] if exists.is(\"EXISTS\") => 1,\n        _ => 0,",
      "        [exists, ..] if exists.is(\"EXISTS\") => 1,\n        _ => 2,"),
@@ -1302,11 +1271,10 @@ WEAKENINGS = [
      "        if here == ';' {\n            flush!();\n            tokens.push(Token::Punct(';'));"),
 
     # -- the file that judges the others -------------------------------------
-    # Eight operators over `check.rs`, each anchored to a clause one of this
-    # crate's own `check::` rows decides. Five of round 27's eleven findings
-    # were in this file and none of them was covered by mutation; the rows were
-    # written as those findings were repaired, so these are the operators that
-    # measure whether the rows do what they say.
+    # Operators over `check.rs`, each anchored to a clause one of this crate's
+    # own `check::` rows decides. A repair in this file is not covered by
+    # mutation without them, so these are the operators that measure whether
+    # the rows do what they say.
     ("check", "is_a_plain_count", "a literal need not be the whole expression",
      "        return written[first.len()..].trim().is_empty()\n            && !first",
      "        return !first"),
@@ -1336,11 +1304,12 @@ WEAKENINGS = [
     ("references", "names", "a reason need not name its subject at a boundary",
      "        boundary(before) && (ends_itself || boundary(after))",
      "        true"),
-    # **The left boundary alone, because the right one answered every case.**
-    # Forced to `None` — which is a boundary — the whole suite stayed green:
-    # every case then written was refused by what *follows* the subject or
-    # accepted by both sides at once. What it decides is a subject sitting at
-    # the end of a longer word, which is the count hatch's own headline defect.
+    # **The left boundary alone, because the right one answers most cases.**
+    # Forced to `None` — which is a boundary — the whole suite stays green
+    # without the case that reaches it: a case is otherwise refused by what
+    # *follows* the subject or accepted by both sides at once. What it decides
+    # is a subject sitting at the end of a longer word, which is the count
+    # hatch's own headline defect.
     ("references", "names", "what precedes a subject does not decide it",
      "        let before = reason[..at].chars().next_back();",
      "        let before: Option<char> = None;"),
@@ -1366,9 +1335,8 @@ WEAKENINGS = [
      "        if after == Some('/') {\n            return false;\n        }",
      ""),
 
-    # -- round sixty-six's repairs, each measured in the suite its file is run
-    # against and none of them reached by this runner when it was written --
-    # -- the crate sources two reviewers named as uncovered, one clause each --
+    # -- clauses each measured in the suite its file is run against --
+    # -- the crate sources with clauses no other operator reaches, one clause each --
     ("compiler_problem", "line_of", "a comment holding the needle is where it is declared",
      "        if line.trim_start().starts_with('#') {",
      "        if false {"),
@@ -1384,14 +1352,13 @@ WEAKENINGS = [
     ("log_root", "line", "the field a log owns may be named by an event",
      '        fields.insert("_msg".to_owned(), nc_canon::Value::text(event.name()));',
      '        fields.insert("_message".to_owned(), nc_canon::Value::text(event.name()));'),
-    # **The scale table, which is written twice and was mutated in neither.**
+    # **The scale table, which is written twice.**
     # `xtask/src/store.rs`'s `bytes` and the copy in
     # `xtask/tests/the_stack_enforces_the_declared_bounds.rs` are the same four
-    # rows, and `xtask/src/check.rs`'s exclusion table excused the copy on the
-    # ground that "the reader it shares with `store.rs` is mutated there". It was
-    # not: no operator here touched `bytes` at all. Measured before adding this
-    # one — the weakening below, alone, gives
-    # `cargo test -q -p xtask --bin xtask -- store::` a failure.
+    # rows, and `xtask/src/check.rs`'s exclusion table excuses the copy on the
+    # ground that "the reader it shares with `store.rs` is mutated there". This
+    # is the operator that makes that true. Measured — the weakening below,
+    # alone, gives `cargo test -q -p xtask --bin xtask -- store::` a failure.
     ("store", "bytes", "a kibibyte is a thousand bytes",
      '("KiB", 1024),',
      '("KiB", 1000),'),
@@ -1399,7 +1366,7 @@ WEAKENINGS = [
      'Self::Reserved => "not yet — the number is held"',
      'Self::Reserved => "yes"'),
 
-    # -- the two xtask sources this runner had never edited --
+    # -- two xtask sources no other operator edits --
     ("generator", "what_a_run_would_write", "a file already on disk is the one to write",
      "        .filter(|(path, contents)| !already_written(&root.join(path), contents))",
      "        .filter(|(path, contents)| already_written(&root.join(path), contents))"),
@@ -1429,10 +1396,9 @@ WEAKENINGS = [
      "    held.names()\n        .filter(|name| {",
      "    held.names()\n        .take(0)\n        .filter(|name| {"),
 
-    # -- round sixty-four's repairs, which shipped with no operator at all --
-    # A reviewer counted five of eight repaired functions reached by nothing in
-    # this script. A repair is the most likely source of the next defect, so a
-    # repaired clause is the last one that should go uncovered.
+    # -- repaired clauses, each with an operator --
+    # A repair is the most likely source of the next defect, so a repaired
+    # clause is the last one that should go uncovered.
     ("dev", "names_its_project", "a project name pinned once is pinned everywhere",
      "        pinned > 0 && pinned == bindings",
      "        pinned > 0"),
@@ -1449,7 +1415,7 @@ WEAKENINGS = [
      "        while let Some(newline) = code[at..].find('\\n') {",
      "        while let Some(newline) = code[at..].find('\\u{0}') {"),
 
-    # -- where a pack refusal says it is, in the file no operator reached --
+    # -- where a pack refusal says it is --
     ("problem", "line_of", "a comment quoting a policy is where it is declared",
      "        .position(|line| !a_comment(line) && line.contains(needle))",
      "        .position(|line| line.contains(needle))"),
@@ -1457,11 +1423,12 @@ WEAKENINGS = [
      '    opens.starts_with(\'#\') || opens.starts_with("//")',
      "    opens.starts_with('#')"),
 
-    # -- the reason half of every hatch, which had no operator at all --
+    # -- the reason half of every hatch --
     # `marked_in` decides whether a marker is in a comment and is driven; the
-    # function that reads the *reason* after it was reached by nothing in this
-    # file, and all three of its clauses survived being deleted. Each is a
-    # defect this tree measured once and then left to a paragraph to remember.
+    # function that reads the *reason* after it is reached by nothing else in
+    # this file, and all three of its clauses survive being deleted without
+    # these. Each is a measured defect that a paragraph alone would have to
+    # remember.
     ("references", "reason_after", "the last marker anywhere supplies the reason",
      "    let at = *line\n        .match_indices(marker)\n        .filter(|(at, _)| in_a_comment(line, *at, marker.len(), comments))\n",
      "    let at = *line\n        .match_indices(marker)\n"),
@@ -1473,12 +1440,12 @@ WEAKENINGS = [
      "    Some(cut)"),
 
     # **The clause that decides whether the gate reads a paragraph at all.**
-    # A line with an odd backtick count opened a span that was not there and
-    # every citation below it was read one backtick out of step; twenty-nine were
-    # never read at all. Nothing here reached this function before the repair.
+    # A line with an odd backtick count opens a span that is not there, and
+    # every citation below it is read one backtick out of step — measured, some
+    # are never read at all.
     # **Where a paragraph ends, which decides how far a phantom span runs.**
-    # A break in a comment block is `    //` and the reset asked whether the
-    # line was empty; six real citations were read by nothing behind that.
+    # A break in a comment block is `    //`, so a reset asking whether the line
+    # is empty leaves real citations behind it read by nothing, measured.
     ("references", "ends_a_paragraph", "a comment marker is not content",
      "        .or_else(|| trimmed.strip_prefix(\"//\"))\n",
      ""),
@@ -1493,7 +1460,7 @@ WEAKENINGS = [
     ("sections", "headings", "a trailing dot is part of the number",
      "let token = token.trim_end_matches('.');",
      "let token = token;"),
-    # Anchored to its own loop header, because `headings` grew the same three
+    # Anchored to its own loop header, because `headings` holds the same three
     # lines and an operator that matches twice is one this runner calls
     # `not applicable`.
     ("sections", "numbered_items_under", "a fence holds items like any other line",
@@ -1521,8 +1488,8 @@ WEAKENINGS = [
      '"RUSTFLAGS" | "RUSTDOCFLAGS" | "RUSTC"'),
 
     # -- the absolute-path rule: a file on this machine in generated output ----
-    # `determinism.rs` had no operator at all until now, and every clause below
-    # was found by a reviewer reading it. Each is one character wide.
+    # Every clause below is one a reader of `determinism.rs` finds by hand, and
+    # each is one character wide.
     # `the_absolute_path_predicate_decides_every_clause` decides them.
     ("determinism", "names_an_absolute_path", "a doubled slash is a comment, not a path",
      "        let mut end = at + 1;\n        while characters.get(end) == Some(&'/') {\n            end += 1;\n        }",
@@ -1557,9 +1524,9 @@ WEAKENINGS = [
     ("gates", "is_a_build_key", "a quoted key is a key",
      """.map(|piece| piece.trim_start().replace(['"', '\\''], ""))""",
      """.map(|piece| piece.trim_start().replace(['\\''], ""))"""),
-    # `build:{` was a real clause and was deleted, not weakened: `split(['{', ','])`
-    # guarantees no piece can hold one. The operator aimed at it rotted into a
-    # no-op and was reported `not applicable`, which cost nothing — see `main`.
+    # `build:{` is not a clause and carries no operator: `split(['{', ','])`
+    # guarantees no piece can hold one, so an operator aimed at it would be a
+    # no-op reported `not applicable` — which `main` counts as a failure.
     ("gates", "is_a_build_key", "a bare `build:` key",
      'piece == "build:" || piece.starts_with("build: ")',
      'piece.starts_with("build: ")'),
@@ -1599,7 +1566,7 @@ WEAKENINGS = [
      "        .chain(copied_statements(text))",
      "        .chain(copied_statements(\"\"))"),
     # And a pragma set from values, which `sqlx-sqlite` runs as text it vouches
-    # for itself: found by a reviewer, past every gate.
+    # for itself: without this, past every gate.
     ("gates", "every_asserted_statement_is_named", "a pragma set from values is a vouched statement",
      "        .chain(pragmas_set(text))",
      "        .chain(pragmas_set(\"\"))"),
@@ -1610,7 +1577,7 @@ WEAKENINGS = [
      "            if !names.is_empty() {\n                copies.push",
      "            if true {\n                copies.push"),
     # A second `noctua-kernel.wit` elsewhere under `crates/` is a second world,
-    # and a row that matched the name alone admitted it.
+    # and a row that matches the name alone admits it.
     ("check", "is_the_file_named", "a row holding a path admits that path alone",
      "        must_be == relative\n",
      "        relative.ends_with(name)\n"),
@@ -1675,11 +1642,11 @@ WEAKENINGS = [
      "            collapsed.replace(\", }\", \" }\")"),
 
     # -- the journal in PostgreSQL: criterion 3's other half -----------------
-    # **The `INSERT`'s own ordering clause, which nothing could kill.** The
+    # **The `INSERT`'s own ordering clause, which nothing can kill.** The
     # comment above it says the check and the write are one statement so the
-    # answer cannot change underneath it — and a reviewer in round seventy-one
-    # widened it to `>=` and then removed it entirely, with all seventy
-    # `in_postgres` tests green against a live PostgreSQL. It is an equivalent
+    # answer cannot change underneath it — and measured, widened to `>=` and
+    # then removed entirely, it left every `in_postgres` test green against a
+    # live PostgreSQL. It is an equivalent
     # mutant *in this deployment*: a sequence behind the tail is refused by the
     # primary key and a sequence ahead by `0010`'s `BEFORE INSERT` trigger, whose
     # SQLSTATE is read back into `OutOfOrder`. Recorded rather than left
@@ -1784,7 +1751,7 @@ WEAKENINGS = [
     ("ship", "one_answer", "the status line is read without a bound",
      "        let mut answer = stream.take(STATUS_LIMIT);",
      "        let mut answer = stream.take(u64::MAX);"),
-    # -- the two crate roots, carried in after a round found repairs in both --
+    # -- the two crate roots, each holding a repair --
     ("ids", "OpaqueId", "an empty text is an identifier",
      "        if text.is_empty() || text.len() > OPAQUE_ID_MAX {",
      "        if text.len() > OPAQUE_ID_MAX {"),
@@ -1816,7 +1783,7 @@ WEAKENINGS = [
      "                    .find(|code| why.starts_with(&format!(\"[{}]\", code.code())))",
      "                    .find(|code| why.contains(&format!(\"[{}]\", code.code())))"),
 
-    # -- the last two files a reviewer named as uncovered -------------------
+    # -- the database gates and the policy crate root -------------------------
     ("database", "quoted_identifier", "a quote inside a name is doubled",
      "    format!(\"\\\"{}\\\"\", name.replace('\"', \"\\\"\\\"\"))",
      "    format!(\"\\\"{}\\\"\", name)"),
@@ -1829,9 +1796,9 @@ WEAKENINGS = [
     ("pack", "coverage", "an allow case is not a denial test",
      "        if case.decision != Expected::Deny {",
      "        if false {"),
-    # The principal flag is met by *some* principal the permit allows. Every one
-    # was the quantifier it shipped with, and a correct control on another realm
-    # refused both cases it exists for; the first one alone is wrong the same way.
+    # The principal flag is met by *some* principal the permit allows. *Every*
+    # one is the wrong quantifier: a correct control on another realm refuses
+    # both cases it exists for, and the first one alone is wrong the same way.
     ("pack", "the_principal_is_what_refuses_it", "the principal claim needs one permitting control",
      "    let permitted = controls.iter().any(|control| {",
      "    let permitted = controls.iter().all(|control| {"),
@@ -1843,7 +1810,7 @@ WEAKENINGS = [
      "    let single = true;"),
     # A pack floor's type test in a condition is excused only beside the read it
     # guards; excused everywhere, a floor narrowed to one kind of resource in its
-    # `when` printed the policy block byte-identical. And a boundary flag is a
+    # `when` prints the policy block byte-identical. And a boundary flag is a
     # claim about a `no_permit_matched` case, refused on any other.
     ("pack", "report_narrowings", "a type test in a floor's condition guards a read",
      "            && (where_ == Narrowing::Scope || guards_a_dereference(&narrowing, &rendered))\n",
@@ -1882,15 +1849,13 @@ WEAKENINGS = [
      "            let named = reason.split_once('\\n').map_or(reason, |(first, _)| first);",
      "            let named = reason;"),
 
-    # -- the three sources that were named here and weakened nowhere ---------
+    # -- sources that need an operator of their own ---------------------------
     #
     # **A `SOURCES` entry that carries no operator is a file this script backs
     # up, restores and names in its own summary without ever weakening a line of
-    # it.** Three of the thirty-eight were exactly that — 3109 lines between
-    # them — and nothing compared the two lists, so the omission read as
-    # coverage. Reported on 2026-09-13;
-    # `every_source_the_meta_gate_edits_carries_an_operator` is what keeps it
-    # from happening again.
+    # it**, and with nothing comparing the two lists the omission reads as
+    # coverage. `every_source_the_meta_gate_edits_carries_an_operator` compares
+    # them.
     ("unit", "record", "a closed unit refuses a record",
      "        if self.closed {\n            return Err(Error::UnitClosed { unit: self.id });\n        }\n        record.work_unit = Some(self.id);",
      "        if false {\n            return Err(Error::UnitClosed { unit: self.id });\n        }\n        record.work_unit = Some(self.id);"),
@@ -1913,10 +1878,10 @@ WEAKENINGS = [
      "            \"SELECT 'unit-committed' FROM journal_entries \\"),
     # **Which closing bracket answers, and the two guards a conforming store
     # hides.** Every store refuses a second closing bracket, so the order of
-    # the question was decided by nothing until a test planted one; `close`'s
-    # own guard answers what `append` answers anyway; and a close refused as
-    # already closed kept its label for good. Each reported on 2026-09-28 with
-    # its plant, and each carries the test that turns it red.
+    # the question is decided only by a test that plants one; `close`'s own
+    # guard answers what `append` answers anyway; and a close refused as
+    # already closed must not keep its label for good. Each has its plant and
+    # carries the test that turns it red.
     ("journal_store", "unit_closing", "the first closing bracket by sequence is the one that closed the unit",
      'ORDER BY sequence LIMIT 1",',
      'ORDER BY sequence DESC LIMIT 1",'),
@@ -1929,11 +1894,11 @@ WEAKENINGS = [
     ("journal", "close_unit", "a close refused as already closed drops the label no retry can use",
      "        if matches!(landed, Ok(_) | Err(Error::UnitClosed { .. })) {",
      "        if matches!(landed, Ok(_)) {"),
-    # **A store that cannot answer is not an answer.** Each of these read a
-    # failure to answer as "no" with every suite green: `close_unit` reported a
-    # store it could not ask as a unit nobody opened, and both ways of asking
-    # whether a unit closed answered "not closed" over a table that was not
-    # there. Each reported on 2026-09-28 with its plant; the store over a
+    # **A store that cannot answer is not an answer.** Each of these, weakened,
+    # reads a failure to answer as "no" with every other suite green:
+    # `close_unit` reports a store it could not ask as a unit nobody opened, and
+    # both ways of asking whether a unit closed answer "not closed" over a table
+    # that is not there. Each has its plant; the store over a
     # missing schema in `in_postgres.rs` turns all three red, and `CannotSay` in
     # `unit.rs` the two that are not PostgreSQL's own.
     ("journal", "close_unit", "a store that cannot say whether a unit opened is not a unit that never opened",
@@ -1998,9 +1963,9 @@ WEAKENINGS = [
     ("schema", "CEDAR_RESERVED", "every word Cedar reserves is on the list",
      '"if", "then", "else"',
      '"if", "if", "else"'),
-    # **The characters a reader sees nothing of, in a schema's text.** The
-    # rule stood in the catalog compiler alone, so the judge the kernel asks at
-    # `activate` accepted a description spelled in tag characters. Narrowed to
+    # **The characters a reader sees nothing of, in a schema's text.** With the
+    # rule in the catalog compiler alone, the judge the kernel asks at
+    # `activate` accepts a description spelled in tag characters. Narrowed to
     # the controls, the direction family passes; the exemption dropped, a
     # schema written over several lines is refused; the tag plane cut to the
     # block that spells ASCII, its far end passes.
@@ -2013,9 +1978,9 @@ WEAKENINGS = [
     ("schema", "INVISIBLE_RANGES", "the tag plane is unseen to its last point",
      "(0xE0000, 0xE0FFF)",
      "(0xE0000, 0xE007F)"),
-    # **Every place a schema's own words come back, cut short.** Found by
-    # review: each of these could repeat a megabyte of name, escape sequences
-    # and all, with every suite green.
+    # **Every place a schema's own words come back, cut short.** Uncut, each of
+    # these can repeat a megabyte of name, escape sequences and all, with every
+    # suite green.
     ("schema", "visit_map", "a key written twice is repeated cut short",
      "super::excerpt(&key)",
      "&key"),
@@ -2057,9 +2022,9 @@ WEAKENINGS = [
     ("selector", "written", "a selected name is the grammar's",
      "        && characters.all(|rest| rest.is_ascii_lowercase() || rest.is_ascii_digit() || rest == '_');",
      "        && characters.all(|rest| rest.is_ascii_lowercase() || rest.is_ascii_digit() || rest == '_' || rest == '-');"),
-    # **The realm is selected by `realm` alone.** Found by review: an argument
-    # whose `x-entity` is `Realm` let a plugin's `Write` choose which realm the
-    # decision point was handed, past a rule written against `realm`.
+    # **The realm is selected by `realm` alone.** Otherwise an argument whose
+    # `x-entity` is `Realm` lets a plugin's `Write` choose which realm the
+    # decision point is handed, past a rule written against `realm`.
     ("selector", "resolved", "an argument cannot select the realm",
      "        if entity_type == REALM_TYPE {",
      "        if entity_type.is_empty() {"),
@@ -2103,8 +2068,8 @@ WEAKENINGS = [
     ("pack", "refused_id", "an id of another shape is refused",
      "    if !id_is_well_formed(name) {",
      "    if false {"),
-    # And its first word is the pack its file is in, which a reviewer found
-    # held by nothing: a family file's rule compiled as `core.…`.
+    # And its first word is the pack its file is in: measured with nothing
+    # holding that, a family file's rule compiled as `core.…`.
     ("pack", "refused_id", "an id's first word is its file's pack",
      "        && name.split('.').next() != Some(pack)",
      "        && false"),
@@ -2287,8 +2252,8 @@ WEAKENINGS = [
      "                    .is_some_and(|_| true)"),
     # Action entities come only from the schema, so a slice built without it
     # holds no action group, and a `forbid` over one never fires: the permit
-    # beside it allows. Rustc's dead-field warning was the only other signal,
-    # and this runner reads warnings as passes.
+    # beside it allows. Without a test of that, rustc's dead-field warning is
+    # the one other signal, and this runner reads warnings as passes.
     ("authz_directory", "slice_now", "a slice is built with the schema, so an action group is an ancestor",
      "        Entities::from_entities(entities, Some(&self.schema))",
      "        Entities::from_entities(entities, None)"),
@@ -2332,8 +2297,8 @@ WEAKENINGS = [
      "        nc_catalog::KERNEL.fuel_per_activate,\n",
      "        0,\n"),
     # **And on the activation's fuel, not a dispatch's.** The one above proves
-    # only that some fuel is given: handed four times as much, every suite was
-    # green until a test read what activate left.
+    # only that some fuel is given: handed four times as much, every suite is
+    # green but a test that reads what activate left.
     ("kernel_bindings", "activated", "activate runs on the activation's fuel, not a dispatch's",
      "        nc_catalog::KERNEL.fuel_per_activate,\n",
      "        nc_catalog::KERNEL.fuel_per_dispatch,\n"),
@@ -2594,8 +2559,8 @@ WEAKENINGS = [
      "            GrantSet::none(),\n"),
     # **And the other way.** The one above narrows the grants and is caught by
     # every plugin that reads its store; this widens them, and a load granting
-    # every plugin everything left every suite green until the test of a
-    # plugin not granted its store loaded over a seed it would have read.
+    # every plugin everything leaves every suite green but the test of a
+    # plugin not granted its store, loaded over a seed it would have read.
     ("kernel_host", "for_plugin", "a plugin is granted no more than its manifest names",
      "            manifest.grants().clone(),\n",
      "            GrantSet::every(),\n"),
@@ -2609,8 +2574,8 @@ WEAKENINGS = [
      "registry::quoted_up_to(&why, REFUSAL_QUOTED)",
      "registry::quoted_up_to(&why, usize::MAX)"),
     # What wasmtime says of bytes it refuses quotes the component's own names,
-    # which were repeated whole until a reviewer imported a function named with
-    # 100,000 characters.
+    # which are cut short: repeated whole, an imported function named with
+    # 100,000 characters comes back in full.
     ("kernel", "load", "what wasmtime says of bytes it will not compile is cut to its bound",
      "registry::quoted_up_to(&refused.to_string(), REFUSAL_QUOTED)",
      "registry::quoted_up_to(&refused.to_string(), usize::MAX)"),
@@ -2629,8 +2594,8 @@ WEAKENINGS = [
     ("kernel_backend", "StoreBackend for MemoryBackend", "a person's newest units are the ones kept",
      "            .skip(usize::try_from(keep).unwrap_or(usize::MAX))",
      "            .skip(usize::MAX)"),
-    # **The realm half of each filter.** One realm in every script and every
-    # sequence left both realm-blind and green until the suite named a second.
+    # **The realm half of each filter.** With one realm in every script and
+    # every sequence, both are realm-blind and green; the suite names a second.
     ("kernel_backend", "StoreBackend for MemoryBackend", "a person's units are listed within their realm",
      "detail.row.meta.realm == *realm && detail.row.meta.principal == *principal\n            })\n            .take(",
      "!realm.as_str().is_empty() && detail.row.meta.principal == *principal\n            })\n            .take("),
@@ -2652,10 +2617,11 @@ WEAKENINGS = [
     ("kernel_backend", "committed", "a plugin is held to its own quota",
      "> quotas.entries_for(plugin) {",
      "> quotas.entries_per_plugin {"),
-    # **Only a new key counts against a quota.** Every script and sequence held
-    # a plugin to one number from its first commit, so no plugin was ever over
-    # it, and either store counting a rewrite as a new key left every suite
-    # green — measured, both planted — until a script lowered the number.
+    # **Only a new key counts against a quota.** A script holding a plugin to
+    # one number from its first commit never puts it over, so against such
+    # scripts alone either store counting a rewrite as a new key leaves every
+    # suite green — measured, both planted — which is why a script here lowers
+    # the number.
     ("kernel_backend", "committed", "a key a plugin holds is not a new key in memory",
      "        if before.is_none() && after.is_some() && !grew.contains(&write.plugin.as_str()) {",
      "        if after.is_some() && !grew.contains(&write.plugin.as_str()) {"),
@@ -2680,9 +2646,9 @@ WEAKENINGS = [
     ("kernel_registry", "admit", "more commands than a plugin may declare is refused",
      "        if commands.len() > most {",
      "        if false {"),
-    # **A load refused for its count is told it was not started.** It carried
-    # NC-PLUG-0017, whose message says a part reached the most it may keep,
-    # until a reviewer read that message beside the refusal.
+    # **A load refused for its count is told it was not started**, not
+    # NC-PLUG-0017, whose message says a part reached the most it may keep —
+    # which reads wrong beside the refusal.
     ("kernel_registry", "admit", "a plugin declaring too many commands is told it was not started",
      "                ErrorCode::PluginDescriptorInvalid,\n                format!(\n                    \"`{plugin}` declares {} commands",
      "                ErrorCode::PluginBoundReached,\n                format!(\n                    \"`{plugin}` declares {} commands"),
@@ -2711,7 +2677,7 @@ WEAKENINGS = [
      "    if !actions.contains(&command.action) {",
      "    if false {"),
     # The entity type is the plugin's own text, of any length the judge
-    # admits, and was repeated whole until a reviewer wrote one of 100,000.
+    # admits, so it is not repeated whole: one of 100,000 characters would be.
     ("kernel_registry", "undecidable", "an entity type a refusal repeats is cut to its bound",
      "            quoted(entity),\n",
      "            entity,\n"),
@@ -2721,17 +2687,17 @@ WEAKENINGS = [
     ("kernel_registry", "unheard", "a subscription its manifest does not declare is refused",
      "        } else if declared.contains(topic) {",
      "        } else if true {"),
-    # A malformed name is never repeated: no test held it until a reviewer
-    # repeated every name that was not blank. The guard is in the file twice,
-    # so the declaring line is part of the text.
+    # A malformed name is never repeated; the weakening below repeats every
+    # name that is not blank, which a test has to catch. The guard is in the
+    # file twice, so the declaring line is part of the text.
     ("kernel_registry", "subject_of", "a malformed name is named by its position",
      "fn subject_of(command: &Declared, at: usize, plugin: &str) -> String {\n    if descriptor::command_name_is_well_formed(&command.name) {",
      "fn subject_of(command: &Declared, at: usize, plugin: &str) -> String {\n    if !command.name.trim().is_empty() {"),
     ("kernel_registry", "subject_of", "a well-formed name is repeated whole",
      "        format!(\"`{}` of `{plugin}`\", command.name)",
      "        format!(\"{} of `{plugin}`\", quoted(&command.name))"),
-    # The field the decision point's irreversible precondition reads, which no
-    # test compared until a reviewer listed every command as a read. The bare
+    # The field the decision point's irreversible precondition reads, which a
+    # test compares: every command listed as a read is otherwise green. The bare
     # line is in the file twice, so the next one is part of the text.
     ("kernel_registry", "listed", "a command is listed with the reversibility it declares",
      "            reversibility: self.reversibility,\n            owner,",
@@ -2836,8 +2802,8 @@ WEAKENINGS = [
      "                        true"),
 
     # -- the local database: its file, its schema, its commit, its pruner, its gates --
-    # Each is the defect its guard exists for, and each was applied by hand once
-    # and watched fail under the command that decides its source.
+    # Each is the defect its guard exists for, and each, applied by hand, fails
+    # under the command that decides its source, measured.
     ("local_lib", "said", "a busy database is not answering, not broken",
      "Some(5 | 6 | 8 | 10 | 13 | 14) | None => LocalError::Unavailable(why),",
      "Some(6 | 8 | 10 | 13 | 14) | None => LocalError::Unavailable(why),"),
@@ -2892,7 +2858,8 @@ WEAKENINGS = [
     ("local_store", "canonical", "a value that is not its own canonical form is refused",
      "Ok(value) if value.to_canonical() == text => Ok(()),",
      "Ok(value) if !value.to_canonical().is_empty() => Ok(()),"),
-    # What a review of the local database found decided by nothing: the
+    # Clauses of the local database, each held here so a test has to decide
+    # it: the
     # self-check's `quick_check`, the code of a foreign header and of a path
     # the filesystem cannot answer for, the cascade the SQLite pruner follows,
     # a string continued across lines, and whose rows a limit counts.
@@ -3008,12 +2975,13 @@ WEAKENINGS = [
     ("gates", "in_the_error_code_scope", "local-migrations/ is inside the §15.1 scope",
      "        || relative.starts_with(\"local-migrations/\")\n",
      ""),
-    # What the second review of the local database found: a version floor no
-    # test entered, a quota one number wide for a unit that writes for several,
-    # a probe name every open shared, owner bits nobody judged, a unit committed
-    # twice read as a damaged file, a virtual table and a commented trigger the
-    # pruner did not see, statistics that make the next open refuse, and three
-    # ways SQLite writes a table the bound gate could not read.
+    # More clauses of the local database, each held here so a test has to
+    # decide it: a version floor, a quota one number wide for a unit that writes
+    # for several, a probe
+    # name every open shares, owner bits, a unit committed twice read as a
+    # damaged file, a virtual table and a commented trigger the pruner must see,
+    # statistics that make the next open refuse, and three ways SQLite writes a
+    # table the bound gate must read.
     ("local_lib", "said", "a read-only database is not answering, not broken",
      "Some(5 | 6 | 8 | 10 | 13 | 14) | None => LocalError::Unavailable(why),",
      "Some(5 | 6 | 10 | 13 | 14) | None => LocalError::Unavailable(why),"),
@@ -3062,11 +3030,10 @@ WEAKENINGS = [
     ("limits", "creates_a_virtual_table", "a virtual table is refused in a migration",
      "three[1].is(\"VIRTUAL\")",
      "three[1].is(\"VIRTUAX\")"),
-    # What the third review of the local database found: a migrator that wrote
-    # into a file the self-check then refused, a permission arm no test
-    # reached, SQL comments that parted two keywords, a pruner the source gate
-    # did not read, images and notes no unit was bounded in, and a page of
-    # zero keys that said the listing was over.
+    # And the rest of them: a migrator that writes into a file the self-check
+    # then refuses, a permission arm, SQL comments that part two keywords, a
+    # pruner the source gate must read, images and notes a unit is bounded in,
+    # and a page of zero keys that says the listing is over.
     ("local_schema", "before_migrating", "a file is judged by its own history before it is migrated",
      "    judge_at(&found, applied.as_deref()).map_err(LocalError::Unexpected)\n}",
      "    let _ = judge_at(&found, applied.as_deref());\n    Ok(())\n}"),
@@ -3242,7 +3209,7 @@ WEAKENINGS = [
     ("kernel_dispatch", "detached", "a tree runs to its end whoever stops waiting",
      "tokio::spawn(tree).await",
      "Ok(tree.await)"),
-    # -- the decision point, after its first verification ---------------------
+    # -- the decision point: a reversal the store refused ----------------------
     ("kernel_units", "revert", "a reversal the store refused is not one that landed",
      "        .map_err(|refused| commit_refused(&refused))",
      "        .or(Ok(()))"),
@@ -3282,7 +3249,7 @@ WEAKENINGS = [
     ("reference_behaviour", "execute", "a trap traps before it reaches the world",
      "        \"abuse.trap\" => panic!(\"`{name}` trapped at once, as it is written to\"),",
      "        \"abuse.trap\" => Ok(String::new()),"),
-    # -- the decision point, after its second verification --------------------
+    # -- the decision point: a tree's spent count ------------------------------
     ("kernel_dispatch", "spend", "a dispatch past the tree's count traps the plugin that asked",
      "                refusal.trapping()\n",
      "                refusal\n"),
@@ -3323,7 +3290,7 @@ WEAKENINGS = [
     ("reference_behaviour", "relayed", "a relay told to go on through its refusals goes on",
      "                if !through {",
      "                if true {"),
-    # -- the decision point, after its third verification ---------------------
+    # -- the decision point: the kernel's own answers --------------------------
     ("kernel_builtin", "verified", "a chain that does not verify is answered broken",
      "            Ok(Value::object([(\n                \"broken\",\n",
      "            Ok(Value::object([(\n                \"verified\",\n"),
@@ -3422,9 +3389,9 @@ WEAKENINGS = [
     ("kernel_supervisor", "in_time", "a host call is held to the catalog's deadline",
      "    let own = Duration::from_millis(KERNEL.host_call_deadline_ms);",
      "    let own = Duration::from_millis(KERNEL.host_call_deadline_ms * 2);"),
-    # **A host call is held to what its tree has left**, which a reviewer found
-    # it was not: a fetch in a tree whose time was up was sent, and waited on
-    # for as long as the host call's own deadline allowed.
+    # **A host call is held to what its tree has left**: otherwise a fetch in a
+    # tree whose time is up is sent, and waited on for as long as the host
+    # call's own deadline allows, measured.
     ("kernel_supervisor", "in_time", "a host call is held to what its tree has left",
      "    let tree = left.filter(|left| *left <= own);",
      "    let tree = left.filter(|_| false);"),
@@ -3432,7 +3399,7 @@ WEAKENINGS = [
      "    if tree.is_some_and(|left| left.is_zero()) {",
      "    if false {"),
     # **A release runs on a task of its own**: awaited in place, one its caller
-    # gave up on left the slot claimed as starting, for good.
+    # gives up on leaves the slot claimed as starting, for good.
     ("kernel_supervisor", "released", "a release runs to its end whoever stops waiting",
      "    tokio::spawn(async move { release(&shared, slot).await })\n        .await\n",
      "    Ok::<_, tokio::task::JoinError>(release(&shared, slot).await)\n"),
@@ -3518,10 +3485,10 @@ WEAKENINGS = [
     ("kernel_bindings", "begun", "a call in a tree is held from the tree's start",
      "    let tree = store.data().tree_began();",
      "    let tree = None;"),
-    # **A release claims the slot it starts the plugin in.** A verifier found
-    # one that left it stopped while the plugin was instantiated: a second
-    # release started a second instance, and put it over the one a command had
-    # taken out to run, which let that command dispatch into itself.
+    # **A release claims the slot it starts the plugin in.** One that leaves it
+    # stopped while the plugin is instantiated lets a second release start a
+    # second instance and put it over the one a command has taken out to run,
+    # which lets that command dispatch into itself.
     ("kernel_supervisor", "release", "a release claims the plugin before it starts it again",
      "        loaded.slot = Slot::Starting;\n",
      ""),
@@ -3533,8 +3500,8 @@ WEAKENINGS = [
      "            quarantined: matches!(loaded.slot, Slot::Stopped),"),
     # The decision point asks whether a plugin is stopped before it checks one
     # out, so only the supervisor's own test reaches a check-out of a slot with
-    # no store in it; a put-back that once stood here was deleted with every
-    # suite green.
+    # no store in it; without that test, a put-back here can be deleted with
+    # every suite green.
     ("kernel_supervisor", "check_out", "a check-out leaves a slot that holds no store as it was",
      "            Slot::Stopped | Slot::Starting | Slot::Unloaded => return Err(Out::Stopped),\n",
      "            Slot::Stopped | Slot::Starting | Slot::Unloaded => {}\n"),
@@ -3811,9 +3778,9 @@ WEAKENINGS = [
     ("kernel_blobs", "BlobStore for DirectoryBlobs", "a directory that refuses its sync refuses the finish",
      "                    .map_err(|error| failed(&format!(\"syncing `{}`\", root.display()), &error))?;",
      "                    .or_else(|_| Ok::<(), BlobError>(()))?;"),
-    # **The two awaits of a finish, back in the order a review found them in.**
-    # Named first, a row refused or never answered left bytes no row named and
-    # the unit let go did not know of.
+    # **The two awaits of a finish, in their order: the row first.** Named
+    # first, a row refused or never answered leaves bytes no row names and the
+    # unit let go does not know of.
     ("kernel_host_blobs", "finish", "a finish reads its row before its bytes are named",
      "            let row = store\n"
      "                .blob(named.as_str())\n"
@@ -4003,7 +3970,7 @@ WEAKENINGS = [
     ("kernel_dispatch", "left", "a refused fetch is logged by its plugin's slot",
      "        shared.log.record(&nc_log::events::NetRefused {",
      "        drop(&nc_log::events::NetRefused {"),
-    # --- step 13, verification round 1: what no test held ---
+    # --- step 13: what a test has to hold ---
     ("kernel_net_ureq", "resolve", "of a mixed answer only the public addresses are dialled",
      "resolved.iter().filter(|address| is_public(address.ip()))",
      "resolved.iter().filter(|_| resolved.iter().any(|any| is_public(any.ip())))"),
@@ -4016,7 +3983,7 @@ WEAKENINGS = [
     ("kernel_net_ureq", "fetch", "a request's body reaches the wire",
      "            Some(body) => self.agent.run(http::Request::from_parts(head, body)),",
      "            Some(_) => self.agent.run(http::Request::from_parts(head, ())),"),
-    # --- step 13, verification round 2: what the transport trusts, and the head ---
+    # --- step 13: what the transport trusts, and the head ---
     ("kernel_net_ureq", "configured", "a server's certificate is always verified",
      "                .disable_verification(false)\n",
      "                .disable_verification(true)\n"),
@@ -4056,7 +4023,7 @@ WEAKENINGS = [
     ("kernel_net", "code", "a request the transport cannot write is refused, not unavailable",
      "            Self::PrivateAddress { .. } | Self::UnwritableUrl(_) | Self::UnwritableHeader(_) => {\n                ErrorCode::PluginRequestRefused\n",
      "            Self::PrivateAddress { .. } => ErrorCode::PluginRequestRefused,\n            Self::UnwritableUrl(_) | Self::UnwritableHeader(_) => {\n                ErrorCode::PluginNetworkUnavailable\n"),
-    # --- step 13, verification round 3: the answer's headers, the reasons' words, a read's note ---
+    # --- step 13: the answer's headers, the reasons' words, a read's note ---
     ("kernel_net_ureq", "unanswered", "an answer with more headers than ureq parses is too large",
      "            TransportError::TooLarge(format!(\n                \"an answer carries at most {} header(s), and this one carried more\",",
      "            TransportError::Unavailable(format!(\n                \"an answer carries at most {} header(s), and this one carried more\","),
@@ -4313,7 +4280,7 @@ WEAKENINGS = [
     ("kernel_host_commands", "begin", "a unit begun gives the step its label",
      "            unit.labelled(&label);\n",
      ""),
-    # --- step 14, verification round 1: what an undo and a redo decide again, and before what ---
+    # --- step 14: what an undo and a redo decide again, and before what ---
     ("kernel_dispatch", "executed", "a nested command that ran is noted with what it was allowed",
      "                Executed::Ran(Ok(_)) | Executed::Entered(Ok(_)) if mutating => {",
      "                Executed::Ran(Ok(_)) | Executed::Entered(Ok(_)) if mutating && asked.depth == 0 => {"),
@@ -4323,7 +4290,7 @@ WEAKENINGS = [
     ("kernel_history", "redo", "a redo holds every key to what its undo left before anything is staged",
      "    held_as_left(shared, &undo.images).await?;",
      "    let _ = &undo.images;"),
-    # --- step 14, verification round 1: what a compensation may name ---
+    # --- step 14: what a compensation may name ---
     ("kernel_host_commands", "compensate_with", "a compensation naming another's command asks for the grant to dispatch",
      "        if kernel.foreign_to(&name, &self.plugin) {",
      "        if false {"),
@@ -4342,7 +4309,7 @@ WEAKENINGS = [
     ("kernel_history", "compensation", "a compensation that deletes is refused",
      "    if command.listed().action == DELETE {",
      "    if false {"),
-    # --- step 14, verification round 1: how far back an undo looks ---
+    # --- step 14: how far back an undo looks ---
     ("kernel_history", "undo", "an undo looks through the person's steps, not every unit",
      "    let rows = steps_of(shared, principal).await?;",
      "    let rows = units_of(shared, principal).await?;"),
@@ -4355,7 +4322,7 @@ WEAKENINGS = [
     ("kernel_backend", "StoreBackend for MemoryBackend", "a person's steps are listed newest first in memory",
      "        let rows: Vec<UnitRow> = held\n            .units\n            .values()\n            .rev()",
      "        let rows: Vec<UnitRow> = held\n            .units\n            .values()\n            .skip(0)"),
-    # --- step 14 fix2: who holds a blob, the undo a compensation let go, what an abort names ---
+    # --- step 14: who holds a blob, the undo a compensation let go, what an abort names ---
     ("kernel_history", "redo", "a redo pins again every blob its step made, held before it or not",
      "    let repinned = repinned(shared, &notes.made).await?;",
      "    let repinned = repinned(\n        shared,\n        &notes\n            .made\n            .iter()\n            .filter(|(_, pinned_before)| !pinned_before)\n            .cloned()\n            .collect::<Vec<_>>(),\n    )\n    .await?;"),
@@ -4395,7 +4362,7 @@ WEAKENINGS = [
     ("kernel_dispatch", "closed", "a unit a nested failure doomed names its compensations",
      "            units::let_go(shared, &ambient, doomed_for).await;\n            Err(units::not_run(refusal, &ambient))",
      "            units::let_go(shared, &ambient, doomed_for).await;\n            Err(refusal)"),
-    # --- step 14, verification round 3: a step held to what its undo stages, and the notes no plugin may crowd out ---
+    # --- step 14: a step held to what its undo stages, and the notes no plugin may crowd out ---
     ("kernel_units", "stage", "a key first written counts what it held before against the unit's bytes",
      "        let replaced = committed.map_or(0, |entry| bytes_of(&entry.value));",
      "        let replaced = 0;"),
@@ -4936,8 +4903,8 @@ WEAKENINGS = [
     ("kernel_pump", "pruned", "a pump held back says what refused the reversal",
      "        pumped.prune_refused = Some(held.code());",
      "        pumped.prune_refused = Some(ErrorCode::DbPruneRefused);"),
-    # **The fixes of the first review wave**, each written with the test
-    # that kills it first: a timer's `begin` held to its deadline, the
+    # **Clauses each written with the test that kills it first**: a timer's
+    # `begin` held to its deadline, the
     # directory to what a tree has left, a confirmation to its whole
     # principal and to a decided dispatch, a refusal logged as its command
     # declares, compensations to what an undo can dispatch, a revision to its
@@ -5293,27 +5260,21 @@ WEAKENINGS = [
 ]
 
 TOUCH = ["find", "crates", "xtask", "-name", "*.rs", "-exec", "touch", "{}", "+"]
-# **Two suites, not the corpus alone.** A reviewer measured the split: of the
-# clauses in `limits.rs` that any test decides, **22** were decided only by
-# `limits::tests` and **10** by `corpus::` — so two thirds of that file's covered
-# clauses sat outside every mutation this script runs while it reported them as
+# **Two suites, not the corpus alone.** Measured, of the clauses in `limits.rs`
+# that any test decides, **22** were decided only by `limits::tests` and **10**
+# by `corpus::` — so with the corpus alone, two thirds of that file's covered
+# clauses sit outside every mutation this script runs while it reports them as
 # covered by nobody. The corpus is still where a *predicate* case belongs and the
-# discipline above stands; what changed is that a clause pinned by a unit test is
-# no longer invisible here.
+# discipline above stands; a clause pinned by a unit test is not invisible here.
 #
 # **What a module suite costs, since the question comes up each time one is
-# added.** Measured when there were six sources: adding five module suites took
-# one run from 0.8 seconds of tests to 21.5, which was forty minutes over that
-# operator list against six. The shape of the trade is what survives; the
-# numbers are not re-measured here, and the list of which suites are in is not
-# written here either.
-#
-# It was, and it was wrong: the paragraph named `dev::`, `wall::` and `counts::`
-# as still outside while all three sat in the table twenty lines below it, so the
-# trade it invited the next person to make had already been taken for three of
-# the five and the price was quoted against a list of six that is now
-# forty-nine. Reported on 2026-09-15. `SUITES` below is the answer to *which*,
-# and `--summary` prints it per file; a second copy in prose can only disagree.
+# added.** Measured over a short list of sources: five module suites took one
+# run from 0.8 seconds of tests to 21.5, which was forty minutes over that
+# operator list. The shape of the trade is what survives; the numbers are not
+# re-measured here, and the list of which suites are in is not written here
+# either — a list in prose names suites as outside that sit in the table below
+# it. `SUITES` below is the answer to *which*, and `--summary` prints it per
+# file; a second copy in prose can only disagree.
 # **And the suite is chosen by the source, not one command for all of them.**
 # The paragraph above prices `check::` honestly: the whole of it is 26 seconds
 # against 0.8, which over a hundred and thirty operators is an hour rather than
@@ -5325,63 +5286,58 @@ TOUCH = ["find", "crates", "xtask", "-name", "*.rs", "-exec", "touch", "{}", "+"
 TEST = ["cargo", "test", "-q", "-p", "xtask", "--bin", "xtask", "--"]
 SUITES = {
     "check": ["corpus::", "limits::", "check::"],
-    # **`gates::` too, and it is the third time this list has learnt this.**
+    # **`gates::` too.**
     # `no_source_puts_the_lints_down`'s `#![` — the characters that tell an
-    # inner attribute from a shebang — came back SURVIVED in wave 21 against a
+    # inner attribute from a shebang — comes back SURVIVED without it against a
     # fixture that kills it, because that fixture asserts `findings.is_empty()`
     # in `gates::tests` and the corpus test beside it counts only findings of
     # kind "turns off". The weakening changes a *counter* finding instead, so no
-    # number in `corpus::` moves however many rows it grows. Sixty-eight
-    # operators read this file and none of them could see a clause its own
-    # module decides. The same sentence is written twice below, for `dev` and
-    # for `policy`.
+    # number in `corpus::` moves however many rows it grows, and no operator
+    # over this file can see a clause its own module decides under the default.
+    # The same sentence is written below, for `dev` and for `policy`.
     "gates": ["corpus::", "limits::", "gates::"],
-    # **And `determinism::`, which is the sixth row of this shape.** Five
-    # operators over `xtask/src/determinism.rs` were judged by `corpus::` and
-    # `limits::`, which select 107 tests between them and none of the 17 in
-    # `determinism::tests` — so every clause of `mentions`, `conditional_on`,
-    # `what_this_line_reads` and the needle census was decided by a module no
-    # command judging that file ever ran. Found in wave 22, by a reviewer asked
-    # to put the question wave 21 answered for `gates` to the other forty-eight
-    # sources. The static rule that makes a seventh row impossible is in
-    # `check.rs`'s meta gate now; these rows stay because they are what it holds.
+    # **And `determinism::`, a row of the same shape.** Judged by `corpus::` and
+    # `limits::` alone, which select none of `determinism::tests`, every clause
+    # of `mentions`, `conditional_on`, `what_this_line_reads` and the needle
+    # census is decided by a module no command judging that file runs. The
+    # static rule that makes another row of this shape impossible is in
+    # `check.rs`'s meta gate; these rows stay because they are what it holds.
     "determinism": ["corpus::", "limits::", "determinism::"],
-    # **`dev::` too, and its absence was measured.** The rule that every `docker`
-    # invocation names its project — the one thing standing between a reviewer's
-    # copy and the developer's own stack — is decided in `dev::tests` and by
-    # nothing in `corpus::` or `limits::`. Round forty-seven found its exemption
-    # satisfied by an `inspect` pointed at a container *name*, and the meta-gate
-    # could not have weakened that clause either way.
+    # **`dev::` too, and its absence is measured.** The rule that every `docker`
+    # invocation names its project — the one thing standing between a copy of
+    # this checkout and the developer's own stack — is decided in `dev::tests`
+    # and by nothing in `corpus::` or `limits::`. An exemption that asks only
+    # which subcommand ran is satisfied by an `inspect` pointed at a container
+    # *name*, and without this row the meta-gate could not weaken that clause
+    # either way.
     "dev": ["corpus::", "limits::", "dev::"],
-    # **`policy::` *and* `check::`, and the narrow command was measured wrong.**
-    # Written with the default suite, the first three operators over this file
-    # came back SURVIVED against a test that kills all three — because that test
+    # **`policy::` *and* `check::`, and the narrow command is measured wrong.**
+    # Under the default suite, operators over this file come back SURVIVED
+    # against a test that kills them — because that test
     # is in `policy::tests`, which `corpus:: limits::` does not run. `check::` is
     # here for the other half: two of these clauses are held by
     # `every_verdict_is_pinned_to_where_it_is_said`, which pins the source text
     # of the arm a sentence sits in, and that census lives in `check::`.
     #
-    # This is the second time in one session that a source was carried in behind
-    # too narrow a command and reported a hole in the script as a hole in the
-    # tree. The order of work at the head of this file exists to prevent exactly
-    # that, and the answer both times was to name the suite that decides the
-    # file rather than to trust the default.
+    # A source carried in behind too narrow a command reports a hole in the
+    # script as a hole in the tree. The order of work at the head of this file
+    # exists to prevent exactly that, and the answer is to name the suite that
+    # decides the file rather than to trust the default.
     "policy": ["corpus::", "limits::", "policy::", "check::"],
-    # **`wall::` too, and its absence was measured.** The clauses of the caret
+    # **`wall::` too, and its absence is measured.** The clauses of the caret
     # rule live in `wall.rs` and are decided by `wall::tests` — `corpus::` drives
     # `caret_uses` through a door written for it and reaches nothing else in the
     # file. An operator over `the_refusal_is_the_doors` under the default suite
-    # comes back SURVIVED against a test that kills it, which is the third time a
-    # source has been carried in behind too narrow a command.
+    # comes back SURVIVED against a test that kills it: the same shape, a
+    # source behind too narrow a command.
     "wall": ["corpus::", "limits::", "wall::"],
     # `database::`, whose tests need the stack up — like the two stores above,
     # and for the same reason: what this file decides, a database decides.
     "database": ["corpus::", "limits::", "database::"],
-    # **`counts::` too, and its absence is why a round-66 operator survived.**
-    # The rotting-count reader's own fixtures live in `counts::tests`, and this
-    # map's default runs only the corpus and the limits suites — so a weakening
-    # of `claim` was reported as surviving when what had happened is that
-    # nothing which decides it was run.
+    # **`counts::` too.** The rotting-count reader's own fixtures live in
+    # `counts::tests`, and this map's default runs only the corpus and the
+    # limits suites — so without it a weakening of `claim` is reported as
+    # surviving when what has happened is that nothing which decides it was run.
     "counts": ["corpus::", "limits::", "counts::"],
     "references": ["corpus::", "limits::", "references::"],
     "sections": ["corpus::", "limits::", "sections::"],
@@ -5428,18 +5384,14 @@ ELSEWHERE = {
     "naming": ["cargo", "test", "-q", "-p", "nc-ids"],
     # The journal's own crate, both targets: the unit tests hold the readers and
     # `tests/` holds the corpus that drives them.
-    # **The whole package, which is what the comment above already says.** These
-    # three took `--lib`, so the suite that *is* acceptance criterion 3 —
-    # `crates/nc-journal/tests/tampering.rs` — was never compiled by the command
-    # that judges the sources it reads. And `check.rs`'s `NOT_MUTATED` census
-    # excuses that suite from mutation **because** those sources are mutated:
-    # neither side was asked. Measured by a reviewer in round seventy-one with
-    # `entry.rs`'s `DOMAIN` moved from `/v1` to `/v2` — every entry already
-    # written becomes unverifiable — which `--lib` reports as `46 passed` and the
-    # whole package refuses by name, at `tampering.rs:924`.
-    #
-    # The three neighbours that were added earlier all carry this lesson
-    # already; these are the three that did not get it.
+    # **The whole package, which is what the comment above says.** Under
+    # `--lib`, the suite that *is* acceptance criterion 3 —
+    # `crates/nc-journal/tests/tampering.rs` — is never compiled by the command
+    # that judges the sources it reads, while `check.rs`'s `NOT_MUTATED` census
+    # excuses that suite from mutation **because** those sources are mutated.
+    # Measured with `entry.rs`'s `DOMAIN` moved from `/v1` to `/v2` — every
+    # entry already written becomes unverifiable — which `--lib` reports as
+    # `46 passed` and the whole package refuses by name, at `tampering.rs:924`.
     "entry": ["cargo", "test", "-q", "-p", "nc-journal"],
     "memory": ["cargo", "test", "-q", "-p", "nc-journal"],
     "unit": ["cargo", "test", "-q", "-p", "nc-journal"],
@@ -5474,31 +5426,29 @@ ELSEWHERE = {
     # this script and criterion 2's own gate rather than a gap in either.
     "value": ["cargo", "test", "-q", "-p", "nc-log"],
     "ship": ["cargo", "test", "-q", "-p", "nc-log"],
-    # **The whole crate, both targets — and the narrower command was measured
-    # wrong.** These were `--test in_postgres` on the reasoning that the SQL is
-    # what the operators are over. Three of `nc-prune`'s came back SURVIVED and
-    # all three are decided by that crate's *unit* tests, in the same file as the
+    # **The whole crate, both targets — and the narrower command is measured
+    # wrong.** Under `--test in_postgres`, on the reasoning that the SQL is what
+    # the operators are over, three of `nc-prune`'s come back SURVIVED, and all
+    # three are decided by that crate's *unit* tests, in the same file as the
     # code: `over_deleted` is asserted at four call sites in `postgres.rs`'s own
     # `mod tests`, which `--test in_postgres` does not run. That is a hole in
     # this script read as a hole in the tree, which is the direction the order of
-    # work in this file exists to prevent — and it took one run to produce.
+    # work in this file exists to prevent.
     "journal_store": ["cargo", "test", "-q", "-p", "nc-journal"],
     "prune_store": ["cargo", "test", "-q", "-p", "nc-prune"],
     # The whole crate for the identifiers, as its siblings are; `nc-prune`'s root
     # is decided by that crate's unit tests, where the writer and the reader of a
     # refusal both live.
     "ids": ["cargo", "test", "-q", "-p", "nc-ids"],
-    # **And the last `--lib` is gone.** The two rows above record `--lib`
-    # measured wrong twice — it never compiled `tampering.rs`, which *is*
-    # criterion 3, and never compiled the forged tail in `in_postgres.rs`. This
-    # row's own excuse, "decided by that crate's unit tests, where the writer and
-    # the reader of a refusal both live", is true of `refusal()` and
-    # `Pruned::code()` and false of the rest of the file: `Request::every()` is
-    # called by no test inside the crate, and cannot be — `#[non_exhaustive]` is
-    # why the constructor exists, so the only test that can decide it is one
-    # outside. Found in wave 22. `--lib` is refused outright in this table now,
-    # by the meta gate, because it is the one narrowing this tree has had wrong
-    # three times.
+    # **And no `--lib`.** The two rows above record `--lib` measured wrong — it
+    # never compiles `tampering.rs`, which *is* criterion 3, and never compiles
+    # the forged tail in `in_postgres.rs`. This row's own excuse, "decided by
+    # that crate's unit tests, where the writer and the reader of a refusal both
+    # live", is true of `refusal()` and `Pruned::code()` and not of the whole
+    # file: `#[non_exhaustive]` is why `Request::every()` exists, for callers
+    # outside the crate, and `in_postgres.rs` and `in_sqlite.rs` call it as one
+    # does — two targets `--lib` never compiles. `--lib` is refused outright in
+    # this table by the meta gate: each row above names a target it leaves out.
     "pruner": ["cargo", "test", "-q", "-p", "nc-prune"],
     # The whole crate for the pack, whose own suite is where every one of these
     # clauses is decided.
@@ -5608,16 +5558,15 @@ ELSEWHERE = {
 # A second command, run beside the first, for a source one command cannot judge.
 #
 # **A source can be the subject of two suites in two packages, and a verdict
-# needs both.** `crates/nc-catalog-compiler/src/lib.rs` is the case this was
-# written for, and it is the same circularity wave 7 repaired one row up in
-# `check.rs`'s `NOT_MUTATED` census: that census excuses
+# needs both.** `crates/nc-catalog-compiler/src/lib.rs` is the case: the same
+# circularity as one row up in `check.rs`'s `NOT_MUTATED` census, which excuses
 # `crates/nc-catalog-compiler/tests/the_gates_fire.rs` from mutation **because**
 # `lib.rs`, `load.rs` and `problem.rs` are edited here. Two of the three run
-# `-p nc-catalog-compiler`, which builds that suite. `lib.rs` ran the default
-# `-p xtask --bin xtask`, which cannot build it at all — so the suite was
-# excused on the strength of a command that never compiled it.
+# `-p nc-catalog-compiler`, which builds that suite. `lib.rs` under the default
+# `-p xtask --bin xtask` alone, which cannot build it at all, would leave the
+# suite excused on the strength of a command that never compiles it.
 #
-# Measured by a reviewer in round seventy-one: `if !problems.is_empty()` in
+# Measured: `if !problems.is_empty()` in
 # `lib.rs` weakened to `if problems.len() > 1`, so a catalog with exactly one
 # problem compiles and emits. Under the command above, `107 passed` and
 # `SURVIVED`; under the compiler's own package, `46 passed; 59 failed`, the
@@ -5633,13 +5582,14 @@ ALSO_RUN = {
     # by the comparison in the xtask binary — deliberately, and
     # `JUDGED_OUTSIDE_ITS_PACKAGE` excuses the package mismatch — but that row
     # asks only whether the excuse is written, never whether anything else
-    # decides the file. `model.rs` holds three tests of its own and no command
-    # for this source ran one. Its own doc block states the consequence in
-    # advance: the registry declares six of the ten `FieldType` variants, so
-    # four arms of `label()` and `rust()` are dead to the drift comparison and
-    # `cargo xtask check` is byte-identical with all four corrupted — and that
-    # comparison was the whole command. Found in wave 22. The drift gate stays
-    # first because it is the cheaper of the two.
+    # decides the file. `model.rs` holds three tests of its own, which the
+    # drift comparison never runs. Its own doc block states the consequence in
+    # advance: measured with four of the ten `FieldType` variants declared by
+    # no field, those four arms of `label()` and `rust()` are dead to the drift
+    # comparison and `cargo xtask check` is byte-identical with all four
+    # corrupted. `I64` and `Id` are declared by no field in
+    # `catalog/log-events.toml`, so that comparison cannot be the whole command.
+    # The drift gate stays first because it is the cheaper of the two.
     "compiler_model": ["cargo", "test", "-q", "-p", "nc-catalog-compiler"],
     # **Cedar's parser, which `nc-schema` cannot reach.** The type-name rule is
     # written by hand in the crate the catalog compiler depends on, and the one
@@ -5659,7 +5609,7 @@ ALSO_RUN = {
     # `nc-authz`'s suite narrows the gate's whole tree to the core and one pack
     # before holding the embedded ids to it, and nothing in `nc-policy` calls
     # it: `self.effects_under(under)` made `effects_under("")` there left
-    # `nc-policy` green and failed that suite, measured by a reviewer.
+    # `nc-policy` green and failed that suite, measured.
     "pack": ["cargo", "test", "-q", "-p", "nc-authz"],
     # **The suite that loads what the build wrote.** A weakening of the
     # plugin's root or its adapter can build and encode cleanly and still be a
@@ -5692,15 +5642,14 @@ def command_for(source):
 # hours before anybody looked. A weakening that never terminates is a verdict of
 # its own, not a reason to stop the world.
 #
-# **Fifteen minutes, because five stopped being many times the slowest
-# suite.** The kernel's command, `cargo test -q -p nc-kernel`, runs every
-# target before the one that decides a blob, so a weakening only
-# `where_a_blob_is.rs` kills spends the whole suite first: measured in Stage
-# 11's acceptance with `time` over `let_go` turned into `abort` in
-# `units.rs`, four minutes on an idle machine, and the run had tallied it
-# `did not finish` at five — an honest kill reported as a hole. The bound is
-# a multiple of that again, which is what it was written to be; a weakening
-# that never terminates still costs one bounded wait, not the run.
+# **Fifteen minutes, because five is not many times the slowest suite.** The
+# kernel's command, `cargo test -q -p nc-kernel`, runs every target before the
+# one that decides a blob, so a weakening only `where_a_blob_is.rs` kills
+# spends the whole suite first: measured with `time` over `let_go` turned into
+# `abort` in `units.rs`, four minutes on an idle machine, which a bound of five
+# tallies as `did not finish` — an honest kill reported as a hole. The bound is
+# a multiple of that again; a weakening that never terminates still costs one
+# bounded wait, not the run.
 LONGEST = 900
 
 
@@ -5713,15 +5662,15 @@ LONGEST = 900
 # The first two are the database suites of `nc-journal` and `nc-prune`, which
 # panic rather than stand aside; `run_corpus` records the incident they answer.
 #
-# **The third is the kernel's, and it was a hollow kill for every run after the
-# first.** `cargo test -p nc-kernel` loads the reference plugin through
+# **The third is the kernel's, and without it every run after the first is a
+# hollow kill.** `cargo test -p nc-kernel` loads the reference plugin through
 # `crates/nc-kernel/src/built.rs`, which panics on a component its sources no
 # longer build, ending with that file's `REBUILD` sentence; this is its tail.
-# Measured by a reviewer: an operator over `plugins/reference/src/adapter.rs`
-# rebuilds the component from the weakening, `restore()` then put the source
-# back without rebuilding, and the next run judged every operator over the
-# kernel by a suite that panicked on the stale component — `killed` for all of
-# them, with no weakening on disk at all. `main` builds the plugins before the
+# Measured: an operator over `plugins/reference/src/adapter.rs` rebuilds the
+# component from the weakening, a `restore()` that puts the source back
+# without rebuilding leaves it stale, and the next run judges every operator
+# over the kernel by a suite that panics on the stale component — `killed` for
+# all of them, with no weakening on disk at all. `main` builds the plugins before the
 # first edit, again after every operator whose command built them from a
 # weakening, and `restore()` after the last, so this refusal is what is left
 # for a staleness none of them can see.
@@ -5764,9 +5713,9 @@ def run_corpus(source):
     # database, user and password are ones the suites can use, and a URL that
     # names a live PostgreSQL with one character wrong in the database name is
     # accepted: every store-backed suite then panics on connect, the exit code
-    # is non-zero, and this counted it `killed`. That is verbatim the incident
-    # of 2026-09-16 the guard was written for — eight files judged by suites
-    # that never read a line of the mutant — reachable again by one character.
+    # is non-zero, and without what follows that counts as `killed` — the
+    # incident the guard exists for, eight files judged by suites that never
+    # read a line of the mutant, reachable by one character.
     #
     # The suites say so themselves, in their own words, and this function
     # already has their output. A run that cannot reach its subject is refused
@@ -5780,20 +5729,20 @@ def run_corpus(source):
                 flush=True,
             )
             raise SystemExit(2)
-    # **The exit code, not the first `test result:` line in the output.** This
-    # asked whether `test result: ok` appears *anywhere* and answered SURVIVED if
-    # it did — and a whole-crate command prints one such line per target. So a
-    # weakening killed by an integration target, with the lib target passing
-    # above it, was reported as a survivor: measured on 2026-09-10, all eight
-    # operators over `nc-journal`'s store and the one over `nc-prune`'s that a
-    # database decides came back SURVIVED from a run of this file, while the same
-    # twelve operators driven by the same commands and judged by the exit code
-    # were killed twelve out of twelve.
+    # **The exit code, not the first `test result:` line in the output.**
+    # Asking whether `test result: ok` appears *anywhere*, and answering
+    # SURVIVED if it does, is wrong for a whole-crate command, which prints one
+    # such line per target: a weakening killed by an integration target, with
+    # the lib target passing above it, is then reported as a survivor.
+    # Measured over twelve operators, eight of them over `nc-journal`'s store:
+    # those eight and the one over `nc-prune`'s that a database decides came
+    # back SURVIVED that way, while the same twelve, driven by the same commands
+    # and judged by the exit code, were killed twelve out of twelve.
     #
-    # It has been wrong since `ELSEWHERE` arrived. What hid it is which target
-    # holds the kill: `nc-canon` and `nc-ids` are decided by their *lib* tests,
-    # cargo stops at the first failing target, and the output then holds no `ok`
-    # line at all — so those verdicts were right by luck rather than by rule.
+    # What hides it is which target holds the kill: `nc-canon` and `nc-ids` are
+    # decided by their *lib* tests, cargo stops at the first failing target, and
+    # the output then holds no `ok` line at all — so those verdicts come out
+    # right by luck rather than by rule.
     #
     # A non-zero exit is what "some test failed" means, and the string is kept
     # only to tell a failing suite from one that did not build.
@@ -5809,19 +5758,18 @@ def run_corpus(source):
 # `depth == 0 -> depth <= 0` is in a loop whose `')' if depth == 0 => break` arm
 # fires first, so depth never goes negative.
 #
-# **`"#![" -> "#!"` used to be here, and was not an equivalence.** The argument
-# was "the only other `#!`-initial line in Rust is a shebang, which balances and
+# **`"#![" -> "#!"` is not an equivalence**, though it can be argued as one:
+# "the only other `#!`-initial line in Rust is a shebang, which balances and
 # holds no lint name" — and this gate reads *lines*, so the interior of a
-# multi-line raw string is one. A reviewer built a file holding
-# `const S: &str = r#"\n#!allow(clippy::all)\n"#;` and the widened rule reported
-# a false finding against it. The corpus decides it now.
+# multi-line raw string is one. A file holding
+# `const S: &str = r#"\n#!allow(clippy::all)\n"#;` makes the widened rule report
+# a false finding against it, measured. The corpus decides it.
 #
-# **Two entries left, from four.** `is_some_and -> is_none_or` read an `Option`
-# behind a guard that made it `Some`, and `the empty-part filter` was a filter
-# three later guards already dominated — both were dead clauses rather than
-# untestable ones, and `holds_an_environment` says the shape directly now. An
-# entry here is an argument that no input can tell the difference; when the
-# argument is "the code says this twice", the answer is to say it once.
+# **A dead clause is not an entry here.** An `Option` read behind a guard that
+# makes it `Some`, or a filter later guards already dominate, is a clause to
+# say once rather than an untestable one. An entry here is an argument that no
+# input can tell the difference; when the argument is "the code says this
+# twice", the answer is to say it once.
 EQUIVALENT = {
     # The `depth` this mutates is `let mut depth = 0_i32;` in the attribute
     # reader, decremented with a plain `-= 1`. It never goes below zero anyway,
@@ -5830,12 +5778,10 @@ EQUIVALENT = {
     # unreachable at zero and `<= 0` is the same predicate as `== 0` for every
     # input there is. No test can tell them apart because no *value* can.
     #
-    # **The argument that stood here was false in every particular.** It said
-    # `depth` was a `usize` decremented with `saturating_sub`, and cited a line
-    # in a different function — `holds_a_test`, whose counter really is one and
-    # which this operator does not touch. Its stated re-argue trigger, *if the
-    # counter ever stops being a `usize` or stops saturating*, was therefore
-    # already satisfied on the day it was written and could never fire. A note
+    # **Not `holds_a_test`'s counter**, which really is a `usize` decremented
+    # with `saturating_sub` and which this operator does not touch: an argument
+    # resting on that one would cite a trigger — *if the counter ever stops
+    # being a `usize` or stops saturating* — that can never fire here. A note
     # nobody can act on is worse than none, because the set exists to make
     # "a survivor nobody looked at" impossible and a false note reads exactly
     # like one somebody did.
@@ -5875,17 +5821,14 @@ EQUIVALENT = {
     # `env` becomes a known format the mutation exempts it while the original
     # reports it.
     #
-    # **Twice now the argument has been wrong while the conclusion held.** The
-    # first said `.env…` names have three parts or more, which is false of `.env`
-    # itself (`["", "env"]`). The second — this one's immediate predecessor —
-    # said the equivalence rested on `AN_ENVIRONMENT_IS_WRITTEN_IN`, and
-    # described it as twelve-element. It has five. The twelve-element list is
-    # `KNOWN_FORMATS`, and **`KNOWN_FORMATS` is the list the equivalence actually
-    # rests on**: dropping the `"env"` literal matters only for a name whose last
-    # part is `env`, and such a name reaches the guard only if `env` is a known
-    # format. Growing the list the old note named changes nothing; growing the
-    # one it did not breaks the equivalence immediately, and the first name it
-    # lets through is `.env` — the file this whole gate exists for.
+    # **`KNOWN_FORMATS` is the list the equivalence actually rests on**, not
+    # `AN_ENVIRONMENT_IS_WRITTEN_IN`, and `.env…` names do not all have three
+    # parts — `.env` itself is `["", "env"]`. Dropping the `"env"` literal
+    # matters only for a name whose last part is `env`, and such a name reaches
+    # the guard only if `env` is a known format. Growing
+    # `AN_ENVIRONMENT_IS_WRITTEN_IN` changes nothing; growing `KNOWN_FORMATS`
+    # breaks the equivalence immediately, and the first name it lets through is
+    # `.env` — the file this whole gate exists for.
     #
     # A trigger attached to the wrong list is a trigger that cannot fire, so it
     # is not left to prose:
@@ -5895,14 +5838,14 @@ EQUIVALENT = {
 }
 
 
-# **Under `target/`, and the reason is a gate this file trips.** It was
-# `xtask/.mutants-in-flight`, which is a file with no extension under a tree  # allow-reference: names `xtask/.mutants-in-flight`, the path this sentinel used to have and must not have
-# `no_file_of_an_unknown_kind_sits_in_this_repository` walks — so for the whole
-# of a run that rule failed on a *pristine* tree, and `check::` is in the suite
-# this script uses for `check.rs` and `policy.rs`. Eighteen operators were then
-# reported `killed` by the presence of this file rather than by any test, which
-# is the hollow verdict the sentinel's own repair had just been written to
-# remove. Measured on 2026-09-10: `touch xtask/.mutants-in-flight` alone gives
+# **Under `target/`, and the reason is a gate this file trips.** At
+# `xtask/.mutants-in-flight`, which is a file with no extension under a tree  # allow-reference: names `xtask/.mutants-in-flight`, a path this sentinel must not have
+# `no_file_of_an_unknown_kind_sits_in_this_repository` walks, for the whole
+# of a run that rule fails on a *pristine* tree, and `check::` is in the suite
+# this script uses for `check.rs` and `policy.rs` — so operators are reported
+# `killed` by the presence of this file rather than by any test, the hollow
+# verdict the sentinel exists to remove. Measured:
+# `touch xtask/.mutants-in-flight` alone gives
 # `check::…::no_file_of_an_unknown_kind_sits_in_this_repository FAILED` and takes
 # `cargo xtask check` down with it.
 #
@@ -5975,14 +5918,14 @@ def refuse_if_a_previous_run_was_killed():
 # *"DATABASE_URL is not set … skipping them silently is the failure
 # `cargo xtask check` exists to prevent"* rather than standing aside.
 #
-# **Held both ways, because one direction let the largest one out.** The kernel's
-# `the_decision_point` suite panics in those words too, and judges more
-# operators than every other command here together, while this said three
-# packages: the refusal still fired, because it asks the variable and not this
-# list, but it named a fraction of what it was protecting. Found during Stage
-# 11's acceptance. `the_runner_refuses_a_run_it_cannot_judge_its_stores_in` now
-# also walks `crates/*/tests/` for a suite that panics that way and refuses one
-# this does not name.
+# **Held both ways, because one direction lets the largest one out.** The
+# kernel's `the_decision_point` suite panics in those words too, and judges
+# more operators than every other command here together: a list missing it
+# still refuses, because the refusal asks the variable and not this list, but
+# names a fraction of what it is protecting.
+# `the_runner_refuses_a_run_it_cannot_judge_its_stores_in` also walks
+# `crates/*/tests/` for a suite that panics that way and refuses one this does
+# not name.
 NEEDS_THE_DATABASE = ("nc-journal", "nc-prune", "nc-kernel", "database::")
 
 
@@ -6024,12 +5967,11 @@ def refuse_if_the_database_is_absent():
     try:
         with socket.create_connection((host or "127.0.0.1", int(port or 5432)), timeout=5) as to:
             # **Ask it something, because a socket that is merely open answers
-            # the wrong question.** Opened and asked nothing, this was satisfied
-            # by any listening port: measured on 2026-09-16 with `DATABASE_URL`
-            # pointed at the log store's port — the guard returned False and the
-            # pruner's suite then panicked on connect, which `run_corpus` reads
-            # as `killed`. The stale-URL case the paragraph above promises to
-            # cover was exactly the one it did not.
+            # the wrong question.** Opened and asked nothing, this is satisfied
+            # by any listening port: measured with `DATABASE_URL` pointed at the
+            # log store's port — the guard returned False and the pruner's suite
+            # then panicked on connect, which `run_corpus` reads as `killed`:
+            # the stale-URL case the paragraph above promises to cover.
             #
             # An `SSLRequest` is the smallest thing a PostgreSQL server answers:
             # eight bytes, length then the code 80877103, and the reply is the
@@ -6122,16 +6064,15 @@ def the_commands_judging(sources):
 def refuse_if_a_suite_fails_unweakened(when):
     """Stop rather than count a suite that fails on the tree without a weakening as a kill.
 
-    **A failure is this file's word for `killed`, and nothing asked whether the
-    suite failed already.** `NEVER_REACHED` knows three sayings of a suite that
-    stopped before the mutant; any other failure on the tree as it stands was a
-    kill for every operator judged by that suite. A reviewer drove `main` with
-    one editor swap file beside `xtask/src/check.rs` — which `check::`'s rule on
-    the kinds of file in this repository refuses — and an operator that edits
-    only a comment came back `killed`, the run exiting 0; the same shape arose
-    twice by accident in that review, from a `__pycache__` and from a flaky
-    test. So every command any operator is judged by runs on the tree `when`
-    says, and one that fails refuses the run.
+    **A failure is this file's word for `killed`, so a suite that fails already
+    must not be read as one.** `NEVER_REACHED` knows three sayings of a suite
+    that stopped before the mutant; any other failure on the tree as it stands
+    would be a kill for every operator judged by that suite. With one editor
+    swap file beside `xtask/src/check.rs` — which `check::`'s rule on the kinds
+    of file in this repository refuses — an operator that edits only a comment
+    comes back `killed` and the run exits 0; a `__pycache__` or a flaky test
+    does the same. So every command any operator is judged by runs on the tree
+    `when` says, and one that fails refuses the run.
 
     Run before the first edit, and again once the tree is put back: a suite
     that starts failing in the middle of a run makes every kill since the last
@@ -6165,20 +6106,17 @@ def judged_by(names):
         return f"{package}'s {names[names.index('--') + 1].rstrip(':')}"
     if "--lib" in names:
         return f"{package}'s unit tests"
-    # **And a named integration target, which this did not know.** One entry
-    # runs `--test the_registry_reaches_the_code` and printed as "all of
-    # xtask". Reported on 2026-09-14.
+    # **And a named integration target.** One entry runs
+    # `--test the_registry_reaches_the_code`, which is not "all of xtask".
     if "--test" in names and names.index("--test") + 1 < len(names):
         return f"{package}'s {names[names.index('--test') + 1]} suite"
     # **And `--bin`, which narrows as hard as any of them.** `xtask` has five
     # test targets — the binary and four in `xtask/tests/` — so
-    # `-p xtask --bin xtask` runs one of five and this called it "all of xtask",
-    # for five entries at once. It is deliberate and priced: `compiler_model`'s
-    # own note in `SOURCES` records the wider command spending a whole
-    # integration suite per operator to run a test that cannot fail. A sentence
-    # that hides the narrowing hides the price with it. Reported on 2026-09-15,
-    # the third false half of this one sentence in three rounds, each time in
-    # the branch nobody had added.
+    # `-p xtask --bin xtask` runs one of five, which is not "all of xtask"
+    # either. It is deliberate and priced: `compiler_model`'s own note in
+    # `SOURCES` records the wider command spending a whole integration suite
+    # per operator to run a test that cannot fail. A sentence that hides the
+    # narrowing hides the price with it.
     if "--bin" in names and names.index("--bin") + 1 < len(names):
         return f"{package}'s {names[names.index('--bin') + 1]} binary"
     return f"all of {package}"
@@ -6194,25 +6132,20 @@ def the_summary():
     """
     # **And what it did not reach, on the same line as what it did.** Every
     # other step in this repository reports the size of the set it inspected;
-    # this one printed a tally with no denominator, so `killed 85` read as
-    # coverage of the tree rather than of six files. Rounds eight, nine and ten
-    # repaired clauses in `check.rs`, `workflow.rs`, `determinism.rs`,
-    # `references.rs` and four crates, and not one of those repairs is under any
-    # operator here. Saying so at every run is what stops the number being read
-    # as more than it is.
+    # a tally with no denominator, `killed 85`, reads as coverage of the tree
+    # rather than of the files this run edits. Saying so at every run is what
+    # stops the number being read as more than it is.
     covered = ", ".join(sorted(os.path.basename(path) for path in SOURCES.values()))
-    # **And which suite each was run against**, because they are no longer one.
+    # **And which suite each was run against**, because they are not one.
     # A run that names a suite it did not use for every operator is the same
     # class of claim this whole script exists to refuse.
     plain = " and ".join(name.rstrip(":") for name in SUITE)
     # **Every filter the entry adds, not the last one.** A `SUITES` value is the
-    # whole filter list a source is run behind, so `names[-1]` named whichever
-    # filter happened to be written last: `policy` runs behind `policy::` *and*
-    # `check::` and this printed "also against check", dropping the one its own
-    # comment records as having turned three false survivors into kills. What a
-    # reader needs is what the entry adds to the default pair, which is what is
-    # subtracted here. Reported on 2026-09-14, one round after the half below it
-    # was repaired for the same reason.
+    # whole filter list a source is run behind, so `names[-1]` names whichever
+    # filter happens to be written last: `policy` runs behind `policy::` *and*
+    # `check::`, and "also against check" drops the one its own comment records
+    # as turning false survivors into kills. What a reader needs is what the
+    # entry adds to the default pair, which is what is subtracted here.
     beyond = {
         source: [name.rstrip(":") for name in names if name not in SUITE]
         for source, names in SUITES.items()
@@ -6227,22 +6160,19 @@ def the_summary():
     )
     # **And the sources whose judge is another crate's suite**, which the two
     # phrases above cannot describe: they name filters over one command.
-    # **The file, not the key.** This was built from `ELSEWHERE`'s keys with an
-    # extension glued on, and a key is a short name for a source rather than its
-    # file name — so the line printed twelve names no directory holds, and gave
-    # the *package* or a cargo flag as the suite each was judged by. Reported on
-    # 2026-09-13 by a reviewer who read the line against the tree. A summary
-    # that names files nobody can open is the same claim this script exists to
-    # refuse.
-    # **And the suite, which is the filter and not the flag.** The second half
-    # of this line was as wrong as the first: `names[-1]` is whatever ends the
-    # command, so twenty of twenty-two entries printed the package again or a
-    # bare `--lib` where a suite was promised. What names a suite is the filter
-    # after `--`, and where there is none the whole package is the suite — which
-    # is what the line should say.
+    # **The file, not the key.** A key is a short name for a source rather than
+    # its file name, so a line built from `ELSEWHERE`'s keys with an extension
+    # glued on prints names no directory holds, and gives the *package* or a
+    # cargo flag as the suite each is judged by. A summary that names files
+    # nobody can open is the same claim this script exists to refuse.
+    # **And the suite, which is the filter and not the flag.** `names[-1]` is
+    # whatever ends the command — the package again, or a bare `--lib` where a
+    # suite was promised. What names a suite is the filter after `--`, and where
+    # there is none the whole package is the suite — which is what the line
+    # should say.
     # **And the second command, where there is one.** `ALSO_RUN` is part of what
     # judges a source, so a sentence that named only the first would be the same
-    # kind of half-true claim the two repairs above were for. It is written into
+    # kind of half-true claim the two rules above refuse. It is written into
     # the entry's own phrase rather than appended to the line, because the reader
     # of this half splits the line on `, ` and a clause of its own would be read
     # as another source.
@@ -6339,8 +6269,8 @@ def main():
         subprocess.run(TOUCH, cwd=ROOT, check=False)
         # **And the component, built again from what was just put back.** An
         # operator over the plugin's sources rebuilds it from the weakening, so
-        # a restore that stopped at the sources left a component no source on
-        # disk builds — and the next run read it through the kernel's suites.
+        # a restore that stops at the sources leaves a component no source on
+        # disk builds — and the next run reads it through the kernel's suites.
         if not build_the_plugins():
             print(
                 "  the plugins did not build from the restored sources; run "
@@ -6364,8 +6294,8 @@ def main():
             # **Every source back to original, not just the one being edited.**
             # Writing only `source` leaves the *other* file holding the previous
             # weakening, so from the first `limits` entry onward every `gates`
-            # run was red for a reason that was not the mutation — and 16 of
-            # them were reported `killed` by a corpus that had not noticed them.
+            # run is red for a reason that is not the mutation — measured, and
+            # reported `killed` by a corpus that had not noticed them.
             # A meta-gate that cannot tell its own leftovers from a kill is
             # exactly the defect it exists to find.
             for name, path in SOURCES.items():
@@ -6402,7 +6332,7 @@ def main():
             os.unlink(name)
         # Last, and only if it is empty: a file left here is a copy somebody may
         # still need, and removing the directory around it would be the same
-        # class of loss `/tmp` was.
+        # class of loss as a copy kept in `/tmp`.
         try:
             os.rmdir(BACKUPS)
         except OSError:
@@ -6414,23 +6344,22 @@ def main():
     if refuse_if_a_suite_fails_unweakened("put back after the run"):
         return 2
     print(the_summary())
-    # **`not applicable` is a failure, and it used to be free.** An operator whose
-    # text no longer matches is a clause with no reported coverage, and the run
-    # still exited 0 — so three of them rotted unnoticed while
-    # `xtask/canaries/README.md` went on recording a tally nobody had re-measured.
+    # **`not applicable` is a failure.** An operator whose text no longer
+    # matches is a clause with no reported coverage, and a run that still exits
+    # 0 lets operators rot unnoticed under any tally written about them — the
+    # reason `xtask/canaries/README.md` writes none.
     # A weakening that cannot be applied is not a weakening that was survived and
     # it is not one that was killed: it is a hole, and a meta-gate that cannot
     # tell a rotted operator from a covered clause is the defect it exists to
     # find, one level down.
-    # **`does not compile` is free too, and that is the same hole.** An operator
-    # whose weakening no longer builds tests nothing — the corpus never ran — and
-    # a reviewer named it as the residual gap the moment `not applicable` was
-    # closed. All three non-`killed` outcomes now cost the same, because all three
-    # mean the clause was not decided.
+    # **`does not compile` is the same hole.** An operator whose weakening no
+    # longer builds tests nothing — the corpus never ran. All three non-`killed`
+    # outcomes cost the same, because all three mean the clause was not
+    # decided.
     # **The survivor *set*, not the survivor count.** `!= sum(...)` makes a clean
     # tree exit 1 for ever, because some mutants are known-equivalent and always
-    # survive — so the exit code says the same thing whether those three survive
-    # or thirty real ones do, and the only real signal was a person diffing the
+    # survive — so the exit code says the same thing whether those survive or
+    # thirty real ones do, and the only real signal is a person diffing the
     # printed list against a paragraph in another file. A gate whose verdict
     # cannot change is not a gate.
     #

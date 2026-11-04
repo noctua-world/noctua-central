@@ -112,7 +112,7 @@ no_permit_matched = "family.a_member_steps_through_their_own_history"
 # **Who is asking, and not where they are.** Ana's laptop is attested and in
 # `Realm::"home"` as much as bruno is, so membership lets it through; the
 # permit's `principal is User` is what refuses it. History is a person's, and
-# the type test shipped deleted once with this exact request allowed.
+# with the type test deleted this exact request is allowed.
 #
 # A device can never be the `allow` this denial is paired with, so the case
 # says the principal is its boundary, and the runner asks the same request as

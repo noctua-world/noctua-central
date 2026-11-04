@@ -272,10 +272,9 @@ async fn a_file_where_the_directory_should_be_is_refused() {
 /// A directory whose parent does not exist is the data not being reachable, and
 /// not a claim that somebody else can reach it.
 ///
-/// **It was `NC-DB-0006`**, measured — *other people using this computer could
-/// reach it*, critical and not retryable, for a path that holds nothing at all.
-/// Every I/O failure before SQLite was coded that way, a full disk and a
-/// read-only mount included, while this crate's own `Unavailable` named both.
+/// **Not `NC-DB-0006`**, critical and not retryable, for a path that holds
+/// nothing at all: an I/O failure before SQLite — a full disk and a read-only
+/// mount included — is what this crate's own `Unavailable` names.
 #[tokio::test]
 async fn a_missing_parent_is_unavailable_and_not_refused() {
     let scratch = Scratch::new("missing-parent");
@@ -297,13 +296,11 @@ async fn a_missing_parent_is_unavailable_and_not_refused() {
 /// in it.
 ///
 /// **Refused by its mode, before anything is tried in it.** Its mode has no
-/// group or other bits, so only the owner probe met it, and the probe's
-/// `Permission denied` reached the user as `NC-DB-0006` — whose sentence then
-/// said other people using this computer could reach the data, of a directory
-/// nobody else can even enter. The owner's own bits are judged now, beside the
-/// others', and the sentence says what is true of every refusal under that
-/// code: the folder or the files are not set up for this user alone to read
-/// and write.
+/// group or other bits, so judged by those alone only the owner probe would
+/// meet it. The owner's own bits are judged beside the others', and the
+/// refusal is `NC-DB-0006`, whose sentence says what is true of every refusal
+/// under that code: the folder or the files are not set up for this user alone
+/// to read and write.
 #[tokio::test]
 async fn a_directory_this_process_cannot_write_in_is_refused() {
     let scratch = Scratch::new("unwritable");
@@ -336,12 +333,12 @@ async fn a_directory_this_process_cannot_write_in_is_refused() {
 /// nothing is created there.
 ///
 /// **The one place the filesystem itself says no.** `failed` reads a
-/// `Permission denied` as a refusal, and no test reached that arm: the `0500`
-/// profile above is refused by its mode before anything is tried in it, so
-/// with `PermissionDenied` dropped from the arm every target of
-/// `cargo test -p nc-local` passed, measured by a review. Here the directory
-/// the store makes, one level down, is what it may not create — the denial is
-/// the kernel's, not this crate's reading of a mode.
+/// `Permission denied` as a refusal, and no other test reaches that arm: the
+/// `0500` profile above is refused by its mode before anything is tried in it,
+/// so with `PermissionDenied` dropped from the arm every other test of
+/// `cargo test -p nc-local` passes, measured. Here the directory the store
+/// makes, one level down, is what it may not create — the denial is the
+/// kernel's, not this crate's reading of a mode.
 #[tokio::test]
 async fn a_profile_under_a_parent_this_process_cannot_write_in_is_refused() {
     let scratch = Scratch::new("unwritable-parent");
@@ -371,10 +368,11 @@ async fn a_profile_under_a_parent_this_process_cannot_write_in_is_refused() {
 /// A database file its owner may only read is refused at open, and left as
 /// it was.
 ///
-/// **It opened**, measured: the self-check only reads, so a `0400` file passed
-/// every check, and the next commit came back `NC-DB-0007` — *not what this
-/// version expects* — for a file whose only fault was its mode, while this
-/// crate's own refusal text said it opens only files that are `0600`.
+/// **Refused at open, because the self-check only reads**: opened, a `0400`
+/// file would pass every check, and the next commit come back `NC-DB-0007` —
+/// *not what this version expects* — for a file whose only fault is its mode,
+/// while this crate's own refusal text says it opens only files that
+/// are `0600`.
 #[tokio::test]
 async fn a_file_its_owner_cannot_write_is_refused_and_left_as_it_was() {
     let scratch = Scratch::new("read-only-file");
@@ -401,12 +399,12 @@ async fn a_file_its_owner_cannot_write_is_refused_and_left_as_it_was() {
 /// few threads drive it: two on a current-thread runtime, three on one of two
 /// workers.
 ///
-/// **A reviewer found a real bug with it**: the open waited for the profile's
-/// lock on the thread that polled it and held the lock across every `.await`
-/// of its judging, so the second open blocked the very thread the first
-/// needed to go on and let go — both runs answered nothing for thirty seconds.
-/// The wait is the blocking pool's now. Each runtime runs on a thread of its
-/// own, so a deadlock is a timeout here rather than a suite that never ends.
+/// **The wait is the blocking pool's**: an open that waited for the profile's
+/// lock on the thread that polls it, and held the lock across every `.await`
+/// of its judging, would make the second open block the very thread the first
+/// needs to go on and let go — both runs answering nothing for thirty seconds.
+/// Each runtime runs on a thread of its own, so a deadlock is a timeout here
+/// rather than a suite that never ends.
 #[test]
 fn opens_of_one_profile_awaited_together_on_one_runtime_each_open() {
     let scratch = Scratch::new("one-runtime");
@@ -456,13 +454,13 @@ fn opens_of_one_profile_awaited_together_on_one_runtime_each_open() {
 
 /// One profile opened from several threads at once opens every time.
 ///
-/// **A quarter of them failed**, measured: four threads opening an existing
-/// profile a hundred times each lost 175 of 400 opens, because the owner probe
-/// had one fixed name and every open removed whatever stood under it — another
-/// open's live probe — as a crashed run's leftover. Some came back
-/// `File exists`, as `NC-DB-0006`; others `No such file or directory`. SQLite's
-/// WAL lets a second app instance or a command-line tool open the file beside
-/// the daemon, which is this.
+/// **With one fixed name for the owner probe, a quarter of them would fail**,
+/// measured: four threads opening an existing profile a hundred times each
+/// would lose 175 of 400 opens, because every open would remove whatever stood
+/// under that name — another open's live probe — as a crashed run's leftover.
+/// Some would come back `File exists`, as `NC-DB-0006`; others `No such file or
+/// directory`. SQLite's WAL lets a second app instance or a command-line tool
+/// open the file beside the daemon, which is this.
 #[test]
 fn one_profile_opened_from_several_threads_at_once_opens_every_time() {
     let (threads, opens) = (4_usize, 25_usize);
@@ -588,11 +586,9 @@ async fn statistics_gathered_by_hand_are_refused_at_the_next_open() {
 /// Another application's SQLite file is refused as unexpected, and left as it
 /// was.
 ///
-/// **`NC-DB-0007`, and this test asserted `NC-DB-0006`** — whose message then
-/// told the user that other people using the computer could reach their data,
-/// for a file whose only fault is its header. `AGENTS.md` already promised this
-/// code; a review found the code and this assertion agreeing with each other
-/// instead.
+/// **`NC-DB-0007`, as `AGENTS.md` promises**, for a file whose only fault is
+/// its header — and not `NC-DB-0006`, whose message is about who may reach the
+/// data.
 #[tokio::test]
 async fn another_applications_database_is_refused_and_left_alone() {
     let scratch = Scratch::new("foreign");
@@ -616,10 +612,10 @@ async fn another_applications_database_is_refused_and_left_alone() {
     let error = refused(&profile).await;
     assert_eq!(error.code(), ErrorCode::DbLocalSchemaUnexpected, "{error}");
     assert!(error.to_string().contains("application 0"), "{error}");
-    // **Byte for byte, and nothing beside it.** The pool's `journal_mode =
-    // WAL` converted this file before it was asked whose it was, measured:
-    // its header went from `[1, 1]` to `[2, 2]` and a `-wal` and a `-shm`
-    // appeared, under a message saying it was left as it is.
+    // **Byte for byte, and nothing beside it.** Set before the file was asked
+    // whose it is, the pool's `journal_mode = WAL` would convert it, measured:
+    // its header going from `[1, 1]` to `[2, 2]` and a `-wal` and a `-shm`
+    // appearing, under a message saying it was left as it is.
     assert!(
         std::fs::read(&file).expect("readable") == before,
         "a file refused as another application's was written to"
@@ -766,10 +762,9 @@ async fn a_rewritten_header_is_refused_at_open() {
 /// A migration edited after it ran is a database this build does not know,
 /// refused before anything writes the file: one in rollback mode is left in it.
 ///
-/// **A reviewer found it written first**: the migrator was what refused it,
-/// and the pool that runs it converts a file to `WAL` as it connects — the
-/// header's bytes went from `[1, 1]` to `[2, 2]` and a `-wal` appeared, under
-/// a message saying nothing was changed.
+/// **Not left to the migrator**: the pool that runs it converts a file to `WAL`
+/// as it connects, so the header's bytes would go from `[1, 1]` to `[2, 2]`
+/// and a `-wal` appear, under a message saying nothing was changed.
 #[tokio::test]
 async fn a_migration_edited_after_it_ran_is_refused() {
     let scratch = Scratch::new("edited-migration");
@@ -924,13 +919,13 @@ async fn what_the_file_holds(profile: &Path) -> (bool, Vec<i64>) {
 /// A table the file's history does not account for is refused before the
 /// migrator runs, and the migration that builds it is not applied again.
 ///
-/// **This was the failing migration's test**: the history forgot `0002` while
-/// its table stayed, the migrator applied it again, and SQLite refused the
-/// table it already had — `NC-DB-0002`. The self-check now holds the file to
-/// what its own history built before anything is applied, so the table is one
-/// no recorded migration made, and the file is left as it was. It forgets the
-/// newest migration here, which is what a history may lose and still be a
-/// beginning of this build's.
+/// **A history that forgot `0002` while its table stayed**: left to the
+/// migrator, it would apply the migration again and SQLite refuse the table it
+/// already has — `NC-DB-0002`. The self-check holds the file to what its own
+/// history built before anything is applied, so the table is one no recorded
+/// migration made, and the file is left as it was. It forgets the newest
+/// migration here, which is what a history may lose and still be a beginning of
+/// this build's.
 #[tokio::test]
 async fn a_table_its_history_does_not_account_for_is_refused_and_left_as_it_was() {
     let scratch = Scratch::new("unaccounted-table");
@@ -960,7 +955,7 @@ async fn a_table_its_history_does_not_account_for_is_refused_and_left_as_it_was(
 /// A migration the history records as unfinished is reported as a migration
 /// that failed, and nothing is applied after it.
 ///
-/// **What `NC-DB-0002` answers at open now.** A file whose tables are what its
+/// **What `NC-DB-0002` answers at open.** A file whose tables are what its
 /// history built is the one the migrator is let near, and a row it wrote for a
 /// migration that did not finish is what is left of one that failed.
 #[tokio::test]
@@ -1016,10 +1011,10 @@ async fn a_file_one_migration_behind_is_migrated_and_opens() {
 /// A file one migration behind that the self-check refuses is refused before
 /// the migrator writes anything into it.
 ///
-/// **It was written to first**, measured by a review: the migrator ran before
-/// the self-check, so a file one migration behind with a trigger dropped had
-/// `0002_blobs.sql` applied and was then refused as `NC-DB-0007` — whose
-/// message tells the user nothing was changed.
+/// **Not written to first**: with the migrator run before the self-check, a
+/// file one migration behind with a trigger dropped would have `0002_blobs.sql`
+/// applied and then be refused as `NC-DB-0007` — whose message tells the user
+/// nothing was changed.
 #[tokio::test]
 async fn a_file_one_migration_behind_is_refused_before_the_migrator_writes() {
     let scratch = Scratch::new("behind-and-tampered");
@@ -1153,7 +1148,7 @@ async fn a_newer_builds_file_is_refused_by_its_version_and_left_as_it_was() {
 /// **This is SQLite refusing, not the self-check.** Page 2 is the root of
 /// `_sqlx_migrations`, the first table the migrator builds, so the migrator's
 /// own read of its history meets `SQLITE_CORRUPT` before `quick_check` is
-/// asked — measured, with the self-check's verdict ignored, this still passed.
+/// asked — measured, with the self-check's verdict ignored, this still passes.
 /// A page nothing reads before the self-check is
 /// `a_damaged_index_page_is_refused_by_the_self_check`'s.
 #[tokio::test]
@@ -1183,13 +1178,14 @@ async fn a_damaged_file_is_refused() {
 /// A damaged page of an index is refused at open, by the self-check's own
 /// `quick_check`.
 ///
-/// **No test reached `quick_check` before this one.** Measured, with its
-/// verdict ignored — `if verdicts.is_empty() && verdicts != ["ok"]` — the whole
-/// suite stayed green, and a store opened over a file whose index
-/// `store_units_by_principal` had its root page overwritten. Nothing before the
-/// self-check reads that index, so this is the one damage only `quick_check`
-/// can see: the header and the migrator's history are untouched, and the store
-/// would have answered `units` from a broken index.
+/// **`quick_check` is what refuses it.** Measured, with its verdict ignored —
+/// `if verdicts.is_empty() && verdicts != ["ok"]` — a store would open over a
+/// file whose index `store_units_by_principal` has its root page overwritten,
+/// and this fails, as do the tests of a damaged file one migration behind and
+/// of one with frames in its `-wal`. Nothing before the self-check reads that
+/// index, so this is the one damage only `quick_check` can see: the header and
+/// the migrator's history are untouched, and the store would have
+/// answered `units` from a broken index.
 #[tokio::test]
 async fn a_damaged_index_page_is_refused_by_the_self_check() {
     let scratch = Scratch::new("damaged-index");
@@ -1203,11 +1199,11 @@ async fn a_damaged_index_page_is_refused_by_the_self_check() {
 /// A damaged file one migration behind is refused before the migrator writes
 /// a page of it.
 ///
-/// **A `CREATE TABLE` was written into it first**, measured by a review: the
-/// migrator ran before `quick_check`, so this file had `0002_blobs.sql`
-/// applied — 20,632 bytes of WAL — and was then refused as damaged, with a
-/// message that said nothing was changed. A write into a damaged b-tree is how
-/// a damaged page becomes a lost one.
+/// **No `CREATE TABLE` written into it first**: with the migrator run before
+/// `quick_check`, this file would have `0002_blobs.sql` applied — 20,632 bytes
+/// of WAL — and then be refused as damaged, with a message that says nothing
+/// was changed. A write into a damaged b-tree is how a damaged page becomes a
+/// lost one.
 #[tokio::test]
 async fn a_damaged_file_one_migration_behind_is_refused_before_the_migrator_writes() {
     let scratch = Scratch::new("damaged-and-behind");
@@ -1301,9 +1297,9 @@ async fn a_damaged_index(profile: &Path, behind: bool) {
 /// stable Rust it does not tell cargo that it did** — `sqlx-macros-core`
 /// tracks the path only under `cfg(sqlx_macros_unstable)`. So a migration
 /// added there is not in this crate until one of its sources changes.
-/// Measured: with a third migration holding `SELECT 1;` added, a fresh
-/// database still had two migrations applied until
-/// `crates/nc-local/src/store.rs` was touched, and a migration that builds no
+/// Measured: with a migration holding `SELECT 1;` added there, a fresh
+/// database is migrated without it until `crates/nc-local/src/store.rs` is
+/// touched, and a migration that builds no
 /// object changes nothing the schema list or the gate compares. So the
 /// directory is read here at run time, as `cargo xtask check` reads it for its
 /// scratch file, and held to what the embedded migrator applied — version and
@@ -1445,10 +1441,10 @@ async fn a_profile_with_frames_in_its_wal(
 /// Another application's file in WAL mode, its `-wal` holding frames, is
 /// refused and left as it stood.
 ///
-/// **A reviewer found a real bug with it**: the connection that judged the
-/// file was the last to close it, so SQLite checkpointed the `-wal` into the
-/// file and deleted it — twenty-three bytes of the file rewritten — under a
-/// message saying it was left as it is.
+/// **What it holds against**: the connection that judged the file being the
+/// last to close it, so that SQLite checkpoints the `-wal` into the file and
+/// deletes it — twenty-three bytes of the file rewritten — under a message
+/// saying it was left as it is.
 #[tokio::test]
 async fn another_applications_wal_file_is_refused_and_left_as_it_stood() {
     let scratch = Scratch::new("foreign-wal");
@@ -1482,9 +1478,8 @@ async fn another_applications_wal_file_is_refused_and_left_as_it_stood() {
 /// A file `quick_check` calls damaged, its `-wal` holding committed frames,
 /// is refused and left as it stood: the frames are not written into it.
 ///
-/// The second of the reviewer's two, with the same cause: the judging
-/// connection's close checkpointed the log into a file it had just found
-/// damaged.
+/// The same cause as the test above's: the judging connection's close would
+/// checkpoint the log into a file it had just found damaged.
 #[tokio::test]
 async fn a_damaged_file_with_frames_in_its_wal_is_refused_and_left_as_it_stood() {
     let scratch = Scratch::new("damaged-wal");
@@ -1568,9 +1563,9 @@ async fn a_damaged_file_with_frames_in_its_wal_is_refused_and_left_as_it_stood()
 /// A file beside a hot rollback journal is refused as one this build did not
 /// leave, and left as it stood: the journal is not rolled back into it.
 ///
-/// The variant of the two above the reviewer named and did not run: a
-/// connection that may write rolls a hot journal back on its first read, and
-/// this build's database keeps a write-ahead log, never such a journal.
+/// The variant of the two above: a connection that may write rolls a hot
+/// journal back on its first read, and this build's database keeps a
+/// write-ahead log, never such a journal.
 #[tokio::test]
 async fn a_file_beside_a_hot_journal_is_refused_and_left_as_it_stood() {
     let scratch = Scratch::new("hot-journal");
@@ -1658,9 +1653,8 @@ fn opened_at_once(profile: &Path, threads: usize) -> Vec<String> {
 /// A profile nobody has opened yet, opened by several at once — two app
 /// instances, the daemon and a command-line tool — opens for every one.
 ///
-/// **A reviewer found a real bug with it**: the directory and the file one
-/// open had just made were refused to the others as `NC-DB-0006`, ninety of a
-/// hundred and twenty opens.
+/// **What it holds against**: the directory and the file one open has just made
+/// refused to the others as `NC-DB-0006`, ninety of a hundred and twenty opens.
 #[test]
 fn a_fresh_profile_opened_from_several_threads_at_once_opens_every_time() {
     let mut failed = Vec::new();
@@ -1681,9 +1675,9 @@ fn a_fresh_profile_opened_from_several_threads_at_once_opens_every_time() {
 /// A profile whose file was made and never migrated — what a process stopped
 /// between the two leaves — opened by several at once, opens for every one.
 ///
-/// **A reviewer found a real bug with it**: forty-nine of a hundred and twenty
-/// opens failed — a migration applied twice at once, and a history read after
-/// another open's migrations landed held against a schema read before them.
+/// **What it holds against**: forty-nine of a hundred and twenty opens failing
+/// — a migration applied twice at once, and a history read after another open's
+/// migrations landed held against a schema read before them.
 #[test]
 fn an_unmigrated_file_opened_from_several_threads_at_once_opens_every_time() {
     let mut failed = Vec::new();
@@ -1720,11 +1714,11 @@ const OPENED_IN: &str = "NC_LOCAL_OPENED_IN";
 /// first migration: cargo runs a test binary from its package's root, where
 /// that relative path is this repository's own directory, so a child moved
 /// elsewhere is what tells the embedded migrations from ones read where the
-/// process stands. **A reviewer found the door open**: the store migrating
-/// from `Migrator::new(Path::new("../../local-migrations"))` — a fix the stale
-/// embed above `MIGRATOR` invites — passed every suite and the whole gate, and
-/// on a user's machine migrates their file with whatever SQL sits beside the
-/// daemon's working directory.
+/// process stands. **The door this shuts**: a store migrating from
+/// `Migrator::new(Path::new("../../local-migrations"))` — a fix the stale
+/// embed above `MIGRATOR` invites — would pass a test run from the package's
+/// root, and on a user's machine migrate their file with whatever SQL sits
+/// beside the daemon's working directory.
 #[tokio::test]
 async fn a_store_migrates_with_what_the_build_embedded_wherever_it_runs() {
     if let Ok(profile) = std::env::var(OPENED_IN) {

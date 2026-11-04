@@ -4,11 +4,12 @@
 #
 # **The last comment line above a recipe is its description, and only that one.**
 # `just --list` prints that one line and no other, so a paragraph written above a
-# recipe reaches a reader as whichever clause happens to be last: `check` — THE
-# gate — was listed as "`cargo install` for cargo-deny, and two builds it diffs",
-# which names what the workflow runs *beside* the gate rather than the gate. So
-# the explanation goes first and the last line is a whole sentence that stands
-# alone; `the_listing_reads_as_sentences` holds it.
+# recipe reaches a reader as whichever clause happens to be last: with the
+# explanation last, `check` — THE gate — is listed as "`cargo install` for
+# cargo-deny, and two builds it diffs", which names what the workflow runs
+# *beside* the gate rather than the gate. So the explanation goes first and the
+# last line is a whole sentence that stands alone;
+# `the_listing_reads_as_sentences` holds it.
 
 default:
     @just --list
@@ -38,10 +39,8 @@ checkout-shape:
 # the bounds only the running log store can state; how a database sorts; the
 # journal's PostgreSQL tests; fetching the advisory database; comparing each
 # pinned digest against what its tag resolves to; and the stack's own tests,
-# which ask docker what it resolves rather than reading one compose file. This
-# list named five of the eight it then had, and the three it left out were the
-# ones a reader is most likely to believe were checked. CI never passes this
-# recipe.
+# which ask docker what it resolves rather than reading one compose file. CI
+# never passes this recipe.
 # The same gate without the nine steps that need the stack or the network.
 check-offline:
     cargo xtask check --offline
@@ -58,9 +57,9 @@ docs:
 release version:
     cargo xtask release {{version}}
 
-# The suite's own fixtures built 9,250 directories in `/tmp` over one month
-# before anything counted them, and `xtask/src/check.rs` says why no gate can
-# hold this: the temporary directory is shared with every other process on the
+# The suite's own fixtures can leave directories in `/tmp` — 9,250 in one
+# month, measured, with nothing counting them — and `xtask/src/check.rs` says why
+# no gate can hold this: the temporary directory is shared with every other process on the
 # machine, so a step inside `check` would fail for somebody else's mess. What a
 # recipe can do is watch the difference across one run, which is attributable
 # and reproducible. A guard that removes on `Drop` is what makes the answer

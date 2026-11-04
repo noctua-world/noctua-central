@@ -40,11 +40,11 @@ pub const CANDIDATES: u32 = 64;
 
 /// A machine-flake value that does not fit the layout.
 ///
-/// **Sealed, because an error that names a legal value is a lie a log keeps.**
-/// The field was `pub` with no invariant — the only public struct field in this
-/// crate — so `FlakeOutOfRange { value: 5 }` rendered *"a machine flake of 5 is
-/// outside 0..1024"* under `NC-VAL-0001`, about a value `from_value` accepts.
-/// The constructor is `from_value`'s refusal; `value()` reads it back.
+/// **Sealed, because an error that names a legal value is a lie a log
+/// keeps.** With the field `pub` and no
+/// invariant, `FlakeOutOfRange { value: 5 }` would render *"a machine flake of
+/// 5 is outside 0..1024"* under `NC-VAL-0001`, about a value `from_value`
+/// accepts. The constructor is `from_value`'s refusal; `value()` reads it back.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct FlakeOutOfRange {
@@ -75,12 +75,11 @@ impl FlakeOutOfRange {
 
     /// The bounds the code's sentence interpolates, ready for `render`.
     ///
-    /// **`code()` alone left the sentence half-rendered.** `NC-VAL-0001` says
-    /// *"{field} must be between {min} and {max}."* and this is the only place
-    /// in the tree that raises it, so a caller holding the code had the braces
-    /// and nowhere to get the numbers — the declaration was published, checked
-    /// against both locales, and unreachable from the one failure that carries
-    /// it.
+    /// **`code()` alone leaves the sentence half-rendered.** `NC-VAL-0001` says
+    /// *"{field} must be between {min} and {max}."*, so a caller holding only
+    /// this failure's code has the braces and nowhere to get the numbers — the
+    /// declaration published, checked against both locales, and out of reach
+    /// from this failure without this method.
     ///
     /// **`field` is deliberately not here.** `catalog/errors.toml` says it is a
     /// localised label and not a column name: this crate does not know the
@@ -96,7 +95,7 @@ impl FlakeOutOfRange {
     ///
     /// The label is the caller's — see [`Self::bounds`] — so this takes it and
     /// returns what `nc_catalog::i18n::render` wants, in one call. It exists
-    /// because the two-step version was the kind of seam a caller skips: the
+    /// because a two-step version is the kind of seam a caller skips: the
     /// obvious next line after `code()` is to print `message()`, and that shows
     /// a reader `{field} must be between {min} and {max}.`
     #[must_use]
@@ -143,10 +142,10 @@ impl MachineFlake {
     /// It is an error rather than a mask: a caller that truncated silently would
     /// produce identifiers claiming to come from a machine that is not this one.
     ///
-    /// **The error was a bare `u16`.** It carried no `Display`, no `Error` impl
-    /// and no registry code, so the one thing a caller could do with it was
-    /// print a number — `§15.1` makes an error's identity data, and a `u16` is
-    /// data about the *value*, not about the failure.
+    /// **The error is a type, not a bare `u16`.** A `u16` carries no `Display`,
+    /// no `Error` impl and no registry code, so the one thing a caller could do
+    /// with it is print a number — `§15.1` makes an error's identity data, and
+    /// a `u16` is data about the *value*, not about the failure.
     pub const fn from_value(value: u16) -> Result<Self, FlakeOutOfRange> {
         if value >= RANGE {
             return Err(FlakeOutOfRange { value });
@@ -161,22 +160,20 @@ impl MachineFlake {
     /// therefore deterministic: the same device walking the same sequence after
     /// a reinstall reaches the same flake it had.
     ///
-    /// This said *"candidate zero is BLAKE3 of the key"*, which is the defect
-    /// the body below records repairing: a bare hash of the key collides with
-    /// any other bare hash of the same bytes anywhere in the platform, and
-    /// `the_first_candidate_is_domain_separated_like_the_rest` asserts the
-    /// opposite of this sentence twelve screens down. A public rustdoc is what a
-    /// caller reads.
+    /// Candidate zero is not a bare BLAKE3 of the key: a bare hash of the key
+    /// collides with any other bare hash of the same bytes anywhere in the
+    /// platform, and `the_first_candidate_is_domain_separated_like_the_rest`
+    /// asserts so twelve screens down.
     #[must_use]
     pub fn candidate(device_key: &[u8], attempt: u32) -> Self {
-        // **Length-prefixed, and on every attempt including the first.** An
-        // earlier version wrote a fixed delimiter and called it a length prefix,
-        // and it was not one: a device key ending in those very bytes followed
-        // by a counter produced the same hasher input as a different key at a
-        // different attempt, so two devices shared a candidate. Measured, with
-        // the colliding pair in the tests below. Attempt zero was also a bare
-        // BLAKE3 of the key, with no domain at all, so the flake seed collided
-        // with any other bare hash of the same bytes anywhere in the platform.
+        // **Length-prefixed, and on every attempt including the first.** A
+        // fixed delimiter is not a length prefix: a device key ending in those
+        // very bytes followed by a counter produces the same hasher input as a
+        // different key at a different attempt, so two devices share a
+        // candidate. Measured, with the colliding pair in the tests below.
+        // Attempt zero as a bare BLAKE3 of the key, with no domain at all,
+        // would collide with any other bare hash of the same bytes anywhere in
+        // the platform.
         const DOMAIN: &str = "noctua-central/ids/machine-flake/v1";
 
         let mut hasher = blake3::Hasher::new();
@@ -218,11 +215,12 @@ mod tests {
 
     #[test]
     fn running_out_of_candidates_is_its_own_code() {
-        // `exhausted()` was the only reference to `IdsFlakeExhausted`, with no
-        // caller and no reader, so it could be repointed to anything. What it
+        // Outside this test, `exhausted()` is the only reference to
+        // `IdsFlakeExhausted` and nothing calls it, so without this it could be
+        // repointed to anything. What it
         // means is specific: every candidate for this device collided with a
-        // flake already in use, and `§16.2` says a flake is never regenerated on
-        // an existing device — so the answer is not to try again.
+        // flake already in use, and `§16.2` says a flake is never regenerated
+        // on an existing device — so the answer is not to try again.
         assert_eq!(MachineFlake::exhausted().area(), "IDS");
         assert_eq!(
             MachineFlake::exhausted(),
@@ -235,9 +233,11 @@ mod tests {
             nc_catalog::ErrorCode::IdsClockBackwards
         );
         // **The number itself, written out.** `CANDIDATES > 1` is a floor with
-        // everything in it: `CANDIDATES = 10` left the whole `nc-ids` suite
-        // green, and the effective floor was ten set by accident, by
-        // `the_candidate_sequence_moves` calling `.take(10)`. Sixty-four is a
+        // everything in it, and `the_candidate_sequence_moves` calling
+        // `.take(10)` and asking for nine distinct values adds a floor of nine
+        // by accident; the other test that holds the length is
+        // `the_sixty_four_candidates_are_the_ones_a_device_walked_before`,
+        // through a measured vector rather than an argument. Sixty-four is a
         // birthday-bound decision — its doc comment argues for that number and
         // not for "more than one" — so it is written here the way this
         // repository writes every mapping it refuses to derive.
@@ -247,14 +247,16 @@ mod tests {
              argues for, so change that argument here too and say why"
         );
 
-        // **And the sequence a device actually walks.** The fix above pinned
-        // the *constant* and left the *iterator* free: `(0..CANDIDATES)` could
-        // be written `(0..10)` with the whole crate green, because the only two
-        // observations of `candidates()` are `.take(10)` and `.take(8)`. That
-        // is the same accident one level down — a device pairing into a realm
-        // with a hundred devices already in it would walk ten candidates,
-        // report `IdsFlakeExhausted`, and be stuck, because `§16.2` says a flake
-        // is never regenerated on an existing device.
+        // **And the sequence a device actually walks.** Pinning the *constant*
+        // leaves the *iterator* free: `(0..CANDIDATES)` written `(0..10)` keeps
+        // `CANDIDATES` at 64, and of the other tests that walk `candidates()`
+        // only `the_sixty_four_candidates_are_the_ones_a_device_walked_before`
+        // reaches past the tenth — the rest stop at `.take(10)`, `.take(8)` and
+        // the four of `AFTER_A_WIPE`. That is the same accident one level down
+        // — a device pairing into a realm with a hundred devices already in it
+        // would walk ten candidates, report `IdsFlakeExhausted`, and be stuck,
+        // because `§16.2` says a flake is never regenerated on an existing
+        // device.
         assert_eq!(
             MachineFlake::candidates(KEY).count(),
             64,
@@ -263,11 +265,11 @@ mod tests {
         // **And how many of them are distinct**, which is the number that
         // actually decides. A repeat is a candidate the realm has already
         // refused, so the budget is the distinct count and not the length: for
-        // this key it is 60, and over 200,000 synthetic keys the worst was 54,
-        // with 68 keys below 56 — the number this comment carried, measured over
-        // two thousand. The doc's "about two repeats" is the mean, and the tail
-        // is five times that — worth writing down where the number is claimed,
-        // and worth re-measuring, because a tail seen over two thousand draws is
+        // this key it is 60, and over 200,000 synthetic keys the worst is 54,
+        // with 68 keys below 56 — the floor a sample of two thousand would
+        // suggest. The doc's "about two repeats" is the mean, and the tail is
+        // five times that — worth writing down where the number is claimed, and
+        // worth re-measuring, because a tail seen over two thousand draws is
         // not the tail.
         let distinct: std::collections::BTreeSet<u16> = MachineFlake::candidates(KEY)
             .map(MachineFlake::value)
@@ -289,7 +291,7 @@ mod tests {
         // already make those differ, so the domain is never the reason. And
         // `a_key_that_looks_like_another_key_plus_a_counter_does_not_collide`
         // passes with the key length prefix removed: its forged pair is the one
-        // that collided under the *old* delimiter scheme.
+        // that collides under a fixed delimiter, not under a fixed-width suffix.
         //
         // With a fixed-width attempt suffix the encoding stays injective without
         // the key prefix, so neither is a live collision — the gap is between the
@@ -317,14 +319,13 @@ mod tests {
         // The property that makes this need no registry: a device that was wiped
         // and set up again reaches the flake it had.
         //
-        // **`f(x) == f(x)` is not that property.** This was two calls to the
-        // same pure function with the same arguments in the same process, which
-        // is true of any deterministic function whatever it computes — the
-        // shape the comments around it spend paragraphs condemning, three
-        // functions away from them. What survives a reinstall is a value, so
-        // the value is what is written down: the same four candidates the
-        // measured vector below pins, spelled here as what a *device* gets back
-        // rather than as what the hash produces.
+        // **`f(x) == f(x)` is not that property.** Two calls to the same pure
+        // function with the same arguments in the same process agree for any
+        // deterministic function whatever it computes — the shape the comments
+        // around it spend paragraphs condemning. What survives a reinstall is a
+        // value, so the value is what is written down: the same four candidates
+        // the measured vector below pins, spelled here as what a *device* gets
+        // back rather than as what the hash produces.
         //
         // The two spellings are the point. `the_derivation_is_pinned_by_a_measured_vector`
         // fails when the derivation changes; this fails when the derivation
@@ -333,10 +334,10 @@ mod tests {
         // to ask for the flake it had.
         const AFTER_A_WIPE: [u16; 4] = [160, 764, 196, 542];
         // **Through `candidates()`, which is what a device walks.** Asserting
-        // on `candidate(KEY, n)` — the pure function — pinned the derivation
-        // and left the *sequence* free: `(0..CANDIDATES)` written `.rev()` kept
-        // the length at 64, kept every distinct-count assertion, and handed a
-        // device that came back after a wipe flake **367** where it had 160.
+        // on `candidate(KEY, n)` — the pure function — pins the derivation and
+        // leaves the *sequence* free: `(0..CANDIDATES)` written `.rev()` keeps
+        // the length at 64, keeps every distinct-count assertion, and hands a
+        // device that comes back after a wipe flake **367** where it had 160.
         // Order is the whole property here, because `§16.2` gives a device no
         // way to ask for the flake it had.
         let walked: Vec<u16> = MachineFlake::candidates(KEY)
@@ -414,10 +415,9 @@ mod tests {
 
     #[test]
     fn a_key_that_looks_like_another_key_plus_a_counter_does_not_collide() {
-        // The exact pair that used to collide, when the salt was a fixed
-        // delimiter rather than a length prefix: appending the delimiter and a
-        // counter to one key produced the same hasher input as that key at that
-        // attempt.
+        // The exact pair that collides under a fixed delimiter rather than a
+        // length prefix: appending the delimiter and a counter to one key
+        // produces the same hasher input as that key at that attempt.
         let mut forged = KEY.to_vec();
         forged.extend_from_slice(b"\x00nc-flake");
         forged.extend_from_slice(&5_u32.to_le_bytes());
@@ -430,8 +430,8 @@ mod tests {
 
     #[test]
     fn the_first_candidate_is_domain_separated_like_the_rest() {
-        // Attempt zero used to be a bare BLAKE3 of the key, so the flake seed
-        // collided with any other bare hash of the same bytes.
+        // Attempt zero as a bare BLAKE3 of the key would collide with any other
+        // bare hash of the same bytes.
         let bare = blake3::hash(KEY);
         let bytes = bare.as_bytes();
         let unseparated = u16::from_le_bytes([bytes[0], bytes[1]]) % RANGE;
@@ -483,7 +483,7 @@ mod the_bounds_reach_the_sentence {
             assert!(!sentence.contains('{'), "{sentence}");
             // **The order, not only the presence.** Asserting that `HIGHEST`
             // appears somewhere is true of `[("min", HIGHEST), ("max", "0")]`
-            // too, and `cargo xtask check` printed `check passed` with the
+            // too, and `cargo xtask check` prints `check passed` with the
             // sentence reading *"machine flake must be between 1023 and 0."* in
             // both locales. A pair of bounds is an ordered pair.
             let low = sentence
@@ -502,18 +502,19 @@ mod the_bounds_reach_the_sentence {
 
     /// `bounds()` names the right keys *and* the right values.
     ///
-    /// **It had no reader at all.** Its one caller was the test below, which
-    /// asserts only that `render` refuses the missing `field` — and `fill`
-    /// returns on the *first* unsupplied placeholder, which both locales put
-    /// first. So it short-circuited before reading anything `bounds()` said, and
-    /// `[("max", "999"), ("min", "17")]` — wrong values, wrong order — passed
-    /// `cargo xtask check`. That is exactly the failure `bounds`' own doc names
-    /// (*a `bounds` naming `minimum` instead of `min`*) and the one its sibling
-    /// records measuring (*machine flake must be between 1023 and 0*).
+    /// **Read, not only called.** The test below asserts only that `render`
+    /// refuses the missing `field` — and `fill` returns on the *first*
+    /// unsupplied placeholder, which both locales put first. So it
+    /// short-circuits before reading anything `bounds()` says, and through it
+    /// alone `[("max", "999"), ("min", "17")]` — wrong values, wrong order —
+    /// passes `cargo xtask check`. That is exactly the failure `bounds`' own
+    /// doc names (*a `bounds` naming `minimum` instead of `min`*) and the one
+    /// its sibling records measuring (*machine flake must be between 1023 and
+    /// 0*).
     ///
-    /// Held against `with_label`, which is tied to the layout through `HIGHEST`,
-    /// rather than against a written pair: two copies of the same numbers is how
-    /// this got here.
+    /// Held against `with_label`, which is tied to the layout
+    /// through `HIGHEST`, rather than against a written pair: two copies of the
+    /// same numbers drift apart.
     #[test]
     fn the_bounds_are_the_labelled_ones_without_the_label() {
         let refusal = MachineFlake::from_value(u16::MAX).expect_err("out of range");
@@ -530,14 +531,14 @@ mod the_bounds_reach_the_sentence {
 
     /// The label the caller handed in is the noun the sentence shows.
     ///
-    /// **Every other test in this module passes the same two words**, so
-    /// `with_label` could ignore its argument and write the placeholder's own
-    /// name instead: measured, `[("field", field), …]` written
-    /// `[("field", "field"), …]` left `cargo test -p nc-ids` green at 106, 6 and
-    /// 8. No brace is left in the sentence either way and the bounds are still
-    /// in the right order, so both sibling tests hold — what is lost is the one
-    /// thing this function exists for, which is that the noun is the caller's
-    /// and therefore in the reader's language.
+    /// **Every other test in this module passes the same two words**,
+    /// so `with_label` could ignore its argument and write the placeholder's
+    /// own name instead: measured, `[("field", field), …]`
+    /// written `[("field", "field"), …]` leaves `cargo test -p nc-ids` green
+    /// without this test. No brace is left in the sentence either way and the
+    /// bounds are still in the right order, so both sibling tests hold — what
+    /// is lost is the one thing this function exists for, which is that the
+    /// noun is the caller's and therefore in the reader's language.
     ///
     /// `contains` rather than `starts_with`: both locales put the subject first
     /// today, and a locale that did not would still have to interpolate it.
@@ -584,15 +585,14 @@ mod the_whole_sequence_is_pinned {
 
     /// Every candidate a device walks, in order — not the first four.
     ///
-    /// **The sequence was pinned for 4 of 64.** The first four values were held
-    /// against a written vector, the first ten for distinctness, and the total
-    /// distinct count against `>= 56` where the real figure is 60 — four slots of
-    /// slack. A reviewer reversed attempts 10..63, leaving the multiset and the
-    /// first ten untouched, and `cargo xtask check` passed. A device whose first
-    /// ten candidates are already taken then lands on a different flake after a
-    /// wipe, which is the one thing `§16.2` gives it no way to recover from: the
-    /// realm already holds its old flake for what it will treat as another
-    /// machine.
+    /// **All 64, not 4 of 64.** With the first four values held against a
+    /// written vector, the first ten for distinctness, and the total distinct
+    /// count against `>= 56` where the real figure is 60 — four slots of slack
+    /// — attempts 10..63 reversed, leaving the multiset and the first ten
+    /// untouched, pass `cargo xtask check`. A device whose first ten candidates
+    /// are already taken then lands on a different flake after a wipe, which is
+    /// the one thing `§16.2` gives it no way to recover from: the realm already
+    /// holds its old flake for what it will treat as another machine.
     ///
     /// So the whole sequence is written down. It is a pure function of a key
     /// this test owns, so it can only change if the derivation changes — which is

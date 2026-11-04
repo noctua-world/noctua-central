@@ -21,9 +21,9 @@
 //! `Result<_, KernelError>`, and `convert_error` decides per error:
 //! [`KernelError::Refused`] reaches the plugin as the world's `error` value and
 //! the instance lives on, [`KernelError::Trap`] traps it. Under plain
-//! `trappable` a `?` on a refusal is an outer `Err` — measured, it trapped, and
-//! a trap poisons the plugin's whole `Store`, so a capability check written the
-//! obvious way would have killed the plugin it was refusing.
+//! `trappable` a `?` on a refusal is an outer `Err` — measured, it traps, and a
+//! trap poisons the plugin's whole `Store`, so a capability check written the
+//! obvious way would kill the plugin it refuses.
 //!
 //! `log` and `context` are generated synchronous: both are answered from what
 //! the call already holds and never await, and an `async fn` that never awaits
@@ -422,8 +422,8 @@ pub(crate) async fn execute(
 /// One declared command, out of the generated record and into the kernel's.
 ///
 /// **Destructured, so a field the world adds is a compile error here** rather
-/// than a field no test reads: this answered `command.name` alone, and the
-/// other six crossed the boundary for nothing to look at.
+/// than a field no test reads: a conversion that answered `command.name` alone
+/// would let the other six cross the boundary for nothing to look at.
 fn declared(command: noctua::kernel::commands::Descriptor) -> Declared {
     use nc_schema::descriptor::Reversibility as Kernel;
     use noctua::kernel::commands::{Descriptor, Reversibility};
@@ -477,11 +477,11 @@ mod tests {
     /// `activate` runs on the activation's fuel, and not on what a dispatch is
     /// given.
     ///
-    /// **What is left is what tells the two apart.** The operator that gave
-    /// `activate` no fuel at all proved only that some is given: handed
-    /// `fuel_per_dispatch` instead, four times as much, every suite stayed
-    /// green — measured — because the reference plugin activates well within
-    /// either, so the fuel left after it is the one number that can say which.
+    /// **What is left is what tells the two apart.** An operator that gives
+    /// `activate` no fuel at all proves only that some is given: handed
+    /// `fuel_per_dispatch` instead, four times as much, the reference plugin
+    /// would still activate well within it, so no kill tells the two apart and
+    /// the fuel left after it is the one number that can say which.
     #[tokio::test]
     async fn activate_runs_on_the_activations_fuel_and_not_on_a_dispatchs() {
         let engine = Engine::new().expect("the engine's configuration is valid");
@@ -514,9 +514,9 @@ mod tests {
     /// catalog's.
     ///
     /// The share the store was given is what is read: the reference plugin
-    /// activates in far less than either, so no kill could tell them apart.
-    /// **A verifier found it held by nothing**: `activate` given the catalog's
-    /// ticks, a hundred times as many, left every suite green.
+    /// activates in far less than either, so no kill could tell them apart,
+    /// and `activate` given the catalog's ticks, a hundred times as many,
+    /// would fail this test on the share.
     #[tokio::test]
     async fn activate_runs_on_the_epoch_ticks_its_manifest_lowers() {
         /// The ticks the manifest lowers every call to.
@@ -558,10 +558,10 @@ mod tests {
     /// A dispatch runs on the fuel its manifest lowers, and not on the
     /// catalog's.
     ///
-    /// **What is left is what tells the two apart.** A verifier handed every
-    /// dispatch the catalog's fuel and every suite stayed green: the plugin
-    /// that burns ran out of the catalog's two billion as well, before its
-    /// epoch did, so its kill was the fuel's either way.
+    /// **What is left is what tells the two apart.** With every dispatch handed
+    /// the catalog's fuel, the plugin that burns would run out of the catalog's
+    /// two billion as well, before its epoch did, so its kill would be the
+    /// fuel's either way.
     #[tokio::test]
     async fn a_dispatch_runs_on_the_fuel_its_manifest_lowers() {
         /// The fuel the manifest lowers every dispatch to.
@@ -614,11 +614,11 @@ mod tests {
     /// A callback runs on the fuel its manifest lowers, as a dispatch does,
     /// and not on what the plugin's last call left it.
     ///
-    /// **Written by a reviewer (wave 5, isolation).** With the reset of the
-    /// budget taken out of `on_timer` and `on_event` — fuel, epoch share and
-    /// the tree a call is held to — every suite of this crate stayed green: a
-    /// callback ran on the half a billion units `activate` left, and on the
-    /// epoch deadline and the tree of the plugin's last call.
+    /// **The reset is read here.** With the reset of the budget taken out of
+    /// `on_timer` and `on_event` — fuel, epoch share and the tree a call is
+    /// held to — a callback would run on the half a billion units `activate`
+    /// left, and on the epoch deadline and the tree of the plugin's last call,
+    /// and this test, which reads the fuel, would fail.
     #[tokio::test]
     async fn a_callback_runs_on_the_fuel_its_manifest_lowers_and_not_on_what_was_left() {
         /// The fuel the manifest lowers every dispatch and callback to.
@@ -643,10 +643,10 @@ mod tests {
             })
             .expect("a lowering within the catalog");
         for event in [false, true] {
-            // **Refilled past the bound before each**, so a callback that kept
+            // **Refilled past the bound before each**, so a callback that keeps
             // what the one before it left is told from one given its own: run
-            // second on the first one's remainder, an event's callback that
-            // was given nothing passed.
+            // second on the first one's remainder, an event's callback given
+            // nothing would pass.
             activated
                 .instance
                 .store
@@ -723,11 +723,11 @@ mod tests {
     ///
     /// The plugin reaches `net#fetch` before its first epoch check, against a
     /// transport that holds every request until the test is over — so a
-    /// request sent waits out its host call's deadline. **A reviewer found
-    /// a real bug with it**: the host call was held to its own deadline
-    /// alone, and the epoch callback that reads the tree's runs only while the
-    /// plugin runs — so the request was handed to the transport, and the call
-    /// ran for as long as the transport took.
+    /// request sent waits out its host call's deadline. **Held to the tree's
+    /// deadline, not its own alone**: the epoch callback that reads the tree's
+    /// runs only while the plugin runs, so a host call held to its own deadline
+    /// alone would hand the request to the transport, and run for as long as
+    /// the transport took.
     #[tokio::test]
     async fn a_call_in_a_tree_past_its_deadline_sends_no_request_and_is_stopped_at_once() {
         let engine = Engine::new().expect("the engine's configuration is valid");

@@ -211,11 +211,12 @@ pub(crate) enum Prune<'a> {
 ///
 /// **Rehearsed, and deleting nothing, until its entry lands.** What deletes is
 /// outside every unit, so nothing a journal refuses afterwards could put it
-/// back: a reviewer found a prune whose entry the journal refused answered as
-/// withheld, its unit closed as aborted and ten thousand of a person's units
-/// gone. So a real run is a dry run first, which every refusal the pruner can
-/// give of what was asked meets, and then [`Prune::Deletes`], which the
-/// decision point carries out only once it has journaled the prune as allowed.
+/// back: deleting first, a prune whose entry the journal refused would be
+/// answered as withheld, its unit closed as aborted and ten thousand of a
+/// person's units gone. So a real run is a dry run first, which every refusal
+/// the pruner can give of what was asked meets, and then [`Prune::Deletes`],
+/// which the decision point carries out only once it has journaled the prune as
+/// allowed.
 ///
 /// # Errors
 ///
@@ -721,9 +722,8 @@ mod tests {
     ///
     /// Each prune is dispatched as a guardian holding a quorum's approval of
     /// it, so what answers is the command and not the decision point — for
-    /// every table and for the units', each for real and as a dry run. A
-    /// verifier found the answer for this store reached by no test: a prune
-    /// it refused outright passed every suite of the crate.
+    /// every table and for the units', each for real and as a dry run. A prune
+    /// this store refused outright would fail here.
     #[tokio::test]
     async fn a_prune_of_a_store_held_in_memory_answers_no_table_and_refuses_one_no_catalog_bounds()
     {

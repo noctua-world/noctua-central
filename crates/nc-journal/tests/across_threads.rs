@@ -61,11 +61,11 @@ async fn a_journal_verifies_from_a_spawned_task() {
 
 /// Writes a work unit through a journal over **any** store, from a spawned task.
 ///
-/// **The write path needs its own generic helper**, and it did not have one:
-/// dropping `+ Send` from `tail` and `from` broke `verified_anywhere`, and
-/// dropping it from `append` broke nothing, because the only write test spawned
-/// a concrete `Journal<InMemory>` — which this file's own doc says proves
-/// nothing. The write is the path the kernel takes on every command.
+/// **The write path needs its own generic helper.** Dropping `+ Send` from
+/// `tail` and `from` breaks `verified_anywhere`, and dropping it from `append`
+/// breaks this helper and nothing else in this file, whose other write test
+/// spawns a concrete `Journal<InMemory>` — which this file's own doc says
+/// proves nothing. The write is the path the kernel takes on every command.
 async fn written_anywhere<S>(mut journal: Journal<S>) -> u64
 where
     S: nc_journal::Store + Send + Sync + 'static,
@@ -84,13 +84,13 @@ where
             .expect("records");
             unit.commit().await.expect("commits");
         }
-        // **And `head`, which nothing reached.** The repair that added this
-        // helper covered `append`, `tail`, `from`, `unit_opened` and the
-        // closed-unit question — every method of the trait but one — and
-        // `head`'s `+ Send` was left decided by nothing: dropping it compiled and the
-        // whole suite stayed green. `Store` is public and not dyn-compatible, so
-        // a kernel generic over `S: Store` that spawns a task and asks where the
-        // chain ends is exactly the case this file exists for.
+        // **And `head`.** This helper covers `append`, `tail`, `from`,
+        // `unit_opened` and the closed-unit question, and without this line
+        // nothing in this file would ask for `head`'s `+ Send`, so dropping it
+        // from the trait would compile here. `Store` is public and not
+        // dyn-compatible, so a kernel generic over `S: Store` that spawns a
+        // task and asks where the chain ends is exactly the case this file
+        // exists for.
         let (sequence, _) = journal
             .store()
             .head()

@@ -157,10 +157,10 @@ fn refused(why: String) -> Refusal {
 /// **Held as an event and a timer are** (`crate::units::Later`): in the unit
 /// of the tree when it holds one, released when the unit is kept, and in the
 /// tree's own when it does not, released once the tree ends with every entry
-/// it gave the journal taken. **A reviewer found a real bug with it**: a
-/// surface was opened, rendered into and closed at once, so a read whose
-/// entry the journal refused — its answer withheld — and a unit the journal
-/// did not keep each left a surface showing what they did.
+/// it gave the journal taken. **Never at once**: a surface opened, rendered
+/// into and closed at once would let a read whose entry the journal refused —
+/// its answer withheld — and a unit the journal did not keep each leave a
+/// surface showing what they did.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Shown {
     /// A surface opened, under the identifier its plugin was answered.
@@ -909,8 +909,8 @@ mod tests {
             "/text",
             "sees nothing of",
         );
-        // **And a default-ignorable point**, drawn as nothing: a reviewer
-        // found variation selectors carrying bytes unseen past this rule.
+        // **And a default-ignorable point**, drawn as nothing: without it,
+        // variation selectors would carry bytes unseen past this rule.
         refused_at(
             "{\"node\":\"text\",\"text\":\"a\\ufe0f\\ufe01b\"}",
             "/text",

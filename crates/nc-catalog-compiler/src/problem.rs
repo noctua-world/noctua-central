@@ -6,13 +6,12 @@
 //! dependency: `miette` renders beautifully with its `fancy` feature and prints
 //! a struct dump without it, and nothing here needs a source snippet.
 //!
-//! The third field is [`Problem::check`], and it exists because of how the tests
-//! that prove these gates fire were defeated. They matched a substring of the
-//! message, so a test naming a key passed when a *different* check happened to
-//! mention the same key — one of them was satisfied entirely by the ledger's
-//! diagnostic and stayed green with the check it named switched off. A stable
-//! identity per check is what makes "this test failed for the reason it claims"
-//! an assertion rather than a coincidence.
+//! The third field is [`Problem::check`], and it exists because a test that
+//! proves a gate fires by matching a substring of the message passes when a
+//! *different* check happens to mention the same key — such a test can be
+//! satisfied entirely by the ledger's diagnostic and stay green with the check
+//! it names switched off. A stable identity per check is what makes "this test
+//! failed for the reason it claims" an assertion rather than a coincidence.
 
 use std::fmt;
 
@@ -86,11 +85,11 @@ impl fmt::Display for Problem {
 /// after parsing, when the parser's spans are gone. Searching the source for the
 /// offending token is how the location survives that.
 ///
-/// **Two refinements a reviewer paid for.** A comment mentioning a code was
-/// reported as the code's declaration, because comments in these registries
-/// routinely name the entry below them — so a line whose first non-space
-/// character is `#` is skipped. And for a duplicate, the *first* occurrence is
-/// the innocent one: `nth` is what lets the caller ask for the second.
+/// **Two refinements.** Comments in these registries routinely name the entry
+/// below them, so a comment mentioning a code would be reported as the code's
+/// declaration — a line whose first non-space character is `#` is skipped. And
+/// for a duplicate, the *first* occurrence is the innocent one: `nth` is what
+/// lets the caller ask for the second.
 ///
 /// A needle that is not found yields `None` and the problem is reported against
 /// the file, which is still better than reporting it against nothing.
@@ -147,8 +146,8 @@ mod tests {
     #[test]
     fn a_comment_naming_the_entry_below_it_is_not_the_entry() {
         // Measured: a plausible comment — "NC-LOG-0001 used to be called
-        // NC-LOG-0000; see the ledger." — was reported as the declaration, for a
-        // problem sixty lines further down.
+        // NC-LOG-0000; see the ledger." — is reported as the declaration
+        // without the skip, for a problem sixty lines further down.
         let text = "# NC-DB-0001 used to be NC-DB-0000\ncode = \"NC-DB-0001\"\n";
         assert_eq!(line_of(text, "NC-DB-0001", 1), Some(2));
     }

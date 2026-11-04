@@ -19,14 +19,14 @@
 //!
 //! # Every file, not one file
 //!
-//! It read `.github/workflows/ci.yml` and nothing else, and four ordinary
-//! shapes put a second cargo command into CI with `check passed` and the count
-//! unchanged:
+//! A gate that reads `.github/workflows/ci.yml` and nothing else lets four
+//! ordinary shapes put a second cargo command into CI with `check passed` and
+//! the count unchanged:
 //!
 //! * a second workflow file — `nightly.yml` running `cargo test`, `cargo fmt` <!-- allow-reference: names `nightly.yml` — a probe file, written and removed -->
 //!   and `cargo clippy`, which is a whole second gate;
 //! * a **composite action** under `.github/actions/`, invoked from `ci.yml` by <!-- allow-reference: names `.github/actions/` — a probe directory, written and removed -->
-//!   `uses: ./.github/actions/extra`, whose `run:` the gate never opened;
+//!   `uses: ./.github/actions/extra`, whose `run:` such a gate never opens;
 //! * shell indirection *inside `ci.yml` itself* — `C=cargo` and then
 //!   `$C clippy`, which never spells `cargo `;
 //! * a **tab** instead of a space: `cargo\ttest`, which `find("cargo ")` misses.
@@ -46,16 +46,16 @@ pub(crate) const WORKFLOWS: &str = ".github";
 
 /// Every name `just` will load a justfile from.
 ///
-/// It searches all four, and the gate read one. On a case-sensitive filesystem
-/// that made the whole surface a developer types invisible with a `git mv`.
+/// It searches all four, and a gate that reads one makes the whole surface a
+/// developer types invisible with a `git mv` on a case-sensitive filesystem.
 const JUSTFILE: [&str; 4] = ["justfile", ".justfile", "JUSTFILE", "Justfile"];
 
 /// Every name GNU make looks for, in the order it looks for them.
 ///
-/// **`GNUmakefile` first, which is the one make prefers.** The list here was
-/// `["Makefile"]`, so renaming the file to the name make reads *before*
-/// `Makefile` took a whole second gate out of the walk with the count unchanged
-/// at ten — and `makefile` in lower case is the third name make searches.
+/// **`GNUmakefile` first, which is the one make prefers.** With the list at
+/// `["Makefile"]`, renaming the file to the name make reads *before*
+/// `Makefile` takes a whole second gate out of the walk with the count
+/// unchanged — and `makefile` in lower case is the third name make searches.
 const MAKEFILE: [&str; 3] = ["GNUmakefile", "makefile", "Makefile"];
 
 /// The file the repository's own gate is written in.
@@ -63,59 +63,59 @@ pub(crate) const WORKFLOW: &str = ".github/workflows/ci.yml";
 
 /// What each job must actually run, beside its name.
 ///
-/// **A name is not a job.** `JOBS` checked that a line `deterministic:` existed
-/// and nothing about the body — so the step could be replaced with
-/// `run: echo the determinism check used to be here` and the gate called it
+/// **A name is not a job.** `JOBS` alone checks that a line `deterministic:`
+/// exists and nothing about the body — so the step can be replaced with
+/// `run: echo the determinism check used to be here` and the gate calls it
 /// `ok`. That job is the only cross-process determinism check in the
 /// repository, criterion 4's sole enforcement, and the only thing that can see
 /// an ambient rustfmt configuration or a locale. And the `check` job's own
-/// command could become `cargo xtask docs` — every cargo invocation still being
-/// `cargo xtask <verb>` — while nothing ran the gate at all.
+/// command can become `cargo xtask docs` — every cargo invocation still being
+/// `cargo xtask <verb>` — while nothing runs the gate at all.
 ///
-/// This is the same defect the job-name check was written to replace, moved one
-/// level in: from the job's name to the job's body.
+/// A name checked without its body is the defect a bare count of invocations
+/// has, moved one level in: from the job's name to the job's body.
 ///
 /// The text is matched against what a step **runs**, not against the job's
 /// prose: `- name: cargo xtask check` is a label, and a job renamed after the
 /// command it no longer runs would otherwise satisfy this.
 ///
-/// **`diff -r` alone was satisfiable by a tautology.** Measured: replacing the
+/// **`diff -r` alone is satisfiable by a tautology.** Measured: replacing the
 /// job's whole body with `mkdir -p /tmp/first/docs` and
-/// `diff -r /tmp/first/docs /tmp/first/docs` left the job name present, the
-/// needle present, the invocation count down from four to two — which only a
-/// zero floor guarded — and `check passed`. The one cross-process determinism
-/// check there is became a directory diffed against itself. So the job has to
+/// `diff -r /tmp/first/docs /tmp/first/docs` leaves the job name present, the
+/// needle present, the invocation count down from four to two — which a zero
+/// floor does not see — and `check passed`. The one cross-process determinism
+/// check there is becomes a directory diffed against itself. So the job has to
 /// build twice and diff each generated tree against the one it saved, and each
 /// requirement is its own needle rather than one that a substring can satisfy.
 ///
-/// **And how many times, because `any()` cannot count to two.** Every entry was
-/// satisfied by one occurrence, so the requirement written in the comment above
-/// as "the job has to build twice" was enforced as "the job builds". Measured:
-/// the body reduced to one `cargo xtask build`, then `cp -r`, then `diff -r` —
-/// a copy diffed against its own source, in one process, with no second
-/// generation anywhere — printed
+/// **And how many times, because `any()` cannot count to two.** An entry
+/// satisfied by one occurrence enforces the requirement in the paragraph above,
+/// "the job has to build twice", as "the job builds". Measured: the body
+/// reduced to one `cargo xtask build`, then `cp -r`, then `diff -r` — a copy
+/// diffed against its own source, in one process, with no second generation
+/// anywhere — prints
 ///
 /// ```text
 /// ok    3 cargo command(s) in the workflow, …
 /// check passed
 /// ```
 ///
-/// which is the same "diff against itself" defect this list's own doc comment
-/// says it replaced, reached by deleting one line.
+/// which is the same "diff against itself" defect the paragraph above names,
+/// reached by deleting one line.
 const JOBS_MUST_RUN: &[(&str, &str, usize)] = &[
-    // Without the `run:` prefix: what is compared now is the *command*, after
+    // Without the `run:` prefix: what is compared is the *command*, after
     // the key that introduces it and after any `&&` before it.
     ("check", "cargo xtask check", 1),
     // Two builds, which is what makes the second generation a second *process*.
     ("deterministic", "cargo xtask build", 2),
     // **And the second build is in a second directory**, which is what makes it
-    // a second *environment* and not only a second process. Both builds ran in
-    // this checkout, so they shared the working directory, the filesystem and
-    // the order `read_dir` returns — and `catalog/i18n/` is read with `read_dir`,
-    // with locale order deciding `Locale::ALL`, every column of `MESSAGES` and
-    // four `docs/` pages. A second run in the same directory agrees with the
-    // first about all of that whatever the emitter does with it, so the one
-    // cross-process check there is was blind to the one input that actually
+    // a second *environment* and not only a second process. Two builds in this
+    // checkout share the working directory, the filesystem and the order
+    // `read_dir` returns — and `catalog/i18n/` is read with `read_dir`, with
+    // locale order deciding `Locale::ALL`, every column of `MESSAGES` and four
+    // `docs/` pages. A second run in the same directory agrees with the first
+    // about all of that whatever the emitter does with it, so a cross-process
+    // check run in one directory is blind to the one input that actually
     // differs between machines.
     //
     // The copy is laid down in reverse order on a path of a different length,
@@ -141,12 +141,12 @@ const JOBS_MUST_RUN: &[(&str, &str, usize)] = &[
         "diff -r /tmp/a-second-checkout-of-noctua-central/docs",
         1,
     ),
-    // **And the two the list did not name**, which the job's own comment calls
-    // "a third of what `cargo xtask build` emits": the generated log-event
-    // structs, and the append-only ledger. Both were in `ci.yml` and neither was
-    // required, so either pair could be deleted from the job with no finding —
-    // and the ledger is the one artifact whose whole purpose is that it never
-    // changes except by appending.
+    // **And the two the job's own comment calls "a third of what
+    // `cargo xtask build` emits"**: the generated log-event structs, and the
+    // append-only ledger. Both are in `ci.yml`, and without these rows either
+    // pair can be deleted from the job with no finding — and the ledger is the
+    // one artifact whose whole purpose is that it never changes except by
+    // appending.
     (
         "deterministic",
         "diff -r /tmp/a-second-checkout-of-noctua-central/crates/nc-log/src",
@@ -178,13 +178,13 @@ const IN_THIS_ORDER: [&str; 5] = [
 
 /// The actions CI may use that set something up and judge nothing.
 ///
-/// An allow-list, because the rule that preceded it was a needle: an action
-/// that runs anything of ours is a second gate whatever it is called.
+/// An allow-list and not a needle, because an action that runs anything of
+/// ours is a second gate whatever it is called.
 ///
-/// **At module scope so a census can pin it.** It sat inside the reader, where
-/// no test could see it, and its only driver was one negative fixture naming
-/// one action — so any other name could be added with the suite green.
-/// Measured in round sixty-five with `actions-rs/clippy-check`, which is a real <!-- allow-reference: names `actions-rs/clippy-check` — a GitHub Action, not a path in this tree -->
+/// **At module scope so a census can pin it.** Inside the reader no test can
+/// see it, and a single negative fixture naming one action leaves any other
+/// name free to be added with the suite green. Measured with
+/// `actions-rs/clippy-check`, which is a real <!-- allow-reference: names `actions-rs/clippy-check` — a GitHub Action, not a path in this tree -->
 /// and widely used clippy action: allowed here it runs a second verdict in CI,
 /// which is what `NOCTUA.md §19.4` is about.
 const SETS_UP_AND_JUDGES_NOTHING: [&str; 5] = [
@@ -217,10 +217,11 @@ const HOPS: usize = 16;
 /// The jobs CI must have, and what each is for.
 ///
 /// **A count of invocations is not a claim that CI does anything.** Deleting the
-/// whole `deterministic` job took the number from four to two, and the only
-/// floor compared it against zero — so the sole cross-process determinism check
-/// in the repository, and the only place the ledger's determinism is checked at
-/// all, could be removed with `check passed`.
+/// whole `deterministic` job takes the number from four to two, and a floor
+/// that compares it against zero does not see that — so without this list the
+/// sole cross-process determinism check in the repository, and the only place
+/// the ledger's determinism is checked at all, can be removed with `check passed`
+/// printed over it.
 const JOBS: [(&str, &str); 2] = [
     (
         "check",
@@ -267,10 +268,9 @@ fn opens_a_key(line: &str) -> bool {
 /// written `run: "cargo xtask check\ncargo-clippy --workspace -- -D warnings"`
 /// runs two commands, and a per-line reader sees one word it recognises as
 /// neither. A second lints gate can stand there with the transcript unmoved.
-/// Found in wave 26.
 ///
-/// **The obvious repair — split on `\n` — is wrong in both directions**, and a
-/// skeptic measured both against `yq 3.4.3`: `"printf \"a\\ncargo-clippy …\""`
+/// **The obvious repair — split on `\n` — is wrong in both directions**, both
+/// measured against `yq 3.4.3`: `"printf \"a\\ncargo-clippy …\""`
 /// is ONE command, because `\\` is a literal backslash and the `n` after it is
 /// an `n`; and the same attack spelled `\x0a` is two commands that splitting on
 /// `\n` would miss. Resolving the escapes is what gets both right, so that is
@@ -340,14 +340,14 @@ fn the_lines_behind_the_escapes(line: &str) -> Vec<String> {
         return vec![line.to_owned()];
     };
     // **A scalar may wear an anchor, a tag, or both, and may carry a comment.**
-    // Wave 26 asked that the trimmed value both start and end with `"`, so a
-    // step written `run: "a\ncargo-clippy …"  # the gate` failed the suffix test
-    // and was never split — six characters of comment appended to an attack that
-    // wave itself added as a row, and the gate then had nothing at all to say. A
-    // skeptic measured the obvious repair against `yq 3.4.3` and found it too
-    // weak three more ways: `!!str "a\nb"` and `&g "a\nb"` are both two-line
-    // scalars whose value does not start with `"`, and `"a\nb"#note` — no space
-    // before the hash — is still a comment. Found in wave 27.
+    // Asking that the trimmed value both start and end with `"` leaves a step
+    // written `run: "a\ncargo-clippy …"  # the gate` failing the suffix test and
+    // never split — six characters of comment appended to a measured attack,
+    // and the gate then has nothing at all to say. Allowing a trailing comment
+    // alone is, measured against `yq 3.4.3`, too weak three more ways:
+    // `!!str "a\nb"` and `&g "a\nb"` are both two-line scalars whose value does
+    // not start with `"`, and `"a\nb"#note` — no space before the hash — is
+    // still a comment.
     let mut rest = value.trim_start();
     loop {
         let property = rest
@@ -400,21 +400,21 @@ fn the_lines_behind_the_escapes(line: &str) -> Vec<String> {
 
 /// The block-scalar style a header opens, if it opens one.
 ///
-/// **A header is a grammar, and this was three string literals.** YAML 1.2
+/// **A header is a grammar, not three string literals.** YAML 1.2
 /// §8.1.1 gives `c-b-block-header(m,t)` as the style character, then an optional
 /// indentation indicator and an optional chomping indicator *in either order*,
 /// then `s-b-comment` — so `|`, `|-`, `|2`, `|2-`, `>-`, `>2+` and every one of
-/// those followed by ` # anything` are all block headers. This matched the whole
-/// rest of the line against `"|" | "|-" | "|+"` and the same three for `>`.
+/// those followed by ` # anything` are all block headers. Matching the whole
+/// rest of the line against `"|" | "|-" | "|+"` and the same three for `>`
+/// misses the rest of them.
 ///
 /// Measured with the real tool: `yq 3.4.3` reads `- run: | # the gate, and the
 /// two lints it also runs` with two indented commands below it as one two-line
-/// script. To this reader it was not a block at all — the body lines were
-/// swallowed as a plain-scalar continuation onto the header, and
-/// `the_command_without_its_comment` then cut everything from the ` #`, so every
-/// rule downstream read `run: |` and nothing else. A whole second lints gate
-/// could stand under such a header with the transcript unmoved. Found in wave
-/// 26.
+/// script. To a reader of the three literals it is not a block at all — the
+/// body lines are swallowed as a plain-scalar continuation onto the header, and
+/// `the_command_without_its_comment` then cuts everything from the ` #`, so
+/// every rule downstream reads `run: |` and nothing else. A whole second lints
+/// gate can stand under such a header with the transcript unmoved.
 fn the_block_style(rest: &str) -> Option<char> {
     let mut letters = rest.trim_start().chars();
     let Some(style @ ('|' | '>')) = letters.next() else {
@@ -455,11 +455,11 @@ fn the_block_style(rest: &str) -> Option<char> {
 ///     --offline                      --offline
 /// ```
 ///
-/// Both gave `ok N cargo command(s)` and no `--offline` finding, while
-/// `the_ways_measured_after_the_first_five` carries `--offline` as a
-/// measured attack — of the one-line spelling only. The only thing defending
-/// the folded form was a needle inside a test fixture, which is not a rule and
-/// which reports "the workflow has moved" when it fires.
+/// Read line by line, both give `ok N cargo command(s)` and no `--offline`
+/// finding, while `the_ways_measured_after_the_first_five` carries `--offline`
+/// as a measured attack — of the one-line spelling only. A needle inside a test
+/// fixture does not defend the folded form: it is not a rule, and it reports
+/// "the workflow has moved" when it fires.
 ///
 /// The line number reported is the line the logical command **began** on, which
 /// is where a reader looks. `\` inside a heredoc is left alone by the caller's
@@ -576,24 +576,21 @@ fn joined_continuations(text: &str) -> Vec<(usize, String)> {
 /// Every cargo invocation in the same files, counted by a different route.
 ///
 /// **The two-counter identity every other walk in this crate carries.**
-/// `seen` was the first statement of the command loop and the only number
-/// this walk reports, floored merely at non-zero — so three lines under it,
-/// `if index > 140 { continue; }`, left a real second gate in CI
+/// With `seen` the first statement of the command loop and the only number
+/// this walk reports, floored merely at non-zero, three lines under it —
+/// `if index > 140 { continue; }` — leave a real second gate in CI
 /// (`cargo clippy --workspace --all-targets -- -D warnings`) unjudged with
 /// the count going *up*, 11 to 12, and `check passed` over it. That is
 /// `NOCTUA.md §19.4`, which is this file's whole subject.
 ///
 /// `judged` is incremented on every path out of the verdict, including the two
 /// branches above the command loop — `runs_cargo_as_an_action` and
-/// `assigns_cargo` — which reach a verdict and once `continue`d out of the line,
-/// raising `seen` alone. They fall through now, so a line that is both an
-/// assignment and a command is counted the same way by both counters; this
-/// sentence went on describing the `continue`s for a wave after they were
-/// deleted, which is prose stating the inverse of the code in the doc of the
-/// function the repair was made for. Measured: `C=cargo` plus `$C xtask check`
-/// in `ci.yml` reported
+/// `assigns_cargo` — which reach a verdict and fall through rather than
+/// `continue` out of the line, so a line that is both an assignment and a
+/// command is counted the same way by both counters. Measured with a
+/// `continue` in each: `C=cargo` plus `$C xtask check` in `ci.yml` reports
 /// `11 cargo command(s) became this gate's to judge and 10 reached a verdict`
-/// over a run with no filter in it at all, and the suite could not see the
+/// over a run with no filter in it at all, and the suite cannot see the
 /// spurious finding because its two tests assert only on `found[0]`.
 ///
 /// **A second count of the same ground, taken outside the line loop.** `seen`
@@ -613,8 +610,8 @@ fn joined_continuations(text: &str) -> Vec<(usize, String)> {
 /// says. A spelling those three predicates cannot see is invisible to both
 /// counts equally, and no comparison of two numbers can find it: that is the
 /// predicates' own tests' job, and `$(which cargo)` is the measured case —
-/// leading punctuation was trimmed and trailing was not, so both counters
-/// agreed at a number that was short by one.
+/// with leading punctuation trimmed and trailing not, both counters agree at a
+/// number that is short by one.
 fn a_second_count_of(files: &[std::path::PathBuf]) -> usize {
     files
         .iter()
@@ -627,12 +624,12 @@ fn a_second_count_of(files: &[std::path::PathBuf]) -> usize {
                 .map(|line| {
                     let line = line.as_str();
                     // **All three shapes the walk counts, not one of them.**
-                    // This counted only `cargo_commands`, while `seen` also
-                    // counts an action that runs cargo and an assignment that
-                    // names it — so a workflow holding either made `seen`
-                    // exceed this count and the identity fired with a message
+                    // `seen` also counts an action that runs cargo and an
+                    // assignment that names it, so counting `cargo_commands`
+                    // alone here makes `seen` exceed this count on a workflow
+                    // holding either, and the identity fires with a message
                     // about *a filter inside the line loop*, which is not what
-                    // had happened. A gate that reports the wrong cause teaches
+                    // happened. A gate that reports the wrong cause teaches
                     // a reader to scroll past it, which is the failure
                     // `counts.rs`'s own header calls worse than no gate.
                     usize::from(runs_cargo_as_an_action(line).is_some())
@@ -646,20 +643,18 @@ fn a_second_count_of(files: &[std::path::PathBuf]) -> usize {
 
 /// What a finding about this gate's own arithmetic begins with.
 ///
-/// **A finding about the instrument is not an answer about the tree.** Wave 26
-/// found three real attacks on `NOCTUA.md §19.4` answered by
-/// `the_walk_is_not_short` — a sentence saying this tool's two counters differ —
-/// with the suite green and the attack itself unreported. It repaired the loop
-/// that held five of the thirteen attacks by refusing that one sentence by its
-/// words. Wave 27 found the third helper, carrying eight of them, still at a
-/// bare `!findings.is_empty()`; and a skeptic showed the words-based refusal too
-/// weak, because a filter placed *between* the two counters raises the **other**
-/// internal sentence, `everything_reached_a_verdict`'s, which the refusal did
-/// not name.
+/// **A finding about the instrument is not an answer about the tree.** Measured:
+/// real attacks on `NOCTUA.md §19.4` are answered by `the_walk_is_not_short` —
+/// a sentence saying this tool's two counters differ — with the suite green and
+/// the attack itself unreported, wherever an attack helper accepts a bare
+/// `!findings.is_empty()`. Refusing that one sentence by its words is too weak,
+/// because a filter placed *between* the two counters raises the **other**
+/// internal sentence, `everything_reached_a_verdict`'s, which such a refusal
+/// does not name.
 ///
-/// So neither helper names a sentence any more. Both internal findings carry
-/// this prefix from the place they are raised, and `is_about_this_gate` is the
-/// one predicate all three attack helpers ask.
+/// So no helper names a sentence. Both internal findings carry this prefix
+/// from the place they are raised, and `is_about_this_gate` is the one
+/// predicate all three attack helpers ask.
 const ABOUT_THIS_GATE: &str = "this gate's own accounting — ";
 
 /// Whether this finding is about the gate rather than about the tree.
@@ -695,10 +690,10 @@ fn the_walk_is_not_short(seen: usize, expected: usize, findings: &mut Vec<Findin
 /// The two counters this walk keeps, compared.
 ///
 /// **`corpus.rs`'s `ASKED` pins that this call exists, not that it fires.** So
-/// `if true { return; }` here left the call site intact, the pin satisfied and
-/// all 332 tests green — a wrapper between a walk and its identity is a place
-/// for exactly that. `the_identity_reports_a_walk_that_lost_a_line` is what
-/// holds it now.
+/// `if true { return; }` here leaves the call site intact, the pin satisfied
+/// and every other test green — a wrapper between a walk and its identity is a
+/// place for exactly that. `the_identity_reports_a_walk_that_lost_a_line` is
+/// what holds it.
 fn the_identity(seen: usize, judged: usize, findings: &mut Vec<Finding>) {
     let before = findings.len();
     crate::gates::everything_reached_a_verdict("cargo command", WORKFLOW, seen, judged, findings);
@@ -711,12 +706,10 @@ fn the_identity(seen: usize, judged: usize, findings: &mut Vec<Finding>) {
 
 /// The finding for a chain the transitive walk could not reach the end of.
 ///
-/// **The bound's own paragraph promised this and nothing produced it.** It says a
-/// chain deeper than [`HOPS`] "is worth a finding of its own rather than a hang",
-/// and the loop ran out silently — so a CI setup deeper than the bound is one
-/// this gate reads part of and then reports on as though it had read all of it.
-/// Reported on F5's sixth pass, beside the document that read the walk as
-/// reaching *any* depth.
+/// **The bound's own paragraph promises this.** It says a chain deeper than
+/// [`HOPS`] "is worth a finding of its own rather than a hang", and a loop that
+/// runs out silently makes a CI setup deeper than the bound one this gate reads
+/// part of and then reports on as though it had read all of it.
 fn a_chain_deeper_than_the_walk(ran_out: bool) -> Option<Finding> {
     ran_out.then(|| Finding {
         file: WORKFLOW.to_owned(),
@@ -732,32 +725,33 @@ fn a_chain_deeper_than_the_walk(ran_out: bool) -> Option<Finding> {
 
 /// Every file CI runs, and whether the walk that found them stopped short.
 ///
-/// **Lifted out of [`only_runs_the_gate`], which had grown past what one body
-/// may hold**, and separate on its own merits: *what CI reaches* and *what is
-/// wrong with what it runs* fail for different reasons, and the first is the
-/// half a reader has to trust before any finding below it means anything.
+/// **Apart from [`only_runs_the_gate`], because the two together are more than
+/// one body may hold**, and separate on its own merits: *what CI reaches* and
+/// *what is wrong with what it runs* fail for different reasons, and the first
+/// is the half a reader has to trust before any finding below it means
+/// anything.
 fn everything_ci_reaches(root: &Path) -> Result<(Vec<std::path::PathBuf>, bool), String> {
     let mut files = Vec::new();
 
-    // **Every file under `.github/`, whatever it is called.** This filtered to
-    // YAML alone while the module header claimed the directory was walked — so a
-    // shell script beside the workflow, invoked from `ci.yml` by a `run: bash`
-    // line, ran clippy, formatting and tests with the count unchanged at four.
+    // **Every file under `.github/`, whatever it is called.** A walk filtered to
+    // YAML alone, under a module header that says the directory is walked, lets
+    // a shell script beside the workflow, invoked from `ci.yml` by a `run: bash`
+    // line, run clippy, formatting and tests with the count unchanged.
     // A script CI executes is part of what CI runs.
     walk(&root.join(WORKFLOWS), &mut |path| {
         files.push(path.to_path_buf());
     })?;
     // **And every file those reach.** A script a step runs and a local
     // composite action a step `uses:` are part of what CI runs and may live
-    // anywhere; walking `.github/` alone left two shapes through — a shell
+    // anywhere; walking `.github/` alone lets two shapes through — a shell
     // script kept beside the sources, and a composite action in a directory of
-    // its own — while the header called `.github/` the boundary.
+    // its own.
     //
-    // **Transitively, because one hop is not a boundary.** This scanned only the
-    // files the `.github/` walk produced and never what *those* reach, so
+    // **Transitively, because one hop is not a boundary.** Scanning only the
+    // files the `.github/` walk produces and never what *those* reach,
     // `ci.yml` running `sh scripts/ci-a.sh`, which runs `sh scripts/ci-b.sh`,
-    // which runs `cargo fmt`, `cargo clippy` and `cargo test --workspace`, left
-    // the count unchanged at four — a whole second gate in CI, behind one extra
+    // which runs `cargo fmt`, `cargo clippy` and `cargo test --workspace`, leaves
+    // the count unchanged — a whole second gate in CI, behind one extra
     // line. Following what is reached until nothing new appears costs one loop
     // and closes every depth rather than the first.
     //
@@ -766,11 +760,11 @@ fn everything_ci_reaches(root: &Path) -> Result<(Vec<std::path::PathBuf>, bool),
     // worth a finding of its own rather than a hang.
     let mut hops = HOPS;
     let ran_out = follow_what_they_reach(root, &mut files, &mut hops);
-    // **And the `justfile`, unconditionally.** It was reached only when a
-    // workflow line happened to contain the word `just`, and `ci.yml`'s does
-    // not — so the surface a developer actually types was gated by nobody.
+    // **And the `justfile`, unconditionally.** Reached only when a workflow
+    // line happens to contain the word `just` — and `ci.yml`'s does not — the
+    // surface a developer actually types is gated by nobody.
     // Measured: the `check:` recipe replaced with `cargo fmt --all --check`,
-    // `cargo clippy --workspace` and `cargo test --workspace` gave
+    // `cargo clippy --workspace` and `cargo test --workspace` gives
     // `ok 4 cargo command(s)` and `check passed`, against a file whose own
     // header says *"Every one is a `cargo xtask` verb underneath — `just` is
     // never the only path"*.
@@ -779,14 +773,14 @@ fn everything_ci_reaches(root: &Path) -> Result<(Vec<std::path::PathBuf>, bool),
     // typed by hand is exactly how it grows. The file is committed and it makes
     // the claim, so it is read whether or not CI mentions it.
     // **Every name `just` looks for, not the lower-case one.** `just` searches
-    // `justfile`, `.justfile`, `JUSTFILE` and `Justfile`, and this joined one
-    // spelling — so on a case-sensitive filesystem renaming the file took the
-    // whole surface out of the gate: `10 cargo command(s)` became `4`, with no
-    // floor on that number and a second gate in the recipes.
-    // **And the makefile, on the same argument.** `Makefile` was opened only
-    // when some already-reached file happened to contain the bare word `make` —
-    // so a committed `Makefile` holding `cargo fmt --check`, `cargo clippy` and
-    // `cargo test --workspace` sat in the tree with the count unchanged at ten
+    // `justfile`, `.justfile`, `JUSTFILE` and `Justfile`, and joining one
+    // spelling means that on a case-sensitive filesystem renaming the file takes
+    // the whole surface out of the gate: `10 cargo command(s)` becomes `4`, with
+    // no floor on that number and a second gate in the recipes.
+    // **And the makefile, on the same argument.** Opened only when some
+    // already-reached file happens to contain the bare word `make`, a committed
+    // `Makefile` holding `cargo fmt --check`, `cargo clippy` and
+    // `cargo test --workspace` sits in the tree with the count unchanged
     // and `check passed`. A committed file that makes the claim is read whether
     // or not CI mentions it, which is the reasoning written above for the
     // justfile and applies to this one unchanged.
@@ -822,12 +816,13 @@ pub(crate) fn only_runs_the_gate(root: &Path) -> Result<(Vec<Finding>, usize), S
 
     let (files, ran_out) = everything_ci_reaches(root)?;
 
-    // **And what the justfile reaches**, which the loop above ran too late to
-    // see. The transitive walk had already finished, so a recipe shelling out
-    // to a shell script — or `import`ing the file its recipes moved to — put
-    // a whole second gate one line beyond the boundary, with the count
-    // unchanged at ten. Measured, `check:` gaining one line that ran a script
-    // that ran `cargo fmt`, `cargo clippy` and `cargo test --workspace`:
+    // **And what the justfile reaches**, which a walk finished before the
+    // justfile joins cannot see — hence `everything_ci_reaches` follows what
+    // the files reach a second time. Without that, a recipe shelling out to a
+    // shell script — or `import`ing the file its recipes moved to — puts a
+    // whole second gate one line beyond the boundary, with the count
+    // unchanged. Measured, `check:` gaining one line that runs a script that
+    // runs `cargo fmt`, `cargo clippy` and `cargo test --workspace`:
     // `ok 10 cargo command(s)` and `check passed`.
     let mut findings: Vec<Finding> = a_chain_deeper_than_the_walk(ran_out).into_iter().collect();
     let mut seen = 0_usize;
@@ -844,14 +839,14 @@ pub(crate) fn only_runs_the_gate(root: &Path) -> Result<(Vec<Finding>, usize), S
         // Every file this walk found, not the workflow alone: a `justfile`
         // recipe and a script a step runs discard a verdict the same way.
         no_verdict_is_discarded(&relative, &text, &mut findings);
-        // **The recipe a command sits under.** Nothing related a recipe's
-        // *name* to the verb its body runs, so any recipe could call any verb
-        // with the one-line description above it — the whole of what
-        // `just --list` prints — going on saying what it used to do. Measured
-        // by a reviewer in wave 16 by swapping the bodies of `check` and
-        // `check-offline`: the gate a developer types became the smaller gate,
-        // with README, AGENTS and the recipe's own sentence all still calling it
-        // THE gate, and nothing in the tree said a word.
+        // **The recipe a command sits under.** Unless a recipe's *name* is
+        // related to the verb its body runs, any recipe can call any verb with
+        // the one-line description above it — the whole of what `just --list`
+        // prints — going on saying what it used to do. Measured by swapping the
+        // bodies of `check` and `check-offline`: the gate a developer types
+        // becomes the smaller gate, with README, AGENTS and the recipe's own
+        // sentence all still calling it THE gate, and nothing else in the tree
+        // says a word.
         for (index, line) in joined_continuations(&text) {
             let (header, recipe) = the_recipe_and_its_name(&text, index, file_is_ci, &relative);
             // Already trimmed and already joined; `trimmed` is kept as the name
@@ -883,16 +878,16 @@ pub(crate) fn only_runs_the_gate(root: &Path) -> Result<(Vec<Finding>, usize), S
                      `cargo xtask check`",
                 ));
                 judged += 1;
-                // **And a line may be more than one shape.** These three arms
-                // each `continue`d, so the walk counted such a line once while
-                // `a_second_count_of` — which adds all three — counted it twice.
-                // `the_identity` then fired with a sentence about a filter in
-                // the line loop, which was false about its own cause, and the
-                // real second command on that line was never reported:
-                // `CARGO=cargo; cargo clippy --workspace` is an assignment *and*
-                // a cargo command, and the clippy half went unread. Found in
-                // wave 28. The arms fall through now, so both counters see the
-                // same line the same way.
+                // **And a line may be more than one shape**, so these three
+                // arms fall through and both counters see the same line the
+                // same way. With a `continue` in each, the walk counts such a
+                // line once while `a_second_count_of` — which adds all three —
+                // counts it twice; `the_identity` then fires with a sentence
+                // about a filter in the line loop, which is false about its own
+                // cause, and the real second command on that line is never
+                // reported: `CARGO=cargo; cargo clippy --workspace` is an
+                // assignment *and* a cargo command, and the clippy half goes
+                // unread.
             }
             // **An alias is an invocation.** `C=cargo` then `$C clippy` runs
             // clippy and never spells `cargo `, so the assignment is where it
@@ -910,7 +905,7 @@ pub(crate) fn only_runs_the_gate(root: &Path) -> Result<(Vec<Finding>, usize), S
                 judged += 1;
             }
             for command in cargo_commands(trimmed) {
-                // See this function's doc: `seen` alone was payable by a filter.
+                // See this function's doc: `seen` alone is payable by a filter.
                 seen += 1;
                 let verb = command.split_whitespace().nth(1).unwrap_or("");
                 // `--offline` is a smaller gate wearing the gate's name; the
@@ -920,11 +915,11 @@ pub(crate) fn only_runs_the_gate(root: &Path) -> Result<(Vec<Finding>, usize), S
                 // `justfile`, whose `check-offline` recipe is what a developer
                 // types on a train.
                 // **And outside CI it is allowed in one place only.** The
-                // exclusion was written for `check-offline`, a recipe a
-                // developer types on a train, and applied to every non-CI file
-                // — so a shell script a step runs could carry it with no recipe
-                // name at all and nothing would speak. Measured by a reviewer
-                // in wave 17. The name that permits it is the one that says so.
+                // exclusion is for `check-offline`, a recipe a developer types
+                // on a train; applied to every non-CI file, it lets a shell
+                // script a step runs carry the flag with no recipe name at all
+                // and nothing speaks. The name that permits it is the one that
+                // says so.
                 if an_offline_gate_is_wearing_the_gates_name(&recipe, &command, file_is_ci) {
                     findings.push(finding(
                         &relative,
@@ -979,8 +974,8 @@ pub(crate) fn only_runs_the_gate(root: &Path) -> Result<(Vec<Finding>, usize), S
 
 /// The alias that decides what `cargo xtask` means.
 ///
-/// **Every gate in this file reads what CI *types*, and nothing read what that
-/// resolves to.** `.cargo/config.toml` defines the alias, so one line there
+/// **Every gate in this file reads what CI *types*, and what that resolves to
+/// is read here.** `.cargo/config.toml` defines the alias, so one line there
 /// decides whether `cargo xtask check` runs the gate at all. Measured:
 ///
 /// ```text
@@ -996,7 +991,7 @@ pub(crate) fn only_runs_the_gate(root: &Path) -> Result<(Vec<Finding>, usize), S
 /// deep and reads all four spellings of the justfile *unconditionally* because
 /// that is "the surface a developer types". The one file that is CI's actual
 /// entry point, and whose own comment calls itself "the entire reason the
-/// command surface needs no bootstrap step", was read by nobody.
+/// command surface needs no bootstrap step", is read by nothing else.
 ///
 /// What it has to be is a `run` of this package: `run --package xtask` is the
 /// only form that executes the gate. `--quiet` and `--locked` are the shipped
@@ -1025,8 +1020,8 @@ fn the_alias_still_runs_the_gate(root: &Path, findings: &mut Vec<Finding>) {
     }
     one_alias_file(root, ALIAS, findings);
     no_flags_reach_the_compiler(root, ALIAS, findings);
-    // **And every ancestor, because cargo walks to the filesystem root.** This
-    // read the repository's own cargo configuration alone, so one directory up was enough:
+    // **And every ancestor, because cargo walks to the filesystem root.** Against
+    // a reader of the repository's own cargo configuration alone, one directory up is enough:
     //
     // ```text
     // $ printf '[build]\nrustflags = ["--cap-lints=allow"]\n' > ../.cargo/config.toml
@@ -1035,13 +1030,13 @@ fn the_alias_still_runs_the_gate(root: &Path, findings: &mut Vec<Finding>) {
     // check passed
     // ```
     //
-    // The line above it is the point — this repository already asks and answers
-    // exactly this question for **rustfmt** and did not ask it for **cargo**. In
+    // The line above it is the point — this repository asks and answers exactly
+    // this question for **rustfmt**, and **cargo** is owed the same question. In
     // the real layout that parent is the workspace's own git repository, so the
     // file is committable.
     // **Canonical, because `parent()` is lexical.** The root is written
-    // `xtask/..`, whose lexical parent is `xtask` — so the walk climbed back
-    // *into* the repository and reported its own configuration as one above it.
+    // `xtask/..`, whose lexical parent is `xtask` — so a lexical walk climbs back
+    // *into* the repository and reports its own configuration as one above it.
     let here = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
     let mut at = here.parent();
     while let Some(above) = at {
@@ -1070,10 +1065,9 @@ fn the_alias_still_runs_the_gate(root: &Path, findings: &mut Vec<Finding>) {
     // `$CARGO_HOME/config.toml` into the chain regardless of where it sits, and
     // `CARGO_HOME` defaults to a dot-cargo directory in the home — so the walk
     // above only reaches it by coincidence, when the home happens to be under a
-    // parent of this repository. On this machine it is not: `CARGO_HOME` is an
-    // XDG path under the user's data directory, so the loop checked a home that
-    // holds no cargo configuration and never opened the file that decides the
-    // build.
+    // parent of this repository. Where `CARGO_HOME` is an XDG path under the
+    // user's data directory it is not, so the loop checks a home that holds no
+    // cargo configuration and never opens the file that decides the build.
     // Measured, with six real clippy findings in criterion 3's own suite and a
     // `[build]` `rustflags` of `--cap-lints=allow` written there:
     //
@@ -1095,7 +1089,7 @@ fn the_alias_still_runs_the_gate(root: &Path, findings: &mut Vec<Finding>) {
 /// covers the test module too, so a test cannot `set_var` to point this
 /// somewhere it owns — and the alternative, a test that re-implements the
 /// judgement over its own path, is the copy-of-the-thing-under-test shape this
-/// repository has removed four times. The caller reads the environment; this
+/// repository does not write. The caller reads the environment; this
 /// takes the answer.
 fn the_home_cargo_reads(
     home: Option<std::path::PathBuf>,
@@ -1226,8 +1220,8 @@ fn the_workflow_exports_nothing_that_reaches_rustc(root: &Path, findings: &mut V
         // **Joined the way every other reader here joins.** A YAML key whose
         // value begins on the next line is one export to any parser —
         // `RUSTFLAGS:` with `-D warnings` under it reads as `RUSTFLAGS: -D
-        // warnings`, and `yq` says so — and this read raw lines, so the key
-        // matched with an empty value and the finding was never made. The
+        // warnings`, and `yq` says so — and a reader of raw lines matches the key
+        // with an empty value and never makes the finding. The
         // process-environment half still refuses at run time, so CI goes red on
         // the runner after spending the whole build: for the right reason at the
         // wrong moment, which is the cost this file half exists to avoid.
@@ -1239,13 +1233,13 @@ fn the_workflow_exports_nothing_that_reaches_rustc(root: &Path, findings: &mut V
             let Some((key, value)) = trimmed.split_once(':') else {
                 continue;
             };
-            // **A quoted key is a key, and a flow mapping holds several.** This
-            // read `key.trim()` raw, so `"RUSTFLAGS": -D warnings` — valid YAML,
-            // and what a formatter that quotes every key writes — was not a
-            // match, and neither was `env: {CARGO_TERM_COLOR: always, RUSTFLAGS:
+            // **A quoted key is a key, and a flow mapping holds several.** Read
+            // raw with `key.trim()`, `"RUSTFLAGS": -D warnings` — valid YAML,
+            // and what a formatter that quotes every key writes — is not a
+            // match, and neither is `env: {CARGO_TERM_COLOR: always, RUSTFLAGS:
             // -D warnings}`, whose first `:` yields the key `env`. The reader
-            // eight hundred lines down already strips quotes for `if:`;
-            // measured, both spellings left `ok` where the bare one is a
+            // eight hundred lines down strips quotes for `if:` as well;
+            // measured, both spellings leave `ok` where the bare one is a
             // finding. The process-environment half still refuses at run time,
             // so CI would go red — for the right reason at the wrong moment,
             // after the runner has spent the build.
@@ -1306,11 +1300,11 @@ fn reaches_rustc(name: &str) -> bool {
         // **And the profile, which carries no flag by that name and turns
         // `debug_assert!` and the overflow checks off all the same.**
         // `CARGO_PROFILE_TEST_DEBUG_ASSERTIONS=false` is an environment
-        // variable cargo turns into `-C debug-assertions=off`: measured in
-        // wave 37, `--print cfg` answers `debug_assertions` on a clean tree and
+        // variable cargo turns into `-C debug-assertions=off`: measured,
+        // `--print cfg` answers `debug_assertions` on a clean tree and
         // nothing with it set, and twelve tests that fail on a falsified
         // `debug_assert!` pass under it. It ends with none of the five names
-        // above, so the family that reads the end of the name walked past it.
+        // above, so a family that reads only the end of the name walks past it.
         // `overflow-checks` is the half that costs most here: the stack's bound
         // test records that it "panics today only because the test profile
         // inherits `dev`'s overflow checks".
@@ -1319,7 +1313,7 @@ fn reaches_rustc(name: &str) -> bool {
 
 /// The cargo configuration carries an alias and nothing that reaches rustc.
 ///
-/// **The `[alias]` table was judged and the rest of the file was not.** This gate
+/// **The `[alias]` table is not the only one that decides.** This gate
 /// exists because "one line there decides whether `cargo xtask check` runs the
 /// gate at all" — and the same file has a second table that decides whether the
 /// gate, once run, can fail. Measured, with eight real clippy violations planted
@@ -1351,11 +1345,11 @@ fn no_flags_reach_the_compiler(root: &Path, file: &str, findings: &mut Vec<Findi
     let Ok(text) = std::fs::read_to_string(root.join(file)) else {
         return;
     };
-    // **Asked of a parser, not of the text.** This found a table by
-    // `strip_prefix('[')`, and TOML's dotted-key form is the same table:
+    // **Asked of a parser, not of the text.** Finding a table by
+    // `strip_prefix('[')` misses TOML's dotted-key form, which is the same table:
     // `build.rustflags = […]` *is* `[build] rustflags = […]` — it is the spelling
-    // `cargo --config` itself uses — and a file with no `[` line declared no
-    // table this could see. Measured, one line above the shipped `[alias]` with
+    // `cargo --config` itself uses — and a file with no `[` line declares no
+    // table such a reader can see. Measured, one line above the shipped `[alias]` with
     // four real clippy violations planted in criterion 3's own suite:
     //
     // ```text
@@ -1367,9 +1361,9 @@ fn no_flags_reach_the_compiler(root: &Path, file: &str, findings: &mut Vec<Findi
     // ```
     //
     // while the identical setting written with a header was caught. This
-    // repository already makes exactly this argument about a manifest one file
-    // over — "the question is asked of the parser, not of the text" — and this
-    // gate was the one still reading lines.
+    // repository makes exactly this argument about a manifest one file over —
+    // "the question is asked of the parser, not of the text" — and it holds
+    // here unchanged.
     let parsed: Result<toml::Table, _> = text.parse();
     match parsed {
         Ok(table) => {
@@ -1437,8 +1431,8 @@ fn no_flags_reach_the_compiler(root: &Path, file: &str, findings: &mut Vec<Findi
     // **The family, not three names.** Cargo maps *every* config key to an
     // environment variable — `[build] rustflags` is `CARGO_BUILD_RUSTFLAGS`, and
     // `[target.<triple>] rustflags` is `CARGO_TARGET_<TRIPLE>_RUSTFLAGS` — so
-    // refusing the table in the file and three fixed variable names left the same
-    // table reachable by its other spelling. Measured:
+    // refusing the table in the file and three fixed variable names leaves the
+    // same table reachable by its other spelling. Measured:
     //
     // ```text
     // $ CARGO_BUILD_RUSTFLAGS="--cap-lints=allow" cargo xtask check
@@ -1447,13 +1441,13 @@ fn no_flags_reach_the_compiler(root: &Path, file: &str, findings: &mut Vec<Findi
     // ```
     //
     // over the same eight real violations the file half refuses.
-    // **And the environment CI exports, which is not this process's.** This read
-    // `std::env::vars()` only — so it was silent on every developer machine and
-    // fired only on a runner, where it is fatal. `ci.yml` set `RUSTFLAGS: -D
-    // warnings` at workflow scope, reaching the `check` job's only step, and the
-    // gate refuses to run with `RUSTFLAGS` set: those two rules cannot both
-    // hold, the workflow could never have gone green, and nothing found it
-    // because nothing read the file that sets it. Its own `ci.yml` records that
+    // **And the environment CI exports, which is not this process's.** Reading
+    // `std::env::vars()` alone is silent on every developer machine and fires
+    // only on a runner, where it is fatal: a `ci.yml` setting `RUSTFLAGS: -D
+    // warnings` at workflow scope reaches the `check` job's only step, and the
+    // gate refuses to run with `RUSTFLAGS` set — those two rules cannot both
+    // hold, so the workflow can never go green, and nothing finds it unless
+    // something reads the file that sets it. Its own `ci.yml` records that
     // the workflow has never run.
     //
     // Reported against the workflow rather than against `.cargo/config.toml`,
@@ -1465,8 +1459,8 @@ fn no_flags_reach_the_compiler(root: &Path, file: &str, findings: &mut Vec<Findi
             // **And the compiler itself, not only its flags.** `RUSTC_WRAPPER`
             // replaces every rustc invocation, clippy's included, so a wrapper
             // that appends `--cap-lints=allow` does what the `[build]` table is
-            // refused for — and the file half already refuses `rustc-wrapper`
-            // there, so the two halves disagreed. Measured, with a real
+            // refused for — and the file half refuses `rustc-wrapper` there, so
+            // leaving it out here makes the two halves disagree. Measured, with a real
             // `needless_range_loop` planted:
             //
             // ```text
@@ -1474,20 +1468,20 @@ fn no_flags_reach_the_compiler(root: &Path, file: &str, findings: &mut Vec<Findi
             //   ok    lints
             // check passed
             // ```
-            // **`CARGO_HOME` is deliberately not here.** It was proposed for
-            // this family, and it does not belong: it carries no flag, it
-            // chooses the *file* that might, and setting it to an XDG data
-            // directory is what an ordinary machine does — this one does, so
-            // listing it would fail every run here with a message about a
-            // hazard that is not present. A gate that refuses
+            // **`CARGO_HOME` is deliberately not here.** It does not belong
+            // to this family: it carries no flag, it chooses the *file* that
+            // might, and setting it to an XDG data directory is what an
+            // ordinary machine does — so listing it would fail every run on
+            // such a machine with a message about a hazard that is not
+            // present. A gate that refuses
             // an ordinary arrangement is a gate somebody switches off. The file
             // it names is read directly instead, one screen up.
             // **The rule, not a second copy of it.** `reaches_rustc`'s own doc
             // says it is "named so the process half and the workflow half ask
-            // one question", and this was a transcription of it rather than a
-            // call — the shape this file's own catalogue calls one rule written
-            // twice with the second copy narrower. Wave 37 widened the family
-            // by one clause and found two places to widen it in.
+            // one question", and a transcription of it here rather than a call
+            // is the shape this file's own catalogue calls one rule written
+            // twice with the second copy narrower: a clause added to the family
+            // would have two places to be added in.
             reaches_rustc(name)
         })
         .collect();
@@ -1518,9 +1512,9 @@ fn no_flags_reach_the_compiler(root: &Path, file: &str, findings: &mut Vec<Findi
 ///
 /// **`-p` is here because `runs_the_gate` already accepts it.** A whitelist that
 /// refused a spelling the gate beside it takes is the "too strong" half of a
-/// repair, and this one was measured: `xtask = "run -p xtask --locked --"` — a
-/// fixture this file's own tests hand in as legitimate — was refused on the
-/// first draft.
+/// repair, and this one is measured: without `-p`, `xtask = "run -p xtask
+/// --locked --"` — a fixture this file's own tests hand in as legitimate — is
+/// refused.
 const ALIAS_MAY_HOLD: [&str; 7] = [
     "run",
     "--quiet",
@@ -1536,8 +1530,8 @@ const ALIAS_MAY_HOLD: [&str; 7] = [
 /// Cargo accepts an alias as a string or as a list of strings, and it accepts
 /// the key dotted (`alias.xtask`) as readily as under a `[alias]` header. All
 /// three are the same alias, and a whitespace split over the raw text answers
-/// only the first — which is how a legitimate list form came to be reported as
-/// missing the `--locked` that is its own fourth element.
+/// only the first — reporting a legitimate list form as missing the `--locked`
+/// that is its own fourth element.
 fn the_alias_in(text: &str) -> Result<Vec<String>, String> {
     // **A `Table`, not a `Value`.** `"…".parse::<toml::Value>()` parses a TOML
     // *value expression*, so a whole document is `unexpected content, expected
@@ -1546,8 +1540,8 @@ fn the_alias_in(text: &str) -> Result<Vec<String>, String> {
     // **Written as explicit `Err`s**, not `map_err`/`ok_or_else`:
     // `the_verdicts_the_source_can_push` reads the literals behind `Err(` and
     // `.push(`, and a sentence handed to a closure is a sentence the census
-    // cannot see — which took one of these out of `WHAT_THE_GATE_CAN_SAY` on the
-    // first draft while it still printed.
+    // cannot see — a closure here takes one of these out of
+    // `WHAT_THE_GATE_CAN_SAY` while it still prints.
     let document: toml::Table = match text.parse() {
         Ok(document) => document,
         Err(error) => {
@@ -1589,26 +1583,24 @@ fn one_alias_file(root: &Path, file: &str, findings: &mut Vec<Finding>) {
         });
         return;
     };
-    // **Asked of the TOML parser, not split out of the text.** This read the
-    // line after `xtask =` and split it on whitespace, which is the argument
-    // this file makes 200 lines above about `[build]` versus `build.rustflags`,
-    // applied everywhere except to the one string CI resolves through. Two costs,
-    // both measured:
+    // **Asked of the TOML parser, not split out of the text.** Splitting the
+    // line after `xtask =` on whitespace sets aside the argument this file makes
+    // 200 lines above about `[build]` versus `build.rustflags`, for the one
+    // string CI resolves through. Two costs, both measured:
     //
     // * cargo accepts an alias as a **list** — `xtask = ["run", "--quiet",
     //   "--locked", "--package", "xtask", "--"]` — and cargo resolves it
-    //   correctly; the whitespace split reported `` `cargo xtask` runs `cargo
+    //   correctly; the whitespace split reports `` `cargo xtask` runs `cargo
     //   ["run", …, "--locked", …]`, without `--locked` ``, which asserts the
-    //   inverse of the file's contents. A repair too strong, green only because
-    //   nothing legitimate had tried.
-    // * a dotted key (`alias.xtask = "…"`) is the same alias in a table this
+    //   inverse of the file's contents. Too strong, and green only while
+    //   nothing legitimate tries it.
+    // * a dotted key (`alias.xtask = "…"`) is the same alias in a table a
     //   line-walk never enters.
     //
-    // The parser answers both, and the `[alias]`-table walk it replaces is kept
-    // only in this paragraph: it was written because the `and_then` once sat
-    // outside the `find_map`, so a decoy `[env] xtask = …` above the real alias
-    // decided — `cargo xtask check` ran 21 tests, exited 0, and the gate never
-    // ran.
+    // The parser answers both, and the decoy a hand-written `[alias]`-table
+    // walk has to guard against as well: with the `and_then` outside the
+    // `find_map`, a `[env] xtask = …` above the real alias decides —
+    // `cargo xtask check` runs 21 tests, exits 0, and the gate never runs.
     let words = match the_alias_in(&text) {
         Ok(words) => words,
         Err(problem) => {
@@ -1627,9 +1619,9 @@ fn one_alias_file(root: &Path, file: &str, findings: &mut Vec<Finding>) {
     let alias = alias.as_str();
     let words: Vec<&str> = words.iter().map(String::as_str).collect();
     // **A whitelist, because the ways cargo can hand rustc a flag grow with
-    // cargo.** `AGENTS.md` invariant 10 says exactly that, and the reasoning had
-    // been applied to this file's *tables* and not to the alias's own argument
-    // list — so every word beyond the three this gate looked for was unread.
+    // cargo.** `AGENTS.md` invariant 10 says exactly that, and it holds for the
+    // alias's own argument list as much as for this file's *tables* — a gate
+    // that looks for three words leaves every other word unread.
     // Two ordinary cargo spellings, each needing no second table:
     //
     // ```text
@@ -1639,7 +1631,8 @@ fn one_alias_file(root: &Path, file: &str, findings: &mut Vec<Finding>) {
     //                                               prints `check passed`
     // ```
     //
-    // In both, this gate reported `ok 11 cargo command(s)`. Naming what is
+    // In both, a gate that looks for three words reports
+    // `ok 11 cargo command(s)`. Naming what is
     // allowed is the only shape that closes a set nobody can enumerate.
     for word in &words {
         if !ALIAS_MAY_HOLD.contains(word) {
@@ -1675,11 +1668,9 @@ fn one_alias_file(root: &Path, file: &str, findings: &mut Vec<Finding>) {
                 .to_owned(),
         });
     }
-    // **`--locked`, which this file opened and stepped over.** The header of
+    // **`--locked`, read and not stepped over.** The header of
     // `.cargo/config.toml` calls the flag load-bearing and writes the
-    // measurement out — `rm Cargo.lock && cargo xtask check` passes without it —
-    // and the paragraph above this function admitted that `--quiet` and
-    // `--locked` "are checked as prose by nothing".
+    // measurement out — `rm Cargo.lock && cargo xtask check` passes without it.
     //
     // Measured: with the flag dropped and `Cargo.lock` moved aside,
     // `cargo xtask --help` exits 0 and the lockfile is regenerated in silence;
@@ -1703,34 +1694,34 @@ fn one_alias_file(root: &Path, file: &str, findings: &mut Vec<Finding>) {
 /// Adds every file `files` reaches, until nothing new appears.
 ///
 /// Called twice: once for what the workflows reach, and again after the
-/// justfiles join them. **The second call is the point** — the loop used to run
-/// before the justfile was added, so the justfile was read and nothing it
-/// reached ever was. A recipe shelling out to a script, or `import`ing the file
-/// its recipes moved to, put a whole second gate one line beyond the boundary
-/// with the cargo count unchanged at ten.
+/// justfiles join them. **The second call is the point** — a loop run only
+/// before the justfile is added reads the justfile and nothing it reaches. A
+/// recipe shelling out to a script, or `import`ing the file its recipes moved
+/// to, then puts a whole second gate one line beyond the boundary with the
+/// cargo count unchanged.
 ///
-/// **One budget between the two calls, not one each.** Each call took a fresh
-/// [`HOPS`], so the walk really reached thirty-two and the finding beside it
-/// fired whenever *either* call ran out — measured on F5's seventh pass with a
-/// chain of twenty scripts, where the whole chain was read, every cargo
-/// invocation in it was judged, and the run still said `what CI reaches is more
-/// than 16 hops deep`. A gate that is wrong in the direction of a false finding
-/// teaches a reader to ignore it, which is what `counts.rs`'s header exists to
-/// say. The budget is now spent across both calls, so the bound the document
-/// states is the bound the walk has, and `ran_out` means it stopped short.
+/// **One budget between the two calls, not one each.** With a fresh [`HOPS`]
+/// per call the walk really reaches thirty-two and the finding beside it fires
+/// whenever *either* call runs out — measured with a chain of twenty scripts,
+/// where the whole chain is read, every cargo invocation in it is judged, and
+/// the run still says `what CI reaches is more than 16 hops deep`. A gate that
+/// is wrong in the direction of a false finding teaches a reader to ignore it,
+/// which is what `counts.rs`'s header exists to say. The budget is spent across
+/// both calls, so the bound the document states is the bound the walk has,
+/// and `ran_out` means it stopped short.
 fn follow_what_they_reach(
     root: &Path,
     files: &mut Vec<std::path::PathBuf>,
     left: &mut usize,
 ) -> bool {
-    // **A hop is a step that found something.** The budget was spent on every
-    // pass of this loop including the one that finds nothing and ends it — so
-    // the first call, which always ends that way, returned with fifteen of
-    // sixteen left and a chain of fifteen reached through the justfile then
-    // reported `more than 16 hops deep` with the whole chain read. Measured on
-    // F5's eighth pass, through `everything_ci_reaches` rather than through this
-    // function: `depth=15 chain_scripts_read=15 ran_out=true`. That is the false
-    // finding the budget was made shared to remove, one round later and one off.
+    // **A hop is a step that found something.** Spending the budget on every
+    // pass of this loop, including the one that finds nothing and ends it,
+    // returns the first call — which always ends that way — with fifteen of
+    // sixteen left, and a chain of fifteen reached through the justfile then
+    // reports `more than 16 hops deep` with the whole chain read. Measured
+    // through `everything_ci_reaches` rather than through this function:
+    // `depth=15 chain_scripts_read=15 ran_out=true` — the false finding the
+    // shared budget exists to prevent, one off.
     while *left > 0 {
         let mut grew = false;
         for reached in reached_from(root, files) {
@@ -1747,8 +1738,8 @@ fn follow_what_they_reach(
     // **Running out means the budget is spent *and there is more to find*.**
     // Spending the last hop is not the same as stopping short: a chain of
     // exactly [`HOPS`] is read whole and leaves nothing behind, and reporting it
-    // as too deep is the false finding this bound was reworked to remove — twice
-    // now, each time one step further along. So the question is asked rather than
+    // as too deep is the same false finding the shared budget and the hop rule
+    // prevent, one step further along. So the question is asked rather than
     // inferred from the counter.
     reached_from(root, files)
         .into_iter()
@@ -1757,8 +1748,8 @@ fn follow_what_they_reach(
 
 /// Every file in the tree one word of a CI file could name.
 ///
-/// Split from [`reached_from`] because that function crossed a hundred lines
-/// when the word had to be understood rather than joined to a path: a workflow
+/// Apart from [`reached_from`] because understanding the word, rather than
+/// joining it to a path, takes that function past a hundred lines: a workflow
 /// writes the checkout root as a variable, and a `for` loop names its scripts
 /// with a glob.
 fn what_this_word_names(
@@ -1769,14 +1760,14 @@ fn what_this_word_names(
     // **The checkout root, however CI spells it.** `$GITHUB_WORKSPACE` is *the*
     // idiomatic way to name it in a workflow and `${{ github.workspace }}` is
     // the expression form — a step running `bash "$GITHUB_WORKSPACE/ci/lint.sh"`
-    // reached a whole second gate that this walk did not, with the count
-    // unchanged at ten. Both mean the directory being walked.
+    // reaches a whole second gate that a walk reading the word literally does
+    // not, with the count unchanged. Both mean the directory being walked.
     let named = word
         .replace("${{ github.workspace }}", ".")
         .replace("$GITHUB_WORKSPACE", ".")
         .replace("${GITHUB_WORKSPACE}", ".");
     // Shell punctuation is not part of a path: a `for` loop writes `ci/*.sh;`,
-    // and the trailing semicolon made the glob below match nothing.
+    // and the trailing semicolon makes the glob below match nothing.
     let named = named
         .trim_start_matches("./")
         .trim_end_matches([';', '&', '|', ')', ',']);
@@ -1785,8 +1776,8 @@ fn what_this_word_names(
     // **And relative to any `working-directory:` the file names.** A step can
     // say `working-directory: scripts` and then `run: bash gate.sh`, and
     // resolving `gate.sh` against the repository root finds nothing — so a whole
-    // second gate ran `cargo fmt`, `cargo clippy` and `cargo test --workspace`
-    // with the count unchanged at four. `cd scripts && bash gate.sh` is the same
+    // second gate runs `cargo fmt`, `cargo clippy` and `cargo test --workspace`
+    // with the count unchanged. `cd scripts && bash gate.sh` is the same
     // hole.
     //
     // Every such directory in the file, not the one in scope: this reads line by
@@ -1807,10 +1798,10 @@ fn what_this_word_names(
             found.push(candidate);
         }
     }
-    // **A file a step *names* is not a file a step *runs*.** Every word that
-    // resolved to a file in the tree was followed and then read as shell, so one
+    // **A file a step *names* is not a file a step *runs*.** Following every
+    // word that resolves to a file in the tree and reading it as shell lets one
     // ordinary step — `run: wc -l crates/nc-ids/src/lib.rs`, or a determinism job
-    // diffing a named source — pulled a Rust file into the CI walk and reported
+    // diffing a named source — pull a Rust file into the CI walk and report
     // eight findings against correct code: `if text.is_empty() || …` read as a
     // step whose commands are conditional, and a `//` comment read as a
     // swallowed failure, because `the_code_before_a_comment` knows only `#`.
@@ -1819,8 +1810,8 @@ fn what_this_word_names(
     //
     // So this follows what it can read as commands. A file in another language
     // is not followed at all rather than misread: a second gate written in
-    // Python was never findable here — its `cargo` sits inside quotes and commas
-    // this reader does not see — and misparsing it bought false findings and no
+    // Python is not findable here — its `cargo` sits inside quotes and commas
+    // this reader does not see — and misparsing it buys false findings and no
     // catches. If one appears, this list is where it is added, with the reader
     // that can read it.
     found.retain(|path| reads_as_commands(path));
@@ -1878,9 +1869,9 @@ fn matching(base: &Path, pattern: &str) -> Vec<std::path::PathBuf> {
 ///
 /// A script a step runs and a local composite action a step `uses:` are both
 /// part of what CI runs, and both may live anywhere in the tree — so walking
-/// `.github/` alone left a shell script beside the sources and a composite
-/// action in a directory of its own through, while the module header called
-/// `.github/` the boundary. CI's boundary is what its steps reach.
+/// `.github/` alone lets a shell script beside the sources and a composite
+/// action in a directory of its own through.
+/// CI's boundary is what its steps reach.
 fn reached_from(root: &Path, walked: &[std::path::PathBuf]) -> Vec<std::path::PathBuf> {
     // Every directory a `working-directory:` or a `cd` names, gathered first so
     // a script is resolved against them as well as against the root.
@@ -1931,11 +1922,11 @@ fn reached_from(root: &Path, walked: &[std::path::PathBuf]) -> Vec<std::path::Pa
             }
             // **A task runner reaches its own file by name, not by path.**
             // `just lint` names no file, and the `justfile` is outside
-            // `.github/` — so CI could run a whole second gate
+            // `.github/` — so without this CI can run a whole second gate
             // (`cargo fmt --check`, `cargo clippy`, `cargo test`) through one
-            // committed recipe with the count unchanged at four and
+            // committed recipe with the count unchanged and
             // `check passed`. That is a fifth shape past `§19.4`, and it uses a
-            // file this repository already ships whose own header says every
+            // file this repository ships whose own header says every
             // recipe is a `cargo xtask` verb underneath.
             for (command, names) in [("just", JUSTFILE.as_slice()), ("make", MAKEFILE.as_slice())] {
                 if trimmed
@@ -1957,11 +1948,11 @@ fn reached_from(root: &Path, walked: &[std::path::PathBuf]) -> Vec<std::path::Pa
             //     allow-reference: names `just` looks for, none of them a file here
             //
             // and the walk looks for words that *are* files —
-            // `extra` is not one, so the module was never opened. Measured: the
-            // three recipes that go red inline (`cargo fmt --all`,
+            // `extra` is not one, so without this the module is never opened.
+            // Measured: the three recipes that go red inline (`cargo fmt --all`,
             // `cargo clippy --workspace`, `cargo test --workspace`) moved into
-            // `extra.just` behind one `mod extra` line left the count unchanged
-            // at ten and `check passed`, with `just --show extra::lint`
+            // `extra.just` behind one `mod extra` line leave the count unchanged
+            // and `check passed`, with `just --show extra::lint`
             // resolving the recipe.
             //
             // The same shape as the four the header lists, in the file the
@@ -1991,7 +1982,7 @@ fn reached_from(root: &Path, walked: &[std::path::PathBuf]) -> Vec<std::path::Pa
             // Any word that names a file in this tree, which is what a
             // `run: bash scripts/…` reaches.
             // **And the right-hand side of an assignment.** `assigns_cargo`
-            // closed `C=cargo` then `$C clippy`; the same shape one word along
+            // catches `C=cargo` then `$C clippy`; the same shape one word along
             // — a variable assigned a script's path, then run through it — names
             // no file to this scan, because the assignment is one word. Splitting on `=` finds
             // the path, and a path this scan finds is a file CI can reach.
@@ -2015,10 +2006,10 @@ fn reached_from(root: &Path, walked: &[std::path::PathBuf]) -> Vec<std::path::Pa
 
 /// CI declares a service for every stack `cargo xtask check` requires.
 ///
-/// **The gate that keeps CI on one command could not see that CI cannot run
+/// **The gate that keeps CI on one command has to see whether CI can run
 /// it.** This file asserts what the workflow's cargo commands are and what its
-/// jobs are called, and nothing asserted that the runner is given the things
-/// those commands need. Measured in exactly the state the `check` job produces
+/// jobs are called, and this asserts that the runner is given the things
+/// those commands need. Measured in exactly the state a `check` job produces
 /// — a bare checkout, a fresh unmigrated PostgreSQL service, no log store:
 ///
 /// ```text
@@ -2030,36 +2021,30 @@ fn reached_from(root: &Path, walked: &[std::path::PathBuf]) -> Vec<std::path::Pa
 /// ```
 ///
 /// Every other step in that state is `ok` or an announced skip; the store is
-/// the single blocker. And the fix the gate prints is a command this job cannot
-/// run: its PostgreSQL is a *service container*, not the compose stack, so
-/// `cargo xtask dev` has nothing to bring up.
+/// the single blocker. And the fix the gate prints is then a command such a job
+/// cannot run: its PostgreSQL is a *service container*, not the compose stack,
+/// so `cargo xtask dev` has nothing to bring up.
 ///
 /// **The rule is that CI brings that stack up, and not that it declares one of
-/// its own.** This paragraph said the opposite — *`docker-compose.yml` is what
-/// a developer runs and `services:` is what a runner is given; every image the
-/// first names, the second has to name too, at the same digest* — and the
-/// function below refuses exactly that. A reader who does what this prescribed
-/// gets two findings, `CI names … itself instead of bringing the stack up`,
-/// which a reviewer measured on F5's seventh pass by adding the block this text
-/// asked for.
+/// its own.** A `services:` block naming every image `docker-compose.yml`
+/// names, at the same digest, is refused: adding one gets two findings,
+/// `CI names … itself instead of bringing the stack up`, measured.
 ///
-/// It was retracted in a `//` comment inside the body, which rustdoc does not
-/// publish, while the `///` block that rustdoc does publish kept prescribing
-/// it. That is the same split found in `dev.rs` one round earlier, and the
-/// reason the retraction is written here: **a claim is retracted in the half a
-/// reader is shown.** Why a service container cannot stand in for the stack —
-/// it takes no command, so the log store loses its retention policy, nothing
-/// migrates its database, and the health check authenticates by `trust` — is in
-/// the body, where the measurement that established it belongs.
+/// **The rule is stated in the half a reader is shown**, which is this block
+/// and not a `//` comment rustdoc does not publish. Why a service container
+/// cannot stand in for the stack — it takes no command, so the log store loses
+/// its retention policy, nothing migrates its database, and the health check
+/// authenticates by `trust` — is in the body, where the measurement that
+/// establishes it belongs.
 fn ci_supplies_what_the_gate_needs(root: &Path, ci: &str, findings: &mut Vec<Finding>) {
     let Ok(compose) = std::fs::read_to_string(root.join("docker-compose.yml")) else {
         return;
     };
-    // **The fourth copy of `strip_prefix("image:")`.** One space before the
-    // colon is a key docker resolves and this could not read — measured, the
-    // stack's own gate repaired and this one still reporting
-    // `the stack declares 1 image(s), and this rule is written against a stack
-    // of two`. `crate::gates::the_image_on` is the one spelling.
+    // **One reader of `image:`, not a fourth copy of `strip_prefix("image:")`.**
+    // One space before the colon is a key docker resolves and such a copy
+    // cannot read — measured, with the stack's own gate reading it and a copy
+    // here reporting `the stack declares 1 image(s), and this rule is written
+    // against a stack of two`. `crate::gates::the_image_on` is the one spelling.
     let images = |text: &str| -> Vec<String> {
         text.lines()
             .filter_map(crate::gates::the_image_on)
@@ -2085,14 +2070,13 @@ fn ci_supplies_what_the_gate_needs(root: &Path, ci: &str, findings: &mut Vec<Fin
         });
         return;
     }
-    // **A service container is not the stack, and this rule used to accept
-    // one.** It compared `image:` strings — every image the compose file names
-    // had to appear under CI's `services:`, at the same digest — and the fix it
-    // printed was "declare it under `services:`". Both images matched, so the
-    // rule was green about a workflow that could not pass: a service container
-    // takes an image, an environment, ports and `docker create` options, and
-    // *not* a command, while `docker-compose.yml` hands the log store its whole
-    // retention policy as one:
+    // **A service container is not the stack.** A rule comparing `image:`
+    // strings — every image the compose file names under CI's `services:`, at
+    // the same digest, with "declare it under `services:`" as its fix — is green
+    // about a workflow that cannot pass: a service container takes an image, an
+    // environment, ports and `docker create` options, and *not* a command,
+    // while `docker-compose.yml` hands the log store its whole retention policy
+    // as one:
     //
     // ```text
     // docker run … victoria-logs   ->  GET /flags: 200, Content-Length: 0
@@ -2102,19 +2086,20 @@ fn ci_supplies_what_the_gate_needs(root: &Path, ci: &str, findings: &mut Vec<Fin
     // error check failed: the log store reported no flags
     // ```
     //
-    // Nothing migrated its database either, and the health command it copied
-    // authenticated by `trust`. Three findings, one cause: CI was building a
-    // second stack by hand beside the one the compose file defines.
+    // Nothing migrates its database either, and a health command copied from
+    // compose authenticates by `trust`. Three findings, one cause: a second
+    // stack built by hand beside the one the compose file defines.
     //
-    // So the rule is now the simple one. CI brings *that* stack up, and the
+    // So the rule is the simple one. CI brings *that* stack up, and the
     // reader below asks only whether it does.
     // **Every image CI names, not the ones spelled exactly as compose spells
-    // them.** This intersected with `wanted`, and `docker-compose.yml` pins
-    // `postgres:18-alpine@sha256:…` while a hand-written `services:` block
-    // names the *tag* — the one spelling nobody writing a service container
-    // would use. Measured: a `services:` block with `image: postgres:18-alpine`
-    // left all 28 tests in this module green; the same block with the digest
-    // was named. The rule the README and `ci.yml`'s own comment state is that
+    // them.** Intersecting with `wanted` misses the ordinary case:
+    // `docker-compose.yml` pins `postgres:18-alpine@sha256:…` while a
+    // hand-written `services:` block names the *tag*, and the digest is the one
+    // spelling nobody writing a service container would use. Measured: under an
+    // intersection, a `services:` block with `image: postgres:18-alpine` leaves
+    // every other test in this module green; the same block with the digest is
+    // named. The rule the README and `ci.yml`'s own comment state is that
     // **no image is named in the workflow**, and `wanted.len() < 2` above
     // already covers a compose file that reads as empty.
     let named_by_ci = images(ci);
@@ -2147,7 +2132,7 @@ fn ci_supplies_what_the_gate_needs(root: &Path, ci: &str, findings: &mut Vec<Fin
     // **Commands, not the body's text.** The block above this job in `ci.yml`
     // explains at length why `cargo xtask dev` is there, and a reader that
     // searched the body would be satisfied by that explanation — which is the
-    // shape `commands_in`'s own doc records: a job's prose came to satisfy the
+    // shape `commands_in`'s own doc records: a job's prose satisfying the
     // requirement it explains.
     let ran = commands_in(&job);
     let brings_it_up = ran.iter().position(|line| line.contains("xtask dev"));
@@ -2183,9 +2168,10 @@ fn ci_supplies_what_the_gate_needs(root: &Path, ci: &str, findings: &mut Vec<Fin
 
 /// The workflow fires, and no job is switched off in place.
 ///
-/// Split out because `jobs_are_what_they_are_named` crossed a hundred lines, and
-/// because it is a different question: everything else there reads what a job
-/// *contains*, and this reads whether it is ever asked to.
+/// Apart from `jobs_are_what_they_are_named` because the two together pass a
+/// hundred lines, and because it is a different question: everything else
+/// there reads what a job *contains*, and this reads whether it is ever asked
+/// to.
 fn the_workflow_actually_runs(ci: &str, findings: &mut Vec<Finding>) {
     // **A workflow can be alive and decide nothing, seven ways.** Each of these
     // was measured printing `ok 4 cargo command(s) …` and `check passed`:
@@ -2200,18 +2186,18 @@ fn the_workflow_actually_runs(ci: &str, findings: &mut Vec<Finding>) {
     // if false; then … fi                     around the determinism body
     // ```
     //
-    // Two of them — literal `if: false`, and a heredoc — were closed one at a
-    // time in an earlier round. Closing a spelling is not closing a class, and
-    // this is the class: **anything that makes a step's verdict not count.**
+    // Closing a spelling — literal `if: false`, or a heredoc — is not closing a
+    // class, and this is the class: **anything that makes a step's verdict not
+    // count.**
 
     // **It fires on a push and on a pull request, unconditionally.** Asking
-    // whether a line reads `push:` said nothing about `branches:` or
+    // whether a line reads `push:` says nothing about `branches:` or
     // `paths-ignore:` under it, and a filter matching nothing is a workflow that
     // never runs.
     //
-    // **Any key at all, not four names.** This listed `branches`,
-    // `branches-ignore`, `paths` and `paths-ignore`, and GitHub offers more.
-    // Measured, with the rest of the file untouched:
+    // **Any key at all, not four names.** A list of `branches`,
+    // `branches-ignore`, `paths` and `paths-ignore` misses the others GitHub
+    // offers. Measured, with the rest of the file untouched:
     //
     // ```text
     // on: push: tags: ['v*']              -> check passed
@@ -2263,9 +2249,9 @@ fn the_workflow_actually_runs(ci: &str, findings: &mut Vec<Finding>) {
     for (index, line) in ci.lines().enumerate() {
         // **The list marker first, the way every other reader in this file does
         // it.** `is_label`, `commands_in`, `reached_from` and
-        // `runs_cargo_as_an_action` all strip `- ` before matching; this one did
-        // not, so `- if: false` — the *step*-level spelling, which is what a
-        // step condition looks like in YAML — matched nothing at all. Measured,
+        // `runs_cargo_as_an_action` all strip `- ` before matching, and without
+        // it `- if: false` — the *step*-level spelling, which is what a step
+        // condition looks like in YAML — matches nothing at all. Measured,
         // on the step that runs the gate:
         //
         // ```text
@@ -2313,10 +2299,10 @@ fn the_workflow_actually_runs(ci: &str, findings: &mut Vec<Finding>) {
 
 /// Shapes that leave a step alive and its verdict uncounted.
 ///
-/// Each was measured leaving `check passed` with the cargo count unchanged at
-/// four. The list is of *shapes*, not of spellings: `if: false` and a heredoc
-/// were each closed on their own in an earlier round, and neither closed the
-/// class — which is **anything that makes a step's verdict not count**.
+/// Each was measured leaving `check passed` with the cargo count unchanged.
+/// The list is of *shapes*, not of spellings: closing `if: false` or a heredoc
+/// on its own does not close the class — which is **anything that makes a
+/// step's verdict not count**.
 const NEUTERED: [(&str, &str, &str); 8] = [
     (
         "||",
@@ -2376,10 +2362,10 @@ const NEUTERED: [(&str, &str, &str); 8] = [
 
 /// No command in `file` has its verdict thrown away.
 ///
-/// **Not only in `ci.yml`.** This read the workflow and nothing else, while the
-/// walk above it reads the `justfile` and every script a step reaches — so the
-/// surface a developer actually types could swallow the gate's answer with the
-/// cargo count unchanged. Measured, with the workflow untouched:
+/// **Not only in `ci.yml`.** The walk above it reads the `justfile` and every
+/// script a step reaches, and asking this of the workflow alone lets the
+/// surface a developer actually types swallow the gate's answer with the cargo
+/// count unchanged. Measured, with the workflow untouched:
 ///
 /// ```text
 /// justfile   check:  cargo xtask check || true
@@ -2394,8 +2380,8 @@ fn no_verdict_is_discarded(file: &str, text: &str, findings: &mut Vec<Finding>) 
         let code = the_code_before_a_comment(line);
         let code = code.as_str();
         // A step named after what it runs is prose. `is_label` is what the rest
-        // of this file uses, and the two halves disagreeing about whether a
-        // `name:` is a command is a defect this file has already had once.
+        // of this file uses, and two halves disagreeing about whether a
+        // `name:` is a command is a defect of its own.
         if is_label(code) {
             continue;
         }
@@ -2416,32 +2402,32 @@ fn no_verdict_is_discarded(file: &str, text: &str, findings: &mut Vec<Finding>) 
             });
         }
         // **And the class those needles are eight spellings of.** `if false` and
-        // `if true; then :` were each written down after being measured, and
-        // neither closed anything: `while false; do … done`,
+        // `if true; then :` are needles, and needles close nothing: against
+        // those two alone, `while false; do … done`,
         // `for _ in ${NOTHING:-}; do … done` and `if ! true; then … fi` each
-        // wrap the same commands and each left `cargo xtask check`
-        // byte-identical to a clean run, with the determinism job — the only
-        // cross-process determinism check this repository has — running nothing
-        // at all. A shell has five words that can decide whether a command runs,
-        // and the grammar closes that list where a list of spellings cannot.
-        // **The words without their trailing space, because the space was the
-        // whole of the second test.** This read `format!("{first} ") == *word
-        // || first == word.trim_end()`, and every entry in that array ended in
-        // exactly one space — so the two halves were the same predicate written
-        // twice and either could be deleted with nothing anywhere deciding.
-        // `workflow.rs` is in `xtask/mutants.py`, so a `||`→`&&` mutation there
-        // was an equivalent mutant and the runner recorded a kill for a clause
-        // nothing decides. Reported in round sixty-four.
+        // wrap the same commands and each leave `cargo xtask check`
+        // byte-identical to a clean run, with the
+        // determinism job — the only cross-process determinism check this
+        // repository has — running nothing at all. A shell has five words that
+        // can decide whether a command runs, and the grammar closes that list
+        // where a list of spellings cannot.
+        // **The words without their trailing space, and one comparison.** With
+        // every entry ending in exactly one space,
+        // `format!("{first} ") == *word || first == word.trim_end()` is the same
+        // predicate written twice, either half deletable with nothing anywhere
+        // deciding — and since `workflow.rs` is in `xtask/mutants.py`, a
+        // `||`→`&&` mutation there is an equivalent mutant, for which the runner
+        // records a kill of a clause nothing decides.
         for word in ["if", "while", "until", "for", "case"] {
             if code.split_whitespace().next() != Some(word) {
                 continue;
             }
-            // **And only when it wraps a command this gate requires.** The rule
-            // as first written reported any control flow at the head of a line,
-            // and `ci.yml` itself opens one to delete a scratch directory before
-            // the build — a guard around a cleanup, with `cargo xtask build` on
+            // **And only when it wraps a command this gate requires.** A rule
+            // reporting any control flow at the head of a line refuses `ci.yml`
+            // itself, which opens one to delete a scratch directory before the
+            // build — a guard around a cleanup, with `cargo xtask build` on
             // the next line, outside it. Refusing that is the rule being wrong
-            // in the direction that costs a reviewer time and teaches everyone
+            // in the direction that costs a reader time and teaches everyone
             // to stop reading it. What the rule is about is a *verdict* whose
             // running is decided at runtime, so it asks what the construct
             // holds, up to the word that closes it.
@@ -2480,14 +2466,14 @@ fn no_verdict_is_discarded(file: &str, text: &str, findings: &mut Vec<Finding>) 
 
 /// Whether this line carries a command the gate requires CI to run.
 ///
-/// **Every command this file requires, not the ones that begin `cargo`.** The
-/// walk below asked `cargo_commands`, so a construct around the determinism
+/// **Every command this file requires, not the ones that begin `cargo`.** To a
+/// walk asking `cargo_commands` alone, a construct around the determinism
 /// job's four `diff` lines — the whole verdict of the only cross-process
-/// determinism check this repository has, and four of the nine rows of
-/// `JOBS_MUST_RUN` — held no command as far as this was concerned.
+/// determinism check this repository has, and the four `diff` rows of
+/// `JOBS_MUST_RUN` — holds no command.
 /// `until true; do … done` around them leaves both builds running, the copy
 /// made, every required line present for the readers that count text, and
-/// nothing at all compared. Reported in round sixty-four.
+/// nothing at all compared.
 ///
 /// So the question is asked of the list that says what CI must run rather than
 /// of a prefix: a row added to `JOBS_MUST_RUN` is guarded by this the moment it
@@ -2496,10 +2482,10 @@ fn no_verdict_is_discarded(file: &str, text: &str, findings: &mut Vec<Finding>) 
 /// **And only in the file those rows are about.** `JOBS_MUST_RUN` names what
 /// `ci.yml`'s two jobs run; the walk this gate does also reaches the justfile
 /// and `xtask/the-checkout-shape.sh`, and that script runs `cpio -pdm` — one of
-/// the rows — to make its scratch *copy*. A copy judges nothing, so an ordinary
-/// guard around it was reported as a verdict decided at run time: measured in
-/// round sixty-five, which is the very false positive `wraps_a_command` was
-/// introduced to stop, one file over. A cargo command is a verdict wherever it
+/// the rows — to make its scratch *copy*. A copy judges nothing, so asking the
+/// rows of every file reports an ordinary guard around it as a verdict decided
+/// at run time — measured, and the very false positive `wraps_a_command` exists
+/// to stop, one file over. A cargo command is a verdict wherever it
 /// is; a required *line* is a verdict only where it is required.
 fn a_command_this_gate_requires(code: &str, the_workflow: bool) -> bool {
     !cargo_commands(code).is_empty()
@@ -2530,10 +2516,10 @@ fn wraps_a_command(text: &str, at: usize, the_workflow: bool) -> bool {
         // one line — `if [ "$a" = "$b" ]; then a=; else a=${a#*/}; fi`, which is
         // ordinary shell — counts its opener and never its closer, so the depth
         // never comes back down and every line after it reads as inside the
-        // construct. Measured in round sixty-two: one such line in
-        // `xtask/the-checkout-shape.sh` made this rule report that the script's
+        // construct. Measured: one such line in `xtask/the-checkout-shape.sh`
+        // makes a first-word reader report that the script's
         // `cargo xtask check`, forty lines and three closed constructs later,
-        // was wrapped in a `while`. The same blindness reads `*) case $x in` as
+        // is wrapped in a `while`. The same blindness reads `*) case $x in` as
         // no opener and `esac;;` as no closer, which is the other direction and
         // the one that lets a wrapped verdict through.
         //
@@ -2548,12 +2534,12 @@ fn wraps_a_command(text: &str, at: usize, the_workflow: bool) -> bool {
             // `esac;;` inside a case arm, `fi;` before another command.
             let word = spelled.trim_end_matches([';', '&', '|', ')']);
             // **Where a statement may begin, and nowhere else.** Spending quoted
-            // spans and then counting every bare `done` made `echo first build
-            // done` close the construct around it, so this walk answered
-            // "nothing wrapped" before it reached the cargo line and a gate
-            // whose running is decided at run time was reported by nobody.
-            // Measured in round sixty-three. The fixture beneath knew only the
-            // quoted spelling, which is the other half of the same blindness.
+            // spans and then counting every bare `done` makes `echo first build
+            // done` close the construct around it, so the walk answers
+            // "nothing wrapped" before it reaches the cargo line, and nothing
+            // reports a gate whose running is decided at run time.
+            // Measured; the unquoted spelling is the other half of the
+            // blindness the quoted one shows.
             let begins_a_statement = index.checked_sub(1).is_none_or(|earlier| {
                 let before = words[earlier];
                 before.ends_with(';')
@@ -2593,17 +2579,16 @@ fn wraps_a_command(text: &str, at: usize, the_workflow: bool) -> bool {
 /// tracked: a `#` opens a comment only outside a span, and a quote inside a span
 /// of the other kind is text.
 ///
-/// **And this is one rule, written once.** There were two of these, and the
-/// second knew something the first did not: a `#` opens a comment only at the
-/// start of a word. `TAG=${GITHUB_REF#refs/tags/} && cargo clippy --workspace`
-/// is ordinary CI shell, and the copy here truncated it at the `#` — so a
-/// second lints gate ran with `12 cargo command(s)` unmoved and `check passed`,
-/// and five rules that read a line through this function saw nothing after such
-/// a `#`: the discarded-verdict rule, the `||` wrapper, the step filter, the
-/// `if:` reader and the `working-directory` scan. `sed s#a#b#` is the same
-/// shape. The repair had been made to one of the two readers, which is the
-/// defect this repository has produced most: one rule written twice, with the
-/// second copy narrower.
+/// **And this is one rule, written once**, because a `#` opens a comment only
+/// at the start of a word. `TAG=${GITHUB_REF#refs/tags/} && cargo clippy
+/// --workspace` is ordinary CI shell, and a second copy of this reader that
+/// truncates it at the `#` lets a second lints gate run with
+/// `12 cargo command(s)` unmoved and `check passed`, while five rules that read
+/// a line through this function see nothing after such a `#`: the
+/// discarded-verdict rule, the `||` wrapper, the step filter, the `if:` reader
+/// and the `working-directory` scan. `sed s#a#b#` is the same shape. Two
+/// readers with a repair made to one is the defect this repository has
+/// produced most: one rule written twice, with the second copy narrower.
 ///
 /// The trimming is this caller's, because a line's indentation is not code.
 fn the_code_before_a_comment(line: &str) -> String {
@@ -2619,13 +2604,13 @@ fn the_code_before_a_comment(line: &str) -> String {
 fn without_quoted_spans(line: &str) -> String {
     let mut out = String::with_capacity(line.len());
     let mut inside: Option<char> = None;
-    // **A backslash quotes the character after it, and this knew nothing of
-    // one.** `echo \"` opened a span that never closed, so everything after it
-    // on the line became spaces — and every rule that reads this then searched
-    // a line of blanks. Measured: `cargo xtask check || true` written after an
-    // escaped quote in a workflow step left the whole xtask suite at
-    // `517 passed`, and through the gate itself the step count went *up*, the
-    // step printed `ok`, and the `||` finding disappeared. The eight needles
+    // **A backslash quotes the character after it.** Read without that,
+    // `echo \"` opens a span that never closes, so everything after it on the
+    // line becomes spaces — and every rule that reads this then searches a line
+    // of blanks. Measured: `cargo xtask check || true` written after an escaped
+    // quote in a workflow step leaves every other xtask test green, and through
+    // the gate itself the step count goes *up*, the step prints `ok`, and the
+    // `||` finding disappears. The eight needles
     // that say a verdict was thrown away, and the backgrounding `&` rule, are
     // all downstream of this function.
     //
@@ -2635,13 +2620,12 @@ fn without_quoted_spans(line: &str) -> String {
     // still a path.
     //
     // **And inside single quotes a backslash quotes nothing.** `'a\\'` is a
-    // backslash followed by the closing quote, so the span ends there — while
-    // this read the quote as escaped, left the span open, and spent the rest of
-    // the line as blanks. `docs: echo 'a\\' && cargo xtask docs || true` in the
-    // justfile then left the transcript byte-identical with twelve cargo
-    // commands unmoved. Measured by two reviewers on 2026-09-14, in the copy the
-    // other two readers name as their model and which had never been given the
-    // correction they carry.
+    // backslash followed by the closing quote, so the span ends there — and
+    // reading the quote as escaped leaves the span open and spends the rest of
+    // the line as blanks. Measured: `docs: echo 'a\\' && cargo xtask docs ||
+    // true` in the justfile then leaves the transcript byte-identical with the
+    // cargo count unmoved. The other two readers name this one as their model,
+    // so it carries the correction they carry.
     let mut escaped = false;
     for character in line.chars() {
         if escaped {
@@ -2672,13 +2656,13 @@ fn without_quoted_spans(line: &str) -> String {
 
 /// Whether any command on this line is sent to the background.
 ///
-/// **Not only the last one.** This split the line on `;` and `|` and asked
-/// whether a segment *ended* with `&`, so `cargo xtask check --offline & echo
-/// started` was one segment ending in `started` and the gate said nothing: the
+/// **Not only the last one.** Splitting the line on `;` and `|` and asking
+/// whether a segment *ends* with `&` reads `cargo xtask check --offline & echo
+/// started` as one segment ending in `started`, and the gate says nothing: the
 /// shell runs the gate in the background, the recipe exits 0 at once, and the
-/// verdict never existed. The corpus already names this shape — "`&` — the gate
-/// runs in the background and nobody waits" — and exercised only the trailing
-/// spelling the rule it replaced was written for.
+/// verdict never exists. The corpus names this shape — "`&` — the gate runs in
+/// the background and nobody waits" — and the trailing spelling is only one of
+/// its forms.
 ///
 /// A quoted `&` is text, `&&` is two commands in sequence, and `2>&1` and `&>`
 /// are redirections. What is left is a `&` that ends a command.
@@ -2695,13 +2679,13 @@ fn the_line_backgrounds_a_command(code: &str) -> bool {
                 .checked_sub(1)
                 .is_none_or(|before| characters[before] != '>')
             // **A redirection puts its `<` or `>` *before* the `&`.** Excusing
-            // every `&` followed by a digit was written for `<&3` — which the
-            // clause below already covers — and it excused `&2>/dev/null`,
-            // which is not a redirection at all: the `&` backgrounds the
-            // command and the `2>` belongs to what follows. Measured, `run:
-            // cargo xtask check &2>/dev/null` left `ok 12 cargo command(s)`
-            // unmoved and `check passed`, while `bash -ec` returned before the
-            // child had run.
+            // every `&` followed by a digit, for `<&3` — which the clause below
+            // covers — also excuses `&2>/dev/null`, which is not a redirection
+            // at all: the `&` backgrounds the command and the `2>` belongs to
+            // what follows. Measured under that excuse, `run: cargo xtask check
+            // &2>/dev/null` leaves `ok 12 cargo command(s)` unmoved and
+            // `check passed`, while `bash -ec` returns before the child has
+            // run.
             && at
                 .checked_sub(1)
                 .is_none_or(|before| characters[before] != '<')
@@ -2713,7 +2697,7 @@ fn the_line_backgrounds_a_command(code: &str) -> bool {
 fn event_body(ci: &str, event: &str) -> Option<String> {
     let opening = format!("{event}:");
     // **And the flow spelling.** `on: [push, pull_request]` is the same list as
-    // the block form, and reading only the block form reported a workflow that
+    // the block form, and reading only the block form reports a workflow that
     // runs on both as running on neither — a false refusal about the one line
     // that decides whether CI runs at all.
     if let Some(flow) = ci.lines().find_map(|line| {
@@ -2750,16 +2734,15 @@ fn jobs_are_what_they_are_named(ci: &str, findings: &mut Vec<Finding>) {
         let Some(body) = job_body(ci, job) else {
             continue;
         };
-        // **What the job runs, not what it mentions.** This kept every line
-        // starting `run:` *or holding no colon* — which is every argument of an
+        // **What the job runs, not what it mentions.** Keeping every line
+        // that starts `run:` *or holds no colon* keeps every argument of an
         // `echo` and every `#` comment. Measured: the whole body replaced by
-        // `echo cargo xtask build`, `echo diff -r …` and the rest satisfied all
-        // six requirements with `check passed`, and the first `echo` said
-        // verbatim "the determinism check used to be here", which is the
-        // sentence this list's own doc comment names as what it replaced.
-        // Worse: with the body reduced to `run: true`, `cargo xtask build` was
-        // satisfied by the job's own committed *prose* — "a third of what `cargo
-        // xtask build` emits".
+        // `echo cargo xtask build`, `echo diff -r …` and the rest satisfies
+        // every requirement with `check passed`, the first `echo` saying
+        // verbatim "the determinism check used to be here" — the attack
+        // `JOBS_MUST_RUN`'s own doc names. Worse: with the body reduced to
+        // `run: true`, `cargo xtask build` is satisfied by the job's own
+        // committed *prose* — "a third of what `cargo xtask build` emits".
         //
         // A command is what a shell would execute: a line that is not a comment,
         // with the needle at the start of it or of one of its `&&`/`|`/`;`
@@ -2820,12 +2803,12 @@ fn jobs_are_what_they_are_named(ci: &str, findings: &mut Vec<Finding>) {
     }
     the_workflow_actually_runs(ci, findings);
 
-    // **Once, because it was written twice and both copies ran.** The identical
-    // loop stood at the end of `the_workflow_actually_runs` as well, which this
-    // calls one line up — so deleting the `deterministic` job produced *two*
-    // findings saying so, and `check` printed the same sentence twice. The test
-    // that proved the deletion was caught asked `.any(…)`, which is true of one
-    // finding and of two. It asks for exactly one now.
+    // **Once.** A second copy of this loop at the end of
+    // `the_workflow_actually_runs`, which this calls one line up, makes
+    // deleting the `deterministic` job produce *two* findings saying so, and
+    // `check` print the same sentence twice — and `.any(…)` is true of one
+    // finding and of two, so the test that proves the deletion is caught asks
+    // for exactly one.
     //
     // It belongs here: the other function reads whether a job is ever asked to
     // run, and this reads whether it is there at all.
@@ -2849,12 +2832,12 @@ fn jobs_are_what_they_are_named(ci: &str, findings: &mut Vec<Finding>) {
 
 /// Every comparison in the determinism job follows its second build.
 ///
-/// **`IN_THIS_ORDER` ends at the first `diff`, so the job's other three were
-/// ordered by nothing.**
+/// **`IN_THIS_ORDER` ends at the first `diff`, so it orders none of the job's
+/// other three.**
 /// `IN_THIS_ORDER` ends at the first `diff`, so the job's other three —
 /// the log's generated source, the documentation tree and the
-/// append-only error ledger — were counted by `JOBS_MUST_RUN` and
-/// ordered by nothing. Measured in round sixty-seven: moving those three
+/// append-only error ledger — are counted by `JOBS_MUST_RUN` and
+/// ordered by nothing else. Measured: moving those three
 /// above the second `cargo xtask build` leaves them comparing the fresh
 /// copy against the tree it was copied from, equal by construction, and
 /// the whole gate said `check passed`. Three of the four artefacts the
@@ -2929,17 +2912,18 @@ fn job_body(workflow: &str, job: &str) -> Option<String> {
 /// A `run:` value, or a line of a `run: |` block, split at the operators a shell
 /// treats as ending one command — so `echo diff -r a b` yields `echo diff -r a
 /// b` and not `diff -r a b`. Comments are dropped: a `#` line is prose, and
-/// reading prose as a command is how a job's own explanation came to satisfy the
+/// reading prose as a command lets a job's own explanation satisfy the
 /// requirement it explains.
 fn commands_in(body: &str) -> Vec<String> {
     let mut found = Vec::new();
-    // **A heredoc is data, and this read it as execution.** Every requirement in
-    // `JOBS_MUST_RUN` and the whole of `IN_THIS_ORDER` were satisfied by the
-    // determinism job's body wrapped in `cat <<'PLAN' >/dev/null … PLAN`,
-    // followed by `echo the determinism check used to be here` — the shell runs
-    // `cat` and `echo`, this saw six commands in the right order, and
+    // **A heredoc is data, not execution.** Read as execution, every
+    // requirement in `JOBS_MUST_RUN` and the whole of `IN_THIS_ORDER` are
+    // satisfied by the determinism job's body wrapped in
+    // `cat <<'PLAN' >/dev/null … PLAN`, followed by
+    // `echo the determinism check used to be here` — the shell runs `cat` and
+    // `echo`, the reader sees six commands in the right order, and
     // `check passed`. That echoed sentence is the one `JOBS_MUST_RUN`'s own doc
-    // names as what it replaced.
+    // names.
     //
     // The tag is whatever follows `<<` (with `-` and quotes stripped), and the
     // block ends at a line that is exactly that tag. Anything between the two is
@@ -2960,8 +2944,8 @@ fn commands_in(body: &str) -> Vec<String> {
         // characters a heredoc opens with, and reading either as one takes a tag
         // that never appears again — after which every command below is inside a
         // block that never closes and no requirement is read at all. The
-        // narrowest repair that keeps `<<'PLAN' >/dev/null` working, which is the
-        // spelling this gate was once defeated by, is to refuse only the two
+        // narrowest rule that keeps `<<'PLAN' >/dev/null` working — the
+        // spelling the paragraph above measures — is to refuse only the two
         // shapes: a third `<`, and anything inside an arithmetic expansion.
         let opens_a_block = line.split_once("<<").is_some_and(|(before, after)| {
             !after.starts_with('<') && !before.ends_with('$') && !before.contains("$((")
@@ -2975,7 +2959,7 @@ fn commands_in(body: &str) -> Vec<String> {
             // command after it goes unread, and the requirements fail for a
             // reason that has nothing to do with what the file says. That
             // spelling is not hypothetical — it is the one this function's own
-            // comment names as how the gate was defeated.
+            // comment measures.
             let tag: String = after
                 .trim_start_matches('-')
                 .split_whitespace()
@@ -2989,12 +2973,12 @@ fn commands_in(body: &str) -> Vec<String> {
         }
         // A step's other keys — `name:`, `uses:`, `with:` — are not commands.
         // `run: |` opens a block whose following lines are.
-        // **A `name:` is a label, whatever is inside it.** This skipped a key
-        // line only when it held no `&&`, so a step named
-        // `nothing && cargo xtask build && cp -r … && diff -r …` became six
-        // commands and satisfied every requirement — with the job's `run:`
-        // reading `echo the determinism check used to be here`, the sentence
-        // this list's own doc names as what it replaced. `is_label` is what the
+        // **A `name:` is a label, whatever is inside it.** Skipping a key line
+        // only when it holds no `&&` makes a step named
+        // `nothing && cargo xtask build && cp -r … && diff -r …` six commands
+        // that satisfy every requirement — with the job's `run:` reading
+        // `echo the determinism check used to be here`, the sentence
+        // `JOBS_MUST_RUN`'s own doc names. `is_label` is what the
         // other half of this file uses, and the two halves disagreeing about
         // whether a `name:` is a command is the whole defect.
         if is_label(line) {
@@ -3025,16 +3009,15 @@ fn commands_in(body: &str) -> Vec<String> {
 /// One finding about a command CI should not run.
 /// One finding about a command that runs where only the gate should.
 ///
-/// **"CI runs" was wrong for most of them.** This walk deliberately reads the
-/// `justfile` in all four spellings and every shell script a step reaches —
-/// what this module calls "the surface a developer types" — and CI runs
-/// `cargo xtask check` directly, through none of them. So every finding about a
-/// justfile line opened by telling its reader CI runs a command CI never runs,
-/// with the file and line printed beside it saying `justfile`: a sentence
-/// contradicting its own locator. It called `cargo xtask release` — one of the
-/// five verbs, and exactly what that recipe is for — "not the gate". This file
-/// states the principle it was breaking: *a gate that reports the wrong cause
-/// teaches a reader to scroll past it.* Found by a reviewer in wave 21.
+/// **Not "CI runs", which is wrong for most of them.** This walk deliberately
+/// reads the `justfile` in all four spellings and every shell script a step
+/// reaches — what this module calls "the surface a developer types" — and CI
+/// runs `cargo xtask check` directly, through none of them. A finding about a
+/// justfile line that opens by telling its reader CI runs a command CI never
+/// runs, with the file and line printed beside it saying `justfile`, is a
+/// sentence contradicting its own locator. This file states the principle that
+/// rules it out: *a gate that reports the wrong cause teaches a reader to
+/// scroll past it.*
 ///
 /// The command stays in the `what` rather than moving to the `fix`, because
 /// `a_second_gate_command_is_a_finding_and_the_two_allowed_shapes_are_not`
@@ -3056,22 +3039,21 @@ fn finding(file: &str, line: usize, command: &str, why: &str) -> Finding {
 ///
 /// **And a `#` only opens a comment where the languages say it does**: after
 /// whitespace, or at the start. It is a comment character in YAML and in every
-/// shell only at the beginning of a word, and reading it anywhere truncated an
+/// shell only at the beginning of a word, and reading it anywhere truncates an
 /// ordinary line of CI shell — `TAG=${GITHUB_REF#refs/tags/} && cargo clippy
-/// --workspace …` lost everything from the `#` on, so a second lints gate ran
-/// with the count unmoved at twelve and `check passed`. `sed s#a#b#` is the same
+/// --workspace …` loses everything from the `#` on, so a second lints gate runs
+/// with the count unmoved and `check passed`. `sed s#a#b#` is the same
 /// shape. Both counters call this function, so `the_walk_is_not_short`'s
 /// identity is paid equally and cannot see it: this is the mirror of the defect
 /// above, a scanner reading real code as a comment and skipping it.
 fn the_command_without_its_comment(line: &str) -> String {
     // **A backslash escapes the quote that would have closed.**
-    // `without_quoted_spans`, three hundred lines up in this file, records
-    // adding exactly this rule after a measurement — and this copy never had
-    // it, so `echo "a\"b # c" && cargo clippy --workspace` left the scan
+    // `without_quoted_spans`, three hundred lines up in this file, carries
+    // exactly this rule. Measured here without it,
+    // `echo "a\"b # c" && cargo clippy --workspace` left the scan
     // inside a string at the `#`, the rest of the line was kept as a command,
     // and a second judging binary went into CI invisible to the gate.
-    // Measured on 2026-09-12. `cargo_commands` calls this before anything else
-    // it does.
+    // `cargo_commands` calls this before anything else it does.
     let mut quote: Option<char> = None;
     let mut escaped = false;
     for (at, character) in line.char_indices() {
@@ -3081,7 +3063,7 @@ fn the_command_without_its_comment(line: &str) -> String {
         }
         match (quote, character) {
             // Inside a quote or outside it: a shell escapes with `\\` wherever
-            // it stands, and this arm was written for the quoted half alone.
+            // it stands, so this arm is not limited to the quoted half.
             (Some('\''), '\\') => {}
             (_, '\\') => escaped = true,
             (Some(open), _) if character == open => quote = None,
@@ -3098,13 +3080,14 @@ fn the_command_without_its_comment(line: &str) -> String {
 /// The words that put a command after them rather than being one.
 ///
 /// **And a runner that takes arguments of its own before the command.**
-/// This set decided *adjacency*: the word after a wrapper opens a command
-/// and the one after that does not. `rustup run <toolchain> <binary>` — the
-/// ordinary way CI pins a toolchain per command — puts the binary **three**
-/// words on, and measured, `run: rustup run nightly miri test --workspace`
-/// went into `ci.yml` with `12 cargo command(s)` unmoved and `check
-/// passed`: a second interpreter running this tree's whole suite, invisible
-/// because all four names in `judges_this_tree` below need command position.
+/// A set that decides *adjacency* — the word after a wrapper opens a command
+/// and the one after that does not — misses `rustup run <toolchain> <binary>`,
+/// the ordinary way CI pins a toolchain per command, which puts the binary
+/// **three** words on: measured, `run: rustup run nightly miri test
+/// --workspace` in `ci.yml` leaves `12 cargo command(s)` unmoved and `check
+/// passed` — a second interpreter running this tree's whole suite, invisible
+/// to a rule that needs command position for the four names in
+/// `judges_this_tree` below.
 /// `timeout 30 …`, `sudo -u ci …`, `stdbuf -oL …` and `nohup …` are the
 /// same shape.
 ///
@@ -3119,25 +3102,23 @@ const PUTS_A_COMMAND_AFTER_IT: [&str; 14] = [
     // **And `find`, whose `-exec` is the other idiom for the sweep `xargs`
     // does.** `find crates -name '*.rs' -exec rustfmt --check {} +` is a
     // whole second formatting gate, and `-exec` is neither `-` nor `-c`, so
-    // no word after it opened a command: measured, the count stayed at
-    // twelve with that step in `ci.yml`. `find` is already used in this very
+    // without `find` here no word after it opens a command: measured, the
+    // count stays unmoved with that step in `ci.yml`. `find` is already used in this very
     // workflow.
     "find",
 ];
 
 /// What ends one command and begins the next.
 ///
-/// **`&` is one, and it was written down in neither list.** The spacer below
-/// isolates it and then two `matches!` enumerations did not recognise it, so
-/// `true & cargo-clippy --workspace …` — a whole second lints gate — left
-/// `ok 12 cargo command(s)` unmoved and `check passed`, while the same line
-/// with `;` was five failing tests. `AGENTS.md` claims this gate holds every
-/// cargo invocation CI reaches "however it is spelled"; `&` is a separator in
-/// every shell there is.
+/// **`&` is one.** The spacer below isolates it, and an enumeration that
+/// leaves it out lets `true & cargo-clippy --workspace …` — a whole second
+/// lints gate — leave `ok 12 cargo command(s)` unmoved and `check passed`,
+/// while the same line with `;` is caught. `AGENTS.md` claims this gate holds
+/// every cargo invocation CI reaches "however it is spelled"; `&` is a
+/// separator in every shell there is.
 ///
-/// One rule, named, because this is the third enumeration in this file to have
-/// been short of the same character and the two before it were repaired
-/// separately.
+/// One rule, named, because separate enumerations of the same characters fall
+/// short of them separately.
 fn separates_commands(word: &str) -> bool {
     matches!(word, "&&" | "||" | "|" | ";" | "&")
 }
@@ -3159,21 +3140,19 @@ fn with_the_separators_spaced(line: &str) -> String {
         match (quote, character) {
             // **An escaped quote does not close the quote.** This reader's own
             // doc says the quote state decides "as it does everywhere else in
-            // this reader", and the other two grew a backslash rule in rounds
-            // 54 and 55 while this one did not. Out of phase, an *unspaced* `;`
-            // is never spaced and the word glued to it is never `cargo`:
-            // measured by a reviewer on 2026-09-13, `echo "a\"b";cargo clippy
-            // --workspace` put a second judging binary into CI with the
-            // transcript byte-identical, and one space before the `;` — which
-            // no shell requires, and which this function exists to make
-            // unnecessary — is the control.
-            // **Inside a quote or outside it.** The arm was copied from the
-            // narrower of the two readers beside it: a shell escapes with `\\`
-            // wherever it stands, so `echo 'a\\';cargo-clippy --workspace` —
-            // the backslash outside the quote — put a second judging binary
-            // into CI with the count unmoved at twelve. Measured by a reviewer
-            // on 2026-09-13. `without_quoted_spans`, which both of these cite as
-            // the model, has always read it this way.
+            // this reader", and the other two readers carry a backslash rule.
+            // Out of phase, an *unspaced* `;` is never spaced and the word
+            // glued to it is never `cargo`: measured without this arm,
+            // `echo "a\"b";cargo clippy --workspace` put a second judging
+            // binary into CI with the transcript byte-identical, and one space
+            // before the `;` — which no shell requires, and which this function
+            // exists to make unnecessary — is the control.
+            // **Inside a quote or outside it**, because a shell escapes with
+            // `\\` wherever it stands: with the arm limited to the quoted half,
+            // `echo 'a\\';cargo-clippy --workspace` — the backslash outside the
+            // quote — put a second judging binary into CI with the count
+            // unmoved. `without_quoted_spans`, which both of these cite as the
+            // model, reads it this way.
             // A backslash inside *single* quotes is an ordinary character —
             // `'a\\'` is a backslash and the quote closes at the second `'` —
             // so it escapes nothing there and everything elsewhere.
@@ -3212,14 +3191,14 @@ fn with_the_separators_spaced(line: &str) -> String {
 
 /// Every `cargo …` invocation on one line, however it is spaced.
 ///
-/// **Whitespace, not a space.** `find("cargo ")` missed `cargo\ttest`, which is
+/// **Whitespace, not a space.** `find("cargo ")` misses `cargo\ttest`, which is
 /// the same command to every shell there is.
 fn cargo_commands(line: &str) -> Vec<String> {
     // **A trailing YAML comment is not part of the command.** `run: cargo xtask
     // check # rustup is not used here; rustfmt comes from the step above` is an
     // ordinary annotation, and with a wrapper word anywhere on the line the
-    // sticky rule below put `rustfmt` into command position inside it —
-    // measured, the shipped gate's own step reported as running
+    // sticky rule below puts `rustfmt` into command position inside it —
+    // measured, the shipped gate's own step is then reported as running
     // `rustfmt comes from`. A `#` outside quotes ends the line for this reader.
     let line = the_command_without_its_comment(line);
     // **A separator is a separator whether or not it is spaced.** The scan
@@ -3270,53 +3249,52 @@ fn cargo_commands(line: &str) -> Vec<String> {
             // list marker introduces one.
             // **And past an interpreter.** `bash -c "cargo-clippy …"` puts the
             // command one word further on, which is not command position by the
-            // rule above — so a whole second lints-and-formatting gate went into
-            // both `ci.yml` and the `justfile` with the count unchanged at ten.
-            // A shell's `-c` argument *is* a command, and the quote in front of
-            // it is not part of the name.
+            // rule above — so without this a whole second lints-and-formatting
+            // gate goes into both `ci.yml` and the `justfile` with the count
+            // unchanged. A shell's `-c` argument *is* a command, and the quote
+            // in front of it is not part of the name.
             // **And past a runner that takes a command as its argument.**
-            // `git ls-files "*.rs" | xargs rustfmt --check --edition 2024`
-            // passed, while the same `rustfmt` written first on the line was
-            // caught: `xargs` puts the command one word on, exactly as `bash -c`
-            // does, and `env` does the same. A second formatting gate with the
-            // count unchanged is the defect `§19.4` names.
-            // **`run:` opens a command; another YAML key does not.** Any word
-            // ending in `:` used to, so `components: rustfmt` — a `with:` block
-            // of the toolchain action, which *installs* a component and
-            // runs nothing — put `rustfmt` in command position and reported the
-            // shipped workflow as running a second gate. It survived only
-            // because that block names two components and the comma kept
-            // `rustfmt,` from matching. A justfile recipe header ends with `:`
+            // Without it, `git ls-files "*.rs" | xargs rustfmt --check
+            // --edition 2024` passes, while the same `rustfmt` written first on
+            // the line is caught: `xargs` puts the command one word on, exactly
+            // as `bash -c` does, and `env` does the same. A second formatting
+            // gate with the count unchanged is the defect `§19.4` names.
+            // **`run:` opens a command; another YAML key does not.** With any
+            // word ending in `:` opening one, `components: rustfmt` — a `with:`
+            // block of the toolchain action, which *installs* a component and
+            // runs nothing — puts `rustfmt` in command position and reports the
+            // shipped workflow as running a second gate, unless the block names
+            // two components and the comma keeps `rustfmt,` from matching. A
+            // justfile recipe header ends with `:`
             // too, and its body is on the next line, so nothing is lost.
             separates_commands(word)
                 || matches!(word, "-" | "-c" | "run:")
                 || PUTS_A_COMMAND_AFTER_IT.contains(&word),
         );
         // A word that *is* `cargo`, or a path ending in it. `cargo-deny` is not
-        // an invocation; `~/.cargo/bin/cargo` is, and calling it by path was a fourth way past this. <!-- allow-reference: names `~/.cargo/bin/cargo` — a path on a developer's machine, never in this tree -->
-        // **Both ends, and that is a finding.** Leading punctuation was trimmed
-        // and trailing was not, so `$(which cargo)` split into `$(which` and
+        // an invocation; `~/.cargo/bin/cargo` is, and calling it by path is a fourth way past a bare-word match. <!-- allow-reference: names `~/.cargo/bin/cargo` — a path on a developer's machine, never in this tree -->
+        // **Both ends, and that is a finding.** With leading punctuation
+        // trimmed and trailing not, `$(which cargo)` splits into `$(which` and
         // `cargo)` — the first stripped to `which`, the second left with a
-        // parenthesis stuck to it, and neither read as `cargo`. A second lints
-        // gate written that way contributed **zero** to both the walk and the
-        // second count, so `the_walk_is_not_short`'s identity held while the
-        // walk was short: both counters call this function, so anything it
+        // parenthesis stuck to it, and neither reads as `cargo`. A second lints
+        // gate written that way contributes **zero** to both the walk and the
+        // second count, so `the_walk_is_not_short`'s identity holds while the
+        // walk is short: both counters call this function, so anything it
         // cannot see is invisible to the comparison meant to catch that.
         // **And `just`'s own line prefixes.** `@` says do not echo, `-` says
         // ignore a failure, `+` says pass the line to the shell — this
-        // repository's `default` recipe already writes `@just --list`. A word
-        // wearing one of them was not a cargo command, so it was not `seen`,
-        // was in neither count, and every rule downstream of this function —
-        // the offline rule, the recipe-name rule, the second-gate rule — never
-        // looked at it. Measured by a reviewer in wave 18: `@cargo xtask check
-        // --offline` in the shipped justfile's `docs` recipe, with the whole
-        // suite green.
+        // repository's `default` recipe already writes `@just --list`.
+        // Untrimmed, a word wearing one of them is not a cargo command, so it
+        // is not `seen`, is in neither count, and every rule downstream of this
+        // function — the offline rule, the recipe-name rule, the second-gate
+        // rule — never looks at it. Measured: `@cargo xtask check --offline` in
+        // the shipped justfile's `docs` recipe, with the whole suite green.
         let bare = word.trim_matches(['"', '\'', '(', ')', '$', '`', '@', '-', '+']);
         // **An assignment is not an invocation.** A word holding `=` sets a
         // variable, and its value may perfectly well be a directory whose last
         // segment is the word `cargo` — a cargo installation directory is the
-        // ordinary case. Read as a command it reported a line that runs nothing
-        // at all, which sends a reviewer to correct working configuration. What
+        // ordinary case. Read as a command it reports a line that runs nothing
+        // at all, which sends a reader to correct working configuration. What
         // an assignment *does* mean is handled by `assigns_cargo`, which asks
         // whether the value is the program rather than a place.
         if bare
@@ -3327,11 +3305,11 @@ fn cargo_commands(line: &str) -> Vec<String> {
             continue;
         }
         let name = bare.rsplit('/').next().unwrap_or(bare);
-        // **A cargo subcommand's own binary is a cargo command.** This asked for
-        // a word that *is* `cargo`, and rustup ships `cargo-clippy` and
-        // `cargo-fmt`: running either directly runs clippy or rustfmt over the
-        // workspace, and CI gained a second lints gate with the count unchanged
-        // at ten. That is "a cargo command wearing a different spelling", which
+        // **A cargo subcommand's own binary is a cargo command.** Asking for a
+        // word that *is* `cargo` misses what rustup ships beside it,
+        // `cargo-clippy` and `cargo-fmt`: running either directly runs clippy
+        // or rustfmt over the workspace, and CI gains a second lints gate with
+        // the count unchanged. That is "a cargo command wearing a different spelling", which
         // is the class `assigns_cargo` and `runs_cargo_as_an_action` exist for.
         //
         // The verb is what follows the hyphen, so `cargo-clippy` reads as
@@ -3344,27 +3322,28 @@ fn cargo_commands(line: &str) -> Vec<String> {
         // **And the binaries underneath, which are on the runner already.**
         // `rustfmt --check` and `clippy-driver` are what `cargo fmt` and
         // `cargo clippy` invoke, and neither is a cargo command by name — so a
-        // step running `rustfmt --check --edition 2024 crates/…` was a second
-        // formatting gate with the count unchanged at ten. `§19.4` is that CI
+        // step running `rustfmt --check --edition 2024 crates/…` is a second
+        // formatting gate that a cargo-only reader leaves with the count
+        // unchanged. `§19.4` is that CI
         // and a developer run one gate; a tool that judges this tree is a
         // second one whatever binary it is.
         // **Anywhere after a wrapper, not only adjacent to one.** These four
         // are never an argument in a legitimate line of this workflow or of the
         // justfile — a step that names one is running it — and `rustup run
-        // nightly miri` is what proved the adjacent rule too narrow.
+        // nightly miri` is what shows the adjacent rule too narrow.
         // **Anywhere on a line that is shell, and the wrapper list stops being
         // the rule.** These four are never an argument in a legitimate command:
-        // a line that names one is running it, unless it is installing it. The
-        // list of words that open command position was doing that job and was an
+        // a line that names one is running it, unless it is installing it. A
+        // list of words that open command position, doing that job, is an
         // enumeration one word short every time — `exec rustfmt --check`, the
-        // way a wrapper script ends, walked through with the count unmoved at
-        // twelve, and `flock`, `command`, `eval`, `su` and `setsid` are the same
-        // hole. This file's own doc calls an enumeration standing in for a rule
-        // "the shape this file has been bitten by twice"; this is the rule.
+        // way a wrapper script ends, walks through it with the count unmoved,
+        // and `flock`, `command`, `eval`, `su` and `setsid` are the same hole.
+        // This file's own doc calls an enumeration standing in for a rule a
+        // shape to refuse; this is the rule.
         //
         // **The cost, stated:** a `run:` line that merely mentions one of the
         // four — `run: echo "rustfmt comes from the step above"` — is reported.
-        // That is a step naming a judging binary, which is worth a reviewer's
+        // That is a step naming a judging binary, which is worth a reader's
         // eye, and it is the direction that fails loudly rather than silently.
         // Prose *outside* a command line is not reached at all: `name:` and
         // `components:` are keys, and `a_command_line` is false for them.
@@ -3372,12 +3351,11 @@ fn cargo_commands(line: &str) -> Vec<String> {
             && (a_command_line || opens_a_command || after_a_wrapper)
             && matches!(name, "rustfmt" | "clippy-driver" | "rustdoc" | "miri");
         // **And a `cargo-*` binary is judged the same way the four above are.**
-        // This asked for *command position*, which is the enumeration the
-        // paragraph above says it stopped relying on: `exec cargo-clippy
-        // --workspace --all-targets -- -D warnings` in `ci.yml` left the
-        // transcript byte-identical to a clean run, with the count unmoved at
-        // twelve, while the same line without `exec` is reported at once.
-        // Measured by a reviewer on 2026-09-13. A `cargo-` binary on a command
+        // Asking for *command position* is the enumeration the paragraph above
+        // sets aside: measured, `exec cargo-clippy --workspace --all-targets --
+        // -D warnings` in `ci.yml` then leaves the transcript byte-identical to
+        // a clean run, with the count unmoved, while the same line without
+        // `exec` is reported at once. A `cargo-` binary on a command
         // line is a second judging binary wherever it stands, and the cost — a
         // line that merely mentions one being reported — is the same cost, taken
         // for the same reason.
@@ -3404,13 +3382,12 @@ fn cargo_commands(line: &str) -> Vec<String> {
 /// subcommand in a `with:` block rather than in a `run:` line — so a gate that
 /// reads what a step *runs* never sees it.
 fn runs_cargo_as_an_action(line: &str) -> Option<String> {
-    // **Flow style opens a mapping too.** `- { uses: X }` never reached this
-    // reader, so any third-party action was invisible to the allow-list —
-    // measured with `giraffate/clippy-action@v1`, which is the *exact* action <!-- allow-reference: names `giraffate/clippy-action@v1` — a GitHub Action, not a path in this tree -->
-    // that list's own doc names as the measurement that created it: one pair of
-    // braces walked past it, the count did not move, and nothing was reported.
-    // `gates.rs`'s `is_a_build_key` carries a mutation operator for this class;
-    // this reader had no equivalent.
+    // **Flow style opens a mapping too.** Unless the braces are stripped,
+    // `- { uses: X }` never reaches this reader, so any third-party action is
+    // invisible to the allow-list — measured with `giraffate/clippy-action@v1`, a clippy action <!-- allow-reference: names `giraffate/clippy-action@v1` — a GitHub Action, not a path in this tree -->
+    // like the one that list's own doc names: one pair of braces walks past
+    // it, the count does not move, and nothing is reported. `gates.rs`'s
+    // `is_a_build_key` carries a mutation operator for the same class.
     let line = line.trim_start_matches("- ").trim();
     let line = line
         .strip_prefix('{')
@@ -3439,9 +3416,9 @@ fn runs_cargo_as_an_action(line: &str) -> Option<String> {
 
 /// The variable a line assigns `cargo` to, if it assigns one.
 ///
-/// **Every assignment on the line, not the first `=` on it.** This read
-/// `statement.split_once('=')` and stopped, so any assignment written in front
-/// of the alias hid it — no unusual name needed. Measured, a CI step reading
+/// **Every assignment on the line, not the first `=` on it.** Reading
+/// `statement.split_once('=')` and stopping lets any assignment written in
+/// front of the alias hide it — no unusual name needed. Measured, a CI step reading
 /// `run: JOBS=1; C=cargo; $C clippy --workspace --all-targets -- -D warnings`:
 /// `ok 12 cargo command(s)` and `check passed`, which is the clean tree's own
 /// line, over a second lints gate the walk never saw. The same step without the
@@ -3463,8 +3440,9 @@ fn assigns_cargo(line: &str) -> Option<String> {
 fn the_variable_one_statement_assigns(statement: &str) -> Option<String> {
     let (name, value) = statement.split_once('=')?;
     // **Three spellings, not one.** `alias c=cargo` is a shell builtin whose
-    // name held a space once the line was split, and `CARGO=$(which cargo)`
-    // resolves the path at run time — both ran cargo with the count unchanged.
+    // name holds a space once the line is split, and `CARGO=$(which cargo)`
+    // resolves the path at run time — both run cargo, and unread they leave
+    // the count unchanged.
     let name = name
         .trim()
         .trim_start_matches("export ")
@@ -3477,7 +3455,7 @@ fn the_variable_one_statement_assigns(statement: &str) -> Option<String> {
     // variable set to a cargo *installation directory* resolves, by the path
     // rule below, to a value whose last segment is the word `cargo` — and it is
     // a location, which cannot be run.
-    // Reported, it sends a reviewer to a line that is doing nothing wrong, and
+    // Reported, it sends a reader to a line that is doing nothing wrong, and
     // the tempting fix (refuse any value that is not `…/bin/cargo`) would undo
     // the live rule: `CARGO=cargo`, `alias c=cargo` and `CARGO=$(which cargo)`
     // all resolve to the bare word. So the exclusion is by *name*: these hold
@@ -3486,17 +3464,17 @@ fn the_variable_one_statement_assigns(statement: &str) -> Option<String> {
         || name.ends_with("_HOME")
         || name.ends_with("_DIR")
         || name.ends_with("_PATH");
-    // **The value ends where the statement does.** This read everything after
-    // the `=` as one value, so `CARGO=cargo; $CARGO clippy …` — assignment and
-    // use on one line, which is ordinary shell — gave a value of
-    // `cargo; $CARGO clippy …`, matched nothing, and left `ok 11 cargo
-    // command(s)` with a run byte-identical to a clean one. The same assignment
-    // on its own line was caught, so the escape was the semicolon and nothing
-    // else.
+    // **The value ends where the statement does**, which is why the caller
+    // splits on separators first. Read as one value, everything after the `=`
+    // in `CARGO=cargo; $CARGO clippy …` — assignment and use on one line, which
+    // is ordinary shell — is `cargo; $CARGO clippy …`, matches nothing, and
+    // leaves `ok 11 cargo command(s)` with a run byte-identical to a clean one.
+    // The same assignment on its own line is caught, so the escape is the
+    // semicolon and nothing else.
     let value = value.trim().trim_matches(['"', '\'']);
-    // **And the value has to look like one.** The exclusion above was by *name*
-    // alone, so renaming a variable was enough to hide a whole gate: measured, a
-    // CI step reading `TOOLS_DIR=cargo; $TOOLS_DIR clippy …` left
+    // **And the value has to look like one.** An exclusion by *name* alone
+    // lets a renamed variable hide a whole gate: measured, a CI step reading
+    // `TOOLS_DIR=cargo; $TOOLS_DIR clippy …` leaves
     // `ok 12 cargo command(s)` and `check passed` — the clean tree's own line —
     // while `TOOLS=cargo` on the same line is refused by name. A location is a
     // path, and a path holds a separator: a cargo home written as an absolute
@@ -3526,12 +3504,12 @@ fn the_variable_one_statement_assigns(statement: &str) -> Option<String> {
 
 /// What each way of writing an alias resolves to.
 ///
-/// **The two halves of `assigns_cargo` were named nowhere in this file's tests.**
-/// `holds_a_location` excluded a variable by *name*, so `TOOLS_DIR=cargo`
-/// hid a whole second lints gate with `ok 12 cargo command(s)` and
-/// `check passed` — the clean tree's own line — while `TOOLS=cargo` on the same
-/// line is refused. And `split_once('=')` read the first `=` on the line, so any
-/// assignment written in front of the alias hid it just as well.
+/// **Both halves of `assigns_cargo`, named as rows.** Excluding a variable by
+/// *name* alone lets `TOOLS_DIR=cargo` hide a whole second lints gate with
+/// `ok 12 cargo command(s)` and `check passed` — the clean tree's own line —
+/// while `TOOLS=cargo` on the same line is refused. And reading only the first
+/// `=` on the line with `split_once('=')` lets any assignment written in front
+/// of the alias hide it just as well.
 ///
 /// Both directions are rows: what must be found, and what must stay excused.
 #[cfg(test)]
@@ -3552,7 +3530,7 @@ const ASSIGNMENTS: [(&str, Option<&str>); 12] = [
     // Named like a location *and* holding one: still excused.
     // **A location whose last segment *is* the word**, which is the only shape
     // the exclusion exists for: without it this reads as an alias, and reported
-    // it sends a reviewer to a line doing nothing wrong.
+    // it sends a reader to a line doing nothing wrong.
     ("run: CARGO_HOME=/usr/local/cargo", None),
     ("run: CARGO_HOME=$HOME/.cargo", None),
     ("run: PATH=/usr/local/cargo/bin:$PATH", None),
@@ -3583,51 +3561,44 @@ fn an_alias_is_found_however_the_line_is_written() {
 /// What is wrong when a recipe's name is not what its body runs, or nothing.
 ///
 /// **A recipe is named for what it runs**: the verb, and `-offline` after it
-/// when the command carries `--offline`. Nothing related the two, so any recipe
-/// could call any verb with the one-line description above it — the whole of
+/// when the command carries `--offline`. Unless the two are related, any recipe
+/// can call any verb with the one-line description above it — the whole of
 /// what `just --list` prints — going on saying what it used to do. Measured by
-/// a reviewer in wave 16 by swapping the bodies of `check` and `check-offline`:
-/// the gate a developer types became the smaller gate, with README, AGENTS and
-/// the recipe's own sentence all still calling it THE gate.
+/// swapping the bodies of `check` and `check-offline`: the gate a developer
+/// types becomes the smaller gate, with README, AGENTS and the recipe's own
+/// sentence all still calling it THE gate.
 fn a_recipe_runs_what_it_is_called(recipe: &str, header: &str, command: &str) -> Option<String> {
     // **An interpolation the recipe does not declare.** This rule reads the
     // body as text, so `cargo xtask check {{flags}}` with `flags := "--offline"`
-    // above it is the wave-16 attack restored in two lines — the gate a
-    // developer types becomes the smaller gate and the name still matches.
-    // A recipe's *parameters* are declared in its header and are ordinary;
-    // anything else is a value this gate cannot see. Measured by a reviewer in
-    // wave 17.
+    // above it is the swapped-body attack of the doc above, restored in two
+    // lines — the gate a developer types becomes the smaller gate and the name
+    // still matches. A recipe's *parameters* are declared in its header and
+    // are ordinary; anything else is a value this gate cannot see.
     // **A parameter keeps its name when it carries a default.** `just` writes
     // `release version="…":`, so the word is the name *and* the default — a
     // literal version here would be read by `release.rs` as this file carrying
     // the workspace version, which is a release that would rewrite a comment —
-    // read whole, the legitimate recipe was refused and told "A recipe's own
+    // read whole, the legitimate recipe is refused and told "A recipe's own
     // parameters are declared in its header; this one is not", which is the
-    // inverse of the truth. Measured by a reviewer in wave 18.
+    // inverse of the truth.
     //
-    // **And the excuse wave 18 wrote beside it is gone.** `{{justfile_directory()}}`
-    // was let through as "a call is not a variable somebody set", written as
-    // *ends with a parenthesis* — which excuses every one of `just`'s
-    // functions, including the three whose whole job is to fetch a value from
-    // outside the file: `env_var`, `env_var_or_default` and `shell`. With it,
+    // **And no call form is excused.** Letting `{{justfile_directory()}}`
+    // through as "a call is not a variable somebody set", written as
+    // *ends with a parenthesis*, excuses every one of `just`'s functions,
+    // including the three whose whole job is to fetch a value from outside the
+    // file: `env_var`, `env_var_or_default` and `shell`. With that excuse,
     // `cargo xtask check {{env_var("FLAGS")}}` in this repository's own `check`
-    // recipe was the wave-16 attack restored and the gate said nothing at all.
-    // The clause was written for a spelling this tree does not contain —
-    // `justfile_directory` appeared nowhere but the comment justifying it,
-    // `env_var` nowhere — and deleting it outright costs nothing, measured: the
-    // shipped `justfile` holds one interpolation, `{{version}}`, which is a
-    // declared parameter of `release`. A call form that ever does need to be
-    // written here can be named in the header beside the parameters, where a
-    // reader can see it. Found and measured both ways by a reviewer in wave 19.
+    // recipe is the swapped-body attack restored and the gate says nothing at
+    // all. Refusing every call costs nothing, measured: the shipped `justfile`
+    // holds one interpolation, `{{version}}`, which is a declared parameter of
+    // `release`. A call form that ever does need to be written here can be
+    // named in the header beside the parameters, where a reader can see it.
     // **And a parameter keeps its sigil as well as its default.** `just` writes
-    // a variadic as `+args` or `*args` and an exported one as `$name`, and the
-    // sigil stayed on the declared name — so the body's `{{args}}` was never
-    // found among the declared and a correct recipe was refused, with the same
-    // sentence that wave 18 repaired for the `version="…"` spelling and left
-    // standing for these three: "A recipe's own parameters are declared in its
-    // header; this one is not", which is the inverse of the truth. Wave 19
-    // deleted the call-form excuse beside this without asking whether the
-    // parameter half was complete. Found by a reviewer in wave 20.
+    // a variadic as `+args` or `*args` and an exported one as `$name`; with the
+    // sigil left on the declared name, the body's `{{args}}` is never found
+    // among the declared and a correct recipe is refused with "A recipe's own
+    // parameters are declared in its header; this one is not", which is the
+    // inverse of the truth.
     let declared: Vec<&str> = header
         .split_whitespace()
         .skip(1)
@@ -3674,10 +3645,9 @@ fn a_recipe_runs_what_it_is_called(recipe: &str, header: &str, command: &str) ->
 /// Whether `--offline` here is the smaller gate wearing the gate's name.
 ///
 /// CI may never carry it. Outside CI it is carried by one recipe, the one whose
-/// name ends `-offline` and says so — the exclusion was written for that recipe
-/// and applied to every non-CI file, so a shell script a step runs could carry
-/// it with no recipe name at all and nothing would speak. Measured by a reviewer
-/// in wave 17.
+/// name ends `-offline` and says so — an exclusion for that recipe applied to
+/// every non-CI file lets a shell script a step runs carry it with no recipe
+/// name at all, and nothing speaks.
 fn an_offline_gate_is_wearing_the_gates_name(
     recipe: &str,
     command: &str,
@@ -3694,12 +3664,12 @@ fn the_recipe_and_its_name(
     named: &str,
 ) -> (String, String) {
     let header = the_recipe_above(text, index, file_is_ci, named);
-    // **`just`'s echo sigil is not part of the name.** `@release version:` made
-    // this gate say "`@release` is the name a developer types and `release` is
-    // what this body runs" — inverted about the one value it quotes, because
-    // `just --list` prints `release` and `just release 9.9.9` is what a
-    // developer types. The remedy it implied was to rename a recipe that was
-    // already named correctly. Found by a reviewer in wave 21; the sigil is at
+    // **`just`'s echo sigil is not part of the name.** Read with it,
+    // `@release version:` makes this gate say "`@release` is the name a
+    // developer types and `release` is what this body runs" — inverted about
+    // the one value it quotes, because `just --list` prints `release` and
+    // `just release 9.9.9` is what a developer types, and the remedy it implies
+    // is to rename a recipe that is already named correctly. The sigil is at
     // the front, so the `-offline` reading beside this is untouched.
     let name = header
         .split_whitespace()
@@ -3720,22 +3690,22 @@ fn the_recipe_and_its_name(
 /// parameters after the name — `release version:`. `is_label` cannot be asked
 /// this: it matches a YAML `name:` key, and a justfile has none.
 fn the_recipe_above(text: &str, index: usize, file_is_ci: bool, named: &str) -> String {
-    // **And only in a file that has recipes.** `ends_with(':')` was silently
-    // doing duty as "this is a justfile", which is why the header could not be
+    // **And only in a file that has recipes.** Without this, `ends_with(':')`
+    // silently does duty as "this is a justfile", and the header cannot be
     // widened: the walk runs over every non-CI file CI reaches, and
     // `xtask/the-checkout-shape.sh` holds `keep=${1:+the caller named it}` at
     // column zero — a shell line with a colon that a wider reader takes for a
     // recipe header, after which this repository's own committed script is
-    // refused with "`keep=${1` is the name a developer types". Measured by a
-    // skeptic in wave 21 against the obvious repair. Naming the file is what
-    // lets the header rule be about headers.
+    // refused with "`keep=${1` is the name a developer types". Measured
+    // against the obvious repair. Naming the file is what lets the header rule
+    // be about headers.
     //
     // **And makefiles are outside it deliberately, not as collateral.** The walk
-    // reads `MAKEFILE` too and wave 21's narrowing named only `JUSTFILE`, so a
+    // reads `MAKEFILE` too and this narrowing names only `JUSTFILE`, so a
     // `check:` target running `cargo xtask check-offline` in a `Makefile` is
     // silent while the identical justfile recipe is refused. That looks like an
-    // exclusion list turning a gate off, and a reviewer filed it as one in wave
-    // 22 — but its skeptic measured the repair and it is **too strong**:
+    // exclusion list turning a gate off — but the repair is measured
+    // **too strong**:
     // `VAR ::= x`, `.PHONY: check` and `%.o: %.c` all read as recipes named
     // `VAR`, `.PHONY` and `%.o`, each then compared against a cargo verb. The
     // rule's content is justfile-specific besides — it is about what
@@ -3753,20 +3723,16 @@ fn the_recipe_above(text: &str, index: usize, file_is_ci: bool, named: &str) -> 
     //
     // **And a recipe may name a dependency after its colon.**
     // `release version: build` is ordinary `just`, and a filter wanting
-    // the colon at the *end* of the line did not see it as a header at
-    // all — so the body below it was attributed to the previous recipe
-    // and its author was told "A recipe's own parameters are declared in
-    // its header; this one is not" over a header that was not theirs.
-    // That sentence has now been the inverse of the truth four times:
-    // wave 18 for `name="default"`, wave 20 for the sigils, and wave 21
-    // for this and for the name above. Found by both of wave 21's
-    // reviewers independently, from opposite ends.
+    // the colon at the *end* of the line does not see it as a header at
+    // all — so the body below it is attributed to the previous recipe
+    // and its author is told "A recipe's own parameters are declared in
+    // its header; this one is not" over a header that is not theirs.
     //
     // **The state crosses the line boundary.** A triple-quoted default spans
     // lines, so a line may be *inside* a string rather than at the top level —
-    // and a line inside one is not a header however it reads. Wave 25's
-    // one-line reader took the content line `a:b` of a multi-line default for
-    // the recipe header. Found in wave 26.
+    // and a line inside one is not a header however it reads. A one-line
+    // reader takes the content line `a:b` of a multi-line default for the
+    // recipe header.
     // A header written across lines is one header. The physical lines are
     // grouped into logical ones — joined while a triple-quoted string is still
     // open — and the question is then asked of the logical line, which is what
@@ -3806,36 +3772,31 @@ fn the_recipe_above(text: &str, index: usize, file_is_ci: bool, named: &str) -> 
 /// Where a recipe header's own colon is, if the line has one.
 ///
 /// **Not `split_once(':')`, because a parameter's default may hold one.** `just`
-/// writes `serve addr="127.0.0.1:8080" mode="dev":`, and a reader that cut at
-/// the first colon returned the header `serve addr="127.0.0.1` — so `mode`, a
-/// parameter the header genuinely declares, was gone and a body writing
-/// `{{mode}}` was refused with "A recipe's own parameters are declared in its
-/// header; this one is not". That sentence has now been the inverse of the truth
-/// five times: for `name="default"` (wave 18), for `+args`/`*args`/`$name`
-/// (wave 20), for a dependency after the colon and for the `@` sigil (wave 21),
-/// and for this — introduced by wave 21's own widening of the filter. Found in
-/// wave 22.
+/// writes `serve addr="127.0.0.1:8080" mode="dev":`, and a reader that cuts at
+/// the first colon returns the header `serve addr="127.0.0.1` — so `mode`, a
+/// parameter the header genuinely declares, is gone and a body writing
+/// `{{mode}}` is refused with "A recipe's own parameters are declared in its
+/// header; this one is not".
 ///
 /// `:=` is an assignment rather than a header, and a colon inside a string is
-/// data. **The escape is tracked**, because a reader that took `\"` for a
-/// closing quote found the next colon inside what it thought was a string and
-/// returned no header at all — the recipe then vanishes and the whole rule goes
-/// silent for it, which is the same hole one escape along. Measured by a skeptic
-/// in wave 22 against the repair without it.
+/// data. **The escape is tracked**, because a reader that takes `\"` for a
+/// closing quote finds the next colon inside what it thinks is a string and
+/// returns no header at all — the recipe then vanishes and the whole rule goes
+/// silent for it, which is the same hole one escape along. Measured against the
+/// repair without it.
 fn the_headers_colon(line: &str) -> Option<usize> {
     the_headers_colon_within(line, None).0
 }
 
 /// The same question asked of a line that a triple-quoted string may reach into.
 ///
-/// **A recipe header is a line, and a `just` string is not.** Wave 25 taught
-/// this reader `just`'s three triple forms and kept its one-line shape, so a
-/// default written across lines — which `just 1.55.1` parses as one recipe with
-/// two parameters, measured — was read as three unrelated lines. The header line
-/// opened a triple that never closed and returned `None`; the *content* line
-/// `a:b` stands at column zero, is not a comment and holds a colon, so
-/// `the_recipe_above` took the string's own text for the recipe header. Found in
-/// wave 26.
+/// **A recipe header is a line, and a `just` string is not.** A reader that
+/// knows `just`'s three triple forms but keeps a one-line shape reads a default
+/// written across lines — which `just 1.55.1` parses as one recipe with two
+/// parameters, measured — as three unrelated lines. The header line opens a
+/// triple that never closes and returns `None`; the *content* line `a:b` stands
+/// at column zero, is not a comment and holds a colon, so `the_recipe_above`
+/// takes the string's own text for the recipe header.
 ///
 /// So the state crosses the line boundary. What is returned beside the colon is
 /// the triple still open at the end of the line, and a line reached by one is not
@@ -3849,9 +3810,8 @@ fn the_headers_colon_within(
     ///
     /// `just` has six string forms, not three: `"""…"""`, `\'\'\'…\'\'\'` and
     /// ```` ```…``` ```` are the indented spellings of the other three, and all
-    /// three are legal as a parameter default. Measured against `just 1.55.1`
-    /// on 2026-09-19, which parses each of the three as one recipe with two
-    /// parameters.
+    /// three are legal as a parameter default. Measured against `just 1.55.1`,
+    /// which parses each of the three as one recipe with two parameters.
     fn thrice(line: &str, at: usize, kind: char) -> bool {
         let mut spelling = [0_u8; 4];
         let one: &str = kind.encode_utf8(&mut spelling);
@@ -3875,27 +3835,24 @@ fn the_headers_colon_within(
             // `just`'s single-quoted strings are raw, which this file already
             // holds for three of its own readers — `a_backslash_inside_single_
             // quotes_does_not_escape_the_quote` pins it for one and
-            // `an_escaped_quote_does_not_close_a_quote` for two more. This
-            // fifth reader escaped in both, so `build sep='\':` — the canonical
-            // reason raw strings exist — never closed its quote, the header's
-            // own colon read as data, and the line stopped being a header at
-            // all. Found in wave 23.
+            // `an_escaped_quote_does_not_close_a_quote` for two more.
+            // Escaping in both, `build sep='\':` — the canonical reason raw
+            // strings exist — never closes its quote, the header's own colon
+            // reads as data, and the line stops being a header at all.
             '\\' if matches!(quote, Some(('"', _))) => escaped = true,
             // **A backtick is a quote to `just` too.** It accepts a command
             // substitution as a parameter default, and an untracked backtick
-            // let the colon inside one read as the header's own — truncating
-            // the header and refusing a correct recipe with the sentence this
-            // rule has now had false in six waves. Named by wave 23's own
-            // skeptic and left open; found in wave 24.
+            // lets the colon inside one read as the header's own — truncating
+            // the header and refusing a correct recipe with the parameters
+            // sentence, false about it.
             // **And a triple is one delimiter, not three.** Read as three, a
-            // `"""` opened a string, closed it and opened it again, so every
-            // quote inside the literal toggled and a colon in it read as the
+            // `"""` opens a string, closes it and opens it again, so every
+            // quote inside the literal toggles and a colon in it reads as the
             // header's own. `serve x="""a"b:c""" y="d":` — which `just`
-            // parses as one recipe with two parameters — came back as the
-            // header `serve x="""a"b`, losing `y`, and the body's `{{y}}` was
-            // then refused with the sentence this rule has had false in seven
-            // waves. The `'''` and ```` ``` ```` forms are the same hole twice
-            // more. Found in wave 25.
+            // parses as one recipe with two parameters — comes back as the
+            // header `serve x="""a"b`, losing `y`, and the body's `{{y}}` is
+            // then refused with the parameters sentence. The `'''` and
+            // ```` ``` ```` forms are the same hole twice more.
             '"' | '\'' | '`' => match quote {
                 Some((open, tripled)) if open == letter => {
                     if !tripled {
@@ -3916,15 +3873,14 @@ fn the_headers_colon_within(
                     quote = Some((letter, tripled));
                 }
             },
-            // **The colon is recorded, not returned.** This used to `return`
-            // here, so nothing after the header's own colon was ever scanned
-            // for quotes — and an assignment opening a triple,
-            // `flags := """`, reported "no string open". The logical line
-            // ended there, and the string's own content line `check: not a
-            // recipe` stood at column zero, was not a comment and held a
-            // colon, so it was taken for the recipe header and the real recipe
-            // below was lost. That is wave 26's own stated defect, one spelling
-            // along, inside the repair written to stop it. Found in wave 27.
+            // **The colon is recorded, not returned.** A `return` here leaves
+            // nothing after the header's own colon scanned for quotes — and an
+            // assignment opening a triple, `flags := """`, then reports "no
+            // string open". The logical line ends there, and the string's own
+            // content line `check: not a recipe` stands at column zero, is not
+            // a comment and holds a colon, so it is taken for the recipe header
+            // and the real recipe below is lost: the defect this function's doc
+            // names, one spelling along.
             ':' if quote.is_none() && reached_by.is_none() => {
                 if colon.is_none() {
                     colon = if line[at + 1..].starts_with('=') {
@@ -3936,10 +3892,10 @@ fn the_headers_colon_within(
             }
             // **A `#` outside a string ends the line.** `just` takes the rest
             // as a comment, so a `"""` written in one opens nothing — and a
-            // reader that carried it swallowed every line below into one group.
+            // reader that carries it swallows every line below into one group.
             // Guarded on `quote.is_none()`, because `release version="a#b":` is
             // a recipe `just --dump` echoes back verbatim, and a bare `break`
-            // loses it whole. Both measured in wave 27.
+            // loses it whole. Both measured.
             '#' if quote.is_none() => break,
             _ => {}
         }
@@ -3973,14 +3929,15 @@ mod tests {
 
     /// The bound is the bound the production caller has, measured through it.
     ///
-    /// **The test beside this one drove the walk directly, and that is not where
-    /// the budget is split.** [`super::everything_ci_reaches`] calls the walk
-    /// twice, and its shallow half was `walk(4)` against a fresh sixteen — so
-    /// nothing asked what the *second* call sees. Measured on F5's eighth pass,
-    /// through this entry point: a chain of fifteen reached from the justfile
-    /// was read whole, `chain_scripts_read=15`, and the run still said `what CI
-    /// reaches is more than 16 hops deep`, because the first call had spent one
-    /// of the sixteen on the pass that finds nothing and ends it.
+    /// **The test beside this one drives the walk directly, and that is not
+    /// where the budget is split.** [`super::everything_ci_reaches`] calls the
+    /// walk twice, and the shallow half of that test is `walk(4)` against a fresh
+    /// sixteen — so it does not ask what the *second* call sees. Measured through
+    /// this entry point with a hop spent on every pass: a chain of fifteen
+    /// reached from the justfile was read whole, `chain_scripts_read=15`, and the
+    /// run still said `what CI reaches is more than 16 hops deep`, because the
+    /// first call had spent one of the sixteen on the pass that finds nothing and
+    /// ends it.
     ///
     /// So a hop is a step that *found* something, and this drives the real entry
     /// point at the bound and one past it. A rule about a bound whose test does
@@ -4053,12 +4010,12 @@ mod tests {
 
     /// The walk reports its bound when it is spent, and not when it is not.
     ///
-    /// **Neither side of this had a test.** The bound existed, the finding
-    /// beside it existed, and nothing drove either — so the walk took a fresh
-    /// budget on each of its two calls and reported running out when it had
-    /// not. Measured on F5's seventh pass with a chain of twenty scripts: every
-    /// one was read, every cargo invocation in it was judged, and the run still
-    /// said `what CI reaches is more than 16 hops deep`.
+    /// **Both sides of the bound, driven.** With neither the bound nor the
+    /// finding beside it driven, the walk can take a fresh budget on each of its
+    /// two calls and report running out when it has not. Measured with a chain
+    /// of twenty scripts: every one was read, every cargo invocation in it was
+    /// judged, and the run still said `what CI reaches is more than 16 hops
+    /// deep`.
     ///
     /// A finding that fires when nothing is wrong is the failure `counts.rs`'s
     /// header is about: it teaches a reader to ignore the gate. So both
@@ -4104,7 +4061,7 @@ mod tests {
         assert_eq!(super::a_chain_deeper_than_the_walk(ran_out), None);
 
         // Past it: the walk stops short and says so, which is what the bound's
-        // own paragraph promised and what nothing did until F5's sixth pass.
+        // own paragraph promises.
         let (ran_out, read) = walk(super::HOPS * 2);
         assert!(
             ran_out,
@@ -4128,10 +4085,10 @@ mod tests {
         // **And the budget is spent across calls, not restored between them.**
         // [`super::everything_ci_reaches`] calls the walk twice — once for what
         // the workflows reach and again once the justfiles have joined them —
-        // and each call took a fresh [`super::HOPS`], so the walk really reached
-        // twice the bound while the finding fired whenever *either* call ran
-        // out. Two calls here, one budget: what the second sees is what the
-        // first left.
+        // and a fresh [`super::HOPS`] per call lets the walk really reach twice
+        // the bound while the finding fires whenever *either* call runs out.
+        // Two calls here, one budget: what the second sees is what the first
+        // left.
         chain(super::HOPS * 2);
         let mut files = vec![scratch.join("ci/s01.sh")];
         let mut hops = super::HOPS;
@@ -4153,13 +4110,13 @@ mod tests {
 
     /// A backslash inside single quotes is a backslash.
     ///
-    /// **The arm for it was decided by nothing.** Two of this reader's three
-    /// single-quote rules are driven by the test below; deleting the third —
-    /// the one that stops a `\` escaping inside `'…'`, which is what a shell
-    /// does — left every test green. Without it the quote never closes, the `#`
-    /// after it reads as quoted rather than as a comment, and the words a
-    /// developer commented out are scanned as commands. Found in round
-    /// sixty-four by running the plants a reviewer prepared and could not reach.
+    /// **The arm for it, decided here.** Two of this reader's three
+    /// single-quote rules are driven by the test below; without this one,
+    /// deleting the third — the one that stops a `\` escaping inside `'…'`,
+    /// which is what a shell does — leaves every test green. Without it the
+    /// quote never closes, the `#` after it reads as quoted rather than as a
+    /// comment, and the words a developer commented out are scanned as
+    /// commands.
     #[test]
     fn a_backslash_inside_single_quotes_does_not_escape_the_quote() {
         assert_eq!(
@@ -4178,13 +4135,13 @@ mod tests {
 
     /// An escaped quote does not change the quote state, in all three readers.
     ///
-    /// **Both clauses were written after a measurement and neither had a case.**
-    /// Round 55 added the backslash arm to `the_command_without_its_comment`
-    /// after a reviewer put `echo "a\"b # c" && cargo clippy --workspace` into
-    /// CI unseen; round 57 added the same arm to `with_the_separators_spaced`
-    /// after the same reviewer hid a `cargo clippy` behind an unspaced `;`. A
-    /// clause written for a measurement and left undriven is a clause the next
-    /// sweep deletes, and this suite is what stops that.
+    /// **Both clauses answer a measurement, and each has a case.** The
+    /// backslash arm of `the_command_without_its_comment` answers
+    /// `echo "a\"b # c" && cargo clippy --workspace` going into CI unseen; the
+    /// same arm of `with_the_separators_spaced` answers a `cargo clippy` hidden
+    /// behind an unspaced `;`. A clause written for a measurement and left
+    /// undriven is a clause the next sweep deletes, and this suite is what stops
+    /// that.
     #[test]
     fn an_escaped_quote_does_not_close_a_quote() {
         // The comment reader: the `#` is inside the string, so the whole line
@@ -4196,17 +4153,16 @@ mod tests {
             super::the_command_without_its_comment("cargo xtask check # and a note"),
             "cargo xtask check ",
         );
-        // **And the third reader, which the other two name as their model.**
-        // It had never been given the correction they carry: `'a\'` is a
-        // backslash and a closing quote, so the span ends and what follows is
-        // code. Measured by two reviewers on 2026-09-14, each hiding a whole
-        // gate behind it.
+        // **And the third reader, which the other two name as their model**,
+        // carries the correction they carry: `'a\'` is a backslash and a
+        // closing quote, so the span ends and what follows is code. Measured
+        // with a whole gate hidden behind it.
         assert_eq!(
             super::without_quoted_spans(r"echo 'a\' && cargo xtask docs"),
             r"echo '  ' && cargo xtask docs",
         );
         // **Outside a quote too.** A shell escapes with `\` wherever it
-        // stands, and both arms were written for the quoted half alone: `echo
+        // stands, so neither arm is limited to the quoted half: `echo
         // 'a\';cargo-clippy` closes nothing, so the `;` stays outside the quote
         // and is spaced, and the binary behind it is read.
         assert_eq!(
@@ -4230,16 +4186,16 @@ mod tests {
         );
     }
 
-    /// Every clause of the three workflow readers a reviewer could delete.
+    /// Every clause of the three workflow readers anyone could delete.
     ///
-    /// **Three branches were dead to this suite** — the glob that spans
+    /// **Three branches no other test decides** — the glob that spans
     /// directories, the empty `if:`, and the line that closes a heredoc — and
-    /// removing all three left `cargo xtask check` printing the same lines and
-    /// the same `849 test(s)`. The last is the one that costs something: with it
-    /// gone a heredoc never ends, so every command after the first one in the
-    /// file stops being read, and `commands_in`'s own doc records that a heredoc
-    /// wrapped around the determinism job is how this gate was defeated once
-    /// already.
+    /// removing all three leaves every other test green, so without this test
+    /// `cargo xtask check` prints the same lines and the same test count. The
+    /// last is the one that costs something: with it gone a heredoc never ends,
+    /// so every command after the first one in the file stops being read, and
+    /// `commands_in`'s own comment measures a heredoc wrapped around the
+    /// determinism job defeating this gate.
     #[test]
     fn the_workflow_readers_decide_every_clause() {
         // `matching`: a `*` in the directory half is a pattern this cannot
@@ -4297,9 +4253,10 @@ mod tests {
             "a condition on a job is what this reports"
         );
         // **The step-level spellings, which are the ones a step actually
-        // carries.** The reader matched `if:` at the start of a trimmed line and
-        // a step's condition is written `- if: …`, so the one place a condition
-        // does the most damage — the step that runs the gate — was outside it.
+        // carries.** A reader matching `if:` at the start of a trimmed line
+        // misses a step's condition, written `- if: …`, so the one place a
+        // condition does the most damage — the step that runs the gate — is
+        // outside it.
         for spelling in [
             "- if: false",
             "\"if\": false",
@@ -4332,8 +4289,8 @@ mod tests {
             "text written into a heredoc is data, not a command: {commands:?}"
         );
         // The three spellings of the tag, because the quotes and the `-` are
-        // stripped in an order that reading cannot settle: `PLAN'` was the tag
-        // this produced for the first of them.
+        // stripped in an order that reading cannot settle: `PLAN'` is the tag
+        // the wrong order produces for the first of them.
         for opener in ["cat <<'PLAN' >/dev/null", "cat <<PLAN", "cat <<-\"PLAN\""] {
             let commands = super::commands_in(&format!("{opener}\nin the block\nPLAN\nafter\n"));
             assert_eq!(
@@ -4370,20 +4327,20 @@ mod tests {
 
     /// What CI has to supply before the gate, decided case by case.
     ///
-    /// **Every finding this rule can make was reached by no test.** Each scratch
-    /// fixture in this module hits `ci_supplies_what_the_gate_needs`'s early
-    /// return — there is no `docker-compose.yml` beside them — so the whole
-    /// function was exercised only through
+    /// **Every finding this rule can make, reached.** Each other scratch fixture
+    /// in this module hits `ci_supplies_what_the_gate_needs`'s early return —
+    /// there is no `docker-compose.yml` beside them — so without this the whole
+    /// function is exercised only through
     /// `this_repositorys_workflow_runs_only_the_gate`, which asserts
     /// `findings.is_empty()` on the real tree and therefore cannot notice a rule
     /// being *removed*. Measured: the body replaced with an immediate return
-    /// left `cargo test --locked --workspace` green in all 30 suites, and
+    /// left `cargo test --locked --workspace` green in every suite, and
     /// `ci.yml` reordered to run `cargo xtask dev` *after* `cargo xtask check`
     /// then gave `check passed`.
     ///
-    /// This is the repair for the two defects `ci.yml` describes at length — a
+    /// This rule answers the two defects `ci.yml` describes at length — a
     /// `services:` block instead of the stack, and nothing migrating the
-    /// database — so it is the rule most worth being able to lose.
+    /// database — so it is the rule most worth not losing.
     #[test]
     fn ci_that_does_not_supply_the_stack_is_a_finding() {
         let scratch = std::env::temp_dir().join(format!("nc-ci-{}", std::process::id()));
@@ -4483,12 +4440,11 @@ mod tests {
 
     #[test]
     fn the_second_count_notices_a_filter_in_the_line_loop() {
-        // **Round 57's own repair, decided by nothing.** `a_second_count_of` and
-        // `the_walk_is_not_short` were added because "the two counters inside
-        // the command loop cannot see a filter in the loop around them" — and
-        // then appeared nowhere in this module's tests. Measured:
+        // **`a_second_count_of` and `the_walk_is_not_short`, decided here.**
+        // They exist because "the two counters inside the command loop cannot
+        // see a filter in the loop around them", and with no test here,
         // `if seen == expected { return; }` replaced by `if true { return; }`
-        // left all 332 tests green.
+        // leaves every test green.
         let files = [std::path::PathBuf::from("probe.yml")];
         let mut said = Vec::new();
         super::the_walk_is_not_short(9, 12, &mut said);
@@ -4505,13 +4461,11 @@ mod tests {
             "the two counts agreed and the floor spoke anyway: {agreed:#?}"
         );
 
-        // **And the direction that says the *second count* broke.** Only
-        // `seen < expected` was driven, so the comparison could be widened to
-        // `>=` with the whole suite green — and this file's own doc records a
-        // workflow "making `seen` exceed this count". The twin comparison in
-        // `references.rs` and `sections.rs` was given exactly this fixture in
-        // round sixty-four; this one had neither the fixture nor an operator.
-        // Reported in round sixty-four.
+        // **And the direction that says the *second count* broke.** With only
+        // `seen < expected` driven, the comparison can be widened to `>=` with
+        // the whole suite green — and the comment in `a_second_count_of` names
+        // a workflow that makes `seen` exceed that count. The twin comparisons
+        // in `references.rs` and `sections.rs` carry exactly this fixture.
         let mut over = Vec::new();
         super::the_walk_is_not_short(13, 12, &mut over);
         assert!(
@@ -4533,22 +4487,22 @@ mod tests {
         assert!(seen >= 2, "only {seen} cargo command(s) were inspected");
     }
 
-    /// The seven attacks waves 26 and 27 measured against `yq 3.4.3`.
+    /// The seven attacks measured against `yq 3.4.3`.
     ///
     /// Their own function because the table below is at clippy's line bound,
     /// and because they are one family: each is a spelling YAML says is one
-    /// thing and this reader read as another — a second lints gate behind a
+    /// thing and a line reader reads as another — a second lints gate behind a
     /// double-quoted scalar's own `\n`, the same break written `\x0a`, and a
     /// block header wearing a comment.
     /// <!-- allow-logging: `the_attacks_yaml_spells_seven_ways` hands back workflow fragments written as literals in this file, and nothing a caller chose -->
     fn the_attacks_yaml_spells_seven_ways()
     -> [(&'static str, &'static str, &'static str, &'static str); 7] {
         [
-            // **Wave 26's three, each measured against `yq 3.4.3`.** A second
+            // **Three, each measured against `yq 3.4.3`.** A second
             // lints gate can hide behind a double-quoted scalar's own `\n`,
             // behind the same break spelled `\x0a`, and behind a block header
             // wearing a comment — all three of which YAML says are one thing
-            // and this reader read as another.
+            // and a line reader reads as another.
             (
                 "a second lints gate behind a double-quoted scalar's own newline",
                 super::WORKFLOW,
@@ -4570,10 +4524,10 @@ mod tests {
                 "run: | # the gate, and the lints beside it\n          cargo xtask check\n          \
                  cargo-clippy --workspace --all-targets -- -D warnings",
             ),
-            // **Wave 27's four, each a two-line scalar to `yq 3.4.3`.** The
-            // wave-26 reader asked that the value both start and end with `"`,
-            // so a trailing comment, a tag, an anchor, or a hash with no space
-            // before it each left the gate with nothing at all to say.
+            // **Four more, each a two-line scalar to `yq 3.4.3`.** A reader that
+            // asks the value both start and end with `"` leaves the gate with
+            // nothing at all to say behind a trailing comment, a tag, an
+            // anchor, or a hash with no space before it.
             (
                 "the same newline, behind a comment after the scalar",
                 super::WORKFLOW,
@@ -4607,8 +4561,8 @@ mod tests {
 
     /// Every way of throwing the verdict away that this gate has met.
     ///
-    /// Its own function because the list crossed clippy's hundred-line bound
-    /// when the two escaped-quote rows arrived, which is the same split
+    /// Its own function because with the two escaped-quote rows the list passes
+    /// clippy's hundred-line bound, which is the same split
     /// `the_scripts_both_stores_answer` records in `nc-journal`.
     /// <!-- allow-logging: `the_attacks_this_gate_survives` hands back the names, paths and workflow fragments written as literals in this file, and nothing a caller chose -->
     fn the_attacks_this_gate_survives()
@@ -4624,9 +4578,9 @@ mod tests {
                 "\nrelease version:\n",
                 "\nrelease +flags:\n    cargo xtask check {{other}}\n",
             ),
-            // **A `just` function that reads the environment.** Wave 18 excused
-            // every interpolation ending in a parenthesis so that
-            // `{{justfile_directory()}}` would pass; `env_var` ends in one too,
+            // **A `just` function that reads the environment.** An excuse for
+            // every interpolation ending in a parenthesis, so that
+            // `{{justfile_directory()}}` passes, lets `env_var` through too,
             // and with it the gate a developer types is whatever the
             // environment says. The second row is the control that says the
             // rule fires on the ordinary spelling as well, so neither is
@@ -4644,12 +4598,12 @@ mod tests {
                 "\n    cargo xtask check {{flags}}\n",
             ),
             // **Behind an escaped quote, which spends the rest of the line.**
-            // `without_quoted_spans` knew `'` and `"` and nothing of `\`, so a
-            // step ending `echo \"` opened a span that never closed and every
-            // needle below then searched a line of blanks. Measured: five
+            // To a `without_quoted_spans` that knows `'` and `"` and nothing of
+            // `\`, a step ending `echo \"` opens a span that never closes and
+            // every needle below then searches a line of blanks. Measured: five
             // spellings of *throw the verdict away* survived behind one, the
-            // whole xtask suite stayed at `517 passed`, and through the gate the
-            // step count went **up** while the `||` finding disappeared.
+            // whole xtask suite stayed green, and through the gate the step
+            // count went **up** while the `||` finding disappeared.
             (
                 "`|| true` behind an escaped quote",
                 super::WORKFLOW,
@@ -4724,15 +4678,15 @@ mod tests {
     #[test]
     /// Every shape that makes the gate's answer not count, on the real files.
     ///
-    /// **Five of them were measured passing at once.** Each mutation below was
-    /// applied to this repository's own `ci.yml` or `justfile` and the whole of
-    /// `cargo xtask check` still ended `check passed`, with the cargo count
-    /// unchanged at ten — because `NEUTERED` was a list of spellings read in one
-    /// file, and every one of these is a spelling that was not on it or a file
-    /// that was not read.
+    /// **The first five pass a one-file gate at once.** Each mutation below,
+    /// applied to this repository's own `ci.yml` or `justfile`, leaves the whole
+    /// of `cargo xtask check` ending `check passed`, with the cargo count
+    /// unchanged, when `NEUTERED` is a list of spellings read in one file —
+    /// every one of these is a spelling not on such a list or a file it does
+    /// not read.
     ///
     /// Written against copies of the shipped files rather than against a
-    /// hand-made fragment, because four of the five got through by being
+    /// hand-made fragment, because four of those five get through by being
     /// *somewhere else* than the fragment a test would have built.
     fn no_way_of_discarding_the_verdict_survives_this_gate() {
         let scratch =
@@ -4771,13 +4725,14 @@ mod tests {
             // **And reported as what it is, not as the gate disagreeing with
             // itself.** `the_walk_is_not_short` fires whenever the line loop and
             // the second count differ, and its message is about this tool's
-            // internals. A reviewer showed wave 25's reader answering three real
-            // attacks that way — a second lints gate behind a double-quoted
+            // internals. Measured: a reader that misreads YAML answers three
+            // real attacks that way — a second lints gate behind a double-quoted
             // scalar's own `\n`, the same break spelled `\x0a`, and a block
-            // header wearing a comment — so the suite was green, a finding was
-            // produced, and what it said was that the counters disagreed. A
+            // header wearing a comment — so without this assertion the suite is
+            // green, a finding is produced, and what it says is that the
+            // counters disagree. A
             // developer reads that as noise about the tool and scrolls past the
-            // gate that was hidden. Found in wave 26.
+            // gate that is hidden.
             assert!(
                 !findings.iter().any(super::is_about_this_gate),
                 "{what} was answered with this gate's own accounting rather than with \
@@ -4798,17 +4753,17 @@ mod tests {
         let _ = std::fs::remove_dir_all(&scratch);
     }
 
-    /// The two spellings of `&` a later round found.
+    /// The two spellings of `&` that hide a gate.
     ///
-    /// **A separate function because the one below crossed a hundred lines**,
-    /// and because it drives its cases rather than returning them: a helper
-    /// that hands back a `&'static str` it was not given is a door into the
-    /// log's type wall, which this repository refuses on purpose.
+    /// **A separate function because the one below would pass a hundred
+    /// lines**, and because it drives its cases rather than returning them: a
+    /// helper that hands back a `&'static str` it was not given is a door into
+    /// the log's type wall, which this repository refuses on purpose.
     ///
-    /// `&` ends a command in every shell, and it was written down in neither of
-    /// this file's separator lists nor in the backgrounding rule — so a second
-    /// lints gate, and a gate run in the background that nobody waits for, each
-    /// left `ok 12 cargo command(s)` unmoved and `check passed`.
+    /// `&` ends a command in every shell, and with it missing from this file's
+    /// separator lists and from the backgrounding rule, a second lints gate, and
+    /// a gate run in the background that nobody waits for, each leave `ok 12
+    /// cargo command(s)` unmoved and `check passed`.
     fn the_two_ways_an_ampersand_hides_a_gate(scratch: &Path, ci: &str, justfile: &str) {
         let second_gate = "cargo fmt --all --check\ncargo clippy --workspace\n";
         for (what, names, contents) in [
@@ -4837,23 +4792,22 @@ mod tests {
             std::fs::write(scratch.join(super::WORKFLOW), &contents).expect("writable");
             let (findings, _) = only_runs_the_gate(scratch).expect("readable");
             // **The finding this case is about, not any finding.** Asserting
-            // only that the gate said *something* let the second case pass with
-            // `&` taken out of `separates_commands`: what it caught was the
+            // only that the gate says *something* lets the second case pass with
+            // `&` taken out of `separates_commands`: what it catches is the
             // backgrounding rule, which fires on the same line for a different
-            // reason. The sibling loop ten lines up already asserts the file
-            // too — an assertion this file knows how to write correctly, written
-            // narrower the second time, which is its own signature defect.
+            // reason. The sibling loop ten lines up asserts the file too, and an
+            // assertion written narrower the second time is this file's own
+            // signature defect.
             assert!(
                 findings.iter().any(|finding| finding.what.contains(names)),
                 "{what} left the gate with nothing to say about it: {findings:?}"
             );
             // **And the third helper asks it too.** `ABOUT_THIS_GATE`'s own
-            // paragraph said `is_about_this_gate` "is the one predicate all
-            // three attack helpers ask", and this was the one that did not —
-            // found by both of wave 28's reviewers independently, from opposite
-            // ends. The clause above names the command, so this loop could not
-            // be answered by the counters alone today; it is asserted rather
-            // than argued, because that is what the paragraph claims.
+            // paragraph says `is_about_this_gate` "is the one predicate all
+            // three attack helpers ask", and this is the third. The clause
+            // above names the command, so this loop cannot be answered by the
+            // counters alone today; it is asserted rather than argued, because
+            // that is what the paragraph claims.
             assert!(
                 !findings.iter().any(super::is_about_this_gate),
                 "{what} was answered with this gate's own accounting rather than with \
@@ -4863,15 +4817,15 @@ mod tests {
         let _ = std::fs::remove_dir_all(scratch.join("scripts"));
     }
 
-    /// The seven that survived the round which closed the first five.
+    /// The ways past a gate that closes only the first five.
     ///
-    /// Split out because the test crossed a hundred lines. Every one of these
-    /// leaves the cargo count at ten, or takes the justfile out of the walk
-    /// entirely and leaves it at four.
+    /// Split out because the test would pass a hundred lines. Every one of these
+    /// leaves the cargo count unchanged, or takes the justfile out of the walk
+    /// entirely and lowers it.
     fn the_ways_measured_after_the_first_five(scratch: &Path, ci: &str, justfile: &str) {
-        // **Seven more, each measured passing after the round that closed the
-        // first five.** Every one leaves the cargo count at ten, or takes the
-        // justfile out of the walk entirely and leaves it at four.
+        // **More, each measured passing a gate that closes the first five.**
+        // Every one leaves the cargo count unchanged, or takes the justfile out
+        // of the walk entirely and lowers it.
         // `(what, the file it goes in, its contents)`.
         let more = the_ways_this_gate_has_been_beaten_since(scratch, ci, justfile);
         let second_gate = "cargo fmt --all --check\ncargo clippy --workspace\n";
@@ -4889,15 +4843,13 @@ mod tests {
                 !findings.is_empty(),
                 "{what} left the gate with nothing to say"
             );
-            // **Eight of the thirteen attacks were held by this one line.**
-            // Wave 26 gave the sibling loop the assertion that refuses an
-            // answer about this gate's own arithmetic, and left this helper —
-            // which carries more attacks than that loop does — at the bare
-            // non-empty check. A reviewer then filtered `Justfile` out of the
-            // walk above the counters and the whole suite stayed green: the
-            // eighth attack was answered only by the counters disagreeing.
-            // Found in wave 27; the third copy of a rule the second copy had
-            // already had repaired, which is this file's signature defect.
+            // **Every attack this helper carries is held by this one line.** At the
+            // bare non-empty check this loop accepts an answer about this gate's own
+            // arithmetic: measured with that check alone, `Justfile` filtered
+            // out of the walk above the counters leaves the whole suite green,
+            // that attack answered only by the counters disagreeing. A third
+            // copy of a rule left narrower than the second is this file's
+            // signature defect.
             assert!(
                 !findings.iter().any(super::is_about_this_gate),
                 "{what} was answered with this gate's own accounting rather than with \
@@ -4907,19 +4859,19 @@ mod tests {
             // **And not "against the planted file", which these attacks are
             // not about.** Five of them are transitive: the workflow is what
             // carries the plant and the script it reaches is where the second
-            // gate is reported, which is the right answer. An assertion copied from
-            // the sibling loop refused it — measured here before it shipped.
+            // gate is reported, which is the right answer, and an assertion
+            // copied from the sibling loop refuses it — measured.
         }
         let _ = std::fs::remove_file(scratch.join("Justfile"));
         let _ = std::fs::remove_dir_all(scratch.join("scripts"));
     }
 
-    /// The nine ways this gate has been beaten since the first five closed.
+    /// Nine ways past a gate that closes only the first five.
     ///
-    /// Its own function because the list crossed clippy's hundred-line bound
-    /// when wave 28's two-shape row arrived — a line that is an assignment
-    /// *and* a cargo command, which the walk counted once and the second count
-    /// counted twice.
+    /// Its own function because with the two-shape row — a line that is an
+    /// assignment *and* a cargo command, which a walk that `continue`s counts
+    /// once and the second count counts twice — the list passes clippy's
+    /// hundred-line bound.
     /// <!-- allow-logging: `the_ways_this_gate_has_been_beaten_since` hands back workflow fragments written as literals in this file, and nothing a caller chose -->
     fn the_ways_this_gate_has_been_beaten_since(
         scratch: &Path,
@@ -4961,8 +4913,8 @@ mod tests {
                 // continues onto every line indented further than its key, so
                 // this is `cargo xtask check --offline` to every parser there
                 // is — `yq` reads it that way — while a per-line reader sees a
-                // gate and a stray word. Measured before `joined_continuations`
-                // read it: `12 cargo command(s)` unmoved, no finding, and
+                // gate and a stray word. Measured without `joined_continuations`
+                // reading it: `12 cargo command(s)` unmoved, no finding, and
                 // `check passed`. The two spellings above needed a `\\` or a
                 // `>`; this one needs nothing.
                 "`--offline` on a plain scalar's second line",
@@ -4974,10 +4926,10 @@ mod tests {
                 ),
             ),
             // **A line that is two shapes at once.** `CARGO=cargo; cargo
-            // clippy …` is an assignment *and* a cargo command. The walk's arms
-            // each `continue`d, so it counted one where the second count
-            // counted two — and the clippy half, a real second gate, was never
-            // reported. Found in wave 28.
+            // clippy …` is an assignment *and* a cargo command. With a
+            // `continue` in each of the walk's arms, it counts one where the
+            // second count counts two — and the clippy half, a real second
+            // gate, is never reported.
             (
                 "a second gate on the same line as the assignment that names cargo",
                 super::WORKFLOW,
@@ -5025,10 +4977,11 @@ mod tests {
 
     /// A cargo configuration above the repository is found and reported.
     ///
-    /// **The ancestor walk was exercised by `assert!(findings.is_empty())` and
-    /// nothing else.** Deleting the whole block left all 270 tests in this crate
-    /// green — and with it deleted, a `.cargo/config.toml` one directory up
-    /// carrying `[build] rustflags = ["--cap-lints=allow"]` gave `ok lints` over
+    /// **The ancestor walk, driven both ways.** Held by
+    /// `assert!(findings.is_empty())` alone, deleting the whole block leaves
+    /// every test in this crate green — and with it deleted, a
+    /// `.cargo/config.toml` one directory up carrying
+    /// `[build] rustflags = ["--cap-lints=allow"]` gives `ok lints` over
     /// a real `needless_range_loop`, with every walk's count up and
     /// `check passed`. In the real layout that parent is the workspace's own git
     /// repository, so the file is committable.
@@ -5071,11 +5024,11 @@ mod tests {
     ///
     /// **The two halves of one rule read two different environments.** The
     /// process half reads `std::env::vars()`, which a developer's shell never
-    /// holds and a runner sets before the step starts — so it was silent
-    /// everywhere it could be acted on and fatal in the one place it fired.
-    /// `ci.yml` exported `RUSTFLAGS: -D warnings` at workflow scope, reaching
+    /// holds and a runner sets before the step starts — so alone it is silent
+    /// everywhere it could be acted on and fatal in the one place it fires.
+    /// A `ci.yml` exporting `RUSTFLAGS: -D warnings` at workflow scope reaches
     /// the `check` job's only step, and the gate refuses to run with it set:
-    /// the workflow could never have gone green, and its own header records
+    /// such a workflow can never go green, and its own header records
     /// that it has never run.
     #[test]
     fn a_workflow_that_exports_a_compiler_flag_is_reported() {
@@ -5084,7 +5037,7 @@ mod tests {
         std::fs::create_dir_all(scratch.join(".github/workflows")).expect("writable");
         // **Driven through the public entry, not the function.** Calling the
         // reader directly leaves the *wiring* unheld: deleting the one line that
-        // calls it from `no_flags_reach_the_compiler` left this test green, and
+        // calls it from `no_flags_reach_the_compiler` leaves such a test green, and
         // a gate nothing calls is a gate that is not there. The scratch needs
         // the alias file `the_alias_still_runs_the_gate` reads first.
         std::fs::create_dir_all(scratch.join(".cargo")).expect("writable");
@@ -5138,12 +5091,12 @@ mod tests {
         let findings = write("env:\n  RUSTFLAGS:\n");
         assert!(findings.is_empty(), "an empty value: {findings:#?}");
 
-        // **The spellings YAML allows for one key.** This read the text before
-        // the first `:` verbatim, so a quoted key was not a match and a flow
-        // mapping yielded the key `env` — both valid YAML, both accepted, both
-        // exporting the flag to the job whose only step is the gate. The reader
-        // for `if:` eight hundred lines up already stripped quotes; this is the
-        // same file learning it twice.
+        // **The spellings YAML allows for one key.** Read verbatim up to the
+        // first `:`, a quoted key is not a match and a flow mapping yields the
+        // key `env` — both valid YAML, both accepted, both exporting the flag
+        // to the job whose only step is the gate. The reader for `if:` eight
+        // hundred lines up strips quotes too, and one file should not hold the
+        // rule in one reader and not the other.
         for spelling in [
             "env:\n  \"RUSTFLAGS\": -D warnings\n",
             "env:\n  'RUSTFLAGS': -D warnings\n",
@@ -5179,9 +5132,9 @@ mod tests {
     /// **The ancestor walk only reaches it by coincidence.** Cargo merges
     /// `$CARGO_HOME/config.toml` into every build wherever that directory sits,
     /// and the walk beside this one climbs from the repository — so it finds the
-    /// file only when the home happens to be under a parent of the checkout. On
-    /// this machine the home is an XDG data directory and the walk checked a
-    /// path that does not exist. Measured, with six real clippy findings in
+    /// file only when the home happens to be under a parent of the checkout.
+    /// Where the home is an XDG data directory, the walk checks a path that
+    /// does not exist. Measured, with six real clippy findings in
     /// criterion 3's own suite and a `[build]` `rustflags` of `--cap-lints=allow`
     /// written there:
     ///
@@ -5253,10 +5206,10 @@ mod tests {
              off every workspace lint and `unsafe_code`: {findings:#?}"
         );
 
-        // **And every table that reaches the compiler, not the one that was
-        // measured.** `[build]` was the only one driven, so the clauses for
-        // `[target]` and `[unstable]` were decided by nothing and either could
-        // be deleted with `check passed`: reported in round sixty-five.
+        // **And every table that reaches the compiler, not only the one
+        // measured.** With `[build]` the only one driven, the clauses for
+        // `[target]` and `[unstable]` are decided by nothing and either can
+        // be deleted with `check passed`.
         // `[target.<triple>] rustflags` is where `--cap-lints=allow` is written
         // by anyone who wants it to survive a `--target`, and `[unstable]`
         // turns on flags that change the lint pipeline outright.
@@ -5296,13 +5249,14 @@ mod tests {
     /// The three lists this file holds that nothing else pins.
     ///
     /// **A list nobody writes down twice is a list that can lose an entry.**
-    /// Measured in round sixty-five: `REACHES_RUSTC` dropped `"target"` —
-    /// per-target `rustflags`, which is where `--cap-lints=allow` is written in
-    /// a cargo home — and `IN_THIS_ORDER` dropped `"cpio -pdm"`, which frees
-    /// the copy to be taken *after* the second build so the only cross-process
-    /// determinism check in the repository diffs a tree against itself. Both
-    /// left `check passed` at 1376 test(s). `SETS_UP_AND_JUDGES_NOTHING` had
-    /// one driver naming one action, so any other name could be allowed.
+    /// Measured: `REACHES_RUSTC` with `"target"` dropped — per-target
+    /// `rustflags`, which is where `--cap-lints=allow` is written in a cargo
+    /// home — and `IN_THIS_ORDER` with `"cpio -pdm"` dropped, which frees the
+    /// copy to be taken *after* the second build so the only cross-process
+    /// determinism check in the repository diffs a tree against itself, both
+    /// leave every other test green, so without this test `check` passes.
+    /// `SETS_UP_AND_JUDGES_NOTHING`, with one driver naming one action, lets
+    /// any other name be allowed.
     ///
     /// Written out here, and compared. The fixtures below drive what each entry
     /// *does*; this is the half that notices one going missing.
@@ -5369,9 +5323,9 @@ mod tests {
             "xtask = \"run -p xtask --locked --\"",
             "xtask = \"run --locked --package xtask\"",
             // The flag last rather than first, which is the spelling a reader
-            // is most likely to write. The fourth entry here used to be a
-            // byte-identical copy of the first — a fixture that cannot decide
-            // anything its twin does not.
+            // is most likely to write — and not a byte-identical copy of the
+            // first, which would be a fixture that cannot decide anything its
+            // twin does not.
             "xtask = \"run --package xtask --locked --\"",
         ] {
             write(good);
@@ -5384,16 +5338,16 @@ mod tests {
         //
         // **The first entry is refused by the `--locked` clause alone**, and
         // differs from the accepted alias above it by that word and nothing
-        // else. Without it no fixture turned on that clause: deleting the
-        // clause was caught only by the verdict census — which pins the
+        // else. Without it no fixture turns on that clause: deleting the
+        // clause is caught only by the verdict census — which pins the
         // sentence's existence, not the rule — and weakening it to
-        // `alias.contains("locked")` was caught by nothing at all, so
-        // `--unlocked-probe` satisfied it.
+        // `alias.contains("locked")` is caught by nothing at all, so
+        // `--unlocked-probe` satisfies it.
         for bad in [
             "xtask = \"run --quiet --package xtask --\"",
             // And one that *contains* the word without carrying the flag:
-            // weakening the clause to `alias.contains("locked")` accepted this,
-            // and the fixture above could not tell the two rules apart.
+            // weakening the clause to `alias.contains("locked")` accepts this,
+            // and the fixture above cannot tell the two rules apart.
             "xtask = \"run --quiet --package xtask --unlocked-probe --\"",
             "xtask = \"test --quiet --locked --package xtask --bins\"",
             "xtask = \"build --package xtask\"",
@@ -5411,13 +5365,12 @@ mod tests {
         }
         // **And the row written to decide the `--locked` clause has to decide
         // it.** The comment above says `--unlocked-probe` is there because
-        // weakening the clause to `alias.contains("locked")` accepted it — but
-        // the loop asserts only that *something* was said, and what is said for
+        // weakening the clause to `alias.contains("locked")` accepts it — but
+        // the loop asserts only that *something* is said, and what is said for
         // that row is the whitelist's sentence, raised because the word is not
-        // in `ALIAS_MAY_HOLD` whatever the `--locked` clause does. The row
-        // could not decide the weakening its own comment names. Found in wave
-        // 28, by a reviewer who neutered the clause and watched the test stay
-        // green.
+        // in `ALIAS_MAY_HOLD` whatever the `--locked` clause does. By that loop
+        // alone the row cannot decide the weakening its own comment names:
+        // measured, with the clause neutered and the test green.
         for (alias, must_say) in [
             (
                 "xtask = \"run --quiet --package xtask --\"",
@@ -5447,10 +5400,10 @@ mod tests {
         super::the_alias_still_runs_the_gate(&scratch, &mut findings);
         assert_ne!(findings, [] as [crate::gates::Finding; 0]);
 
-        // **A decoy in another table, with the real alias below it.** The
-        // `and_then` sat outside the `find_map`, so the first line beginning
-        // `xtask` decided and nothing asked which table it was in: `cargo xtask
-        // check` ran 21 tests, exited 0, and the gate never ran.
+        // **A decoy in another table, with the real alias below it.** With the
+        // `and_then` outside the `find_map`, the first line beginning `xtask`
+        // decides and nothing asks which table it is in: `cargo xtask check`
+        // runs 21 tests, exits 0, and the gate never runs.
         write(
             "[env]\nxtask = \"run --quiet --locked --package xtask --\"\n\
              [alias]\nxtask = \"test --quiet --locked --package xtask --bins\"",
@@ -5464,7 +5417,7 @@ mod tests {
 
         // **And the file cargo prefers when both exist.** It reads
         // `.cargo/config` over `.cargo/config.toml` and warns that it is doing allow-reference: names `.cargo/config` — the legacy spelling, written into a scratch tree by this test
-        // so, and this gate opened only the second.
+        // so, and a gate that opens only the second misses it.
         write("[alias]\nxtask = \"run --quiet --locked --package xtask --\"");
         std::fs::write(
             scratch.join(super::LEGACY_ALIAS),
@@ -5504,12 +5457,12 @@ mod tests {
                 continue;
             }
             // **A `[doc('…')]` attribute *is* the description.** `just --list`
-            // prints it instead of the comment, so skipping every `[`-line made
+            // prints it instead of the comment, so skipping every `[`-line makes
             // the one attribute that carries the thing under test invisible:
             // measured against just 1.55.1, `[doc('`cargo install` for
-            // cargo-deny, and two builds it diffs')]` above `check:` put that
+            // cargo-deny, and two builds it diffs')]` above `check:` puts that
             // exact string — the one this test's own doc names as the defect it
-            // was written for — into the listing, with the test green.
+            // guards — into the listing, with the test green.
             if let Some(said) = line
                 .strip_prefix("[doc('")
                 .and_then(|rest| rest.strip_suffix("')]"))
@@ -5523,13 +5476,13 @@ mod tests {
             }
             // **Another `just` attribute sits between the comment and the recipe.**
             // `[group('stack')]`, `[confirm]`, `[private]`, `[linux]` — none is
-            // a comment, a blank line or an indented body line, so all of them
-            // fell through to "this recipe has no description" while
-            // `just --list` went on printing one. Measured against just 1.55.1:
-            // one `[group('stack')]` above `dev` failed this test with a
-            // message stating the inverse of what the tool prints. The first
-            // person to group the recipes gets a red gate blaming a description
-            // that is on screen in front of them.
+            // a comment, a blank line or an indented body line, so without this
+            // all of them fall through to "this recipe has no description"
+            // while `just --list` goes on printing one. Measured against just
+            // 1.55.1: one `[group('stack')]` above `dev` then fails this test
+            // with a message stating the inverse of what the tool prints — a
+            // red gate blaming a description that is on screen in front of
+            // whoever groups the recipes.
             if line.starts_with('[') {
                 continue;
             }
@@ -5555,12 +5508,12 @@ mod tests {
     /// Every recipe `just --list` prints describes itself in a whole sentence.
     ///
     /// **A paragraph above a recipe reaches a reader as its last clause.**
-    /// `just --list` prints one line, so `check` — THE gate — was listed as
-    /// *"`cargo install` for cargo-deny, and two builds it diffs"*, which is
-    /// what CI runs **beside** it; `check-offline` as *"the ones a reader is
-    /// most likely to believe were checked"*; and `checkout-shape` as *"decays
-    /// into prose"*. Three of the seven, and the one a new reader types first
-    /// was described as something it does not do.
+    /// `just --list` prints one line, so a paragraph above `check` — THE gate —
+    /// lists it as *"`cargo install` for cargo-deny, and two builds it diffs"*,
+    /// which is what CI runs **beside** it; above `check-offline`, as *"the
+    /// ones a reader is most likely to believe were checked"*; above
+    /// `checkout-shape`, as *"decays into prose"* — measured, and the one a new
+    /// reader types first described as something it does not do.
     ///
     /// This tree already treats a diagnostic that begins mid-clause as a defect
     /// — `FIXTURES` in `check.rs` carries the paragraph — and a recipe listing
@@ -5580,12 +5533,11 @@ mod tests {
             .expect("this repository has a justfile");
         let text = std::fs::read_to_string(path).expect("readable");
         let described = the_listed_descriptions(&text);
-        // **An equality, because the floor had exactly one recipe of slack.**
-        // The justfile has eight and this asked for seven, so a reader that
-        // silently dropped one passed — measured, a `.skip(13)` that loses
-        // `default` left the test green. Every other census in this tree is an
-        // equality for the same reason; a recipe added or removed moves this
-        // number in the same edit. Nine since `leaves-nothing` arrived.
+        // **An equality, because a floor leaves slack.** A floor one below the
+        // number of recipes passes a reader that silently drops one —
+        // measured, a `.skip(13)` that loses `default` left such a test green.
+        // Every other census in this tree is an equality for the same reason;
+        // a recipe added or removed moves this number in the same edit.
         assert_eq!(
             described.len(),
             9,
@@ -5620,7 +5572,7 @@ mod tests {
         }
     }
 
-    /// And three more ways, each measured green before it was closed.
+    /// More ways past a narrower gate, each measured green against it.
     ///
     /// ```text
     /// run: bash "$GITHUB_WORKSPACE/ci/lint.sh"      -> ok 10 cargo command(s)
@@ -5632,17 +5584,15 @@ mod tests {
     /// The first two are a word that names no file: the checkout root written
     /// as the variable GitHub gives you, and a glob. The third is the binary
     /// underneath `cargo fmt`, already on the runner. The fourth is somebody
-    /// else's action, which the old rule let through unless its last path
-    /// segment was literally `cargo`.
+    /// else's action, which a rule matching only a last path segment of
+    /// `cargo` lets through.
     ///
-    /// **And every name in the list, not the one that was measured.**
-    /// `judges_this_tree` holds four binaries and only `rustfmt` had a fixture:
-    /// `grep` for the other three answered with the list itself and nothing
-    /// else, so dropping `| "miri"` — or `rustdoc`, or `clippy-driver` — left
+    /// **And every name in the list, not only the one measured.**
+    /// `judges_this_tree` holds four binaries, and with a fixture for `rustfmt`
+    /// alone, dropping `| "miri"` — or `rustdoc`, or `clippy-driver` — leaves
     /// the whole suite green. That is an enumeration standing in for a rule,
-    /// which is the shape this file has been bitten by twice. Each of the four
-    /// now has a step below that is reported, so removing its name from the
-    /// list fails here.
+    /// a shape this file refuses. Each of the four has a step below that is
+    /// reported, so removing its name from the list fails here.
     #[test]
     fn a_second_gate_behind_a_variable_a_glob_or_another_binary_is_found() {
         const RECIPES: &str = "cargo fmt --all --check\ncargo test --workspace\n";
@@ -5686,8 +5636,8 @@ mod tests {
             (
                 // **Three words past the gate.** `rustup run <toolchain>` is
                 // how CI pins a toolchain per command, and the binary then sits
-                // where no adjacency rule reaches. Measured before this closed:
-                // `12 cargo command(s)` unmoved and `check passed`.
+                // where no adjacency rule reaches. Measured against an adjacency
+                // rule: `12 cargo command(s)` unmoved and `check passed`.
                 "a judging binary behind a toolchain runner",
                 "      - name: second\n        run: rustup run nightly miri test --workspace\n",
                 None,
@@ -5695,10 +5645,10 @@ mod tests {
             (
                 // **A separator with no space in front of it.** The scan reads
                 // command position and the install excuse from separators, and
-                // it splits on whitespace: `add rustfmt;` is one word, so the
-                // separator was never seen, `installing` never cleared, and the
-                // second half of the line was excused by the `add` in the
-                // first. Measured, this step in `ci.yml` left `12 cargo
+                // it splits on whitespace: `add rustfmt;` is one word, so
+                // unspaced the separator is never seen, `installing` never
+                // clears, and the second half of the line is excused by the
+                // `add` in the first. Measured, this step in `ci.yml` left `12 cargo
                 // command(s)` unmoved and `check passed`; the same line with
                 // one space before the `;` was a finding. No shell requires the
                 // space.
@@ -5719,12 +5669,12 @@ mod tests {
                 None,
             ),
             (
-                // **The word a wrapper script ends with**, and the one the
-                // enumeration was short. `exec` is neither `-` nor `-c`, so no
-                // word after it opened a command and a whole second formatting
-                // gate was invisible with the count unmoved at twelve.
+                // **The word a wrapper script ends with**, and one an
+                // enumeration falls short of. `exec` is neither `-` nor `-c`, so
+                // to an enumeration no word after it opens a command and a whole
+                // second formatting gate is invisible with the count unmoved.
                 // `flock`, `command`, `eval`, `su` and `setsid` are the same
-                // hole, which is why what closed this is a rule rather than a
+                // hole, which is why what closes it is a rule rather than a
                 // sixth word.
                 "a judging binary behind `exec`",
                 "      - name: second\n        run: exec rustfmt --check --edition 2024 src/lib.rs\n",
@@ -5736,18 +5686,18 @@ mod tests {
                 None,
             ),
             (
-                // **And a `cargo-*` binary behind the same word.** The four
-                // named above were judged wherever they stood and this one was
-                // judged only in command position, so `exec` hid it exactly as
-                // it once hid `rustfmt`: measured by a reviewer on 2026-09-13,
-                // transcript byte-identical and the count unmoved at twelve.
+                // **And a `cargo-*` binary behind the same word.** Judged only
+                // in command position while the four named above are judged
+                // wherever they stand, it hides behind `exec` exactly as
+                // `rustfmt` does from an enumeration: measured, transcript
+                // byte-identical and the count unmoved.
                 "a cargo binary behind `exec`",
                 "      - name: second\n        run: exec cargo-clippy --workspace --all-targets\n",
                 None,
             ),
             (
                 // **A `#` that is not a comment.** `${GITHUB_REF#refs/tags/}` is
-                // ordinary CI shell, and reading the `#` as a note truncated the
+                // ordinary CI shell, and reading the `#` as a note truncates the
                 // line before the gate that follows it — the mirror of the
                 // defect the comment rule exists for.
                 "a second gate after a parameter expansion",
@@ -5790,11 +5740,12 @@ mod tests {
 
         // **And the other direction, which is where this rule can be wrong.**
         // A step that installs a judging binary runs nothing, and a step whose
-        // *description* names one is prose. Both were reported once: the
-        // stickiness that closed `rustup run nightly miri` put `rustfmt` into
-        // command position inside `rustup component add rustfmt`, and a `with:`
-        // block's `components: rustfmt` survived only because that block names
-        // two components and the comma kept it from matching.
+        // *description* names one is prose. Both are reportable by mistake:
+        // the stickiness that catches `rustup run nightly miri` puts `rustfmt`
+        // into command position inside `rustup component add rustfmt` unless
+        // installing is excused, and a `with:` block's `components: rustfmt`
+        // passes a rule where any key opens a command only when that block
+        // names two components and the comma keeps it from matching.
         for (label, step) in [
             (
                 "a component installed, which runs nothing",
@@ -5853,8 +5804,9 @@ mod tests {
             }
         }
         let (clean, _) = super::only_runs_the_gate(&scratch).expect("the tree reads");
-        // Empty, not merely free of one phrase: this closure was measured never
-        // seeing an element, so the assertion held whatever the reader did.
+        // Empty, not merely free of one phrase: a closure filtering for one
+        // phrase was measured never seeing an element, so such an assertion
+        // holds whatever the reader does.
         assert!(
             clean.is_empty(),
             "the shipped workflow was reported: {clean:#?}"
@@ -5865,13 +5817,13 @@ mod tests {
 
     /// A second gate one line outside CI's reach, two ways.
     ///
-    /// **Both were measured green.** `just` loads `mod extra` from
-    /// `extra.just`, and the walk looked for words that name files — `extra` is
-    /// not one. A committed `Makefile` was opened only when some reached file
-    /// happened to contain the bare word `make`, while the justfile beside it
-    /// was read unconditionally on the argument that a committed file makes the
-    /// claim whether or not CI mentions it. And `GNUmakefile`, the name make
-    /// reads *first*, was in neither list.
+    /// **Both measured green against a narrower walk.** `just` loads
+    /// `mod extra` from `extra.just`, and a walk that looks for words that name
+    /// files misses it — `extra` is not one. A committed `Makefile` opened only
+    /// when some reached file happens to contain the bare word `make` breaks the
+    /// argument the justfile beside it is read on unconditionally: that a
+    /// committed file makes the claim whether or not CI mentions it. And
+    /// `GNUmakefile` is the name make reads *first*.
     ///
     /// Each shape carries the same three recipes that go red when they are
     /// written inline, so what is being tested is where the gate looks and not
@@ -5964,11 +5916,11 @@ mod tests {
 
     /// The alias gate is reached from the step that composes the CI gates.
     ///
-    /// **The call site, not the helper.** Six tests drove
-    /// `the_alias_still_runs_the_gate` directly and none drove
-    /// `only_runs_the_gate`, so deleting the one line that calls it left every
-    /// one of them green — and what the deleted line holds is the rule that
-    /// `cargo xtask check` means the same thing for CI and for a developer.
+    /// **The call site, not the helper.** Tests that drive
+    /// `the_alias_still_runs_the_gate` directly stay green when the one line
+    /// that calls it from `only_runs_the_gate` is deleted — and what the deleted
+    /// line holds is the rule that `cargo xtask check` means the same thing for
+    /// CI and for a developer.
     #[test]
     fn the_composed_step_reaches_the_alias_gate() {
         let scratch = std::env::temp_dir().join(format!("nc-alias-site-{}", std::process::id()));
@@ -5985,7 +5937,7 @@ mod tests {
         }
 
         // The alias cargo reads, pointed at something that is not the gate —
-        // the shape that once ran 21 tests, exited 0, and never gated anything.
+        // the shape that runs 21 tests, exits 0, and never gates anything.
         std::fs::write(
             scratch.join(super::ALIAS),
             "[alias]\nxtask = \"test --quiet --package xtask --bins\"\n",
@@ -6015,9 +5967,9 @@ mod tests {
 
     /// One `on:` event's body is lines, not one line with `\\n` written in it.
     ///
-    /// `join("\\n")` — the two-character literal — made `body.lines()` yield a
-    /// single line, so only the *first* key under an event was ever read. With
-    /// the identical filter written second it passed:
+    /// `join("\\n")` — the two-character literal — makes `body.lines()` yield a
+    /// single line, so only the *first* key under an event is read. With the
+    /// identical filter written second it passes:
     ///
     /// ```text
     /// on: push: branches: [does-not-exist] / tags: ['v*']   -> FAILED
@@ -6040,11 +5992,11 @@ mod tests {
 
     #[test]
     fn a_deleted_job_is_a_finding_and_not_a_smaller_number() {
-        // **Deleting the whole `deterministic` job left `check passed`.** The
-        // count went from four cargo invocations to two, and the only floor
-        // compared it against zero — so the sole cross-process determinism check
+        // **Deleting the whole `deterministic` job is a finding.** The count
+        // goes from four cargo invocations to two, and a floor at zero does not
+        // see that — so without this the sole cross-process determinism check
         // in the repository, and the only place the ledger's determinism is
-        // checked at all, could be removed without a red light.
+        // checked at all, can be removed without a red light.
         let scratch = std::env::temp_dir().join(format!("nc-workflow-jobs-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&scratch);
         std::fs::create_dir_all(scratch.join(".github/workflows")).expect("writable");
@@ -6061,9 +6013,9 @@ mod tests {
             )
             .expect("writable");
             let (findings, _) = only_runs_the_gate(&scratch).expect("readable");
-            // **Exactly one, not at least one.** The rule was written twice and
-            // both copies ran, so this said the same thing twice about one
-            // deleted job — and `.any(…)` is as true of two findings as of one.
+            // **Exactly one, not at least one.** A rule written twice says the
+            // same thing twice about one deleted job — and `.any(…)` is as true
+            // of two findings as of one.
             let said = findings
                 .iter()
                 .filter(|finding| finding.what == format!("the `{missing}` job is gone"))
@@ -6073,32 +6025,32 @@ mod tests {
                 "a deleted `{missing}` job was reported {said} time(s): {findings:#?}"
             );
         }
-        // **Removed at the end, not only at the start.** Both of these called
-        // `remove_dir_all` before writing and never after, so every suite run
-        // left one behind — measured, `/tmp`'s `nc-*` count rising by two per
-        // run against a standing 38,081.
+        // **Removed at the end, not only at the start.** Calling
+        // `remove_dir_all` before writing and never after leaves one behind on
+        // every suite run — measured, `/tmp`'s `nc-*` count rising by two per
+        // run.
         let _ = std::fs::remove_dir_all(&scratch);
     }
 
     /// Whether a `diff`'s two operands are the same path, one in each checkout.
     ///
-    /// **The rule asked only which side each operand was on.** Exchanging two
-    /// diffs' right-hand operands left the only cross-process determinism check
-    /// in the repository comparing two unrelated trees, with every reader of it
-    /// silent: two whole-file `contains` calls and a per-line rule that read the
-    /// two prefixes. Neither generated crate was then compared against its own
-    /// second generation, which is the whole of criterion 4's cross-process
-    /// half.
+    /// **Not only which side each operand is on.** Asking only that, exchanging
+    /// two diffs' right-hand operands leaves the only cross-process determinism
+    /// check in the repository comparing two unrelated trees, with every reader
+    /// of it silent: two whole-file `contains` calls and a per-line rule that
+    /// reads the two prefixes. Neither generated crate is then compared against
+    /// its own second generation, which is the whole of criterion 4's
+    /// cross-process half.
     ///
-    /// **And it refused the ordinary way to quote the same path.** The operands
-    /// were compared as written, so the rule was an exact-prefix test on one
+    /// **And the ordinary ways to quote the same path are accepted.** Compared
+    /// as written, the operands make the rule an exact-prefix test on one
     /// spelling — `"$GITHUB_WORKSPACE"/docs`. Requoting it as
     /// `"$GITHUB_WORKSPACE/docs"`, which is what most people write and which
-    /// the shell reads identically, failed with a message naming three reasons
-    /// none of which was true; so did `${GITHUB_WORKSPACE}/docs` and a trailing
-    /// slash on either operand. Measured on 2026-09-11. A gate that is green
-    /// only because nothing legitimate has been written yet is the other way a
-    /// repair is wrong, and this file already says so about two other rules.
+    /// the shell reads identically, then fails with a message naming three
+    /// reasons none of which is true; so do `${GITHUB_WORKSPACE}/docs` and a
+    /// trailing slash on either operand. Measured. A gate that is green only
+    /// because nothing legitimate has been written yet is the other way a
+    /// repair is wrong, and this file says so about two other rules.
     ///
     /// So both operands are read as paths first: quoting off, the two spellings
     /// of the variable written one way, and no trailing slash.
@@ -6142,11 +6094,11 @@ mod tests {
         // is not there. The caller passes the quoted form, which is how
         // `ci.yml` writes it.
         let quoted = "\"$GITHUB_WORKSPACE\"";
-        // **And the left operand too, which nothing reached.** `as_one_path` is
-        // applied to both sides and only the right one was driven, so the call
-        // on the left decided nothing on this tree and could be deleted with
-        // the corpus green. `ci.yml` already quotes the right operand; a
-        // reviewer quoting the left the same way is the case.
+        // **And the left operand too.** `as_one_path` is applied to both sides,
+        // and with only the right one driven the call on the left decides
+        // nothing on this tree and can be deleted with the corpus green.
+        // `ci.yml` quotes the right operand; someone quoting the left the same
+        // way is the case.
         assert!(
             one_path_in_two_checkouts(&format!("\"{second}/docs\""), &format!("{here}/docs"), here),
             "a quoted left operand names the same path as an unquoted one"
@@ -6210,23 +6162,23 @@ mod tests {
             .expect("the workflow is a file in this tree");
         let body =
             job_body(&workflow, "deterministic").expect("the workflow has a `deterministic` job");
-        // **Both operands, not the left one.** This needled
-        // `diff -r /tmp/SECOND/x ` and nothing else, so every right-hand side
-        // was free: they were all *relative*, which made the entire comparison
-        // rest on one `cd -` no test read — delete that line and each diff
-        // compares the second checkout against itself, with all 27 tests in this
-        // module green and `check passed` over them. Rewriting one right operand
-        // to a path inside the second checkout did the same for eight of the
+        // **Both operands, not the left one.** A needle on
+        // `diff -r /tmp/SECOND/x ` and nothing else leaves every right-hand
+        // side free: with them all *relative*, the entire comparison rests on
+        // one `cd -` no test reads — delete that line and each diff compares
+        // the second checkout against itself, with every test in this module
+        // green and `check passed` over them. Rewriting one right operand to a
+        // path inside the second checkout does the same for eight of the
         // fifteen generated files.
         //
         // `$GITHUB_WORKSPACE` is the runner's own name for the checkout, so
         // neither side depends on where the shell happens to be standing.
         //
         // **Read as paths, not as shell.** Every check below is a `contains`
-        // over the body for one spelling of the anchor, so requoting a diff as
-        // `"$GITHUB_WORKSPACE/docs"` — which the shell reads identically, and
-        // which is what most people write — reported `docs` as compared against
-        // a relative path. The body and the anchor go through the same reader
+        // over the body for one spelling of the anchor, so read as shell,
+        // requoting a diff as `"$GITHUB_WORKSPACE/docs"` — which the shell reads
+        // identically, and which is what most people write — reports `docs` as
+        // compared against a relative path. The body and the anchor go through the same reader
         // the pairing rule uses.
         let body = as_one_path(&body);
         let here = as_one_path("\"$GITHUB_WORKSPACE\"");
@@ -6265,12 +6217,12 @@ mod tests {
         // A `cd` inside the step is then a convenience rather than the
         // comparison, and no diff may be written without an anchored right-hand
         // side: the count of `diff ` invocations and of anchored operands agree.
-        // **Paired, because two whole-body tallies are not a pairing.** This
-        // counted `diff ` lines and counted `$GITHUB_WORKSPACE` occurrences
-        // anywhere in the body, and required the second to be at least the
-        // first — so a *comment* paid the budget. Measured: three of the four
-        // diffs rewritten to compare the second checkout with itself, with the
-        // anchors spent in one comment line, left all 27 tests in this module
+        // **Paired, because two whole-body tallies are not a pairing.**
+        // Counting `diff ` lines and `$GITHUB_WORKSPACE` occurrences anywhere
+        // in the body, and requiring the second to be at least the first, lets
+        // a *comment* pay the budget. Measured: three of the four diffs
+        // rewritten to compare the second checkout with itself, with the
+        // anchors spent in one comment line, left every test in this module
         // green and `check passed`, with the generated catalog crate, the
         // generated log-event structs and the reservation ledger each compared
         // against themselves.
@@ -6297,13 +6249,13 @@ mod tests {
                 .filter(|word| !word.starts_with('-'))
                 .collect();
             diffs += 1;
-            // **And the two operands are the same path, in two checkouts.** The
-            // rule asked only that one side is under the second checkout and the
-            // other under this one — so exchanging two diffs' right-hand
-            // operands left the only cross-process determinism check in the
+            // **And the two operands are the same path, in two checkouts.**
+            // Asking only that one side is under the second checkout and the
+            // other under this one, exchanging two diffs' right-hand operands
+            // leaves the only cross-process determinism check in the
             // repository comparing two unrelated trees, with every reader of it
             // silent: two whole-file `contains` calls and a per-line rule that
-            // read the two prefixes. Neither generated crate was then compared
+            // reads the two prefixes. Neither generated crate is then compared
             // against its own second generation.
             //
             // A diff of `X` in one checkout against `Y` in the other proves
@@ -6364,11 +6316,11 @@ mod tests {
         the_shipped_alias(&scratch);
 
         // **One build is not two, and any order is not the order.** Both were
-        // measured passing: the determinism job reduced to a single
-        // `cargo xtask build`, then `cp -r`, then `diff -r` — a copy diffed
-        // against its own source, one process, no second generation — printed
-        // `ok 3 cargo command(s)` and `check passed`, because the requirement
-        // was `any()` and the floor on the count was zero.
+        // measured passing a requirement written as `any()` over a floor of
+        // zero: the determinism job reduced to a single `cargo xtask build`,
+        // then `cp -r`, then `diff -r` — a copy diffed against its own source,
+        // one process, no second generation — printed `ok 3 cargo command(s)`
+        // and `check passed`.
         let deterministic = |steps: &str| {
             format!(
                 "jobs:\n  check:\n    steps:\n      - run: cargo xtask check\n\
@@ -6409,10 +6361,10 @@ mod tests {
 
         // **And a job holding every command, out of order.** The fixture above
         // uses `cp -r`, and the order this rule reads is written in terms of
-        // `cpio -pdm` and a `cd` — so it failed for a *missing* command and the
-        // ordering half was decided by nothing: `from += at + 1` replaced with
-        // `from = 0` degenerates the rule to membership, and `cargo test -p
-        // xtask` did not move. This one has all five, with the `diff` before the
+        // `cpio -pdm` and a `cd` — so it fails for a *missing* command and
+        // leaves the ordering half to this case: `from += at + 1` replaced with
+        // `from = 0` degenerates the rule to membership, and without this case
+        // `cargo test -p xtask` does not move. This one has all five, with the `diff` before the
         // second build, which is the arrangement the rule exists to refuse.
         let all_five_out_of_order = "      - run: cargo xtask build\n\
              \x20     - run: find . -name '*.rs' | cpio -pdm --quiet \
@@ -6473,19 +6425,19 @@ mod tests {
                 .any(|finding| finding.what.contains("deterministic")),
             "the order the job actually uses is a finding: {findings:#?}"
         );
-        // **Removed at the end, not only at the start.** Both of these called
-        // `remove_dir_all` before writing and never after, so every suite run
-        // left one behind — measured, `/tmp`'s `nc-*` count rising by two per
-        // run against a standing 38,081.
+        // **Removed at the end, not only at the start.** Calling
+        // `remove_dir_all` before writing and never after leaves one behind on
+        // every suite run — measured, `/tmp`'s `nc-*` count rising by two per
+        // run.
         let _ = std::fs::remove_dir_all(&scratch);
     }
 
     #[test]
     fn a_second_gate_behind_a_working_directory_is_still_a_finding() {
-        // **`working-directory:` moved a whole gate out of sight.** A step
-        // saying `working-directory: scripts` then `run: bash gate.sh` resolves
-        // `gate.sh` against the repository root, where there is nothing — so
-        // `cargo fmt`, `cargo clippy` and `cargo test --workspace` ran in CI with
+        // **`working-directory:` can move a whole gate out of sight.** A step
+        // saying `working-directory: scripts` then `run: bash gate.sh`, read
+        // against the repository root, resolves `gate.sh` to nothing — so
+        // `cargo fmt`, `cargo clippy` and `cargo test --workspace` run in CI with
         // `ok 4 cargo command(s)` and `check passed`. `cd scripts && bash gate.sh`
         // is the same hole.
         let scratch = std::env::temp_dir().join(format!("nc-workflow-wd-{}", std::process::id()));
@@ -6521,13 +6473,13 @@ mod tests {
 
     #[test]
     fn every_tree_the_build_writes_is_diffed() {
-        // **Two of the four pairs were in `ci.yml` and required by nothing.**
-        // The generated log-event structs and the append-only ledger could be
-        // dropped from the determinism job with no finding — and the ledger is
-        // the one artifact whose whole purpose is that it never changes except
-        // by appending. Deleting a requirement from `JOBS_MUST_RUN` also stayed
-        // green, because every fixture takes the job body from the real
-        // `ci.yml`: nothing said which pairs had to be required.
+        // **Every pair in `ci.yml`, required.** Unrequired, the generated
+        // log-event structs and the append-only ledger can be dropped from the
+        // determinism job with no finding — and the ledger is the one artifact
+        // whose whole purpose is that it never changes except by appending.
+        // Deleting a requirement from `JOBS_MUST_RUN` stays green everywhere
+        // else, because every fixture takes the job body from the real
+        // `ci.yml`: this is what says which pairs have to be required.
         for tree in ["crates/nc-catalog/src", "crates/nc-log/src", "docs"] {
             assert!(
                 JOBS_MUST_RUN.iter().any(|(job, command, _)| {
@@ -6540,10 +6492,10 @@ mod tests {
             );
         }
         // **And the diff is between two directories**, which is what the second
-        // build being a second *environment* rests on. Both builds used to run
-        // in this checkout, sharing the working directory, the filesystem and
-        // the order `read_dir` returns — the one input that actually differs
-        // between machines.
+        // build being a second *environment* rests on. Two builds in this
+        // checkout share the working directory, the filesystem and the order
+        // `read_dir` returns — the one input that actually differs between
+        // machines.
         assert!(
             JOBS_MUST_RUN.iter().any(|(job, command, _)| {
                 *job == "deterministic" && command.starts_with("cd /tmp/")
@@ -6561,13 +6513,12 @@ mod tests {
 
     #[test]
     fn a_command_inside_a_heredoc_is_not_a_command() {
-        // **The determinism job, inert, satisfying every requirement.** Its whole
-        // body wrapped in `cat <<'PLAN' >/dev/null … PLAN` and followed by an
-        // `echo` left every `JOBS_MUST_RUN` count and the whole of
-        // `IN_THIS_ORDER` satisfied — the shell runs `cat` and `echo` — and
-        // `check passed`. The echoed sentence was the one `JOBS_MUST_RUN`'s doc
-        // names as what it replaced, which is how far this reads as the same
-        // defect it was written for.
+        // **The determinism job, inert, satisfying every requirement.** Read as
+        // execution, its whole body wrapped in `cat <<'PLAN' >/dev/null … PLAN`
+        // and followed by an `echo` leaves every `JOBS_MUST_RUN` count and the
+        // whole of `IN_THIS_ORDER` satisfied — the shell runs `cat` and `echo` —
+        // and `check passed`. The echoed sentence is the one `JOBS_MUST_RUN`'s
+        // doc names.
         let inert = [
             "  deterministic:",
             "    steps:",
@@ -6620,8 +6571,8 @@ mod tests {
 
     #[test]
     fn a_workflow_that_never_fires_is_a_finding() {
-        // **Nothing read `on:` or `if:`.** Measured: `on:` reduced to
-        // `workflow_dispatch` and `if: false` on the determinism job left
+        // **`on:` and `if:` are read.** Measured with neither read: `on:`
+        // reduced to `workflow_dispatch` and `if: false` on the determinism job left
         // `ok 4 cargo command(s)` and `check passed` — CI never runs on a push,
         // the only cross-process determinism check never runs, and every gate
         // here was satisfied because each reads what the jobs *contain*.
@@ -6666,8 +6617,8 @@ mod tests {
 
         // **And every other way to leave a step alive with its verdict
         // uncounted.** Seven were measured printing `ok 4 cargo command(s)` and
-        // `check passed`; `if: false` and the heredoc had each been closed on
-        // their own, which closed two spellings and not the class.
+        // `check passed`; closing `if: false` and the heredoc on their own
+        // closes two spellings and not the class.
         for (shape, expected) in [
             (
                 "      - run: cargo xtask check || true\n",
@@ -6708,7 +6659,7 @@ mod tests {
         }
 
         // **And a trigger that fires on nothing**, which reading only the event
-        // name could not see: a branch list or a path filter decides *which*
+        // name cannot see: a branch list or a path filter decides *which*
         // pushes run the gate, and this gate's point is that every one does.
         for filter in [
             "on:\n  push:\n    branches: [does-not-exist]\n  pull_request:\n",
@@ -6740,11 +6691,11 @@ mod tests {
         std::fs::create_dir_all(scratch.join(".github/workflows")).expect("writable");
         the_shipped_alias(&scratch);
 
-        // **`reached_from`
-        // scanned the files the `.github/` walk produced and never what *those*
-        // reach, so a workflow running one script that runs another, which runs
-        // `cargo clippy` and `cargo test --workspace`, left the count unchanged
-        // at four, with a whole second gate in CI.
+        // **What the reached files reach, too.** A `reached_from` that scans
+        // the files the `.github/` walk produces and never what *those* reach
+        // lets a workflow running one script that runs another, which runs
+        // `cargo clippy` and `cargo test --workspace`, leave the count
+        // unchanged, with a whole second gate in CI.
         //
         // The two script names below are written into the scratch tree and are
         // not paths in this one, which is what the markers on those lines say.
@@ -6811,7 +6762,7 @@ mod tests {
 
     /// The two lines every fixture needs before `jobs:`.
     ///
-    /// A workflow that fires on nothing is a finding of its own now, so a
+    /// A workflow that fires on nothing is a finding of its own, so a
     /// fixture about the *cargo* rule has to be a workflow that runs — the same
     /// reason each of them carries both jobs.
     const FIRES: &str = "on:\n  push:\n  pull_request:\n";
@@ -6828,7 +6779,7 @@ mod tests {
     /// A scratch tree shaped like a repository with CI in it.
     ///
     /// Named per test rather than per process: these run in parallel, and one
-    /// deleting the directory another is writing to was a flake.
+    /// deleting the directory another is writing to is a flake.
     fn ways_scratch(about: &str) -> (crate::check::LeavesNothingBehind, std::path::PathBuf) {
         let held = crate::check::LeavesNothingBehind::new(&format!("ways-{about}"));
         let scratch = held.root.clone();
@@ -6858,13 +6809,13 @@ mod tests {
 
     #[test]
     fn a_job_that_echoes_its_commands_runs_none_of_them() {
-        // **What the job runs, not what it mentions.** The scan kept every line
-        // starting `run:` *or holding no colon*, which is every argument of an
-        // `echo` and every `#` comment — so a body of `echo cargo xtask build`,
-        // `echo diff -r …` satisfied all six requirements with `check passed`,
-        // its first line reading verbatim "the determinism check used to be
-        // here". With the body reduced to `run: true`, `cargo xtask build` was
-        // satisfied by the job's own committed prose.
+        // **What the job runs, not what it mentions.** A scan keeping every
+        // line that starts `run:` *or holds no colon* keeps every argument of
+        // an `echo` and every `#` comment — so a body of `echo cargo xtask
+        // build`, `echo diff -r …` satisfies every requirement with `check
+        // passed`, its first line reading verbatim "the determinism check used
+        // to be here". With the body reduced to `run: true`, `cargo xtask
+        // build` is satisfied by the job's own committed prose.
         let (_held, scratch) = ways_scratch("echoed");
         for body in [
             "      - run: |\n             \x20         echo the determinism check used to be here\n             \x20         echo cargo xtask build\n             \x20         echo cp -r crates/nc-catalog/src /tmp/first/nc-catalog\n             \x20         echo cp -r docs /tmp/first/docs\n             \x20         echo diff -r /tmp/first/nc-catalog crates/nc-catalog/src\n             \x20         echo diff -r /tmp/first/docs docs\n",
@@ -6901,7 +6852,7 @@ mod tests {
         );
         assert!(found[0].file.ends_with("nightly.yml"), "{found:#?}");
 
-        // A composite action, whose `run:` was never opened.
+        // A composite action, whose `run:` a workflow-only reader never opens.
         let found = caught(
             &scratch,
             &gate(),
@@ -6961,8 +6912,8 @@ mod tests {
     fn every_file_ci_reaches_is_read_wherever_it_lives() {
         let (_held, scratch) = ways_scratch("reached");
 
-        // **A script beside the workflow**, which the walk filtered out while
-        // the module header said the directory was walked.
+        // **A script beside the workflow**, which a YAML-only walk filters out
+        // while the module header says the directory is walked.
         std::fs::create_dir_all(scratch.join(".github/scripts")).expect("writable");
         std::fs::write(
             scratch.join(".github/scripts").join("extra.sh"),
@@ -6983,8 +6934,8 @@ mod tests {
         );
         std::fs::remove_dir_all(scratch.join(".github/scripts")).expect("writable");
 
-        // **Three shapes outside `.github/`**, which the walk had called its
-        // boundary. CI's boundary is what its steps reach.
+        // **Three shapes outside `.github/`**, which is not CI's boundary: CI's
+        // boundary is what its steps reach.
         std::fs::create_dir_all(scratch.join("scripts")).expect("writable");
         std::fs::create_dir_all(scratch.join("ci/actions/extra")).expect("writable");
         std::fs::write(scratch.join("scripts/ci-extra.sh"), "cargo clippy\n").expect("writable");
@@ -7044,9 +6995,8 @@ mod tests {
     ///
     /// **Taken from `ci.yml` rather than written out here.** Three fixtures need
     /// a determinism job that satisfies [`super::JOBS_MUST_RUN`], and copying
-    /// its commands into each one made adding a requirement a four-place edit —
-    /// which is how the `nc-log` and ledger pairs came to be in `ci.yml` and
-    /// absent from the list for as long as they were.
+    /// its commands into each one makes adding a requirement a four-place edit —
+    /// which is how a pair comes to be in `ci.yml` and absent from the list.
     ///
     /// Not circular: these fixtures are about *cargo-command detection*, and the
     /// job body is a constant they need to be valid. Whether the shipped job is
@@ -7069,21 +7019,20 @@ mod tests {
 
     /// A wrapper carries command position where nothing else reaches.
     ///
-    /// **Five fixtures above were answered by a different clause.** Every
+    /// **The wrapper fixtures above are answered by a different clause.** Every
     /// wrapper case in `the_attacks_this_gate_survives` and beside it is a
     /// `run:` line, and `a_command_line` is true for every one of those — so
-    /// `after_a_wrapper` decided none of them: deleting it from both
-    /// disjunctions in `cargo_commands` left all 37 tests in this module green.
-    /// Reported in round sixty-four. A clause that no fixture reaches is a
-    /// clause that can be deleted, and the list it reads can lose a word, with
-    /// nothing anywhere saying so.
+    /// `after_a_wrapper` decides none of them: deleting it from both
+    /// disjunctions in `cargo_commands` leaves every other test in this module
+    /// green. A clause that no fixture reaches is a clause that can be deleted,
+    /// and the list it reads can lose a word, with nothing anywhere saying so.
     ///
     /// What the stickiness is actually for is a line that is **not** a command
     /// line — a `with:` block's `args:`, handed to an action that runs it —
     /// where the binary sits two words past the wrapper, so neither
     /// `a_command_line` nor command position reaches it.
     ///
-    /// Every word in the list, not the five a reviewer happened to name: a word
+    /// Every word in the list, not a handful picked by hand: a word
     /// added to it is driven the moment it is written, and a word removed fails
     /// here.
     #[test]
@@ -7098,8 +7047,8 @@ mod tests {
         );
         // **Against a list written here, not against the one being measured.**
         // Driving `PUTS_A_COMMAND_AFTER_IT` itself is a fixture answered by the
-        // thing it measures: deleting `nohup` from the const deleted its own
-        // driver and this test stayed green — measured while writing it. So the
+        // thing it measures: deleting `nohup` from the const deletes its own
+        // driver and such a test stays green — measured. So the
         // words are written down once more, and the two lists are compared. A
         // word added to the rule without a line here fails; a word removed
         // fails too.
@@ -7129,20 +7078,21 @@ mod tests {
 
     /// A construct opened and closed on one line wraps only that line.
     ///
-    /// **Reading the first word of a line is not reading the line.** The depth
-    /// this walks went up on `if` and came down only on a line *beginning* with
-    /// `fi` — so `if [ "$a" = "$b" ]; then a=; else a=${a#*/}; fi`, which is
-    /// ordinary shell and closes what it opens, left the depth one higher for
-    /// the rest of the file. Measured in round sixty-two: one such line in
-    /// `xtask/the-checkout-shape.sh` made this rule report that the script's
-    /// `cargo xtask check`, forty lines and three closed constructs later, ran
+    /// **Reading the first word of a line is not reading the line.** A depth
+    /// that goes up on `if` and comes down only on a line *beginning* with `fi`
+    /// stays one higher for the rest of the file after
+    /// `if [ "$a" = "$b" ]; then a=; else a=${a#*/}; fi`, which is ordinary
+    /// shell and closes what it opens. Measured: one such line in
+    /// `xtask/the-checkout-shape.sh` makes such a rule report that the script's
+    /// `cargo xtask check`, forty lines and three closed constructs later, runs
     /// inside a `while` — the rule refusing correct code, which is the way to be
     /// wrong that teaches everyone to stop reading it.
     ///
-    /// And the same blindness the other way: an opener that is not the first
-    /// word (`*) case $x in`) was no opener, and a closer carrying its arm's
-    /// punctuation (`esac;;`) was no closer — so a verdict nested two constructs
-    /// deep could be walked out of and the rule would say nothing.
+    /// And the same blindness the other way: to a first-word reader an opener
+    /// that is not the first word (`*) case $x in`) is no opener, and a closer
+    /// carrying its arm's punctuation (`esac;;`) is no closer — so a verdict
+    /// nested two constructs deep can be walked out of and the rule says
+    /// nothing.
     #[test]
     fn a_construct_opened_and_closed_on_one_line_wraps_only_that_line() {
         let closed = "if [ \"$a\" = \"$b\" ]; then a=; else a=${a#*/}; fi\ncargo xtask check\n";
@@ -7171,9 +7121,9 @@ mod tests {
             "a quoted `done` was counted as closing a construct"
         );
         // **And a verdict that is not a cargo invocation is still a verdict.**
-        // This asked `cargo_commands`, so the determinism job's four `diff`
-        // lines — the whole of what that job compares — were no command at all:
-        // `until true; do … done` around them left both builds running, the
+        // Asked of `cargo_commands` alone, the determinism job's four `diff`
+        // lines — the whole of what that job compares — are no command at all:
+        // `until true; do … done` around them leaves both builds running, the
         // copy made, every required line present for the readers that count
         // text, and nothing compared.
         let diffed = concat!(
@@ -7190,10 +7140,10 @@ mod tests {
         // `cpio -pdm` is a row of `JOBS_MUST_RUN` because `ci.yml`'s
         // determinism job must make a second copy. The same command appears in
         // `xtask/the-checkout-shape.sh`, which this gate also walks, where it
-        // makes that script's scratch copy and judges nothing — so an ordinary
-        // guard around it was reported as a verdict decided at run time, which
-        // is the false positive `wraps_a_command` exists to stop. Measured in
-        // round sixty-five.
+        // makes that script's scratch copy and judges nothing — so asked of
+        // every file, an ordinary guard around it is reported as a verdict
+        // decided at run time, which is the false positive `wraps_a_command`
+        // exists to stop. Measured.
         let copied = concat!(
             "if [ -d \"$scratch/checkout\" ]; then\n",
             "  ( cd \"$here\" && find . | cpio -pdm --quiet \"$scratch/checkout\" )\n",
@@ -7210,13 +7160,12 @@ mod tests {
         );
 
         // **And a cargo invocation is a verdict in a file no row is about.**
-        // The two halves of [`super::a_command_this_gate_requires`] each
-        // answered the other's fixtures: every case above reaches the
-        // `JOBS_MUST_RUN` half, so deleting the cargo half left the suite
+        // The two halves of [`super::a_command_this_gate_requires`] can answer
+        // each other's fixtures: every case above reaches the `JOBS_MUST_RUN`
+        // half, so without this case deleting the cargo half leaves the suite
         // green. What only it decides is the justfile and the checkout script,
         // which no row of that list is written about and where a guard around
         // `cargo xtask check` is the gate running or not depending on the day.
-        // Round sixty-five.
         let recipe = "until true; do\n  cargo xtask check\ndone\n";
         assert!(
             super::wraps_a_command(recipe, 0, false),
@@ -7244,11 +7193,11 @@ mod tests {
              verdict was read as running unconditionally"
         );
         // **And an unquoted one is not either.** Spending quoted spans and then
-        // counting every bare `done` left `echo first build done` closing the
-        // construct around the verdict, so this walk answered "nothing wrapped"
-        // before it reached the cargo line and a gate whose running is decided
-        // at run time was reported by nobody. The fixture above knew only the
-        // quoted spelling; this is the one a reviewer wrote in round sixty-three.
+        // counting every bare `done` leaves `echo first build done` closing the
+        // construct around the verdict, so the walk answers "nothing wrapped"
+        // before it reaches the cargo line, and nothing reports a gate whose
+        // running is decided at run time. The fixture above is the quoted
+        // spelling; this is the unquoted one.
         let bare = "if [ -n \"$a\" ]; then\n  echo first build done\n  cargo xtask check\nfi\n";
         assert!(
             super::wraps_a_command(bare, 0, true),
@@ -7258,7 +7207,7 @@ mod tests {
 
     #[test]
     fn the_shapes_that_must_stay_legal_still_are() {
-        // So that none of the shapes the two tests above catch closed the gate
+        // So that none of the shapes the two tests above catch closes the gate
         // onto the workflow this repository actually ships.
         let (_held, scratch) = ways_scratch("legal");
         std::fs::write(
@@ -7291,10 +7240,8 @@ mod tests {
     /// `a_recipe_runs_what_it_is_called` cannot find an interpolation among the
     /// declared names it says "A recipe's own parameters are declared in its
     /// header; this one is not" — so a spelling it does not know turns a
-    /// correct `justfile` into a sentence stating the inverse of the truth.
-    /// Wave 18 repaired that for the `name="default"` form; `+args`, `*args`
-    /// and `$name` were left, and wave 19 deleted the call-form excuse beside
-    /// them without asking whether the parameter half was complete.
+    /// correct `justfile` into a sentence stating the inverse of the truth —
+    /// for the `name="default"` form, and for `+args`, `*args` and `$name`.
     ///
     /// The last row is the floor: a sigil trimmed off the *declared* name must
     /// not start excusing a body that names something else.
@@ -7349,15 +7296,14 @@ mod tests {
 
     /// A default written across lines is one string, and its content is not a header.
     ///
-    /// **The reader was a line and the string is not.** Wave 25 taught it
-    /// `just`'s three triple forms and kept its one-line shape. Measured against
-    /// `just 1.55.1`: the file below is ONE recipe named `serve` with two
-    /// parameters — `just --summary` prints `serve`, `just --dump` echoes it
-    /// back unchanged. The reader saw three lines: the header opened a triple
-    /// that never closed, the closing line began mid-string, and the *content*
-    /// line `a:b` stands at column zero, is not a comment and holds a colon — so
-    /// it was taken for the recipe header and the body's parameters were then
-    /// judged against the string's own text. Found in wave 26.
+    /// **A line is not a string.** Measured against `just 1.55.1`: the file
+    /// below is ONE recipe named `serve` with two parameters — `just --summary`
+    /// prints `serve`, `just --dump` echoes it back unchanged. A one-line
+    /// reader sees three lines: the header opens a triple that never closes,
+    /// the closing line begins mid-string, and the *content* line `a:b` stands
+    /// at column zero, is not a comment and holds a colon — so it is taken for
+    /// the recipe header and the body's parameters are then judged against the
+    /// string's own text.
     #[test]
     fn a_default_written_across_lines_is_not_three_recipes() {
         let text = "serve x=\"\"\"\na:b\n\"\"\" y=\"d\":\n    @echo \"{{x}} {{y}}\"\n";
@@ -7367,13 +7313,13 @@ mod tests {
             "serve x=\"\"\"\na:b\n\"\"\" y=\"d\"",
             "the header of a recipe whose default spans lines is not read as one recipe"
         );
-        // **An assignment's own triple crosses lines too.** The reader returned
-        // at the first top-level colon, so `flags := \"\"\"` reported no string
-        // open, the logical line ended there, and the string's content line
-        // `check: not a recipe` was taken for the recipe header. Measured
+        // **An assignment's own triple crosses lines too.** A reader that
+        // returns at the first top-level colon reports no string open for
+        // `flags := \"\"\"`, ends the logical line there, and takes the string's
+        // content line `check: not a recipe` for the recipe header. Measured
         // against `just 1.55.1`: one assignment plus one recipe — `--summary`
         // prints `release`, `--dump` echoes the file back, `just release 9`
-        // runs it. Found in wave 27.
+        // runs it.
         let assigned = "flags := \"\"\"\ncheck: not a recipe\n\"\"\"\nrelease version:\n    \
                         cargo xtask release {{version}}\n";
         assert_eq!(
@@ -7383,7 +7329,7 @@ mod tests {
         );
         // **A `#` comment holding a triple opens nothing.** `just` ends a
         // comment at the newline, so the quote inside one is not a string; a
-        // reader that carried it swallowed every line below into one group.
+        // reader that carries it swallows every line below into one group.
         let commented = "# a note about \"\"\" quoting\nrelease version:\n    \
                          cargo xtask release {{version}}\n";
         assert_eq!(
@@ -7415,20 +7361,20 @@ mod tests {
 
     /// Every way `just` writes a recipe header is one this walk finds.
     ///
-    /// **Four waves have now repaired one sentence in this rule.** "A recipe's
-    /// own parameters are declared in its header; this one is not" was the
-    /// inverse of the truth for `name="default"` (wave 18), for `+args`,
-    /// `*args` and `$name` (wave 20), and for the two here — a dependency
-    /// written after the colon, which stopped the line being read as a header
-    /// at all, and an `@` kept on the name. The corpus wave 20 added is handed
-    /// the header *as a parameter*, so by construction it could never see a
-    /// header the reader failed to find; this one drives the reader.
+    /// **One sentence in this rule turns false whenever a header is misread.**
+    /// "A recipe's own parameters are declared in its header; this one is not"
+    /// is the inverse of the truth for `name="default"`, for `+args`, `*args`
+    /// and `$name`, and for the two here — a dependency written after the
+    /// colon, which stops the line being read as a header at all, and an `@`
+    /// kept on the name. `every_way_just_declares_a_parameter_is_one_this_gate_reads`
+    /// is handed the header *as a parameter*, so by construction it cannot see
+    /// a header the reader fails to find; this one drives the reader.
     ///
     /// The last two rows are the floor. `flags := "--offline"` is an
     /// assignment, not a recipe, and a line in a file that is not a justfile is
     /// not a header however many colons it holds — `xtask/the-checkout-shape.sh`
     /// carries `keep=${1:+the caller named it}` at column zero, and a reader
-    /// that took it for one refused this repository's own script.
+    /// that takes it for one refuses this repository's own script.
     #[test]
     fn every_shape_of_recipe_header_is_read_as_one() {
         let body = "\n    cargo xtask release {{version}}\n";
@@ -7451,10 +7397,10 @@ mod tests {
                 "",
             ),
             // **A default may hold a colon.** `just` takes an address as a
-            // default like any other string, and a reader that cut at the first
-            // colon lost every parameter after it — and with the parameters the
-            // other way round the *name* rule fired instead, naming a verb the
-            // recipe never claims.
+            // default like any other string, and a reader that cuts at the
+            // first colon loses every parameter after it — and with the
+            // parameters the other way round the *name* rule fires instead,
+            // naming a verb the recipe never claims.
             (
                 "a colon inside a quoted default",
                 "serve addr=\"127.0.0.1:8080\" mode=\"dev\":",
@@ -7465,8 +7411,8 @@ mod tests {
                 "serve mode=\"dev\" addr=\"127.0.0.1:8080\":",
                 "serve mode=\"dev\" addr=\"127.0.0.1:8080\"",
             ),
-            // And an escaped quote inside one, which a reader that took `\"`
-            // for a terminator lost the whole recipe to — the same hole one
+            // And an escaped quote inside one, which a reader that takes `\"`
+            // for a terminator loses the whole recipe to — the same hole one
             // escape along.
             (
                 "an escaped quote inside a default",
@@ -7480,8 +7426,8 @@ mod tests {
             ),
             // **`just`'s single quotes are raw**, so a backslash in one is a
             // backslash — which is the whole reason a recipe would use them.
-            // A reader that escaped inside them never closed the quote and the
-            // line stopped being a header.
+            // A reader that escapes inside them never closes the quote and the
+            // line stops being a header.
             (
                 "a raw default ending in a backslash",
                 "build sep='\\':",
@@ -7489,14 +7435,14 @@ mod tests {
             ),
             // A command substitution as a default, which `just` accepts like
             // any other string and whose colon is data.
-            // **`just` has six string forms, and this reader knew three.**
-            // Each of the three below is parsed by `just 1.55.1` as one recipe
-            // with two parameters — measured on 2026-09-19 — and each read as
-            // three separate delimiters, so a quote inside the literal toggled
-            // the state and the colon inside it was taken for the header's own.
-            // The header came back truncated, the second parameter was gone,
-            // and the body's use of it was refused with a sentence that is the
-            // inverse of the truth. Found in wave 25.
+            // **`just` has six string forms, not three.** Each of the three
+            // below is parsed by `just 1.55.1` as one recipe with two
+            // parameters — measured — and a reader of three forms reads each
+            // as three separate delimiters, so a quote inside the literal
+            // toggles the state and the colon inside it is taken for the
+            // header's own. The header comes back truncated, the second
+            // parameter is gone, and the body's use of it is refused with a
+            // sentence that is the inverse of the truth.
             (
                 "a triple-quoted default holding a quote and a colon",
                 "serve x=\"\"\"a\"b:c\"\"\" y=\"d\":",
@@ -7625,18 +7571,18 @@ mod tests {
         assert!(!is_label("cargo xtask build"));
 
         // **A `name:` is a label whatever is inside it**, and `commands_in` has
-        // to agree with the half of this file that reads cargo invocations. It
-        // skipped a key line only when it held no `&&`, so a step named
+        // to agree with the half of this file that reads cargo invocations.
+        // Skipping a key line only when it holds no `&&` reads a step named
         //
         // ```text
         // - name: nothing && cargo xtask build && cp -r … && diff -r …
         // ```
         //
-        // was read as six commands. What is asserted here is the behaviour, not
+        // as six commands. What is asserted here is the behaviour, not
         // the line that produces it: `commands_in`'s own `contains(':')`
         // fallback below the `is_label` call reaches this shape as well, so
         // deleting either one alone leaves this passing. Two readers agreeing is
-        // the point — the defect was them disagreeing — and the assertion is on
+        // the point — the defect is them disagreeing — and the assertion is on
         // the answer they have to agree about.
         let named = "      - name: nothing && cargo xtask build && diff -r a b\n";
         assert!(
@@ -7666,11 +7612,10 @@ mod tests {
 
     /// A key is a word, a colon, and then a space or the end of the line.
     ///
-    /// **Both halves were decided by nothing until the mutation runner reached
-    /// this file.** The rule's own paragraph says what they are for — keeping
-    /// `https://example.com` and `cargo:rerun-if-changed=x` from reading as
-    /// keys — and neither was ever driven. Turning each off left every test in
-    /// this crate green.
+    /// **Both halves, decided here.** The rule's own paragraph says what they
+    /// are for — keeping `https://example.com` and `cargo:rerun-if-changed=x`
+    /// from reading as keys — and without this test, turning each off leaves
+    /// every other test in this crate green.
     ///
     /// It matters because this predicate is what tells a key from the
     /// *continuation of the value above it*: a line wrongly read as a key ends

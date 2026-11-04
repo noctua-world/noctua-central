@@ -278,7 +278,7 @@ async fn a_plugin_activating_as_written_registers_every_command_it_declares() {
         assert_eq!(registered.resource_selector, declared.resource_selector);
         assert_eq!(registered.mutating, declared.mutating);
         // The field the decision point's irreversible precondition reads: a
-        // registry that listed every command as a read passed every assertion
+        // registry that lists every command as a read passes every assertion
         // above, measured with `reference.probe` (declared `write`) listed so.
         assert_eq!(
             registered.reversibility,
@@ -306,13 +306,13 @@ async fn a_plugin_activating_as_written_registers_every_command_it_declares() {
 /// A plugin whose manifest does not grant it its store reads nothing of it, and
 /// activates as written.
 ///
-/// **Over a store holding an activation that breaks its first command.** This
-/// loaded over an empty store, where a read finds nothing whether it was granted
-/// or not, so the plugin activated as written either way — and a load that
-/// granted every plugin every capability, whatever its manifest said, left every
-/// suite of the crate green. Found by a reviewer, with `Kernel::load` handed
-/// every grant; the operator `a plugin is granted no more than its manifest
-/// names` in `xtask/mutants.py` plants it.
+/// **Over a store holding an activation that breaks its first command.** Over
+/// an empty store a read finds nothing whether it was granted or not, so the
+/// plugin would activate as written either way, and a load that granted every
+/// plugin every capability, whatever its manifest said, would pass such a test:
+/// `Kernel::load` handed every grant, which the operator
+/// `a plugin is granted no more than its manifest names` in `xtask/mutants.py`
+/// plants.
 #[tokio::test]
 async fn a_plugin_not_granted_its_store_activates_as_written_under_its_own_namespace() {
     let store = MemoryBackend::default();
@@ -515,11 +515,12 @@ async fn a_plugin_refusing_to_activate_is_not_loaded_and_says_why() {
 /// A plugin's own refusal is repeated cut to a bound, and what a reader cannot
 /// see in it is escaped.
 ///
-/// **Found by a reviewer.** The refusal was repeated whole: a plugin seeded to
-/// refuse with a variant of a million characters was refused in a sentence of
-/// 1,000,157, its direction override escaped and nothing else bounded, while
-/// the registry holds every action, entity type and topic it repeats to
-/// sixty-four, and repeats a command's name only when it is well formed.
+/// **Bounded, as what the registry repeats is.** Repeated whole, the refusal of
+/// a plugin seeded to refuse with a variant of a million characters would be a
+/// sentence of 1,000,157, its direction override escaped and nothing else
+/// bounded, while the registry holds every action, entity type and topic it
+/// repeats to sixty-four, and repeats a command's name only when it is well
+/// formed.
 #[tokio::test]
 async fn a_plugins_own_refusal_is_repeated_cut_to_a_bound_and_escaped() {
     let store = MemoryBackend::default();
@@ -619,10 +620,11 @@ async fn bytes_that_are_not_a_component_of_the_world_are_not_loaded() {
 /// What wasmtime says of bytes it will not compile or link is repeated cut to
 /// a bound.
 ///
-/// **Found by a reviewer.** wasmtime's sentence quotes the component's own
-/// names, which its author wrote, and it was repeated whole: a component
-/// importing a function named with 100,000 characters was refused in a
-/// sentence of 100,185. The test above holds only how each sentence opens.
+/// **The component's own names, bounded.** wasmtime's sentence quotes the
+/// component's own names, which its author wrote, and repeated whole, a
+/// component importing a function named with 100,000 characters would be
+/// refused in a sentence of 100,185. The test above holds only how each
+/// sentence opens.
 #[tokio::test]
 async fn what_wasmtime_says_of_a_component_it_refuses_is_repeated_cut_to_a_bound() {
     let kernel = kernel::<InMemory>(MemoryBackend::default()).await;

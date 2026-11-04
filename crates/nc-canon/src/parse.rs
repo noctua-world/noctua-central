@@ -25,17 +25,16 @@ use crate::Value;
 
 /// Why some text is not a value this model can hold.
 ///
-/// **Sealed, for the reason the sibling type carries.** All three fields were
-/// `pub` while the only constructor, `ParseError::at`, is private — so a caller
+/// **Sealed, for the reason the sibling type carries.** The only constructor,
+/// `ParseError::at`, is private, and with the three fields `pub` a caller
 /// could build `ParseError { at: 0, what: "chain broken".into(), code:
 /// ErrorCode::JournalChainBroken }` and hand back, from the canonical parser, an
 /// error naming a `critical` journal-tampering code. The parser's own codes are
 /// the ones it raises; `stopped_at()`, `what()` and `code()` read them.
 ///
-/// **`at()` is not one of them**, and this sentence named it until wave 13:
-/// `at` is the private constructor, and the reader is `stopped_at()`. A doc
-/// that names a method a caller cannot call sends them to the field instead,
-/// which is what every test in this crate had been doing.
+/// **`at()` is not one of them**: `at` is the private constructor, and the
+/// reader is `stopped_at()`. A doc that names a method a caller cannot call
+/// sends them to the field instead.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ParseError {
@@ -45,13 +44,10 @@ pub struct ParseError {
     what: String,
     /// The catalog code this maps to.
     ///
-    /// It had none, and it was the only error type without one in `nc-canon`,
-    /// `nc-catalog` and `nc-ids` — the three crates `nc-journal` and `nc-log`
-    /// are each built on, and the three this sentence used to call "this
-    /// repository's three foundation crates" without naming them anywhere, so
-    /// the claim could not be checked. `HexError`, `Base32Error`,
-    /// `OpaqueIdError`, `NameError` and `MintError` all answer `code()`; this
-    /// was the gap — while being the most likely runtime failure of the layer
+    /// Every error type in `nc-canon`, `nc-catalog` and `nc-ids` — the three
+    /// crates `nc-journal` and `nc-log` are each built on — answers `code()`:
+    /// `HexError`, `Base32Error`, `OpaqueIdError`, `NameError` and `MintError`
+    /// as well as this one. This is the most likely runtime failure of the layer
     /// that carries payloads between processes, and therefore the one the
     /// central log most needs to be queried by (`NOCTUA.md §15.1`).
     code: ErrorCode,
@@ -128,12 +124,12 @@ pub const MAX_DEPTH: usize = 64;
 
 /// The deepest [`Value::depth`] this parser will read back.
 ///
-/// **The two numbers are on different scales, and comparing them was a
+/// **The two numbers are on different scales, and comparing them is a
 /// measurable off-by-one.** [`Value::depth`] counts a scalar as 1;
 /// `value_at_depth` starts the outermost value at 0. So the deepest value this
 /// parser accepts — `[` sixty-four times, a scalar, `]` sixty-four times, which
 /// this module's own test asserts parses — reports a `depth()` of 65, and a
-/// caller comparing `depth() > MAX_DEPTH` refused a value the parser accepts
+/// caller comparing `depth() > MAX_DEPTH` refuses a value the parser accepts
 /// while saying "nests 65 deep and the journal reads 64": two numbers that are
 /// not measurements of the same thing.
 ///
@@ -287,14 +283,12 @@ impl Reader<'_> {
             self.at += 1;
         }
         // **The digit count first, because a form with no digits is not a
-        // fractional number.** This asked about `.`/`e`/`E` before counting, so
-        // `-.`, `-e` and `-e5` — none of which holds a single digit — were told
+        // fractional number.** Asked about `.`/`e`/`E` before counting, `-.`,
+        // `-e` and `-e5` — none of which holds a single digit — would be told
         // *"this model holds whole numbers only … carry it as a scaled integer
         // or as text"* under `CanonNumber`. That is advice about a value the
         // sender does not have, and the wrong `ErrorCode` for the field `§15.1`
-        // says the log is queried by. The digit rule's own paragraph was written
-        // to stop exactly that misdirection and ran second. The existing test
-        // covers `parse("-")`, which takes the other branch.
+        // says the log is queried by. `parse("-")` takes the other branch.
         let digits = self.at - start - usize::from(self.bytes[start] == b'-');
         if digits == 0 {
             self.at = start;
@@ -308,8 +302,9 @@ impl Reader<'_> {
                  say which in the field's name",
             ));
         }
-        // A `-` with nothing after it used to be reported as an `i64`
-        // overflow, which sends a plugin author to the wrong problem entirely.
+        // A `-` with nothing after it is refused above rather than reported as
+        // an `i64` overflow, which would send a plugin author to the wrong
+        // problem entirely.
         // The bytes came from a `&str` and are all ASCII digits or a leading
         // `-`, so this slice is text by construction — no fallible conversion,
         // and therefore no error arm nobody can ever reach.
@@ -366,14 +361,14 @@ impl Reader<'_> {
             return Err(self.error("the text ended inside an escape"));
         };
         // **The offset before the step, because a step is one byte and a
-        // character is not.** `self.at += 1` ran first and the rejecting arm
-        // below reported `self.at` — so for `"\é"` the error carried byte 3,
+        // character is not.** With `self.at += 1` first, the rejecting arm
+        // below reports `self.at` — so for `"\é"` the error carries byte 3,
         // which is the middle of a two-byte character. `ParseError.at` is
         // documented as a byte offset and rendered as `at byte N`; a caller
         // writing `&text[..error.at]` — the ordinary thing to do with one —
         // panics, in the crate whose job is to absorb hostile input. Measured
-        // over 400,000 malformed inputs, this was the only rule producing a
-        // non-boundary offset, 186 times.
+        // over 400,000 malformed inputs, that order would be the only rule
+        // producing a non-boundary offset, 186 times.
         //
         // It is also the byte *after* the offender, where every other rule
         // reports the offender itself.
@@ -415,13 +410,13 @@ impl Reader<'_> {
             // character and the two range checks above are what make that true —
             // but `unwrap_or(REPLACEMENT_CHARACTER)` says *"if they ever stop
             // making it true, put a character the sender never sent into a hash
-            // chain"*. Measured on 2026-09-08 with the high range narrowed by one
-            // digit, `0xd800..0xdbff`: `"\ud800"` and `"\udc00"` still refused,
-            // and `"\udbff"` **accepted** as `U+FFFD`, with `cargo test -p
-            // nc-canon` green at 44 and 11 and `check --offline` byte-identical
-            // to a clean run. A silent fall-through is what this file's own
-            // paragraph beside `width_of` calls the shape to avoid, and the
-            // endpoints of both ranges were exercised by nothing.
+            // chain"*. Measured with the high range narrowed by one digit,
+            // `0xd800..0xdbff`, and nothing exercising the endpoints of either
+            // range: `"\ud800"` and `"\udc00"` are still refused, `"\udbff"` is
+            // **accepted** as `U+FFFD`, `cargo test -p nc-canon` stays green and
+            // `check --offline` is byte-identical to a clean run. A silent
+            // fall-through is what this file's own paragraph beside `width_of`
+            // calls the shape to avoid.
             let Some(character) = char::from_u32(combined) else {
                 return Err(self.error("a surrogate pair that is not a character"));
             };
@@ -456,9 +451,9 @@ impl Reader<'_> {
         let text = core::str::from_utf8(&self.bytes[self.at..self.at + 4])
             .map_err(|_| self.error("an escape needs four hex digits"))?;
         // **Every one of the four is a hex digit.** `from_str_radix` accepts a
-        // leading `+` or `-`, so `\u+abc` used to parse as U+0ABC — a leniency
-        // this parser's documentation does not offer, arriving through a call
-        // whose own error message says four hex digits.
+        // leading `+` or `-`, so without this `\u+abc` parses as U+0ABC — a
+        // leniency this parser's documentation does not offer, arriving through
+        // a call whose own error message says four hex digits.
         if !text.chars().all(|character| character.is_ascii_hexdigit()) {
             return Err(self.error("an escape needs four hex digits"));
         }
@@ -475,14 +470,15 @@ mod tests {
 
     use crate::Value;
 
-    /// The two leniencies this parser's own header promises, and nothing asked.
+    /// The two leniencies this parser's own header promises, asked both ways.
     ///
     /// **A rule that is too strong is green until something legitimate tries.**
     /// `parse`'s `# Errors` and this module's header both promise a document
     /// written somewhere else is accepted: insignificant whitespace, `/`
-    /// escaped, and a number with leading zeros. Whitespace has two tests; the
-    /// other two had none in either direction, and both were measured green when
-    /// deleted — the `\/` arm removed, and a leading zero refused.
+    /// escaped, and a number with leading zeros. Whitespace has two tests, and
+    /// without this nothing asks the other two in either direction: both
+    /// deletions — the `\/` arm removed, and a leading zero refused — are
+    /// measured green.
     ///
     /// The `payload` this parses arrives from a plugin. `\/` and `01` are both
     /// well-formed JSON that ordinary producers emit, and refusing either sends
@@ -510,9 +506,9 @@ mod tests {
 
     #[test]
     fn all_four_of_json_s_whitespace_bytes_are_skipped_and_no_others() {
-        // Three of the four were untested: only a space appeared in any fixture,
-        // so `matches!(…, Some(b' '))` alone would have passed the whole suite
-        // while refusing every pretty-printed document this parser is handed.
+        // All four: with only a space in any fixture, `matches!(…, Some(b' '))`
+        // alone passes the rest of the suite while refusing every
+        // pretty-printed document this parser is handed.
         for gap in [" ", "\t", "\n", "\r", " \t\r\n "] {
             let text = format!("{gap}{{{gap}\"a\"{gap}:{gap}[{gap}1{gap},{gap}2{gap}]{gap}}}{gap}");
             let parsed = super::parse(&text).unwrap_or_else(|error| panic!("{gap:?}: {error}"));
@@ -558,11 +554,11 @@ mod tests {
     /// Both ends of every width class this reader steps by.
     ///
     /// **The generator draws the middle of each class and never an end.**
-    /// `width_of` decides how many bytes a character occupies, and its arms were
-    /// pinned only where a mistake changes nothing: `0xe0..=0xef` narrowed to
-    /// `0xe0..=0xee` left `cargo xtask check` byte-identical to a clean run,
-    /// and under it a rendering **this crate had just written** could not be
-    /// read back —
+    /// `width_of` decides how many bytes a character occupies, and the generator
+    /// alone pins its arms only where a mistake changes nothing: without these
+    /// rows, `0xe0..=0xef` narrowed to `0xe0..=0xee` leaves `cargo xtask check`
+    /// byte-identical to a clean run, and under it a rendering **this crate has
+    /// just written** cannot be read back —
     ///
     /// ```text
     /// in="！"  canonical="\"！\""  parse=Err("at byte 5: the text ended inside a string")
@@ -617,8 +613,8 @@ mod tests {
 
     #[test]
     fn a_number_with_no_digits_says_so_rather_than_blaming_the_range() {
-        // `-` used to be reported as an i64 overflow, which sends the author of
-        // a plugin to the wrong problem entirely.
+        // `-` is not an i64 overflow: reporting it as one sends the author of a
+        // plugin to the wrong problem entirely.
         let error = parse("-").expect_err("must refuse");
         assert!(error.what.contains("at least one digit"), "{error}");
         assert_eq!(error.code, nc_catalog::ErrorCode::CanonUnparsable);
@@ -636,13 +632,15 @@ mod tests {
 
     /// The depth bound is the number its own paragraph argues for.
     ///
-    /// **Every test and every consumer reads the constant under test**, so it can
-    /// drift with nothing failing: lowered from 64 to 6, `cargo xtask check`
-    /// passed — and `nc-journal` compares against it, so the journal would have
-    /// begun refusing any command whose arguments nest seven deep. The doc says
-    /// "far past anything a command's arguments have ever needed"; that is an
-    /// argument about a number, and the number belongs where a change to it has
-    /// to be deliberate.
+    /// **This crate's other tests and `nc-journal`'s read the constant under
+    /// test**, so they move with it. `nc-kernel`'s
+    /// `a_tree_is_held_to_its_count_of_nodes_and_its_depth` builds a tree of
+    /// `ui_tree_depth` nodes and so notices only a bound lowered below that
+    /// tree's depth, not one moved anywhere above it. `nc-journal` compares
+    /// against it, so a lower bound would make the journal refuse any command
+    /// whose arguments nest one level past it. The doc says "far past anything
+    /// a command's arguments have ever needed"; that is an argument about a
+    /// number, and the number belongs where a change to it has to be deliberate.
     #[test]
     fn the_depth_bound_is_the_number_its_paragraph_argues_for() {
         assert_eq!(
@@ -655,17 +653,17 @@ mod tests {
 
     /// The bound is tested where it is, not twenty digits past it.
     ///
-    /// **`99999999999999999999` was the whole range test** — twenty nines, about
-    /// `10^20`, five times `u64::MAX`. Nothing in this crate named `i64::MAX`,
-    /// `i64::MIN`, `u64::MAX` or `2^53`, and the proptest generator is a uniform
-    /// `any::<i64>()`, which reaches an endpoint with probability zero. So a
-    /// one-line widening — a `u64` fallback with an `as i64` cast — put values
-    /// the sender never wrote into the chain, and `cargo xtask check` passed:
+    /// **`99999999999999999999` alone is not a range test** — twenty nines,
+    /// about `10^20`, five times `u64::MAX`. The proptest generator is a uniform
+    /// `any::<i64>()`, which reaches an endpoint with probability zero, so with
+    /// nothing naming `i64::MAX`, `i64::MIN`, `u64::MAX` or `2^53`, a one-line
+    /// widening — a `u64` fallback with an `as i64` cast — puts values the
+    /// sender never wrote into the chain, and `cargo xtask check` passes:
     ///
     /// ```text
     /// parse("9223372036854775808")  = Ok(Integer(-9223372036854775808))
     /// parse("18446744073709551615") = Ok(Integer(-1))
-    /// parse("99999999999999999999") = Err(…)     <- the only value anything checked
+    /// parse("99999999999999999999") = Err(…)     <- twenty nines, still refused
     /// ```
     ///
     /// A digest over a number that is not the number that was sent is a chain
@@ -708,21 +706,22 @@ mod tests {
     fn a_surrogate_pair_becomes_one_character_and_a_lone_half_is_refused() {
         assert_eq!(parse(r#""😀""#), Ok(Value::text("\u{1f600}")));
         // Asserting the *message*, not `is_err()`: a lone high surrogate is
-        // refused by `hex4`'s length check as well, so `is_err()` stayed true
+        // refused by `hex4`'s length check as well, so `is_err()` stays true
         // with the guard this is named for deleted.
         let lone = parse(r#""\ud83d""#).expect_err("must refuse");
         assert!(lone.what.contains("low half"), "{lone}");
         assert!(parse(r#""\ude00""#).is_err());
 
-        // **Both ranges at both ends**, which nothing exercised: the only lone
-        // halves named anywhere were `\ud83d` and `\ude00`, strictly interior to
-        // each range. A one-digit narrowing therefore produced no error at all —
-        // it produced `U+FFFD`, silently, in the crate whose job is to absorb
-        // hostile input. Measured on 2026-09-08 with `0xd800..0xdbff`:
-        // `"\udbff"` accepted as `Text("\u{fffd}")`, `cargo test -p nc-canon`
-        // green at 44 and 11, and `check --offline` byte-identical to a clean
-        // run. This file's own paragraph says it: *"a bound tested only at
-        // `MAX - 1` and `MAX + 5` is a bound nobody has checked"*.
+        // **Both ranges at both ends.** A one-digit narrowing moves only an
+        // endpoint, which lone halves strictly interior to each range, such as
+        // `\ud83d` and `\ude00`, never reach — and at the endpoint it produces
+        // no error at all but `U+FFFD`, silently, in the crate whose job is to
+        // absorb hostile input. Measured with
+        // `0xd800..0xdbff` and only those two halves named: `"\udbff"` accepted
+        // as `Text("\u{fffd}")`, `cargo test -p nc-canon` green, and
+        // `check --offline` byte-identical to a clean run. This file's own
+        // paragraph says it: *"a bound tested only at `MAX - 1` and `MAX + 5`
+        // is a bound nobody has checked"*.
         for high in ["\\ud800", "\\udbff"] {
             let refused = parse(&format!("\"{high}\"")).expect_err("a lone high half");
             assert!(
@@ -751,8 +750,8 @@ mod tests {
 
     #[test]
     fn an_escape_with_too_few_digits_is_refused() {
-        // The one arm that *is* reachable and had no test: four hex digits, and
-        // a string that ends before them.
+        // The one arm that *is* reachable: four hex digits, and a string that
+        // ends before them.
         assert!(parse("\"\\uabc\"").is_err());
         assert!(parse("\"\\u\"").is_err());
         let error = parse("\"\\uab").expect_err("must refuse");
@@ -761,15 +760,15 @@ mod tests {
 
     #[test]
     fn a_high_surrogate_followed_by_something_that_is_not_an_escape_is_refused() {
-        // The **`\u` guard**, which nothing reached. Without it, `self.at += 2`
+        // The **`\u` guard**, with something other than an escape after the
+        // high half. Without it, `self.at += 2`
         // swallows whatever two bytes follow and reads the next four as the low
-        // half — so `"\ud83dzzdc00"` became `"🐀"`: two characters vanish and a
+        // half — so `"\ud83dzzdc00"` becomes `"🐀"`: two characters vanish and a
         // character the sender never sent enters a hash chain.
         //
-        // It survived because the only test over this shape asserted `is_err()`,
-        // which stayed true under the mutation for a different reason — `hex4`'s
-        // *length* check caught it instead. A test asserting a consequence
-        // rather than the property.
+        // A test over this shape asserting only `is_err()` stays true under that
+        // mutation for a different reason — `hex4`'s *length* check catches it
+        // instead. A test asserting a consequence rather than the property.
         for attempt in [
             "\"\\ud83dzzdc00\"",
             "\"\\ud83dABdc00\"",
@@ -791,10 +790,9 @@ mod tests {
 
     #[test]
     fn a_high_surrogate_followed_by_an_ordinary_escape_is_refused() {
-        // The **low-half range** check, which had no test reaching it. The two
-        // cases that existed — a high surrogate with nothing after it, and a lone
-        // low one — both take the other arm. This one needs a well-formed `\u`
-        // escape whose value is outside `DC00..E000`.
+        // The **low-half range** check. A high surrogate with nothing after it,
+        // and a lone low one, both take the other arm; this one needs a
+        // well-formed `\u` escape whose value is outside `DC00..E000`.
         //
         // Removing the check underflows `low - 0xDC00`: a debug panic, and in
         // release a wrapped value that becomes `U+FFFD` — a character the sender
@@ -856,10 +854,10 @@ mod tests {
 
         // **Every byte of the range, and the one above it**, which is how the
         // sibling rule twenty lines up is written and why widening *it* is
-        // caught. This one had a single character, `0x0a`, in the middle of the
-        // range — so narrowing the bound to `0x0b` accepted a raw `CR`, a raw
-        // `ESC` and every other C0 above it, with `cargo test -p nc-canon` green
-        // at 44 and 11 and `check --offline` byte-identical to a clean run.
+        // caught. With a single character, `0x0a`, in the middle of the range,
+        // narrowing the bound to `0x0b` accepts a raw `CR`, a raw `ESC` and
+        // every other C0 above it, with `cargo test -p nc-canon` green and
+        // `check --offline` byte-identical to a clean run.
         // A document RFC 8259 forbids and every other conforming reader rejects
         // is a payload two readers disagree about the existence of.
         for code in 0x00_u8..=0x1f {
@@ -895,12 +893,11 @@ mod tests {
 
     /// The parser's bound and `Value::depth`'s scale meet exactly at one number.
     ///
-    /// **They were compared as though they were one scale, and they are two.**
-    /// `depth()` counts a scalar as 1 and `value_at_depth` starts at 0, so the
-    /// deepest value this parser accepts reports 65 — and the journal, which
-    /// asked `depth() > MAX_DEPTH`, refused a resource its own reader takes,
-    /// with a message naming "65" and "64" as though they measured the same
-    /// thing.
+    /// **They are two scales, not one.** `depth()` counts a scalar as 1 and
+    /// `value_at_depth` starts at 0, so the deepest value this parser accepts
+    /// reports 65 — and a journal asking `depth() > MAX_DEPTH` refuses a
+    /// resource its own reader takes, with a message naming "65" and "64" as
+    /// though they measured the same thing.
     ///
     /// This is what keeps [`MAX_NESTING`] from drifting: it is derived from
     /// `MAX_DEPTH`, and the derivation is checked against the parser rather than
@@ -925,9 +922,9 @@ mod tests {
         // A scalar is the other end of the same scale.
         assert_eq!(parse("1").expect("a scalar parses").depth(), 1);
 
-        // **And the object side, which this only exercised as arrays.** Both
-        // shapes go through the same depth counter, so the two agree today —
-        // and if one stopped counting, this test would not notice. An object is
+        // **And the object side, not arrays alone.** Both shapes go through
+        // the same depth counter, so the two agree today — and if one stopped
+        // counting, a test over arrays alone would not notice. An object is
         // the shape a real payload nests through.
         let nested = format!("{}1{}", "{\"a\":".repeat(MAX_DEPTH), "}".repeat(MAX_DEPTH));
         let value = parse(&nested).expect("the deepest object the parser accepts");
@@ -977,14 +974,12 @@ mod tests {
 mod the_readers_are_the_surface {
     /// A refusal says what was wrong, through the accessor that is its surface.
     ///
-    /// **`what()` had no caller and no assertion anywhere in the workspace.**
+    /// **A public accessor nothing reads is a guarantee nothing holds.**
     /// `ParseError`'s fields are private and its doc says the readers are the
-    /// safe surface — so `what()` could answer the empty string, and every test
-    /// in this crate would stay green because they all reach the data through
-    /// the private field instead. A public accessor nothing reads is a
-    /// guarantee nothing holds. Named by a reviewer in round seventy-one wave
-    /// 13, which also named the doc above it for citing an `at()` that does not
-    /// exist: the reader is `stopped_at()`, and `at` is the private constructor.
+    /// safe surface — but this crate's other tests reach the data through the
+    /// private field, so without this `what()` could answer the empty string
+    /// with all of them green. The offset's reader is `stopped_at()`; `at` is
+    /// the private constructor.
     #[test]
     fn a_refusal_says_what_was_wrong_through_its_own_accessors() {
         let refused = super::parse("{,}").expect_err("`{,}` is not canonical");

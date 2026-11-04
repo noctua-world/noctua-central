@@ -64,19 +64,19 @@ fn header(title: &str, from: &str, why: &str) -> String {
 
 /// The rate-limit table, which is a page of its own inside the limits page.
 ///
-/// Split out because `limits` crossed a hundred lines when every column gained
-/// the unit it had been printing without.
+/// Split out because with every column carrying its unit, `limits` would run
+/// past a hundred lines.
 fn rate_limits(catalog: &Catalog) -> String {
     let mut out = String::new();
     out.push_str("\n## Rate limits\n\n");
-    // **Counted, because it was written.** The sentence below said "which six of
-    // these do" as a literal in this emitter, and the number is a property of
-    // the catalog: giving `login`'s `per_identifier` a lockout took the table to
-    // five `never` rows and left the prose saying six, with `cargo xtask check`
-    // byte-identical — including `ok 7 document(s) state no count that can rot`,
-    // because the rotting-count gate reads the workspace documents and not
-    // `docs/`. `docs/errors.md`'s own paragraph, emitted twenty lines from here,
-    // records this exact lesson: "the column is the count".
+    // **Counted, because a written number rots.** The number of rows the
+    // sentence below names is a property of the catalog: with "which six of
+    // these do" as a literal in this emitter, giving `login`'s `per_identifier`
+    // a lockout takes the table to five `never` rows and leaves the prose
+    // saying six, with `cargo xtask check` byte-identical — the rotting-count
+    // gate reads the workspace documents and not `docs/`. `docs/errors.md`'s own
+    // paragraph, emitted twenty lines from here, states the same rule: "the
+    // column is the count".
     let unlimited = catalog
         .limits
         .rate_limits
@@ -103,9 +103,9 @@ fn rate_limits(catalog: &Catalog) -> String {
          stage read.\n\n",
     );
     // **On lockout**, which is the field that decides whether exhausting a
-    // budget destroys the stored device credential (`§10.6`). It reached the
-    // generated code and no page at all, so the one consequence in this table
-    // that is not a delay was the one nobody could read.
+    // budget destroys the stored device credential (`§10.6`). Published here
+    // as well as in the generated code, because it is the one consequence in
+    // this table that is not a delay.
     out.push_str(
         // One string and not a continued one: Rust's `\` continuation keeps the
         // next line's indentation, and `rustfmt` reflowed this into ten stray
@@ -137,12 +137,12 @@ fn rate_limits(catalog: &Catalog) -> String {
                     .map(ToString::to_string)
                     .collect::<Vec<_>>()
                     .join(", "),
-                // **After how many of what, counted over what.** The column
-                // read `after 10` and `after 8`, and those two numbers are not
-                // the same kind: one is ten failures *inside the window on the
-                // same row*, the other is eight *ever*, because `cumulative` is
-                // set. Same-looking values, different denominators, and the
-                // column said neither — while the field that decides it sits
+                // **After how many of what, counted over what.** A column
+                // reading `after 10` and `after 8` shows two numbers that are
+                // not the same kind: one is ten failures *inside the window on
+                // the same row*, the other is eight *ever*, because `cumulative`
+                // is set. Same-looking values, different denominators, and a
+                // column saying neither — while the field that decides it sits
                 // three columns to the right, where nobody reading a number
                 // looks.
                 budget.lockout_after.map_or_else(
@@ -158,14 +158,14 @@ fn rate_limits(catalog: &Catalog) -> String {
                         }
                     }
                 ),
-                // **`None` is a consequence and it rendered as nothing.** The
-                // model reads it as "refuse until the window passes", and three
-                // rows that *have* a lockout published `—` beside it — a reader
-                // saw a lockout with no stated effect. And the two spelled
-                // values dropped theirs: wiping the credential is what forces a
-                // full re-authentication, which is the part a person acts on.
-                // **And whether there is a lockout at all, which this did not
-                // ask.** Matching on `on_lockout` alone made six rows read
+                // **`None` is a consequence, not nothing.** The model reads it
+                // as "refuse until the window passes", and rendered as nothing
+                // it publishes `—` beside three rows that *have* a lockout — a
+                // lockout with no stated effect. The two spelled values state
+                // theirs too: wiping the credential is what forces a full
+                // re-authentication, which is the part a person acts on.
+                // **And whether there is a lockout at all.** Matching on
+                // `on_lockout` alone makes six rows read
                 // `Lockout: never` beside *"further attempts are refused until
                 // the window passes"* — a consequence for a lockout that does
                 // not exist, contradicting the page's own prose four lines up
@@ -185,24 +185,24 @@ fn rate_limits(catalog: &Catalog) -> String {
 /// The sentence a rate-limit row states about its lockout.
 ///
 /// **Lifted out of the table so that a case per pair can be driven through it.**
-/// Inside the `write!` it was reachable only by building a whole `Catalog`, and
-/// no test did: moving `Some(OnLockout::Refuse)` out of the arm it shares with
-/// `None` — so that a budget declaring `refuse` fell through to the wipe arm and
-/// the page published *"the stored credential is destroyed"* about a surface
-/// that destroys nothing — left the entire workspace green. The arm *reads* as
-/// covered because its `None` alternative is live on the shipped catalog, which
-/// is exactly what makes a shared arm the place to hide one.
+/// Inside the `write!` it would be reachable only by building a whole
+/// `Catalog`: there, a budget declaring `refuse` that falls through to the wipe
+/// arm — publishing *"the stored credential is destroyed"* about a surface that
+/// destroys nothing — would leave the entire workspace green. An arm shared with
+/// `None` *reads* as covered because its `None` alternative is live on the
+/// shipped catalog, which is exactly what makes a shared arm the place to hide
+/// one.
 ///
 /// The two arms say one sentence because they mean one behaviour today:
 /// `model.rs` reads an absent `on_lockout` as refusing until the window passes,
 /// which is what the spelled `refuse` asks for. Written apart — as two arms,
 /// not as one arm with two alternatives — so that a later change to either does
 /// not silently change the other, which is the rule `nc-journal`'s `code()`
-/// states and which `Some(OnLockout::Refuse) | None` did not keep.
+/// states and which `Some(OnLockout::Refuse) | None` would not keep.
 ///
-/// **And whether there is a lockout at all**, which the first version did not
-/// ask: matching on `on_lockout` alone made six rows read `Lockout: never`
-/// beside *"further attempts are refused until the window passes"*.
+/// **And whether there is a lockout at all**: matching on `on_lockout` alone
+/// makes six rows read `Lockout: never` beside *"further attempts are refused
+/// until the window passes"*.
 ///
 /// `const fn`, which is what the type wall asks of a function handing back a
 /// `&'static str`: its result is a compile-time value, so it is not a door into
@@ -231,24 +231,23 @@ const fn what_a_lockout_does(
         // reads an absent `on_lockout` as refusing until the window passes, which
         // is what the spelled `refuse` asks for — two decisions that agree today,
         // and the header above says they are written apart so a change to either
-        // does not silently change the other. They were not: the alternative
-        // `Some(OnLockout::Refuse) | None` is one arm, so the spelled variant
-        // cannot be corrupted without the absent one going with it, and
-        // `every_lockout_is_stated_as_what_it_does` — which asks both — could
-        // not tell them apart.
+        // does not silently change the other. The alternative
+        // `Some(OnLockout::Refuse) | None` would be one arm, so the spelled
+        // variant could not be corrupted without the absent one going with it,
+        // and `every_lockout_is_stated_as_what_it_does` — which asks both —
+        // could not tell them apart.
         (Some(_), None) => "further attempts are refused until the window passes",
     }
 }
 
 /// The answer the "can it be undone" column publishes.
 ///
-/// **Lifted out of the `writeln!` so that something can read it.** It was an
-/// inline `match` inside a twelve-argument format call, and `catalog/
-/// commands.toml` declares only `read` and `write` — so the `Irreversible` arm
-/// was dead on this side *and* on the mirror in
+/// **Lifted out of the `writeln!` so that something can read it.** With
+/// `catalog/commands.toml` declaring only `read` and `write`, the
+/// `Irreversible` arm is dead on this side *and* on the mirror in
 /// `xtask/tests/the_pages_reach_the_catalog.rs`, which is a byte-for-byte copy
-/// of it. Measured, that arm given
-/// `"**yes**, the kernel reverses it each time"` on both sides:
+/// of it. Left as an inline `match` inside a twelve-argument format call, that
+/// arm given `"**yes**, the kernel reverses it each time"` on both sides gives:
 ///
 /// ```text
 /// cargo xtask check  ->  check passed, every verdict line identical
@@ -258,9 +257,9 @@ const fn what_a_lockout_does(
 /// the declared commands, so it never reaches a third variant either. The test
 /// beside this one does, and asks the arm the question the column asks.
 ///
-/// **Per command, and not per reversibility alone.** Every `write` command
-/// was published as one undo takes back, `limits.prune` with them, while the
-/// kernel makes a step that ran it one undo stops at: `the_history` — whether
+/// **Per command, and not per reversibility alone.** Per reversibility, every
+/// `write` command is published as one undo takes back, `limits.prune` with
+/// them, while the kernel makes a step that ran it one undo stops at: `the_history` — whether
 /// the command is one of [`THE_HISTORY`] — is what tells a step undo takes
 /// back from one it does not.
 ///
@@ -329,10 +328,11 @@ fn in_bytes(bytes: u64) -> String {
 
 /// The table escaper, so the sweep in `the_gates_fire.rs` can reach it.
 ///
-/// **Its `<` arm was reached by no test.** It was added after a locale sentence
-/// reading `Ask <your administrator> to look.` put raw HTML into a published
-/// table, and nothing in the shipped catalog holds a `<`, so the drift check
-/// could not see it either: deleting the arm left the whole workspace green.
+/// **Its `<` arm needs a test that hands it a `<`.** A locale sentence reading
+/// `Ask <your administrator> to look.` would put raw HTML into a published
+/// table without the arm, and nothing in the shipped catalog holds a `<`, so
+/// the drift check cannot see it: the tests that hand this door a `<` are what
+/// hold it.
 #[doc(hidden)]
 #[must_use]
 pub fn cell_for_tests(text: &str) -> String {
@@ -340,13 +340,14 @@ pub fn cell_for_tests(text: &str) -> String {
 }
 
 fn cell(text: &str) -> String {
-    // **Through `printable` first**, which it did not do. `printable`'s own doc
-    // says it writes "every `///` line the compiler emits **and every Markdown
-    // cell**"; `doc()` was its only caller, and this replaced `\n`, `\r`,
-    // `U+2028`, `U+2029` and nothing else. So a control character or a bidi
-    // override in a registry value reached every generated page verbatim, while
-    // the same value was correctly escaped into the generated *code* beside it.
-    // Measured with one locale sentence carrying `U+202E`, `U+202C` and `\u0007`:
+    // **Through `printable` first.** `printable`'s own doc says it writes
+    // "every `///` line the compiler emits **and every Markdown cell**"; were
+    // `doc()` its only caller, with this replacing `\n`, `\r`, `U+2028`,
+    // `U+2029` and nothing else, a control character or a bidi override in a
+    // registry value would reach every generated page verbatim, while the same
+    // value is correctly escaped into the generated *code* beside it. Measured
+    // that way, with one locale sentence carrying `U+202E`, `U+202C` and
+    // `\u0007`:
     //
     // ```text
     // crates/nc-catalog/src/i18n.rs:162   \u{202e}right now\u{202c}. Try\u{7} …
@@ -358,16 +359,16 @@ fn cell(text: &str) -> String {
     // it, on the page that exists so a reader can check what a user is told.
     let text = &crate::printable(text);
     // **The backslash first, and that order is the whole point.** Escaping `|`
-    // alone left a sentence ending in a backslash able to escape its own escape:
-    // `C:\` followed by a `|` became `C:\\|`, which renders as a literal
+    // alone leaves a sentence ending in a backslash able to escape its own
+    // escape: `C:\` followed by a `|` becomes `C:\\|`, which renders as a literal
     // backslash and then a live `|` that ends the cell — the exact breakage this
     // function exists to prevent, reachable by writing one more character.
     // Doing it the other way round would escape the backslashes this function
     // just added.
     //
-    // **The line breaks are the line above's, and a second copy of them stood
-    // here reaching nothing.** A trailing clause replaced the two ASCII breaks
-    // and `U+2028`/`U+2029` with a space, and no input could take it: all four
+    // **The line breaks are the line above's, and a second copy of them here
+    // would reach nothing.** A trailing clause replacing the two ASCII breaks
+    // and `U+2028`/`U+2029` with a space is one no input can take: all four
     // sit inside `INVISIBLE_RANGES` — `U+000A` and `U+000D` among the C0
     // controls, the other two as their own range — so `printable` has already
     // made each of them a space by the time this expression runs. Measured over
@@ -383,23 +384,24 @@ fn cell(text: &str) -> String {
     // ```
     //
     // A rule written twice with one copy unreachable reads as two defences and
-    // is one, and the surviving copy is the one every assertion was already
-    // measuring: `nothing_a_translator_can_write_ends_a_cell_early` below asks
-    // this function for all four and asks for a *space* rather than for
-    // absence, which is the part a cell that merely dropped the character would
-    // fail. Measured on the surviving copy, `printable` narrowed to drop what it
-    // holds instead of spacing it: that case and `a_doc_comment_cannot_be_broken_out_of`
+    // is one, and the copy that stays is the one every assertion measures:
+    // `nothing_a_translator_can_write_ends_a_cell_early` below asks this
+    // function for all four and asks for a *space* rather than for absence,
+    // which is the part a cell that merely dropped the character would fail.
+    // Measured on that copy, `printable` narrowed to drop what it holds instead
+    // of spacing it: that case and `a_doc_comment_cannot_be_broken_out_of`
     // both fail, and the 4244-point sweep — which asks only that the character
     // is gone — stays green.
     //
     // `Zl` and `Zp` are why the four are worth naming at all: every "is this a
     // line break" test written the obvious way answers no for the separators,
     // and they end a line in every renderer that follows Unicode's rules.
-    // `nc_canon::shown` had the same gap for the same reason.
+    // `nc_canon::shown` names the same gap for the same reason.
     //
     // **And `<`, because a page is Markdown *with HTML in it*.** Everything
     // above is table syntax; every CommonMark and GFM renderer passes a raw tag
-    // straight through. Measured, one sentence in `catalog/i18n/en.toml`:
+    // straight through. Without the escape, one sentence in
+    // `catalog/i18n/en.toml` goes through like this:
     //
     // ```text
     // "The activity history is not answering. Ask <your administrator> to look."
@@ -461,10 +463,10 @@ fn errors(catalog: &Catalog) -> String {
          was reserved. The column is the count.",
     );
     let tags = tags(catalog);
-    // **Parameters**, which the registry declares and this page did not publish.
-    // `§10.9` makes a response a key **plus parameters**, so a caller reading
-    // this page to build one had no way to learn what the sentence asks for —
-    // and the braces reach a real person when it guesses wrong.
+    // **Parameters**, which the registry declares. `§10.9` makes a response a
+    // key **plus parameters**, so a caller reading this page to build one needs
+    // to learn what the sentence asks for — and the braces reach a real person
+    // when it guesses wrong.
     let _ = write!(
         out,
         "| Code | Severity | Retryable | Raised | Parameters | \
@@ -480,11 +482,11 @@ fn errors(catalog: &Catalog) -> String {
     out.push('\n');
     // **In the order a reader looks one up, not the order they were reserved.**
     // The registry is append-only, so declaration order is reservation order —
-    // and a code added to an existing area lands at the bottom of the page:
-    // `NC-JRNL-0006`, `-0007` and `-0008` sat below `NC-IDS-0006`, and
-    // `NC-IDS-0007` below them. `emit.rs` sorts the generated enum, so the two
-    // surfaces disagreed about the same list. Sorted by area and then by
-    // number, because a code's digits are what a person compares.
+    // and in that order a code added to an existing area lands at the bottom
+    // of the page: `NC-JRNL-0006`, `-0007` and `-0008` below `NC-IDS-0006`,
+    // and `NC-IDS-0007` below them. `emit.rs` sorts the generated enum, so the
+    // two surfaces would disagree about the same list. Sorted by area and then
+    // by number, because a code's digits are what a person compares.
     let mut sorted: Vec<&crate::model::ErrorEntry> = catalog.errors.iter().collect();
     sorted.sort_by_key(|entry| {
         let mut parts = entry.code.splitn(3, '-');
@@ -509,9 +511,9 @@ fn errors(catalog: &Catalog) -> String {
         out.push('\n');
     }
     // **How many codes each area holds, which is the difference between a
-    // subsystem and a reservation.** Ten of the seventeen have none, and only
-    // `CAT` said so in its own prose — so nine read as live subsystems whose
-    // errors somebody had simply not listed. The number is counted here rather
+    // subsystem and a reservation.** An area that holds none, and does not say
+    // so in its own prose, reads as a live subsystem whose errors somebody has
+    // simply not listed. The number is counted here rather
     // than written in the registry, because a hand-maintained count next to a
     // list is the shape `counts.rs` refuses in prose.
     let _ = write!(
@@ -555,14 +557,13 @@ fn notifications(catalog: &Catalog) -> String {
          their own registries. This page did not, and published a self-test fixture as \
          a feature.",
     );
-    // **Sorted, like the generated crate and unlike this page.** `emit.rs`
-    // clones and sorts before it writes the Rust; this walked the `Vec` in file
-    // order, so `docs/log-events.md` opened at `journal.appended` while
-    // `events.rs` opened at `db.migrated` — and the comment above the rate-limit
-    // table, which says "every other table on every page sorts", was written
-    // over four pages where it was not true. It bites on the next insertion: a
-    // new entry is one line in the sorted file and a rewrite from that point
-    // down in the unsorted one.
+    // **Sorted, like the generated crate.** `emit.rs` clones and sorts before
+    // it writes the Rust; walking the `Vec` in file order instead opens
+    // `docs/log-events.md` at `journal.appended` while `events.rs` opens at
+    // `db.migrated` — and makes false the comment above the rate-limit table,
+    // which says "every other table on every page sorts". It bites on the next
+    // insertion: a new entry is one line in the sorted file and a rewrite from
+    // that point down in the unsorted one.
     let mut in_order: Vec<_> = catalog.notifications.iter().collect();
     in_order.sort_by(|a, b| a.id.cmp(&b.id));
     for entry in in_order {
@@ -592,14 +593,13 @@ fn emails(catalog: &Catalog) -> String {
          tree, and `catalog/emails.toml` marks the single entry below as the one that \
          exists to prove the mechanism — the entry a later stage replaces.",
     );
-    // **Sorted, like the generated crate and unlike this page.** `emit.rs`
-    // clones and sorts before it writes the Rust; this walked the `Vec` in file
-    // order, so `docs/log-events.md` opened at `journal.appended` while
-    // `events.rs` opened at `db.migrated` — and the comment above the rate-limit
-    // table, which says "every other table on every page sorts", was written
-    // over four pages where it was not true. It bites on the next insertion: a
-    // new entry is one line in the sorted file and a rewrite from that point
-    // down in the unsorted one.
+    // **Sorted, like the generated crate.** `emit.rs` clones and sorts before
+    // it writes the Rust; walking the `Vec` in file order instead opens
+    // `docs/log-events.md` at `journal.appended` while `events.rs` opens at
+    // `db.migrated` — and makes false the comment above the rate-limit table,
+    // which says "every other table on every page sorts". It bites on the next
+    // insertion: a new entry is one line in the sorted file and a rewrite from
+    // that point down in the unsorted one.
     let mut in_order: Vec<_> = catalog.emails.iter().collect();
     in_order.sort_by(|a, b| a.id.cmp(&b.id));
     for entry in in_order {
@@ -650,8 +650,8 @@ fn messages(catalog: &Catalog, out: &mut String, keys: &[(&str, &String)]) {
 
 /// Whose rows a table's `Maximum rows` counts, as the page says it.
 ///
-/// **A refusing writer can count one owner's rows**, and the page published
-/// such a number as the table's own: `store_entries`' writer refuses a plugin's
+/// **A refusing writer can count one owner's rows**, and without this the page
+/// publishes such a number as the table's own: `store_entries`' writer refuses a plugin's
 /// new key at that plugin's count in its realm, so the table holds the number
 /// for every plugin installed in every realm. A table with no number counts
 /// nothing.
@@ -716,10 +716,10 @@ fn limits(catalog: &Catalog) -> String {
         // put through `load::identifier()` anywhere — `check_tables` never
         // touches it — so a bar in it ends its own cell and the row is read one
         // column wide of the header. The exclusion list in
-        // `a_bar_in_a_registry_value_does_not_end_its_cell` excused this surface
-        // and the store's beside it on the stated ground that both *are*
-        // identifier-checked, which is false of both; adding either to that
-        // list's sweep turned it red at once.
+        // `a_bar_in_a_registry_value_does_not_end_its_cell` must not excuse this
+        // surface or the store's beside it on the ground that both *are*
+        // identifier-checked, which is false of both; with either excused and
+        // unescaped, adding it to that list's sweep turns it red at once.
         let name = cell(name);
         let _ = writeln!(
             out,
@@ -731,10 +731,9 @@ fn limits(catalog: &Catalog) -> String {
             // names a live mechanism, and `catalog/limits.toml`'s own
             // `pack_reason` says no pack declares a retention and the table
             // grows without limit — *"a gap with a date on it rather than a
-            // bound"*. The field was parsed, required, refused where it does not
-            // belong, gate-tested, and published nowhere, so the one sentence
-            // that says this is not a bound was the one sentence a reader could
-            // not see.
+            // bound"*. The field is parsed, required, refused where it does not
+            // belong and gate-tested, and it is published here, because it is
+            // the one sentence that says this is not a bound.
             table
                 .max_rows
                 .map_or_else(|| "none".to_owned(), |rows| rows.to_string()),
@@ -758,10 +757,10 @@ fn limits(catalog: &Catalog) -> String {
             out,
             "| `{name}` | {} | {} | {} |",
             store.retention_days,
-            // **With its unit.** The column read `8589934592` beside one headed
-            // `Retention (days)`, so the only two numbers on the row were in
-            // different units and one of them said which. `docker-compose.yml`
-            // writes the same limit as `8GiB`.
+            // **With its unit.** A bare `8589934592` beside a column headed
+            // `Retention (days)` puts the only two numbers on the row in
+            // different units with only one of them saying which.
+            // `docker-compose.yml` writes the same limit as `8GiB`.
             in_bytes(store.max_disk_bytes),
             cell(&store.enforced_by)
         );
@@ -780,11 +779,11 @@ fn limits(catalog: &Catalog) -> String {
          parameters the stage that adds one will read.\n\n",
     );
     // **Every column with its unit, and the memory through the humanizer this
-    // file already owns.** `Output 32` and `Salt 16` are bytes and the header
-    // said neither, so a reader assuming bits is out by a factor of eight; and
-    // `in_bytes` was applied to one number on the page while the memory beside
-    // it stayed in KiB — one page rendering one figure for people and another
-    // for machines.
+    // file already owns.** `Output 32` and `Salt 16` are bytes, and a header
+    // that says neither leaves a reader assuming bits out by a factor of eight;
+    // and `in_bytes` applied to one number on the page with the memory beside
+    // it in KiB is one page rendering one figure for people and another for
+    // machines.
     // **`Derived key` is wrong for the password row**, which produces a
     // verifier rather than a key: nothing decrypts with it, and calling it a key
     // invites a reader to think something does.
@@ -971,14 +970,13 @@ fn commands(catalog: &Catalog) -> String {
          this page.",
     );
     let tags = tags(catalog);
-    // **Sorted, like the generated crate and unlike this page.** `emit.rs`
-    // clones and sorts before it writes the Rust; this walked the `Vec` in file
-    // order, so `docs/log-events.md` opened at `journal.appended` while
-    // `events.rs` opened at `db.migrated` — and the comment above the rate-limit
-    // table, which says "every other table on every page sorts", was written
-    // over four pages where it was not true. It bites on the next insertion: a
-    // new entry is one line in the sorted file and a rewrite from that point
-    // down in the unsorted one.
+    // **Sorted, like the generated crate.** `emit.rs` clones and sorts before
+    // it writes the Rust; walking the `Vec` in file order instead opens
+    // `docs/log-events.md` at `journal.appended` while `events.rs` opens at
+    // `db.migrated` — and makes false the comment above the rate-limit table,
+    // which says "every other table on every page sorts". It bites on the next
+    // insertion: a new entry is one line in the sorted file and a rewrite from
+    // that point down in the unsorted one.
     let mut in_order: Vec<_> = catalog.commands.iter().collect();
     in_order.sort_by(|a, b| a.name.cmp(&b.name));
     for entry in in_order {
@@ -991,20 +989,19 @@ fn commands(catalog: &Catalog) -> String {
              | Mutating | {} |\n\
              | Can it be undone | {} |{}\n",
             // **Through `cell`, like every other value written into a row.**
-            // These two went in raw, and `check_commands` only asks that they
-            // are non-empty — so `resource_selector = "realm | anything"` wrote
-            // a three-cell row into `docs/commands.md` and the compiler said
-            // nothing. The page's own test then failed, naming the page rather
+            // `check_commands` only asks that these two are non-empty — so,
+            // written raw, `resource_selector = "realm | anything"` writes a
+            // three-cell row into `docs/commands.md` and the compiler says
+            // nothing. The page's own test then fails, naming the page rather
             // than the registry line that broke it, which is the opposite of
             // what this file's header argues for.
             cell(&entry.action),
             cell(&entry.resource_selector),
             if entry.mutating { "yes" } else { "no" },
-            // **The question the column asks, answered — and it was answered
-            // wrongly.** It printed the registry's own word, `read` or `write`,
-            // which is a permission and not an answer; the replacement said
-            // *"yes, the kernel can reverse it"*, which is a safety claim
-            // nothing supports. `limits.prune` carries `write` and issues
+            // **The question the column asks, answered.** The registry's own
+            // word, `read` or `write`, is a permission and not an answer; and
+            // *"yes, the kernel can reverse it"* is a safety claim nothing
+            // supports. `limits.prune` carries `write` and issues
             // `DELETE … ; COMMIT` with no tombstone and no copy, and this
             // repository's own `AGENTS.md` says a destructive command here has
             // no undo. What `write` actually distinguishes is stated in
@@ -1016,21 +1013,21 @@ fn commands(catalog: &Catalog) -> String {
                 entry.reversibility,
                 THE_HISTORY.contains(&entry.name.as_str())
             ),
-            // **A row only when there is one.** `Keybinding | — |` was on every
-            // row of this page, because no command declares one — a column of
-            // em-dashes that a reader has to look at twice to learn it says
+            // **A row only when there is one.** No command declares a binding,
+            // so `Keybinding | — |` on every row of this page would be a column
+            // of em-dashes that a reader has to look at twice to learn it says
             // nothing. The day a command declares a binding, its row appears.
             entry
                 .keybinding
                 .as_deref()
                 // **Through `cell`, like every other value written into a
-                // row.** It was the one that was not: a `keybinding` of `C-|`
-                // wrote a three-cell row into `docs/commands.md`, and the page's
-                // own test then reported `journal.verify declares C-| and the
-                // page does not publish it` — which sends the reader to the page
-                // rather than to the registry line, the thing the comment beside
-                // `action` and `resource_selector` argues against. No shipped
-                // command declares a binding, so nothing exercised it.
+                // row.** Raw, a `keybinding` of `C-|` writes a three-cell row
+                // into `docs/commands.md`, and the page's own test then reports
+                // `journal.verify declares C-| and the page does not publish it`
+                // — which sends the reader to the page rather than to the
+                // registry line, the thing the comment beside `action` and
+                // `resource_selector` argues against. No shipped command
+                // declares a binding, so the shipped catalog never exercises it.
                 .map_or_else(String::new, |key| {
                     format!("\n| Keybinding | `{}` |", cell(key))
                 })
@@ -1070,14 +1067,13 @@ fn log_events(catalog: &Catalog) -> String {
          log beside their logging call sites. The types and the guarantee are real today; \
          the traffic is the kernel's alone.",
     );
-    // **Sorted, like the generated crate and unlike this page.** `emit.rs`
-    // clones and sorts before it writes the Rust; this walked the `Vec` in file
-    // order, so `docs/log-events.md` opened at `journal.appended` while
-    // `events.rs` opened at `db.migrated` — and the comment above the rate-limit
-    // table, which says "every other table on every page sorts", was written
-    // over four pages where it was not true. It bites on the next insertion: a
-    // new entry is one line in the sorted file and a rewrite from that point
-    // down in the unsorted one.
+    // **Sorted, like the generated crate.** `emit.rs` clones and sorts before
+    // it writes the Rust; walking the `Vec` in file order instead opens
+    // `docs/log-events.md` at `journal.appended` while `events.rs` opens at
+    // `db.migrated` — and makes false the comment above the rate-limit table,
+    // which says "every other table on every page sorts". It bites on the next
+    // insertion: a new entry is one line in the sorted file and a rewrite from
+    // that point down in the unsorted one.
     let mut in_order: Vec<_> = catalog.events.iter().collect();
     in_order.sort_by(|a, b| a.name.cmp(&b.name));
     for entry in in_order {
@@ -1110,8 +1106,8 @@ mod tests {
     /// Every lockout the model can spell, stated as what it does.
     ///
     /// Driven through the real function, one case per pair, because the arm
-    /// that publishes *"the stored credential is destroyed"* was reachable only
-    /// through `rate_limits` and nothing built a catalog to reach it.
+    /// that publishes *"the stored credential is destroyed"* is otherwise
+    /// reachable only through `rate_limits`, by building a whole catalog.
     ///
     /// The expectation is written as an exhaustive `match` on `OnLockout`, so a
     /// third variant added to the model is a compile error here rather than a
@@ -1179,7 +1175,7 @@ mod tests {
     /// At the boundary, because that is the only place the table's divisors are
     /// visible: `KiB`'s `1 << 10` doubled to `1 << 11` still renders every
     /// larger multiple correctly and simply stops calling a kibibyte a
-    /// kibibyte, which no value in the shipped catalog was small enough to show.
+    /// kibibyte, which no value in the shipped catalog is small enough to show.
     #[test]
     fn every_unit_is_named_at_its_own_boundary() {
         assert_eq!(in_bytes(1 << 10), "1 KiB (1024 bytes)");
@@ -1196,13 +1192,13 @@ mod tests {
 
     /// Every reversibility publishes the answer it means, all three.
     ///
-    /// **The third arm is dead and was therefore unasserted.**
+    /// **The third arm is dead on the shipped catalog, so this asserts it.**
     /// `catalog/commands.toml` declares `read` and `write` and no
     /// `irreversible`, so the generated page never carries that sentence and
     /// the drift comparison — the emitter against its own committed output —
-    /// is true by construction about it. Measured, the arm given
-    /// `"**yes**, the kernel reverses it each time"` here and in the mirror:
-    /// `check passed`, every verdict line identical.
+    /// is true by construction about it. Without this, the arm given
+    /// `"**yes**, the kernel reverses it each time"` here and in the mirror
+    /// leaves `check passed`, every verdict line identical.
     ///
     /// So the arm is asked the question its column asks. The published sentence
     /// answers *"can it be undone"*, and for a command a human must confirm
@@ -1282,9 +1278,10 @@ mod tests {
             );
         }
 
-        // **A backslash before the pipe**, which defeated the escape: `C:\`
-        // followed by a `|` escaped the backslash rather than the bar, and the
-        // bar went on to end the cell. One more character than the case above.
+        // **A backslash before the pipe**, which defeats an escape of `|`
+        // alone: `C:\` followed by a `|` escapes the backslash rather than the
+        // bar, and the bar goes on to end the cell. One more character than the
+        // case above.
         assert_eq!(cell("C:\\|drive"), "C:\\\\\\|drive");
         assert_eq!(cell("ends with \\"), "ends with \\\\");
 

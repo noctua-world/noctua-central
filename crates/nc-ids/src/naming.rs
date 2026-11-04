@@ -20,15 +20,15 @@
 //! **Normalisation happens at construction, and at parse.** [`FileName::new`]
 //! slugifies its inputs and [`FileName::parse`] slugifies what it reads, so a
 //! value of this type is always already in the form a name encodes — which is
-//! what makes `parse(build(x)) == x` an identity rather than an approximation.
-//! Parsing used to write its fields raw, so a parsed name could hold spaces,
-//! punctuation and uppercase that `new` exists to strip, and `build` would emit
-//! them.
+//! what makes `parse(build(x)) == x` an identity rather than an
+//! approximation. A parse that wrote its fields raw would let a parsed name
+//! hold spaces, punctuation and uppercase that `new` exists to strip,
+//! and `build` would emit them.
 //!
-//! **Truncation happens at construction too**, for the same reason. It used to
-//! happen in `build`, which meant a long title produced a name that did not
-//! round-trip to the value that produced it — and the property test never found
-//! it, because every title it generated was short enough to fit.
+//! **Truncation happens at construction too**, for the same reason. Truncating
+//! in `build` would make a long title produce a name that does not round-trip
+//! to the value that produced it — and a property test whose every title is
+//! short enough to fit would never find it.
 //!
 //! **It is a proposal.** The user may rename the file. Identity depends on the
 //! ID (`§13.1`), so a renamed file is still the same file, and this module's job
@@ -87,10 +87,10 @@ impl core::fmt::Display for NameError {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::NoIdentifier => formatter.write_str("the name has no `@@` identifier section"),
-            // **A sentence does not fit in a noun slot.** This read "the
-            // identifier {why}" where `{why}` is a standalone sentence, so three
-            // of the four renderings were ungrammatical: *"the identifier 16
-            // characters is more than the 13 a 64-bit value takes"*. The
+            // **A sentence does not fit in a noun slot.** Read as "the
+            // identifier {why}", where `{why}` is a standalone sentence, three
+            // of the four renderings would be ungrammatical: *"the identifier
+            // 16 characters is more than the 13 a 64-bit value takes"*. The
             // identifier is the subject; what was wrong with it follows.
             Self::BadIdentifier(why) => write!(formatter, "the identifier is unreadable: {why}"),
             Self::TooLong { bytes } => write!(
@@ -102,9 +102,9 @@ impl core::fmt::Display for NameError {
 }
 
 impl core::error::Error for NameError {
-    /// **The cause, which was `None` even where a variant wraps one.** A handler
-    /// walking `source()` saw nothing behind `BadIdentifier`, and the base32
-    /// error it holds is the whole explanation.
+    /// **The cause, which a variant that wraps one returns.** A handler
+    /// walking `source()` would otherwise see nothing behind `BadIdentifier`,
+    /// and the base32 error it holds is the whole explanation.
     fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
             Self::BadIdentifier(why) => Some(why),
@@ -162,10 +162,10 @@ impl FileName {
     ///
     /// The title and never the identifier: a truncated identifier names a
     /// different file, or no file (`§16.3`). It happens here rather than in
-    /// [`FileName::build`] because a value that does not equal what its own name
-    /// encodes breaks the law §16.3 calls the highest-value test in the module —
-    /// and the property test never found it, because every title it generated
-    /// was short enough to fit.
+    /// [`FileName::build`] because a value that does not equal what its own
+    /// name encodes breaks the law §16.3 calls the highest-value test in the
+    /// module — and a property test whose every title is short enough to fit
+    /// would never find it.
     ///
     /// A signature or a keyword set that does not fit on its own is left alone
     /// and reported by `build`: shortening the title would not have helped, and
@@ -334,13 +334,13 @@ impl FileName {
         // characters after which the rest of the name begins with another marker
         // or a dot.
         //
-        // This used to scan from the right, on the reasoning that finding the
-        // mandatory identifier first stopped a title from shifting the sections.
-        // The reasoning is sound and the behaviour is not Denote's: given
-        // `__x__y@@…` Denote reads the keyword `x` and this read `y`, silently
-        // dropping the half a person had typed. Only a name somebody renamed by
-        // hand can contain a second marker — `build` emits one of each — which
-        // is exactly the input `parse` exists for.
+        // Scanning from the right, on the reasoning that finding the mandatory
+        // identifier first stops a title from shifting the sections, is sound
+        // reasoning and not Denote's behaviour: given `__x__y@@…` Denote reads
+        // the keyword `x` and such a scan reads `y`, silently dropping the half
+        // a person had typed. Only a name somebody renamed by hand can contain
+        // a second marker — `build` emits one of each — which is exactly the
+        // input `parse` exists for.
         //
         // The title is the exception in the other direction and `terminators`
         // explains it: `--a--b@@…` is the title `a--b` to Denote, because its
@@ -364,9 +364,9 @@ impl FileName {
         });
 
         // Through the constructor, so a parsed name is normalised exactly like
-        // a built one. Parsing used to write its fields raw, so a value could
-        // hold spaces, punctuation and uppercase that `new` exists to strip —
-        // and `build` would emit them again.
+        // a built one. Written raw, a value could hold spaces, punctuation and
+        // uppercase that `new` exists to strip — and `build` would emit them
+        // again.
         let signature: Vec<&str> = signature.iter().map(String::as_str).collect();
         let keywords: Vec<&str> = keywords.iter().map(String::as_str).collect();
         Ok(Self::new(
@@ -408,18 +408,18 @@ const fn terminators(marker: &str) -> &'static [&'static str] {
 fn field<'a>(name: &'a str, marker: &str) -> Option<(&'a str, &'a str)> {
     let ends = terminators(marker);
     // Every occurrence, not only the first. The regexp is anchored at `$`, so
-    // `string-match` moves the marker rightwards until the whole pattern matches
-    // — and the content is `[^.]+?`, which cannot match a dot at all. A marker
-    // followed immediately by one therefore yields nothing at that position.
-    // Measured against Emacs 30.2: `denote-retrieve-filename-title` on
-    // `--.x@@01J8XK2M9P51` is nil, and this used to answer `x`.
+    // `string-match` moves the marker rightwards until the whole pattern
+    // matches — and the content is `[^.]+?`, which cannot match a dot at all. A
+    // marker followed immediately by one therefore yields nothing at that
+    // position. Measured against Emacs 30.2: `denote-retrieve-filename-title`
+    // on `--.x@@01J8XK2M9P51` is nil, where a first-occurrence reading answers
+    // `x`.
     let mut from = 0;
     while let Some(at) = name[from..].find(marker) {
-        // One value, not two: `start` and the next `from` were computed
-        // separately and were always equal. And the slice is infallible — every
-        // marker is ASCII and `find` returns a byte offset that is a character
-        // boundary — so a `?` here was a silent "component absent" path no input
-        // could reach.
+        // One value, not two: `start` and the next `from` would always be
+        // equal. And the slice is infallible — every marker is ASCII and `find`
+        // returns a byte offset that is a character boundary — so a `?` here
+        // would be a silent "component absent" path no input could reach.
         from += at + marker.len();
         let rest = &name[from..];
         if rest.starts_with('.') || rest.is_empty() {
@@ -441,27 +441,25 @@ fn field<'a>(name: &'a str, marker: &str) -> Option<(&'a str, &'a str)> {
 /// The punctuation Denote removes from every component.
 ///
 /// Transcribed from `denote-sluggify-title`'s own regexp in `denote.el`, and
-/// **counted against it**: Denote's set is thirty characters and an earlier
-/// version of this was twenty-six. The four that were missing are the curly
-/// quotes, and the typographic apostrophe is the most common punctuation mark
-/// there is in a real title — `don't stop` came out as `don-t-stop` instead of
-/// `dont-stop`, and as a signature it came out as `don=t`.
-/// Public so the corpus test beside this crate can assert that every one of
-/// them appears in some row: a character on this list that no row exercises is
-/// a rule nothing checks. Two — `"` and `‘` — appeared in no row, so deleting
-/// both from this list left the whole workspace green and produced names Denote
-/// would never write.
+/// **counted against it**: Denote's set is thirty characters, and twenty-six
+/// would miss the curly quotes — the typographic apostrophe is the most common
+/// punctuation mark there is in a real title, and without it `don't stop` comes
+/// out as `don-t-stop` instead of `dont-stop`, and as a signature
+/// as `don=t`. Public so the corpus test beside this crate can assert that
+/// every one of them appears in some row: a character on this list that no row
+/// exercises is a rule nothing checks. With `"` and `‘` in no row, deleting
+/// both from this list leaves the whole workspace green and produces
+/// names Denote would never write.
 ///
 /// **Six of these are also in `FORBIDDEN`, and for those the corpus assertion
 /// decides nothing.** `:`, `"`, `/`, `|`, `?` and `*` are stripped from a title
 /// by this list and from *every* component by that one, so deleting one of the
-/// six here changes no output at all — measured, `'"'` duplicated out of this
-/// array left `cargo test -p nc-ids` green at 97, 5 and 8. That is not a hole:
-/// the character is still refused, by the rule written for the component the
-/// extension is. It does mean the sentence the corpus assertion carries — "so
-/// deleting it from the rule would go unnoticed" — is true of the twenty-four
-/// this list alone decides, and `the_two_lists_overlap_where_they_say_they_do`
-/// is what holds the six.
+/// six here changes no output at all. That is not a hole: the character is
+/// still refused, by the rule written for the component the extension is. It
+/// does mean the sentence the corpus assertion carries — "so deleting it from
+/// the rule would go unnoticed" — is true of the twenty-four this list alone
+/// decides, and `the_two_lists_overlap_where_they_say_they_do` is what holds
+/// the six.
 pub const REMOVED: [char; 30] = [
     '[', ']', '{', '}', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '+', '\'', '"', '?', ',',
     '.', '|', ';', ':', '~', '`', '/', '\u{2018}', '\u{2019}', '\u{201c}', '\u{201d}',
@@ -471,14 +469,13 @@ pub const REMOVED: [char; 30] = [
 ///
 /// `NOCTUA.md §16.3` requires respecting "the characters Windows forbids", and
 /// this is that set, complete: `< > : " / \\ | ? *`. Denote's own [`REMOVED`]
-/// covers six of them incidentally, which is why this used to hold only the
-/// three it does not — and that was a rule written for one component and applied
-/// to another.
+/// covers six of them incidentally, and holding only the three it does not
+/// would be a rule written for one component and applied to another.
 ///
 /// **The extension is the component that does not run `REMOVED`**, because a
-/// real extension may contain `-`, `_` and `=`. So the six that were only in
-/// `REMOVED` reached a built name through it, and `/` among them made the
-/// "name" a path:
+/// real extension may contain `-`, `_` and `=`. So a character only
+/// in `REMOVED` reaches a built name through it, which is why this set is
+/// complete: with `/` only there, the "name" would be a path:
 ///
 /// ```text
 /// extension "j/pg"             →  --t@@01J8XK2M9P51.j/pg
@@ -486,8 +483,9 @@ pub const REMOVED: [char; 30] = [
 /// ```
 ///
 /// The second is a traversal out of whatever directory a caller meant to write
-/// in, produced by a function whose whole job is to return one path component.
-/// `parse(build(x)) == x` still held, which is why criterion 8 never saw it.
+/// in, produced by a function whose whole job is to return one path
+/// component. `parse(build(x)) == x` still holds, which is why criterion 8
+/// cannot see it.
 const FORBIDDEN: [char; 9] = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
 
 /// Whether a character cannot appear in a file name at all.
@@ -499,11 +497,11 @@ const FORBIDDEN: [char; 9] = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
 /// the name it produces — which is the second and last place this module adds to
 /// Denote, and `§16.3` records both.
 ///
-/// It was `char::is_control()`, which is Unicode's `Cc` category and therefore
-/// **also C1** (`U+0080`–`U+009F`). Windows permits those, Denote keeps them, and
-/// removing them was a third addition that no document recorded — so a title
-/// `a\u{85}b` quietly became `ab`. The addition has to be exactly as wide as its
-/// justification.
+/// Not `char::is_control()`, which is Unicode's `Cc` category and therefore
+/// **also C1** (`U+0080`–`U+009F`). Windows permits those, Denote keeps them,
+/// and removing them would be a third addition that no document records — a
+/// title `a\u{85}b` quietly becoming `ab`. The addition has to be exactly as
+/// wide as its justification.
 const fn unusable(character: char) -> bool {
     (character as u32) <= 0x1f
 }
@@ -546,19 +544,19 @@ fn slug_signature(text: &str) -> Option<String> {
 ///
 /// **Denote does not sluggify one at all**, and neither does this beyond what a
 /// filesystem forces: lowercased, with whitespace and the characters Windows
-/// forbids removed. Running it through the keyword rule turned `tar.gz` into
+/// forbids removed. Running it through the keyword rule turns `tar.gz` into
 /// `targz`, which is the single most common compound extension there is — and
 /// the dot is safe, because the parser takes everything after the *first* dot
 /// following the identifier.
 fn slug_extension(text: &str) -> Option<String> {
     let cleaned: String = text
         .chars()
-        // **`unusable` too.** It was missing, and only the whitespace controls
-        // were removed — and those only because `char::is_whitespace` happens to
-        // cover them. `FileName::new(…, Some("a\u{0}b")).build()` returned a name
-        // with a raw NUL in it, which no filesystem accepts as a byte of a path.
-        // Every other component filtered it; the extension is where the rule was
-        // written once and applied twice.
+        // **`unusable` too**, not only the whitespace controls — and those only
+        // because `char::is_whitespace` happens to cover them. Without it,
+        // `FileName::new(…, Some("a\u{0}b")).build()` returns a name with a raw
+        // NUL in it, which no filesystem accepts as a byte of a path. Every
+        // other component filters it; the extension is where a rule written
+        // once has to be applied twice.
         .filter(|c| !c.is_whitespace() && !unusable(*c) && !FORBIDDEN.contains(c) && *c != '@')
         .flat_map(char::to_lowercase)
         .collect();
@@ -573,13 +571,13 @@ fn slug_extension(text: &str) -> Option<String> {
 /// Runs of a delimiter become one, which is `denote--replace-consecutive-token-characters`.
 ///
 /// **This is what makes `parse(build(x)) == x` true, and the extension is where
-/// it was missing.** Every other component's sluggifier removes its delimiters
-/// outright; the extension keeps `=`, `-` and `_` because a real one may contain
-/// them. Keeping them was right and not collapsing them was not: `new` with the
-/// extension `==a` built `@@01J8XK2M9P51.==a`, and `parse` read the `==` as the
-/// start of a signature and returned a name with a signature the original never
-/// had. `= =a` reached the same place, because removing the space created the
-/// pair.
+/// it is needed.** Every other component's sluggifier removes its delimiters
+/// outright; the extension keeps `=`, `-` and `_` because a real one may
+/// contain them. Keeping them is right and not collapsing them is not: `new`
+/// with the extension `==a` would build `@@01J8XK2M9P51.==a`, and `parse` would
+/// read the `==` as the start of a signature and return a name with a signature
+/// the original never had. `= =a` reaches the same place, because removing the
+/// space creates the pair.
 ///
 /// Denote collapses `_`, `=`, `@` and `-` this way; `-` is exempt only in a
 /// title, and an extension is not a title.
@@ -612,8 +610,8 @@ fn collapse(text: &str) -> String {
 /// contained one would come back as several.
 fn slug_keyword(text: &str) -> Option<String> {
     // `_` and the space are dropped by `slug` itself — they are the word
-    // boundary — so passing them again changed nothing and read as though the
-    // keyword rule needed something extra. `-` and `=` genuinely do: Denote's
+    // boundary — so passing them again would change nothing and read as though
+    // the keyword rule needed something extra. `-` and `=` genuinely do: Denote's
     // keyword set removes both, and they are two of the scheme's delimiters.
     slug(text, &['-', '='], '\u{0}')
 }
@@ -628,13 +626,13 @@ fn slug_keyword(text: &str) -> Option<String> {
 /// against Emacs 30.2, `Café naïve` becomes `café-naïve` and `Zażółć gęślą jaźń`
 /// becomes `zażółć-gęślą-jaźń`.
 ///
-/// This module used to fold, through a hand-written decomposition table. The
-/// table was misaligned by two entries from `U+014C` on, so `Łódź żółw` came out
-/// as `łody-zołw` — a different word, in a file name that claims to be the
-/// title somebody typed. Removing it is not only fidelity to Denote; it removes
-/// the possibility of that class of defect. Denote offers folding to those who
-/// want it, as a slug function they install themselves, and this does not
-/// install it.
+/// This module does not fold. A hand-written decomposition table misaligned by
+/// two entries from `U+014C` on turns `Łódź żółw` into `łody-zołw` — a
+/// different word, in a file name that claims to be the title somebody
+/// typed. Not folding is not only fidelity to Denote; it removes the
+/// possibility of that class of defect. Denote offers folding to those who want
+/// it, as a slug function they install themselves, and this does not install
+/// it.
 fn slug(text: &str, also_removed: &[char], joiner: char) -> Option<String> {
     let mut out = String::with_capacity(text.len());
     let mut pending = false;
@@ -651,18 +649,18 @@ fn slug(text: &str, also_removed: &[char], joiner: char) -> Option<String> {
         // collapses runs of it, and that collapse is what stops a title holding
         // `--` from splitting the name at the wrong place when it is read back.
         // Not `&& !lowered.is_empty()`: `char::to_lowercase` yields at least one
-        // character for every input, so the guard could never be the thing that
-        // decided — and it read as though an empty lowering were possible.
+        // character for every input, so the guard can never be the thing that
+        // decides — and it reads as though an empty lowering were possible.
         let lowered = if lowered.chars().all(|c| c == joiner) {
             String::new()
         } else {
             lowered
         };
         // **Whatever survived removal is kept**, which is Denote's rule and not
-        // the alphanumeric filter this used to apply. That filter dropped a
-        // currency symbol, an em dash, a degree sign and CJK punctuation — and
-        // left a word boundary behind each — so `5 € + 3 £` became `5-3` where
-        // Denote writes `5-€-3-£`.
+        // an alphanumeric filter. Such a filter drops a currency symbol, an em
+        // dash, a degree sign and CJK punctuation — and leaves a word boundary
+        // behind each — so `5 € + 3 £` would become `5-3` where Denote writes
+        // `5-€-3-£`.
         //
         // **A word boundary is a literal space or an underscore, and nothing
         // else.** `denote-slug-hyphenate`'s regexp is `_\| +` — one or more
@@ -686,16 +684,17 @@ fn slug(text: &str, also_removed: &[char], joiner: char) -> Option<String> {
             out.push_str(&kept);
         }
     }
-    // **No trim, because there is nothing to trim.** This ended with
-    // `out.trim_matches(joiner)`, and that branch was unreachable by
-    // construction: `pending` is set only when `out` is non-empty and is flushed
-    // only immediately before a non-empty `kept`, so a joiner can never be the
-    // first or the last character. Deleting it left the whole gate green — which
-    // is `§19.5`'s own instrument turned on this file, and the answer is to
-    // remove the code rather than to write a test for a branch nothing reaches.
-    // Leading and trailing separators are still trimmed; the `pending`
-    // mechanism above is what does it, and `the_corpus_exercises_every_rule_it_
-    // is_the_authority_for` proves a row exercises it.
+    // **No trim, because there is nothing to trim.** An
+    // `out.trim_matches(joiner)` at the end would be unreachable by
+    // construction: `pending` is set only when `out` is non-empty and is
+    // flushed only immediately before a non-empty `kept`, so a joiner can never
+    // be the first or the last character. Deleting such a trim leaves the whole
+    // gate green — which is `§19.5`'s own instrument turned on this file, and
+    // the answer is to remove the code rather than to write a test for a branch
+    // nothing reaches. Leading and trailing separators are still trimmed; the
+    // `pending` mechanism above is what does it, and
+    // `the_corpus_exercises_every_rule_it_is_the_authority_for` proves a row
+    // exercises it.
     if out.is_empty() { None } else { Some(out) }
 }
 
@@ -707,11 +706,12 @@ mod code_tests {
 
     #[test]
     fn a_name_worth_shortening_is_told_apart_from_one_that_is_not_a_name() {
-        // `code` had no caller, so the distinction it draws was never checked.
-        // It is the distinction that matters to whoever handles the failure: a
-        // name that is too long is theirs to shorten, and a name with no
-        // identifier is not a Denote name at all and never will be. One code for
-        // both would have a caller offering to truncate a file it should refuse.
+        // `code` has no other caller, so this is what checks the distinction it
+        // draws. It is the distinction that matters to whoever handles the
+        // failure: a name that is too long is theirs to shorten, and a name
+        // with no identifier is not a Denote name at all and never will be. One
+        // code for both would have a caller offering to truncate a file it
+        // should refuse.
         assert_eq!(
             NameError::TooLong { bytes: 300 }.code(),
             ErrorCode::IdsNameTooLong
@@ -732,11 +732,11 @@ mod code_tests {
 mod tests {
     /// A bad identifier reads as a sentence, and its cause is reachable.
     ///
-    /// **Three of the four renderings were ungrammatical** — the message spliced
-    /// a standalone sentence into a noun slot: *"the identifier 16 characters is
-    /// more than the 13 a 64-bit value takes"*. And `source()` was `None`, so a
-    /// handler walking the chain could not see the base32 error the variant
-    /// holds.
+    /// **Each of the four renderings is grammatical** — a message splicing a
+    /// standalone sentence into a noun slot reads *"the identifier 16
+    /// characters is more than the 13 a 64-bit value takes"*. And `source()`
+    /// returns the base32 error the variant holds, so a handler walking the
+    /// chain can see it.
     #[test]
     fn a_bad_identifier_reads_as_a_sentence_and_names_its_cause() {
         use core::error::Error as _;
@@ -759,13 +759,14 @@ mod tests {
 
     /// The declared byte limit is the number its own paragraph argues for.
     ///
-    /// **A sixth bound pinned only against itself.** Every test and both property
-    /// tests read `MAX_BYTES` (`built.len() <= MAX_BYTES`), so the bound was
-    /// compared with itself: raising it is caught by a 300-character fixture and
-    /// *lowering* it is not. Measured at 100, `cargo xtask check` passed — and
+    /// **A bound pinned against its argument, not only against itself.** Every
+    /// other test and both property tests read `MAX_BYTES`
+    /// (`built.len() <= MAX_BYTES`), so the bound is compared with itself:
+    /// raising it is caught by a 300-character fixture and *lowering* it is
+    /// not. Measured at 100 without this, `cargo xtask check` passes — and
     /// every title would be silently shortened to a fraction of what the
-    /// filesystem allows, with the paragraph's claim about filesystems unchecked
-    /// in the one direction a typo goes.
+    /// filesystem allows, with the paragraph's claim about filesystems
+    /// unchecked in the one direction a typo goes.
     #[test]
     fn the_byte_limit_is_the_number_its_paragraph_argues_for() {
         assert_eq!(
@@ -777,9 +778,10 @@ mod tests {
 
     /// `build` refuses at the byte after the last one that fits, and not later.
     ///
-    /// **`MAX_BYTES` was pinned and the line that reads it was not.** Every
-    /// length assertion in this crate and in its property suite is `<=`, so
-    /// widening `build`'s own comparison was invisible — measured on 2026-09-08:
+    /// **`MAX_BYTES` is pinned, and so is the line that reads it.** The property
+    /// suite asserts `<=`, and this crate's other length equalities are on names
+    /// that fit or are far past the bound, so widening `build`'s own comparison
+    /// is invisible to them — measured without this:
     ///
     /// ```text
     /// if full.len() <= MAX_BYTES + 1 {   -> cargo test -p nc-ids green,
@@ -857,12 +859,13 @@ mod tests {
 
     /// A name that must be shortened uses every byte it is entitled to.
     ///
-    /// **`DELIMITER` was pinned in one direction only.** Every length assertion
-    /// in this crate and in its property suite is `<=`, so making the
-    /// truncation budget *smaller* was invisible: `DELIMITER = 50` built a
-    /// 207-byte name where 255 was allowed, and `parse(build(x)) == x` still
-    /// held because `parse` reads back whatever `build` shortened to. Every long
-    /// title silently lost 48 bytes it was entitled to.
+    /// **`DELIMITER` pinned in both directions.** The property suite asserts
+    /// `<=`, and this crate's other length equalities are on names that keep no
+    /// shortened title, so making the truncation budget *smaller* is invisible
+    /// to them: `DELIMITER = 50` builds a 207-byte name where 255 is allowed, and
+    /// `parse(build(x)) == x` still holds because `parse` reads back whatever
+    /// `build` shortened to. Every long title would silently lose 48 bytes it is
+    /// entitled to.
     ///
     /// Equality, because a name that had to be shortened is a name that used
     /// the whole budget — anything less is the budget being wrong.
@@ -897,14 +900,15 @@ mod tests {
 
     /// The specification's own example, rebuilt byte for byte.
     ///
-    /// **The round trip is invariant under any layout `field()` can decode.**
-    /// `FileName::parse` re-derives every component through `FileName::new`, so
-    /// criterion 8's property — `parse(build(x)) == x` — holds whatever order
-    /// `render` writes the four components in and whatever character joins the
-    /// signature's parts. The one worked example `NOCTUA.md §16.3` writes down
-    /// was only ever *parsed*. Measured on 2026-09-10, two clauses planted
-    /// together — `render`'s signature block moved after its title block, and
-    /// `join("=")` written `join("_")`:
+    /// **The round trip is invariant under any layout `field()` can
+    /// decode.** `FileName::parse` re-derives every component
+    /// through `FileName::new`, so criterion 8's property
+    /// — `parse(build(x)) == x` — holds whatever order `render` writes the four
+    /// components in and whatever character joins the signature's parts, and
+    /// the one worked example `NOCTUA.md §16.3` writes down is otherwise only
+    /// *parsed*. Measured without this, two clauses planted together
+    /// — `render`'s signature block moved after its title block,
+    /// and `join("=")` written `join("_")`:
     ///
     /// ```text
     /// check passed, ok 1248 test(s), and the whole report byte-identical
@@ -913,11 +917,12 @@ mod tests {
     /// ```
     ///
     /// Neither is a name Denote writes, and `_` is Denote's *keyword*
-    /// separator. `canonical_name`'s whole job is to propose the one spelling of
-    /// an identity, and under either plant it proposes renaming every correctly
-    /// named file on disk. This file already reasons *from* the property that
-    /// falsifies — `a_title_ends_at_a_signature_a_person_typed_after_it` argues
-    /// that `build` emits the signature before the title, which nothing held.
+    /// separator. `canonical_name`'s whole job is to propose the one spelling
+    /// of an identity, and under either plant it proposes renaming every
+    /// correctly named file on disk. This file already reasons *from* the
+    /// property that falsifies
+    /// — `a_title_ends_at_a_signature_a_person_typed_after_it` argues
+    /// that `build` emits the signature before the title, which this holds.
     ///
     /// Both directions, because the parse test beside this one is not enough: a
     /// name is built from its parts, and the same name is parsed and rebuilt.
@@ -1001,8 +1006,8 @@ mod tests {
 
     #[test]
     fn the_punctuation_set_is_denote_s_including_the_curly_quotes() {
-        // The four that were missing, and the apostrophe is the one a real title
-        // actually contains.
+        // The four curly quotes a set of twenty-six would miss, and the
+        // apostrophe is the one a real title actually contains.
         let name = FileName::new(&[], Some("don\u{2019}t stop"), &[], id(), None);
         assert_eq!(name.title(), Some("dont-stop"));
         let quoted = FileName::new(&[], Some("\u{201c}hello\u{201d} there"), &[], id(), None);
@@ -1011,9 +1016,8 @@ mod tests {
 
     #[test]
     fn whatever_survives_removal_is_kept_which_is_denote_s_rule() {
-        // The alphanumeric filter this used to apply is not Denote's: it dropped
-        // a currency symbol, an em dash and a degree sign, and left a word
-        // boundary behind each.
+        // An alphanumeric filter is not Denote's: it drops a currency symbol,
+        // an em dash and a degree sign, and leaves a word boundary behind each.
         let name = FileName::new(&[], Some("5 \u{20ac} + 3 \u{a3}"), &[], id(), None);
         assert_eq!(name.title(), Some("5-\u{20ac}-3-\u{a3}"));
         let degrees = FileName::new(&[], Some("temp 20\u{b0}C"), &[], id(), None);
@@ -1051,13 +1055,13 @@ mod tests {
 
     /// Every combining mark in the block is content, not something to strip.
     ///
-    /// **One mark was tested and the block has 112.** The only case here used
-    /// `U+0300`, and all 44 corpus rows are NFC — so adding `U+0301` to `slug`'s
-    /// removal clause left the whole workspace green: measured, `cargo xtask
-    /// check` `check passed`. A title pasted from macOS arrives decomposed and
+    /// **Every mark, not one of 112.** With only `U+0300` here, and all 44
+    /// corpus rows NFC, adding `U+0301` to `slug`'s removal clause leaves the
+    /// whole workspace green: measured, `cargo xtask check`
+    /// prints `check passed`. A title pasted from macOS arrives decomposed and
     /// the same title typed on Linux arrives composed, so a fold here makes one
-    /// title into two file names, and `parse(build(x)) == x` still holds because
-    /// stripping is idempotent — the round-trip cannot see it.
+    /// title into two file names, and `parse(build(x)) == x` still holds
+    /// because stripping is idempotent — the round-trip cannot see it.
     #[test]
     fn no_combining_mark_is_stripped_from_a_title() {
         for point in 0x0300..=0x036F_u32 {
@@ -1077,16 +1081,17 @@ mod tests {
 
     /// The keywords a name carries come back in the order they were given.
     ///
-    /// **Nothing anywhere observed a name with two of them.** `FileName::new`
-    /// neither sorts nor dedups, and no assertion in the workspace read a
-    /// `keywords()` of length two or more — the corpus has one keyword per row
-    /// by construction, and the round-trip property is invariant under any
-    /// idempotent permutation. So sorting and not sorting were indistinguishable
-    /// to the whole suite: measured, `name.keywords.sort();` inserted before
-    /// `shorten()` left `cargo xtask check` at `check passed`.
+    /// **This observes a name with two of them.** `FileName::new` neither sorts
+    /// nor dedups, and without this no assertion in the workspace reads
+    /// a `keywords()` of length two or more — the corpus has one keyword per
+    /// row by construction, and the round-trip property is invariant under any
+    /// idempotent permutation. So sorting and not sorting are otherwise
+    /// indistinguishable to the whole suite: measured, `name.keywords.sort();`
+    /// inserted before `shorten()` leaves `cargo xtask check`
+    /// at `check passed`.
     ///
     /// Real Denote's `denote-sort-keywords` defaults to `t`; this crate keeps
-    /// the order it was given, and that is now a decision a test holds.
+    /// the order it was given, and that is a decision a test holds.
     #[test]
     fn the_keywords_keep_the_order_they_were_given() {
         let given = ["zeta", "alpha", "mu"];
@@ -1119,27 +1124,27 @@ mod tests {
 
     #[test]
     fn an_extension_is_cleaned_of_what_a_filesystem_refuses_and_of_its_own_dots() {
-        // Two guards inside `slug_extension`, each deletable with the whole suite
-        // green. The backslash one matters most: `DEVIATIONS` in
-        // `crates/nc-ids/tests/against_denote.rs` documents removing `<`, `>` and `\` from a
-        // title, and the extension was the one component where the same
-        // characters went through untouched — so a built name could carry a path
-        // separator.
+        // Two guards inside `slug_extension`, which without this test could
+        // each be deleted with the rest of the suite green. The backslash one
+        // matters most: `DEVIATIONS` in `crates/nc-ids/tests/against_denote.rs`
+        // documents removing `<`, `>` and `\` from a title, and without it the
+        // extension is the one component where the same characters go through
+        // untouched — so a built name could carry a path separator.
         let backslash = FileName::new(&[], Some("t"), &[], id(), Some("j\\pg"));
         assert_eq!(backslash.extension(), Some("jpg"));
         let angled = FileName::new(&[], Some("t"), &[], id(), Some("j<p>g"));
         assert_eq!(angled.extension(), Some("jpg"));
 
         // And the leading and trailing dots, which the parser uses as the
-        // boundary. `"..md.."` kept its dots and then re-parsed as `".md.."`,
-        // which is the round trip broken in the other direction.
+        // boundary. Kept, `"..md.."` re-parses as `".md.."`, which is the round
+        // trip broken in the other direction.
         let dotted = FileName::new(&[], Some("t"), &[], id(), Some("..md.."));
         assert_eq!(dotted.extension(), Some("md"));
         // A dot *inside* one stays, because that is what a compound extension is.
         let compound = FileName::new(&[], Some("t"), &[], id(), Some("tar.gz"));
         assert_eq!(compound.extension(), Some("tar.gz"));
 
-        // The two guards that had no test of their own. `@@` opens the
+        // And the two guards the cases above leave undriven. `@@` opens the
         // identifier, so an `@` in an extension would put a second one in the
         // name; and a space is the word boundary every other component removes.
         let at = FileName::new(&[], Some("t"), &[], id(), Some("j@pg"));
@@ -1160,17 +1165,17 @@ mod tests {
     fn a_title_is_dropped_when_it_and_its_delimiter_are_what_does_not_fit() {
         // A two-byte window. `render(None)` fits, `render(None) + "--" + title`
         // does not, and the subtraction that computes the room for a title
-        // underflows — so `shorten` returned with the title still attached and
-        // `build` refused a name that dropping the title would have made legal.
+        // underflows — so `shorten` would return with the title still attached
+        // and `build` refuse a name that dropping the title would have made
+        // legal.
         //
         // The window is found by construction rather than guessed at: grow a
-        // keyword until the title-less form is exactly `MAX_BYTES`, then ask for
-        // a name with a title.
-        // **Both widths reached, or this test failed.** Each arm used to
-        // `continue` when the exact byte count was not hit, so a change in the
-        // identifier's width or in the delimiters would have made the loop skip
-        // silently and the branch it exists for go untested — the vacuous shape
-        // §19.5 is about, arriving through the fixture.
+        // keyword until the title-less form is exactly `MAX_BYTES`, then ask
+        // for a name with a title. **Both widths reached, or this test fails.**
+        // An arm that would `continue` when the exact byte count is not hit
+        // lets a change in the identifier's width or in the delimiters make the
+        // loop skip silently and the branch it exists for go untested — the
+        // vacuous shape §19.5 is about, arriving through the fixture.
         let mut exercised = 0_usize;
         for target in [MAX_BYTES - 1, MAX_BYTES] {
             let mut width = 1;
@@ -1216,8 +1221,8 @@ mod tests {
     /// a name Denote would never write, and one that parses back with no title,
     /// so the value no longer equals what its own name encodes.
     ///
-    /// Measured: `if shortened.is_empty()` written `if false` left
-    /// `cargo test -p nc-ids` green.
+    /// Measured: `if shortened.is_empty()` written `if false` leaves the rest
+    /// of `cargo test -p nc-ids` green.
     #[test]
     fn a_title_shortened_to_nothing_is_no_title_rather_than_an_empty_one() {
         // Found by construction, like the window above: grow a keyword until
@@ -1265,16 +1270,13 @@ mod tests {
 
     #[test]
     fn a_component_that_ends_exactly_at_its_marker_is_absent_rather_than_empty() {
-        // `field()`'s `rest.is_empty()` arm, which nothing reached. Without it
-        // the loop over `rest.char_indices().skip(1)` runs zero times and falls
-        // through to "the component runs to the end of the name" — returning an
-        // empty component, so a name ending in a bare marker would parse as
-        // having a title, a signature or a keyword set that is the empty string.
-        // A marker at the very end of the name, with nothing after it at all.
-        // Denote reads the component as absent; without this arm the loop over
-        // `rest.char_indices().skip(1)` runs zero times and the code falls
-        // through to "the component runs to the end of the name", which for an
-        // empty rest is a component that is the empty string.
+        // `field()`'s `rest.is_empty()` arm: a marker at the very end of the
+        // name, with nothing after it at all, which Denote reads as an absent
+        // component. Without the arm the loop over `rest.char_indices().skip(1)`
+        // runs zero times and falls through to "the component runs to the end
+        // of the name" — returning an empty component, so a name ending in a
+        // bare marker would parse as having a title, a signature or a keyword
+        // set that is the empty string.
         for (name, what) in [
             ("@@01J8XK2M9P51__", "keywords"),
             ("@@01J8XK2M9P51--", "a title"),
@@ -1300,12 +1302,13 @@ mod tests {
 
     #[test]
     fn an_extension_cannot_carry_a_path_separator_into_the_name() {
-        // **`build()` returned a path.** `slug_extension` filtered `FORBIDDEN`,
-        // which held three characters, while the other six Windows forbids lived
-        // in Denote's `REMOVED` — which the extension deliberately does not run,
-        // because a real extension may contain `-`, `_` and `=`. So `/` reached
-        // a built name, and with `..` beside it the name escaped the directory a
-        // caller meant to write in. `parse(build(x)) == x` held throughout.
+        // **`build()` never returns a path.** With `slug_extension` filtering a
+        // `FORBIDDEN` of three characters while the other six Windows forbids
+        // live in Denote's `REMOVED` — which the extension deliberately does not
+        // run, because a real extension may contain `-`, `_` and `=` — `/`
+        // reaches a built name, and with `..` beside it the name escapes the
+        // directory a caller meant to write in. `parse(build(x)) == x` holds
+        // throughout.
         for (extension, why) in [
             ("j/pg", "a separator"),
             ("../../etc/passwd", "a traversal"),
@@ -1336,10 +1339,10 @@ mod tests {
 
     #[test]
     fn an_extension_cannot_carry_a_control_character_into_the_name() {
-        // `slug_extension` did not call `unusable`, so a control character
-        // reached a built name — only the whitespace ones were removed, and only
-        // because `char::is_whitespace` happens to cover them. A NUL cannot be a
-        // byte of a path on any filesystem there is.
+        // `slug_extension` calls `unusable`, so no control character reaches a
+        // built name — not only the whitespace ones, which
+        // `char::is_whitespace` happens to cover. A NUL cannot be a byte of a
+        // path on any filesystem there is.
         for control in ['\u{0}', '\u{1}', '\u{7}', '\u{1b}', '\u{1f}'] {
             let built = FileName::new(&[], None, &[], id(), Some(&format!("a{control}b")));
             assert_eq!(built.extension(), Some("ab"), "U+{:04X}", control as u32);
@@ -1353,10 +1356,10 @@ mod tests {
 
     #[test]
     fn an_extension_cannot_carry_a_doubled_delimiter_into_the_name() {
-        // Acceptance criterion 8, and the one component whose sluggifier does not
-        // remove the scheme's delimiters. `Some("==a")` built
-        // `@@01J8XK2M9P51.==a`, and `parse` read the `==` as the start of a
-        // signature — so a round trip through the public constructor returned a
+        // Acceptance criterion 8, and the one component whose sluggifier does
+        // not remove the scheme's delimiters. Uncollapsed, `Some("==a")` builds
+        // `@@01J8XK2M9P51.==a`, and `parse` reads the `==` as the start of a
+        // signature — so a round trip through the public constructor returns a
         // name with a signature the original never had.
         for typed in ["==a", "= =a", "--a", "__b", "a==b"] {
             let built = FileName::new(&[], None, &[], id(), Some(typed));
@@ -1385,9 +1388,9 @@ mod tests {
         // rule above from quietly becoming "anything space-like".
         let nbsp = FileName::new(&[], Some("a\u{a0}b"), &[], id(), None);
         assert_eq!(nbsp.title(), Some("a\u{a0}b"));
-        // And a C1 control, which Windows permits and Denote keeps. `is_control`
-        // was the test here, and it is Unicode's `Cc` category — so this became
-        // `ab`, a third addition to Denote that no document recorded.
+        // And a C1 control, which Windows permits and Denote keeps. With
+        // `is_control` as the test here — Unicode's `Cc` category — this would
+        // become `ab`, a third addition to Denote that no document records.
         let c1 = FileName::new(&[], Some("a\u{85}b"), &[], id(), None);
         assert_eq!(c1.title(), Some("a\u{85}b"));
         let del = FileName::new(&[], Some("a\u{7f}b"), &[], id(), None);
@@ -1407,8 +1410,8 @@ mod tests {
 
     #[test]
     fn a_parsed_name_is_normalised_exactly_like_a_built_one() {
-        // Parsing used to write its fields raw, so a value could hold spaces and
-        // uppercase that `new` exists to strip — and `build` would emit them.
+        // Written raw, a parsed value could hold spaces and uppercase that
+        // `new` exists to strip — and `build` would emit them.
         let parsed = FileName::parse("--Hello World!@@01J8XK2M9P51").expect("parses");
         assert_eq!(parsed.title(), Some("hello-world"));
         assert_eq!(
@@ -1419,8 +1422,8 @@ mod tests {
 
     #[test]
     fn a_long_title_is_shortened_at_construction_so_the_name_still_round_trips() {
-        // It used to be shortened by `build`, which meant a long title produced
-        // a name that did not parse back to the value that produced it.
+        // Shortened by `build` instead, a long title would produce a name that
+        // does not parse back to the value that produced it.
         let long = "a".repeat(400);
         let name = FileName::new(&["family"], Some(&long), &["holiday"], id(), Some("jpeg"));
         let built = name.build().expect("builds");
@@ -1458,7 +1461,7 @@ mod tests {
 
     #[test]
     fn a_compound_extension_survives() {
-        // `tar.gz` used to become `targz`. Denote does not sluggify an
+        // `tar.gz` stays `tar.gz`, not `targz`. Denote does not sluggify an
         // extension, and the dot is safe because the parser splits at the first
         // one after the identifier.
         let name = FileName::new(&[], Some("backup"), &[], id(), Some("TAR.GZ"));
@@ -1488,14 +1491,14 @@ mod tests {
     /// A name that parses and cannot be built says so, rather than saying it is
     /// already canonical.
     ///
-    /// **The `?` that carries it was decided by nothing.** `canonical_name`'s
-    /// own `# Errors` paragraph documents this exact case — *"a name that parses
-    /// can still be one this scheme will not write"* — and written
-    /// `build().unwrap_or_else(|_| name.to_owned())` the whole gate stayed
-    /// green: `check passed`, `ok 1281 test(s)`, and this function then answered
-    /// `Ok(None)`, meaning *already the canonical spelling*, for a name it
-    /// cannot write at all. A caller renaming files by that answer leaves the
-    /// pair it was asked about exactly as it found them.
+    /// **The `?` that carries it, decided here.** `canonical_name`'s
+    /// own `# Errors` paragraph documents this exact case — *"a name that
+    /// parses can still be one this scheme will not write"* — and
+    /// written `build().unwrap_or_else(|_| name.to_owned())`, without this the
+    /// whole gate stays green: `check passed`, and the function then
+    /// answers `Ok(None)`, meaning *already the canonical spelling*, for a name
+    /// it cannot write at all. A caller renaming files by that answer leaves
+    /// the pair it was asked about exactly as it found them.
     #[test]
     fn a_name_that_parses_and_cannot_be_built_says_so() {
         // Over the bound in the keywords, which `parse` reads and `build`
@@ -1525,7 +1528,7 @@ mod tests {
         // And the same door one step earlier: a name that does not parse is not
         // a name that is already spelled right either. Written
         // `let Ok(parsed) = Self::parse(name) else { return Ok(None) }` the
-        // whole crate stayed green over the row above.
+        // whole crate stays green over the row above.
         assert_eq!(
             FileName::canonical_name("--just-a-title.jpg"),
             Err(NameError::NoIdentifier),
@@ -1555,9 +1558,9 @@ mod tests {
 
     /// A title ends at `==`, and a hand-typed name is the only thing that asks.
     ///
-    /// **`terminators` had one clause nothing decided.** Deleting `"=="` from
-    /// the title's list left the whole gate at `check passed` with 1102 tests,
-    /// while `--t==s@@…` parsed as the title `ts` and the signature `s` — the
+    /// **`terminators` has one clause only this decides.** Deleting `"=="` from
+    /// the title's list leaves the rest of the gate at `check passed`,
+    /// while `--t==s@@…` parses as the title `ts` and the signature `s` — the
     /// title swallowing a field it does not own. The property test cannot reach
     /// it: `build` emits the signature *before* the title, so no generated name
     /// carries `==` after `--`, and `raw_name` draws titles from an alphabet
@@ -1565,11 +1568,10 @@ mod tests {
     /// which the paragraph above `parse` calls exactly the input `parse` exists
     /// for.
     ///
-    /// The sibling clauses are each decided by a test already; this is the one
-    /// that was not. `--` is deliberately absent from the title's terminators,
-    /// and the test that says so is `against_denote.rs`'s
-    /// `a_name_with_a_repeated_marker_is_split_where_denote_splits_it` — the
-    /// name written here before was one no test in this tree has ever carried.
+    /// The sibling clauses are each decided by a test already. `--` is
+    /// deliberately absent from the title's terminators, and the test that says
+    /// so
+    /// is `against_denote.rs`'s `a_name_with_a_repeated_marker_is_split_where_denote_splits_it`.
     #[test]
     fn a_title_ends_at_a_signature_a_person_typed_after_it() {
         let name = FileName::parse("--t==s@@01J8XK2M9P51").expect("a parsable name");
@@ -1597,11 +1599,11 @@ mod tests {
     /// The extension is what follows a **dot** after the identifier.
     ///
     /// **Everything after the identifier is not the extension**, and taking it
-    /// wholesale left `cargo test -p nc-ids` green: `@@…==s` then reported the
-    /// extension `=s`, and `build` proposed renaming a real file to one carrying
-    /// an extension it never had. `parse(build(x)) == x` cannot see this — the
-    /// wrong answer is a fixed point — which is why criterion 8 is not where
-    /// this belongs.
+    /// wholesale leaves the rest of `cargo test -p nc-ids` green: `@@…==s` then
+    /// reports the extension `=s`, and `build` proposes renaming a real file to
+    /// one carrying an extension it never had. `parse(build(x)) == x` cannot
+    /// see this — the wrong answer is a fixed point — which is why criterion 8
+    /// is not where this belongs.
     #[test]
     fn a_marker_after_the_identifier_is_not_an_extension() {
         let signed = FileName::parse("@@01J8XK2M9P51==s").expect("a parsable name");
@@ -1622,12 +1624,12 @@ mod tests {
 
     /// Dropping the title is what `shorten` does when dropping it is enough.
     ///
-    /// **The guard it does that under decided nothing.** Removing
-    /// `if without.len() <= MAX_BYTES` left the suite green and dropped the
-    /// caller's title from names that were over the bound *with or without* it —
-    /// so the value lost a field it was given, and `TooLong { bytes }`, which is
-    /// documented as what the name would have been, reported a number that is
-    /// the length of no name at all.
+    /// **The guard it does that under,
+    /// decided.** Removing `if without.len() <= MAX_BYTES` leaves the rest of
+    /// the suite green and drops the caller's title from names that are over
+    /// the bound *with or without* it — so the value loses a field it was
+    /// given, and `TooLong { bytes }`, which is documented as what the name
+    /// would have been, reports a number that is the length of no name at all.
     #[test]
     fn a_title_is_kept_when_dropping_it_would_not_help() {
         let keyword = "k".repeat(300);

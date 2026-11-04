@@ -522,11 +522,11 @@ fn the_capability_registry_the_linker_and_the_world_name_the_same_functions() {
             "`{}` is given to every plugin, and the world does not import it",
             ungated.interface
         );
-        // **Read from what the catalog lists, never from the world.** This
-        // half was the world's own functions of the interface, so it equalled
-        // the world by construction: a `log#flush` the world gained, with a
-        // host function and a row of the probe, passed every test here and
-        // answered a plugin granted nothing, under a reason written before it.
+        // **Read from what the catalog lists, never from the world.** Read from
+        // the world's own functions of the interface, this half would equal the
+        // world by construction: a `log#flush` the world gained, with a host
+        // function and a row of the probe, would pass every test here and
+        // answer a plugin granted nothing, under a reason written before it.
         for function in ungated.functions {
             assert!(
                 in_the_catalog.insert(format!("{}#{function}", ungated.interface)),

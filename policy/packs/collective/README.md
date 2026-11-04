@@ -23,7 +23,7 @@ with a one-line `forbid` dropped in: the manifest is what refuses it first, and
 once it is in place the rest of the gate does, `has no denial test` among its
 refusals. The verdicts are not quoted here — this repository's own
 rule is that a transcript pasted into a document is a measurement of the day it
-was pasted, and this one had already rotted once.
+was pasted.
 
 What `cargo xtask check` does not fail for is the *emptiness* — a pack with no policies is a pack with nothing to test, and inventing
 one to satisfy a gate would put untested rules in front of a real deployment.

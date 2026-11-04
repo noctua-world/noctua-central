@@ -32,9 +32,9 @@ because = "core.fail_closed"
 context = { policy_epoch = -1 }
 
 [[case]]
-# **The boundary the comparison decides, and it was held by nothing.** The cases
-# above sit at 0 and -1 and the default context carries 7, so `policy_epoch <= 0`
-# could be moved anywhere in `1..=6` with the whole suite green — and `1` is a
+# **The boundary the comparison decides.** The cases above sit at 0 and -1 and
+# the default context carries 7, so without this case `policy_epoch <= 0` could
+# be moved anywhere in `1..=6` with the whole suite green — and `1` is a
 # realm's first valid epoch, refused as "no decision point available" the moment
 # the threshold moves one. `inside_a_conjunct` proposes `==`/`!=` only, so no
 # mutation operator reaches an ordering comparison either: a case or nothing.

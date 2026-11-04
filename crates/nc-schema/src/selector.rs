@@ -417,12 +417,12 @@ mod tests {
 
     /// An argument naming `Realm` is refused, however well the schema backs it.
     ///
-    /// Found by review: a plugin's `Write` command selecting `argument:r` with
-    /// `"x-entity": "Realm"` was judged sound and extracted
-    /// `Realm::"<whatever the caller wrote>"`, while the kernel's rule that a
-    /// plugin selects the realm only to read it is written against
-    /// [`Selector::Realm`] — so the command passed it, and the caller chose
-    /// which realm was authorized.
+    /// Otherwise a plugin's `Write` command selecting `argument:r`
+    /// with `"x-entity": "Realm"` is judged sound and
+    /// extracts `Realm::"<whatever the caller wrote>"`, while the kernel's rule
+    /// that a plugin selects the realm only to read it is written against
+    /// [`Selector::Realm`] — so the command passes it, and the caller chooses
+    /// which realm is authorized.
     #[test]
     fn an_argument_naming_the_realm_type_is_refused() {
         let schema = Schema::compile(
@@ -502,11 +502,11 @@ mod tests {
 
     /// Every refusal repeats the name it refuses cut short, as `Malformed` does.
     ///
-    /// Found by review: `Malformed` was held to the rule every diagnostic of
-    /// this crate follows and the five refusals beside it were not, so a
-    /// selector naming a megabyte of argument came back as a megabyte of
-    /// diagnostic — at `activate`, where the selector is a plugin's text and
-    /// the kernel prints the refusal.
+    /// Were `Malformed` alone held to the rule every diagnostic of this crate
+    /// follows, a selector naming a megabyte of argument would come back from
+    /// the five refusals beside it as a megabyte of diagnostic — at
+    /// `activate`, where the selector is a plugin's text and the kernel prints
+    /// the refusal.
     #[test]
     fn every_refusal_repeats_the_name_it_refuses_cut_short() {
         let long = "a".repeat(1_000_000);
@@ -611,9 +611,8 @@ mod tests {
     /// What the grammar says of `long` in both ways out of it.
     ///
     /// No `argument:` at all, and `argument:` before a name the grammar
-    /// refuses. Found by review: both could repeat the text raw with every
-    /// suite green, and each here opens with `ESC [2J`, which clears the
-    /// terminal a raw repeat reaches.
+    /// refuses. Each here opens with `ESC [2J`, which clears the terminal a
+    /// raw repeat reaches, and either way out could repeat the text raw.
     fn what_text_outside_the_grammar_is_refused_with(long: &str) -> Vec<String> {
         let empty = Schema::compile(r#"{"type":"object","additionalProperties":false}"#)
             .expect("inside the subset");

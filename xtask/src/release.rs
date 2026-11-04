@@ -30,9 +30,9 @@ const CARRIES_THE_VERSION: [&str; 1] = ["Cargo.toml"];
 
 /// The line in a manifest that holds it.
 ///
-/// **Kept for the tests and the prose, not for the writer.** The writer used to
-/// be `replacen` over this one spelling, and `version_of` — the reader — accepts
-/// arbitrary whitespace, so a manifest cargo accepts was readable and
+/// **Kept for the tests and the prose, not for the writer.** A writer that is
+/// `replacen` over this one spelling, beside a reader — `version_of` — that
+/// accepts arbitrary whitespace, makes a manifest cargo accepts readable and
 /// unwritable. `written_as_the_reader_reads_it` asks the reader where the line
 /// is; this is the canonical form the scanner and the fixtures are written in.
 #[cfg(test)]
@@ -43,13 +43,12 @@ const KEY: &str = "version = \"";
 /// **It is the only thing that puts `Cargo.lock` back**, in a repository whose
 /// own header says there is no git to undo it — and it was held by a count and a
 /// string literal: one test asserted how many writing calls this module ships and
-/// another that the failure message contains a sentence. Neither read
-/// what was written, and the test named for the restore never enters this path:
+/// another that the failure message contains a sentence. Neither reads
+/// what is written, and the test named for the restore never enters this path:
 /// it drives `rewrite_listed` twice by hand against a scratch tree that has no
-/// `Cargo.lock` in it at all. Measured by a reviewer in wave 16, writing
-/// `&locked[..0]` here left every one of the 627 tests green, and a failed
-/// `cargo update` then truncated the lockfile to nothing — after which
-/// `--locked` refuses all five verbs.
+/// `Cargo.lock` in it at all. Writing `&locked[..0]` here leaves all three of
+/// those green, and a failed `cargo update` then truncates the lockfile to
+/// nothing — after which `--locked` refuses all five verbs.
 ///
 /// A named function so the bytes can be asked about directly, which is what
 /// `the_lockfile_comes_back_byte_for_byte` does.
@@ -104,11 +103,11 @@ pub(crate) fn run(root: &Path, version: &str, dry_run: bool) -> Result<(), Strin
     }
 
     // Read before anything is written, so the relock's failure has something to
-    // put back — and read *before the manifest is rewritten*, which it was not.
+    // put back — and read *before the manifest is rewritten*.
     //
-    // **A refusal, not a `None`.** This was `.ok()`, which reads "there is no
-    // lockfile yet" and "the lockfile could not be read" as the same thing, and
-    // the message below then asserted a restore that never happened. Making it a
+    // **A refusal, not a `None`.** `.ok()` reads "there is no lockfile yet" and
+    // "the lockfile could not be read" as the same thing, and the message below
+    // would then assert a restore that never happened. Making it a
     // refusal was right and left in the wrong place: it fired *after*
     // `rewrite_listed`, so `Cargo.lock could not be read … Nothing was written`
     // printed over a `Cargo.toml` already at the new version, in a repository
@@ -138,9 +137,10 @@ pub(crate) fn run(root: &Path, version: &str, dry_run: bool) -> Result<(), Strin
 
     ui::ok(&format!(
         // **What was written, not what was listed.** This printed
-        // `CARRIES_THE_VERSION.len()`, so a `rewrite_listed` replaced by
-        // `Vec::new()` still reported `1 file(s) carry 0.2.0`, relocked and
-        // printed the tag commands having written nothing.
+        // count is `rewritten.len()`: printing `CARRIES_THE_VERSION.len()`
+        // instead, a `rewrite_listed` replaced by `Vec::new()` would still
+        // report `1 file(s) carry 0.2.0`, relock and print the tag commands
+        // having written nothing.
         "{} file(s) carry {version}",
         rewritten.len()
     ));
@@ -164,9 +164,10 @@ pub(crate) fn run(root: &Path, version: &str, dry_run: bool) -> Result<(), Strin
     // version after: 0.3.0        lockfile says: 0.2.0
     // ```
     //
-    // Worse, the obvious recovery was refused: re-running the same command
-    // answered `this tree is at 0.3.0 and 0.3.0 is not ahead of it`, so the
-    // operator had to hand-edit the manifest back before they could try again.
+    // Worse, without the restore the obvious recovery is refused: re-running
+    // the same command answers `this tree is at 0.3.0 and 0.3.0 is not ahead of
+    // it`, so the operator has to hand-edit the manifest back before they can
+    // try again.
     // The `ok` line prints before the error, so the transcript reads as a
     // release that happened.
     // **And what an interruption between the two writes costs, before it can
@@ -174,7 +175,7 @@ pub(crate) fn run(root: &Path, version: &str, dry_run: bool) -> Result<(), Strin
     // manifest is at the new version and `Cargo.lock` is at the old until
     // `cargo update` returns. Measured with Ctrl-C in that window —
     // 0.218 s wide on a warm cache, wider whenever cargo waits for its package
-    // lock — the tree was left with `Cargo.toml` at 0.2.0 and `Cargo.lock` at
+    // lock — the tree is left with `Cargo.toml` at 0.2.0 and `Cargo.lock` at
     // 0.1.0, and the next command a developer types is:
     //
     // ```text
@@ -198,11 +199,12 @@ pub(crate) fn run(root: &Path, version: &str, dry_run: bool) -> Result<(), Strin
          `cargo update --workspace` puts the lockfile back",
     );
     if let Err(problem) = relock(root) {
-        // **The lockfile too, and it was outside the set.** `CARRIES_THE_VERSION`
-        // is `["Cargo.toml"]`, so the restore put the manifest back and left
-        // `Cargo.lock` at the new version — measured: `Cargo.toml` at 0.1.0 and
-        // ten members at 0.2.0 in the lockfile, under a message saying nothing
-        // was released. `cargo update` had already written it before failing.
+        // **The lockfile too, which is outside the set.** `CARRIES_THE_VERSION`
+        // is `["Cargo.toml"]`, so a restore of the set alone puts the manifest
+        // back and leaves `Cargo.lock` at the new version — measured:
+        // `Cargo.toml` at 0.1.0 and ten members at 0.2.0 in the lockfile, under
+        // a message saying nothing was released. `cargo update` has already
+        // written it before failing.
         // The next unlocked cargo re-syncs it, but the gate itself runs
         // `clippy --locked` and `cargo deny --locked`, and an operator reading
         // the tree in between is reading a lie.
@@ -214,13 +216,13 @@ pub(crate) fn run(root: &Path, version: &str, dry_run: bool) -> Result<(), Strin
             (Ok(_), Ok(())) => {
                 format!(". Nothing was released and the version is back at {from}")
             }
-            // **And it says which half failed — both halves.** The message
-            // emitted "the version is back at {from}" unconditionally and then,
-            // in the same sentence, "this tree names {version} in Cargo.toml":
-            // an operator who read the first clause and stopped was told the
-            // opposite of the truth. And this arm discarded the lockfile's own
-            // result with `_`, so somebody told to fix the manifest fixed one of
-            // two damaged files and met `clippy --locked` on the other.
+            // **And it says which half failed — both halves.** A message
+            // emitting "the version is back at {from}" unconditionally and then,
+            // in the same sentence, "this tree names {version} in Cargo.toml"
+            // tells an operator who reads the first clause and stops the
+            // opposite of the truth. And an arm that discards the lockfile's own
+            // result with `_` sends somebody told to fix the manifest to fix one
+            // of two damaged files and meet `clippy --locked` on the other.
             (Err(second), lock) => format!(
                 ". And putting {from} back failed too: {second} — this tree names \
                  {version} in {}{}, and there is no git here to undo it",
@@ -289,9 +291,9 @@ fn version_in(text: &str) -> Option<String> {
 /// The workspace's version, and which line of the file it is on.
 ///
 /// **Under `[workspace.package]`, not the first `version = "` in the file.**
-/// This took the first trimmed line with the key, whatever table it was in — so
-/// a dependency pinned above the workspace's own table won, and a release
-/// rewrote *that*:
+/// Taking the first trimmed line with the key, whatever table it is in, lets a
+/// dependency pinned above the workspace's own table win, and a release then
+/// rewrites *that*:
 ///
 /// ```text
 /// [workspace.dependencies.house-crate]
@@ -303,16 +305,16 @@ fn version_in(text: &str) -> Option<String> {
 /// ```
 ///
 /// `1 file(s) carry 0.2.0`, the lockfile rebuilt, `git tag -s v0.2.0` printed,
-/// a dependency requirement corrupted, and the release not made. The read-back
-/// added last round could not see it, because it re-read through this same
-/// function and agreed with itself. Today's manifest happens to put
+/// a dependency requirement corrupted, and the release not made. A read-back
+/// would not see it, because it re-reads through this same function and would
+/// agree with itself. Today's manifest happens to put
 /// `[workspace.package]` first; the second file added to `CARRIES_THE_VERSION`
 /// is the one that bites.
 ///
 /// **And the value is read as TOML writes it.** `version="0.1.0"` with no
 /// spaces and `version = "0.1.0" # keep` are both manifests cargo parses, and
-/// both answered `None` — which is `Cargo.toml names no version` about a file
-/// that names one.
+/// a reader of one spelling answers `None` for both — so a manifest that
+/// names a version is reported as `Cargo.toml names no version`.
 fn version_of(text: &str) -> Option<(usize, String)> {
     let mut table = String::new();
     for (index, line) in text.lines().enumerate() {
@@ -327,7 +329,7 @@ fn version_of(text: &str) -> Option<(usize, String)> {
         // The workspace's table, a single-crate manifest's own, or the top
         // level of a file that is nothing but a version. What is skipped is a
         // *named* table that is neither — `[workspace.dependencies.x]` is where
-        // the decoy lived.
+        // such a decoy lives.
         if !matches!(table.as_str(), "workspace.package" | "package" | "") {
             continue;
         }
@@ -338,19 +340,21 @@ fn version_of(text: &str) -> Option<(usize, String)> {
             continue;
         };
         let value = value.trim_start();
-        // **TOML has two string forms and this read one of them.** `version =
+        // **TOML has two string forms, and this reads both.** `version =
         // '0.1.0'` is a *literal* string, which cargo parses like any other —
         // measured, `cargo metadata` on a scratch manifest answers
-        // `"version":"0.1.0"` — and this answered `None` for it. So the whole
-        // gate went red on a tree cargo builds, with a message saying the
-        // manifest *holds no version*, and `cargo xtask release` refused a
-        // manifest naming the version it holds. That is the refusal-of-something-
-        // legitimate direction, in the reader the writer was made to follow.
+        // `"version":"0.1.0"` — and a reader of double quotes alone answers
+        // `None` for it. The whole gate then goes red on a tree cargo builds,
+        // with a message saying the manifest *holds no version*, and
+        // `cargo xtask release` refuses a manifest naming the version it holds.
+        // That is the refusal-of-something-legitimate direction, in the reader
+        // the writer follows.
         //
-        // This file already records the same class twice — `version="0.1.0"` and
-        // `version  = "0.1.0"`, each *a manifest cargo accepts* — and each repair
-        // widened only the spellings somebody had tried. TOML has exactly two
-        // string forms, so this is the closed set rather than a third list.
+        // This file records the same class for `version="0.1.0"` and
+        // `version  = "0.1.0"`, each *a manifest cargo accepts*, and widening
+        // only the spellings somebody has tried leaves the next one out. TOML has
+        // exactly two string forms, so this is the closed set rather than a
+        // third list.
         let (version, _) = ['"', '\''].into_iter().find_map(|quote| {
             value
                 .strip_prefix(quote)
@@ -364,10 +368,12 @@ fn version_of(text: &str) -> Option<(usize, String)> {
 /// Rewrites the version in every listed file, and reads each one back.
 ///
 /// Separated from [`run`] so the writing half can be driven against a scratch
-/// tree without re-entering the gate. **`run` had no test at all**: the gate
-/// before the write, the refusal on a listed file with no version, the refusal
-/// when the files already disagree — all three could be deleted with the whole
-/// suite green and `check passed`.
+/// tree without re-entering the gate. **`run` cannot be driven with
+/// `dry_run = false` from a test** — it runs the whole gate first — so the
+/// writing half and its refusals live here, where a test reaches them. Inside
+/// `run` alone, the refusal on a listed file with no version and the refusal
+/// when the files already disagree could each be deleted with the rest of the
+/// suite green.
 ///
 /// # Errors
 ///
@@ -388,10 +394,10 @@ fn rewrite_listed<'a>(
     })?;
 
     // **What each file held before this touched it**, so a refusal can put it
-    // back. `rewrite_listed` wrote and *then* validated, and returned `Err` with
-    // no restore — so a comment naming the current version above
-    // `[workspace.package]` took the rewrite, the read-back saw the real version
-    // unchanged, and the run stopped with the comment already edited:
+    // back. Writing and *then* validating, with `Err` and no restore, lets a
+    // comment naming the current version above `[workspace.package]` take the
+    // rewrite while the read-back sees the real version unchanged, and the run
+    // stops with the comment already edited:
     //
     // ```text
     // $ cargo xtask release 0.2.0
@@ -407,7 +413,7 @@ fn rewrite_listed<'a>(
     // changed, in a tree this module's own header says has no git to undo it
     // (`§5.3`). With more than one entry in `CARRIES_THE_VERSION` the same path
     // leaves file one rewritten when file two refuses. The relock-failure path
-    // one screen down already restores both files; this path did not.
+    // in `run` restores both files, and so does this one.
     let mut before: Vec<(&str, String)> = Vec::new();
     let restore = |before: &[(&str, String)]| {
         for (name, text) in before {
@@ -430,10 +436,10 @@ fn rewrite_listed<'a>(
                  with itself"
             ));
         }
-        // **Spelled as the reader spells it.** `version_of` was widened to accept
-        // a version line written with no spaces, which cargo accepts, and `KEY`
-        // was not — so `replacen` never matched and the release refused a
-        // manifest it had just read, naming the version it holds. The reader and
+        // **Spelled as the reader spells it.** `version_of` accepts a version
+        // line written with no spaces, which cargo accepts, and `KEY` does not —
+        // so a `replacen` over `KEY` would never match, and the release would
+        // refuse a manifest it had just read, naming the version it holds. The reader and
         // the writer have to agree about what a version line looks like.
         let updated = written_as_the_reader_reads_it(&text, &from, version);
         if updated == text && from != version {
@@ -442,11 +448,12 @@ fn rewrite_listed<'a>(
                 "{name} holds a version and not `{from}`, so the files already disagree"
             ));
         }
-        // **And the file now says so, read back the way it was read before.**
+        // **And the file then says so, read back the way it was read before.**
         // `version_in` scans *trimmed lines* for the key, so it skips a comment;
         // `replacen` searches the *raw text* and rewrites the first occurrence
         // anywhere, comments included. One comment line above
-        // `[workspace.package]` mentioning the current version was enough:
+        // `[workspace.package]` mentioning the current version is enough for a
+        // `replacen` writer:
         //
         // ```text
         // $ cargo xtask release 0.2.0
@@ -456,7 +463,7 @@ fn rewrite_listed<'a>(
         // 13:version = "0.1.0"
         // ```
         //
-        // Exit 0, the tag command printed, and the release did not happen —
+        // Exit 0, the tag command printed, and the release not made —
         // which is the state this module's own header says it exists to
         // prevent, reached through the one file it lists.
         if updated != text {
@@ -485,39 +492,36 @@ fn rewrite_listed<'a>(
 /// The ways TOML writes a version key, for the scanner that looks for files
 /// carrying one.
 ///
-/// **A writer's summary sat here.** *"Rewrites the version line, in whichever
-/// spelling the file uses"* is a verb phrase about a function, and rustdoc
-/// rendered it as the description of a `#[cfg(test)]` array of literals that
-/// rewrites nothing — three paragraphs above this block's own sentence saying
-/// the writer no longer reads the list. Neither doc-block census can see a
-/// summary moved *inside* one block: the block count and the bare count are both
-/// conserved, and the summary paragraph is one line, so the fused-summary rule
-/// never looks past it. Found by eye in round forty-nine, which is what that
-/// rule's own doc says is the only way.
+/// **The summary above is this list's own, and only reading can tell.** A
+/// writer's verb phrase standing here is rendered by rustdoc as the description
+/// of a `#[cfg(test)]` array of literals that rewrites nothing, and neither
+/// doc-block census can see a summary moved *inside* one block: the block count
+/// and the bare count are both conserved, and the summary paragraph is one
+/// line, so the fused-summary rule never looks past it. That rule's own doc
+/// says reading is the only way.
 ///
-/// **And the scanner knew one of them.** `every_file_listed_as_carrying_the_version…`
-/// searched the tree for `format!("{KEY}{at}\"")` — a single spelling — while the
-/// writer three hundred lines up iterated four. A probe file holding
-/// `version="0.1.0"` was invisible to the scan and would have been rewritten by
-/// the writer, which is the pairing "the file somebody adds tomorrow" is about:
+/// **And the scanner reads every one of them.** A scan of the tree for
+/// `format!("{KEY}{at}\"")` alone — a single spelling — leaves a probe file
+/// holding `version="0.1.0"` invisible, though a writer of four spellings would
+/// rewrite it, which is the pairing "the file somebody adds tomorrow" is about:
 ///
 /// ```text
 /// version="0.1.0"    -> every_file_listed_as_carrying_the_version… ok
 /// version = "0.1.0"  -> …are not in CARRIES_THE_VERSION: ["docs/probe.md"]
 /// ```
 ///
-/// **The writer no longer reads this.** It rewrote the version by matching one
-/// of these four literals, which is narrower than `version_of` — the reader — so
-/// `version  = "0.1.0"` was readable and unwritable, and the release refused a
-/// manifest naming the version it had just read. `written_as_the_reader_reads_it`
-/// asks `version_of` where the line is. What is left here is the *scanner*'s
-/// list, which looks for files that carry a version and are not on the list, and
-/// a scanner may be broad.
+/// **The writer does not read this.** Matching one of these eight literals is
+/// narrower than `version_of` — the reader — so a writer doing that leaves
+/// `version  = "0.1.0"` readable and unwritable, and the release would refuse a
+/// manifest naming the version it had just read.
+/// `written_as_the_reader_reads_it` asks `version_of` where the line is. This
+/// is the *scanner*'s list, which looks for files that carry a version and are
+/// not on the list, and a scanner may be broad.
 ///
-/// **And both quote characters, which it did not.** The scanner looked for a
-/// double quote alone, so a *new* file naming its version `version = '0.1.0'`
-/// was invisible to the pairing this list exists for — the same blindness the
-/// reader carried, in the same rule seen from the other end.
+/// **And both quote characters.** A scanner looking for a double quote alone
+/// leaves a *new* file naming its version `version = '0.1.0'` invisible to the
+/// pairing this list exists for — the blindness a double-quote reader has, in
+/// the same rule seen from the other end.
 #[cfg(test)]
 const SPELLINGS: [&str; 8] = [
     "version = \"",
@@ -532,19 +536,19 @@ const SPELLINGS: [&str; 8] = [
 
 /// The version rewritten on the line the *reader* found it on.
 ///
-/// **The reader and the writer knew different languages.** `version_of` trims
+/// **The reader and the writer speak one language.** `version_of` trims
 /// whitespace without bound, so `version  = "0.1.0"` — two spaces, which cargo
 /// accepts and `cargo fmt` never touches, because it does not format TOML — is
-/// an ordinary version to it; `SPELLINGS` is four literals, none of them that
-/// one. So the whole gate ran, and then:
+/// an ordinary version to it; `SPELLINGS` is eight literals, none of them that
+/// one. A writer matching those runs the whole gate, and then:
 ///
 /// ```text
 /// check passed, with 4 warn line(s) above
 ///   error Cargo.toml holds a version and not `0.1.0`, so the files already disagree
 /// ```
 ///
-/// `Cargo.toml` held exactly `0.1.0` and was the only file on the list, so there
-/// was nothing for it to disagree with. Asking `version_of` where the version is
+/// `Cargo.toml` holds exactly `0.1.0` and is the only file on the list, so there
+/// is nothing for it to disagree with. Asking `version_of` where the version is
 /// and rewriting *that line* makes one rule out of two: whatever the reader can
 /// read, the writer can write.
 fn written_as_the_reader_reads_it(text: &str, from: &str, version: &str) -> String {
@@ -559,10 +563,10 @@ fn written_as_the_reader_reads_it(text: &str, from: &str, version: &str) -> Stri
         return text.to_owned();
     };
     // **In the quotes the file uses.** `version_of` reads both TOML string
-    // forms and this looked for a double-quoted one only, so a manifest cargo
-    // accepts — `version = '0.1.0'` — was read, matched, and then left
-    // untouched, and `cargo xtask release` answered *the files already
-    // disagree* about a list with one file in it. The rewrite keeps the
+    // forms, and a rewrite looking for a double-quoted one only reads, matches
+    // and then leaves untouched a manifest cargo accepts — `version = '0.1.0'`
+    // — and `cargo xtask release` answers *the files already disagree* about a
+    // list with one file in it. The rewrite keeps the
     // spelling it found, which is what
     // `the_rewrite_does_not_change_the_spelling` asks of it.
     let Some((at, quote)) = ['"', '\'']
@@ -588,9 +592,9 @@ fn written_as_the_reader_reads_it(text: &str, from: &str, version: &str) -> Stri
 fn validate(version: &str) -> Result<(), String> {
     let parts: Vec<&str> = version.split('.').collect();
     // **Each part written the way it parses back.** `"01".parse::<u32>()` is
-    // `Ok(1)`, so `01.02.03` validated — and cargo's semver parser refuses a
-    // leading zero. The gate ran, passed, the manifest was written, and *then*
-    // `cargo update` failed:
+    // `Ok(1)`, so `01.02.03` would validate — and cargo's semver parser refuses
+    // a leading zero. Validated, it lets the gate run and pass and the manifest
+    // be written, and *then* `cargo update` fails:
     //
     // ```text
     //   ok    1 file(s) carry 01.02.03
@@ -616,15 +620,16 @@ fn validate(version: &str) -> Result<(), String> {
 
 /// Whether `to` is a version this repository may move to from `from`.
 ///
-/// **Forward only.** A downgrade and a no-op both validated, both printed
-/// `git tag -s v<version>`, and a real `release 0.1.0` on an 0.1.0 tree wrote
-/// nothing, reported `1 file(s) carry 0.1.0`, relocked, and told the developer
-/// to re-tag a version already shipped. A tag is the one thing in this list
-/// that cannot be taken back once it is pushed.
+/// **Forward only.** Without this, a downgrade and a no-op both validate, both
+/// print `git tag -s v<version>`, and a real `release 0.1.0` on an 0.1.0 tree
+/// writes nothing, reports `1 file(s) carry 0.1.0`, relocks, and tells the
+/// developer to re-tag a version already shipped. A tag is the one thing in
+/// this list that cannot be taken back once it is pushed.
 fn moves_forward(from: &str, to: &str) -> bool {
-    // **A part this cannot read is not silently dropped.** `filter_map` skipped
-    // the part it could not parse and compared what was left, so `0.1.0-rc.1`
-    // read as `[0, 1]` — a shorter list that orders against nothing sensibly.
+    // **A part this cannot read is not silently dropped.** A `filter_map` that
+    // skips the part it cannot parse and compares what is left reads
+    // `0.1.0-rc.1` as `[0, 1]` — a shorter list that orders against nothing
+    // sensibly.
     // This tool takes three numbers and says so; ordering a pre-release
     // correctly is semver's job and semver is a dependency `AGENTS.md` rule 3
     // asks about before it is taken. So a version this cannot order is refused
@@ -654,10 +659,9 @@ mod tests {
 
     /// Every file under `directory`, with its bytes.
     ///
-    /// **A comparison of named files cannot see a file appear.**
-    /// `a_dry_run_writes_nothing` read back the one entry in
-    /// `CARRIES_THE_VERSION` and asserted it was unchanged, which is true of
-    /// every tree a stray write lands in — the write is somewhere else. A
+    /// **A comparison of named files cannot see a file appear.** Reading back
+    /// the one entry in `CARRIES_THE_VERSION` and asserting it unchanged is true
+    /// of every tree a stray write lands in — the write is somewhere else. A
     /// listing is what has the other shape: it holds what the run was not
     /// supposed to touch as well as what it was.
     ///
@@ -711,13 +715,13 @@ mod tests {
 
     /// One file rewritten, and the file then read back.
     ///
-    /// **`run` had no test at all.** Everything its header promises — the gate
-    /// before the write, the refusal on a listed file with no version, the
-    /// refusal when the files already disagree, printing the git commands
-    /// rather than running them — could be deleted with the whole gate green:
-    /// 657 tests, `check passed`, exit 0. This drives the writing half against
-    /// a scratch tree, which is what makes those branches real rather than
-    /// documentation.
+    /// **`run` itself cannot be driven with `dry_run = false` from a test.** Everything its
+    /// header promises — the gate before the write, the refusal on a listed
+    /// file with no version, the refusal when the files already disagree,
+    /// printing the git commands rather than running them — could be deleted
+    /// with the whole gate green, `check passed`, exit 0, if nothing drove the
+    /// writing half. This drives that half, `rewrite_listed`, against a scratch
+    /// tree, which is what makes those branches real rather than documentation.
     ///
     /// `dry_run` is passed so the gate is not re-entered from inside itself.
     fn rewrite(directory: &Path, files: &[(&str, &str)], version: &str) -> Result<(), String> {
@@ -728,23 +732,22 @@ mod tests {
             }
             std::fs::write(path, text).expect("writable");
         }
-        // **The names this call was given, not `CARRIES_THE_VERSION`.** This
-        // called `rewrite_the_version`, which reads the shipped list — one entry
-        // — so every case here that named two scratch files wrote both and then
-        // rewrote a third, and every assertion about the first going back was
-        // true because nothing had touched it. A refusal part-way through a list
+        // **The names this call was given, not `CARRIES_THE_VERSION`.**
+        // `rewrite_the_version` reads the shipped list — one entry — so through
+        // it every case here that names two scratch files writes both and then
+        // rewrites a third, and every assertion about the first going back is
+        // true because nothing has touched it. A refusal part-way through a list
         // is exactly the case the shipped list does not reach today.
         let named: Vec<&str> = files.iter().map(|(name, _)| *name).collect();
         super::rewrite_listed(directory, &named, version).map(|_| ())
     }
 
-    /// `--dry-run` writes nothing, and something now checks that.
+    /// `--dry-run` writes nothing, and this checks that.
     ///
-    /// **The entire write half of `run` was executed by no test.** Both calls in
-    /// this module pass `dry_run = true` and return before any write, so
-    /// deleting the `if dry_run { … } else { rewrite_listed(…) }` arm left
-    /// `cargo test -p xtask --bin xtask release::` at `11 passed; 0 failed` —
-    /// and then:
+    /// **No test runs `run` with `dry_run = false`.** Both calls in this module
+    /// pass `dry_run = true` and return before any write, so deleting the
+    /// `if dry_run { … } else { rewrite_listed(…) }` arm makes a dry run write,
+    /// which fails this test — and, in real use:
     ///
     /// ```text
     /// $ cargo xtask release 0.1.1 --dry-run
@@ -799,7 +802,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&scratch);
     }
 
-    /// The write half of `run` is a call nothing had entered.
+    /// The write half of `run` is a call a test enters.
     ///
     /// **`a_dry_run_writes_nothing` drives the `true` arm, and every other test
     /// in this module passes `true` too.** So the one call in `run` that
@@ -812,9 +815,9 @@ mod tests {
     ///
     /// `run` cannot be driven with `dry_run = false` from a test — it runs the
     /// whole gate first, on a scratch tree that is not a workspace — so what is
-    /// held here is the call itself: the same arguments line 104 passes, over
+    /// held here is the call itself: the same arguments `run` passes, over
     /// the same list, with the file required to change. The count `run` prints
-    /// is `rewritten.len()` now, so a write that does nothing cannot report a
+    /// is `rewritten.len()`, so a write that does nothing cannot report a
     /// file.
     #[test]
     fn the_write_half_writes() {
@@ -853,22 +856,22 @@ mod tests {
     #[test]
     fn a_version_written_into_a_comment_is_not_a_release() {
         // **Measured, with the real verb.** `version_in` reads the first
-        // *trimmed line* beginning `version = "`, so it skips a comment;
-        // `replacen` rewrote the first occurrence in the *raw text*, which a
-        // comment can be. Exit 0, `1 file(s) carry 0.2.0`, the tag command
-        // printed — and `[workspace.package]` still said 0.1.0.
+        // *trimmed line* beginning `version = "`, so it skips a comment; a
+        // `replacen` rewrites the first occurrence in the *raw text*, which a
+        // comment can be. With such a writer: exit 0, `1 file(s) carry 0.2.0`,
+        // the tag command printed — and `[workspace.package]` still saying 0.1.0.
         let scratch = std::env::temp_dir().join(format!("nc-release-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&scratch);
         std::fs::create_dir_all(&scratch).expect("writable");
 
         let decoy = "# the line below is the one this rewrites: version = \"0.1.0\"\n\
                      [workspace.package]\nversion = \"0.1.0\"\n";
-        // **The refusal became a release, and that is the repair working.** The
-        // writer now rewrites the line `version_of` found rather than the first
-        // occurrence in the raw text, so the comment is not a candidate at all —
-        // where before it was rewritten and the real version left behind, and
-        // the only thing standing between that and a bad release was a read-back
-        // that refused *after* the write. One rule cannot disagree with itself.
+        // **A release, not a refusal.** The writer rewrites the line
+        // `version_of` found rather than the first occurrence in the raw text,
+        // so the comment is not a candidate at all — a writer that rewrites the
+        // comment leaves the real version behind, with only a read-back that
+        // refuses *after* the write between that and a bad release. One rule
+        // cannot disagree with itself.
         rewrite(&scratch, &[("Cargo.toml", decoy)], "0.2.0")
             .expect("the real version is on a line the reader found");
         let after = std::fs::read_to_string(scratch.join("Cargo.toml")).expect("readable");
@@ -915,14 +918,14 @@ mod tests {
         );
 
         // **And the spelling the reader accepts, the writer writes.**
-        // `version_of` was widened to read a version line with no spaces around
-        // the `=` — which cargo accepts — and `KEY` was not, so the rewrite
-        // matched nothing and the release refused a manifest it had just read,
-        // naming the version it holds. Reachable today, with one entry listed.
+        // `version_of` reads a version line with no spaces around the `=` —
+        // which cargo accepts — and `KEY` does not, so a rewrite matching `KEY`
+        // would match nothing and the release would refuse a manifest it had
+        // just read, naming the version it holds — with one entry listed.
         // Two spaces: what cargo accepts, what `cargo fmt` never touches
-        // because it does not format TOML, and what `SPELLINGS`' four literals
-        // did not hold — so the whole gate ran and the release then refused a
-        // manifest holding exactly the version it had just read.
+        // because it does not format TOML, and what `SPELLINGS`' eight literals
+        // do not hold — so the whole gate runs and such a release then refuses
+        // a manifest holding exactly the version it has just read.
         let spaced = "[workspace.package]\nversion  = \"0.1.0\"\n";
         rewrite(&scratch, &[("Cargo.toml", spaced)], "0.2.0")
             .expect("whatever the reader can read, the writer can write");
@@ -942,9 +945,9 @@ mod tests {
         );
 
         // **And the other of TOML's two string forms**, which `version_of`
-        // reads and this refused to write: the needle was a double-quoted one
-        // whatever the file used, so a manifest cargo accepts was read, matched
-        // and left untouched — and `release` then answered *the files already
+        // reads and the writer has to write: with a double-quoted needle
+        // whatever the file uses, a manifest cargo accepts is read, matched and
+        // left untouched — and `release` then answers *the files already
         // disagree* about a list with one file in it.
         let quoted = "[workspace.package]\nversion = '0.1.0'\n";
         rewrite(&scratch, &[("Cargo.toml", quoted)], "0.2.0")
@@ -958,10 +961,10 @@ mod tests {
         // The same, for a list of more than one: the first file is written, the
         // second refuses, and the first must go back.
         //
-        // The decoy above is rewritable now, so the file that refuses is one
-        // whose only `version` sits in a table the reader skips — a dependency's
-        // pin, which is the shape `version_of`'s own comment names as the decoy
-        // it was taught to walk past.
+        // The decoy above is rewritable, so the file that refuses is one whose
+        // only `version` sits in a table the reader skips — a dependency's pin,
+        // which is the shape `version_of`'s own comment names as the decoy it
+        // walks past.
         let unwritable = "[workspace.dependencies.serde]\nversion = \"0.1.0\"\n";
         let refused = rewrite(
             &scratch,
@@ -988,8 +991,8 @@ mod tests {
     #[test]
     fn a_listed_file_that_lost_its_version_stops_the_release() {
         // The branch is unreachable while `CARRIES_THE_VERSION` has one entry —
-        // `from` is read from the same file the loop re-reads — so it was
-        // documentation rather than a gate. Driven here with a second file, it
+        // `from` is read from the same file the loop re-reads — so undriven it
+        // is documentation rather than a gate. Driven here with a second file, it
         // is the rule the header describes: a list that has gone stale, or a
         // file that lost its line, is a tree that would ship disagreeing with
         // itself.
@@ -1032,13 +1035,13 @@ mod tests {
 
     /// A line with any leading visibility taken off it.
     ///
-    /// **A re-export is an import, and this rule did not think so.**
-    /// [`the_imports_of`] matched `starts_with("use ")` alone, so
-    /// `pub(crate) use std::fs as disk;` was not an import at all — an ordinary
-    /// line, `cargo fmt` and clippy clean — and every rule built on that census
-    /// held against nothing: `disk::write(…)` is `std::fs::write` to rustc and
-    /// matches none of the spellings below, which is exactly the alias the
-    /// paragraph above says the census exists to refuse.
+    /// **A re-export is an import.** Matched by `starts_with("use ")` alone,
+    /// `pub(crate) use std::fs as disk;` is not an import at all — an ordinary
+    /// line, `cargo fmt` and clippy clean — and every rule built on
+    /// [`the_imports_of`]'s census would hold against nothing: `disk::write(…)`
+    /// is `std::fs::write` to rustc and matches none of the spellings below,
+    /// which is exactly the alias the paragraph above says the census exists to
+    /// refuse.
     ///
     /// `pub`, `pub(crate)`, `pub(super)` and `pub(in path)` are all of them.
     /// Whitespace is required after the visibility, so an identifier that merely
@@ -1099,21 +1102,22 @@ mod tests {
     /// if !dry_run { crate::docs::run(root)?; }
     /// validate(version)?;
     ///
-    ///   386 passed, `cargo fmt --all --check` clean
+    ///   the suite passes, `cargo fmt --all --check` clean
     ///   cargo xtask release 0.1.1, with docs/errors.md stale
     ///     ->  docs / ok 6 page(s), 1 rewritten
     ///         running the gate before anything is written
     /// ```
     ///
     /// Six pages rewritten, one of them changed, *above* the line announcing
-    /// that the gate had not yet run — in a tree with no git (`§5.3`). All five
-    /// guards were silent, and each for the same reason: the imports rule reads
-    /// `use … as`, `nothing_binds_a_write` reads `= std::fs::`,
+    /// that the gate had not yet run — in a tree with no git (`§5.3`). Without
+    /// this list, all five other guards are silent, and each for the same
+    /// reason: the imports rule reads `use … as`,
+    /// `nothing_binds_a_write` reads a `fs::` path that is named and not called,
     /// `puts_bytes_on_disk` is twenty literal spellings, and the `Command`
     /// census counts child processes. `crate::docs::run(root)` is none of
-    /// those. The `!dry_run` guard is what put it on the one path no test
-    /// enters — both behavioural tests pass `dry_run = true` — and without that
-    /// guard `a_dry_run_writes_nothing` does fire, which is the half that held.
+    /// those. The `!dry_run` guard is what puts it on the one path no
+    /// behavioural test enters — both pass `dry_run = true` — and without that
+    /// guard `a_dry_run_writes_nothing` does fire.
     ///
     /// So this is a name list, compared both directions the way
     /// `xtask/src/policy.rs`'s `CORE_POLICIES` is: a call into this workspace
@@ -1132,15 +1136,15 @@ mod tests {
 
     /// The three spellings of a path into this workspace, and what each one is.
     ///
-    /// **`super::` is a reach `MAY_REACH` could not spell, and it is the same
-    /// defect respelled.** The census read one needle, `crate::`, and this file
-    /// is a child of the crate root — so `super::docs::run(root)?` on the
-    /// `!dry_run` path *is* `crate::docs::run` to rustc, and it is the write the
-    /// paragraph on [`MAY_REACH`] records verbatim. Measured, those two lines
-    /// inside `run` spelled that way: `15 passed`, and `cargo xtask check`
-    /// byte-identical to a clean run. The import half held — `use super::docs;`
-    /// is an import [`MAY_IMPORT`] does not name — and the call half saw
-    /// nothing at all.
+    /// **`super::` is a reach a census of `crate::` cannot spell, and it is the
+    /// same defect respelled.** This file is a child of the crate root — so
+    /// `super::docs::run(root)?` on the `!dry_run` path *is* `crate::docs::run`
+    /// to rustc, and it is the write the paragraph on [`MAY_REACH`] records
+    /// verbatim. Measured against a census of the one needle `crate::`, those
+    /// two lines inside `run` spelled that way leave every test passing and
+    /// `cargo xtask check` byte-identical to a clean run. The import half holds
+    /// — `use super::docs;` is an import [`MAY_IMPORT`] does not name — and the
+    /// call half sees nothing at all.
     ///
     /// `check.rs` already carries this list for its own census, as
     /// `THIS_MODULE`, which is one rule written twice with the second copy a
@@ -1161,14 +1165,14 @@ mod tests {
     ///
     /// ```text
     /// let _ = nc_catalog_compiler::camel("probe");
-    ///   ->  16 passed, `cargo xtask check` byte-identical to a clean run
+    ///   ->  the suite passes, `cargo xtask check` byte-identical to a clean run
     /// ```
     ///
-    /// No live write follows from it today — those three crates hand back values
-    /// and the writes are in `build.rs` — so this is a census with a hole in it
-    /// rather than a hole with a write behind it. The hole is the finding: the
-    /// list says what this module reaches, and a whole class of reach could not
-    /// be spelled.
+    /// No live write follows from it — those three crates hand back values and
+    /// the writes are in `build.rs` — so without the member names the census
+    /// would have a hole, though not a hole with a write behind it: the list
+    /// says what this module reaches, and a whole class of reach could not be
+    /// spelled.
     ///
     /// The names come from `cargo metadata`, through the one reader of the
     /// resolved graph this crate has, so a member added to the workspace is in
@@ -1268,10 +1272,9 @@ mod tests {
     /// Every path into this workspace the shipped half *binds* rather than
     /// calls.
     ///
-    /// **The half that was missing, and its own doc said it was there.**
-    /// [`the_workspace_calls_of`] says it tells a call from a binding "as
-    /// [`the_fs_bindings_of`] does" — and that sibling *reports* the bindings it
-    /// finds, while this one dropped them on the floor at
+    /// **The other half of [`the_workspace_calls_of`].** That function tells a
+    /// call from a binding "as [`the_fs_bindings_of`] does", and that sibling
+    /// *reports* the bindings it finds, while a call census alone drops them at
     /// `if rest.starts_with('(')`. A function is a value in Rust, so the two
     /// lines
     ///
@@ -1281,8 +1284,9 @@ mod tests {
     /// ```
     ///
     /// are `crate::docs::run(root)` to rustc and match nothing `MAY_REACH` can
-    /// refuse. Measured, that pair placed on the non-dry-run path: `16 passed`
-    /// and `check passed`; the control — the same call written out — fails with
+    /// refuse. Measured with the call census alone, that pair placed on the
+    /// non-dry-run path leaves every test passing and `check passed`; the
+    /// control — the same call written out — fails with
     /// the assertion naming `crate::docs::run`. `nothing_binds_a_write` records
     /// the identical defeat for `std::fs`, and `xtask/src/main.rs` a third for
     /// the print scan.
@@ -1378,7 +1382,7 @@ mod tests {
         nothing_binds_a_write(shipped);
         // And a write that is neither: a call into this workspace.
         nothing_else_in_this_workspace_is_reached(shipped, imports);
-        // And the same rename on that census, which had only the call half.
+        // And the same rename on that census, which a call half alone misses.
         nothing_binds_a_workspace_call(shipped);
     }
 
@@ -1389,11 +1393,12 @@ mod tests {
     /// refused above, and `let put = std::fs::write;` is the same rename written
     /// in a body: `put(root.join("probe.txt"), b"planted")` is `std::fs::write`
     /// to rustc and matches none of the spellings the census below holds.
-    /// Measured, that pair placed after the `--dry-run` early return wrote a
-    /// file into the root of this repository with `381 passed` and
-    /// `check passed`; the control — the same call spelled `std::fs::write(` —
-    /// fails the count at `left: 4 right: 3`. `xtask/src/main.rs` records the
-    /// identical defeat for the print scan, in its own header:
+    /// Measured without this rule, that pair placed after the `--dry-run` early
+    /// return writes a file into the root of this repository with every test
+    /// passing and `check passed`; the control — the same call spelled
+    /// `std::fs::write(` — fails the count at `left: 4 right: 3`.
+    /// `xtask/src/main.rs` records the identical defeat for the print scan, in
+    /// its own header:
     /// `let handle = std::io::stdout;` and then `handle()`.
     ///
     /// A call is told from a binding by what follows the path: a call opens a
@@ -1401,23 +1406,22 @@ mod tests {
     /// eleven ordinary `std::fs::read_to_string(…)` calls in this module out of
     /// it.
     ///
-    /// **And `let` was only one of the ways to hand a function on**, which is
-    /// what the two needles `= std::fs::` and `= fs::` could see. The paragraph
-    /// above says a function is a value in Rust and then closed the assignment
-    /// spelling alone; a value can be put in an array, in an `Option`, or passed
+    /// **And `let` is only one of the ways to hand a function on**, which is all
+    /// the two needles `= std::fs::` and `= fs::` can see. A function is a value
+    /// in Rust, and a value can be put in an array, in an `Option`, or passed
     /// straight to something that calls it, and none of those is an `=`.
-    /// Measured, one line on the `!dry_run` path:
+    /// Measured against those two needles, one line on the `!dry_run` path:
     ///
     /// ```text
     /// let _ = [std::fs::write].map(|put| put(root.join("probe.txt"), b"planted"));
-    ///   ->  cargo fmt clean, clippy exit 0, 16 passed, `cargo xtask check`
+    ///   ->  cargo fmt clean, clippy exit 0, the suite passes, `cargo xtask check`
     ///       byte-identical to a clean run — and a 7-byte `probe.txt` in the
     ///       root of this repository
     /// ```
     ///
     /// `Some(std::fs::write).map(…)` and `f(std::fs::write)` are the same shape.
-    /// So the `= ` prefix is gone and what is left is the test the sibling
-    /// [`the_workspace_calls_of`] already used: the path is found wherever it is
+    /// So there is no `= ` prefix, and what is left is the test the sibling
+    /// [`the_workspace_calls_of`] uses: the path is found wherever it is
     /// written, and what follows it says which of the two it is. One needle
     /// rather than two, because `std::fs::write` and `fs::write` differ only in
     /// a qualifier that is read backwards off the same match — two needles would
@@ -1461,11 +1465,11 @@ mod tests {
     ///
     /// **A function is a value in Rust, so the import rule cannot be the whole
     /// of it.** `let put = std::fs::write;` binds the name in a body, where no
-    /// `use` statement carries it — measured, that binding plus
+    /// `use` statement carries it — measured without this, that binding plus
     /// `let _ = put(root.join("probe"), b"planted");` after the `--dry-run`
-    /// early return gave `381 passed` and `check passed`, with a file written
-    /// into the root of this repository. The control, the same call written
-    /// out, fails the write count at `left: 4 right: 3`.
+    /// early return leaves every test passing and `check passed`, with a file
+    /// written into the root of this repository. The control, the same call
+    /// written out, fails the write count at `left: 4 right: 3`.
     ///
     /// Its own function because [`the_gate_runs_before_the_first_write`] is at
     /// clippy's line limit, which is why the import rule beside it is a
@@ -1498,8 +1502,8 @@ mod tests {
             // **And the four spellings that are not an assignment.** A function
             // is a value, and a value goes into an array, into an `Option`, into
             // an argument and into a return position without an `=` anywhere
-            // near it. The first of these wrote a file into the root of this
-            // repository with every rule in this module green.
+            // near it. The first of these, unread, writes a file into the root
+            // of this repository with every rule in this module green.
             "let _ = [std::fs::write].map(|put| put(root.join(\"probe.txt\"), b\"x\"));\n",
             "let _ = Some(std::fs::write).map(|put| put(root, b\"x\"));\n",
             "hand_it_on(std::fs::write);\n",
@@ -1532,8 +1536,8 @@ mod tests {
 
     /// A call into this workspace is read as one however it is spelled.
     ///
-    /// The floor under [`nothing_else_in_this_workspace_is_reached`]: the census
-    /// read `crate::` alone, so the same call written `super::` was no call at
+    /// The floor under [`nothing_else_in_this_workspace_is_reached`]: a census
+    /// of `crate::` alone reads the same call written `super::` as no call at
     /// all — and this file is a child of the crate root, which makes those two
     /// spellings the same function. Both directions, because a census that
     /// answered every path would refuse this module's own prose.
@@ -1567,9 +1571,9 @@ mod tests {
             ),
             // **A sibling member, which wears none of the three prefixes.**
             // `xtask` depends on three crates of this workspace and a call into
-            // one needs no import at all, so `MAY_REACH` — whose own doc says
-            // "every function of this workspace" — could not spell a whole class
-            // of reach. Assembled, like its neighbours.
+            // one needs no import at all, so without this `MAY_REACH` — whose own
+            // doc says "every function of this workspace" — cannot spell a whole
+            // class of reach. Assembled, like its neighbours.
             (
                 "a sibling member of this workspace",
                 format!("let _ = {sibling}camel(\"probe\");\n"),
@@ -1717,7 +1721,7 @@ mod tests {
 
     /// The restore puts the lockfile's own bytes back, and not some of them.
     ///
-    /// **What held it was a count and a string literal.** One test asserts how
+    /// **A count and a string literal do not hold it.** One test asserts how
     /// many `fs::write(` sites this module ships; another asserts the failure
     /// message contains a sentence. Neither reads what is written, and the test
     /// named for the restore never enters this path — it drives `rewrite_listed`
@@ -1757,8 +1761,8 @@ mod tests {
     /// line printed *before* the window is what makes that recoverable by
     /// somebody who has not read this file" — and the whole of its value is its
     /// position. Moving the call below the window leaves the sentence in place
-    /// and the tree green, measured by a reviewer in wave 17: a rule whose
-    /// value is where it sits, held by nothing about where it sits.
+    /// and fails this assertion: a rule whose value is where it sits needs a
+    /// test of where it sits.
     fn the_warning_prints_before_the_window(body: &str) {
         let said = body
             .find(&["ui::detail(", "\n        \"rewriting Cargo.lock"].join(""))
@@ -1774,15 +1778,15 @@ mod tests {
         );
     }
 
-    /// The lockfile is read before the first write, which is the whole repair.
+    /// The lockfile is read before the first write, so a failed read writes nothing.
     ///
     /// The six-line comment above that statement records the defect as measured:
     /// the read "fired *after* `rewrite_listed`, so
     /// `Cargo.lock could not be read … Nothing was written` printed over a
     /// `Cargo.toml` already at the new version, in a repository with no git".
-    /// Only `gate < write` was pinned, so moving the read below the write left
-    /// every test green — measured by a reviewer in wave 16. Assembled for the
-    /// same reason the needle beside it is: this scan reads the file it is in.
+    /// This pins the read as well as `gate < write`: moving the read below the
+    /// write fails it. Assembled for the same reason the needle beside it is:
+    /// this scan reads the file it is in.
     fn the_lockfile_is_read_before(body: &str, write: usize) {
         let read = body
             .find(&["std::fs::read(root.join(\"Cargo", ".lock\"))"].join(""))
@@ -1801,8 +1805,8 @@ mod tests {
     /// running the whole gate and then rewriting the manifest of the tree the
     /// test is running in, which is not something a test may do in a repository
     /// with no git. What can be checked is the order of the two calls in `run`,
-    /// which is the whole of the rule — and deleting the gate call left every
-    /// other test in this module green.
+    /// which is the whole of the rule — and deleting the gate call fails this
+    /// test.
     ///
     /// What this does not prove: that `check::run` checks anything. That is
     /// `check`'s own suite. What it proves is that a release cannot write a
@@ -1818,10 +1822,11 @@ mod tests {
         let gate = the_gate_is_called(body);
         let write = body
             // **The write, not the restore.** Both call `rewrite_listed(root,`,
-            // and the restore is 86 lines below — so this needle was satisfied
-            // by the wrong one, and the write could be deleted with the gate
-            // still "before" a call that only runs when a release has already
-            // failed. The version being moved *to* is what tells them apart.
+            // and the restore is further down `run` — so that needle alone is
+            // satisfied by the wrong one, and the write can be deleted with the
+            // gate still "before" a call that only runs when a release has
+            // already failed. The version being moved *to* is what tells them
+            // apart.
             // **Assembled, or this scanner is the thing it is looking for.**
             // The needle is a line of code in the file the scan reads, and it
             // sits below `run`, so a written-out needle matches itself and the
@@ -1838,22 +1843,20 @@ mod tests {
         // repaired — the read "fired *after* `rewrite_listed`, so
         // `Cargo.lock could not be read … Nothing was written` printed over a
         // `Cargo.toml` already at the new version, in a repository with no
-        // git". The order is the whole of that repair and only `gate < write`
-        // was pinned: moving the read below the write left every test green,
-        // measured by a reviewer in wave 16. Assembled for the same reason the
-        // needle above is.
+        // git". The order is what prevents it, so the read is pinned below
+        // with `gate < write`: moving it below the write fails the check there.
+        // Assembled for the same reason the needle above is.
         the_lockfile_is_read_before(body, write);
         the_warning_prints_before_the_window(body);
         // **What this module *ships*, which is the code above the tests and
-        // the code below them.** Both assertions here used to read only the
-        // half above, cut at the last `mod tests {`: a `pub(crate) fn` appended
-        // at the foot of the file spawning a process and writing a file passed
-        // both, measured. The write count was the worse of the two, because it
-        // added the tests' own writes to its expected total — so a write below
-        // the split incremented both sides and cancelled.
+        // the code below them.** Read only above a cut at the last `mod tests
+        // {`, a `pub(crate) fn` appended at the foot of the file spawning a
+        // process and writing a file passes both assertions, measured. A write
+        // count that adds the tests' own writes to its expected total is the
+        // worse of the two — a write below the split increments both sides and
+        // cancels.
         //
-        // Four attempts at a boundary did not bind before this one, and the
-        // sequence is recorded on [`crate::gates::the_test_modules`],
+        // The boundary is drawn by [`crate::gates::the_test_modules`],
         // whose whole job this is: the braces are matched in a text where every
         // comment and every literal has been spent character for character, so
         // a `{` in a string and a `'{'` in a char literal are not braces and an
@@ -1871,10 +1874,9 @@ mod tests {
         // missed a module would leave that module's `Command`s and writes in
         // `ran` and fail loudly below; a boundary that took too much would hide
         // shipped code, and nothing below would notice. This file has two
-        // modules of tests — `mod tests` and `mod relock_tests` — and the
-        // `rfind` this replaced cut at the first, leaving the second's four
-        // hundred lines counted as shipped and the code below *it* read by
-        // nothing at all.
+        // modules of tests — `mod tests` and `mod relock_tests` — and a single
+        // cut at one of them leaves the other's lines counted as shipped, or
+        // the code below it read by nothing at all.
         assert!(
             !ran.contains(&["#[te", "st]"].join("")),
             "a module of tests was not cut out, so the counts below are about the \
@@ -1891,21 +1893,20 @@ mod tests {
         // calls `std::fs::write`.
         //
         // **The spellings this list names, which is not the same as every
-        // spelling.** `ran.matches("std::fs::write(").count()` was a single
+        // spelling.** `ran.matches("std::fs::write(").count()` alone is a single
         // literal needle, and a file arrives on disk through `copy`, `rename`,
         // `remove_file`, `File::create(..).write_all(..)` and `OpenOptions`
-        // too — none of which is that text. Measured: a `fs::copy` of
-        // `clippy.toml` to `probe.txt` at the top of `run`, before the gate,
-        // wrote into the root of this repository and left all thirteen tests in
-        // this module green.
+        // too — none of which is that text. Measured with that needle: a
+        // `fs::copy` of `clippy.toml` to `probe.txt` at the top of `run`, before
+        // the gate, writes into the root of this repository and leaves every
+        // test in this module green.
         //
-        // **And the list that replaced it called itself "every spelling", which
-        // it was not.** `File::create_new`, `File::options`, `write!` and
-        // `writeln!` are each a file on disk and none was here — measured, two
-        // of them writing into `temp_dir()` ahead of the gate with `13 passed`.
-        // They are named below now; what the sentence claims is what the list
-        // holds, so the next spelling that is missing is a line added here
-        // rather than a promise this paragraph already made.
+        // **And no list is "every spelling".** `File::create_new`,
+        // `File::options`, `write!` and `writeln!` are each a file on disk —
+        // measured, two of them writing into `temp_dir()` ahead of the gate pass
+        // a list that omits them. They are named below; what the sentence claims
+        // is what the list holds, so the next spelling that is missing is a line
+        // added here rather than a promise this paragraph already made.
         //
         // Written without a `std::` prefix, so a `use std::fs;` spelling is the
         // same match, and written here rather than beside the code because
@@ -1913,12 +1914,13 @@ mod tests {
         //
         // **And a rename is what makes any of it blind.** A list of spellings
         // cannot resolve a name: `use std::fs as disk;` and then `disk::write(…)`
-        // is `std::fs::write` to rustc and matches nothing here — measured, a
-        // copy of `clippy.toml` written into the root of this repository ahead
-        // of the gate with all thirteen tests in this module green. The list
-        // below cannot be extended to cover it, because the alias is a word the
-        // author chooses. So the shipped half of this module is held to
-        // importing nothing under another name at all: the census then reads
+        // is `std::fs::write` to rustc and matches nothing here — measured
+        // against the list alone, a copy of `clippy.toml` written through an
+        // alias into the root of this repository ahead of the gate leaves every
+        // test in this module green. The list below cannot be extended to cover
+        // it, because the alias is a word the author chooses. So the shipped
+        // half of this module is held to importing nothing under another name at
+        // all: the census then reads
         // the spellings rustc reads, and adding an alias is a failure here
         // rather than a hole opened silently.
         //
@@ -1980,16 +1982,16 @@ mod tests {
             // restores are *after* the gate, and both exist because a refusal
             // that leaves a rewritten file behind is the state this module's
             // header says it prevents, in a tree with no git. The scratch-tree
-            // writes in the tests are not counted at all now, because the tests
+            // writes in the tests are not counted at all, because the tests
             // are not in `ran`.
             3,
             "something outside `rewrite_listed` writes a file"
         );
         // **And what it runs, not only what it writes.** This module's header
         // promises it prints the commit and the tag and never runs them, so a
-        // version is reviewed before it becomes history. Nothing held
-        // it: four lines putting `git tag -s` inside the existing `relock` left
-        // `check passed` with every count unchanged. A new *function* was
+        // version is reviewed before it becomes history. Without this, four
+        // lines putting `git tag -s` inside the existing `relock` leave
+        // `check passed` with every count unchanged. A new *function* is
         // caught, but only by the doc-coverage ratchet, which is not a rule
         // about git and does not fire when the call goes inside a function that
         // already exists.
@@ -2014,8 +2016,8 @@ mod tests {
     ///
     /// **`--dry-run` runs no gate and writes nothing**, which makes it the one
     /// way to drive `run` itself from a test. Without this, `moves_forward`
-    /// could be correct and never called — which is what every other finding in
-    /// this module has been.
+    /// could be correct and never called — a helper with a test and a call
+    /// site with none.
     #[test]
     fn the_verb_refuses_a_release_that_does_not_move_forward() {
         // **Bracketed, because the two calls below drive the release verb
@@ -2069,9 +2071,9 @@ mod tests {
         assert!(!moves_forward("1.0.0", "0.9.9"));
         // Compared as numbers, not as text: `0.10.0` is ahead of `0.9.0`.
         assert!(moves_forward("0.9.0", "0.10.0"));
-        // **A version this tool cannot order is refused, not guessed at.**
-        // `filter_map` dropped the part it could not read and compared what was
-        // left, so `0.1.0-rc.1` read as `[0, 1]` — ordering against nothing
+        // **A version this tool cannot order is refused, not guessed at.** A
+        // `filter_map` that drops the part it cannot read and compares what is
+        // left reads `0.1.0-rc.1` as `[0, 1]` — ordering against nothing
         // sensibly. Ordering a pre-release correctly is semver's job.
         assert!(!moves_forward("0.1.0-rc.1", "0.1.0"));
         assert!(!moves_forward("0.1.0", "0.1.1-rc.1"));
@@ -2125,18 +2127,19 @@ mod tests {
         assert_eq!(version_in("version.workspace = true\n"), None);
 
         // **A dependency pinned above the workspace's own table does not win.**
-        // This took the first trimmed line carrying the key, whatever table it
-        // was in, so a release rewrote *that* — corrupting a requirement, and
+        // Taking the first trimmed line carrying the key, whatever table it is
+        // in, makes a release rewrite *that* — corrupting a requirement, and
         // reporting `1 file(s) carry 0.2.0` for a release that did not happen.
-        // The read-back added for the comment case could not see it, because it
-        // re-read through this same function and agreed with itself.
+        // A read-back would not see it, because it re-reads through this same
+        // function and would agree with itself.
         let decoy = "[workspace.dependencies.house-crate]\nversion = \"0.0.1\"\n\
                      path = \"crates/house\"\n\n[workspace.package]\nversion = \"0.1.0\"\n";
         assert_eq!(version_in(decoy).as_deref(), Some("0.1.0"));
 
         // **And the value is read as TOML writes it.** Both of these are
-        // manifests cargo parses, and both answered `None` — which is
-        // `Cargo.toml names no version` about a file that names one.
+        // manifests cargo parses, and a reader of one spelling answers `None`
+        // for both — which is `Cargo.toml names no version` about a file that
+        // names one.
         assert_eq!(
             version_in("[workspace.package]\nversion=\"0.1.0\"\n").as_deref(),
             Some("0.1.0")
@@ -2146,12 +2149,12 @@ mod tests {
             Some("0.1.0")
         );
 
-        // **And TOML's other string form**, which is the third time this rule has
-        // been too narrow. `version = '0.1.0'` is a literal string; cargo parses
-        // it like any other — `cargo metadata` on a scratch manifest answers
-        // `"version":"0.1.0"` — and this answered `None`, so the whole gate went
-        // red on a tree cargo builds and `release` refused a manifest naming the
-        // version it holds. TOML has exactly two string forms, so these are all
+        // **And TOML's other string form.** `version = '0.1.0'` is a literal
+        // string; cargo parses it like any other — `cargo metadata` on a scratch
+        // manifest answers `"version":"0.1.0"` — and a reader of double quotes
+        // answers `None`, so the whole gate goes red on a tree cargo builds and
+        // `release` refuses a manifest naming the version it holds. TOML has
+        // exactly two string forms, so these are all
         // of them rather than the next list somebody guesses.
         for said in [
             "[workspace.package]\nversion = '0.1.0'\n",
@@ -2179,10 +2182,10 @@ mod tests {
         assert!(!CARRIES_THE_VERSION.is_empty(), "nothing carries a version");
         // **The needle itself, written out here.** Every assertion below asks
         // `version_in`, which builds its needle from `KEY` — so `KEY` broken to
-        // anything a manifest never holds made `version_in` answer `None`
-        // everywhere, and the loop below found nothing to be wrong about because
-        // its own filter had emptied. Measured: `cargo xtask check` green with
-        // the release verb unable to find a version at all.
+        // anything a manifest never holds makes `version_in` answer `None`
+        // everywhere, and the loop below finds nothing to be wrong about because
+        // its own filter has emptied. Measured without this: `cargo xtask check`
+        // green with the release verb unable to find a version at all.
         //
         // TOML writes it exactly this way, and `version_of` is documented as
         // reading it the way TOML writes it.
@@ -2225,13 +2228,13 @@ mod tests {
         // Reported rather than rewritten: a Rust file naming the version is a
         // decision for a person — either it joins `CARRIES_THE_VERSION` and the
         // writer learns its spelling, or it stops naming the version.
-        // **A version closes with the quote it opened with.** This appended a
-        // double quote to every spelling, and half of `SPELLINGS` opens with a
-        // single one — so four of the eight needles were `version = '0.1.0"`, a
-        // string no TOML file can hold. Measured: that impossible text written
-        // into a file is found and the real `version = '0.1.0'` is not, so a
-        // second copy of the version in single quotes was invisible to this
-        // rule while `version_of` reads both forms.
+        // **A version closes with the quote it opened with.** Appending a double
+        // quote to every spelling, when half of `SPELLINGS` opens with a single
+        // one, makes four of the eight needles `version = '0.1.0"`, a string no
+        // TOML file can hold. Measured: that impossible text written into a file
+        // is found and the real `version = '0.1.0'` is not, so a second copy of
+        // the version in single quotes is invisible to such a rule while
+        // `version_of` reads both forms.
         let mut needles: Vec<String> = SPELLINGS
             .iter()
             .map(|spelling| {
@@ -2242,7 +2245,7 @@ mod tests {
         // Every spelling a *file* can name the version in, TOML, YAML, JSON and
         // Rust. `crates/nc-log/src/lib.rs` already carries an `Origin { version
         // }`, and the first service to fill it writes one of the last three —
-        // measured, `const VERSION: &str = "0.1.0";` in `dev.rs` was invisible
+        // measured, `const VERSION: &str = "0.1.0";` in `dev.rs` is invisible
         // to a list of TOML spellings, and `literal!("0.1.0")` is what the type
         // wall forces a service to write.
         for spelling in [
@@ -2261,11 +2264,12 @@ mod tests {
             "`KEY` is not one of the spellings the writer knows, so the two halves of \
              this rule are looking for different things"
         );
-        // **And every needle is a string a file could hold.** Four of the eight
-        // built from `SPELLINGS` were `version = '0.1.0"` — opened with one
-        // quote and closed with the other — so half this scan looked for text
-        // no TOML file can contain, and a second copy of the version in single
-        // quotes was invisible to it while `version_of` reads that form.
+        // **And every needle is a string a file could hold.** Built from
+        // `SPELLINGS` with one closing quote, four of the eight are
+        // `version = '0.1.0"` — opened with one quote and closed with the other
+        // — so half such a scan looks for text no TOML file can contain, and a
+        // second copy of the version in single quotes is invisible to it while
+        // `version_of` reads that form.
         for spelling in SPELLINGS {
             let opens = spelling
                 .chars()
@@ -2284,7 +2288,7 @@ mod tests {
         let mut carriers = Vec::new();
         // **A floor on the walk.** `carriers.is_empty()` is an assertion over an
         // empty collection, and `if true { return; }` as the first line of this
-        // callback left it green — measured. The number read is the number that
+        // callback leaves it green — measured. The number read is the number that
         // says the walk happened at all.
         let mut read = 0_usize;
         crate::gates::walk(root(), &mut |path| {
@@ -2300,11 +2304,11 @@ mod tests {
                 return;
             };
             // **After the judgement, not before it.** `read` is the floor that
-            // makes `carriers.is_empty()` mean something, and it stood above the
-            // decision — so one `if !relative.starts_with("crates/") { return; }`
-            // under it left a real unlisted carrier unreported with the floor
-            // satisfied. Measured, a probe file under `docs/` holding the
-            // workspace version: `10 passed; 0 failed`.
+            // makes `carriers.is_empty()` mean something, and standing above the
+            // decision it lets one `if !relative.starts_with("crates/") { return; }`
+            // under it leave a real unlisted carrier unreported with the floor
+            // satisfied — measured, a probe file under `docs/` holding the
+            // workspace version, with every test passing.
             let names_it = needles.iter().any(|needle| text.contains(needle.as_str()));
             read += 1;
             if names_it {
@@ -2333,7 +2337,7 @@ mod relock_tests {
     /// `cargo update --workspace`, which is one registry away from the network,
     /// and a failure there left `Cargo.toml` at the new version and `Cargo.lock`
     /// at the old one — in a repository with no git to undo it (`§5.3`).
-    /// Measured with a cargo that failed only on `update`:
+    /// Measured with a cargo that fails only on `update`:
     ///
     /// ```text
     /// ok    1 file(s) carry 0.3.0
@@ -2341,9 +2345,9 @@ mod relock_tests {
     /// version after: 0.3.0        lockfile says: 0.2.0
     /// ```
     ///
-    /// And the obvious recovery was refused — `this tree is at 0.3.0 and 0.3.0
-    /// is not ahead of it` — so the operator had to hand-edit the manifest back
-    /// before they could try again.
+    /// And without the restore the obvious recovery is refused — `this tree is
+    /// at 0.3.0 and 0.3.0 is not ahead of it` — so the operator has to hand-edit
+    /// the manifest back before they can try again.
     ///
     /// Driven over a scratch manifest through the write and the restore, because
     /// running the real verb means running the whole gate twice.
@@ -2382,12 +2386,11 @@ mod relock_tests {
         let source =
             std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/release.rs"))
                 .expect("this file is readable");
-        // **Neither the first `#[cfg(test)]` nor the last.** This cut the file
-        // at `rfind`, and the last occurrence here is the string literal on the
-        // assertion's own line — so the half it called production was lines
-        // 1 to 2280, four test modules included. `gates::without_test_modules`
-        // blanks every test module and keeps everything else, and `check.rs`
-        // records the two measurements that put it there.
+        // **Neither the first `#[cfg(test)]` nor the last.** A cut at `rfind`
+        // finds the string literal on the assertion's own line, so the half it
+        // calls production includes every test module above that line.
+        // `gates::without_test_modules` blanks every test module and keeps
+        // everything else, and `check.rs` records the measurements behind it.
         let body = crate::gates::without_test_modules(&source);
         assert!(
             body.contains("Nothing was released and the version is back at"),

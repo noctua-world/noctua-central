@@ -35,16 +35,16 @@ const OWNER_OF_A_FILE: u32 = 0o600;
 /// the database does, because that is the one place this crate must be able
 /// to write anyway.
 ///
-/// **One name per call, not one per directory.** The probe had one fixed name,
-/// and every open removed whatever stood under it as a crashed run's leftover —
-/// so two opens of one profile at once removed each other's probe. Measured:
-/// four threads opening an existing profile a hundred times each failed 175 of
-/// 400 opens, as `File exists` and as `No such file or directory`, and the
-/// first of those reached the user as `NC-DB-0006`. SQLite's WAL lets a second
-/// app instance or a command-line tool open the file beside the daemon, so the
-/// name carries the process, the time and a count, and a call removes only the
-/// probe it made. One a crash leaves between the two is an empty file nothing
-/// reads.
+/// **One name per call, not one per directory.** With one fixed name, every
+/// open would remove whatever stood under it as a crashed run's leftover — so
+/// two opens of one profile at once would remove each other's probe. Measured:
+/// four threads opening an existing profile a hundred times each would fail
+/// 175 of 400 opens, as `File exists` and as `No such file or directory`, and
+/// the first of those would reach the user as `NC-DB-0006`. SQLite's WAL lets a
+/// second app instance or a command-line tool open the file beside the daemon,
+/// so the name carries the process, the time and a count, and a call removes
+/// only the probe it made. One a crash leaves between the two is an empty file
+/// nothing reads.
 const PROBE: &str = ".nc-local-owner-probe";
 
 /// How many probes this process has made, so two made at once — two threads,
@@ -161,7 +161,7 @@ pub(crate) fn private_file_in(directory: &Path) -> Result<(PathBuf, std::fs::Fil
     }
     // **A file found in a directory this call just made is another open's**,
     // made between the two statements, and is judged as any other: refusing it
-    // refused every open but the first of a fresh profile opened at once.
+    // would refuse every open but the first of a fresh profile opened at once.
     Ok((file, held))
 }
 
@@ -171,11 +171,11 @@ pub(crate) fn private_file_in(directory: &Path) -> Result<(PathBuf, std::fs::Fil
 ///
 /// **Never on a thread that drives futures.** The lock is waited for in place,
 /// and an open holds it across every `.await` of its judging and migrating:
-/// waited for on such a thread, a second open of the profile blocked the
-/// thread the first needed to go on and let go — measured by a reviewer, two
-/// opens spawned on a current-thread runtime, and three on one of two
-/// workers, waited thirty seconds and answered nothing. Each open's wait is a
-/// thread of the blocking pool's instead.
+/// waited for on such a thread, a second open of the profile would block the
+/// thread the first needs to go on and let go — measured, two opens spawned on
+/// a current-thread runtime, and three on one of two workers, would wait thirty
+/// seconds and answer nothing. Each open's wait is a thread of the blocking
+/// pool's instead.
 ///
 /// # Errors
 ///
@@ -203,12 +203,12 @@ pub(crate) async fn off_the_runtime(
 /// nobody has opened is not something SQLite lets two do at once: its journal
 /// turned to a write-ahead log, which a connection asking at the same moment
 /// is refused as a database that is locked, and its migrations applied, which
-/// `sqlx` takes no lock for. A review measured both refusing opens of a sound
-/// profile. Waited for in place, as every filesystem call of an open is — on
-/// the blocking pool ([`off_the_runtime`]): an open holds it for as long as it
-/// takes to judge and migrate, and one that ends releases it — a process
-/// stopped while it holds it holds every other open of the profile until it
-/// goes on or ends.
+/// `sqlx` takes no lock for. Unheld, both would refuse opens of a sound
+/// profile, measured. Waited for in place, as every filesystem call of an open
+/// is — on the blocking pool ([`off_the_runtime`]): an open holds it for as
+/// long as it takes to judge and migrate, and one that ends releases it — a
+/// process stopped while it holds it holds every other open of the profile
+/// until it goes on or ends.
 ///
 /// **The directory's, never the database file's**: POSIX releases every lock
 /// a process holds on a file when it closes any descriptor of it, so a lock
@@ -275,10 +275,10 @@ fn judge(
     if mode & OTHERS != 0 {
         return refused(format!("has mode {mode:03o}, which another user can reach"));
     }
-    // **And everything its owner needs.** Only the bits nobody else may hold
-    // were judged, so a `0400` file opened — the self-check only reads — and
-    // the next commit came back `NC-DB-0007`, *not what this version expects*,
-    // for a file whose only fault was its mode. A directory is entered and
+    // **And everything its owner needs.** Judged by the bits nobody else may
+    // hold alone, a `0400` file would open — the self-check only reads — and
+    // the next commit come back `NC-DB-0007`, *not what this version expects*,
+    // for a file whose only fault is its mode. A directory is entered and
     // written in, a file read and written; anything less is refused here,
     // before SQLite opens it read-only behind this crate's back.
     let (needed, to) = match kind {
@@ -399,11 +399,9 @@ fn create_private(path: &Path) -> io::Result<std::fs::File> {
 /// name something else made between the look and the create. Everything else
 /// the filesystem can say — a parent that does not exist, a full disk, a
 /// read-only mount, an I/O error — is the data not being reachable,
-/// `NC-DB-0001`. Every one of them was `NC-DB-0006`, measured: a path under a
-/// parent that does not exist was refused with the message that other people
-/// using the computer could reach the user's data. `NC-DB-0006` now says the
-/// folder or the files are not set up for this user alone to read and write,
-/// which is true of every refusal here.
+/// `NC-DB-0001`, and none of them `NC-DB-0006`, which says the folder or the
+/// files are not set up for this user alone to read and write: true of every
+/// refusal here, and of none of those.
 fn failed(what: &str, error: &io::Error) -> LocalError {
     let why = format!("{what}: {error}");
     match error.kind() {
@@ -427,18 +425,19 @@ pub(crate) fn options(file: &Path) -> SqliteConnectOptions {
 ///
 /// **`journal_mode = WAL` is the one pragma here that writes the file**: it
 /// converts a database in another journal mode on the first connection that
-/// asks. Measured, another application's rollback-journal file had its header
-/// rewritten from `[1, 1]` to `[2, 2]` and a `-wal` and a `-shm` made beside
-/// it, and was then refused as another application's with a message saying it
-/// was left as it is. Every other pragma below belongs to the connection alone.
+/// asks. Measured, another application's rollback-journal file, judged on
+/// such a connection, would have its header rewritten from `[1, 1]` to
+/// `[2, 2]` and a `-wal` and a `-shm` made beside it, and then be refused as
+/// another application's with a message saying it was left as it is. Every
+/// other pragma below belongs to the connection alone.
 ///
 /// **And read-only, because closing a connection writes too.** SQLite's last
 /// connection to a database in WAL mode checkpoints the `-wal` into the file
 /// and deletes it when it closes, and its first read of a file beside a hot
-/// rollback journal rolls the journal back; a review measured both on a file
-/// it then refused — another application's, and one `quick_check` called
-/// damaged. A connection opened read-only does neither: it reads through the
-/// `-wal`, refuses to read past a hot journal ([`HOT_JOURNAL`]), and leaves
+/// rollback journal rolls the journal back; both are measured on a file the
+/// open would then refuse — another application's, and one `quick_check`
+/// calls damaged. A connection opened read-only does neither: it reads through
+/// the `-wal`, refuses to read past a hot journal ([`HOT_JOURNAL`]), and leaves
 /// the file and its journal byte for byte as they stood. What it may leave is
 /// the `-shm` SQLite builds to read a `-wal` that has none beside it, which
 /// holds no data and is SQLite's own index of the log.
@@ -495,9 +494,9 @@ mod tests {
 
     /// Every probe this process makes carries a name of its own.
     ///
-    /// **One fixed name was shared by every open**, and each removed whatever
-    /// stood under it, so two opens at once removed each other's probe —
-    /// measured, 175 of 400 concurrent opens of one profile failed. A name
+    /// **One fixed name shared by every open** would have each remove whatever
+    /// stood under it, so two opens at once would remove each other's probe —
+    /// measured, 175 of 400 concurrent opens of one profile failing. A name
     /// repeated here is the same collision, decided without a race.
     #[test]
     fn every_probe_this_process_makes_has_a_name_of_its_own() {

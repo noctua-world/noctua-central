@@ -41,12 +41,13 @@
 //!    and `fullfsync = ON` on macOS. **The file is judged first, on a
 //!    connection of its own, read-only, that sets all of them but
 //!    `journal_mode`**, the one that writes the file: it converts a database
-//!    in another journal mode on the first connection that asks, and another
-//!    application's file was converted, measured, before it was refused as
-//!    another application's. Read-only because a connection that may write
-//!    writes on its own as well — the last to close a file checkpoints its
-//!    `-wal` into it, and the first to read one rolls a hot journal back — and
-//!    a hot journal, which this build never leaves, is `NC-DB-0007`.
+//!    in another journal mode on the first connection that asks, and set on
+//!    the judging one it would convert another application's file, measured,
+//!    before refusing it as another application's. Read-only because a
+//!    connection that may write writes on its own as well — the last to close
+//!    a file checkpoints its `-wal` into it, and the first to read one rolls a
+//!    hot journal back — and a hot journal, which this build never leaves, is
+//!    `NC-DB-0007`.
 //! 4. **The file says whose it is.** Its header's `application_id` must be this
 //!    platform's before anything is migrated — or zero on a file that holds no
 //!    table yet, which is one this crate just created. `0001_plugin_store.sql`
@@ -75,18 +76,18 @@
 //! then closed in the journal must still be there, so this is `FULL`. Measured
 //! on this machine (ZFS, `sync=standard`, so the fsyncs are real): a
 //! single-row commit takes a median of 0.26–0.33 ms under `FULL` and
-//! 0.03–0.05 ms under `NORMAL`, measured on 2026-09-28 as 200 single-row
-//! autocommit `INSERT`s into a WAL database under each setting, timed one by
-//! one, median taken. That procedure is what to repeat on another disk, because
-//! the number is the disk's and not this crate's.
+//! 0.03–0.05 ms under `NORMAL`, measured as 200 single-row autocommit `INSERT`s
+//! into a WAL database under each setting, timed one by one, median taken. That
+//! procedure is what to repeat on another disk, because the number is the
+//! disk's and not this crate's.
 //!
 //! # Every statement names `main.`, and every write counts what it changed
 //!
 //! A `TEMP` table shadows a `main` table of the same name for unqualified
 //! names on the connection that made it, so every statement here writes
 //! `main.`. That does not stop a `TEMP` *trigger* on a `main` table: measured,
-//! `BEFORE UPDATE … RAISE(IGNORE)` turned the append-only refusal into success
-//! with no row changed, and `BEFORE INSERT … RAISE(IGNORE)` made an insert
+//! `BEFORE UPDATE … RAISE(IGNORE)` turns the append-only refusal into success
+//! with no row changed, and `BEFORE INSERT … RAISE(IGNORE)` makes an insert
 //! report success having written nothing. So every write checks that
 //! `rows_affected()` is the number it had to be, and every transaction begins
 //! by checking `temp.sqlite_schema` is empty; either failing is
@@ -237,10 +238,10 @@ pub fn is_a_trigger_refusal(error: &sqlx::Error) -> bool {
 ///
 /// **`SQLITE_READONLY` is a file this process may not write**, which is a
 /// read-only mount or a mode changed under an open store — the filesystem's
-/// answer, as a missing parent is. It was `NC-DB-0007`, measured: a file made
-/// `0400` opened, and the next commit told the user their data was not what
-/// this version expects. The open refuses such a file now; this is what a
-/// write meets when the mode changes after it.
+/// answer, as a missing parent is, and not `NC-DB-0007`, which would tell the
+/// user of a file made `0400` that their data is not what this version
+/// expects. The open refuses such a file; this is what a write meets when the
+/// mode changes after it.
 pub(crate) fn said(doing: &str, error: &sqlx::Error) -> LocalError {
     let Some(database) = error.as_database_error() else {
         return LocalError::Unavailable(format!("{doing}: {error}"));

@@ -11,10 +11,10 @@
 /// The reference plugin activates and declares its commands, every field of
 /// each as the plugin's own table writes it.
 ///
-/// **Field for field, not by name.** This compared the names alone, and a
-/// component whose adapter declared the read as mutating, under an empty action
-/// and with the other reversibility activated and passed — measured, with the
-/// three planted in `plugins/reference/src/adapter.rs` and the component built.
+/// **Field for field, not by name.** Compared by the names alone, a component
+/// whose adapter declared the read as mutating, under an empty action and with
+/// the other reversibility, would activate and pass — measured, with the three
+/// planted in `plugins/reference/src/adapter.rs` and the component built.
 /// The adapter is compiled for `wasm32` only, so no host test reads it; what it
 /// produces is read here, against `behaviour`, which the plugin's own host
 /// tests hold to the judge.
@@ -96,12 +96,13 @@ fn the_reference_plugin_imports_every_function_it_probes_and_nothing_else() {
 
 /// A component that calls one host function imports exactly that one.
 ///
-/// **The control that gives the test above its meaning.** An import walk that
-/// can never find anything passes an assertion that the answer is empty —
-/// measured, the filter in `Compiled::imports` changed from a component
-/// function to a core function, which an instance never exports, left every
-/// test of this crate green. So beside the plugin that imports nothing stands
-/// a component that imports one thing, and the walk has to name it.
+/// **A control beside the test above.** The reference plugin imports every
+/// function, so a walk that answered every function of the world whatever a
+/// component imports would pass that test, as an import walk that can never
+/// find anything — the filter in `Compiled::imports` changed from a component
+/// function to a core function, which an instance never exports — passes any
+/// assertion that the answer is empty. So beside that plugin stands a component
+/// that imports one thing, and the walk has to name that one alone.
 ///
 /// Built here rather than as a plugin, because the reference plugin imports
 /// every function and a control has to import exactly one: a core module whose
@@ -119,13 +120,13 @@ fn a_component_that_calls_one_host_function_imports_that_one() {
 
 /// An import of the world is linked to the host, not refused at the link.
 ///
-/// **Found by a reviewer**, when every import was stubbed as a trap: nothing
-/// held the stubs, and a no-op of the same length left every suite green. The
-/// host functions replaced the stubs, and the question stands. This probe
-/// imports `log.write` and exports no `guest`, so how far it gets is the
-/// answer: with the host linked the link succeeds and the refusal is the
-/// missing export; without it the link itself refuses the `log` import, and the
-/// export is never looked for.
+/// **Whether the link takes the import at all**: a link that stubbed every
+/// import, as a trap or as a no-op, would pass this too, so what it asks is
+/// whether the import is linked rather than refused. This probe imports
+/// `log.write` and exports no `guest`, so how far it gets is the answer: with
+/// the host linked the link succeeds and the refusal is the missing export;
+/// without it the link itself refuses the `log` import, and the export is
+/// never looked for.
 #[tokio::test]
 async fn an_import_of_the_world_is_linked_rather_than_refused_at_the_link() {
     let engine = nc_kernel::engine::Engine::new().expect("the engine's configuration is valid");
@@ -145,15 +146,15 @@ async fn an_import_of_the_world_is_linked_rather_than_refused_at_the_link() {
 /// A component that imports a function by itself, outside any interface,
 /// lists it.
 ///
-/// **Found by a reviewer, and the reason the walk takes every import.** The
-/// kernel compiles whatever bytes it is handed, and this probe — a world whose
-/// one import is `foo: func()`, encoded the way `cargo xtask build --plugins`
-/// encodes a plugin — compiled and reported an empty surface, because the walk
-/// skipped every import that was not an instance. The link stubbed `foo` like
-/// any other import while every import was a trap, so the surface a manifest's
-/// grants had to cover was one function wider than the one this answered; the
-/// host refuses `foo` at the link now, and the walk still names it, because what
-/// a component imports is what it can reach for.
+/// **The reason the walk takes every import.** The kernel compiles whatever
+/// bytes it is handed, and this probe — a world whose one import
+/// is `foo: func()`, encoded the way `cargo xtask build --plugins` encodes a
+/// plugin — compiles, and a walk that skipped every import that is not an
+/// instance would report an empty surface for it. Where a link stubs `foo` like
+/// any other import, the surface a manifest's grants have to cover is one
+/// function wider than such a walk answers; the host refuses `foo` at the link,
+/// and the walk still names it, because what a component imports is what it can
+/// reach for.
 #[test]
 fn a_component_that_imports_a_bare_function_lists_it() {
     let engine = nc_kernel::engine::Engine::new().expect("the engine's configuration is valid");
@@ -188,9 +189,9 @@ fn a_function_inside_an_instance_inside_an_instance_is_listed_by_its_path() {
 /// The other side of the test above: the host defines the world's functions
 /// and nothing else, so `foo` — a function by itself, outside every interface
 /// — has no definition to link to, and instantiation is refused before
-/// anything runs. The trap stubs this replaced accepted it, and the nested
-/// `outer#inner#f` of the test before it is refused the same way, which is
-/// what that test's own comment says of it.
+/// anything runs. A link that stubbed every import as a trap would accept it.
+/// The nested `outer#inner#f` of the test before it is refused the same way,
+/// which is what that test's own comment says of it.
 #[tokio::test]
 async fn a_component_importing_what_the_world_does_not_declare_is_refused_at_the_link() {
     let engine = nc_kernel::engine::Engine::new().expect("the engine's configuration is valid");

@@ -71,10 +71,10 @@ strategy = "oldest-first"
 # stops being a chronological one from about 2034, and the pruner would delete
 # the newest rows while reporting an ordinary run.
 #
-# `occurred_at` was the answer for one round and is not one: it is a `BIGINT`
-# with no DEFAULT and no CHECK, so it holds whatever wrote the row. Measured with
-# the real pruner, three of ten rows from a device whose clock was a day slow —
-# it deleted those three, which were the newest in the table, and reported an
+# `occurred_at` is not one either: it is a `BIGINT` with no DEFAULT and no
+# CHECK, so it holds whatever wrote the row. Measured with the real pruner
+# ordering by it, three of ten rows from a device whose clock is a day slow —
+# it deletes those three, which are the newest in the table, and reports an
 # ordinary `Pruned`. Stamps from the future are worse: every honest row is
 # removed and the table converges on holding only the bogus ones.
 #
@@ -83,16 +83,15 @@ strategy = "oldest-first"
 # UPDATE` row trigger takes it from a sequence, and an `UPDATE` cannot renumber a
 # row. It rises with insertion by construction rather than by a promise about
 # somebody's clock. `occurred_at` keeps its own meaning — when the access
-# happened — and stops being the pruner's idea of oldest.
+# happened — and is not the pruner's idea of oldest.
 #
-# **This said "an INSERT cannot name it", and that was true of one path.** The
-# column was `GENERATED ALWAYS AS IDENTITY` for a round, which refuses a plain
+# **A trigger, not `GENERATED ALWAYS AS IDENTITY`**, which refuses a plain
 # INSERT and nothing else: `OVERRIDING SYSTEM VALUE` writes any value, and `COPY`
 # needs no keyword at all. A row planted at `i64::MAX` sorts last for ever and is
 # unprunable; enough of them and the table can never come under `max_rows`, with
 # every run reporting ordinary. A bulk import is the ordinary way rows get
 # loaded, so the migration's own file records the measurement and the trigger is
-# what closed it.
+# what closes it.
 order_by = "recorded"
 
 # --- The local database: SQLite, on the user's machine (`local-migrations/`) ---
@@ -183,10 +182,8 @@ max_rows = 10_000
 # ergonomics are miserable for this shape of data — and its store bounds by time
 # and disk rather than by row count.
 #
-# `§15.4`'s table and `§15.8`'s worked example both used to say the opposite, and
-# the conflict was put to the developer rather than resolved here: §18.5 wins,
-# and both were corrected in the same change. `§15.8`'s `max_rows`/`prune_batch`
-# pair is therefore deliberately absent rather than written down and unenforced.
+# `§15.8` records the decision: §18.5 wins, so `§15.8`'s `max_rows`/`prune_batch`
+# pair is deliberately absent here rather than written down and unenforced.
 retention_days = 30
 max_disk_bytes = 8_589_934_592
 enforced_by = "the log store's own retention flags, set in docker-compose.yml"

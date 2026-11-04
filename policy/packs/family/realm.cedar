@@ -5,8 +5,8 @@
 // journal verified (`Read`), the tables pruned (`Delete`), a person's own step
 // undone or redone (`Write`). `permissions.cedar` beside this file reaches a
 // `Realm` only through `family.a_guardian_administers_the_realm`, for `Grant`
-// and `Revoke` and with no membership test — so until these existed a `Read`,
-// `Write` or `Delete` on a realm was refused by Cedar's default.
+// and `Revoke` and with no membership test — so without these a `Read`,
+// `Write` or `Delete` on a realm is refused by Cedar's default.
 //
 // **Membership is the rule here, not a second answer to which realm.** The
 // read permit in `permissions.cedar` leaves realm scoping to the decision
@@ -72,9 +72,9 @@ when { principal in resource };
 // **A member is a person: `principal is User` is this permit's own
 // constraint, and it is not the redundancy above.** A device and an agent are
 // in the realm as much as a person is, so `principal in resource` lets both
-// through; the type test is what refuses them. It shipped deleted once, with a
-// note saying no request could show it working — and an attested device and an
-// agent acting openly as one were both allowed to write the realm. The cases
+// through; the type test is what refuses them. It can look like a constraint
+// no request shows working, and with it deleted an attested device and an
+// agent acting openly as one are both allowed to write the realm. The cases
 // that pin it are in `tests/realm.toml`, and they say
 // `the_principal_is_the_boundary`, because a case refused for its kind of
 // principal can only be paired with an `allow` for another kind.

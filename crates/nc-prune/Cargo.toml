@@ -23,7 +23,7 @@ sqlx = { workspace = true, features = ["sqlite-bundled"] }
 [dev-dependencies]
 # **Itself, so the documentation gate can read this crate's integration
 # tests.** `cargo doc` documents lib and bin targets only, so a broken
-# intra-doc link in `tests/` shipped with the gate green — and
+# intra-doc link in `tests/` passes it green — and
 # `cargo rustdoc --test` cannot resolve a `use` of the crate under test
 # unless the package depends on itself here. Cargo resolves it to this
 # same unit, so nothing is built twice.

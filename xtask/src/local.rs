@@ -50,8 +50,8 @@
 //! `schema_version` tells SQLite its schema is other than the one it wrote,
 //! which SQLite's own documentation warns leaves a file it misreads. So the
 //! gate refuses each: the two pragmas set to any value, as SQL or through the
-//! door, and an `INSERT`, `REPLACE`, `UPDATE` or `DELETE` naming the table. A
-//! reviewer found all of them passing it. Reading either is the store's
+//! door, and an `INSERT`, `REPLACE`, `UPDATE` or `DELETE` naming the table;
+//! without those refusals, all of them pass it. Reading either is the store's
 //! self-check, and is not refused.
 //!
 //! **What neither answers.** A statement assembled from pieces no single
@@ -72,15 +72,15 @@ use crate::gates::Finding;
 ///
 /// **Held to the manifests, both ways** (`unread_writers`, in a test): every member
 /// whose manifest declares a way to SQLite is read here or named in
-/// `NOT_READ`. The pruner's SQLite target was missing — it runs its
-/// statements on the user's file through `nc-local`'s pool, and
-/// `PRAGMA optimize` planted in it passed this gate, measured by a review,
-/// where the store's own suite shows that statement makes every later open
-/// refuse the file. `crates/nc-kernel/src` is read before its manifest takes
-/// `nc-local`, so its first statement meets the gate. **And the pruner whole**:
-/// it was its one SQLite file, on the word that its other sources speak to
-/// PostgreSQL alone — which nothing held, so a reviewer's `DROP TRIGGER` on a
-/// `SqlitePool` in its `lib.rs` passed every gate, the member counted as read.
+/// `NOT_READ`. The pruner's SQLite target runs its statements on the user's
+/// file through `nc-local`'s pool, and left out, `PRAGMA optimize` planted in
+/// it passes this gate, measured, where the store's own suite shows that
+/// statement makes every later open refuse the file. `crates/nc-kernel/src` is
+/// read before its manifest takes `nc-local`, so its first statement meets the
+/// gate. **And the pruner whole**: read as its one SQLite file, on nothing
+/// firmer than the word that its other sources speak to PostgreSQL alone, the
+/// member counts as read and a `DROP TRIGGER` on a `SqlitePool` in its `lib.rs`
+/// passes every gate.
 pub(crate) const WRITERS: [&str; 3] = [
     "crates/nc-local/src",
     "crates/nc-kernel/src",
@@ -123,8 +123,8 @@ impl Drop for Scratch {
 static MADE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 impl Scratch {
-    /// A fresh directory. One that could not be made is reported by the first
-    /// thing that writes in it, which names the path.
+    /// A fresh directory. One that could not be made is named, path and all, by
+    /// the first thing that writes in it.
     fn new(name: &str) -> Self {
         let made = MADE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let root = std::env::temp_dir().join(format!(
@@ -160,9 +160,11 @@ pub(crate) fn the_local_schema(root: &Path) -> Result<Built, String> {
 /// the SQLite this build links held to `floor`.
 ///
 /// **The floor is handed in so its refusal can be driven**: the SQLite linked
-/// is the lockfile's, and no test can link an older one. Measured, with the
-/// comparison switched off, every test of `-p xtask --bin xtask` passed and the
-/// sentence naming CVE-2025-6965 was a branch nothing entered.
+/// is the lockfile's, and no test can link an older one.
+/// `a_sqlite_below_the_floor_is_refused_naming_both` hands in a floor above
+/// every release, and with the comparison switched off that test fails; with
+/// the floor fixed rather than handed in, the sentence naming CVE-2025-6965
+/// would be a branch no test enters.
 async fn built_and_judged(
     migrations: &Path,
     file: &Path,
@@ -488,8 +490,8 @@ type Read = (char, usize, Place);
 /// **A string continued across a line is one string to Rust, and so one to
 /// SQLite.** A `\` that ends a line inside a literal drops the newline and the
 /// whitespace that opens the next line, so `"DROP TRIG\` and `GER t"` reach
-/// SQLite as `DROP TRIGGER t` — measured walking past this gate when each line
-/// was split into words of its own. An escaped backslash at a line's end joins
+/// SQLite as `DROP TRIGGER t` — measured, a reader that splits each line into
+/// words of its own lets it past. An escaped backslash at a line's end joins
 /// nothing: it is one backslash, and the newline after it stays.
 ///
 /// **And `\n` is a newline**, which is where a SQL `--` comment ends: the
@@ -636,12 +638,12 @@ fn escape(characters: &[char], at: usize, escaped: char) -> (char, usize) {
 /// what SQLite would read as keywords in its strings, and Rust's names around
 /// them.
 ///
-/// **A SQL comment inside a string is not a word.** It was, and a word between
-/// two keywords parts them, measured by a review: `"DROP /* gone */ TRIGGER
-/// main.store_writes_are_never_edited"` passed this gate and SQLite ran it,
-/// the trigger gone after; `"PRAGMA journal_mode = /* for speed */ OFF"` passed
-/// and left the journal off; and a comment holding the word `off` after
-/// `journal_mode =` was refused for a statement that sets nothing. So inside a
+/// **A SQL comment inside a string is not a word.** Read as one, a word between
+/// two keywords parts them, measured: `"DROP /* gone */ TRIGGER
+/// main.store_writes_are_never_edited"` passes such a gate and SQLite runs it,
+/// the trigger gone after; `"PRAGMA journal_mode = /* for speed */ OFF"` passes
+/// and leaves the journal off; and a comment holding the word `off` after
+/// `journal_mode =` is refused for a statement that sets nothing. So inside a
 /// literal, `--` to the end of its line and `/* … */` are each a gap — unless a
 /// SQL quote, `'…'` or `"…"`, is open, which holds them as text. A quote's own
 /// words are still read: `journal_mode = 'OFF'` turns the journal off too.
@@ -776,12 +778,12 @@ fn edits_the_schema_table(_: &str, words: &[Word]) -> Vec<usize> {
 /// the same.
 ///
 /// **Judged as SQLite reads a value, and allowed rather than refused by
-/// name.** A list of the values that weaken one was one SQLite's own reading
+/// name.** A list of the values that weaken one is a list SQLite's own reading
 /// outruns: it reads `synchronous = ON`, `YES`, `TRUE` and `01` as `NORMAL`,
 /// and any word it does not know as `NORMAL` too; a boolean as true only for
 /// `ON`, `YES`, `TRUE` or a numeral not zero, so `foreign_keys = NONE` turns
-/// them off and `trusted_schema = 2` on — measured by a reviewer on the
-/// store's own pool, each spelling passing this gate, and a
+/// them off and `trusted_schema = 2` on — measured on the store's own pool,
+/// each spelling passing such a list, and, under one, a
 /// `PRAGMA synchronous = ON` planted after a commit in the shipped store
 /// passing the whole of `cargo xtask check`.
 struct Hardened {
@@ -861,9 +863,9 @@ fn truthy(value: &str) -> bool {
 /// Whether a value, upper-cased, is one SQLite reads as false and nothing
 /// else: `OFF`, `NO`, `FALSE`, or a numeral of zeros.
 ///
-/// **Allowed, never the opposite of [`truthy`].** "Not true" let through every
-/// value this gate reads differently from SQLite: measured by a reviewer, `+1`,
-/// `0x1`, a quoted `'ON'` and `ON;` each turned `trusted_schema` on past it,
+/// **Allowed, never the opposite of [`truthy`].** "Not true" lets through every
+/// value a reader takes differently from SQLite: measured, `+1`, `0x1`, a
+/// quoted `'ON'` and `ON;` each turn `trusted_schema` on past such a reading,
 /// SQLite reading the sign away, the hexadecimal as a number and the quotes
 /// and the `;` as nothing. A pragma kept off is held to the spellings that say
 /// off, and every other is refused rather than judged.
@@ -895,8 +897,8 @@ struct PragmaSet {
 ///
 /// **A value is read only when it is written out**: a literal, a word or a
 /// path to one. Read as the last word of its argument, `.foreign_keys(!true)`
-/// turned them off and an `if` choosing `Off` passed as the `Wal` beside it —
-/// measured by a reviewer — so any other value is one no literal holds, which
+/// turns them off and an `if` choosing `Off` passes as the `Wal` beside it —
+/// measured — so any other value is one no literal holds, which
 /// nothing can say keeps the hardening; and a setter named and not called, as
 /// a function handed on, is one whose value nobody reads at all.
 fn settings(code: &str) -> Vec<PragmaSet> {
@@ -1036,10 +1038,10 @@ fn arguments_of(pieces: &[(Piece, usize)], open: usize) -> Vec<Vec<Piece>> {
 /// reader [`pragmas_in`] reads a statement with, the value none when no
 /// literal is all of it.
 ///
-/// **One reader, so one reading.** The key was compared as it was spelt, so a
+/// **One reader, so one reading.** Compared as it is spelt, a key with a
 /// schema's name before it or quotes around it, both of which SQLite reads
-/// through, turned `ignore_check_constraints` and `trusted_schema` on past the
-/// gate, measured by a reviewer in the shipped store. A key no literal is all
+/// through, turns `ignore_check_constraints` and `trusted_schema` on past such
+/// a comparison, measured in the shipped store. A key no literal is all
 /// of, or one SQLite would not read as exactly one pragma, is recorded under
 /// [`UNREAD`] as well, which [`REFUSED`] refuses: what such a key sets, nobody
 /// reading this source can say.
@@ -1333,9 +1335,9 @@ const EMBEDDED: &str =
 /// string literal.
 ///
 /// **By the type's name, not by its constructors**, so a `use … as` or a
-/// type alias that renames it is the line that names it. A reviewer found
-/// the door open: the shipped store migrating from
-/// `Migrator::new(Path::new("../../local-migrations"))` passed every gate,
+/// type alias that renames it is the line that names it. Read by its
+/// constructors, the door would be open: the shipped store migrating from
+/// `Migrator::new(Path::new("../../local-migrations"))` passes such a reading,
 /// cargo running each suite from the package's root, where the relative path
 /// is this repository's own directory.
 fn migrates_from_elsewhere(code: &str, _: &[Word]) -> Vec<usize> {
@@ -1415,10 +1417,10 @@ fn defines_the_schema(_: &str, words: &[Word]) -> Vec<usize> {
 ///
 /// **Two counters, the second on the way out of the judgement**, held equal by
 /// `gates::everything_reached_a_verdict`: one counted before a file was judged
-/// pays a filter between the two as surely as a file read. A reviewer wrote
-/// `if path.starts_with(root.join("crates/nc-kernel")) { continue; }` below
-/// the first and the gate printed the same count with a `DROP TRIGGER` in a
-/// shipped kernel source; `the_local_sql_walk_goes_everywhere_its_writers_have`
+/// pays a filter between the two as surely as a file read. With
+/// `if path.starts_with(root.join("crates/nc-kernel")) { continue; }` written
+/// below a single counter, the gate prints the same count with a `DROP TRIGGER`
+/// in a shipped kernel source; `the_local_sql_walk_goes_everywhere_its_writers_have`
 /// plants a statement in every directory its writers have, which is what
 /// sees a filter the counters cannot.
 ///
@@ -1491,9 +1493,9 @@ fn the_sources_of_the_writers(root: &Path) -> Result<Vec<std::path::PathBuf>, St
 fn unread_writers(opening: &[String], writers: &[&str]) -> Vec<Finding> {
     let mut findings = Vec::new();
     for member in opening {
-        // **Its whole source tree**, not a file of it: a file named here
-        // counted the member as read, and a reviewer's statement in the
-        // pruner's `lib.rs` passed the gate beside its `sqlite.rs`.
+        // **Its whole source tree**, not a file of it: a file named here would
+        // count the member as read, and a statement in the pruner's `lib.rs`
+        // would then pass the gate beside its `sqlite.rs`.
         let read = writers
             .iter()
             .any(|named| *named == format!("{member}/src"));
@@ -1651,8 +1653,8 @@ mod tests {
         (".pragma(\"optimize\", \"\")", "ANALYZE"),
         (".optimize_on_close(true, None)", "ANALYZE"),
         (".pragma(\"analysis_limit\", \"400\")", "ANALYZE"),
-        // A SQL comment inside the string is a gap and not a word: each of
-        // these passed the gate, measured by a review, and SQLite ran the
+        // A SQL comment inside the string is a gap and not a word: read as a
+        // word, each of these passes such a gate, measured, and SQLite runs the
         // first two.
         (
             "sqlx::query(\"DROP /* x */ TRIGGER t\")",
@@ -1692,9 +1694,9 @@ mod tests {
             "sqlx::query(\"PRAGMA journal_mode = 'OFF'\")",
             "journal_mode",
         ),
-        // **The rest of the connection's hardening, which the gate let pass**:
-        // a reviewer wrote each of these in a shipped kernel source and the
-        // gate printed `ok`.
+        // **The rest of the connection's hardening**: each of these, written
+        // in a shipped kernel source, passes a gate that does not name it, with
+        // `ok` printed.
         (
             "sqlx::query(\"PRAGMA main.journal_mode = MEMORY\")",
             "journal_mode",
@@ -1714,8 +1716,8 @@ mod tests {
         ("sqlx::query(\"PRAGMA foreign_keys = OFF\")", "foreign_keys"),
         (".foreign_keys(false)", "foreign_keys"),
         // **Every spelling SQLite reads as a weaker setting**, which a list of
-        // the weakening values let through: measured by a reviewer on the
-        // store's own pool, `ON`, `YES`, `TRUE` and `01` leave `synchronous`
+        // the weakening values lets through: measured on the store's own
+        // pool, `ON`, `YES`, `TRUE` and `01` leave `synchronous`
         // at `NORMAL`, `NO` and `FALSE` at `OFF`, and a word SQLite does not
         // know at `NORMAL` too; `trusted_schema = 2` turns it on, and
         // `foreign_keys = NONE` or `full` turns them off.
@@ -1747,8 +1749,7 @@ mod tests {
         ),
         (".pragma(\"synchronous\", level)", "synchronous"),
         // **The rest of what `crates/nc-local` hardens the connection
-        // with**, which the gate refused none of: a reviewer found each of
-        // these passing it.
+        // with**: each of these passes a gate that refuses only some of it.
         (
             "sqlx::query(\"PRAGMA cell_size_check = OFF\")",
             "cell_size_check",
@@ -1764,8 +1765,8 @@ mod tests {
             "sqlx::query(\"PRAGMA ignore_check_constraints = ON\")",
             "ignore_check_constraints",
         ),
-        // **Each spelling SQLite reads past what this gate read**, measured by
-        // two reviewers on the store's own pool: a schema's name before the
+        // **Each spelling SQLite reads past a narrower reader**, measured on
+        // the store's own pool: a schema's name before the
         // door's key or quotes around it, a sign SQLite's parser reads away,
         // hexadecimal, a quoted value, a `;` after it; `sqlx`'s own setters
         // called as a path, or handed a value that is not written out; a key
@@ -1843,7 +1844,8 @@ mod tests {
             "temp_store_directory",
         ),
         // **What the file says it is**, which the store refuses at every
-        // open once it is rewritten: a reviewer found each of these passing.
+        // open once it is rewritten: a gate that does not name them lets each
+        // of these pass.
         (
             "sqlx::query(\"PRAGMA main.application_id = 0\")",
             "application_id",
@@ -1908,8 +1910,8 @@ mod tests {
         "sqlx::query(\"DROP TRIG\\\\\nGER t\")",
         // A word that begins with one is a name, not the statement.
         "let optimized = analyze_layout(); // never `PRAGMA optimize` here",
-        // A comment's words are the comment's: this sets nothing off, and
-        // was refused as though it did.
+        // A comment's words are the comment's: this sets nothing off, and a
+        // reader taking them as words refuses it as though it did.
         "sqlx::query(\"PRAGMA journal_mode = /* never off */ WAL\")",
         "sqlx::query(\"SELECT 1 -- and never DROP TABLE t\")",
         "sqlx::query(\"SELECT 1 /* ATTACH */\")",
@@ -1974,10 +1976,10 @@ mod tests {
     /// at a value the gate lets through, and every pragma it guards is one they
     /// set or one SQLite's default keeps.
     ///
-    /// **The list was four of the seven**, measured by a reviewer: turning
-    /// `cell_size_check` or `temp_store` back, `fullfsync` off or
-    /// `ignore_check_constraints` on passed the gate, which named as the
-    /// connection's hardening only what it refused.
+    /// **Every pragma the connection hardens, not four of them**, measured:
+    /// with a list of four, turning `cell_size_check` or `temp_store` back,
+    /// `fullfsync` off or `ignore_check_constraints` on passes the gate, which
+    /// then names as the connection's hardening only what it refuses.
     #[test]
     fn every_pragma_the_store_sets_is_one_the_gate_guards() {
         let open = std::fs::read_to_string(root().join("crates/nc-local/src/open.rs"))
@@ -2009,10 +2011,10 @@ mod tests {
     /// nothing after it, and a test-only function is cut whole however its
     /// parameters wrap.
     ///
-    /// **A reviewer found a real bug with it**: behind a test-only arm, a
-    /// production arm of a shipped kernel source returned `DROP TRIGGER` and
-    /// the gate printed `ok`, the test region running on to the brace that
-    /// closed the `match`.
+    /// **The shape it holds is a real one**: a test region that runs on to the
+    /// brace closing the `match` would skip a production arm behind a test-only
+    /// arm, so a shipped kernel source returning `DROP TRIGGER` there would pass
+    /// with the gate printing `ok`.
     #[test]
     fn a_test_only_arm_or_field_hides_nothing_after_it() {
         let attribute = concat!("#[cfg(", "test)]");
@@ -2082,12 +2084,12 @@ mod tests {
     /// Every member whose manifest opens the local database is read by the
     /// gate or named as not, and a name that no longer opens it is a finding.
     ///
-    /// **The pruner's SQLite target was outside the gate**, measured by a
-    /// review: `PRAGMA optimize` and a `DROP TRIGGER` planted in
-    /// `crates/nc-prune/src/sqlite.rs` passed it, while that file runs its
-    /// statements on the user's database through `nc-local`'s pool. The list
-    /// was two directories written by hand, and the manifests had three
-    /// members that can reach the file.
+    /// **The pruner's SQLite target is inside the gate**: left out, `PRAGMA
+    /// optimize` and a `DROP TRIGGER` planted in `crates/nc-prune/src/sqlite.rs`
+    /// pass it, measured, while that file runs its statements on the user's
+    /// database through `nc-local`'s pool. A list of directories written by
+    /// hand drifts from the manifests, which name every member that can reach
+    /// the file.
     #[test]
     fn every_member_that_opens_the_local_database_is_read_or_named() {
         let members = |paths: &[&str]| -> Vec<String> {
@@ -2108,8 +2110,8 @@ mod tests {
         // whose name only begins with it is not read because that one is.
         let prefixed = read(&members(&["crates/nc-local-extra", "xtask"]));
         assert_eq!(prefixed.len(), 1, "{prefixed:?}");
-        // **One file of a member reads none of the rest of it**: a reviewer's
-        // `DROP TRIGGER` in the pruner's `lib.rs` passed beside its
+        // **One file of a member reads none of the rest of it**: read that way,
+        // a `DROP TRIGGER` in the pruner's `lib.rs` passes beside its
         // `sqlite.rs`, the member counted as read.
         let one_file = super::unread_writers(
             &members(&["crates/nc-local", "crates/nc-prune", "xtask"]),

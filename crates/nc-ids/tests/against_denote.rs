@@ -32,12 +32,10 @@ fn id() -> Snowflake {
 
 /// The inputs whose slug this repository deliberately does not match, and why.
 ///
-/// Each holds a character Windows rejects in a path, which Denote's own set does
-/// not remove. Nothing else in the corpus may appear here: an entry is a
-/// documented deviation, and an undocumented one is a defect.
-///
-/// The list said "Both" while holding three, because the third was added by this
-/// test finding it rather than by somebody writing it down.
+/// Each holds a character Windows rejects in a path, which Denote's own set
+/// does not remove. Nothing else in the corpus may appear here: an entry is a
+/// documented deviation, and an undocumented one is a defect — this test finds
+/// one, and somebody writes it down here.
 const DEVIATIONS: [(&str, &str); 3] = [
     (
         "with\\backslash",
@@ -69,13 +67,13 @@ fn every_title_matches_denote() {
     // The count first: a corpus that failed to load would otherwise pass with
     // nothing compared, which is `§19.3`'s gate-wired-to-nothing in a test.
     //
-    // **Every row, with no slack.** This floor was `checked > 30` against a
-    // corpus of 44, and the slack was measured: thirteen rows could be deleted
-    // and the test stayed green, and rows of pure punctuation — which slug to
-    // nothing, so `ours == expected == ""` and each still counted as checked —
-    // could be substituted for real ones. A floor with room in it is a floor
-    // that lets the corpus rot down to it. Every row is compared or is a
-    // documented deviation, and there is no third possibility.
+    // **Every row, with no slack.** Measured with a floor of `checked > 30`
+    // against a corpus of 44: thirteen rows can be deleted with the test green,
+    // and rows of pure punctuation — which slug to nothing, so
+    // `ours == expected == ""` and each still counts as checked — can be
+    // substituted for real ones. A floor with room in it is a floor that lets
+    // the corpus rot down to it. Every row is compared or is a documented
+    // deviation, and there is no third possibility.
     assert_eq!(
         checked + deviated.len(),
         corpus().len(),
@@ -105,20 +103,19 @@ fn every_title_matches_denote() {
         corpus().len() - substantive
     );
 
-    // **Every character this module removes appears in some row.** `"` and `‘`
-    // appeared in none, so deleting both from `REMOVED` left the whole workspace
-    // green — and produced `--say-"hi"@@…` and `--‘hello-there@@…`, names Denote
-    // would never write. The doc says "the four that were missing are the curly
-    // quotes"; three of the four were in the corpus.
+    // **Every character this module removes appears in some row.** With `"` and
+    // `‘` in none, deleting both from `REMOVED` leaves the whole workspace
+    // green — and produces `--say-"hi"@@…` and `--‘hello-there@@…`, names
+    // Denote would never write.
     //
-    // **And for six of the thirty this decides nothing**, which the sentence it
-    // carries does not say. `:`, `"`, `/`, `|`, `?` and `*` are in `FORBIDDEN`
-    // as well, and that list runs on every component — so deleting one of the
-    // six from `REMOVED` changes no output, measured with `'"'` duplicated out
-    // of the array and `cargo test -p nc-ids` green. The row is still worth
-    // requiring: it keeps the corpus exercising the character. What it cannot
-    // claim is that the corpus is what decides it, and
-    // `the_two_lists_overlap_where_they_say_they_do` names the six.
+    // **And for six of the thirty this decides nothing.** `:`, `"`, `/`, `|`,
+    // `?` and `*` are in `FORBIDDEN` as well, and that list runs on every
+    // component — so deleting one of the six from `REMOVED` changes no output,
+    // and what notices is the overlap test below, which reads the array
+    // itself. The row is still worth requiring: it keeps the corpus
+    // exercising the character. What it cannot claim is that the corpus is
+    // what decides it, and `the_two_lists_overlap_where_they_say_they_do`
+    // names the six.
     let typed_inputs: String = corpus().iter().map(|(typed, ..)| typed.clone()).collect();
     for removed in nc_ids::naming::REMOVED {
         assert!(
@@ -155,19 +152,20 @@ fn the_corpus_exercises_every_rule_it_is_the_authority_for() {
     // that spaces collapse any more".
     /// One behaviour `§16.3` requires, and whether a row exercises it.
     ///
-    /// **Measured**: with these predicates, greedily deleting every row the file
-    /// still passes without reduces 44 rows to 23 — and that reduced corpus
-    /// *does* catch a `slug_keyword` that stops removing `-`, which the previous
-    /// table did not. What is left over is redundancy, not coverage: several rows
-    /// exercise each behaviour and only one of each has to survive.
+    /// **Measured**: with these predicates, greedily deleting every row the
+    /// file still passes without reduces 44 rows to 23 — and that reduced
+    /// corpus *does* catch a `slug_keyword` that stops removing `-`, which a
+    /// table of predicates on the typed column alone does not. What is left
+    /// over is redundancy, not coverage: several rows exercise each behaviour
+    /// and only one of each has to survive.
     ///
-    /// **Every predicate reads the slug, not only what was typed.** Four of
-    /// these looked at the typed column alone, which makes them a claim about
-    /// the corpus's *input alphabet* rather than about a rule — and a corpus
-    /// reduced to rows that merely contain the right characters satisfied them
-    /// while a real regression went green. A behaviour is a relation between
-    /// what was typed and what came out, so a predicate that names only one side
-    /// is not describing the behaviour.
+    /// **Every predicate reads the slug, not only what was typed.** A predicate
+    /// that looks at the typed column alone is a claim about the corpus's
+    /// *input alphabet* rather than about a rule — and a corpus reduced to rows
+    /// that merely contain the right characters satisfies it while a real
+    /// regression goes green. A behaviour is a relation between what was typed
+    /// and what came out, so a predicate that names only one side is not
+    /// describing the behaviour.
     type Covers = (&'static str, fn(&str, &str) -> bool);
     let covers: [Covers; 14] = [
         ("a space becomes a hyphen", |typed, slug| {
@@ -188,19 +186,19 @@ fn the_corpus_exercises_every_rule_it_is_the_authority_for() {
         ("case is folded", |typed, slug| {
             typed != typed.to_lowercase() && slug == slug.to_lowercase()
         }),
-        // **The one the reduction walked through.** This asked only whether the
-        // typed text held a doubled marker, so a corpus with no hyphen in it at
-        // all still satisfied it — and `slug_keyword` could stop removing `-`
-        // with this file green. It now requires the collapse to be visible.
+        // **The one a reduction walks through.** Asking only whether the typed
+        // text holds a doubled marker, a corpus with no hyphen in it at all
+        // would satisfy it — and `slug_keyword` could stop removing `-` with
+        // this file green. So the collapse has to be visible.
         ("a doubled hyphen collapses to one", |typed, slug| {
             typed.contains("--") && !slug.contains("--") && slug.contains('-')
         }),
-        // **Two predicates, not one `||`.** They were joined, and `==equals==`
-        // satisfied the pair on its own — so the greedy reduction could delete
-        // `a_b__c`, the only row with an underscore in it, and nothing was left
-        // exercising `_`. `slug` then stopped treating `_` as a word boundary
-        // with this file green, which builds `--a_b__c@@…` and reparses it as
-        // title `a_b` with keyword `c`: one document silently split in two, and
+        // **Two predicates, not one `||`.** Joined, `==equals==` satisfies the
+        // pair on its own — so the greedy reduction can delete `a_b__c`, the
+        // only row with an underscore in it, leaving nothing exercising `_`.
+        // `slug` then stops treating `_` as a word boundary with this file
+        // green, which builds `--a_b__c@@…` and reparses it as title `a_b` with
+        // keyword `c`: one document silently split in two, and
         // `parse(build(x)) == x` broken. An `||` between two rules is one rule
         // and a spare.
         ("an underscore is a word boundary", |typed, slug| {
@@ -269,7 +267,7 @@ fn every_signature_and_keyword_matches_denote() {
         checked += 1;
     }
     // Every row but the documented deviations, with no slack — see the floor in
-    // `every_title_matches_denote` for what the slack was measured hiding.
+    // `every_title_matches_denote` for what slack measures hiding.
     assert_eq!(
         checked,
         corpus().len() - DEVIATIONS.len(),
@@ -280,10 +278,11 @@ fn every_signature_and_keyword_matches_denote() {
 
 /// A signature is split where `parse` says, and a hyphen is not that place.
 ///
-/// **The delimiter `parse` splits a signature on was decided by nothing.**
-/// Measured on 2026-09-08, `text.split('=')` changed to `text.split('-')` in
-/// `FileName::parse`: `cargo xtask check` green with every printed line
-/// identical, all eight property tests green, and
+/// **The delimiter `parse` splits a signature on, decided here.** Without
+/// this test, and with `raw_name`'s signature alphabet holding no `-`,
+/// `text.split('=')` changed to `text.split('-')` in `FileName::parse` leaves
+/// `cargo xtask check` green with every printed line identical and every
+/// property test green, while
 ///
 /// ```text
 /// ==rio-de-janeiro--praia@@01J8XK2M9P51.jpg
@@ -292,16 +291,17 @@ fn every_signature_and_keyword_matches_denote() {
 /// ```
 ///
 /// — a name that parses differently from how it was built, proposing a rename
-/// nobody asked for, which is criterion 8's own stated failure. Nothing could
-/// see it: `parsing_a_built_name_returns_what_built_it` only ever feeds `parse`
-/// what `build` wrote, and `build` never renders a `-` inside a signature; the
-/// raw-name generator drew signatures from an alphabet with no `-` in it
-/// (repaired beside this); and the corpus row that settles it — `a-b` reading as
-/// the one signature `ab`, measured against Emacs 30.2 — goes to
-/// `FileName::new`, which re-splits and re-slugs whatever it is given.
+/// nobody asked for, which is criterion 8's own stated failure. `raw_name` in
+/// `properties.rs` sees it because its signature alphabet holds `-`, and
+/// without that `-` nothing but this would:
+/// `parsing_a_built_name_returns_what_built_it` only ever feeds `parse` what
+/// `build` wrote, and `build` never renders a `-` inside a signature; and the
+/// corpus row that settles it — `a-b` reading as the one signature `ab`,
+/// measured against Emacs 30.2 — goes to `FileName::new`, which re-splits and
+/// re-slugs whatever it is given.
 ///
-/// The sibling line one screen down, the keywords' `split('_')`, was always
-/// pinned, because *that* generator's alphabet holds its own separator.
+/// The sibling line one screen down, the keywords' `split('_')`, is pinned by
+/// its generator, because *that* generator's alphabet holds its own separator.
 #[test]
 fn a_signature_is_split_on_its_own_delimiter() {
     let name = |text: &str| format!("{text}@@{}", id());
@@ -352,8 +352,8 @@ fn a_name_with_a_repeated_marker_is_split_where_denote_splits_it() {
     //   ==s1==s2--t@@01J8XK2M9P51.jpg  id=01J8XK2M9P51 sig="s1" title="t"    kw=nil
     //
     // Only a name somebody renamed by hand can hold a marker twice, and that is
-    // exactly what `parse` is for. This used to read from the right and answered
-    // `b` where Denote answers `a--b`, silently dropping half of what was typed.
+    // exactly what `parse` is for. Read from the right, `--a--b@@…` answers `b`
+    // where Denote answers `a--b`, silently dropping half of what was typed.
     //
     // The title is the odd one and it is Denote's oddity, not a mistake here:
     // `denote-title-regexp`'s alternation is `\(==.*\|__.*\|@@.*\|\..*\)*$`,
@@ -382,8 +382,8 @@ fn a_component_cannot_begin_with_a_dot_because_the_regexp_says_so() {
     //   __.k@@01J8XK2M9P51   title=nil kw=nil sig=nil
     //   ==.s@@01J8XK2M9P51   title=nil kw=nil sig=nil
     //
-    // This used to answer `x`, `k` and `s`: the scan began one character in, so
-    // a leading dot was swallowed as content rather than refusing the match.
+    // A scan beginning one character in would answer `x`, `k` and `s`: a
+    // leading dot swallowed as content rather than refusing the match.
     let dotted = FileName::parse("--.x@@01J8XK2M9P51").expect("parses");
     assert_eq!(dotted.title(), None);
     let keywords = FileName::parse("__.k@@01J8XK2M9P51").expect("parses");
@@ -404,12 +404,11 @@ fn a_component_cannot_begin_with_a_dot_because_the_regexp_says_so() {
 
 /// The two removal lists overlap in exactly six characters.
 ///
-/// **The corpus assertion over `REMOVED` is vacuous for those six**, because
-/// `FORBIDDEN` strips them from every component and `REMOVED` only from a title,
-/// a signature and a keyword. Deleting one of the six from `REMOVED` changes no
-/// output — measured, `'"'` duplicated out of the array with `cargo test -p
-/// nc-ids` green at 97, 5 and 8 — so a reader taking that assertion's sentence
-/// at face value believes a fifth of the list is held by a corpus that cannot
+/// **The corpus assertion over `REMOVED` is vacuous for those six**,
+/// because `FORBIDDEN` strips them from every component and `REMOVED` only from
+/// a title, a signature and a keyword. Deleting one of the six from `REMOVED`
+/// changes no output — so a reader taking that assertion's sentence at face
+/// value would believe a fifth of the list is held by a corpus that cannot
 /// move.
 ///
 /// Written down as a number so the overlap cannot grow quietly: a character

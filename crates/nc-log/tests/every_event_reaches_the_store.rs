@@ -1,12 +1,12 @@
 //! Every event the registry declares is built, recorded, and read back.
 //!
-//! **The crate's public entry point was executed by nothing.** `Log::record` is
-//! what a caller uses — it is the whole of what this crate is for — and a search
-//! of the tree for it found only its own definition. The end-to-end line tests
+//! **This is what executes the crate's public entry point on every generated
+//! event.** `Log::record` is what a caller uses — it is the whole of what this
+//! crate is for. The end-to-end line tests
 //! drive `Log::line` against hand-written `Probe` and `Impostor` events declared
-//! inside `lib.rs`, so no test in the workspace ever constructed a single
-//! generated event: the eleven types the compiler emits were held by a textual
-//! comparison against the catalog and by nothing that ran them.
+//! inside `lib.rs`, so without this the types the compiler emits are held as a
+//! set by a textual comparison against the catalog, and by nothing that runs
+//! each of them.
 //!
 //! That is `§19.3`'s opening failure in its usual shape — the generated code
 //! compiles, a gate says it matches the registry, and whether it *works* is
@@ -79,14 +79,15 @@ fn every_generated_event_is_built_recorded_and_read_back() {
     // `Drop` is what flushes, and it is also the path a real process leaves by.
     drop(log);
 
-    // **The registry's own count, not a literal.** This said `11` in three
-    // places — here, in the assertion, and as the length of the name list below
-    // — so *removing* an event was caught and *adding* one was not. Measured: a
-    // twelfth event declared in `catalog/log-events.toml`, `cargo xtask build`,
-    // `cargo xtask docs`, whole workspace green, `check passed`, and the new
-    // event's `to_field()` reaching nothing at all. The suite's own header says
-    // "every event the registry declares is built, recorded, and read back", and
-    // a hand list cannot say that about an event nobody added to it.
+    // **The registry's own count, not a literal.** A literal count written in
+    // three places — here, in the assertion, and as the length of the name list
+    // below — catches *removing* an event and not *adding* one. Measured with
+    // literals: an event added to `catalog/log-events.toml`,
+    // `cargo xtask build`, `cargo xtask docs`, whole workspace green,
+    // `check passed`, and the new event's `to_field()` reaching nothing at all.
+    // The suite's own header says "every event the registry declares is built,
+    // recorded, and read back", and a hand list cannot say that about an event
+    // nobody added to it.
     let expected = nc_catalog::EVENTS.len();
     let mut lines = Vec::new();
     let deadline = std::time::Instant::now() + Duration::from_secs(20);
@@ -113,10 +114,10 @@ fn every_generated_event_is_built_recorded_and_read_back() {
     for name in nc_catalog::EVENTS.iter().map(|event| event.name) {
         // **The whole field, not the name as a substring.** Written
         // `line.contains(name)`, an event renamed to `ids.flake_collisionX`
-        // satisfied it — the mutated name contains the original — and this test
-        // passed with the generated code broken. That is the same `contains`
-        // defect the placeholder gate carried, found the same way: by breaking
-        // the thing and watching nothing go red.
+        // satisfies it — the mutated name contains the original — and this test
+        // passes with the generated code broken. A placeholder gate written
+        // with `contains` has the same shape, and breaking the thing and
+        // watching nothing go red is how either shows.
         assert!(
             lines
                 .iter()

@@ -10,8 +10,8 @@
 //! DNS name — labels of one to sixty-three letters, digits and inner hyphens,
 //! none empty, at most 253 bytes in all — because a declaration with `*.`
 //! holds only its suffix, and WHATWG keeps characters in a host — `"`, `{`,
-//! `}`, a backtick — that no DNS name has and HTTP cannot write: a reviewer
-//! found such a name judged and then refused by the transport. It may carry
+//! `}`, a backtick — that no DNS name has and HTTP cannot write, which the
+//! transport would refuse after such a name passed here. It may carry
 //! no user and no password, and no port: `:443` on `https` is the default,
 //! which the parser removes, and every other is refused. The name must be one
 //! the plugin's manifest declares — the name itself, or one below a `*.`
@@ -89,8 +89,8 @@
 //! are public addresses to [`is_public`], which judges an address and not
 //! whose it is, so a name that resolves to one is dialled, and only the
 //! certificate's verification against the declared name keeps what answers
-//! there from the plugin. A reviewer measured this machine's own address
-//! dialled that way; what would refuse it is the machine's interfaces and
+//! there from the plugin. This machine's own address is dialled that way,
+//! measured; what would refuse it is the machine's interfaces and
 //! routes read at the moment a name resolves, which no crate of this tree
 //! reads (`NOCTUA.md §2.3` makes that a question for the developer), and what
 //! is done meanwhile is that the transport tells every request that did not
@@ -760,10 +760,10 @@ fn held_to_the_rules(headers: &[(String, String)]) -> Result<(), Refused> {
 ///
 /// **Held below what HTTP can write.** Past it, the transport's `http`
 /// refuses a URL or a header's name too long for it, and ureq a head longer
-/// than its buffer, after every rule here has passed — and a request that
-/// could never be sent was told to the plugin as a network that did not
-/// answer, which it may ask again. A test of the transport writes a request
-/// of exactly this bound whole.
+/// than its buffer, after every rule here has passed — and a request that could
+/// never be sent would be told to the plugin as a network that did not answer,
+/// which it may ask again. A test of the transport writes a request of exactly
+/// this bound whole.
 fn within_the_head(url: &Url, headers: &[(String, String)]) -> Result<(), Refused> {
     let bound = usize::try_from(KERNEL.net_request_head_bytes).unwrap_or(usize::MAX);
     let sent = url.as_str().len();
@@ -1160,8 +1160,8 @@ mod tests {
     /// answered, held here so a judge that learns a network's prefixes
     /// changes that sentence in the same edit.
     ///
-    /// A reviewer found it written nowhere: RFC 6052 §3.1 lets such a prefix
-    /// carry a private IPv4 address, which the well-known one may not.
+    /// RFC 6052 §3.1 lets such a prefix carry a private IPv4 address, which
+    /// the well-known one may not.
     #[test]
     fn an_address_under_a_network_specific_nat64_prefix_is_judged_as_the_ipv6_address_it_is() {
         for (carried, well_known, network_specific) in [
@@ -1243,10 +1243,10 @@ mod tests {
     /// A name below a `*.` declaration is held to what a DNS name is, before
     /// it is held to the declaration: refused as a URL no request is sent to.
     ///
-    /// **A reviewer found a real bug with it**: the kernel judged a host the
-    /// parser keeps and HTTP cannot write — `a"b.cdn.example.net` — and hosts
-    /// that are no DNS name, `a!b.` or an empty label among them, because a
-    /// wildcard was asked only whether the host ended with its suffix.
+    /// **Not by its suffix alone**: a wildcard asked only whether the host ends
+    /// with its suffix would judge a host the parser keeps and HTTP cannot
+    /// write — `a"b.cdn.example.net` — and hosts that are no DNS name, `a!b.`
+    /// or an empty label among them.
     #[test]
     fn a_name_below_a_wildcard_is_held_to_what_a_dns_name_is() {
         for url in [
@@ -1276,9 +1276,9 @@ mod tests {
         let long = format!("https://{}.cdn.example.net/", "a".repeat(64));
         assert_eq!(refused_as(get(&long), false).0, Some(Reason::Url), "{long}");
         // **At both edges of the name's bound, and a label's last character.**
-        // A reviewer planted a bound of 253,000 bytes and dropped the rule on a
-        // label's last hyphen together, and every suite of the crate passed:
-        // the 64-byte label and the leading hyphen above held neither.
+        // With a bound of 253,000 bytes planted and the rule on a label's last
+        // hyphen dropped together, the 64-byte label and the leading hyphen
+        // above would still be refused, holding neither; the rows below fail.
         let suffix = ".cdn.example.net";
         let host_of = |bytes: usize| {
             let last = bytes - suffix.len() - 3 * 64;
@@ -1996,8 +1996,8 @@ mod tests {
     /// **What the comparison of the event's words with the reasons' cannot
     /// see**: it compares two sets, and two reasons logged by each other's
     /// words leave both as they were — a URL refused logged as a body, and a
-    /// body as a URL. Found by a reviewer, who swapped those two and left
-    /// every suite green.
+    /// body as a URL. With those two swapped, the comparison of the two sets
+    /// still passes, and this test, which reads each reason's own name, fails.
     #[test]
     fn each_reason_is_logged_by_its_own_name_in_snake_case() {
         for reason in Reason::ALL {

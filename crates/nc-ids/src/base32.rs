@@ -16,9 +16,9 @@
 //! example the specification writes down is itself padded, to twelve, and
 //! reproducing it exactly means padding to twelve.
 //!
-//! An earlier version padded to **thirteen**, the width a full `u64` takes, and
-//! the example did not rebuild. The developer was asked and chose reproducing
-//! the example; twelve is the width that does it.
+//! Padding to **thirteen**, the width a full `u64` takes, does not rebuild the
+//! example, and `§16.3` asks for the example reproduced; twelve is the width
+//! that does it.
 //!
 //! **The cost is measured rather than guessed, and it is the same either way.**
 //! Twelve characters hold values below `32^12 = 2^60`; with twenty-two bits of
@@ -48,11 +48,11 @@ pub const MIN_WIDTH: usize = 12;
 
 /// Why some text is not a Crockford base32 identifier.
 ///
-/// An enum rather than a bare `char`, because the failures are different and a
-/// `char` could only express one: an empty string was reported as the null
-/// character, and a value with bits outside the layout was reported as its
-/// *first* character — which is usually a perfectly valid digit, so the reader
-/// was pointed at the wrong place (`NOCTUA.md §15.1`).
+/// An enum rather than a bare `char`, because the failures are different and
+/// a `char` could only express one: an empty string would be reported as the
+/// null character, and a value with bits outside the layout as its *first*
+/// character — which is usually a perfectly valid digit, pointing the reader at
+/// the wrong place (`NOCTUA.md §15.1`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Base32Error {
     /// There was nothing to decode.
@@ -76,14 +76,15 @@ pub enum Base32Error {
         length: usize,
         /// How many bits the value was being decoded into.
         ///
-        /// **64 for a raw decode and 63 for a `Snowflake`**, and the sentence
-        /// used to say 64 whoever raised it. `Snowflake::from_crockford` refuses
-        /// a value with bits outside the 63 its layout uses, and reported *"this
-        /// value needs more than the 64 bits an identifier has"* — while
-        /// `base32::decode` on the same text answers `Ok(9223372036854775808)`,
-        /// which is proof it fits in 64. `from_crockford`'s own doc says 63.
-        /// That is the same self-contradiction this variant was split out of
-        /// `TooLong` to end, one layer along.
+        /// **64 for a raw decode and 63 for a `Snowflake`**, not 64 whoever
+        /// raises it. `Snowflake::from_crockford` refuses a value with bits
+        /// outside the 63 its layout uses, and saying *"this value needs more
+        /// than the 64 bits an identifier has"* there would
+        /// contradict `base32::decode` on the same text, which
+        /// answers `Ok(9223372036854775808)` — proof it fits in
+        /// 64. `from_crockford`'s own doc says 63. That is the same
+        /// self-contradiction this variant is split out of `TooLong` to end,
+        /// one layer along.
         bits: u32,
     },
     /// A character the alphabet does not hold.
@@ -98,15 +99,15 @@ pub enum Base32Error {
 impl Base32Error {
     /// The registry code this failure carries.
     ///
-    /// **It had none, and neither did the two beside it.** `§15.1` makes an
-    /// error's identity data rather than a string at a call site, and a type
-    /// with no code cannot be journalled, cannot be logged as a `LogValue` and
-    /// cannot be queried for — which is the whole reason the registry exists.
-    /// `NC-IDS-0006` is shared with [`crate::OpaqueIdError`] because both say
-    /// the same thing to a reader: what you handed me is not an identifier.
-    /// [`crate::MachineFlake::from_value`] is **not** one of them, though this
-    /// sentence said it was for a round — it takes a `u16`, so there is no text
-    /// and nobody typed it, and it carries `NC-VAL-0001` instead.
+    /// **Every failure here carries one.** `§15.1` makes an error's identity
+    /// data rather than a string at a call site, and a type with no code cannot
+    /// be journalled, cannot be logged as a `LogValue` and cannot be queried
+    /// for — which is the whole reason the registry exists. `NC-IDS-0006` is
+    /// shared with [`crate::OpaqueIdError`] because both say the same thing to
+    /// a reader: what you handed me is not an identifier.
+    /// [`crate::MachineFlake::from_value`] is **not** one of them — it takes
+    /// a `u16`, so there is no text and nobody typed it, and it
+    /// carries `NC-VAL-0001` instead.
     #[must_use]
     pub const fn code(self) -> nc_catalog::ErrorCode {
         nc_catalog::ErrorCode::IdsNotAnIdentifier
@@ -211,9 +212,9 @@ mod tests {
 
     #[test]
     fn the_specification_s_own_example_rebuilds_byte_for_byte() {
-        // NOCTUA.md §16.3 writes down exactly one name. Padding to thirteen meant
-        // it did not rebuild; not padding at all meant it did not either, because
-        // its identifier has a leading zero its value does not need.
+        // NOCTUA.md §16.3 writes down exactly one name. Padding to thirteen means
+        // it does not rebuild; not padding at all means it does not either,
+        // because its identifier has a leading zero its value does not need.
         let example = "01J8XK2M9P51";
         let value = decode(example).expect("the specification's own example");
         assert_eq!(encode(value), example);
@@ -307,11 +308,12 @@ mod width_tests {
 
     #[test]
     fn every_refusal_renders_a_sentence_that_does_not_contradict_itself() {
-        // **`Display` was never executed anywhere.** `assert_eq!(…, "{error}")`
-        // only formats when it fails, so every message in these crates went
-        // unrendered — and `TooLong` at exactly `MAX_WIDTH` read "13 characters
-        // is more than the 13 a 64-bit value takes", which is the §15.1 failure
-        // this enum's own doc says it exists to avoid.
+        // **`Display` executed, not only formatted on failure.**
+        // `assert_eq!(…, "{error}")` only formats when it fails, so without
+        // this every message in these crates goes unrendered — and `TooLong` at
+        // exactly `MAX_WIDTH` could read "13 characters is more than the 13 a
+        // 64-bit value takes", which is the §15.1 failure this enum's own doc
+        // says it exists to avoid.
         let rendered = |error: Base32Error| error.to_string();
         let width = rendered(Base32Error::TooLong {
             length: MAX_WIDTH + 1,
@@ -354,11 +356,11 @@ mod width_tests {
 
     #[test]
     fn a_long_string_of_zeros_is_refused_for_its_width_and_not_for_its_value() {
-        // The **length** refusal, which had no test of its own. The only "too
-        // long" case used fourteen `Z`s, and the overflow check behind it rejects
-        // those with the identical `TooLong { length: 14 }` — so the two branches
-        // were indistinguishable, and deleting the width check left
-        // `decode(&"0".repeat(50))` returning `Ok(0)`.
+        // The **length** refusal, on its own. Fourteen `Z`s are rejected by the
+        // overflow check behind it with the identical `TooLong { length: 14 }`
+        // — so through them the two branches are indistinguishable, and
+        // deleting the width check leaves `decode(&"0".repeat(50))` returning
+        // `Ok(0)`.
         let zeros = "0".repeat(50);
         assert_eq!(decode(&zeros), Err(Base32Error::TooLong { length: 50 }));
         // A string of zeros exactly at the limit decodes, so the bound is checked
@@ -380,11 +382,11 @@ mod the_alphabet_is_crockfords {
 
     /// The alphabet is the published one, character for character.
     ///
-    /// **Every other test here is a round trip, and a round trip is invariant
-    /// under any permutation of the table.** A reviewer transposed `W` and `X`
-    /// and the whole workspace stayed green — including `nc-journal`'s pinned
-    /// BLAKE3 vectors, because those hash the value and not its spelling. What
-    /// came out was a private alphabet no other Crockford reader decodes:
+    /// **A round trip is invariant under any permutation of the table.** With
+    /// `W` and `X` transposed, every round trip still holds — and so do
+    /// `nc-journal`'s pinned BLAKE3 vectors, because those hash the value and
+    /// not its spelling. What comes out is a private alphabet no other Crockford
+    /// reader decodes:
     ///
     /// ```text
     /// encode(28)          = 00000000000X     (Crockford: …W)
@@ -457,8 +459,9 @@ mod the_alphabet_is_crockfords {
     /// no digit it looks like — so it is refused.
     ///
     /// Written down because nothing else types one. Every other test here round
-    /// trips through `encode`, which never emits any of these four, so the entire
-    /// forgiving branch of the decoder was reachable only from outside this crate.
+    /// trips through `encode`, which never emits any of these four, so without
+    /// this the entire forgiving branch of the decoder is reachable only from
+    /// outside this crate.
     #[test]
     fn a_letter_the_table_leaves_out_reads_as_the_digit_it_resembles() {
         for (confusable, digit) in [("I", "1"), ("L", "1"), ("O", "0")] {
@@ -478,13 +481,14 @@ mod the_alphabet_is_crockfords {
 
     /// The width rule counts characters, and a byte count is not one.
     ///
-    /// **A length standing in for the property it measures.** `text.len()` for
-    /// `text.chars().count()` left the whole crate green and made seven `é`
-    /// refuse as `TooLong { length: 14 }` — *"14 characters is more than the 13
-    /// a 64-bit value takes"* — for a string that is seven characters long. It
-    /// can only mis-diagnose an identifier that is already illegal, since every
-    /// Crockford character is ASCII, but the enum exists so that a refusal does
-    /// not point the reader at the wrong thing, and this module already carries
+    /// **A length standing in for the property it measures.** Without this,
+    /// `text.len()` for `text.chars().count()` leaves the crate green and makes
+    /// seven `é` refuse as `TooLong { length: 14 }` — *"14 characters is more
+    /// than the 13 a 64-bit value takes"* — for a string that is seven
+    /// characters long. It can only mis-diagnose an identifier that is already
+    /// illegal, since every Crockford character is ASCII, but the enum exists so
+    /// that a refusal does not point the reader at the wrong thing, and this
+    /// module already carries
     /// `every_refusal_renders_a_sentence_that_does_not_contradict_itself`.
     #[test]
     fn a_multi_byte_character_is_refused_for_being_one_and_not_for_a_width() {

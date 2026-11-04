@@ -216,8 +216,8 @@ async fn a_request_nothing_permits_is_denied_as_no_permit_matched() {
 async fn every_fact_the_kernel_vouches_for_reaches_the_rule_that_reads_it() {
     // Each fact is flipped alone against its control, and both answers are
     // named: a fact the context drops or writes as a constant turns one answer
-    // of its pair into the other. Found by review: with `quorum_met` written as
-    // `true`, a delete nobody approved was allowed and every other test passed.
+    // of its pair into the other. With `quorum_met` written as `true`, the
+    // first row's delete, which nobody approved, is allowed.
     let pdp = family();
     let directory = directory(&pdp)
         .with_grant("home", entity("Agent", "ana-assistant"), "g.current")
@@ -324,10 +324,10 @@ async fn an_entity_the_directory_does_not_hold_is_denied_exactly_as_one_nothing_
 #[tokio::test]
 async fn a_missing_resource_is_named_as_a_held_one_by_a_forbid_that_never_reads_it() {
     // The same principal and the same verb, on a resource the directory holds
-    // and on one it does not. Found by review: the missing one was denied as
-    // `kernel.no_permit_matched` before Cedar was asked, while the held one
-    // named the forbid that fired — so any member asking for a delete without a
-    // quorum learned whether a content id exists.
+    // and on one it does not. A missing one denied as `kernel.no_permit_matched`
+    // before Cedar is asked, while the held one names the forbid that fired,
+    // would tell any member asking for a delete without a quorum whether a
+    // content id exists.
     let pdp = family();
     let directory = directory(&pdp);
     let floors = "core.provenance,family.a_frozen_account_acts_on_nothing";
@@ -507,9 +507,10 @@ async fn a_forbid_on_an_action_group_fires_through_a_slice() {
     // Cedar reads `Action::"Write" in Action::"Mutate"` from the entities it is
     // handed, and action entities come only from the schema — so a slice built
     // without it holds no group, the floor never fires and the permit beside it
-    // allows. Found by review: `Entities::from_entities(entities, None)` in
-    // `slice_now` left every other test green, because the shipped schema
-    // declares no group, and the only signal was a field nothing read.
+    // allows. The shipped schema declares no group, so the shipped pack cannot
+    // show whether `slice_now` hands Cedar the schema's action entities —
+    // written `Entities::from_entities(entities, None)`, it would not — and
+    // this test builds a grouped schema that tells the two apart.
     let permit_only = Pdp::from_sources_for_tests(GROUPED, &[ANYONE_ACTS], "family", MANIFEST)
         .expect("the permit compiles against the grouped schema");
     assert_eq!(
@@ -589,9 +590,9 @@ async fn an_evaluation_error_denies_even_when_a_permit_matched() {
 #[tokio::test]
 async fn an_evaluation_error_denies_by_its_name_even_when_cedar_denied() {
     // The other half of the rule: Cedar denies too, so the verdict is the same
-    // and only the name tells the error from a forbid or from no permit. Found
-    // by review: with the rule held on `Allow` alone, an erring rule on a
-    // denied request was journaled as `kernel.no_permit_matched`.
+    // and only the name tells the error from a forbid or from no permit. With
+    // the rule held on `Allow` alone, an erring rule on a denied request is
+    // journaled as `kernel.no_permit_matched`.
     let without = family_with(&[]).expect("the shipped pack compiles");
     let erring = family_with(&[ERRS]).expect("a rule that errs still compiles");
     let (plain, with_it) = (directory(&without), directory(&erring));
@@ -757,10 +758,10 @@ const fn in_the_pack(text: &'static str) -> [(&'static str, &'static str); 1] {
 
 #[test]
 fn each_refusal_of_a_pack_carries_the_code_its_check_means() {
-    // One pack per check, each named with the code that check means. Found by
-    // review: every refusal of a parsed pack carried NC-POL-0002, which the
-    // ledger records as a pack Cedar's validator refuses, so an `@id` in the
-    // reserved prefix was logged as a schema failure.
+    // One pack per check, each named with the code that check means. One code
+    // for every refusal of a parsed pack would log an `@id` in the reserved
+    // prefix as NC-POL-0002, which the ledger records as a pack Cedar's
+    // validator refuses: a schema failure.
     let unreadable = ErrorCode::PolicyUnreadable;
     let (invalid, broken) = (ErrorCode::PolicyInvalid, ErrorCode::PolicyRuleBroken);
     let refusals = [
@@ -1013,9 +1014,9 @@ fn a_grant_is_refused_when_malformed_or_not_held_by_the_realm() {
             "{realm} {grant}: {refused}"
         );
     }
-    // Held by its realm, so the identifier rule alone refuses it. Found by
-    // review: every id above is also absent from the world, and an id minted
-    // leniently — `g_spaced` in the journal for `g spaced` in Cedar — passed.
+    // Held by its realm, so the identifier rule alone refuses it: every id
+    // above is also absent from the world, and an id minted leniently —
+    // `g_spaced` in the journal for `g spaced` in Cedar — would pass.
     let refused = MemoryDirectory::from_world(SPACED, &pdp)
         .expect("the world loads")
         .with_grant("home town", entity("User", "ana bob"), "g spaced")
@@ -1168,8 +1169,8 @@ fn the_directory_answers_on_any_thread() {
 #[test]
 fn a_directory_refusal_prints_what_it_was_given_escaped() {
     // Every variant, because each carries text from outside: a realm id, the
-    // schema's complaint about a world, a database's error. Found by review:
-    // with only the realm's escaping asserted, the other two printed raw.
+    // schema's complaint about a world, a database's error. With only the
+    // realm's escaping asserted, the other two could print raw.
     let hostile = "\u{1b}[2J";
     let printed = [
         DirectoryError::Unavailable(hostile.to_owned()),

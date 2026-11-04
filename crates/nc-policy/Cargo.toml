@@ -17,11 +17,10 @@ cedar-policy.workspace = true
 # workspace's deserialiser and `serde_json` is Cedar's own entity format.
 #
 # **Through the workspace, which is what `[workspace.dependencies]` is for.**
-# These three were pinned here directly — `toml` at 0.9 against the workspace's
-# 1.1 — so `cargo tree` showed two `toml` and two `toml_datetime` linked into
-# the same `xtask` binary, and `deny.toml` carried both in a skip list whose own
-# comment says "every entry below is somebody else's transitive disagreement,
-# not a pin of ours". It was ours.
+# Pinned here directly — `toml` at 0.9 against the workspace's 1.1, say — they
+# link a second `toml` and `toml_datetime` into the same `xtask` binary, and
+# `deny.toml` would carry both in a skip list whose own comment says "every
+# entry below is somebody else's transitive disagreement, not a pin of ours".
 serde.workspace = true
 serde_json.workspace = true
 toml.workspace = true
@@ -29,7 +28,7 @@ toml.workspace = true
 [dev-dependencies]
 # **Itself, so the documentation gate can read this crate's integration
 # tests.** `cargo doc` documents lib and bin targets only, so a broken
-# intra-doc link in `tests/` shipped with the gate green — and
+# intra-doc link in `tests/` passes it green — and
 # `cargo rustdoc --test` cannot resolve a `use` of the crate under test
 # unless the package depends on itself here. Cargo resolves it to this
 # same unit, so nothing is built twice.

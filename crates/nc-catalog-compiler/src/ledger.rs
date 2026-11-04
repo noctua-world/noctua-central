@@ -21,9 +21,8 @@
 //! `NC-JRNL-0001` can keep its number, its key and its description while the
 //! English sentence behind that key is rewritten from "The activity history does
 //! not add up" to "The printer tray is empty", and every gate here stays green —
-//! measured. An earlier version of this paragraph said the key was locked
-//! *because* "it is what a user is shown", which named the one thing the
-//! mechanism does not protect as its reason for existing.
+//! measured. The key is not locked *because* it is what a user is shown; that is
+//! the one thing the mechanism does not protect.
 //!
 //! That is deliberate rather than an oversight, and the argument is the one this
 //! module already makes about descriptions, applied to prose that is edited far
@@ -34,45 +33,44 @@
 //! (`messages.rs`) — so a code always resolves to a sentence, and which sentence
 //! it resolves to is a translation decision rather than a numbering one.
 //!
-//! # The holes a reviewer opened, and what closes them
+//! # The holes, and what closes them
 //!
 //! The first version of this treated an absent ledger as an empty one, so
 //! `rm catalog/errors.reserved.toml` freed every code in the repository and the
 //! next build blessed the renumbering — with `§5.3` saying, in the same breath,
 //! that there is nothing to restore from. **An absent ledger is a failure.**
 //!
-//! The fix for that opened a smaller door in the same wall: an empty `checksum`
-//! was accepted as the bootstrap of a hand-created ledger, and two lines of
-//! editing — clear the checksum, empty the table — reopened the hole exactly.
-//! `cargo xtask check` reported `check passed` on a catalog whose error code had
-//! been silently repointed. So the bootstrap is now an **intent** rather than a
-//! file state: [`Bootstrap::Allow`] comes only from `cargo xtask build
-//! --reserve`, `check` never passes it, and an unverifiable ledger therefore
-//! fails the gate whatever the file says.
+//! An empty `checksum` accepted as the bootstrap of a hand-created ledger would
+//! be a smaller door in the same wall: two lines of editing — clear the
+//! checksum, empty the table — would reopen the hole exactly, and
+//! `cargo xtask check` would report `check passed` on a catalog whose error
+//! code has been silently repointed. So the bootstrap is an **intent** rather
+//! than a file state: [`Bootstrap::Allow`] comes only from
+//! `cargo xtask build --reserve`, `check` never passes it, and an unverifiable
+//! ledger therefore fails the gate whatever the file says.
 //!
-//! The second was worse because it looked like a gate. The ledger was emitted as
-//! generated output and drift-checked against what the compiler produced — but
-//! what the compiler produced was *derived from the ledger on disk*, so a hand
-//! edit ratified itself and `check` reported "in sync". That is `§19.3`'s named
-//! trap word for word. The ledger is no longer generated output: `build` appends
-//! to it, `check` compares it against `catalog/errors.toml`, and a `CHECKSUM`
-//! over its own contents catches an edit made outside either.
+//! A drift check would look like a gate and not be one. A ledger emitted as
+//! generated output and drift-checked against what the compiler produced is
+//! checked against something *derived from the ledger on disk*, so a hand edit
+//! ratifies itself and `check` reports "in sync". That is `§19.3`'s named trap
+//! word for word. The ledger is not generated output: `build` appends to it,
+//! `check` compares it against `catalog/errors.toml`, and a `CHECKSUM` over its
+//! own contents catches an edit made outside either.
 //!
-//! The third came out of the fixes above. Every one of them reads the
-//! *checksum*, and a ledger reserving nothing has a correct one — `blake3` over
-//! nothing is a constant anybody can compute — so `checksum = "<that constant>"`
-//! over an empty `[reserved]` verified, `reconcile`'s loop could not iterate,
-//! and every code was re-derived as new. A ledger that reserves nothing is
-//! refused now, however it is vouched for.
+//! Every guard above reads the *checksum*, and a ledger reserving nothing has a
+//! correct one — `blake3` over nothing is a constant anybody can compute — so
+//! `checksum = "<that constant>"` over an empty `[reserved]` verifies,
+//! `reconcile`'s loop cannot iterate, and every code is re-derived as new. A
+//! ledger that reserves nothing is refused, however it is vouched for.
 //!
-//! The fourth is the third with its special case taken off, and it is the one
-//! that says what a checksum over the reservations alone was worth: *any* subset
-//! of a ledger was a ledger. Measured — one of the twenty-nine reservations kept
-//! and the file re-signed by this module's own [`render`], with
-//! `NC-CANON-0001`'s description in `catalog/errors.toml` changed to "The
-//! printer tray is empty" — an ordinary `cargo xtask build`, no `--reserve` and
-//! no warning line, appended the other twenty-eight, the ledger recorded the new
-//! meaning, `docs/errors.md` published it and `cargo xtask check` printed
+//! The same hole with its special case taken off says what a checksum over the
+//! reservations alone is worth: *any* subset of a ledger is a ledger. Measured
+//! over the reservations alone — one of the twenty-nine reservations kept and
+//! the file re-signed by this module's own [`render`], with `NC-CANON-0001`'s
+//! description in `catalog/errors.toml` changed to "The printer tray is empty"
+//! — an ordinary `cargo xtask build`, no `--reserve` and no warning line,
+//! appends the other twenty-eight, the ledger records the new meaning,
+//! `docs/errors.md` publishes it and `cargo xtask check` prints
 //! `check passed`. Criterion 7 switched off by the edit-build-check loop a
 //! developer runs every day, and `§5.3` says there is no git to be the second
 //! reader.
@@ -83,8 +81,8 @@
 //! from the number it states is refused ([`read`]'s `ledger-count`). And
 //! [`Reservations`] is opaque: nothing outside this module can build one, take a
 //! line out of one, or hand [`render`] a smaller set than [`read`] returned. The
-//! renderer was the only thing in the repository that would compute a checksum
-//! on request, and it no longer signs a subset.
+//! renderer is the only thing in the repository that computes a checksum on
+//! request, and it does not sign a subset.
 //!
 //! # The honest limit
 //!
@@ -121,12 +119,12 @@ type Meanings = BTreeMap<String, String>;
 
 /// What a ledger reserves.
 ///
-/// **Opaque, and that is half of what closes the fourth hole above.** This was
-/// `pub type Reservations = BTreeMap<String, String>`, so anything holding one
+/// **Opaque, and that is half of what closes the subset hole above.** As
+/// `pub type Reservations = BTreeMap<String, String>`, anything holding one
 /// could take lines out of it and hand the rest to [`render`], which computes
-/// the checksum over whatever it is given. That made the compiler its own
+/// the checksum over whatever it is given. That would make the compiler its own
 /// forgery tool: a ledger holding one of the twenty-nine codes, signed by
-/// `render`, verified — and the next ordinary build appended the twenty-eight
+/// `render`, verifies — and the next ordinary build appends the twenty-eight
 /// missing ones with the meanings `catalog/errors.toml` carries today. With the
 /// field private, the only reservations that exist are the ones [`read`] parsed
 /// and the ones [`reconcile`] grew from them, and neither of those can shrink.
@@ -174,13 +172,12 @@ pub enum Bootstrap {
 }
 /// Whether the ledger states how many codes it holds.
 ///
-/// **Asked of the document, not of the bytes.** This was
-/// `text.contains("count = ")`, which any comment satisfies and so does any
-/// `[reserved]` description holding those six characters. `count` is defaulted,
-/// and its default is zero, so a forger who deletes the line and re-signs over a
-/// smaller set gets a file whose size guard reads `28 < 0` and passes — with one
-/// comment left behind to satisfy the only thing standing in the way. A key is a
-/// key; prose that mentions one is not.
+/// **Asked of the document, not of the bytes.** `text.contains("count = ")` is
+/// satisfied by any comment and by any `[reserved]` description holding those
+/// six characters. `count` is defaulted, and its default is zero, so a forger
+/// who deletes the line and re-signs over a smaller set gets a file whose size
+/// guard reads `28 < 0` and passes — with one comment left behind to satisfy a
+/// test of the bytes. A key is a key; prose that mentions one is not.
 fn states_a_count(text: &str) -> bool {
     toml::from_str::<toml::Value>(text)
         .ok()
@@ -267,17 +264,17 @@ pub fn read(root: &std::path::Path, bootstrap: Bootstrap) -> Result<Reservations
         ));
     }
     if ledger.meta.checksum != expected {
-        // **And the fix text says what `--reserve` actually does.** It named it
-        // as the remedy and stopped there. Measured: an interrupted build left
-        // the ledger short — `fs::write` truncates before it writes, so under
-        // `ulimit -f` it kept 4096 bytes of 5090 and 22 reservations of 28, with
-        // no error line at all — and this diagnostic then blamed a person for
-        // it and pointed at `--reserve`, which re-derives every missing line
-        // from `catalog/errors.toml` **as it reads now**. Following it verbatim
-        // ratified, in silence, the meaning change the previous build had
-        // refused. The write is a rename now (`xtask/src/build.rs`), so that
-        // state cannot arise from an interruption again; this is the other half,
-        // because the sentence sent the reader through the bypass.
+        // **And the fix text says what `--reserve` actually does**, not only
+        // that it is the remedy. Measured with a truncating write: an
+        // interrupted build leaves the ledger short — `fs::write` truncates
+        // before it writes, so under `ulimit -f` it keeps 4096 bytes of 5090 and
+        // 22 reservations of 28, with no error line at all — and a diagnostic
+        // that blames a person for it and points at `--reserve`, which
+        // re-derives every missing line from `catalog/errors.toml` **as it reads
+        // now**, followed verbatim, ratifies in silence the meaning change the
+        // previous build refused. The write is a rename (`xtask/src/build.rs`),
+        // so that state cannot arise from an interruption; this is the other
+        // half, because the sentence would send the reader through the bypass.
         return Err(Problem::at(
             PATH,
             line_of(&text, "checksum", 1).unwrap_or(1),
@@ -295,14 +292,15 @@ pub fn read(root: &std::path::Path, bootstrap: Bootstrap) -> Result<Reservations
     // **And a ledger that is a subset of itself, correctly signed.** Every
     // refusal above reads the checksum, and a checksum computed over the lines
     // that are left is a checksum that verifies — so the empty ledger the
-    // refusal below catches was only the smallest of these. Measured on a copy
-    // of the real `catalog/`: the ledger cut to one of its twenty-nine
-    // reservations and re-signed over what was left, with `NC-CANON-0001`'s
-    // description changed to "The printer tray is empty" — `compile` returned
-    // `Ok`, the ledger it produced held twenty-nine reservations again and
-    // recorded the new meaning as though it always had, and no problem was
-    // raised anywhere. That call is the one `cargo xtask check` makes, so
-    // criterion 7 was off, one special case wider than the one below.
+    // refusal below catches is only the smallest of these. Measured on a copy
+    // of the real `catalog/`, without the count: the ledger cut to one of its
+    // twenty-nine reservations and re-signed over what was left, with
+    // `NC-CANON-0001`'s description changed to "The printer tray is empty" —
+    // `compile` returns `Ok`, the ledger it produces holds twenty-nine
+    // reservations again and records the new meaning as though it always had,
+    // and no problem is raised anywhere. That call is the one
+    // `cargo xtask check` makes, so criterion 7 would be off, one special case
+    // wider than the one below.
     //
     // So the file states its own size, the size is hashed with the reservations,
     // and holding fewer lines than that is a refusal. It comes *after* the
@@ -315,11 +313,11 @@ pub fn read(root: &std::path::Path, bootstrap: Bootstrap) -> Result<Reservations
     // The bootstrap is the only file entitled to omit it, and a bootstrap is a
     // blank checksum, which has already returned above. Past this point a
     // vouched-for ledger states its size or it is not one.
-    // **And the question is asked of the document, not of the bytes.** This read
-    // `text.contains("count = ")`, which is satisfied by any comment and by any
-    // `[reserved]` description holding those six characters — measured, the
-    // forged count-less ledger was refused, and the identical file plus one
-    // comment line above `[meta]` was accepted. A key is a key; prose that
+    // **And the question is asked of the document, not of the bytes.**
+    // `text.contains("count = ")` is satisfied by any comment and by any
+    // `[reserved]` description holding those six characters — measured, under
+    // it the forged count-less ledger is refused, and the identical file plus
+    // one comment line above `[meta]` is accepted. A key is a key; prose that
     // mentions one is not.
     if !states_a_count(&text) {
         return Err(Problem::at(
@@ -356,17 +354,17 @@ pub fn read(root: &std::path::Path, bootstrap: Bootstrap) -> Result<Reservations
     // and nothing is exactly as many reservations as it says it holds — so a
     // file holding only `[meta] checksum = "<that constant>"`, `count = 0` and
     // an empty `[reserved]` verifies here, `reconcile`'s loop cannot iterate, and every
-    // code is re-derived as new. Measured: `NC-CANON-0001`'s description
-    // repointed, the ledger emptied that way, and an ordinary
-    // `cargo xtask build` — no `--reserve`, no warning — printed
+    // code is re-derived as new. Measured without this refusal:
+    // `NC-CANON-0001`'s description repointed, the ledger emptied that way, and
+    // an ordinary `cargo xtask build` — no `--reserve`, no warning — prints
     // `29 code(s) appended to catalog/errors.reserved.toml, which is permanent`,
-    // after which `cargo xtask check` passed and the ledger recorded the new
+    // after which `cargo xtask check` passes and the ledger records the new
     // meaning as though it always had. That is acceptance criterion 7 turned off
     // by the edit-build-check loop, and `§5.3` says there is no git to be the
     // second reader.
     //
-    // The three tests that looked like they covered this all used a *wrong*
-    // checksum and stopped one branch earlier.
+    // A test that uses a *wrong* checksum stops one branch earlier and does not
+    // cover this.
     //
     // A ledger with no reservations is only ever written by `--reserve`, which
     // announces what it did.
@@ -408,9 +406,8 @@ pub fn read(root: &std::path::Path, bootstrap: Bootstrap) -> Result<Reservations
 /// A catalog that only adds codes returns the grown ledger and no problem at
 /// all.
 ///
-/// **This section named neither**, in the next `pub fn` under [`read`], whose
-/// own `# Errors` had just been given its five refusals by name. The two
-/// refusals here want opposite things from the reader who hits one —
+/// **Both are named**, as [`read`]'s own `# Errors` names its five refusals.
+/// The two refusals here want opposite things from the reader who hits one —
 /// `code-removed` is a declaration to restore, `code-repointed` is a number to
 /// leave where it points and a new one to take — and "every violation of the
 /// append-only rule" tells them apart from nothing. `AGENTS.md` states
@@ -424,15 +421,15 @@ pub fn reconcile(
     let mut problems = Vec::new();
     let mut next = reserved.meanings.clone();
 
-    // **The key *and* the description**, because a code's meaning is both. The
-    // ledger recorded only the message key, so `NC-JRNL-0001` could be rewritten
-    // from "the journal's hash chain is broken" to "the printer tray is empty" —
-    // and both locale sentences with it — while keeping the key, with
+    // **The key *and* the description**, because a code's meaning is both. With
+    // only the message key recorded, `NC-JRNL-0001` could be rewritten from
+    // "the journal's hash chain is broken" to "the printer tray is empty" — and
+    // both locale sentences with it — while keeping the key, with
     // `check passed`. `§15.1` says a code identifies one error for as long as
     // the logs live; that is what changing its description undoes.
     //
-    // **And `retryable` and `params`, for the same reason.** Neither was in the
-    // recorded meaning, so `NC-DB-0002` — "a migration failed to apply",
+    // **And `retryable` and `params`, for the same reason.** Outside the
+    // recorded meaning, `NC-DB-0002` — "a migration failed to apply",
     // `critical` — could go from `retryable = false` to `true` with
     // `cargo xtask check` green, its ledger line unchanged, `docs/errors.md`
     // republishing it as retryable and `ErrorCode::retryable()` returning `true`.
@@ -448,14 +445,14 @@ pub fn reconcile(
     // it here would make a change of scope read as a change of meaning.
     //
     // **And the severity, because that is what a code *does*.** `check_errors`
-    // never read `entry.severity` at all — `grep -n 'entry.severity'` in
-    // `load.rs` was empty — so `NC-JRNL-0002`, "an entry's hash does not match
-    // the entry's own contents", could go from `critical` to `info` with
-    // `cargo xtask check` green and `docs/errors.md` republishing it as
-    // informational. Every consumer pages on `>= Severity::Error`, so that one
-    // word decides whether journal tampering wakes anybody, and it was outside
-    // the recorded meaning by construction: the ledger held the message key and
-    // the description, and a severity change repointed neither.
+    // does not read `entry.severity` — `grep -n 'entry.severity'` in `load.rs`
+    // is empty — so outside the recorded meaning `NC-JRNL-0002`, "an entry's
+    // hash does not match the entry's own contents", could go from `critical`
+    // to `info` with `cargo xtask check` green and `docs/errors.md`
+    // republishing it as informational. Every consumer pages on
+    // `>= Severity::Error`, so that one word decides whether journal tampering
+    // wakes anybody, and a severity change repoints neither the message key nor
+    // the description.
     //
     // The cost is that fixing a typo in a description takes the same four
     // deliberate steps as repointing a key. That is the right price: the
@@ -531,8 +528,8 @@ pub fn reconcile(
 /// change, a reordering or a trailing newline does not read as tampering.
 ///
 /// **The count is hashed with them because a set cannot say it did not shrink.**
-/// Over the reservations alone, every subset of a ledger was itself a valid
-/// ledger — the fourth hole in the module header — so a file that lost lines has
+/// Over the reservations alone, every subset of a ledger would itself be a
+/// valid ledger — the subset hole in the module header — so a file that lost lines has
 /// to lie about how many it has as well as about which ones, and the two lies
 /// are one hash apart.
 fn checksum(reserved: &Meanings, count: usize) -> String {
@@ -591,10 +588,10 @@ pub fn render(reserved: &Reservations) -> String {
 
 /// The ledger's escaper, so the invisible-character sweep can reach it.
 ///
-/// **Its eight-digit arm was unreachable for a round.** `\UXXXXXXXX` is written
-/// for a character above the basic plane, and the set that arm is guarded by —
-/// `is_control() || is_a_direction_mark(…)` — topped out at `U+FEFF`, so no
-/// input anywhere could take it. The set reaches the tag block now, and this
+/// **Its eight-digit arm is the one to prove reachable.** `\UXXXXXXXX` is
+/// written for a character above the basic plane, and a guard set —
+/// `is_control() || is_a_direction_mark(…)` — that tops out at `U+FEFF` leaves
+/// no input anywhere able to take it. The set reaches the tag block, and this
 /// door is how the sweep in `the_gates_fire.rs` proves it.
 #[doc(hidden)]
 #[must_use]
@@ -605,11 +602,11 @@ pub fn as_toml_for_tests(text: &str) -> String {
 /// A TOML basic string.
 ///
 /// **Not `crate::quoted`, which writes a *Rust* string.** Everything else the
-/// compiler emits is Rust or Markdown, so the one escaper in `lib.rs` was used
-/// here too — and the two languages spell an escaped control character
+/// compiler emits is Rust or Markdown, and the one escaper in `lib.rs` writes
+/// Rust — and the two languages spell an escaped control character
 /// differently. Rust writes `\u{7}`; TOML wants four hex digits and no braces.
-/// A BEL in an error's description therefore rendered a ledger that TOML cannot
-/// read, and rendering it is the write that cannot be taken back:
+/// Through that escaper, a BEL in an error's description renders a ledger that
+/// TOML cannot read, and rendering it is the write that cannot be taken back:
 ///
 /// ```text
 /// "NC-DB-0001" = "… — a bell\u{7}"
@@ -672,27 +669,26 @@ mod tests {
                     code: (*code).to_owned(),
                     description: "whatever".to_owned(),
                     message: (*message).to_owned(),
-                    // **Three fields that were constant across every test.** A
-                    // recorded meaning is its key, its severity, its
-                    // retryability, its parameters and its description, and this
-                    // fixture gave every code `Error`, `false` and `[]` — so no
-                    // test in this module could tell reading those three from
-                    // ignoring them. A reviewer neutralised each in turn in
-                    // round seventy-one and the suite this file's mutation
-                    // operators run answered `21 passed` to all three.
+                    // **Three fields that vary across the tests.** A recorded
+                    // meaning is its key, its severity, its retryability, its
+                    // parameters and its description, and a fixture giving every
+                    // code `Error`, `false` and `[]` leaves no test in this
+                    // module able to tell reading those three from ignoring
+                    // them: each neutralised in turn, the suite this file's
+                    // mutation operators run stays green.
                     //
-                    // They vary by position now, so the premise is established
+                    // They vary by position, so the premise is established
                     // by the fixture rather than borrowed from whatever
                     // `catalog/errors.toml` happens to hold today.
                     severity: [Severity::Error, Severity::Critical, Severity::Warning][at % 3],
                     retryable: at % 2 == 1,
                     // **Two, not one.** A one-element `join` is the element, so
-                    // `entry.params.join(",")` replaced by
-                    // `entry.params.first().cloned().unwrap_or_default()` survived
-                    // the module's own suite — measured by a reviewer in round
-                    // seventy-one — and was killed only by the shipped catalog
-                    // happening to hold one code with three parameters. That is
-                    // the premise borrowed from a file this test does not own.
+                    // with one parameter `entry.params.join(",")` replaced by
+                    // `entry.params.first().cloned().unwrap_or_default()`
+                    // would survive the module's own suite and be killed only
+                    // by the shipped catalog happening to hold one code with
+                    // three parameters. That is the premise borrowed from a
+                    // file this test does not own.
                     params: if at % 3 == 2 {
                         vec!["one".to_owned(), "two".to_owned()]
                     } else {
@@ -784,13 +780,10 @@ mod tests {
     fn a_new_code_is_appended() {
         // **Three codes, because two cannot reach the third position.** The
         // fixture varies severity, retryability and parameters by position, and
-        // every call in this module passed at most two codes — so `at % 3 == 2`
-        // was unreachable and *every* entry in *every* test still had
-        // `params: []` and severity `Error` or `Critical`. A reviewer measured
-        // that in round seventy-one: neutralising `entry.params.join(",")` in
-        // `reconcile` left this suite at `21 passed`, the exact number the
-        // fixture's own comment quotes as the failure it had fixed. Two-thirds
-        // of that repair had landed.
+        // with at most two codes `at % 3 == 2` is unreachable and *every* entry
+        // in *every* test has `params: []` and severity `Error` or `Critical`:
+        // neutralising `entry.params.join(",")` in `reconcile` then leaves this
+        // suite green.
         let next = reconcile(
             &catalog(&[
                 ("NC-DB-0001", "error.db.one"),
@@ -835,9 +828,9 @@ mod tests {
 
     #[test]
     fn a_code_whose_description_changed_is_a_repointed_code() {
-        // **The half the ledger did not hold.** It recorded only the message
-        // key, so `NC-JRNL-0001` could be rewritten from "the journal's hash
-        // chain is broken" to "the printer tray is empty" — key intact,
+        // **The half a key-only ledger does not hold.** Recording only the
+        // message key, it lets `NC-JRNL-0001` be rewritten from "the journal's
+        // hash chain is broken" to "the printer tray is empty" — key intact,
         // description and both locale sentences replaced — with `check passed`.
         // The key is the code's name; the description is what it means.
         let mut moved = catalog(&[("NC-DB-0001", "error.db.one")]);
@@ -860,14 +853,14 @@ mod tests {
 
     /// A removed code is refused, and the refusal says what it was reserved for.
     ///
-    /// **Half of criterion 7's requirement was held by nothing.** The criterion
-    /// asks that the error name *what the code was reserved for*, and the only
-    /// thing reading this arm was
+    /// **Half of criterion 7's requirement is held here.** The criterion asks
+    /// that the error name *what the code was reserved for*, and the other
+    /// reader of this arm,
     /// `crates/nc-catalog-compiler/tests/the_gates_fire.rs`'s
-    /// `must_fail("code-removed", "NC-DB-0003")`, which asserts the check name
-    /// and the code. Measured: `format!("{code} was reserved for \"{meaning}\" and
+    /// `must_fail("code-removed", "NC-DB-0003")`, asserts the check name
+    /// and the code. Measured without this test: `format!("{code} was reserved for \"{meaning}\" and
     /// is no longer declared")` rewritten to `format!("{code} is no longer
-    /// declared")` left `36 + 90 + 3 passed` — a reader told a code they have
+    /// declared")` leaves every suite green — a reader told a code they have
     /// never seen is missing, and not what it used to mean, which is the one
     /// thing that tells them whether restoring it is right.
     ///
@@ -928,8 +921,8 @@ mod tests {
 
     #[test]
     fn an_absent_ledger_is_a_failure_rather_than_an_empty_one() {
-        // `rm catalog/errors.reserved.toml` used to free every code in the
-        // repository, and the next build blessed the renumbering.
+        // Without this refusal, `rm catalog/errors.reserved.toml` frees every
+        // code in the repository, and the next build blesses the renumbering.
         let root = scratch("absent", "");
         let problem = read_refusing(&root).expect_err("an absent ledger is not an empty one");
         assert_eq!(problem.check, "ledger-missing");
@@ -939,8 +932,8 @@ mod tests {
 
     #[test]
     fn a_hand_edited_ledger_does_not_match_its_checksum() {
-        // The edit that used to ratify itself: the drift check compared the
-        // ledger against output derived from the ledger.
+        // The edit a drift check would ratify: one comparing the ledger against
+        // output derived from the ledger.
         let entries = reserved(&[
             ("NC-DB-0001", "error.db.one"),
             ("NC-DB-0002", "error.db.two"),
@@ -996,18 +989,18 @@ mod tests {
     /// **The empty set has a correct checksum anybody can compute**, so the two
     /// refusals above — both of which read the *checksum* — let it through:
     /// `reconcile`'s loop cannot iterate and every code is re-derived as new.
-    /// Measured on the real tree: `NC-CANON-0001`'s description repointed, the
-    /// ledger replaced by `[meta] checksum = "<the empty set's own>"` and an
-    /// empty `[reserved]`, then an ordinary `cargo xtask build` — no
-    /// `--reserve`, no warning line — printed `29 code(s) appended to
-    /// catalog/errors.reserved.toml, which is permanent`, and `cargo xtask
-    /// check` passed with the ledger recording the new meaning as though it
-    /// always had. Acceptance criterion 7, turned off by the edit-build-check
-    /// loop a developer runs every day.
+    /// Measured on the real tree without the refusal: `NC-CANON-0001`'s
+    /// description repointed, the ledger replaced by
+    /// `[meta] checksum = "<the empty set's own>"` and an empty `[reserved]`,
+    /// then an ordinary `cargo xtask build` — no `--reserve`, no warning line —
+    /// prints `29 code(s) appended to catalog/errors.reserved.toml, which is permanent`,
+    /// and `cargo xtask check` passes with the ledger recording the new meaning
+    /// as though it always had. Acceptance criterion 7, turned off by the
+    /// edit-build-check loop a developer runs every day.
     ///
     /// The checksum is computed here rather than pasted, because a pasted one
-    /// is what made the three tests beside this stop a branch early: each used a
-    /// *wrong* checksum and never reached the state this is about.
+    /// makes a test stop a branch early: a *wrong* checksum never reaches the
+    /// state this is about.
     #[test]
     fn a_ledger_that_reserves_nothing_is_refused_however_it_is_vouched_for() {
         let empty = super::checksum(&Meanings::new(), 0);
@@ -1038,9 +1031,9 @@ mod tests {
 
     #[test]
     fn an_empty_checksum_is_refused_unless_the_caller_asked_to_bootstrap() {
-        // The door the previous fix left open: clearing the checksum used to be
-        // accepted by everything, so two lines of editing freed any code and
-        // `check` still reported `check passed`.
+        // The door a blank checksum would open: accepted by everything, it lets
+        // two lines of editing free any code with `check` still reporting
+        // `check passed`.
         let root = scratch("bootstrap", "[meta]\nchecksum = \"\"\n\n[reserved]\n");
         let problem = read_refusing(&root).expect_err("nothing vouches for it");
         assert_eq!(problem.check, "ledger-unvouched");
@@ -1105,12 +1098,12 @@ mod tests {
 
     /// What `render` writes, `read` reads — whatever the description holds.
     ///
-    /// **The escaper was the one from `lib.rs`, which writes Rust.** Rust spells
+    /// **Not the escaper from `lib.rs`, which writes Rust.** Rust spells
     /// an escaped control character `\u{7}`; TOML wants `\u0007` — four hex
     /// digits and no braces. So a BEL in an error's description — prose a
     /// developer writes freely, refused by nothing on the way in — rendered a
     /// ledger that TOML cannot parse, and rendering it is the write `NOCTUA.md
-    /// §5.3` says there is nothing to restore from. Measured, before the fix:
+    /// §5.3` says there is nothing to restore from. Measured through that escaper:
     ///
     /// ```text
     /// "NC-DB-0001" = "... a bell\u{7}"
@@ -1119,11 +1112,11 @@ mod tests {
     /// ```
     ///
     /// Driven through `render` and `read` rather than asserting the escape,
-    /// because what was wrong was that one language's spelling was used for
-    /// another's, and only the round trip can tell.
+    /// because the hazard is one language's spelling used for another's, and
+    /// only the round trip can tell.
     #[test]
     fn a_reservation_survives_whatever_a_description_holds() {
-        // Each of these broke a different arm: the spelling Rust and TOML
+        // Each of these reaches a different arm: the spelling Rust and TOML
         // disagree on, the two escapes TOML has of its own (`\b`, `\f`), the
         // quote and the backslash, the bidi override that reorders what a reader
         // sees a code was reserved for, and an astral character, which is where
@@ -1149,21 +1142,20 @@ mod tests {
 
     /// A ledger that lost lines is refused, though its checksum verifies.
     ///
-    /// **Every subset of a ledger used to be a ledger.** The checksum was over
-    /// the reservations alone, so the file left behind by keeping one of them
-    /// and re-signing it with this module's own `render` verified: `reconcile`
-    /// then found twenty-eight codes it had never heard of, appended them, and
-    /// the meanings it appended were whatever `catalog/errors.toml` says today.
+    /// **A subset of a ledger is not a ledger.** With the checksum over the
+    /// reservations alone, the file left behind by keeping one of them and
+    /// re-signing it with this module's own `render` verifies: `reconcile` then
+    /// finds twenty-eight codes it has never heard of, appends them, and the
+    /// meanings it appends are whatever `catalog/errors.toml` says today.
     /// Measured on the real tree with `NC-CANON-0001`'s description changed to
-    /// "The printer tray is empty" — `compile` returned `Ok`, the ledger it
-    /// produced held twenty-nine reservations again and recorded the new
-    /// meaning, and no line anywhere said so.
+    /// "The printer tray is empty" — `compile` returns `Ok`, the ledger it
+    /// produces holds twenty-nine reservations again and records the new
+    /// meaning, and no line anywhere says so.
     ///
     /// The checksum here is computed with [`super::checksum`] rather than
-    /// pasted, because a pasted one is what let three of the tests around this
-    /// stop a branch early: each used a *wrong* checksum, so each proved
-    /// `ledger-checksum` fires and none of them reached the state it was
-    /// written for.
+    /// pasted, because a pasted one lets a test stop a branch early: a *wrong*
+    /// checksum proves `ledger-checksum` fires and never reaches the state the
+    /// test is written for.
     #[test]
     fn a_ledger_that_lost_lines_is_refused_though_its_checksum_verifies() {
         let entries = reserved(&[
@@ -1202,19 +1194,19 @@ mod tests {
     /// One line short is short, and the guard is an exactness rather than a
     /// tolerance.
     ///
-    /// **The test above drops two of three, so a shortfall of one was
-    /// invisible.** Measured: `reserved.len() < meta.count` given a tolerance of
-    /// one — `reserved.len() + 1 < meta.count` — left this crate's three suites
-    /// green and `cargo xtask check` at `check passed`. What that buys a forger
-    /// is one code: delete a reservation, write `count` as it was, re-derive the
-    /// checksum over both — the two are hashed together — and the file passes
-    /// `states_a_count`, the checksum, this guard and the non-empty guard.
-    /// `reconcile` then never sees that code and re-derives it with whatever
-    /// `catalog/errors.toml` means today, which is criterion 7 off for exactly
-    /// one code.
+    /// **The test above drops two of three, so a shortfall of one is invisible
+    /// to it.** Measured without this: `reserved.len() < meta.count` given a
+    /// tolerance of one — `reserved.len() + 1 < meta.count` — leaves the rest
+    /// of this crate's suites green and `cargo xtask check` at `check passed`.
+    /// What that buys a forger is one code: delete a reservation, write `count`
+    /// as it was, re-derive the checksum over both — the two are hashed
+    /// together — and the file passes `states_a_count`, the checksum, this
+    /// guard and the non-empty guard. `reconcile` then never sees that code and
+    /// re-derives it with whatever `catalog/errors.toml` means today, which is
+    /// criterion 7 off for exactly one code.
     ///
-    /// The journal repaired the same shape in the same words — *one row short as
-    /// well as five* — after the same kind of measurement.
+    /// The journal holds the same shape in the same words — *one row short as
+    /// well as five*.
     #[test]
     fn a_ledger_one_line_short_is_refused() {
         use core::fmt::Write as _;
@@ -1261,16 +1253,17 @@ mod tests {
 
     /// The checksum is compared to its last character.
     ///
-    /// **Every test of it plants a digest that differs in its first few.** So
-    /// nothing said the comparison reaches past them — measured, narrowing it to
-    /// a shared four-character prefix left this crate's three suites green and
-    /// `cargo xtask check` at `check passed`. Under that narrowing a
-    /// hand-editor needs a digest agreeing on four hex characters, which is
+    /// **Every other test of it plants a digest that differs in its first few
+    /// characters.** So without this nothing says the comparison reaches past
+    /// them — measured, narrowing it to a shared four-character prefix leaves
+    /// the rest of this crate's suites green and `cargo xtask check` at
+    /// `check passed`. Under that narrowing a hand-editor needs a digest
+    /// agreeing on four hex characters, which is
     /// sixteen bits of work, and this module's own header calls the checksum the
     /// thing that catches an edit made outside the compiler.
     ///
     /// Written as a sweep rather than as one more differing digest, because one
-    /// more differing digest is what left the hole: the widest shared prefix
+    /// more differing digest leaves the hole: the widest shared prefix
     /// tried has to reach the digest's last character, which is what says the
     /// comparison is over the whole of it. `nc-journal` holds its own hash the
     /// same way, for the same reason.
@@ -1328,9 +1321,9 @@ mod tests {
     /// A count in prose is not a count the ledger states.
     ///
     /// The `ledger-count` guard asks whether a vouched ledger says how many
-    /// codes it holds, and it used to ask the file's bytes: `text.contains
-    /// ("count = ")`. Any comment satisfies that, and so does any `[reserved]`
-    /// description holding those six characters — so a forger who deletes the
+    /// codes it holds. Asked of the file's bytes, as `text.contains("count = ")`,
+    /// any comment satisfies it, and so does any `[reserved]` description
+    /// holding those six characters — so a forger who deletes the
     /// line, re-signs over the smaller set with the count the file now implies
     /// (zero, because the field is defaulted), and leaves one comment behind
     /// gets a self-consistent ledger the size guard reads as `28 < 0`.

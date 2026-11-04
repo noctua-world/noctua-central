@@ -13,23 +13,25 @@
 //!
 //! **Every line this tool prints goes through `ui`, and the compiler holds it.**
 //!
-//! This was a test scanning for `println!`, `stdout()` and four more spellings.
-//! A needle list cannot win: `let handle = std::io::stdout;` then `handle()`
-//! contains none of them, and it put a fifth `warn` line on the terminal under
-//! a verdict saying four, with exit 0 — the exact failure the scan existed to
-//! prevent. `dbg!` and a `printf` child process walked past it too.
+//! A test scanning for `println!`, `stdout()` and four more spellings cannot
+//! hold it. A needle list cannot win: `let handle = std::io::stdout;` then
+//! `handle()` contains none of them, and past such a list it would put a fifth
+//! `warn` line on the terminal under a verdict saying four, with exit 0 — the
+//! exact failure the scan exists to prevent. `dbg!` and a `printf` child
+//! process walk past such a list too.
 //!
 //! Name resolution is not a substring problem, so it is given to the thing that
 //! resolves names. `ui.rs` carries the one `expect` that earns it.
 //!
 //! **And the same deny is written at every other crate's root.** A lint level
 //! does not cross a crate boundary, and `print_stdout` is `restriction`, which
-//! neither `all` nor `pedantic` turns on — so this attribute bound `xtask` and
-//! nothing else. Measured: one `println!` in `crates/nc-catalog-compiler`,
-//! inside a function the gate calls twice, put two `warn` lines on the terminal
-//! under `check passed, with 8 warn line(s) above` — ten lines under a verdict
-//! saying eight, exit 0, clippy silent. The verdict's warn count and its skipped
-//! list are true only if every line goes through `ui`.
+//! neither `all` nor `pedantic` turns on — so this attribute binds `xtask` and
+//! nothing else. Without the same deny at that crate's own root, one `println!`
+//! in `crates/nc-catalog-compiler`, inside a function the gate calls twice,
+//! would put two `warn` lines on the terminal that the verdict's
+//! `with N warn line(s) above` does not count, with exit 0 and clippy silent.
+//! The verdict's warn count and its skipped list are true only if every line
+//! goes through `ui`.
 #![cfg_attr(
     not(test),
     deny(
