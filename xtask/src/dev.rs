@@ -432,7 +432,24 @@ fn migrate(root: &Path, port: &str) -> Result<(), String> {
     })
 }
 
-/// Brings the stack up, or takes it down with its volumes.
+/// Whether this system runs no stack, in which case this verb says so and
+/// does nothing.
+///
+/// **Not applicable rather than an error, and nothing touched.** The stack
+/// runs on Linux, where CI brings it up (`NOCTUA.md §22.2`); on macOS and
+/// Windows the gate's steps that need it are not applicable, and so is the
+/// verb that brings it up or takes it down. Its own function so a test can hand
+/// it either answer on any system.
+fn stands_aside(runs_the_stack: bool) -> bool {
+    if runs_the_stack {
+        return false;
+    }
+    ui::not_applicable("the container stack, which this verb brings up and takes down");
+    true
+}
+
+/// Brings the stack up, or takes it down with its volumes — on Linux. Elsewhere
+/// it says the stack is not applicable there and changes nothing.
 ///
 /// # Errors
 ///
@@ -440,6 +457,9 @@ fn migrate(root: &Path, port: &str) -> Result<(), String> {
 /// file is missing, or when a service does not become healthy.
 pub(crate) fn run(root: &Path, down: bool) -> Result<(), String> {
     ui::heading("dev");
+    if stands_aside(crate::check::RUNS_THE_STACK) {
+        return Ok(());
+    }
     let compose = root.join("docker-compose.yml");
     if !compose.is_file() {
         return Err("docker-compose.yml is missing, so there is no stack to bring up".to_owned());
@@ -1122,6 +1142,32 @@ fn unavailable(error: &std::io::Error) -> String {
 
 #[cfg(test)]
 mod tests {
+    /// Where no stack runs, the verb says so and goes no further; where one
+    /// does, it says nothing and carries on.
+    #[test]
+    fn the_verb_is_not_applicable_where_no_stack_runs() {
+        let _printing = crate::ui::printing();
+        crate::ui::forget_counts();
+        assert!(
+            !super::stands_aside(true),
+            "a system that runs the stack was told it does not"
+        );
+        assert!(
+            crate::ui::not_applicable_parts().is_empty(),
+            "a system that runs the stack printed a not-applicable line"
+        );
+        assert!(
+            super::stands_aside(false),
+            "a system that runs no stack would go on to ask docker"
+        );
+        assert_eq!(
+            crate::ui::not_applicable_parts(),
+            ["the container stack, which this verb brings up and takes down"],
+            "the verb stood aside without saying so"
+        );
+        crate::ui::forget_counts();
+    }
+
     /// A stack that did not come up says what to look at.
     ///
     /// **Acceptance criterion 10's failure half, which is the half that can be

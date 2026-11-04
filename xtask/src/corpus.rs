@@ -4054,6 +4054,12 @@ mod tests {
 
     #[test]
     fn the_image_pin_predicate_decides_every_clause() {
+        if let Some(why) =
+            crate::check::docker_stands_aside("the_image_pin_predicate_decides_every_clause")
+        {
+            println!("{why}");
+            return;
+        }
         let mut wrong = Vec::new();
         for (body, expected) in image_cases() {
             let scratch = Scratch::new();
@@ -4168,6 +4174,12 @@ mod tests {
     /// with no docker would pass this while asking it nothing.
     #[test]
     fn a_flow_style_image_never_reaches_a_green_verdict() {
+        if let Some(why) =
+            crate::check::docker_stands_aside("a_flow_style_image_never_reaches_a_green_verdict")
+        {
+            println!("{why}");
+            return;
+        }
         let mut wrong = Vec::new();
         for (about, body) in flow_cases() {
             let scratch = Scratch::new();
@@ -4230,6 +4242,12 @@ mod tests {
     /// clause is reachable through the shipped entry point at all.
     #[test]
     fn the_digest_needs_a_name_in_front_of_it() {
+        if let Some(why) =
+            crate::check::docker_stands_aside("the_digest_needs_a_name_in_front_of_it")
+        {
+            println!("{why}");
+            return;
+        }
         let scratch = Scratch::new();
         scratch.write(
             "compose.yaml",
@@ -4259,6 +4277,12 @@ mod tests {
 
     #[test]
     fn the_compose_file_list_decides_every_clause() {
+        if let Some(why) =
+            crate::check::docker_stands_aside("the_compose_file_list_decides_every_clause")
+        {
+            println!("{why}");
+            return;
+        }
         let mut wrong = Vec::new();
         for named in COMPOSE_FILES {
             let scratch = Scratch::new();

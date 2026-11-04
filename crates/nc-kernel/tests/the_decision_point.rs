@@ -1281,7 +1281,8 @@ async fn every_mutating_dispatch_writes_exactly_one_dispatch_entry_in_postgresql
 /// there is no database and the run said so.
 ///
 /// **Failing closed, and skipping only when asked**, as every database suite of
-/// this repository does: `cargo xtask check --offline` sets `NC_OFFLINE`.
+/// this repository does: `cargo xtask check` sets `NC_NO_STACK` under
+/// `--offline` and on a system that runs no stack, saying which.
 ///
 /// **One schema per test, not per process.** The tests of this binary run at
 /// once, and two of them sharing `nc_kernel_<pid>` would each drop and create
@@ -1294,8 +1295,9 @@ async fn postgres(test: &str) -> Option<(sqlx::PgPool, String)> {
     let schema = format!("{}{test}", this_runs_schemas());
     let url = match std::env::var("DATABASE_URL").ok() {
         Some(url) => url,
-        None if std::env::var_os("NC_OFFLINE").is_some() => {
-            println!("nc-kernel: skipped, no database (NC_OFFLINE)");
+        None if std::env::var_os("NC_NO_STACK").is_some() => {
+            let why = std::env::var("NC_NO_STACK").unwrap_or_default();
+            println!("nc-kernel: skipped, no database: {why}");
             return None;
         }
         None => panic!(

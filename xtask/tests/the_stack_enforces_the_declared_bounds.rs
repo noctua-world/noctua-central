@@ -241,14 +241,16 @@ fn the_healthchecks_are_the_shapes_this_stack_declares(declared: &str) -> Result
 /// gate announces this as a skip of its own and the verdict names it — the
 /// number is `OFFLINE_SKIPS`.
 ///
-/// **Asked for, never inferred.** `NC_OFFLINE` is what
-/// `cargo xtask check --offline` hands the child, the shape
-/// `crates/nc-journal/tests/in_postgres.rs` already uses. A developer running
+/// **Asked for, never inferred.** `NC_NO_STACK` is what `cargo xtask check`
+/// hands the child under `--offline`, and on a system that runs no stack, with
+/// the reason as its value — the shape `crates/nc-journal/tests/in_postgres.rs`
+/// already uses. A developer running
 /// `cargo test` on a machine with no docker still gets the panic above, which is
 /// the right answer to *"the stack is not here and nobody said so"*.
 fn the_stack_was_asked() -> bool {
-    if std::env::var_os("NC_OFFLINE").is_some() {
-        println!("the stack: skipped, docker was not asked (NC_OFFLINE)");
+    if std::env::var_os("NC_NO_STACK").is_some() {
+        let why = std::env::var("NC_NO_STACK").unwrap_or_default();
+        println!("the stack: skipped, docker was not asked: {why}");
         return false;
     }
     true

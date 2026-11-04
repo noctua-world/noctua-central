@@ -2598,7 +2598,7 @@ A control reading `url()`, which falls back to
 connects anyway under the environment `cargo xtask check --offline` hands the
 test binary, and issues `CREATE SCHEMA`, two `GRANT`s and
 `DROP SCHEMA … CASCADE` against whatever is listening, which by default is the
-developer's own stack. `NC_OFFLINE` is the flag, and its sibling suites read it
+developer's own stack. `NC_NO_STACK` is the flag, and its sibling suites read it
 too.
 
 ### Two tallies are not a pairing

@@ -63,6 +63,153 @@ const WHAT_CI_RUNS: [&str; 4] = [
     "cargo xtask build",
 ];
 
+/// Whether this system runs the container stack the gate's stack steps read.
+///
+/// **The one place this tool asks which system it runs on** (`NOCTUA.md §2.7`),
+/// and it asks the target it was compiled for — never whether docker answers,
+/// which would make a Linux machine with its stack down read as a system the
+/// stack does not apply to, and every step that needs it stand aside there in
+/// silence. Linux runs every step; on macOS and Windows each step that needs
+/// the stack says it is not applicable, by name, and the Linux job is what runs it
+/// (`NOCTUA.md §22.2`). That is a property of the system, which is why it is
+/// decided here rather than by a flag anybody can pass.
+pub(crate) const RUNS_THE_STACK: bool = cfg!(target_os = "linux");
+
+/// Whether this run asks the container stack, and when it does not, why.
+///
+/// **Two reasons, and they print two different things.** `--offline` is a
+/// developer asking for the steps that need the stack not to run, and each
+/// says `skipped:` — counted against [`OFFLINE_SKIPS`]. A system that runs no
+/// stack is not asking for anything, and each of those steps says it is not
+/// applicable —
+/// held against [`THE_STACKS_PARTS`]. A step written to ask `!stack.asked()`
+/// stands aside for both and says which.
+///
+/// **Decided once, in [`run`], and handed down**, so every step sees the same
+/// answer and a test can hand a step either answer on any system.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Stack {
+    /// The stack is asked: this system runs it and no flag said otherwise.
+    Asked,
+    /// `--offline`: the steps that need the stack were asked not to run.
+    Offline,
+    /// This system runs no stack, and its steps are not applicable here.
+    NotApplicable,
+}
+
+impl Stack {
+    /// The answer for this run, on this system.
+    pub(crate) const fn here(offline: bool) -> Self {
+        Self::of(offline, RUNS_THE_STACK)
+    }
+
+    /// The answer for a run with `offline` on a system that does or does not
+    /// run the stack.
+    ///
+    /// **The system first.** A step that does not apply on this system is not a
+    /// step the flag skipped, so `--offline` off Linux leaves the stack's steps
+    /// saying they are not applicable, and only the advisory database — the one
+    /// `--offline` skip
+    /// that needs no stack — saying `skipped:`.
+    pub(crate) const fn of(offline: bool, runs_the_stack: bool) -> Self {
+        if !runs_the_stack {
+            Self::NotApplicable
+        } else if offline {
+            Self::Offline
+        } else {
+            Self::Asked
+        }
+    }
+
+    /// Whether the steps that need the stack read it.
+    pub(crate) const fn asked(self) -> bool {
+        matches!(self, Self::Asked)
+    }
+
+    /// What a child process is told about the stack, in `NC_NO_STACK`.
+    ///
+    /// **The reason is the value**, so a suite that stands aside can say why in
+    /// its own words: `--offline`, or `not applicable on <system>`. `None` when
+    /// the stack is asked, and then the variable is removed from the child, so
+    /// one inherited from a shell cannot stand a suite aside unasked.
+    fn told(self) -> Option<String> {
+        match self {
+            Self::Asked => None,
+            Self::Offline => Some("--offline".to_owned()),
+            Self::NotApplicable => Some(format!(
+                "not applicable on {}, and the Linux job runs it",
+                ui::SYSTEM
+            )),
+        }
+    }
+}
+
+/// Every part of the gate that needs the container stack, by the name its
+/// not-applicable line gives it, in the order a run reaches them.
+///
+/// **What a not-applicable line may say, exactly.** Off Linux a run prints
+/// these and nothing else on one; on Linux it prints none of them, which is
+/// [`the_parts_not_applicable`] and the test beside it. Each is one of the
+/// steps `--offline` skips too, so a part added here is a part the flag
+/// announces as well, and the advisory database — which needs the network and
+/// no stack — is the one `--offline` skip that is not here.
+///
+/// **Written twice, and held together.** Each part writes its sentence where it
+/// stands aside, so the census of what the gate can say reads it as a literal
+/// beside the arm that chooses it; `every_part_of_the_stack_says_why_it_stands_aside`
+/// drives every part and holds what they print to this list, in order.
+pub(crate) const THE_STACKS_PARTS: [&str; 8] = [
+    "comparing each pinned digest against what its tag resolves to",
+    "corroborating the migrations against what a database has applied",
+    "reading where `pg_temp` sits in the migrated functions' paths",
+    "reading the journal's own protections, which live in the database",
+    "reading the bounds the running log store reports",
+    "reading how the database sorts and encodes",
+    "running the PostgreSQL tests against a database",
+    "running the stack's own tests and the image-pin cases, which ask docker what it resolves",
+];
+
+/// The parts a run with `stack` says do not apply: every part of the stack on
+/// a system that runs none, and none at all on one that does.
+pub(crate) const fn the_parts_not_applicable(stack: Stack) -> &'static [&'static str] {
+    match stack {
+        Stack::NotApplicable => &THE_STACKS_PARTS,
+        Stack::Asked | Stack::Offline => &[],
+    }
+}
+
+/// How many steps a run with `stack` announces as skipped by `--offline`.
+///
+/// Every one of them on a system that runs the stack, and off it only the ones
+/// that are not the stack's — those say they are not applicable instead.
+const fn skipped_by_the_flag(offline: bool, stack: Stack) -> usize {
+    match (offline, stack) {
+        (false, _) => 0,
+        (true, Stack::NotApplicable) => OFFLINE_SKIPS - THE_STACKS_PARTS.len(),
+        (true, Stack::Asked | Stack::Offline) => OFFLINE_SKIPS,
+    }
+}
+
+/// Whether a test that asks docker stands aside on this system, saying so.
+///
+/// The gate's own tests of the image-pin step resolve a stack through `docker
+/// compose`, which no runner but Linux's has. They ask the same question as
+/// [`Stack::here`], because they are the gate's, and the not-applicable line
+/// the gate prints for the stack's own tests names them.
+///
+/// The sentence a test prints when it stands aside, or `None` where docker is
+/// asked. The test prints it, because printing outside `ui` belongs in a test
+/// module and nowhere else.
+#[cfg(test)]
+pub(crate) fn docker_stands_aside(what: &str) -> Option<String> {
+    (!RUNS_THE_STACK).then(|| {
+        format!(
+            "{what}: not applicable on {}, where no stack runs, and the Linux job runs it",
+            ui::SYSTEM
+        )
+    })
+}
+
 /// The compose names that were looked for, floored.
 fn assert_the_names_were_read(looked: usize, failures: &mut Vec<String>) {
     if looked >= 7 {
@@ -81,8 +228,16 @@ fn assert_the_names_were_read(looked: usize, failures: &mut Vec<String>) {
 /// skips` holds every place that states the number against the constant. The
 /// number is deliberately not repeated here. CI never passes the flag
 /// (`NOCTUA.md §19.4`).
+///
+/// On a system that runs no stack, the steps that need it say they are not
+/// applicable instead, whatever the flag — [`Stack`] says which, and
+/// [`THE_STACKS_PARTS`] is what such a run is held to.
 pub(crate) fn run(root: &Path, offline: bool) -> Result<(), String> {
     let mut failures: Vec<String> = Vec::new();
+    // **What the stack's steps do, decided once.** Every step that needs the
+    // container stack is handed this and nothing else: asked, skipped by the
+    // flag, or not applicable on this system — see [`Stack`].
+    let stack = Stack::here(offline);
 
     ui::heading("wiring");
     // **Before anything asks cargo for the graph**, and only when the network
@@ -91,7 +246,7 @@ pub(crate) fn run(root: &Path, offline: bool) -> Result<(), String> {
     if !offline {
         the_packages_the_lockfile_names_are_here(root, &mut failures);
     }
-    wiring(root, offline, &mut failures);
+    wiring(root, stack, &mut failures);
 
     ui::gap();
     ui::heading("generated output");
@@ -104,7 +259,7 @@ pub(crate) fn run(root: &Path, offline: bool) -> Result<(), String> {
     crate::policy::check(root, &mut failures);
 
     ui::gap();
-    bounds(root, offline, &mut failures);
+    bounds(root, stack, &mut failures);
 
     ui::gap();
     the_wall(root, &mut failures);
@@ -130,8 +285,8 @@ pub(crate) fn run(root: &Path, offline: bool) -> Result<(), String> {
     // `database` — the defect the comment above the policy pack describes. What
     // the last section is about is the database and what needs it, and that is
     // what it is called.
-    let database = database::report(offline, &mut failures);
-    workspace(root, database.as_deref(), offline, &mut failures);
+    let database = database::report(stack, &mut failures);
+    workspace(root, database.as_deref(), stack, &mut failures);
 
     ui::gap();
     ui::heading("dependencies");
@@ -154,7 +309,11 @@ pub(crate) fn run(root: &Path, offline: bool) -> Result<(), String> {
         ui::failure(&problem);
         failures.push("a step did not run".to_owned());
     }
-    finish(&failures, if offline { OFFLINE_SKIPS } else { 0 })
+    finish(
+        &failures,
+        skipped_by_the_flag(offline, stack),
+        the_parts_not_applicable(stack),
+    )
 }
 
 /// Downloads every package the lockfile names, before any step reads the graph.
@@ -261,23 +420,33 @@ fn the_walk_swept_every_file(
 /// The stack's images are pinned by digest, and the digest is the tag's.
 ///
 /// Split from `wiring`, which crosses clippy's line limit with it inline.
-fn the_images_are_pinned(root: &Path, offline: bool, failures: &mut Vec<String>) {
+fn the_images_are_pinned(root: &Path, stack: Stack, failures: &mut Vec<String>) {
     // **`--offline` really skips this.** The step asks the local docker image
     // store what each pinned tag resolves to, so under the flag it announces a
     // skip, which `finish` counts and the verdict reports as a step that did
-    // not run.
+    // not run — and on a system that runs no stack it is not applicable, and
+    // says that instead.
     //
     // **And a missing tag does not make the gate red, in CI or anywhere.**
     // `judge_a_pin` does not make a missing tag a finding: a tag nobody has
     // pulled is `announced` — a `skipped:` line the verdict counts and the run
     // passes with, which is what `AGENTS.md` says. A machine that has pulled
     // neither image announces two of these and still passes.
-    if offline {
-        ui::warn("skipped: --offline, and a digest is compared against a pulled image");
-        ui::detail(
-            "CI never passes --offline. Where the comparison does run it can only answer for a tag that has been pulled, and `cargo xtask dev` does not pull one: compose resolves `tag@sha256:…` by the digest",
-        );
+    match stack {
+        Stack::Asked => {}
+        Stack::Offline => {
+            ui::warn("skipped: --offline, and a digest is compared against a pulled image");
+            ui::detail(
+                "CI never passes --offline. Where the comparison does run it can only answer for a tag that has been pulled, and `cargo xtask dev` does not pull one: compose resolves `tag@sha256:…` by the digest",
+            );
+        }
+        Stack::NotApplicable => {
+            ui::not_applicable("comparing each pinned digest against what its tag resolves to");
+        }
     }
+    // Everything below reads the files either way and asks docker only when
+    // the stack is asked.
+    let offline = !stack.asked();
     // **Called either way.** Returning here would take the pure-text rules
     // with the comparison, and those read only the files — see
     // `every_image_is_pinned`, which applies them with the flag and without it.
@@ -387,7 +556,7 @@ pub(crate) fn every_pin_was_answered_for(
 }
 
 /// The cross-repository wiring `NOCTUA.md §5.3` and `§8.6` fix.
-fn wiring(root: &Path, offline: bool, failures: &mut Vec<String>) {
+fn wiring(root: &Path, stack: Stack, failures: &mut Vec<String>) {
     match gates::manifests(root) {
         Err(problem) => {
             ui::failure(&problem);
@@ -526,7 +695,7 @@ fn wiring(root: &Path, offline: bool, failures: &mut Vec<String>) {
 
     // Every image the stack runs, pinned by digest rather than by a tag
     // whoever publishes it can repoint.
-    the_images_are_pinned(root, offline, failures);
+    the_images_are_pinned(root, stack, failures);
 
     the_formatter_config_stops_here(root, failures);
     let (_, _, _) = the_excused_lines_are_counted(root, failures);
@@ -1591,13 +1760,15 @@ fn the_record_against_the_files(
     applied: &[(i64, String, Vec<u8>)],
     on_disk: &[String],
     lost: &[String],
-    offline: bool,
+    stack: Stack,
     unreachable: bool,
     failures: &mut Vec<String>,
 ) -> Option<String> {
     let mut corroborated: Option<String> = None;
     if lost.is_empty() {
-        if offline {
+        if stack == Stack::NotApplicable {
+            ui::not_applicable("corroborating the migrations against what a database has applied");
+        } else if stack == Stack::Offline {
             // **The third thing `--offline` skips, said out loud.** Falling
             // through to the line below would report that *the database has
             // applied none* — a claim about a database this run never asked,
@@ -1695,7 +1866,7 @@ fn the_record_against_the_files(
 /// that gate is what makes this a policy rather than a habit.** It reads the
 /// migrations rather than a live database, because the moment somebody adds a
 /// table is the moment the migration is written, not the moment it is applied.
-fn bounds(root: &Path, offline: bool, failures: &mut Vec<String>) {
+fn bounds(root: &Path, stack: Stack, failures: &mut Vec<String>) {
     // **The heading before anything that can print.** The fetch below reports
     // its own failure, so with the heading after it and the stack down the
     // error would land in the gap after the previous section, under no heading
@@ -1725,7 +1896,7 @@ fn bounds(root: &Path, offline: bool, failures: &mut Vec<String>) {
     // How many migrations this database has already applied, when there is one.
     // `None` under `--offline`, where the floor falls back to the walk's own
     // count and the step says so rather than implying a check it did not make.
-    let (applied, unreachable) = applied_record(offline, failures);
+    let (applied, unreachable) = applied_record(stack, failures);
 
     // The numbering first: a migration set that cannot be applied in order is
     // one whose tables nobody will ever see.
@@ -1768,7 +1939,7 @@ fn bounds(root: &Path, offline: bool, failures: &mut Vec<String>) {
                 &applied,
                 &on_disk,
                 &lost,
-                offline,
+                stack,
                 unreachable,
                 failures,
             );
@@ -1793,8 +1964,8 @@ fn bounds(root: &Path, offline: bool, failures: &mut Vec<String>) {
                 // answered held anything.
                 how_names_resolve(
                     root,
-                    offline,
-                    Record::of(offline, unreachable, applied.is_empty()),
+                    stack,
+                    Record::of(stack, unreachable, applied.is_empty()),
                     failures,
                 );
             }
@@ -1906,6 +2077,8 @@ fn the_local_schema_is_the_listed_one(root: &Path, failures: &mut Vec<String>) {
 pub(crate) enum Record {
     /// `--offline`: the record was never asked for.
     NotAsked,
+    /// This system runs no stack, so there was no record to ask for.
+    NotApplicable,
     /// Asked for and not answered. The failure is already reported where it was
     /// asked, so these steps say only what they could not read.
     Unreachable,
@@ -1918,11 +2091,13 @@ pub(crate) enum Record {
 impl Record {
     /// The state, decided where both facts are known.
     ///
-    /// The order matters: `--offline` never asked, so it cannot have found the
-    /// database unreachable, and a database that did not answer has not
-    /// "applied none".
-    const fn of(offline: bool, unreachable: bool, nothing_applied: bool) -> Self {
-        if offline {
+    /// The order matters: a run that never asked — off Linux, or under
+    /// `--offline` — cannot have found the database unreachable, and a database
+    /// that did not answer has not "applied none".
+    const fn of(stack: Stack, unreachable: bool, nothing_applied: bool) -> Self {
+        if matches!(stack, Stack::NotApplicable) {
+            Self::NotApplicable
+        } else if matches!(stack, Stack::Offline) {
             Self::NotAsked
         } else if unreachable {
             Self::Unreachable
@@ -1940,11 +2115,8 @@ impl Record {
 /// own count and the step says so rather than implying a check it did not make.
 /// Split out of [`bounds`] only because inline it would put that function past
 /// the line limit.
-fn applied_record(
-    offline: bool,
-    failures: &mut Vec<String>,
-) -> (Vec<(i64, String, Vec<u8>)>, bool) {
-    if offline {
+fn applied_record(stack: Stack, failures: &mut Vec<String>) -> (Vec<(i64, String, Vec<u8>)>, bool) {
+    if !stack.asked() {
         return (Vec::new(), false);
     }
     match crate::database::url().and_then(|url| crate::database::applied(&url)) {
@@ -1964,7 +2136,7 @@ fn applied_record(
 ///
 /// Split out of [`bounds`] only because inline it would put that function past
 /// the line limit.
-fn how_names_resolve(root: &Path, offline: bool, record: Record, failures: &mut Vec<String>) {
+fn how_names_resolve(root: &Path, stack: Stack, record: Record, failures: &mut Vec<String>) {
     // The two halves print their counts on adjacent lines, and uncompared they
     // disagree with both `ok` — measured, `4` and `3`, with the fourth function
     // created into a schema the database half does not read. This carries the
@@ -2027,8 +2199,8 @@ fn how_names_resolve(root: &Path, offline: bool, record: Record, failures: &mut 
     }
     where_pg_temp_sits(record, declared, failures);
     the_journal_is_still_append_only(record, failures);
-    the_running_log_store_is_bounded_as_declared(root, offline, failures);
-    the_database_sorts_the_way_it_was_initialised(offline, failures);
+    the_running_log_store_is_bounded_as_declared(root, stack, failures);
+    the_database_sorts_the_way_it_was_initialised(stack, failures);
 }
 
 /// Whether a frozen `search_path` really keeps a planted name out.
@@ -2502,10 +2674,17 @@ const PROTECTIONS: [(&str, &str); 44] = [
 /// What a wrong collation costs is written beside the argument itself: `ORDER
 /// BY` returns a different answer per host, which arrives as one failing test
 /// nobody can reproduce.
-fn the_database_sorts_the_way_it_was_initialised(offline: bool, failures: &mut Vec<String>) {
-    if offline {
-        ui::warn("skipped: --offline, and how a database sorts is a property of that database");
-        return;
+fn the_database_sorts_the_way_it_was_initialised(stack: Stack, failures: &mut Vec<String>) {
+    match stack {
+        Stack::Asked => {}
+        Stack::Offline => {
+            ui::warn("skipped: --offline, and how a database sorts is a property of that database");
+            return;
+        }
+        Stack::NotApplicable => {
+            ui::not_applicable("reading how the database sorts and encodes");
+            return;
+        }
     }
     // The same shape the journal-protection step uses: the URL is resolved here
     // rather than threaded down, and a database that cannot be reached has
@@ -2909,12 +3088,19 @@ fn a_path_that_is_not_a_mount(
 /// is one the source tree cannot check by reading itself.
 fn the_running_log_store_is_bounded_as_declared(
     root: &Path,
-    offline: bool,
+    stack: Stack,
     failures: &mut Vec<String>,
 ) {
-    if offline {
-        ui::warn("skipped: --offline, and only the running log store states its own bounds");
-        return;
+    match stack {
+        Stack::Asked => {}
+        Stack::Offline => {
+            ui::warn("skipped: --offline, and only the running log store states its own bounds");
+            return;
+        }
+        Stack::NotApplicable => {
+            ui::not_applicable("reading the bounds the running log store reports");
+            return;
+        }
     }
     let port = crate::dev::setting(crate::dev::LOGS_PORT);
     let held = match crate::store::flags(&port) {
@@ -3096,6 +3282,10 @@ fn the_journal_is_still_append_only(record: Record, failures: &mut Vec<String>) 
             ui::warn("skipped: --offline, and the journal's own protections live in the database");
             return;
         }
+        Record::NotApplicable => {
+            ui::not_applicable("reading the journal's own protections, which live in the database");
+            return;
+        }
         Record::Unreachable => {
             ui::warn("skipped: no database answered, so the journal's protections were not read");
             return;
@@ -3225,6 +3415,10 @@ fn where_pg_temp_sits(record: Record, declared: usize, failures: &mut Vec<String
                 "skipped: --offline, so where `pg_temp` sits in the migrated functions' \
                  paths was not read",
             );
+            return;
+        }
+        Record::NotApplicable => {
+            ui::not_applicable("reading where `pg_temp` sits in the migrated functions' paths");
             return;
         }
         Record::Unreachable => {
@@ -5274,7 +5468,7 @@ fn the_tools_that_judge_the_whole_tree() -> Vec<(&'static str, Vec<&'static str>
 ///
 /// **The decision, not the call.** The variable's name alone is also held by
 /// the `println!` beside the guard, and the call alone is satisfied by a
-/// `let _ = std::env::var_os("NC_OFFLINE");` while the guard beneath it stands
+/// `let _ = std::env::var_os("NC_NO_STACK");` while the guard beneath it stands
 /// aside for something else entirely — measured, with a suite that fails
 /// thirty-five times reporting thirty-seven passes and a census of the call
 /// alone still saying it asks for the flag. What is looked for is the call *and
@@ -5288,13 +5482,13 @@ fn the_tools_that_judge_the_whole_tree() -> Vec<(&'static str, Vec<&'static str>
 const ANNOUNCES_NO_DATABASE: [(&str, &str, &str, usize); 5] = [
     (
         "crates/nc-journal/tests/in_postgres.rs",
-        "var_os(\"NC_OFFLINE\").is_some()",
+        "var_os(\"NC_NO_STACK\").is_some()",
         "skipped, no database",
         1,
     ),
     (
         "crates/nc-prune/tests/in_postgres.rs",
-        "var_os(\"NC_OFFLINE\").is_some()",
+        "var_os(\"NC_NO_STACK\").is_some()",
         "skipped, no database",
         1,
     ),
@@ -5303,7 +5497,7 @@ const ANNOUNCES_NO_DATABASE: [(&str, &str, &str, usize); 5] = [
     // kernel stopped in a child process over it.
     (
         "crates/nc-kernel/tests/the_decision_point.rs",
-        "var_os(\"NC_OFFLINE\").is_some()",
+        "var_os(\"NC_NO_STACK\").is_some()",
         "skipped, no database",
         1,
     ),
@@ -5316,7 +5510,7 @@ const ANNOUNCES_NO_DATABASE: [(&str, &str, &str, usize); 5] = [
     // and that is the same shape the rows above it exist for.
     (
         "xtask/tests/the_stack_enforces_the_declared_bounds.rs",
-        "var_os(\"NC_OFFLINE\").is_some()",
+        "var_os(\"NC_NO_STACK\").is_some()",
         "skipped, docker was not asked",
         1,
     ),
@@ -5328,7 +5522,7 @@ const ANNOUNCES_NO_DATABASE: [(&str, &str, &str, usize); 5] = [
     // above exist for exactly that hazard, and this file has it too.
     (
         "xtask/src/database.rs",
-        "var_os(\"NC_OFFLINE\").is_some()",
+        "var_os(\"NC_NO_STACK\").is_some()",
         "skipped, no database",
         2,
     ),
@@ -5337,7 +5531,7 @@ const ANNOUNCES_NO_DATABASE: [(&str, &str, &str, usize); 5] = [
 /// How many of a suite's guards both ask for the flag and say so inside themselves.
 ///
 /// **Read as code, not as a file.** Needles looked for anywhere in the text let
-/// a deletion of the whole `NC_OFFLINE` arm *and* the fail-closed `panic!` —
+/// a deletion of the whole `NC_NO_STACK` arm *and* the fail-closed `panic!` —
 /// with a comment left behind saying what was there — keep this census reporting
 /// that the suite asks for the flag and says so, while it stands aside for
 /// **any** missing `DATABASE_URL`. That is a gate satisfied by a comment, and the
@@ -5360,7 +5554,7 @@ const ANNOUNCES_NO_DATABASE: [(&str, &str, &str, usize); 5] = [
 /// returning in silence under `--offline` and that census reporting four suites
 /// that say so.
 /// And a guard can keep both strings verbatim while deciding on something else
-/// entirely: `let offline = var_os("NC_OFFLINE").is_some();` beside a
+/// entirely: `let offline = var_os("NC_NO_STACK").is_some();` beside a
 /// `DATABASE_URL` check that no longer fails closed leaves 66 journal tests
 /// passing against no database at all, with that census still satisfied.
 ///
@@ -5425,7 +5619,7 @@ fn announcing_guards(text: &str, asks: &str, says: &str) -> usize {
         // **And the condition decides on this and nothing else.** A second
         // disjunct in the same condition adds no statement boundary, so under a
         // rule that looks only for one,
-        // `var_os("NC_OFFLINE").is_some() || var_os("PATH").is_some()` stands
+        // `var_os("NC_NO_STACK").is_some() || var_os("PATH").is_some()` stands
         // aside on every machine there is with the census satisfied. The span is
         // this statement or this arm — back to the nearest boundary — so a `||`
         // anywhere else in the function is not read as one here.
@@ -5615,7 +5809,7 @@ fn refuse_while_a_mutation_is_in_flight(root: &Path, failures: &mut Vec<String>)
 }
 
 /// Formatting, lints and tests — each run even if the one before it failed.
-fn workspace(root: &Path, database: Option<&str>, offline: bool, failures: &mut Vec<String>) {
+fn workspace(root: &Path, database: Option<&str>, stack: Stack, failures: &mut Vec<String>) {
     refuse_while_a_mutation_is_in_flight(root, failures);
     // `--locked` on everything that resolves dependencies, and the same flag is
     // in the `xtask` alias itself. Both are needed: without the flag on the
@@ -5650,13 +5844,12 @@ fn workspace(root: &Path, database: Option<&str>, offline: bool, failures: &mut 
     // `docker compose config`: measured with that unconditional and the binary
     // off `PATH`, three of its tests panic on `kind: NotFound`, so
     // `check --offline` exits 1 on a machine that has exactly what that flag
-    // says it needs. The tests read `NC_OFFLINE`, in the shape
+    // says it needs. The tests read `NC_NO_STACK`, in the shape
     // `crates/nc-journal/tests/in_postgres.rs` uses — and a test that did not
     // run must not read as one that passed, which is what this line and
-    // `OFFLINE_SKIPS` are for.
-    if offline {
-        ui::warn("skipped: --offline, and the stack's own tests ask docker what it resolves");
-    }
+    // `OFFLINE_SKIPS` are for. Off Linux the same suite, and this tool's own
+    // image-pin cases, are not applicable, and the line says that instead.
+    the_stacks_own_tests_stand_aside(stack);
     // Deliberately not `--quiet`: the count is the assertion. A suite with no
     // tests exits zero, so "tests passed" without a number is the gate
     // `NOCTUA.md §19.3` opens with — one that is green because it checked
@@ -5669,7 +5862,7 @@ fn workspace(root: &Path, database: Option<&str>, offline: bool, failures: &mut 
         root,
         &["test", "--workspace", "--locked", "--no-fail-fast"],
         database,
-        offline,
+        stack,
     ) {
         Ok(output) => match tests_verdict(&output, &suites()) {
             Ok(passed) => {
@@ -5744,7 +5937,7 @@ fn workspace(root: &Path, database: Option<&str>, offline: bool, failures: &mut 
                 // where the suites do run. What it reads is source,
                 // which is there either way.
                 the_database_suites_still_stand_aside(root, failures);
-                if offline {
+                if !stack.asked() {
                     caveats.push("the ones that need a database");
                 }
                 if workspace_above(root).is_none() {
@@ -5770,6 +5963,24 @@ fn workspace(root: &Path, database: Option<&str>, offline: bool, failures: &mut 
                 ui::detail(line);
             }
             failures.push("tests".to_owned());
+        }
+    }
+}
+
+/// What the tests that ask docker about the stack say when they do not run.
+///
+/// Its own function so a test can hand it each answer: it is one of
+/// [`THE_STACKS_PARTS`], and the census of them is driven rather than read.
+fn the_stacks_own_tests_stand_aside(stack: Stack) {
+    match stack {
+        Stack::Asked => {}
+        Stack::Offline => {
+            ui::warn("skipped: --offline, and the stack's own tests ask docker what it resolves");
+        }
+        Stack::NotApplicable => {
+            ui::not_applicable(
+                "running the stack's own tests and the image-pin cases, which ask docker what it resolves",
+            );
         }
     }
 }
@@ -7279,7 +7490,7 @@ fn the_test_targets_are_documented_too(root: &Path, failures: &mut Vec<String>) 
 /// `xtask/mutants.py` are where a predicate's verdict is decided. It says the
 /// guard is still there, which is the question a deletion asks.
 #[cfg(test)]
-const WHAT_THE_GATE_CAN_SAY: [&str; 825] = [
+const WHAT_THE_GATE_CAN_SAY: [&str; 838] = [
     "`{named}` was passed to `docker compose` among its arguments. The project is this checkout's and is set above; docker resolves the flag to the later of two, so the stack would come up under a name `--down` does not address",
     "what CI reaches is more than {HOPS} hops deep",
     "Cedar denies by default, so a core rule that permits widens what is allowed rather than restricting it — move it to a pack, or make it a `forbid`",
@@ -7339,6 +7550,19 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 825] = [
     "cargo fetch --locked could not download what the lockfile names, so every step that reads the members fails after it",
     "the packages the lockfile names could not be counted",
     "the packages the lockfile names could not be fetched",
+    "comparing each pinned digest against what its tag resolves to",
+    "corroborating the migrations against what a database has applied",
+    "reading where `pg_temp` sits in the migrated functions' paths",
+    "reading the journal's own protections, which live in the database",
+    "reading the bounds the running log store reports",
+    "reading how the database sorts and encodes",
+    "running the PostgreSQL tests against a database",
+    "running the stack's own tests and the image-pin cases, which ask docker what it resolves",
+    "the container stack, which this verb brings up and takes down",
+    "not applicable here: {part}",
+    "not run: {skip}",
+    "the parts not applicable on this system are not the ones written down for it",
+    "{} part(s) of this run said they are not applicable on {} and {} are written down for it: {said:?}, against {inapplicable:?}. What applies is a property of the system, so the list is exact — on Linux it is empty, and a part standing aside there is a step the Linux job no longer judges",
     "`cargo metadata` listed no packages",
     "`cargo metadata` listed no packages",
     "`cargo metadata` listed no workspace member",
@@ -8208,6 +8432,11 @@ fn the_verdicts_the_source_can_push() -> Vec<String> {
     // bounds another reason. Pinned here, adding a skip is the same two-place
     // edit as adding a guard — and the second place is a list a reviewer reads.
     const THE_SKIP: &str = "ui::warn(";
+    // **And a part saying it does not apply on this system.** `finish` holds
+    // the parts a run prints to the list written for the system, and this holds
+    // every sentence such a line can carry, so a new one is the same two-place
+    // edit as a new skip.
+    const THE_ASIDE: &str = "ui::not_applicable(";
     let directory = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
     // **`walk`, not `read_dir`.** `ui.rs`'s own scanner holds the same rule: a
     // module written as a directory of its own, declared with a `mod` line and
@@ -8275,6 +8504,7 @@ fn the_verdicts_the_source_can_push() -> Vec<String> {
             (THE_MAPPED, ""),
             (THE_MISSING, ""),
             (THE_SKIP, ""),
+            (THE_ASIDE, ""),
             (THE_DETAIL, ""),
         ] {
             found.extend(the_sentences_after(&text, needle, after));
@@ -10304,11 +10534,15 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 598] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 602] = [
     // The prefix every finding about this gate's own arithmetic carries, so the
     // three attack helpers can refuse such an answer without naming a sentence.
     "this gate's own accounting — ",
     "cargo fetch --locked: the {named} package(s) the lockfile names from a registry are here",
+    "  {ASIDE}n/a{ASIDE:#}   {}",
+    "check passed, with {skipped} warn line(s) and {parts} not-applicable line(s) above — a step that did not run is not a step that passed, and the Linux job runs what does not apply on {}",
+    "not applicable on {SYSTEM}: {what}, and the Linux job runs it",
+    "not applicable on {}, and the Linux job runs it",
     "`--offline` skips the steps that need the stack — the database, the integration tests and the dependency audit — so whatever runs this reports a gate it did not run. It exists for a developer with no network, in a recipe whose name ends `-offline` and says so, and `check.rs` says CI never passes it",
     "`{recipe}` runs a cargo command holding `{{{{{inside}}}}}`, which this gate reads as text and cannot resolve — a variable in the body is how the gate a developer types becomes a different gate with the name and the description above it unchanged. A recipe's own parameters are declared in its header; this one is not",
     "`{recipe}` is the name a developer types and `{named}` is what this body runs. The description above it is the whole of what `just --list` prints, so a recipe that changes what it runs goes on saying what it used to do — and `check` carrying `--offline` is the smaller gate wearing the gate's name",
@@ -11749,7 +11983,7 @@ fn report(findings: &[gates::Finding], clean: &str, subject: &str, failures: &mu
 /// process's environment — that `proptest` reads: each beginning `PROPTEST_`.
 ///
 /// **A variable this tool does not control decides what the child runs**, as
-/// `NC_OFFLINE` would: `proptest` reads `PROPTEST_CASES` over the `cases` a
+/// `NC_NO_STACK` would: `proptest` reads `PROPTEST_CASES` over the `cases` a
 /// suite's own `#![proptest_config]` writes, so exported at `0` in a shell and
 /// inherited, it would run every property suite of the gate — the model-based
 /// ones of the kernel and the local store among them — on no generated input:
@@ -11769,7 +12003,7 @@ fn unset_what_proptest_reads(
 
 /// Runs cargo, returning its combined output either way.
 pub(crate) fn cargo(root: &Path, args: &[&str]) -> Result<String, String> {
-    cargo_with(root, args, None, false)
+    cargo_with(root, args, None, Stack::Asked)
 }
 
 /// The same, with `DATABASE_URL` set for the child.
@@ -11790,7 +12024,7 @@ fn cargo_with(
     root: &Path,
     args: &[&str],
     database: Option<&str>,
-    offline: bool,
+    stack: Stack,
 ) -> Result<String, String> {
     let program = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned());
     #[expect(
@@ -11837,8 +12071,12 @@ fn cargo_with(
     // so. Deriving it from `database.is_none()` would make cutting the line
     // above indistinguishable from `--offline` — which is the very hole this
     // exists to close, since a skipped test still counts as passed.
-    if offline {
-        command.env("NC_OFFLINE", "1");
+    //
+    // **And the value is the reason**, so a suite standing aside says in its
+    // own output whether it was asked to (`--offline`) or is not applicable on
+    // this system.
+    if let Some(why) = stack.told() {
+        command.env("NC_NO_STACK", why);
     } else {
         // **And removed when it was not asked for**, the way `DATABASE_URL` is
         // three lines up and for the same reason: a variable this tool does not
@@ -11849,7 +12087,7 @@ fn cargo_with(
         // `ok 1337 test(s)` printed over a run that asked docker nothing.
         // Asking for a skip is `--offline`; inheriting one is the hole
         // `--offline` exists to close.
-        command.env_remove("NC_OFFLINE");
+        command.env_remove("NC_NO_STACK");
     }
     unset_what_proptest_reads(&mut command, std::env::vars_os().map(|(name, _)| name));
     let output = command
@@ -12031,7 +12269,12 @@ const STEPS: [&str; 10] = [
     "dependencies",
 ];
 
-fn finish(failures: &[String], announced: usize) -> Result<(), String> {
+/// The verdict: whether anything failed, and whether what stood aside is what
+/// was meant to.
+///
+/// `announced` is how many steps `--offline` skips on this system, and the
+/// parts a run here says do not apply are `inapplicable` — none on Linux.
+fn finish(failures: &[String], announced: usize, inapplicable: &[&str]) -> Result<(), String> {
     // **Taken before this function prints anything of its own.** What the rule
     // below is about is error lines a *step* printed; the two refusals in this
     // function print their own and record them in the same breath, so counting
@@ -12077,6 +12320,28 @@ fn finish(failures: &[String], announced: usize) -> Result<(), String> {
              started is a document saying the wrong number"
         ));
         return Err("a step the flag skips stopped announcing it".to_owned());
+    }
+    // **And what does not apply on this system is exactly what was written for
+    // it.** On Linux that is nothing: every step runs there, and a part saying
+    // not applicable on Linux is a step the Linux job no longer judges — acceptance
+    // criterion 2's whole subject — with every other line of the run green.
+    // Elsewhere it is every part that needs the stack, in order, so a part that
+    // stopped saying so reads as a part that ran.
+    let said = ui::not_applicable_parts();
+    if said != inapplicable {
+        ui::failure(&format!(
+            "{} part(s) of this run said they are not applicable on {} and {} are \
+             written down for it: {said:?}, against {inapplicable:?}. What applies is a \
+             property of the system, so the list is exact — on Linux it is empty, and a \
+             part standing aside there is a step the Linux job no longer judges",
+            said.len(),
+            ui::SYSTEM,
+            inapplicable.len()
+        ));
+        return Err(
+            "the parts not applicable on this system are not the ones written down for it"
+                .to_owned(),
+        );
     }
     // **Reported whether or not something else failed.** Inside
     // `failures.is_empty()`, an unexplained warning would be invisible on any
@@ -12126,9 +12391,9 @@ fn finish(failures: &[String], announced: usize) -> Result<(), String> {
         // gate in the suite checked nothing end in the same three words as one
         // in which everything ran. `ui::warnings` is the count; the words stay so
         // that anything reading for them still finds them.
-        match ui::warnings() {
-            0 => ui::heading("check passed"),
-            skipped => {
+        match (ui::warnings(), said.len()) {
+            (0, 0) => ui::heading("check passed"),
+            (skipped, 0) => {
                 ui::heading(&format!(
                     "check passed, with {skipped} warn line(s) above — a step that did not \
                      run is not a step that passed"
@@ -12143,6 +12408,23 @@ fn finish(failures: &[String], announced: usize) -> Result<(), String> {
                 // `passed`.
                 for skip in ui::announced() {
                     ui::detail(&format!("not run: {skip}"));
+                }
+            }
+            // **And what does not apply here, named the same way.** A macOS or
+            // Windows run that ended `check passed` over the stack's steps with
+            // nothing beside the verdict would read as one that ran them.
+            (skipped, parts) => {
+                ui::heading(&format!(
+                    "check passed, with {skipped} warn line(s) and {parts} not-applicable \
+                     line(s) above — a step that did not run is not a step that passed, and \
+                     the Linux job runs what does not apply on {}",
+                    ui::SYSTEM
+                ));
+                for skip in ui::announced() {
+                    ui::detail(&format!("not run: {skip}"));
+                }
+                for part in &said {
+                    ui::detail(&format!("not applicable here: {part}"));
                 }
             }
         }
@@ -14402,7 +14684,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         // changed bytes under one placed above the tree, with both determinism
         // gates still green.
         let mut failures = Vec::new();
-        wiring(&scratch, false, &mut failures);
+        wiring(&scratch, super::Stack::Asked, &mut failures);
         assert!(
             failures.iter().any(|failure| failure.contains("rustfmt")),
             "the formatter-configuration gate is not called from the step that owns it: \
@@ -14416,7 +14698,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         let held = std::fs::read_to_string(&unreadable).expect("written above");
         std::fs::remove_dir_all(scratch.join("crates")).expect("removable");
         let mut failures = Vec::new();
-        wiring(&scratch, false, &mut failures);
+        wiring(&scratch, super::Stack::Asked, &mut failures);
         assert!(
             failures.iter().any(|failure| failure.contains("census")),
             "the marker census is not called from the step that owns it: {failures:?}"
@@ -14429,7 +14711,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         // Through `wiring`, which is the step that owns it — calling
         // `settings_are_read` directly would pass with its call site deleted.
         let mut failures = Vec::new();
-        wiring(&scratch, false, &mut failures);
+        wiring(&scratch, super::Stack::Asked, &mut failures);
         assert!(
             failures
                 .iter()
@@ -14513,6 +14795,149 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         }
     }
 
+    /// On Linux nothing is not applicable, whatever the flag, and elsewhere
+    /// every part of the stack is.
+    ///
+    /// **Acceptance criterion 2 is that Linux judges the same steps as before**,
+    /// and this is that, held where it is decided: no answer this tree can give
+    /// on Linux makes a part stand aside as not applicable, so the list of such
+    /// parts a Linux run is held to is empty. `--offline` still skips there,
+    /// and says `skipped:`, which is the flag and not the system.
+    #[test]
+    fn nothing_is_not_applicable_on_linux() {
+        use super::{Stack, THE_STACKS_PARTS, skipped_by_the_flag, the_parts_not_applicable};
+        assert_eq!(Stack::of(false, true), Stack::Asked);
+        assert_eq!(Stack::of(true, true), Stack::Offline);
+        for offline in [false, true] {
+            assert_eq!(Stack::of(offline, false), Stack::NotApplicable);
+            assert!(
+                the_parts_not_applicable(Stack::of(offline, true)).is_empty(),
+                "a system that runs the stack has a part written down as not applicable \
+                 there, with --offline {offline}"
+            );
+            assert_eq!(
+                the_parts_not_applicable(Stack::of(offline, false)),
+                THE_STACKS_PARTS
+            );
+        }
+        if cfg!(target_os = "linux") {
+            for offline in [false, true] {
+                assert!(
+                    the_parts_not_applicable(Stack::here(offline)).is_empty(),
+                    "a Linux run with --offline {offline} would stand a part aside as not \
+                     applicable, which is a step the Linux job no longer judges"
+                );
+            }
+        }
+        // And what the flag announces is the same nine on a system that runs
+        // the stack and only the advisory database's on one that does not.
+        assert_eq!(skipped_by_the_flag(false, Stack::Asked), 0);
+        assert_eq!(
+            skipped_by_the_flag(true, Stack::Offline),
+            super::OFFLINE_SKIPS
+        );
+        assert_eq!(skipped_by_the_flag(false, Stack::NotApplicable), 0);
+        assert_eq!(skipped_by_the_flag(true, Stack::NotApplicable), 1);
+    }
+
+    /// Every part of the stack says it is not applicable when it is handed that
+    /// answer, in the order the run reaches it, and says it was skipped when it
+    /// is handed `--offline`.
+    ///
+    /// **Driven, so the written list is the printed one.** Each part writes its
+    /// sentence where it stands aside and [`super::THE_STACKS_PARTS`] writes it
+    /// again for the verdict; this is what holds the two copies to each other,
+    /// over the real tree's record limits, the image step, the database step
+    /// and the stack's own tests. Nothing here asks docker or a database: that
+    /// is the property under test.
+    #[test]
+    fn every_part_of_the_stack_says_why_it_stands_aside() {
+        use super::{Stack, THE_STACKS_PARTS};
+        let _printing = crate::ui::printing();
+        for (stack, parts, skips) in [
+            (Stack::NotApplicable, &THE_STACKS_PARTS[..], 0),
+            (Stack::Offline, &[][..], THE_STACKS_PARTS.len()),
+        ] {
+            ui::forget_counts();
+            let mut failures = Vec::new();
+            super::the_images_are_pinned(root(), stack, &mut failures);
+            bounds(root(), stack, &mut failures);
+            assert!(
+                crate::database::report(stack, &mut failures).is_none(),
+                "a run that does not ask the stack was handed a database"
+            );
+            super::the_stacks_own_tests_stand_aside(stack);
+            assert_eq!(
+                ui::not_applicable_parts(),
+                parts,
+                "with {stack:?}, the parts that said they are not applicable are not the \
+                 ones the verdict is held to"
+            );
+            assert_eq!(
+                ui::skips_because("--offline"),
+                skips,
+                "with {stack:?}, the parts that said `--offline` skipped them are not every \
+                 part of the stack"
+            );
+            assert!(
+                failures.is_empty(),
+                "with {stack:?}, a part that stood aside also failed: {failures:?}"
+            );
+        }
+        ui::forget_counts();
+    }
+
+    /// The verdict takes not-applicable lines only where they are written down,
+    /// and names each one beside the pass.
+    #[test]
+    fn a_part_not_applicable_passes_only_where_it_is_written_down() {
+        use super::THE_STACKS_PARTS;
+        let _printing = crate::ui::printing();
+        ui::forget_counts();
+        for part in THE_STACKS_PARTS {
+            ui::not_applicable(part);
+        }
+        assert!(
+            finish(&[], 0, &THE_STACKS_PARTS).is_ok(),
+            "every part of the stack said it does not apply, as written down for a system \
+             that runs no stack, and the run was refused"
+        );
+        // **The Linux case.** Written down for Linux, nothing is not applicable,
+        // so the same lines are a refusal.
+        let refusal = finish(&[], 0, &[]);
+        assert!(
+            refusal
+                .as_ref()
+                .is_err_and(|why| why.contains("not the ones written down")),
+            "a part said it does not apply on a system where every step runs, and the \
+             run was accepted: {refusal:?}"
+        );
+        // And one part fewer than written is a part that stopped saying so.
+        ui::forget_counts();
+        for part in &THE_STACKS_PARTS[1..] {
+            ui::not_applicable(part);
+        }
+        assert!(
+            finish(&[], 0, &THE_STACKS_PARTS).is_err(),
+            "a part stopped saying it does not apply and the run was accepted"
+        );
+        ui::forget_counts();
+    }
+
+    /// What a child is told about the stack is the reason, or nothing.
+    #[test]
+    fn a_child_is_told_why_the_stack_stands_aside() {
+        use super::Stack;
+        assert_eq!(Stack::Asked.told(), None);
+        assert_eq!(Stack::Offline.told().as_deref(), Some("--offline"));
+        assert!(
+            Stack::NotApplicable
+                .told()
+                .is_some_and(|why| why.starts_with("not applicable on ")),
+            "a suite standing aside off Linux would say nothing about why"
+        );
+    }
+
     /// The verdict says how many `warn` lines a run printed.
     ///
     /// **This holds the line.** It exists once in the tree — the string itself
@@ -14549,10 +14974,10 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         // cannot answer: four that there is no workspace above the repository,
         // and one that there is no sibling design system beside it.
         assert!(
-            finish(&[], 0).is_err(),
+            finish(&[], 0, &[]).is_err(),
             "a warn line that is not a skip passed the run"
         );
-        assert!(finish(&["something".to_owned()], 0).is_err());
+        assert!(finish(&["something".to_owned()], 0, &[]).is_err());
         // And a skip does pass, which is the floor: a rule that failed on every
         // warning would make `--offline` and a bare checkout impossible to run.
         //
@@ -14605,7 +15030,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         // `--offline` skips than the constant is a step that stopped saying it
         // did not run, which a reader takes as a step that ran.
         let asked = ui::skips_because("--offline");
-        let refusal = finish(&[], asked + 1);
+        let refusal = finish(&[], asked + 1, &[]);
         assert!(
             refusal
                 .as_ref()
@@ -15249,7 +15674,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         // Nothing printed and nothing recorded is the ordinary passing run, and
         // it has to stay one or the rule below would fail every green check.
         ui::forget_counts();
-        finish(&[], 0).expect("a run that printed nothing and recorded nothing passed");
+        finish(&[], 0, &[]).expect("a run that printed nothing and recorded nothing passed");
 
         // An error line, and no step recorded it: the shape a redirected wire
         // produces.
@@ -15260,7 +15685,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
             1,
             "an error line was printed and the verdict would not have counted it"
         );
-        let refusal = finish(&[], 0);
+        let refusal = finish(&[], 0, &[]);
         assert!(
             refusal
                 .as_ref()
@@ -15274,7 +15699,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         // failure would be reported as a broken wire.
         ui::forget_counts();
         ui::failure("a probe error line, recorded by the step that printed it");
-        let recorded = finish(&["the policy pack disagrees".to_owned()], 0);
+        let recorded = finish(&["the policy pack disagrees".to_owned()], 0, &[]);
         assert!(
             recorded
                 .as_ref()
@@ -15370,7 +15795,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         let scratch = held.root.clone();
 
         let mut failures = Vec::new();
-        wiring(&scratch, false, &mut failures);
+        wiring(&scratch, super::Stack::Asked, &mut failures);
         assert!(
             failures.contains(&"the manifest walk found nothing".to_owned()),
             "a tree with no manifest passed the wiring gates: {failures:?}"
@@ -15394,7 +15819,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         let mut failures = Vec::new();
         // `true`, so the floor does not reach for a database this scratch tree
         // has nothing to do with — what is under test is the empty walk.
-        bounds(&scratch, true, &mut failures);
+        bounds(&scratch, super::Stack::Offline, &mut failures);
         assert!(
             failures.contains(&"the migration walk found no table".to_owned()),
             "an empty migrations directory passed the unbounded-table gate: {failures:?}"
@@ -17020,7 +17445,7 @@ mod the_frozen_path_rule {
     /// The name is the item's, not its line, so the list survives every edit
     /// above it.
     #[cfg(test)]
-    const UNDOCUMENTED: [&str; 79] = [
+    const UNDOCUMENTED: [&str; 78] = [
         "nc-canon/lib.rs:deep_values",
         "nc-canon/lib.rs:digit",
         "nc-canon/lib.rs:messages_are_one_line",
@@ -17085,7 +17510,6 @@ mod the_frozen_path_rule {
         "nc-policy/lib.rs:request_for",
         "nc-policy/value.rs:table_to_cedar",
         "xtask/check.rs:PROTECTIONS",
-        "xtask/check.rs:finish",
         "xtask/dev.rs:unavailable",
         "xtask/main.rs:Cli",
         "xtask/main.rs:Command",
@@ -17652,12 +18076,12 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 609, 55),
+        ("xtask/check.rs", 625, 56),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 44, 29),
         ("xtask/database.rs", 29, 6),
         ("xtask/determinism.rs", 29, 11),
-        ("xtask/dev.rs", 57, 8),
+        ("xtask/dev.rs", 59, 8),
         ("xtask/docs.rs", 8, 1),
         ("xtask/every_generated_value_is_compared.rs", 30, 8),
         ("xtask/gates.rs", 213, 33),
@@ -17674,7 +18098,7 @@ mod the_frozen_path_rule {
         ("xtask/the_pages_reach_the_catalog.rs", 37, 20),
         ("xtask/the_registry_reaches_the_code.rs", 26, 21),
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 30, 6),
-        ("xtask/ui.rs", 42, 12),
+        ("xtask/ui.rs", 48, 12),
         ("xtask/wall.rs", 129, 28),
         ("xtask/workflow.rs", 118, 23),
     ];
@@ -23413,7 +23837,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 13715;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 13763;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -23432,7 +23856,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2510;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2522;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -23449,7 +23873,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 809;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 813;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -23483,7 +23907,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 19206;
+    const THE_REARRANGEMENTS_JUDGED: usize = 19285;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -23537,7 +23961,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **424 of 19,206 are accepted by the first-line
+    /// rules the gates apply: **424 of 19,285 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -23570,7 +23994,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **809 of
+    /// this tree offers, **813 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -24526,7 +24950,7 @@ mod the_frozen_path_rule {
     /// A stand-aside guard is read as code, in a comment of either kind.
     ///
     /// **A `/* … */` comment as well as a `//` one.** Deleting a suite's
-    /// `NC_OFFLINE` arm and leaving a note saying what used to be there keeps a
+    /// `NC_NO_STACK` arm and leaving a note saying what used to be there keeps a
     /// census that reads text reporting that the suite still asks for the flag.
     /// Splitting each line at `//` stops that for a line comment; the same
     /// deletion with the same note written as a block comment walks straight
@@ -24536,7 +24960,7 @@ mod the_frozen_path_rule {
     /// line scan that cut there would take real code out of the text it judges.
     #[test]
     fn a_stand_aside_guard_written_in_a_comment_is_not_a_guard() {
-        let asks = "var_os(\"NC_OFFLINE\").is_some()";
+        let asks = "var_os(\"NC_NO_STACK\").is_some()";
         let says = "skipped, no database";
         let real = format!(
             "fn main() {{\n    if std::env::{asks} {{\n        println!(\"{says}\");\n        \
@@ -24591,7 +25015,7 @@ mod the_frozen_path_rule {
         let elsewhere = format!(
             "fn main() {{\n    let offline = std::env::{asks};\n    let Some(url) = \
              std::env::var(\"DATABASE_URL\").ok() else {{\n        \
-             println!(\"{says} (NC_OFFLINE={{offline}})\");\n        return;\n    }};\n    \
+             println!(\"{says} (NC_NO_STACK={{offline}})\");\n        return;\n    }};\n    \
              let _ = url;\n}}\n"
         );
         assert_eq!(
@@ -24677,7 +25101,7 @@ mod the_frozen_path_rule {
     /// file, which is why this returns a count and not an answer.
     #[test]
     fn a_stand_aside_guard_announces_inside_the_block_it_opens() {
-        let asks = "var_os(\"NC_OFFLINE\").is_some()";
+        let asks = "var_os(\"NC_NO_STACK\").is_some()";
         let says = "skipped, no database";
         // A second disjunct in the same condition: no statement boundary, no
         // `||` that clippy refuses, and the suite stands aside on every machine
@@ -24727,9 +25151,9 @@ mod the_frozen_path_rule {
         // `[flag, true].contains(&true)` is a third with neither. The rule
         // reads the whole condition, so none of them needs naming.
         for widened in [
-            "std::env::var_os(\"NC_OFFLINE\").is_some().max(cfg!(unix))",
-            "[std::env::var_os(\"NC_OFFLINE\").is_some(), true].contains(&true)",
-            "std::env::var_os(\"NC_OFFLINE\").is_some() || std::env::var_os(\"PATH\").is_some()",
+            "std::env::var_os(\"NC_NO_STACK\").is_some().max(cfg!(unix))",
+            "[std::env::var_os(\"NC_NO_STACK\").is_some(), true].contains(&true)",
+            "std::env::var_os(\"NC_NO_STACK\").is_some() || std::env::var_os(\"PATH\").is_some()",
         ] {
             let plant = format!(
                 "fn main() {{\n    if {widened} {{\n        println!(\"{says}\");\n        \
@@ -24761,13 +25185,13 @@ mod the_frozen_path_rule {
     /// Whether what sits before this position reads the environment.
     ///
     /// **The flag is read in one kind of place and written in others.** A walk
-    /// over the flag's own name finds `command.env("NC_OFFLINE", "1")` — this
+    /// over the flag's own name finds `command.env("NC_NO_STACK", "1")` — this
     /// file's own harness *setting* the flag for a child process — and reports
     /// `check.rs` as a suite that stands aside, which is the too-strong half of
     /// the rule. What every spelling of a *read* shares is the call that opens
     /// it.
     /// **Driven, because over this tree the `var(` half can never fire.** Every
-    /// `var("NC_OFFLINE")` in the repository is inside a comment in this file,
+    /// `var("NC_NO_STACK")` in the repository is inside a comment in this file,
     /// so the disjunct decides nothing anywhere and dropping it moved no line,
     /// measured. What it guards is a suite that starts standing aside
     /// under the other spelling, which is the one thing the completeness walk
@@ -24777,7 +25201,7 @@ mod the_frozen_path_rule {
         let driven = |source: &str| {
             let neutral: Vec<char> = crate::gates::blanked(source).chars().collect();
             let raw: Vec<char> = source.chars().collect();
-            let needle: Vec<char> = ["\"NC_OFF", "LINE\""].join("").chars().collect();
+            let needle: Vec<char> = ["\"NC_NO", "_STACK\""].join("").chars().collect();
             (0..raw.len()).any(|at| {
                 raw.len() - at >= needle.len()
                     && raw[at..at + needle.len()] == needle[..]
@@ -24786,8 +25210,8 @@ mod the_frozen_path_rule {
             })
         };
         for spelled in [
-            "if std::env::var_os(\"NC_OFFLINE\").is_some() {}",
-            "if std::env::var(\"NC_OFFLINE\").is_ok() {}",
+            "if std::env::var_os(\"NC_NO_STACK\").is_some() {}",
+            "if std::env::var(\"NC_NO_STACK\").is_ok() {}",
         ] {
             assert!(
                 driven(spelled),
@@ -24796,8 +25220,8 @@ mod the_frozen_path_rule {
         }
         // And setting the flag for a child process is not asking for it.
         for written in [
-            "command.env(\"NC_OFFLINE\", \"1\");",
-            "command.env_remove(\"NC_OFFLINE\");",
+            "command.env(\"NC_NO_STACK\", \"1\");",
+            "command.env_remove(\"NC_NO_STACK\");",
         ] {
             assert!(
                 !driven(written),
@@ -24987,12 +25411,12 @@ mod the_frozen_path_rule {
     fn every_source_that_stands_aside_for_the_flag_is_one_the_census_names() {
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         // **The flag, not one way of asking for it.** Searching for the whole
-        // call `var_os("NC_OFFLINE").is_some()` leaves a suite standing aside
-        // for the same flag written `var("NC_OFFLINE").is_ok()` invisible to
+        // call `var_os("NC_NO_STACK").is_some()` leaves a suite standing aside
+        // for the same flag written `var("NC_NO_STACK").is_ok()` invisible to
         // the walk *and* to the census — measured, a journal test returned in
-        // silence under `NC_OFFLINE=1` and such a comparison said nothing. The
+        // silence under `NC_NO_STACK=1` and such a comparison said nothing. The
         // flag's name in quotes is what every spelling shares.
-        let asks = ["\"NC_OFF", "LINE\""].join("");
+        let asks = ["\"NC_NO", "_STACK\""].join("");
         let needle: Vec<char> = asks.chars().collect();
         let mut found: Vec<String> = Vec::new();
         for (_, _, path) in every_source_of_every_member(root, &["src", "tests"]) {
@@ -25535,7 +25959,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 598;
+    const THE_REST_IT_SAYS: usize = 602;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -25683,7 +26107,7 @@ mod the_frozen_path_rule {
     /// verdicts that agree for that long are one row, and — because a prefix
     /// matches nothing the two censuses hold — every row is a shipped literal
     /// accounted for nowhere. Written out, each row is its own accounting.
-    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 446] = [
+    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 459] = [
         ("—", "compiled catalog/"),
         (
             "—",
@@ -25746,12 +26170,16 @@ mod the_frozen_path_rule {
         ),
         ("—", "the type-wall walk is short"),
         (
-            "if offline",
+            "Stack::Offline =>",
             "skipped: --offline, and a digest is compared against a pulled image",
         ),
         (
-            "if offline",
+            "Stack::Offline =>",
             "CI never passes --offline. Where the comparison does run it can only answer for a tag that has been pulled, and `cargo xtask dev` does not pull one: compose resolves `tag@sha256:…` by the digest",
+        ),
+        (
+            "Stack::NotApplicable =>",
+            "comparing each pinned digest against what its tag resolves to",
         ),
         ("—", "skipped: {}"),
         (
@@ -25948,7 +26376,11 @@ mod the_frozen_path_rule {
         ),
         ("else", "{} stale generated file(s)"),
         (
-            "if offline",
+            "if stack == Stack::NotApplicable",
+            "corroborating the migrations against what a database has applied",
+        ),
+        (
+            "if stack == Stack::Offline",
             "skipped: --offline, so nothing corroborated the files against what a database has applied",
         ),
         (
@@ -26088,8 +26520,12 @@ mod the_frozen_path_rule {
             "a local migration's pin was compared with nothing",
         ),
         (
-            "if offline",
+            "Stack::Offline =>",
             "skipped: --offline, and how a database sorts is a property of that database",
+        ),
+        (
+            "Stack::NotApplicable =>",
+            "reading how the database sorts and encodes",
         ),
         ("Err(problem) =>", "the database would not say how it sorts"),
         (
@@ -26115,8 +26551,12 @@ mod the_frozen_path_rule {
         ),
         ("—", "a package is built from outside this repository"),
         (
-            "if offline",
+            "Stack::Offline =>",
             "skipped: --offline, and only the running log store states its own bounds",
+        ),
+        (
+            "Stack::NotApplicable =>",
+            "reading the bounds the running log store reports",
         ),
         (
             "Err(problem) =>",
@@ -26151,6 +26591,10 @@ mod the_frozen_path_rule {
             "skipped: --offline, and the journal's own protections live in the database",
         ),
         (
+            "Record::NotApplicable =>",
+            "reading the journal's own protections, which live in the database",
+        ),
+        (
             "Record::Unreachable =>",
             "skipped: no database answered, so the journal's protections were not read",
         ),
@@ -26182,6 +26626,10 @@ mod the_frozen_path_rule {
         (
             "Record::NotAsked =>",
             "skipped: --offline, so where `pg_temp` sits in the migrated functions' paths was not read",
+        ),
+        (
+            "Record::NotApplicable =>",
+            "reading where `pg_temp` sits in the migrated functions' paths",
         ),
         (
             "Record::Unreachable =>",
@@ -26430,10 +26878,6 @@ mod the_frozen_path_rule {
         ),
         ("—", "a mutation is in flight"),
         (
-            "if offline",
-            "skipped: --offline, and the stack's own tests ask docker what it resolves",
-        ),
-        (
             "if read < gates::rust_lines(root, &root.join(\"target\")).unwrap_or(0) =>",
             "the test census read {read} Rust line(s) and a second count of the tree found more: it is the floor under the number below and had none of its own, so a filter inside it makes both sides shrink together",
         ),
@@ -26459,6 +26903,14 @@ mod the_frozen_path_rule {
         ("Err(problem) =>", "no tests ran"),
         ("Err(output) =>", "tests"),
         ("Err(output) =>", "tests"),
+        (
+            "Stack::Offline =>",
+            "skipped: --offline, and the stack's own tests ask docker what it resolves",
+        ),
+        (
+            "Stack::NotApplicable =>",
+            "running the stack's own tests and the image-pin cases, which ask docker what it resolves",
+        ),
         (
             "if declared.is_empty()",
             "clippy's run has no floor: cargo did not say how many source roots this workspace has, so a step that linted nothing would print the same line as one that linted the tree",
@@ -26648,6 +27100,10 @@ mod the_frozen_path_rule {
             "{by_the_flag} step(s) named the flag as why they did not run and this run asked for {announced}: the flag names which, so a step that stopped saying it did not run is one a reader would take as having run, and one that started is a document saying the wrong number",
         ),
         (
+            "if said != inapplicable",
+            "{} part(s) of this run said they are not applicable on {} and {} are written down for it: {said:?}, against {inapplicable:?}. What applies is a property of the system, so the list is exact — on Linux it is empty, and a part standing aside there is a step the Linux job no longer judges",
+        ),
+        (
             "if unexplained > 0",
             "{unexplained} warn line(s) that are not a step announcing a skip. A step that did not run says `skipped:` and is counted as one; anything else printed as a warning is something wrong, and criterion 1 is no failures and no warnings",
         ),
@@ -26661,24 +27117,38 @@ mod the_frozen_path_rule {
         ),
         ("—", "check passed"),
         (
-            "skipped =>",
+            "(skipped, 0) =>",
             "check passed, with {skipped} warn line(s) above — a step that did not run is not a step that passed",
         ),
         ("—", "not run: {skip}"),
+        (
+            "(skipped, parts) =>",
+            "check passed, with {skipped} warn line(s) and {parts} not-applicable line(s) above — a step that did not run is not a step that passed, and the Linux job runs what does not apply on {}",
+        ),
+        ("—", "not run: {skip}"),
+        ("—", "not applicable here: {part}"),
         ("—", "database"),
         (
-            "if offline",
+            "crate::check::Stack::Offline =>",
             "skipped: --offline, and the journal's PostgreSQL tests need one",
         ),
         (
-            "if offline",
+            "crate::check::Stack::Offline =>",
             "CI never passes --offline, so those tests always run there",
+        ),
+        (
+            "crate::check::Stack::NotApplicable =>",
+            "running the PostgreSQL tests against a database",
         ),
         ("Ok(url) =>", "postgres is reachable at {}"),
         ("Err(problem) =>", "no database"),
         (
             "else",
             "{applied} migration(s) applied, and the database now holds {now} of {count} on disk",
+        ),
+        (
+            "—",
+            "the container stack, which this verb brings up and takes down",
         ),
         ("—", "dev"),
         (
@@ -27301,8 +27771,15 @@ mod the_frozen_path_rule {
     /// is made the only one there is.
     #[test]
     fn the_console_is_reached_through_its_module() {
-        /// The five ways this tool speaks, as both censuses spell them.
-        const SPOKEN: [&str; 5] = ["ok", "detail", "failure", "warn", "heading"];
+        /// The six ways this tool speaks, as both censuses spell them.
+        const SPOKEN: [&str; 6] = [
+            "ok",
+            "detail",
+            "failure",
+            "warn",
+            "heading",
+            "not_applicable",
+        ];
         /// The sources under `xtask/src`, so a walk that reached none fails.
         const THE_SOURCES: usize = 22;
 
@@ -27552,6 +28029,10 @@ mod the_frozen_path_rule {
             concat!("ui::", "failure("),
             concat!("ui::", "warn("),
             concat!("ui::", "heading("),
+            // **And a part saying it does not apply on this system**, whose
+            // sentence is chosen by the arm that hands it `Stack::NotApplicable`
+            // — two parts exchanged would each name the other's step.
+            concat!("ui::", "not_applicable("),
             concat!("failures.", "push("),
         ];
         let (mut found, mut unread) = the_console_lines(&says);
@@ -30548,7 +31029,7 @@ mod every_report_wire {
     fn the_committed_env_finding_reaches_its_call_site() {
         let held = a_tree("env", &[(".env", "SECRET=1\n")]);
         let mut failures = Vec::new();
-        super::wiring(&held.root, true, &mut failures);
+        super::wiring(&held.root, super::Stack::Offline, &mut failures);
         reported(&failures, ".env files");
     }
 
@@ -30630,7 +31111,7 @@ mod every_report_wire {
             ],
         );
         let mut failures = Vec::new();
-        super::bounds(&held.root, true, &mut failures);
+        super::bounds(&held.root, super::Stack::Offline, &mut failures);
         reported(&failures, "migration numbering");
     }
 
@@ -30774,7 +31255,12 @@ mod every_report_wire {
             )],
         );
         let mut failures = Vec::new();
-        super::how_names_resolve(&held.root, true, super::Record::NotAsked, &mut failures);
+        super::how_names_resolve(
+            &held.root,
+            super::Stack::Offline,
+            super::Record::NotAsked,
+            &mut failures,
+        );
         reported(&failures, "migration name resolution");
     }
 
@@ -30919,6 +31405,12 @@ mod every_report_wire {
     /// needs a container runtime on the machine.
     #[test]
     fn the_image_pin_finding_reaches_its_call_site() {
+        if let Some(why) =
+            crate::check::docker_stands_aside("the_image_pin_finding_reaches_its_call_site")
+        {
+            println!("{why}");
+            return;
+        }
         let held = a_tree(
             "images",
             &[(
@@ -30927,7 +31419,7 @@ mod every_report_wire {
             )],
         );
         let mut failures = Vec::new();
-        super::the_images_are_pinned(&held.root, false, &mut failures);
+        super::the_images_are_pinned(&held.root, super::Stack::Asked, &mut failures);
         reported(&failures, "image pins");
     }
 }
@@ -41990,7 +42482,7 @@ impl<T: Shown> Shown for Option<T> {
     /// it.** The script exports [`super::CHECKOUT_SHAPE_GUARD`] above the
     /// `cargo xtask check` it runs inside its copy; that `check` runs
     /// `cargo test --workspace`, whose `cargo_with` sets or clears
-    /// `DATABASE_URL`, `NC_OFFLINE` and `CARGO_TERM_COLOR`, removes every
+    /// `DATABASE_URL`, `NC_NO_STACK` and `CARGO_TERM_COLOR`, removes every
     /// variable beginning `PROPTEST_`, and passes the rest of the environment
     /// through — so the name reaches the test binary, and the test binary
     /// drives this script again to prove its guards. A drive that does not

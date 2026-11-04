@@ -16,7 +16,16 @@ const BAD: Style = Style::new()
     .fg_color(Some(anstyle::Color::Ansi(AnsiColor::Red)))
     .bold();
 const WARN: Style = Style::new().fg_color(Some(anstyle::Color::Ansi(AnsiColor::Yellow)));
+/// A part this system does not run: neither good nor bad, and not a warning.
+const ASIDE: Style = Style::new().fg_color(Some(anstyle::Color::Ansi(AnsiColor::Cyan)));
 const DIM: Style = Style::new().dimmed();
+
+/// The system this tool was built for, by the name a not-applicable line gives
+/// it: `linux`, `macos` or `windows`.
+///
+/// A name to print and nothing more. Whether a step applies here is decided
+/// once, by `check::RUNS_THE_STACK`, and never by comparing this string.
+pub(crate) const SYSTEM: &str = std::env::consts::OS;
 
 /// Opens a section. Nothing else in this tool prints at column zero, so a
 /// heading is what a reader's eye finds when scrolling a long run.
@@ -112,6 +121,42 @@ pub(crate) fn warn(text: &str) {
         }
     }
     anstream::println!("  {WARN}warn{WARN:#}  {}", aligned(text));
+}
+
+/// A part of the gate that this system does not run, by name.
+///
+/// **Its own kind, not a `warn` and not a skip.** A skip is a step that could
+/// have run here and did not, because the caller asked or because what it
+/// reads is absent; this is a step that never runs on this system at all —
+/// the ones that need the container stack, which only the Linux job brings up
+/// (`NOCTUA.md §22.2`). Printed as a `warn`, every macOS and Windows run would
+/// end `with N warn line(s)` over steps nobody could have run there, and the
+/// number a reader uses to see that something was skipped would mean two
+/// things.
+///
+/// **Counted, and by what it says.** `check::finish` holds the parts this run
+/// printed against the list written for the system, exactly: none on Linux,
+/// where every step runs, and every part that needs the stack elsewhere — so a
+/// part cannot start standing aside on Linux, or stop saying so elsewhere,
+/// with the verdict unchanged.
+pub(crate) fn not_applicable(what: &str) {
+    let _printing = while_printing();
+    if let Ok(mut said) = NOT_APPLICABLE.lock() {
+        said.push(what.to_owned());
+    }
+    let text = format!("not applicable on {SYSTEM}: {what}, and the Linux job runs it");
+    anstream::println!("  {ASIDE}n/a{ASIDE:#}   {}", aligned(&text));
+}
+
+/// What each not-applicable line said, in the order they were printed.
+static NOT_APPLICABLE: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+
+/// The parts of the gate this run said do not apply on this system.
+pub(crate) fn not_applicable_parts() -> Vec<String> {
+    NOT_APPLICABLE
+        .lock()
+        .map(|said| said.clone())
+        .unwrap_or_default()
 }
 
 /// How many of the warnings were a step announcing it did not run.
@@ -372,6 +417,9 @@ pub(crate) fn forget_counts() {
     SKIPS.store(0, core::sync::atomic::Ordering::Relaxed);
     if let Ok(mut announced) = ANNOUNCED.lock() {
         announced.clear();
+    }
+    if let Ok(mut said) = NOT_APPLICABLE.lock() {
+        said.clear();
     }
 }
 
@@ -858,7 +906,7 @@ mod tests {
         /// failure spells out: source added is ordinary work and the number goes
         /// up with it, but source *deleted* and a class *exempted* look
         /// identical from here, and only one of them is something to accept.
-        const THE_GROUND_THIS_READS: usize = 64_331;
+        const THE_GROUND_THIS_READS: usize = 64_546;
 
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let mut directories = vec![root.join("xtask/src")];
@@ -1150,6 +1198,27 @@ mod tests {
         );
     }
 
+    /// A not-applicable line is recorded by what it says, and is neither a
+    /// warning nor a skip.
+    #[test]
+    fn a_part_not_applicable_is_counted_apart() {
+        let _printing = super::printing();
+        let (warnings, skips) = (super::warnings(), super::skips());
+        let before = super::not_applicable_parts().len();
+        super::not_applicable("a probe part, which this system does not run");
+        assert_eq!(
+            (super::warnings(), super::skips()),
+            (warnings, skips),
+            "a part that does not apply here was counted as a warning or a skip"
+        );
+        let said = super::not_applicable_parts();
+        assert_eq!(said.len(), before + 1, "the line was not recorded");
+        assert_eq!(
+            said.last().map(String::as_str),
+            Some("a probe part, which this system does not run")
+        );
+    }
+
     #[test]
     fn a_message_with_a_line_break_keeps_the_message_column() {
         // **Both of this module's rules, broken by one `\n`.** Unindented, the
@@ -1176,6 +1245,7 @@ mod tests {
         assert_eq!(super::MESSAGE, "  error ".len());
         assert_eq!(super::MESSAGE, "  ok    ".len());
         assert_eq!(super::MESSAGE, "  warn  ".len());
+        assert_eq!(super::MESSAGE, "  n/a   ".len());
 
         // An ordinary message is untouched, because a function that rewrote
         // every line would be worse than the defect.
@@ -1546,11 +1616,18 @@ mod tests {
             .split_once("\nmod tests {")
             .expect("the test module is below")
             .0;
-        for printer in ["fn ok(", "fn failure(", "fn warn(", "fn detail("] {
+        for printer in [
+            "fn ok(",
+            "fn failure(",
+            "fn warn(",
+            "fn detail(",
+            "fn not_applicable(",
+        ] {
             let from = body.find(printer).unwrap_or_else(|| panic!("{printer}"));
             let ends = body[from..].find("\n}").unwrap_or(body.len() - from);
             assert!(
-                body[from..from + ends].contains("aligned(text)"),
+                body[from..from + ends].contains("aligned(text)")
+                    || body[from..from + ends].contains("aligned(&text)"),
                 "`{printer}` prints its text without aligning it, so a message with a \
                  line break in it starts its second line at column zero — where this \
                  module says only headings live"
@@ -1664,7 +1741,8 @@ mod tests {
                 }
                 let reads = body.contains("warnings()")
                     || body.contains("skips()")
-                    || body.contains("skips_because(");
+                    || body.contains("skips_because(")
+                    || body.contains("not_applicable_parts()");
                 if reads && !body.contains("printing()") {
                     let found = format!("{named}:{name}");
                     unheld.push(found);

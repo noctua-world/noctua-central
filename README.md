@@ -95,6 +95,10 @@ what CI runs.
 `OFFLINE_SKIPS` in `xtask/src/check.rs` holds that number, and
 `the_documents_agree_about_what_offline_skips` holds this list to it.
 
+On macOS and Windows no stack runs (`NOCTUA.md §22.2`), so every one of those steps but
+the advisory database says it is not applicable on that system, by name, and that the
+Linux job runs it; the verdict names each one, and on Linux it holds the run to none.
+
 ## What is here
 
 | Path | What it is |

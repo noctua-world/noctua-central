@@ -299,6 +299,14 @@ rather than silent. It exists for a fast loop while editing, and **CI never pass
 (`NOCTUA.md §19.4`). `OFFLINE_SKIPS` in `xtask/src/check.rs` holds the number, and a test
 holds this file, `README.md`, the `justfile` and `--help` to it.
 
+**On macOS and Windows the steps that need the container stack are not applicable**
+(`NOCTUA.md §22.2`): every one of those skips but the advisory database prints a line of
+its own kind — not applicable on the system, what it is, and that the Linux job runs it —
+instead of running, the PostgreSQL suites and the stack's own tests stand aside saying the
+same, and `cargo xtask dev` says so and changes nothing. Which parts those are is
+`THE_STACKS_PARTS` in `xtask/src/check.rs`, and the verdict holds a run to that list
+exactly, which on Linux is empty.
+
 **`build` is not a subset of `check`.** `build` compiles the catalog and writes what
 changed in under a second, with first-rate diagnostics, and does not cross-reference the
 catalog against anything outside `catalog/`; only `check` reads `migrations/`, `policy/`
@@ -1806,6 +1814,12 @@ rather than anything decided for the project, and each is a maintainer's to reop
   and `--offline` adds its own **nine** on top — the one figure here read from a constant,
   `OFFLINE_SKIPS`. A run with no workspace above it is not distinguishable *by the number*
   from one where the section gate broke, which is why the names are printed.
+- **On macOS and Windows the stack's steps do not run at all**: the journal's protections,
+  the migration record, the log store's bounds, the database's sort order, the digest
+  comparison, the PostgreSQL suites and the stack's own tests are the Linux job's alone,
+  and each says so on those systems, named beside the verdict as `not applicable here:`.
+  A defect that shows only with the stack on macOS or Windows is caught by nothing, and no
+  stack is run there by decision (`NOCTUA.md §22.2`).
 - **`.github/workflows/ci.yml` has never run**: there is no repository for it until
   Stage 12. It is committed so that CI and a developer cannot drift into two gates, and a
   gate reads it as a document ("CI's one gate reaches every file CI can reach"); unknown
@@ -2089,12 +2103,26 @@ one that does. Each door is granted, in a scratch schema to a role named for the
 and its number must move; `superusers=` cannot be given a control safely and has a second
 reader instead.
 
-### A test that needs a database reads `NC_OFFLINE`, not a port probe
+### A test that needs a database reads `NC_NO_STACK`, not a port probe
 
 `url()` falls back to a default and probes the port, so a test guarded by it would connect
 under `--offline` and run its DDL against the developer's own stack. The flag is the only
 thing that means "do not touch a database", and no database is a failure here, not a skip:
-`eprintln!` is captured, so a skipped control is one nobody saw not run.
+`eprintln!` is captured, so a skipped control is one nobody saw not run. The gate sets it
+under `--offline` and on a system that runs no stack, and its value is the reason —
+`--offline`, or `not applicable on <system>` — so a suite says in its own output which.
+
+### Not applicable is a property of the system, never of the machine
+
+`RUNS_THE_STACK` in `xtask/src/check.rs` asks the target `xtask` was compiled for, and
+nothing else in this tool asks which system it is on (`NOCTUA.md §2.7`). That is the
+security answer for this kind of line: a probe for docker would make a Linux machine with
+its stack down read as a system the stack does not apply to, and every step that needs it
+would stand aside there quietly — so the answer is fixed when the tool is built, a flag
+cannot ask for it, and `finish` refuses any not-applicable line on Linux and, elsewhere,
+any list but `THE_STACKS_PARTS`, in order. A part added to the stack's steps is a row
+there and a sentence at its call site, which `every_part_of_the_stack_says_why_it_stands_aside`
+holds to each other.
 
 ### Two tallies are not a pairing
 
