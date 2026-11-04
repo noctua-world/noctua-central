@@ -326,6 +326,13 @@ pub(crate) fn link_directory(target: &Path, link: &Path) -> io::Result<()> {
     std::os::unix::fs::symlink(target, link)
 }
 
+/// A symbolic link at `link` to the directory `target`: the one link a
+/// directory takes here, as [`link_directory`] makes it.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn symlink_directory(target: &Path, link: &Path) -> io::Result<()> {
+    std::os::unix::fs::symlink(target, link)
+}
+
 /// The device and the inode of `path`.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn identity(path: &Path) -> io::Result<(u64, u64)> {
@@ -388,4 +395,11 @@ pub(crate) fn every_way_its_owner_lacks(kind: Kind) -> Vec<Opening> {
         Kind::File => vec![Opening(0o400), Opening(0o200)],
         Kind::Directory => vec![Opening(0o600), Opening(0o500), Opening(0o300)],
     }
+}
+
+/// None: a mode grants or withholds each bit, and has no way to deny one
+/// that leaves the path private with everything its owner needs.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) const fn every_harmless_restriction(_kind: Kind) -> Vec<Opening> {
+    Vec::new()
 }

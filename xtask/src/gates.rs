@@ -6025,10 +6025,15 @@ const LINT_GROUPS: [&str; 26] = [
     // can write `#![allow(missing_docs)]` — or put `unreachable_pub` or
     // `missing_debug_implementations` down for its whole tree — and this gate
     // says nothing, while `Cargo.toml` sets all three to `warn` and the verdict
-    // counts warnings. `unsafe_code` is not here because it is `forbid`, which
-    // Rust does not let an inner attribute downgrade: allowing it is a compile
-    // error rather than a silence, and listing it would be a rule about
-    // something that cannot happen.
+    // counts warnings. `unsafe_code` is not here. In every member but one it
+    // is `forbid`, which Rust does not let an inner attribute downgrade:
+    // allowing it is a compile error rather than a silence. In `nc-platform`
+    // it is `deny`, so an allow of it there compiles silently — and the outer
+    // allow on its Windows module is the one that must, which listing it here
+    // would refuse. What refuses `unsafe` in any other file of that crate, or
+    // of this tree, is the walk over the keyword itself,
+    // `no_unsafe_is_written_in_any_rust_file_of_this_tree`, with that module
+    // its one named exception.
     "missing_docs",
     "unreachable_pub",
     "missing_debug_implementations",

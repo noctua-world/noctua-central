@@ -570,8 +570,41 @@ mod tests {
         }
     }
 
+    /// A path whose list takes away only what the store never needs is still
+    /// private, and is judged so and left as it was.
+    ///
+    /// **A deny entry takes nothing from the rule**, and one only what is made
+    /// inside a directory inherits takes nothing from the directory: a judge
+    /// that refused either would refuse a path that is this user's alone.
+    #[test]
+    fn a_restriction_that_takes_nothing_the_store_needs_is_accepted() {
+        let scratch = Scratch::new("restricted");
+        let user = user_in(&scratch.0).expect("private");
+        let file = scratch.0.join("f");
+        drop(super::create_private(&file).expect("a file"));
+        for (path, kind) in [(&file, Kind::File), (&scratch.0, Kind::Directory)] {
+            for restriction in testing::every_harmless_restriction(kind) {
+                let said = restriction.apply(path).expect("staged");
+                let before = testing::access(path).expect("readable");
+                let verdict = judge(path, kind, &user);
+                let found = (kind == Kind::Directory).then(|| user_in(path));
+                let after = testing::access(path).expect("readable");
+                testing::make_private(path).expect("private again");
+                assert!(verdict.is_ok(), "{kind:?}, {said}: {verdict:?}");
+                if let Some(found) = found {
+                    let found = found.unwrap_or_else(|judged| panic!("{said}: {judged}"));
+                    assert_eq!(found, user, "{said}: its user");
+                }
+                assert_eq!(after, before, "{said}: a judged path was changed");
+            }
+        }
+    }
+
     /// A link is refused as a link, whatever it points at: a file, a
     /// directory, or nothing.
+    ///
+    /// **A directory by both doors**, since on Windows a junction and a
+    /// directory's symbolic link are reparse points of two tags.
     #[test]
     fn a_link_is_refused_however_it_points() {
         let scratch = Scratch::new("links");
@@ -584,21 +617,26 @@ mod tests {
         testing::link_file(&file, &to_a_file).expect("a link");
         let to_a_directory = scratch.0.join("to-a-directory");
         testing::link_directory(&directory, &to_a_directory).expect("a link");
+        let symlinked = scratch.0.join("symlinked-to-a-directory");
+        testing::symlink_directory(&directory, &symlinked).expect("a symbolic link");
         let to_nothing = scratch.0.join("to-nothing");
         testing::link_file(&scratch.0.join("nothing"), &to_nothing).expect("a link");
         for (link, kind) in [
             (&to_a_file, Kind::File),
             (&to_a_directory, Kind::Directory),
+            (&symlinked, Kind::Directory),
             (&to_nothing, Kind::File),
         ] {
             let refused = refused(judge(link, kind, &user));
             assert!(refused.contains("symbolic link"), "{refused}");
         }
-        let refused = match user_in(&to_a_directory) {
-            Err(Judged::Refused(refused)) => refused.to_string(),
-            other => panic!("refused, and it was {other:?}"),
-        };
-        assert!(refused.contains("symbolic link"), "{refused}");
+        for link in [&to_a_directory, &symlinked] {
+            let refused = match user_in(link) {
+                Err(Judged::Refused(refused)) => refused.to_string(),
+                other => panic!("refused, and it was {other:?}"),
+            };
+            assert!(refused.contains("symbolic link"), "{refused}");
+        }
     }
 
     /// A path that is not there is a failure that says so, not a refusal.
@@ -620,6 +658,11 @@ mod tests {
 
     /// A directory held once is held: a second hold waits until the first
     /// lets go, and the lock leaves nothing that is not private.
+    ///
+    /// **And a lock file only where a file is what holds the directory**: a
+    /// hold that locks the directory itself makes nothing at the name it is
+    /// handed, and one that did would leave a file in the profile that the
+    /// suites reading it by name would take for the lock.
     #[test]
     fn a_directory_held_is_held_until_it_is_let_go() {
         let scratch = Scratch::new("held");
@@ -628,6 +671,11 @@ mod tests {
         assert!(
             testing::is_held(&scratch.0, "lock"),
             "held, and nothing holds it"
+        );
+        assert_eq!(
+            std::fs::symlink_metadata(scratch.0.join("lock")).is_ok(),
+            testing::HOLDS_THROUGH_A_FILE,
+            "a lock file is made where a file is the hold, and only there"
         );
         let (took, taken) = std::sync::mpsc::channel();
         let waiting = {
@@ -653,10 +701,17 @@ mod tests {
             !testing::is_held(&scratch.0, "lock"),
             "nothing holds it now"
         );
+        let mut left = 0_usize;
         for entry in std::fs::read_dir(&scratch.0).expect("readable") {
             let path = entry.expect("an entry").path();
             judge(&path, Kind::File, &user).expect("what the lock leaves is private");
+            left += 1;
         }
+        assert_eq!(
+            left,
+            usize::from(testing::HOLDS_THROUGH_A_FILE),
+            "two holds left more than their one lock file, or one where none is the hold"
+        );
     }
 
     /// A lock file that is not the user's alone is refused, and left as it

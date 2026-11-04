@@ -106,6 +106,16 @@ async fn a_missing_directory_and_file_are_created_private() {
             .all(|name| name.starts_with(nc_local::FILE_NAME)),
         "the owner probe was left behind: {names:?}"
     );
+    let lock = profile.join(nc_local::LOCK_NAME);
+    assert_eq!(
+        names.iter().any(|name| name == nc_local::LOCK_NAME),
+        testing::HOLDS_THROUGH_A_FILE,
+        "a lock file is left where a file holds the profile, and only there: {names:?}"
+    );
+    assert!(
+        !testing::HOLDS_THROUGH_A_FILE || testing::is_as_created(&lock),
+        "the lock file"
+    );
     store.close().await;
 }
 
@@ -234,16 +244,35 @@ async fn a_linked_file_is_refused() {
 }
 
 /// A link where the directory should be is refused, wherever it points.
+///
+/// **Made by both doors**: on Windows a junction and a directory's symbolic
+/// link are reparse points of two tags, and on Unix the two are one link.
 #[tokio::test]
 async fn a_linked_directory_is_refused() {
+    /// A door that makes a link at its second path to the directory at its first.
+    type Door = fn(&Path, &Path) -> std::io::Result<()>;
+
     let scratch = Scratch::new("directory-link");
     let real = scratch.0.join("real");
     LocalStore::open(&real).await.expect("opens").close().await;
-    let profile = scratch.profile();
-    testing::link_directory(&real, &profile).expect("a link");
-    let error = refused(&profile).await;
-    assert_eq!(error.code(), ErrorCode::DbLocalOpenRefused, "{error}");
-    assert!(error.to_string().contains("symbolic link"), "{error}");
+    let doors: [(&str, Door); 2] = [
+        ("linked", testing::link_directory),
+        ("symlinked", testing::symlink_directory),
+    ];
+    for (name, link) in doors {
+        let profile = scratch.0.join(name);
+        link(&real, &profile).expect("a link");
+        let error = refused(&profile).await;
+        assert_eq!(
+            error.code(),
+            ErrorCode::DbLocalOpenRefused,
+            "{name}: {error}"
+        );
+        assert!(
+            error.to_string().contains("symbolic link"),
+            "{name}: {error}"
+        );
+    }
 }
 
 /// A companion that is a link is refused before SQLite follows it.
@@ -629,7 +658,7 @@ async fn another_applications_database_is_refused_and_left_alone() {
                 .to_string_lossy()
                 .into_owned()
         })
-        .filter(|name| name != nc_local::LOCK_NAME)
+        .filter(|name| !is_the_lock_file(name))
         .collect();
     assert_eq!(beside, [nc_local::FILE_NAME], "{beside:?}");
     let mut connection = raw(&profile).await;
@@ -1361,16 +1390,26 @@ fn names_in(directory: &Path) -> Vec<String> {
     names
 }
 
+/// Whether `name` is the profile's lock file, which an open leaves beside the
+/// file where a file is what holds the profile: on Windows, which locks no
+/// directory.
+///
+/// **Nowhere else is any name the lock**, so on a system that locks the
+/// directory itself a file at `nc_local::LOCK_NAME` is something the open
+/// made, and every listing here sees it.
+fn is_the_lock_file(name: &str) -> bool {
+    testing::HOLDS_THROUGH_A_FILE && name == nc_local::LOCK_NAME
+}
+
 /// The file, and each companion SQLite keeps beside it, as they stand: by
 /// name, byte for byte.
 ///
-/// **Not the profile's lock** (`nc_local::LOCK_NAME`), which a system that
-/// locks no directory keeps beside the file once it has been opened: it holds
-/// nothing, and is no companion of SQLite's.
+/// **Not the profile's lock file** ([`is_the_lock_file`]), where a file is
+/// what holds the profile: it holds nothing, and is no companion of SQLite's.
 fn as_it_stands(profile: &Path) -> Vec<(String, Vec<u8>)> {
     names_in(profile)
         .into_iter()
-        .filter(|name| name != nc_local::LOCK_NAME)
+        .filter(|name| !is_the_lock_file(name))
         .map(|name| {
             let bytes = std::fs::read(profile.join(&name)).expect("readable");
             (name, bytes)
@@ -1630,7 +1669,7 @@ async fn a_file_beside_a_hot_journal_is_refused_and_left_as_it_stood() {
     assert_eq!(
         as_it_stands(&profile).len(),
         before.len(),
-        "nothing was made beside them but the profile's lock"
+        "a file was made beside them other than the lock a profile held through a file keeps"
     );
 }
 

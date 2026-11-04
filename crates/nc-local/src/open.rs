@@ -328,6 +328,43 @@ mod tests {
         );
     }
 
+    /// A link where the blobs' directory should be is refused as a link, made
+    /// by either door, and the directory it points at is left as it was.
+    ///
+    /// **Both doors**, since on Windows a junction and a directory's symbolic
+    /// link are reparse points of two tags; on Unix the two are one link.
+    #[test]
+    fn a_linked_blobs_directory_is_refused_however_it_is_linked() {
+        /// A door that makes a link at its second path to the directory at its first.
+        type Door = fn(&std::path::Path, &std::path::Path) -> std::io::Result<()>;
+
+        let scratch = Scratch::new("blob-link");
+        let real = scratch.0.join("real");
+        super::blob_directory(&real).expect("made");
+        let before = nc_platform::testing::access(&real).expect("readable");
+        let doors: [(&str, Door); 2] = [
+            ("linked", nc_platform::testing::link_directory),
+            ("symlinked", nc_platform::testing::symlink_directory),
+        ];
+        for (name, link) in doors {
+            let linked = scratch.0.join(name);
+            link(&real, &linked).expect("a link");
+            let refused = super::blob_directory(&linked).expect_err("a link is refused");
+            let crate::LocalError::Refused(why) = &refused else {
+                panic!("{name}: refused as not private, and it was {refused:?}");
+            };
+            assert!(
+                why.contains("symbolic link") && why.contains("so the blobs were not opened"),
+                "{name}: {refused}"
+            );
+        }
+        assert_eq!(
+            nc_platform::testing::access(&real).expect("readable"),
+            before,
+            "the directory a refused link points at was changed"
+        );
+    }
+
     /// The blobs' directory is held to the database's rule, and its refusal
     /// says the directory is the blobs'.
     ///

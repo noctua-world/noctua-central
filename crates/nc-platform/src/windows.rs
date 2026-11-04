@@ -70,7 +70,7 @@ use windows_sys::Win32::Storage::FileSystem::{
     FILE_SHARE_WRITE, FILE_TRAVERSE, FILE_WRITE_ATTRIBUTES, READ_CONTROL,
 };
 #[cfg(any(test, feature = "test-support"))]
-use windows_sys::Win32::Storage::FileSystem::{WRITE_DAC, WRITE_OWNER};
+use windows_sys::Win32::Storage::FileSystem::{SYNCHRONIZE, WRITE_DAC, WRITE_OWNER};
 use windows_sys::Win32::System::SystemServices::{
     ACCESS_ALLOWED_ACE_TYPE, ACCESS_DENIED_ACE_TYPE, SECURITY_DESCRIPTOR_REVISION,
 };
@@ -1185,6 +1185,13 @@ pub(crate) fn link_file(target: &Path, link: &Path) -> io::Result<()> {
     std::os::windows::fs::symlink_file(target, link)
 }
 
+/// A directory's symbolic link at `link` to `target`: a reparse point of
+/// another tag than a junction, which needs the privilege to make one.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn symlink_directory(target: &Path, link: &Path) -> io::Result<()> {
+    std::os::windows::fs::symlink_dir(target, link)
+}
+
 /// A junction at `link` to the directory `target`: `mklink /J`, which needs
 /// no privilege, where a symbolic link to a directory does.
 #[cfg(any(test, feature = "test-support"))]
@@ -1286,8 +1293,23 @@ enum How {
     Denies(u32),
     /// The user's one entry allowing `mask` and nothing more.
     Grants(u32),
+    /// Every right granted the user only for what is made inside the directory.
+    ///
+    /// On the directory itself it is granted no more than reading its
+    /// attributes and its security, which judging it takes.
+    OnlyInherited,
     /// The private list, and the file marked read-only.
     ReadOnly,
+    /// The private list, and an entry before it denying `sid` the rights `mask`
+    /// with the inheritance `flags`: a restriction taking nothing the store needs.
+    Restricts {
+        /// Whom it denies.
+        sid: Sid,
+        /// What it denies.
+        mask: u32,
+        /// Its inheritance flags.
+        flags: u32,
+    },
 }
 
 /// The type a conditional entry is written with, and its refusal names.
@@ -1378,6 +1400,25 @@ pub(crate) fn apply(opening: &Opening, path: &Path) -> io::Result<String> {
             )];
             lacking(opening.kind).to_owned()
         }
+        How::OnlyInherited => {
+            // **Reading the path's attributes, granted on the path itself**,
+            // because the judge opens it to read them: without that the open
+            // would fail rather than the judge refuse, and an access list
+            // whose every right is inherited alone would never be judged.
+            entries = vec![
+                Ace::allow(
+                    user.sid.clone(),
+                    READ_CONTROL | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+                    0,
+                ),
+                Ace::allow(
+                    user.sid.clone(),
+                    EVERYTHING,
+                    inherited_by(opening.kind) | INHERIT_ONLY_ACE,
+                ),
+            ];
+            lacking(opening.kind).to_owned()
+        }
         How::ReadOnly => {
             set_security(path, &user.sid, Some(&entries))?;
             set_read_only(path, true)?;
@@ -1385,6 +1426,18 @@ pub(crate) fn apply(opening: &Opening, path: &Path) -> io::Result<String> {
                 "is marked read-only, which {}",
                 lacking(opening.kind)
             ));
+        }
+        How::Restricts { sid, mask, flags } => {
+            entries.insert(
+                0,
+                Ace::Known {
+                    allows: false,
+                    flags: *flags,
+                    mask: *mask,
+                    sid: sid.clone(),
+                },
+            );
+            format!("an entry denying {sid} the rights {mask:#x}, with the flags {flags:#x}")
         }
     };
     set_security(path, &user.sid, Some(&entries))?;
@@ -1413,7 +1466,10 @@ pub(crate) fn every_way_another_user_can_reach(kind: Kind) -> Vec<Opening> {
 }
 
 /// Each right the store needs of a `kind` denied alone, an entry granting
-/// reading alone, and, on a file, the read-only mark.
+/// reading alone, and one more way for each kind.
+///
+/// On a directory every right granted only to what is made inside it; on a
+/// file the read-only mark.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) fn every_way_its_owner_lacks(kind: Kind) -> Vec<Opening> {
     use windows_sys::Win32::Storage::FileSystem::{FILE_READ_DATA, FILE_WRITE_DATA};
@@ -1430,8 +1486,42 @@ pub(crate) fn every_way_its_owner_lacks(kind: Kind) -> Vec<Opening> {
     };
     let mut ways: Vec<How> = denied.iter().map(|mask| How::Denies(*mask)).collect();
     ways.push(How::Grants(FILE_GENERIC_READ | FILE_TRAVERSE));
-    if kind == Kind::File {
-        ways.push(How::ReadOnly);
+    match kind {
+        Kind::Directory => ways.push(How::OnlyInherited),
+        Kind::File => ways.push(How::ReadOnly),
     }
     ways.into_iter().map(|how| Opening { kind, how }).collect()
+}
+
+/// A deny entry for `Everyone` of a right the store never asks of a `kind` —
+/// a file's execution, a directory's extended attributes — and, on a
+/// directory, one denying the execution of every file made in it, which only
+/// those files inherit.
+///
+/// **A judge that refused any deny entry refuses each of these**, and one
+/// that read an entry only what is made inside inherits as the directory's
+/// own refuses the last: execution is the right that is traversal on a
+/// directory, which the store needs.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn every_harmless_restriction(kind: Kind) -> Vec<Opening> {
+    use windows_sys::Win32::Storage::FileSystem::{FILE_EXECUTE, FILE_WRITE_EA};
+
+    let restrictions = match kind {
+        Kind::File => vec![(FILE_EXECUTE, 0)],
+        Kind::Directory => vec![
+            (FILE_WRITE_EA, 0),
+            (FILE_EXECUTE, OBJECT_INHERIT_ACE | INHERIT_ONLY_ACE),
+        ],
+    };
+    restrictions
+        .into_iter()
+        .map(|(mask, flags)| Opening {
+            kind,
+            how: How::Restricts {
+                sid: everyone(),
+                mask,
+                flags,
+            },
+        })
+        .collect()
 }

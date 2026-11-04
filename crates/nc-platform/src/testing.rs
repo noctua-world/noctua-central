@@ -137,6 +137,20 @@ pub fn link_directory(target: &Path, link: &Path) -> io::Result<()> {
     imp::link_directory(target, link)
 }
 
+/// A symbolic link at `link` to the directory `target`, on every system.
+///
+/// On Windows a directory's symbolic link is a reparse point of another tag
+/// than the junction [`link_directory`] makes there, and needs the privilege
+/// to make symbolic links; on Unix the two doors make one link.
+///
+/// # Errors
+///
+/// [`io::Error`] as the system answered it: on Windows, for a process that
+/// may not make symbolic links.
+pub fn symlink_directory(target: &Path, link: &Path) -> io::Result<()> {
+    imp::symlink_directory(target, link)
+}
+
 /// Which file `path` is, as two readings compare: the same answer is the same
 /// file, kept or renamed, and another is a file made in its place.
 ///
@@ -167,12 +181,14 @@ pub fn stopped_by_abort(status: std::process::ExitStatus) -> bool {
     imp::stopped_by_abort(status)
 }
 
-/// One way a path can be not this user's alone, staged on demand.
+/// One way a path can be not this user's alone, or a restriction that leaves
+/// it so, staged on demand.
 #[derive(Debug, Clone)]
 pub struct Opening(imp::Opening);
 
 impl Opening {
-    /// Stages this on `path`, and answers the words its refusal says.
+    /// Stages this on `path`, and answers the words its refusal says — for
+    /// a harmless restriction, which no refusal names, what was staged.
     ///
     /// # Errors
     ///
@@ -198,11 +214,25 @@ pub fn every_way_another_user_can_reach(kind: Kind) -> Vec<Opening> {
 /// Every way the owner of a path of `kind` can lack what the store needs.
 ///
 /// One at a time: on Unix each owner bit alone; on Windows each right denied
-/// alone, an entry granting less than all of them, and on a file the
-/// read-only mark.
+/// alone, an entry granting less than all of them, on a directory every right
+/// granted only to what is made inside it, and on a file the read-only mark.
 #[must_use]
 pub fn every_way_its_owner_lacks(kind: Kind) -> Vec<Opening> {
     imp::every_way_its_owner_lacks(kind)
+        .into_iter()
+        .map(Opening)
+        .collect()
+}
+
+/// Every restriction a path of `kind` can carry that keeps it private and
+/// takes nothing the store needs, so a path under it is still judged private.
+///
+/// One at a time: on Windows a deny entry for `Everyone` of a right the store
+/// never asks of the path, and on a directory one that only the files made
+/// inside it inherit; on Unix none, since a mode has no way to deny.
+#[must_use]
+pub fn every_harmless_restriction(kind: Kind) -> Vec<Opening> {
+    imp::every_harmless_restriction(kind)
         .into_iter()
         .map(Opening)
         .collect()
