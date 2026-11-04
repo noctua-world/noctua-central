@@ -85,6 +85,12 @@ pub(crate) fn run(root: &Path, offline: bool) -> Result<(), String> {
     let mut failures: Vec<String> = Vec::new();
 
     ui::heading("wiring");
+    // **Before anything asks cargo for the graph**, and only when the network
+    // may be used: under `--offline` nothing is fetched, and a package missing
+    // here is named by the step that needed it (`members::metadata`).
+    if !offline {
+        the_packages_the_lockfile_names_are_here(root, &mut failures);
+    }
     wiring(root, offline, &mut failures);
 
     ui::gap();
@@ -149,6 +155,77 @@ pub(crate) fn run(root: &Path, offline: bool) -> Result<(), String> {
         failures.push("a step did not run".to_owned());
     }
     finish(&failures, if offline { OFFLINE_SKIPS } else { 0 })
+}
+
+/// Downloads every package the lockfile names, before any step reads the graph.
+///
+/// **A fresh clone holds only what its first build fetched.** `cargo xtask`
+/// builds this tool and nothing else, so a package only another member needs
+/// is not on the machine yet — and `members::metadata` asks cargo for the graph
+/// with `--offline`, which then fails, and every gate scoped by the members
+/// fails after it: on a fresh runner, the formatter, clippy and rustdoc floors,
+/// the alias scope, the plugin build, and every kernel test that loads the
+/// reference plugin.
+///
+/// **In the gate and not in CI**, because CI runs what a developer runs
+/// (`NOCTUA.md §19.4`): a step in the workflow would fix CI and leave a fresh
+/// clone failing the same way.
+///
+/// **`--locked`, so it fetches exactly what the lockfile says.** Cargo refuses
+/// to change a lockfile that is behind its manifests, and checks every download
+/// against the checksum the lockfile records, so this adds nothing to the build
+/// that the lockfile does not already name. Under `--offline` it is not called.
+fn the_packages_the_lockfile_names_are_here(root: &Path, failures: &mut Vec<String>) {
+    let named = std::fs::read_to_string(root.join("Cargo.lock"))
+        .map_err(|error| format!("Cargo.lock could not be read: {error}"))
+        .and_then(|text| from_a_registry(&text));
+    let named = match named {
+        Ok(named) => named,
+        Err(problem) => {
+            ui::failure(&problem);
+            failures.push("the packages the lockfile names could not be counted".to_owned());
+            return;
+        }
+    };
+    match cargo(root, &["fetch", "--locked"]) {
+        Ok(_) => ui::ok(&format!(
+            "cargo fetch --locked: the {named} package(s) the lockfile names from a registry \
+             are here"
+        )),
+        Err(output) => {
+            ui::failure(
+                "cargo fetch --locked could not download what the lockfile names, so every \
+                 step that reads the members fails after it",
+            );
+            for line in what_cargo_said(&output) {
+                ui::detail(line);
+            }
+            failures.push("the packages the lockfile names could not be fetched".to_owned());
+        }
+    }
+}
+
+/// How many packages a lockfile names from a registry, which is what a fetch
+/// downloads.
+///
+/// The members and the path packages are not counted: they are this tree, and
+/// nothing fetches them.
+fn from_a_registry(lockfile: &str) -> Result<usize, String> {
+    let parsed: toml::Value =
+        toml::from_str(lockfile).map_err(|error| format!("Cargo.lock is not TOML: {error}"))?;
+    let packages = parsed
+        .get("package")
+        .and_then(toml::Value::as_array)
+        .ok_or_else(|| "Cargo.lock names no package at all".to_owned())?;
+    Ok(packages
+        .iter()
+        .filter(|package| {
+            package
+                .get("source")
+                .and_then(toml::Value::as_str)
+                .is_some_and(|source| source.starts_with("registry+"))
+        })
+        .count())
 }
 
 /// Both sweeps reached every file the walk enumerated.
@@ -7202,7 +7279,7 @@ fn the_test_targets_are_documented_too(root: &Path, failures: &mut Vec<String>) 
 /// `xtask/mutants.py` are where a predicate's verdict is decided. It says the
 /// guard is still there, which is the question a deletion asks.
 #[cfg(test)]
-const WHAT_THE_GATE_CAN_SAY: [&str; 818] = [
+const WHAT_THE_GATE_CAN_SAY: [&str; 825] = [
     "`{named}` was passed to `docker compose` among its arguments. The project is this checkout's and is set above; docker resolves the flag to the later of two, so the stack would come up under a name `--down` does not address",
     "what CI reaches is more than {HOPS} hops deep",
     "Cedar denies by default, so a core rule that permits widens what is allowed rather than restricting it — move it to a pack, or make it a `forbid`",
@@ -7254,7 +7331,14 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 818] = [
     "`_sqlx_migrations` is the only thing outside this tree that remembers what was applied, and `NOCTUA.md §5.3` says there is no git here to ask instead — `cargo xtask dev` applies them",
     "`cargo metadata` did not answer in JSON: {error}",
     "`cargo metadata` did not run: {error}",
-    "`cargo metadata` failed: {}",
+    "`cargo metadata` failed: {said}",
+    "`cargo metadata` failed: {said}\nA package the lockfile names is not on this machine. `cargo fetch --locked` downloads every one of them, and `cargo xtask check` without `--offline` runs it before anything reads the graph",
+    "Cargo.lock could not be read: {error}",
+    "Cargo.lock is not TOML: {error}",
+    "Cargo.lock names no package at all",
+    "cargo fetch --locked could not download what the lockfile names, so every step that reads the members fails after it",
+    "the packages the lockfile names could not be counted",
+    "the packages the lockfile names could not be fetched",
     "`cargo metadata` listed no packages",
     "`cargo metadata` listed no packages",
     "`cargo metadata` listed no workspace member",
@@ -10220,10 +10304,11 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 597] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 598] = [
     // The prefix every finding about this gate's own arithmetic carries, so the
     // three attack helpers can refuse such an answer without naming a sentence.
     "this gate's own accounting — ",
+    "cargo fetch --locked: the {named} package(s) the lockfile names from a registry are here",
     "`--offline` skips the steps that need the stack — the database, the integration tests and the dependency audit — so whatever runs this reports a gate it did not run. It exists for a developer with no network, in a recipe whose name ends `-offline` and says so, and `check.rs` says CI never passes it",
     "`{recipe}` runs a cargo command holding `{{{{{inside}}}}}`, which this gate reads as text and cannot resolve — a variable in the body is how the gate a developer types becomes a different gate with the name and the description above it unchanged. A recipe's own parameters are declared in its header; this one is not",
     "`{recipe}` is the name a developer types and `{named}` is what this body runs. The description above it is the whole of what `just --list` prints, so a recipe that changes what it runs goes on saying what it used to do — and `check` carrying `--offline` is the smaller gate wearing the gate's name",
@@ -12158,6 +12243,29 @@ mod tests {
 
     fn root() -> &'static Path {
         Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."))
+    }
+
+    /// The fetch counts what it downloads: a registry's packages, not the
+    /// members or a path package, and a lockfile it cannot read is said.
+    #[test]
+    fn the_fetch_counts_what_a_registry_gives_and_nothing_else() {
+        let lockfile = "version = 4\n\n[[package]]\nname = \"nc-ids\"\nversion = \"0.1.0\"\n\n\
+                        [[package]]\nname = \"toml\"\nversion = \"1.0.0\"\nsource = \
+                        \"registry+https://github.com/rust-lang/crates.io-index\"\n\n\
+                        [[package]]\nname = \"near\"\nversion = \"0.1.0\"\nsource = \
+                        \"git+https://example.invalid/near\"\n";
+        assert_eq!(super::from_a_registry(lockfile), Ok(1));
+        assert!(
+            super::from_a_registry("version = 4\n").is_err(),
+            "a lockfile naming no package was counted as one naming none from a registry"
+        );
+        assert!(super::from_a_registry("[[package").is_err());
+        // And the tree's own, which names hundreds.
+        let ours = std::fs::read_to_string(root().join("Cargo.lock")).expect("the lockfile");
+        assert!(
+            super::from_a_registry(&ours).is_ok_and(|named| named > 100),
+            "this tree's lockfile was read as naming almost nothing from a registry"
+        );
     }
 
     /// Whether this line declares the function `signature` names.
@@ -17544,7 +17652,7 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 606, 55),
+        ("xtask/check.rs", 609, 55),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 44, 29),
         ("xtask/database.rs", 29, 6),
@@ -17556,7 +17664,7 @@ mod the_frozen_path_rule {
         ("xtask/limits.rs", 176, 59),
         ("xtask/local.rs", 79, 8),
         ("xtask/main.rs", 2, 24),
-        ("xtask/members.rs", 31, 7),
+        ("xtask/members.rs", 33, 7),
         ("xtask/plugins.rs", 25, 5),
         ("xtask/policy.rs", 57, 5),
         ("xtask/references.rs", 54, 26),
@@ -23305,7 +23413,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 13704;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 13715;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -23324,7 +23432,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2507;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2510;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -23341,7 +23449,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 808;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 809;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -23375,7 +23483,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 19185;
+    const THE_REARRANGEMENTS_JUDGED: usize = 19206;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -23429,7 +23537,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **424 of 19,185 are accepted by the first-line
+    /// rules the gates apply: **424 of 19,206 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -23462,7 +23570,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **808 of
+    /// this tree offers, **809 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -25427,7 +25535,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 597;
+    const THE_REST_IT_SAYS: usize = 598;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -25575,7 +25683,7 @@ mod the_frozen_path_rule {
     /// verdicts that agree for that long are one row, and — because a prefix
     /// matches nothing the two censuses hold — every row is a shipped literal
     /// accounted for nowhere. Written out, each row is its own accounting.
-    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 442] = [
+    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 446] = [
         ("—", "compiled catalog/"),
         (
             "—",
@@ -25615,6 +25723,22 @@ mod the_frozen_path_rule {
         (
             "if let Err(problem) = a_step_that_did_not_run(&ui::headings())",
             "a step did not run",
+        ),
+        (
+            "Err(problem) =>",
+            "the packages the lockfile names could not be counted",
+        ),
+        (
+            "—",
+            "cargo fetch --locked: the {named} package(s) the lockfile names from a registry are here",
+        ),
+        (
+            "Err(output) =>",
+            "cargo fetch --locked could not download what the lockfile names, so every step that reads the members fails after it",
+        ),
+        (
+            "Err(output) =>",
+            "the packages the lockfile names could not be fetched",
         ),
         (
             "—",
@@ -26914,7 +27038,7 @@ mod the_frozen_path_rule {
     /// record byte-identical — the same swap the census beside this one is
     /// written in pairs to catch, one level in. The condition is computed for
     /// every site either way, so it is kept.
-    const THE_CONSOLE_SITES_THIS_CANNOT_READ: [(&str, &str); 108] = [
+    const THE_CONSOLE_SITES_THIS_CANNOT_READ: [(&str, &str); 110] = [
         ("—", "&what_a_run_wrote(compiled.files.len("),
         (
             "if let Some(reserved) = reserved",
@@ -26926,6 +27050,8 @@ mod the_frozen_path_rule {
             "if let Err(problem) = a_step_that_did_not_run(&ui::headings())",
             "&problem",
         ),
+        ("Err(problem) =>", "&problem"),
+        ("—", "line"),
         ("—", "&skipped.fix"),
         (
             "if !offline && let Err(problem) = inspected_something(read, \"images\")",

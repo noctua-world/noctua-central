@@ -277,9 +277,14 @@ cargo xtask release <version> --dry-run    # say what would change and change no
 **Five verbs, and the surface does not grow** (`NOCTUA.md §10.2`). A new capability goes
 behind one of them — a flag, a step inside `check` — and never becomes a sixth.
 
-`cargo xtask check --offline` skips **nine** things: the advisory database, which is the
-one thing here that fetches anything — the audit's licence, ban and source checks read
-only the lockfile and still run; the PostgreSQL tests; the corroboration of `migrations/`
+`cargo xtask check` first runs `cargo fetch --locked` and says so in one `ok` line: a
+fresh clone holds only what its first build fetched, and every step that asks cargo for the
+graph asks it `--offline`. With `--offline` nothing is fetched, and a graph that fails for
+a package missing from the machine names that command.
+
+`cargo xtask check --offline` skips **nine** things: the advisory database, which is
+fetched — the audit's licence, ban and source checks read only the lockfile and still
+run; the PostgreSQL tests; the corroboration of `migrations/`
 against what a database has actually applied, the only thing in this tree that remembers a
 migration applied and then deleted; where `pg_temp` sits in the migrated functions' search
 paths; the journal's own protections, which are triggers and constraints held by the
@@ -1550,6 +1555,12 @@ neither the version nor the release. The one way there is an interrupted
 `cargo xtask release`, between the manifest rewrite and `cargo update`; `release` prints
 what to do before opening that window, and the recovery is `cargo update --workspace`. No
 gate can hold this: in that state nothing here runs.
+
+The gate's own `cargo fetch --locked` is held the same way, and that is its security
+answer: it downloads only what the lockfile names, cargo checks each download against the
+checksum recorded there, a lockfile behind its manifests is refused rather than rewritten,
+and nothing a fetch brings down runs until a build compiles it — so the fetch adds no
+package and no code the lockfile and the audit have not already been asked about.
 
 ### A release reads back what it wrote
 

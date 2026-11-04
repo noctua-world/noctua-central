@@ -148,13 +148,34 @@ fn metadata(root: &Path) -> Result<serde_json::Value, String> {
         .output()
         .map_err(|error| format!("`cargo metadata` did not run: {error}"))?;
     if !output.status.success() {
-        return Err(format!(
-            "`cargo metadata` failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        ));
+        return Err(what_a_failed_graph_says(&String::from_utf8_lossy(
+            &output.stderr,
+        )));
     }
     serde_json::from_slice(&output.stdout)
         .map_err(|error| format!("`cargo metadata` did not answer in JSON: {error}"))
+}
+
+/// Why `cargo metadata` failed, and the fix where cargo's own words point to it.
+///
+/// **`--offline` asks for a package that is not on this machine.** A fresh
+/// clone holds only what its first build fetched, and cargo's answer then names
+/// a package and offline mode — `no matching package named … found`, `offline
+/// mode (via --offline) can sometimes cause surprising resolution failures` —
+/// and never the command that fixes it. So the refusal names it: `cargo xtask
+/// check` without `--offline` fetches every package the lockfile names before it
+/// asks for the graph.
+fn what_a_failed_graph_says(stderr: &str) -> String {
+    let said = stderr.trim();
+    if said.contains("offline") {
+        format!(
+            "`cargo metadata` failed: {said}\nA package the lockfile names is not on this \
+             machine. `cargo fetch --locked` downloads every one of them, and `cargo xtask \
+             check` without `--offline` runs it before anything reads the graph"
+        )
+    } else {
+        format!("`cargo metadata` failed: {said}")
+    }
 }
 
 /// Every package the build resolves from a path outside this repository.
@@ -1184,6 +1205,30 @@ mod tests {
                 "{unreadable} was read as a workspace"
             );
         }
+    }
+
+    /// A graph that failed for a package not on this machine names the fetch,
+    /// and one that failed for anything else does not.
+    ///
+    /// The first case is cargo's answer on a clone whose cargo home holds
+    /// nothing, measured with `CARGO_HOME` pointed at an empty directory.
+    #[test]
+    fn a_package_missing_offline_is_answered_with_the_fetch() {
+        let missing = "error: no matching package named `cedar-policy` found\nlocation \
+                       searched: crates.io index\nnote: offline mode (via `--offline`) can \
+                       sometimes cause surprising resolution failures\n";
+        let said = super::what_a_failed_graph_says(missing);
+        assert!(
+            said.contains("no matching package named `cedar-policy`")
+                && said.contains("`cargo fetch --locked`"),
+            "a graph that failed for a package not downloaded did not name the fetch: {said}"
+        );
+        let broken = "error: failed to parse manifest at `/w/Cargo.toml`\n";
+        let said = super::what_a_failed_graph_says(broken);
+        assert!(
+            said.contains("failed to parse manifest") && !said.contains("cargo fetch"),
+            "a manifest cargo could not parse was answered with a download: {said}"
+        );
     }
 
     /// A sibling of the root is not a member of it.
