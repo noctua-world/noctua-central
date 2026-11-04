@@ -500,15 +500,44 @@ pub(crate) fn create_private(path: &Path) -> io::Result<File> {
     Ok(File::from(unsafe { OwnedHandle::from_raw_handle(handle) }))
 }
 
+/// How often a path refused with `Access is denied` is asked again, and the
+/// first wait in milliseconds, which grows by itself each time: SQLite's own.
+const ASKED_AGAIN: (u32, u64) = (10, 25);
+
 /// `path` itself opened with `access`, never what a link at it points at, a
 /// directory as well as a file.
+///
+/// **A file being deleted answers `Access is denied`** until its last handle
+/// closes — SQLite's `-shm` as another open of the profile lets it go, one
+/// another program such as a scanner holds a moment longer — so that answer is
+/// asked again, as SQLite asks again for its own files (`winIoerrRetry` times,
+/// `winIoerrRetryDelay` apart and growing), before it is taken:
+/// measured on the Windows runner, two of a hundred and twenty opens of a
+/// profile from four threads at once were refused as `NC-DB-0006` for a
+/// companion that was going. A path still refused after the last wait is
+/// answered as refused, so a list that denies this user stays a refusal.
+fn opened(path: &Path, access: u32) -> io::Result<File> {
+    let (again, wait) = ASKED_AGAIN;
+    let mut asked = 0_u32;
+    loop {
+        match opened_once(path, access) {
+            Err(error) if error.kind() == io::ErrorKind::PermissionDenied && asked < again => {
+                asked += 1;
+                std::thread::sleep(std::time::Duration::from_millis(wait * u64::from(asked)));
+            }
+            answered => return answered,
+        }
+    }
+}
+
+/// `path` itself opened with `access`, once.
 #[expect(
     clippy::disallowed_methods,
     reason = "a path is opened here to be judged or to have its access list read or set, \
               never written to; `ui` is the output path and none is a terminal — each is a \
               path inside a directory the caller judged, or a test's own"
 )]
-fn opened(path: &Path, access: u32) -> io::Result<File> {
+fn opened_once(path: &Path, access: u32) -> io::Result<File> {
     std::fs::OpenOptions::new()
         .access_mode(access)
         .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
