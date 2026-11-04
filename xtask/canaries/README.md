@@ -1393,7 +1393,7 @@ thirty lines of measurement about, in a file nothing held to it.
 
 **The rule was comparing the wrong thing.** Images are what the two files have in
 common; what CI needed was the *stack*, which only `docker compose` can produce.
-The `check` job runs `cargo xtask dev` and declares no services, and the gate
+The `linux` job runs `cargo xtask dev` and declares no services, and the gate
 asks exactly that: no image named in the workflow, and `cargo xtask dev` before
 `cargo xtask check` — read from the job's *commands*, because the block
 explaining why it is there would otherwise satisfy the rule that requires it.

@@ -2049,12 +2049,15 @@ emitter.
 
 ### CI runs the stack, not a copy of it
 
-The `check` job declares no `services:`: it runs `cargo xtask dev`, the stack a developer
+The `linux` job declares no `services:`: it runs `cargo xtask dev`, the stack a developer
 runs, with the log store's retention flags, the health command that authenticates and the
 migrations applied. A service container cannot carry a command, so its store would report
 no flags, and nothing would apply the migrations. `ci_supplies_what_the_gate_needs`
 refuses an image named in the workflow and requires `cargo xtask dev` before
-`cargo xtask check`, reading the job's commands rather than its prose.
+`cargo xtask check`, reading the job's commands rather than its prose. The `macos` and
+`windows` jobs run the gate with no stack, which says which of its steps are not applicable
+there, and `no_stack_where_none_runs` refuses `cargo xtask dev` in either; every job named
+for a system runs on that system's runner (`RUNS_ON` in `xtask/src/workflow.rs`).
 
 ### An empty database fails the gate, and `--offline` is how to ask
 

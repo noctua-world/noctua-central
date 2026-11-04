@@ -7490,7 +7490,7 @@ fn the_test_targets_are_documented_too(root: &Path, failures: &mut Vec<String>) 
 /// `xtask/mutants.py` are where a predicate's verdict is decided. It says the
 /// guard is still there, which is the question a deletion asks.
 #[cfg(test)]
-const WHAT_THE_GATE_CAN_SAY: [&str; 838] = [
+const WHAT_THE_GATE_CAN_SAY: [&str; 840] = [
     "`{named}` was passed to `docker compose` among its arguments. The project is this checkout's and is set above; docker resolves the flag to the later of two, so the stack would come up under a name `--down` does not address",
     "what CI reaches is more than {HOPS} hops deep",
     "Cedar denies by default, so a core rule that permits widens what is allowed rather than restricting it — move it to a pack, or make it a `forbid`",
@@ -7550,6 +7550,8 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 838] = [
     "cargo fetch --locked could not download what the lockfile names, so every step that reads the members fails after it",
     "the packages the lockfile names could not be counted",
     "the packages the lockfile names could not be fetched",
+    "the `{job}` job runs on `{runner}`, which is not a `{family}` runner",
+    "the `{system}` job brings the stack up, and only Linux runs one",
     "comparing each pinned digest against what its tag resolves to",
     "corroborating the migrations against what a database has applied",
     "reading where `pg_temp` sits in the migrated functions' paths",
@@ -7881,9 +7883,9 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 838] = [
     "the .env.example walk",
     "the CI workflow",
     "the `cargo xtask` alias is not there",
-    "the `check` job brings the stack up after running the gate",
-    "the `check` job brings the stack up and never runs the gate",
-    "the `check` job runs the gate without bringing the stack up",
+    "the `linux` job brings the stack up after running the gate",
+    "the `linux` job brings the stack up and never runs the gate",
+    "the `linux` job runs the gate without bringing the stack up",
     "the `deterministic` job does not reach `{step}` in the order {IN_THIS_ORDER:?}",
     "the `deterministic` job runs `{}` before its second `cargo xtask build`",
     "the `xtask` alias is a list holding something that is not a string",
@@ -8151,7 +8153,7 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 838] = [
     "the §15.1 walk",
     "the §15.1 walk",
     "the §15.1 walk",
-    "there is no `check` job to bring the stack up in",
+    "there is no `linux` job to bring the stack up in",
     "there is no git here (§5.3), so the applied record is the only thing that remembers what was there. Restore the file, or say in a new migration what replaces it",
     "there is no rustfmt.toml in this repository, so rustfmt walks up out of it looking for one",
     "these function(s) do not search `pg_temp` last, so a `CREATE TEMP TABLE` of the right name decides what they read: {}",
@@ -10534,7 +10536,7 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 602] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 606] = [
     // The prefix every finding about this gate's own arithmetic carries, so the
     // three attack helpers can refuse such an answer without naming a sentence.
     "this gate's own accounting — ",
@@ -10913,7 +10915,11 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 602] = [
     "regexp_replace(current_setting('search_path'), ', pg_temp$', ''), false);",
     "release",
     "reserved {code} — permanently",
-    "runs `cargo xtask check`, which is the whole gate (NOCTUA.md §19.4)",
+    "runs `cargo xtask check`, which is the whole gate (NOCTUA.md §19.4), on the one system whose runner brings the stack up",
+    "runs `cargo xtask check` on macOS (NOCTUA.md §22.2), where the steps that need the stack say they are not applicable and everything else is judged",
+    "runs `cargo xtask check` on Windows (NOCTUA.md §22.2), where the steps that need the stack say they are not applicable and everything else is judged",
+    "a job named for a system is the proof that the gate passes there (NOCTUA.md §22.2), and one on another runner proves it of the wrong system with every rule here green. Run `{job}` on a `{family}…` runner",
+    "the stack runs on Linux, where the `linux` job brings it up and the gate reads it (NOCTUA.md §22.2); on macOS and Windows the gate says which of its steps are not applicable and runs the rest. Remove the `cargo xtask dev` step from this job",
     "rustc refused it at line(s) {:?}, and none of those lines uses `{}` — so the refusal this counts as proof is not the wall's",
     "rustfmt took no stdin",
     "rustfmt's configuration walk stops in this repository",
@@ -18100,7 +18106,7 @@ mod the_frozen_path_rule {
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 30, 6),
         ("xtask/ui.rs", 48, 12),
         ("xtask/wall.rs", 129, 28),
-        ("xtask/workflow.rs", 118, 23),
+        ("xtask/workflow.rs", 123, 23),
     ];
 
     /// The name an item declaration introduces, for the message below.
@@ -23837,7 +23843,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 13763;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 13771;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -23856,7 +23862,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2522;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2528;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -23873,7 +23879,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 813;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 815;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -23907,7 +23913,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 19285;
+    const THE_REARRANGEMENTS_JUDGED: usize = 19302;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -23961,7 +23967,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **424 of 19,285 are accepted by the first-line
+    /// rules the gates apply: **424 of 19,302 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -23994,7 +24000,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **813 of
+    /// this tree offers, **815 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -25959,7 +25965,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 602;
+    const THE_REST_IT_SAYS: usize = 606;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -28132,7 +28138,7 @@ mod the_frozen_path_rule {
     /// Seven words of each remedy, because a remedy is long and its opening is
     /// what tells one from another; the rule beside the list is that those
     /// seven are unique.
-    const WHAT_A_REMEDY_ANSWERS: [(&str, &str, &str); 103] = [
+    const WHAT_A_REMEDY_ANSWERS: [(&str, &str, &str); 105] = [
         (
             "counts.rs",
             "this document has an odd number of",
@@ -28575,23 +28581,28 @@ mod the_frozen_path_rule {
         ),
         (
             "workflow.rs",
-            "there is no `check` job to bring",
+            "there is no `linux` job to bring",
             "`JOBS` says what this workflow has to",
         ),
         (
             "workflow.rs",
-            "the `check` job runs the gate without",
+            "the `linux` job runs the gate without",
             "`cargo xtask check` asks a running database",
         ),
         (
             "workflow.rs",
-            "the `check` job brings the stack up",
+            "the `linux` job brings the stack up",
             "the stack is what the gate needs,",
         ),
         (
             "workflow.rs",
-            "the `check` job brings the stack up",
+            "the `linux` job brings the stack up",
             "the gate reads the database and the",
+        ),
+        (
+            "workflow.rs",
+            "the `{system}` job brings the stack up,",
+            "the stack runs on Linux, where the",
         ),
         (
             "workflow.rs",
@@ -28632,6 +28643,11 @@ mod the_frozen_path_rule {
             "workflow.rs",
             "the `deterministic` job does not reach `{step}`",
             "the job proves that two *processes* emit",
+        ),
+        (
+            "workflow.rs",
+            "the `{job}` job runs on `{runner}`, which",
+            "a job named for a system is",
         ),
         (
             "workflow.rs",
@@ -29404,15 +29420,16 @@ mod the_frozen_path_rule {
             .expect("the workflow is a file in this tree");
         let commands = the_cargo_commands_of(&workflow);
         // **An equality, because a lower bound is paid by any extra line.** A
-        // floor of four under a workflow that runs five — `cargo install`,
-        // `dev`, `check` and `build` twice — lets a step deleted from CI leave
-        // the reader satisfied and every rule below it looking at one command
-        // fewer. Five is what the file has; a sixth is a step four documents
+        // floor under the workflow's own count lets a step deleted from CI
+        // leave the reader satisfied and every rule below it looking at one
+        // command fewer. Nine is what the file has — `cargo install`, `dev` and
+        // `check` on Linux, `cargo install` and `check` on macOS and on
+        // Windows, and `build` twice — and a tenth is a step four documents
         // are silent about, and `WHAT_CI_RUNS` below is what says which.
         assert_eq!(
             commands.len(),
-            5,
-            "the workflow runs {} cargo command(s) and this expects five: either a step \
+            9,
+            "the workflow runs {} cargo command(s) and this expects nine: either a step \
              moved, or this is reading the wrong file or the wrong lines — {commands:?}",
             commands.len()
         );

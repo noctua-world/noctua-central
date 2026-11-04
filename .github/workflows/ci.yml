@@ -1,25 +1,20 @@
-# The gate, in CI.
+# The gate, in CI, on Linux, macOS and Windows (`NOCTUA.md §22.2`).
 #
-# **This workflow has never run, and that is stated rather than implied.**
-# `noctua-central` has no git repository yet, by the decision in `NOCTUA.md
-# §5.3`, so there is no GitHub to run it. A workflow nobody has watched run is a
-# claim, not a result — and the first push is where it will be found wrong.
-#
-# It is committed now anyway, for one reason: §19.4 says the command surface does
-# not grow, and the way that stops being true is a CI file that quietly learns to
-# run `cargo fmt` and `cargo clippy` and `cargo test` as separate steps. Then the
-# gate a developer runs and the gate CI runs are two different gates, and the one
-# that matters is whichever is stricter that week. `xtask/src/workflow.rs` parses
-# this file and fails the build on any cargo invocation that is not
-# `cargo xtask <verb>` or the `cargo install` the gate needs — however it is
-# spelled, including through a script a step runs, an alias, or an action whose
-# job is to run cargo. It also checks that each job still runs what its name
-# says: the `deterministic` job has to build **twice**, in the order that makes
-# the second generation a second process. (That is not the job directly below
-# this comment, which is `check` and builds once.)
+# §19.4 says the command surface does not grow, and the way that stops being
+# true is a CI file that quietly learns to run `cargo fmt` and `cargo clippy`
+# and `cargo test` as separate steps. Then the gate a developer runs and the
+# gate CI runs are two different gates, and the one that matters is whichever
+# is stricter that week. `xtask/src/workflow.rs` parses this file and fails the
+# build on any cargo invocation that is not `cargo xtask <verb>` or the
+# `cargo install` the gate needs — however it is spelled, including through a
+# script a step runs, an alias, or an action whose job is to run cargo. It also
+# checks that each job still runs what its name says: `linux`, `macos` and
+# `windows` each run the gate on the system they are named for, `linux` brings
+# the stack up before it, and the `deterministic` job builds **twice**, in the
+# order that makes the second generation a second process.
 #
 # The rule is not a limit on how many cargo commands this file carries: it
-# carries several, and every one of them is the gate.
+# carries several, and every one of them is the gate or what the gate needs.
 
 name: check
 
@@ -55,7 +50,10 @@ env:
   # the gate with CI's own environment exported shows it.
 
 jobs:
-  check:
+  # **The whole gate, the stack included.** Linux is the one system whose
+  # runner brings the container stack up, so every step runs here and nothing
+  # is not applicable (`NOCTUA.md §22.2`).
+  linux:
     runs-on: ubuntu-latest
     # **No `services:` block, because a service container cannot run the stack.**
     # A GitHub service container takes an image, an environment, ports and `docker create`
@@ -84,7 +82,7 @@ jobs:
     # That step is one of the steps `--offline` skips — measured,
     # `warn skipped: --offline, and only the running log store states its own bounds`
     # — and the gate that holds those anchors reads `README.md`, `AGENTS.md` and
-    # the `justfile`, never this file. A `check` job whose log store is a service
+    # the `justfile`, never this file. A `linux` job whose log store is a service
     # container, and which never passes the flag, cannot go green on any runner;
     # the `cargo xtask dev` step below is what gives it a store started with its
     # bounds. The number of skips is deliberately not written here either: four documents
@@ -116,7 +114,11 @@ jobs:
       # runner's own loopback.
       DATABASE_URL: postgres://noctua:noctua@127.0.0.1:5432/noctua
     steps:
+      # The whole history, because a gate that reads it needs more than the
+      # tip. Every job checks out the same way.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       # **This does not read `rust-toolchain.toml`**: the action below resolves
       # `stable` itself, and no rustup runs here. `@stable` is the
@@ -153,6 +155,51 @@ jobs:
       - name: cargo xtask check
         run: cargo xtask check
 
+  # **The gate on macOS, with no stack.** No runner but Linux's brings the
+  # container stack up, so each step that needs it says it is not applicable
+  # here, by name, and the `linux` job is what runs it (`NOCTUA.md §22.2`).
+  # Nothing in this job brings a stack up: `workflow.rs` refuses
+  # `cargo xtask dev` here, and an image named anywhere in this file.
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # The same toolchain, components and plugin target as the `linux` job,
+      # for the same reasons.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo deny
+        run: cargo install --locked cargo-deny
+      - name: cargo xtask check
+        run: cargo xtask check
+
+  # **The gate on Windows, with no stack**, as the `macos` job above.
+  windows:
+    runs-on: windows-latest
+    steps:
+      # **Before the checkout**, because git on Windows refuses a path longer
+      # than the system's old limit unless told otherwise, and the checkout is
+      # what writes the paths.
+      - name: long paths
+        run: git config --global core.longpaths true
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo deny
+        run: cargo install --locked cargo-deny
+      - name: cargo xtask check
+        run: cargo xtask check
+
   # Determinism across *processes*, which the in-process check cannot prove: two
   # generations inside one run share an allocator and a heap layout. This builds
   # twice in two processes and compares the bytes.
@@ -164,10 +211,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       # **With the components, because this job runs the emitter.**
       # `cargo xtask build` pipes every generated file through `rustfmt` from
       # `PATH`, and this job's only step runs it twice. A toolchain asked for
-      # without rustfmt, while the `check` job beside it asks for it, is a
+      # without rustfmt, while the `linux` job beside it asks for it, is a
       # difference invisible until the first push. Measured with rustfmt off
       # `PATH`: `error rustfmt is what turns the emitted source into the bytes
       # that reach disk, and it is not here`.

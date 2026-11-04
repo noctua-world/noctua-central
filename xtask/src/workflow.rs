@@ -68,9 +68,9 @@ pub(crate) const WORKFLOW: &str = ".github/workflows/ci.yml";
 /// `run: echo the determinism check used to be here` and the gate calls it
 /// `ok`. That job is the only cross-process determinism check in the
 /// repository, criterion 4's sole enforcement, and the only thing that can see
-/// an ambient rustfmt configuration or a locale. And the `check` job's own
+/// an ambient rustfmt configuration or a locale. And a system job's own
 /// command can become `cargo xtask docs` — every cargo invocation still being
-/// `cargo xtask <verb>` — while nothing runs the gate at all.
+/// `cargo xtask <verb>` — while nothing runs the gate on that system at all.
 ///
 /// A name checked without its body is the defect a bare count of invocations
 /// has, moved one level in: from the job's name to the job's body.
@@ -104,8 +104,11 @@ pub(crate) const WORKFLOW: &str = ".github/workflows/ci.yml";
 /// reached by deleting one line.
 const JOBS_MUST_RUN: &[(&str, &str, usize)] = &[
     // Without the `run:` prefix: what is compared is the *command*, after
-    // the key that introduces it and after any `&&` before it.
-    ("check", "cargo xtask check", 1),
+    // the key that introduces it and after any `&&` before it. One gate on each
+    // of the three systems (`NOCTUA.md §22.2`).
+    ("linux", "cargo xtask check", 1),
+    ("macos", "cargo xtask check", 1),
+    ("windows", "cargo xtask check", 1),
     // Two builds, which is what makes the second generation a second *process*.
     ("deterministic", "cargo xtask build", 2),
     // **And the second build is in a second directory**, which is what makes it
@@ -217,15 +220,26 @@ const HOPS: usize = 16;
 /// The jobs CI must have, and what each is for.
 ///
 /// **A count of invocations is not a claim that CI does anything.** Deleting the
-/// whole `deterministic` job takes the number from four to two, and a floor
-/// that compares it against zero does not see that — so without this list the
+/// whole `deterministic` job takes two from the number, and a floor that
+/// compares it against zero does not see that — so without this list the
 /// sole cross-process determinism check in the repository, and the only place
 /// the ledger's determinism is checked at all, can be removed with `check passed`
 /// printed over it.
-const JOBS: [(&str, &str); 2] = [
+const JOBS: [(&str, &str); 4] = [
     (
-        "check",
-        "runs `cargo xtask check`, which is the whole gate (NOCTUA.md §19.4)",
+        "linux",
+        "runs `cargo xtask check`, which is the whole gate (NOCTUA.md §19.4), on the \
+         one system whose runner brings the stack up",
+    ),
+    (
+        "macos",
+        "runs `cargo xtask check` on macOS (NOCTUA.md §22.2), where the steps that need \
+         the stack say they are not applicable and everything else is judged",
+    ),
+    (
+        "windows",
+        "runs `cargo xtask check` on Windows (NOCTUA.md §22.2), where the steps that need \
+         the stack say they are not applicable and everything else is judged",
     ),
     (
         "deterministic",
@@ -236,6 +250,26 @@ const JOBS: [(&str, &str); 2] = [
          process — an ambient rustfmt configuration, a locale, a path",
     ),
 ];
+
+/// The jobs that run the gate, and the runner family each must run on.
+///
+/// **A job named for a system runs on it.** A `macos` job whose `runs-on:`
+/// names an Ubuntu runner satisfies every other rule here — it runs the gate,
+/// and nothing needs the stack — and proves nothing about macOS, so a defect
+/// only that system has would pass CI with all three jobs green. The family
+/// is read, not the version: `macos-latest` and `macos-15` are both macOS.
+const RUNS_ON: [(&str, &str); 3] = [
+    ("linux", "ubuntu-"),
+    ("macos", "macos-"),
+    ("windows", "windows-"),
+];
+
+/// The jobs that run the gate where no stack runs (`NOCTUA.md §22.2`).
+///
+/// Each runs `cargo xtask check` and nothing that brings the stack up: their
+/// runners have no container stack, and the gate says which of its steps are
+/// not applicable there.
+const WITHOUT_THE_STACK: [&str; 2] = ["macos", "windows"];
 
 /// The one command CI is allowed to reach the gate through.
 const XTASK: &str = "xtask";
@@ -1444,7 +1478,7 @@ fn no_flags_reach_the_compiler(root: &Path, file: &str, findings: &mut Vec<Findi
     // **And the environment CI exports, which is not this process's.** Reading
     // `std::env::vars()` alone is silent on every developer machine and fires
     // only on a runner, where it is fatal: a `ci.yml` setting `RUSTFLAGS: -D
-    // warnings` at workflow scope reaches the `check` job's only step, and the
+    // warnings` at workflow scope reaches every job's gate step, and the
     // gate refuses to run with `RUSTFLAGS` set — those two rules cannot both
     // hold, so the workflow can never go green, and nothing finds it unless
     // something reads the file that sets it. Its own `ci.yml` records that
@@ -2009,7 +2043,7 @@ fn reached_from(root: &Path, walked: &[std::path::PathBuf]) -> Vec<std::path::Pa
 /// **The gate that keeps CI on one command has to see whether CI can run
 /// it.** This file asserts what the workflow's cargo commands are and what its
 /// jobs are called, and this asserts that the runner is given the things
-/// those commands need. Measured in exactly the state a `check` job produces
+/// those commands need. Measured in exactly the state a gate job produces
 /// — a bare checkout, a fresh unmigrated PostgreSQL service, no log store:
 ///
 /// ```text
@@ -2116,13 +2150,15 @@ fn ci_supplies_what_the_gate_needs(root: &Path, ci: &str, findings: &mut Vec<Fin
                 .to_owned(),
         });
     }
-    // And the step itself, in the job whose subject is the gate: without it the
-    // gate has no database and no store, and every step that reads one fails.
-    let Some(job) = job_body(ci, "check") else {
+    no_stack_where_none_runs(ci, findings);
+    // And the step itself, in the job whose subject is the whole gate: without
+    // it the gate has no database and no store, and every step that reads one
+    // fails.
+    let Some(job) = job_body(ci, "linux") else {
         findings.push(Finding {
             file: WORKFLOW.to_owned(),
             line: 1,
-            what: "there is no `check` job to bring the stack up in".to_owned(),
+            what: "there is no `linux` job to bring the stack up in".to_owned(),
             fix: "`JOBS` says what this workflow has to contain; the rule here is about \
                   what that job does before it runs the gate"
                 .to_owned(),
@@ -2142,7 +2178,7 @@ fn ci_supplies_what_the_gate_needs(root: &Path, ci: &str, findings: &mut Vec<Fin
         (None, _) => findings.push(Finding {
             file: WORKFLOW.to_owned(),
             line: where_it_says(ci, "cargo xtask check"),
-            what: "the `check` job runs the gate without bringing the stack up".to_owned(),
+            what: "the `linux` job runs the gate without bringing the stack up".to_owned(),
             fix: "`cargo xtask check` asks a running database what it holds and a running \
                   log store what it was started with, and neither is a step `--offline` \
                   skips. Add a `cargo xtask dev` step before it"
@@ -2151,18 +2187,49 @@ fn ci_supplies_what_the_gate_needs(root: &Path, ci: &str, findings: &mut Vec<Fin
         (Some(_), None) => findings.push(Finding {
             file: WORKFLOW.to_owned(),
             line: where_it_says(ci, "cargo xtask dev"),
-            what: "the `check` job brings the stack up and never runs the gate".to_owned(),
+            what: "the `linux` job brings the stack up and never runs the gate".to_owned(),
             fix: "the stack is what the gate needs, not a thing to start for its own sake"
                 .to_owned(),
         }),
         (Some(_), Some(_)) => findings.push(Finding {
             file: WORKFLOW.to_owned(),
             line: where_it_says(ci, "cargo xtask dev"),
-            what: "the `check` job brings the stack up after running the gate".to_owned(),
+            what: "the `linux` job brings the stack up after running the gate".to_owned(),
             fix: "the gate reads the database and the store while it runs, so a stack \
                   started afterwards is a stack it never saw"
                 .to_owned(),
         }),
+    }
+}
+
+/// The macOS and Windows jobs bring no stack up.
+///
+/// **And no stack where none runs.** Those jobs run the gate without one, by
+/// design: the steps that need it say they are not applicable there, and a
+/// `cargo xtask dev` step in one of those jobs is a step that cannot succeed on
+/// that runner — or, on one that happened to have docker, a stack the gate
+/// there never reads. Its own function so `ci_supplies_what_the_gate_needs`
+/// stays inside the line limit.
+fn no_stack_where_none_runs(ci: &str, findings: &mut Vec<Finding>) {
+    for system in WITHOUT_THE_STACK {
+        let Some(job) = job_body(ci, system) else {
+            continue;
+        };
+        if commands_in(&job)
+            .iter()
+            .any(|line| line.contains("xtask dev"))
+        {
+            findings.push(Finding {
+                file: WORKFLOW.to_owned(),
+                line: where_it_says(ci, &format!("{system}:")),
+                what: format!("the `{system}` job brings the stack up, and only Linux runs one"),
+                fix: "the stack runs on Linux, where the `linux` job brings it up and the gate \
+                      reads it (NOCTUA.md §22.2); on macOS and Windows the gate says which of \
+                      its steps are not applicable and runs the rest. Remove the \
+                      `cargo xtask dev` step from this job"
+                    .to_owned(),
+            });
+        }
     }
 }
 
@@ -2799,6 +2866,34 @@ fn jobs_are_what_they_are_named(ci: &str, findings: &mut Vec<Finding>) {
                 });
                 break;
             }
+        }
+    }
+    for (job, family) in RUNS_ON {
+        let Some(body) = job_body(ci, job) else {
+            continue;
+        };
+        let runner = body
+            .lines()
+            .map(the_code_before_a_comment)
+            .find_map(|line| {
+                line.trim()
+                    .strip_prefix("runs-on:")
+                    .map(|runner| runner.trim().trim_matches(['"', '\'']).to_owned())
+            })
+            .unwrap_or_default();
+        if !runner.starts_with(family) {
+            findings.push(Finding {
+                file: WORKFLOW.to_owned(),
+                line: where_it_says(ci, &format!("{job}:")),
+                what: format!(
+                    "the `{job}` job runs on `{runner}`, which is not a `{family}` runner"
+                ),
+                fix: format!(
+                    "a job named for a system is the proof that the gate passes there \
+                     (NOCTUA.md §22.2), and one on another runner proves it of the wrong \
+                     system with every rule here green. Run `{job}` on a `{family}…` runner"
+                ),
+            });
         }
     }
     the_workflow_actually_runs(ci, findings);
@@ -4353,10 +4448,18 @@ mod tests {
         .expect("writable");
 
         let job = |steps: &str| {
-            format!("jobs:\n  check:\n    runs-on: ubuntu-latest\n    steps:\n{steps}")
+            format!("jobs:\n  linux:\n    runs-on: ubuntu-latest\n    steps:\n{steps}")
         };
         let up = "      - run: cargo xtask dev\n";
         let gate = "      - run: cargo xtask check\n";
+        // A system job with no stack beside a `linux` job that is right, and one
+        // with a stack brought up on a runner that has none.
+        let beside = |system: &str, steps: &str| {
+            format!(
+                "{}  {system}:\n    runs-on: {system}-latest\n    steps:\n{steps}",
+                job(&format!("{up}{gate}"))
+            )
+        };
 
         for (what, ci, expected) in [
             (
@@ -4365,29 +4468,49 @@ mod tests {
                 None,
             ),
             (
+                "the gate on macOS with no stack",
+                beside("macos", gate),
+                None,
+            ),
+            (
+                "the gate on Windows with no stack",
+                beside("windows", gate),
+                None,
+            ),
+            (
+                "a stack brought up on macOS",
+                beside("macos", &format!("{up}{gate}")),
+                Some("the `macos` job brings the stack up, and only Linux runs one"),
+            ),
+            (
+                "a stack brought up on Windows",
+                beside("windows", &format!("{up}{gate}")),
+                Some("the `windows` job brings the stack up, and only Linux runs one"),
+            ),
+            (
                 "the gate with no stack",
                 job(gate),
-                Some("the `check` job runs the gate without bringing the stack up"),
+                Some("the `linux` job runs the gate without bringing the stack up"),
             ),
             (
                 "a stack and no gate",
                 job(up),
-                Some("the `check` job brings the stack up and never runs the gate"),
+                Some("the `linux` job brings the stack up and never runs the gate"),
             ),
             (
                 "the stack after the gate",
                 job(&format!("{gate}{up}")),
-                Some("the `check` job brings the stack up after running the gate"),
+                Some("the `linux` job brings the stack up after running the gate"),
             ),
             (
-                "no check job at all",
+                "no linux job at all",
                 "jobs:\n  other:\n    steps:\n      - run: cargo xtask check\n".to_owned(),
-                Some("there is no `check` job to bring the stack up in"),
+                Some("there is no `linux` job to bring the stack up in"),
             ),
             (
                 "a service block naming the tag, not the digest",
                 format!(
-                    "jobs:\n  check:\n    runs-on: ubuntu-latest\n    services:\n      \
+                    "jobs:\n  linux:\n    runs-on: ubuntu-latest\n    services:\n      \
                      db:\n        image: postgres:18-alpine\n    steps:\n{up}{gate}"
                 ),
                 Some("CI names `postgres:18-alpine` itself instead of bringing the stack up"),
@@ -4395,7 +4518,7 @@ mod tests {
             (
                 "a service block instead of the stack",
                 format!(
-                    "jobs:\n  check:\n    runs-on: ubuntu-latest\n    services:\n      \
+                    "jobs:\n  linux:\n    runs-on: ubuntu-latest\n    services:\n      \
                      db:\n        image: postgres:18-alpine\n    steps:\n{up}{gate}"
                 ),
                 Some("CI names `postgres:18-alpine` itself instead of bringing the stack up"),
@@ -5027,7 +5150,7 @@ mod tests {
     /// holds and a runner sets before the step starts — so alone it is silent
     /// everywhere it could be acted on and fatal in the one place it fires.
     /// A `ci.yml` exporting `RUSTFLAGS: -D warnings` at workflow scope reaches
-    /// the `check` job's only step, and the gate refuses to run with it set:
+    /// every job's gate step, and the gate refuses to run with it set:
     /// such a workflow can never go green, and its own header records
     /// that it has never run.
     #[test]
@@ -5990,6 +6113,46 @@ mod tests {
         assert_eq!(plain.as_deref().map(str::trim), Some(""));
     }
 
+    /// A job named for a system runs on that system's runner, and the family is
+    /// what is read, not the version.
+    #[test]
+    fn a_job_named_for_a_system_runs_on_it() {
+        let ci = |macos: &str| {
+            format!(
+                "jobs:\n  linux:\n    runs-on: ubuntu-latest\n    steps:\n      - run: cargo \
+                 xtask check\n  macos:\n    runs-on: {macos}\n    steps:\n      - run: cargo \
+                 xtask check\n  windows:\n    runs-on: windows-latest\n    steps:\n      - \
+                 run: cargo xtask check\n"
+            )
+        };
+        let wrong = |findings: &[crate::gates::Finding]| -> Vec<String> {
+            findings
+                .iter()
+                .filter(|finding| finding.what.contains("runner"))
+                .map(|finding| finding.what.clone())
+                .collect()
+        };
+        for runner in ["macos-latest", "macos-15", "\"macos-latest\""] {
+            let mut findings = Vec::new();
+            super::jobs_are_what_they_are_named(&ci(runner), &mut findings);
+            assert!(
+                wrong(&findings).is_empty(),
+                "a `macos` job on `{runner}` was refused: {findings:#?}"
+            );
+        }
+        for runner in ["ubuntu-latest", "windows-latest", ""] {
+            let mut findings = Vec::new();
+            super::jobs_are_what_they_are_named(&ci(runner), &mut findings);
+            assert_eq!(
+                wrong(&findings),
+                [format!(
+                    "the `macos` job runs on `{runner}`, which is not a `macos-` runner"
+                )],
+                "a `macos` job on `{runner}` proves nothing about macOS and was accepted"
+            );
+        }
+    }
+
     #[test]
     fn a_deleted_job_is_a_finding_and_not_a_smaller_number() {
         // **Deleting the whole `deterministic` job is a finding.** The count
@@ -6001,17 +6164,16 @@ mod tests {
         let _ = std::fs::remove_dir_all(&scratch);
         std::fs::create_dir_all(scratch.join(".github/workflows")).expect("writable");
         the_shipped_alias(&scratch);
-        for missing in ["check", "deterministic"] {
-            let kept = if missing == "check" {
-                "deterministic"
-            } else {
-                "check"
-            };
-            std::fs::write(
-                scratch.join(super::WORKFLOW),
-                format!("jobs:\n  {kept}:\n    steps:\n      - run: cargo xtask check\n"),
-            )
-            .expect("writable");
+        let every = super::JOBS.map(|(job, _)| job);
+        for missing in every {
+            let kept: Vec<String> = every
+                .iter()
+                .filter(|job| **job != missing)
+                .map(|job| format!("  {job}:\n    steps:\n      - run: cargo xtask check\n"))
+                .collect();
+            let kept = kept.concat();
+            std::fs::write(scratch.join(super::WORKFLOW), format!("jobs:\n{kept}"))
+                .expect("writable");
             let (findings, _) = only_runs_the_gate(&scratch).expect("readable");
             // **Exactly one, not at least one.** A rule written twice says the
             // same thing twice about one deleted job — and `.any(…)` is as true
@@ -6739,24 +6901,28 @@ mod tests {
             "an emptied job body was not a finding: {findings:#?}"
         );
 
-        // **And the `check` job running something that is not the gate.** Every
+        // **And a system's job running something that is not the gate.** Every
         // cargo invocation is still `cargo xtask <verb>`, so the rule above is
         // satisfied while nothing runs the gate at all. The step's own *label*
         // must not satisfy it either.
-        std::fs::write(
-            scratch.join(super::WORKFLOW),
-            "jobs:\n  check:\n    steps:\n      - name: cargo xtask check\n\
-             \x20       run: cargo xtask docs\n\
-             \x20 deterministic:\n    steps:\n      - run: diff -r a b\n",
-        )
-        .expect("writable");
-        let (findings, _) = only_runs_the_gate(&scratch).expect("readable");
-        assert!(
-            findings
-                .iter()
-                .any(|finding| finding.what.contains("`check` job does not run")),
-            "a check job that does not run the gate was not a finding: {findings:#?}"
-        );
+        for system in ["linux", "macos", "windows"] {
+            std::fs::write(
+                scratch.join(super::WORKFLOW),
+                format!(
+                    "jobs:\n  {system}:\n    steps:\n      - name: cargo xtask check\n\
+                     \x20       run: cargo xtask docs\n\
+                     \x20 deterministic:\n    steps:\n      - run: diff -r a b\n"
+                ),
+            )
+            .expect("writable");
+            let (findings, _) = only_runs_the_gate(&scratch).expect("readable");
+            assert!(
+                findings.iter().any(|finding| finding
+                    .what
+                    .contains(&format!("`{system}` job does not run"))),
+                "a `{system}` job that does not run the gate was not a finding: {findings:#?}"
+            );
+        }
         let _ = std::fs::remove_dir_all(&scratch);
     }
 
@@ -6766,6 +6932,13 @@ mod tests {
     /// fixture about the *cargo* rule has to be a workflow that runs — the same
     /// reason each of them carries both jobs.
     const FIRES: &str = "on:\n  push:\n  pull_request:\n";
+
+    /// The macOS and Windows gates, each on its runner, which a fixture carries
+    /// beside the job it is about so that it is not refused for lacking them.
+    const THE_OTHER_SYSTEMS: &str = "  macos:\n    runs-on: macos-latest\n    steps:\n      \
+                                     - run: cargo xtask check\n  windows:\n    runs-on: \
+                                     windows-latest\n    steps:\n      - run: cargo xtask \
+                                     check\n";
 
     /// The two jobs a fixture must carry, since a workflow without them is a
     /// different finding and these tests are about the cargo rule.
@@ -7213,12 +7386,12 @@ mod tests {
         std::fs::write(
             scratch.join(super::WORKFLOW),
             format!(
-                "{FIRES}jobs:\n  check:\n    steps:\n\
+                "{FIRES}jobs:\n  linux:\n    runs-on: ubuntu-latest\n    steps:\n\
                  \x20     - name: cargo clippy is not run here\n\
                  \x20     - run: cargo install --locked cargo-deny\n\
                  \x20     - run: cargo xtask check\n\
                  \x20     - run: echo ~/.cargo/bin\n\
-                 \x20     # a comment mentioning cargo clippy\n{}",
+                 \x20     # a comment mentioning cargo clippy\n{THE_OTHER_SYSTEMS}{}",
                 the_real_determinism_job()
             ),
         )
@@ -7226,9 +7399,9 @@ mod tests {
         let (findings, seen) = only_runs_the_gate(&scratch).expect("readable");
         assert!(findings.is_empty(), "{findings:#?}");
         assert_eq!(
-            seen, 4,
-            "the allowed invocations were not all counted: the gate, the install, and \
-             the deterministic job's two builds"
+            seen, 6,
+            "the allowed invocations were not all counted: the gate, the install, the \
+             gates on the other two systems, and the deterministic job's two builds"
         );
 
         let _ = std::fs::remove_dir_all(&scratch);
@@ -7495,13 +7668,14 @@ mod tests {
         let _ = std::fs::remove_dir_all(&scratch);
         std::fs::create_dir_all(scratch.join(".github/workflows")).expect("writable");
         the_shipped_alias(&scratch);
-        // Every fixture carries the two jobs, because a workflow without them is
-        // a different finding and this test is about the cargo rule.
+        // Every fixture carries the jobs, because a workflow without them is a
+        // different finding and this test is about the cargo rule.
         let write = |body: &str| {
             std::fs::write(
                 scratch.join(super::WORKFLOW),
                 format!(
-                    "{FIRES}jobs:\n  check:\n    steps:\n{body}{}",
+                    "{FIRES}jobs:\n  linux:\n    runs-on: ubuntu-latest\n    steps:\n{body}\
+                     {THE_OTHER_SYSTEMS}{}",
                     the_real_determinism_job()
                 ),
             )
@@ -7512,7 +7686,10 @@ mod tests {
         // one of the things the gate already does.
         write("      - run: cargo xtask check\n      - run: cargo clippy -- -D warnings\n");
         let (findings, seen) = only_runs_the_gate(&scratch).expect("readable");
-        assert_eq!(seen, 4, "the gate, the offender, and the two builds");
+        assert_eq!(
+            seen, 6,
+            "the gate, the offender, the other two systems' gates, and the two builds"
+        );
         assert_eq!(findings.len(), 1, "{findings:#?}");
         assert!(
             findings[0].what.contains("cargo clippy"),
@@ -7528,14 +7705,14 @@ mod tests {
         );
         let (findings, seen) = only_runs_the_gate(&scratch).expect("readable");
         assert!(findings.is_empty(), "{findings:#?}");
-        assert_eq!(seen, 5, "and the deterministic job's two builds");
+        assert_eq!(seen, 7, "and the other systems' gates and the two builds");
 
         // A comment describing the rule is prose, not a command — this file's own
         // header names `cargo fmt` and `cargo test` while explaining them.
         write("      # never: cargo test, cargo fmt\n      - run: cargo xtask check\n");
         let (findings, seen) = only_runs_the_gate(&scratch).expect("readable");
         assert!(findings.is_empty(), "{findings:#?}");
-        assert_eq!(seen, 3, "the comment was read as a command");
+        assert_eq!(seen, 5, "the comment was read as a command");
 
         // And a step named after what it runs, which is how CI files are
         // ordinarily written. Reading the label as a second invocation would
@@ -7546,7 +7723,7 @@ mod tests {
         );
         let (findings, seen) = only_runs_the_gate(&scratch).expect("readable");
         assert!(findings.is_empty(), "{findings:#?}");
-        assert_eq!(seen, 4, "the step's name was read as a command");
+        assert_eq!(seen, 6, "the step's name was read as a command");
 
         let _ = std::fs::remove_dir_all(&scratch);
     }
@@ -7685,18 +7862,23 @@ mod tests {
         );
 
         let ci = std::fs::read_to_string(root().join(WORKFLOW)).expect("the workflow is readable");
-        let job = job_body(&ci, "check").expect("the workflow has a `check` job");
-        let installed: Vec<String> = job
-            .lines()
-            .filter_map(|line| line.trim().strip_prefix("targets:"))
-            .flat_map(|value| value.split(','))
-            .map(|name| name.trim().trim_matches(['"', '\'', '[', ']']).to_owned())
-            .collect();
-        assert!(
-            installed.iter().any(|name| name == target),
-            "the `check` job's toolchain step installs the targets {installed:?} and not \
-             `{target}`. The action it uses does not read `rust-toolchain.toml`, so the \
-             target is asked for there as well, as `targets:` beside `components:`"
-        );
+        // **Every job that runs the gate**, because each builds the plugins on
+        // its own runner.
+        for system in ["linux", "macos", "windows"] {
+            let job = job_body(&ci, system)
+                .unwrap_or_else(|| panic!("the workflow has a `{system}` job"));
+            let installed: Vec<String> = job
+                .lines()
+                .filter_map(|line| line.trim().strip_prefix("targets:"))
+                .flat_map(|value| value.split(','))
+                .map(|name| name.trim().trim_matches(['"', '\'', '[', ']']).to_owned())
+                .collect();
+            assert!(
+                installed.iter().any(|name| name == target),
+                "the `{system}` job's toolchain step installs the targets {installed:?} and \
+                 not `{target}`. The action it uses does not read `rust-toolchain.toml`, so \
+                 the target is asked for there as well, as `targets:` beside `components:`"
+            );
+        }
     }
 }
