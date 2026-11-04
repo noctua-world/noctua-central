@@ -3777,8 +3777,9 @@ mod hostile_store_tests {
                 let Ok((mut stream, _)) = listener.accept() else {
                     return;
                 };
-                let mut sink = [0_u8; 8192];
-                let _ = stream.read(&mut sink);
+                // Read whole, so the close after the answer is not a reset that
+                // Windows would let overtake the answer.
+                let _ = the_lines_in_one_request(&mut stream);
                 let _ = stream.write_all(reply.as_bytes());
                 std::thread::sleep(core::time::Duration::from_millis(50));
             });
@@ -3991,8 +3992,11 @@ mod hostile_store_tests {
             let Ok((mut stream, _)) = partial.accept() else {
                 return;
             };
-            let mut sink = [0_u8; 4096];
-            let _ = stream.read(&mut sink);
+            // **The request read whole**, so the close is a close and not a
+            // reset: Windows discards what of an answer the client had not
+            // read when a reset arrives, and there the status that began was
+            // measured arriving as no status at all, on a Windows runner.
+            let _ = the_lines_in_one_request(&mut stream);
             // No newline: a status line that began and stopped.
             let _ = stream.write_all(b"HTTP/1.1 200 OK");
             drop(stream);
@@ -5542,8 +5546,9 @@ mod hostile_store_tests {
                 let Ok((mut stream, _)) = listener.accept() else {
                     return;
                 };
-                let mut sink = [0_u8; 4096];
-                let _ = stream.read(&mut sink);
+                // Read whole, so the close after the tail is not a reset that
+                // Windows would let overtake the tail.
+                let _ = the_lines_in_one_request(&mut stream);
                 if stream.write_all(head.as_bytes()).is_err() {
                     return;
                 }
