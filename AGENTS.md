@@ -283,8 +283,9 @@ fresh clone holds only what its first build fetched, and every step that asks ca
 graph asks it `--offline`. With `--offline` nothing is fetched, and a graph that fails for
 a package missing from the machine names that command. The fetch records that it ran and
 the verdict holds the record to the flag: on a machine that already holds every package, a
-run that fetched under `--offline` and one that never fetched without it print the same as
-one that got it right, so both are refused.
+run that fetched under `--offline` and one that never fetched without it differ from one
+that got it right only by the fetch's own `ok` line, which no step reads, so the verdict
+refuses both.
 
 `cargo xtask check --offline` skips **nine** things: the advisory database, which is
 fetched — the audit's licence, ban and source checks read only the lockfile and still

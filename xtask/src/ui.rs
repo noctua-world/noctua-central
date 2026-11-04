@@ -164,10 +164,11 @@ pub(crate) fn not_applicable_parts() -> Vec<String> {
 /// **What the run did, kept where the verdict reads it.** `--offline` promises
 /// no network, and that promise is kept by one call site and the function it
 /// calls: with the call handed the wrong flag, a run under `--offline` fetches
-/// and a run without it never does, and on a machine that already holds every
-/// package the two print the same as a run that got it right. Measured, with
-/// `!offline` at the call: every xtask test green, and nothing in the verdict
-/// read what the fetch did. `check::finish` holds this against what the run was
+/// and a run without it never does. On a machine that already holds every
+/// package, either run differs from one that got it right only by the fetch's
+/// own `ok` line, there or missing, and no step reads that line. With
+/// `!offline` at the call every xtask test stays green; this record is what
+/// tells the runs apart, and `check::finish` holds it against what the run was
 /// asked to do, the way it holds the parts that stood aside.
 pub(crate) fn fetched() {
     let _printing = while_printing();
@@ -1220,6 +1221,9 @@ mod tests {
             "a skip that only mentions the flag was counted as one the flag asked for, \
              so the equality in `finish` stops meaning what it says"
         );
+        // Left behind, the skip naming the flag is one more than any later
+        // test asks `finish` for, and it is refused for that.
+        super::forget_counts();
     }
 
     /// A not-applicable line is recorded by what it says, and is neither a
@@ -1241,6 +1245,11 @@ mod tests {
             said.last().map(String::as_str),
             Some("a probe part, which this system does not run")
         );
+        // **Forgotten before the hold is let go.** Left behind, the probe is a
+        // part this system was never written down for, and `check::finish`
+        // refuses every later run for it, before it reaches the rule a test
+        // beside it is asking about.
+        super::forget_counts();
     }
 
     #[test]
@@ -1763,10 +1772,7 @@ mod tests {
                 if !body.is_empty() && code[ends..].starts_with('}') {
                     closed += 1;
                 }
-                let reads = body.contains("warnings()")
-                    || body.contains("skips()")
-                    || body.contains("skips_because(")
-                    || body.contains("not_applicable_parts()");
+                let reads = READS_A_COUNTER.iter().any(|needle| body.contains(needle));
                 if reads && !body.contains("printing()") {
                     let found = format!("{named}:{name}");
                     unheld.push(found);
@@ -1780,11 +1786,26 @@ mod tests {
         the_extraction_still_works(bodies, closed, read);
         assert!(
             unheld.is_empty(),
-            "{} test(s) read a process-wide counter as a difference without taking the \
-             hold: {}. Another test printing between the two reads makes the number \
-             something else",
+            "{} test(s) read a process-wide count or record without taking the hold: \
+             {}. Another test printing or forgetting between this one's reads makes what \
+             it reads something else",
             unheld.len(),
             unheld.join(", ")
         );
     }
+
+    /// What a body holds when it reads a process-wide count or record, for
+    /// [`every_printer_aligns_what_it_is_given`] to hold the readers of.
+    ///
+    /// **Every record a test reads, the fetch's among them.** A reader of one
+    /// left off this list is a test the hold rule cannot see, and what it reads
+    /// is whatever another test left there, which can be the very refusal it
+    /// asserts.
+    const READS_A_COUNTER: [&str; 5] = [
+        "warnings()",
+        "skips()",
+        "skips_because(",
+        "not_applicable_parts()",
+        "the_fetch_ran()",
+    ];
 }

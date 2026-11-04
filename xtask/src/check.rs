@@ -12467,13 +12467,13 @@ fn finish(
 
 /// The fetch ran exactly where the network may be used.
 ///
-/// **What a whole run cannot show.** On a machine that already holds every
-/// package, a fetch prints one `ok` line and changes nothing, so a run that
-/// fetched under `--offline` and one that never fetched without it read like
-/// runs that got it right. The first breaks the flag's one promise; the second
-/// is a fresh clone failing every step that reads the members again, seen only
-/// there. The fetch records that it ran, and this holds the record to the
-/// flag.
+/// **What a whole run barely shows.** On a machine that already holds every
+/// package, a fetch brings down nothing and prints one `ok` line, so a run that
+/// fetched under `--offline` and one that never fetched without it differ from
+/// runs that got it right only by that line, there or missing, and no step
+/// reads it. The first breaks the flag's one promise; the second is a fresh
+/// clone failing every step that reads the members again, seen only there. The
+/// fetch records that it ran, and this holds the record to the flag.
 fn the_fetch_did_what_it_was_asked(to_fetch: bool) -> Result<(), String> {
     let fetched = ui::the_fetch_ran();
     if fetched && !to_fetch {
@@ -12618,9 +12618,9 @@ mod tests {
     /// network: the first thing the fetch does is read `Cargo.lock`, and a
     /// root without one fails there. Without the flag that failure is the
     /// proof the fetch ran; with it, no failure and no line is the proof it
-    /// did not. Every machine that runs this already has every package, so a
-    /// fetch under `--offline` changes nothing a whole run prints: this holds
-    /// the function and the record it leaves, and
+    /// did not. On a machine that already holds every package, a fetch under
+    /// `--offline` changes a whole run only by the fetch's own `ok` line, which
+    /// no step reads: this holds the function and the record it leaves, and
     /// `the_verdict_holds_the_fetch_to_the_flag` holds the verdict that reads
     /// the record.
     #[test]
@@ -12659,10 +12659,11 @@ mod tests {
     ///
     /// **Both refusals and both passes.** The fetch's call in `run` is one
     /// token from being handed the wrong flag, and on a machine that already
-    /// holds every package nothing a run prints would show it: under
-    /// `--offline` it reaches the network, and without it a fresh clone fails
-    /// every step that reads the members. The verdict reads the record the
-    /// fetch leaves, so either is a refusal in every run.
+    /// holds every package only the fetch's own `ok` line, there or missing,
+    /// would show it, and no step reads that line: under `--offline` it reaches
+    /// the network, and without it a fresh clone fails every step that reads
+    /// the members. The verdict reads the record the fetch leaves, so either is
+    /// a refusal in every run.
     #[test]
     fn the_verdict_holds_the_fetch_to_the_flag() {
         let _printing = crate::ui::printing();
@@ -15131,11 +15132,32 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         // checkout, where five steps correctly announce what that environment
         // cannot answer: four that there is no workspace above the repository,
         // and one that there is no sibling design system beside it.
+        //
+        // **From nothing, and asserted by what it says.** `finish` refuses for
+        // three things before it reads the warnings — a flag count that moved,
+        // a part standing aside, a fetch the run was not asked for — and each
+        // reads a record another test can leave behind. Behind an `is_err`
+        // alone, this rule can be switched off: measured, with
+        // `unexplained > 0` planted as never true and this run beside a test
+        // that left one not-applicable part recorded, at `--test-threads=2`,
+        // 11 of 40 runs passed. Forgotten under the hold, the run holds this
+        // probe alone.
+        ui::forget_counts();
+        ui::warn("a probe line, counted by the verdict");
+        let refusal = finish(&[], 0, &[], false);
         assert!(
-            finish(&[], 0, &[], false).is_err(),
-            "a warn line that is not a skip passed the run"
+            refusal
+                .as_ref()
+                .is_err_and(|why| why.contains("a step was skipped without being asked to be")),
+            "a warn line that is not a skip passed the run: {refusal:?}"
         );
-        assert!(finish(&["something".to_owned()], 0, &[], false).is_err());
+        ui::forget_counts();
+        let refusal = finish(&["something".to_owned()], 0, &[], false);
+        assert_eq!(
+            refusal,
+            Err("check failed: something".to_owned()),
+            "a step that recorded a failure was not refused for it alone"
+        );
         // And a skip does pass, which is the floor: a rule that failed on every
         // warning would make `--offline` and a bare checkout impossible to run.
         //
@@ -18256,7 +18278,7 @@ mod the_frozen_path_rule {
         ("xtask/the_pages_reach_the_catalog.rs", 37, 20),
         ("xtask/the_registry_reaches_the_code.rs", 26, 21),
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 30, 6),
-        ("xtask/ui.rs", 51, 12),
+        ("xtask/ui.rs", 52, 12),
         ("xtask/wall.rs", 129, 28),
         ("xtask/workflow.rs", 123, 23),
     ];
@@ -23995,7 +24017,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 13783;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 13785;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24065,7 +24087,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 19326;
+    const THE_REARRANGEMENTS_JUDGED: usize = 19331;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24119,7 +24141,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **424 of 19,326 are accepted by the first-line
+    /// rules the gates apply: **424 of 19,331 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
