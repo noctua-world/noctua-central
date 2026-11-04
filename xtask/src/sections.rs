@@ -68,11 +68,11 @@ pub(crate) const READ: [&str; 12] = [
 
 /// The files this gate opens that have no extension to be named by.
 ///
-/// `Path::extension` answers `None` for both of these — a leading dot is not a
+/// `Path::extension` answers `None` for each of these — a leading dot is not a
 /// separator and `justfile` has nothing to separate — so no list of extensions
 /// can ever reach them, however wide. Between them they carry three `§`
 /// citations today.
-pub(crate) const READ_BY_NAME: [&str; 2] = ["justfile", ".gitignore"];
+pub(crate) const READ_BY_NAME: [&str; 3] = ["justfile", ".gitignore", ".gitattributes"];
 
 /// The kinds this repository holds that this gate does not open, and why.
 ///

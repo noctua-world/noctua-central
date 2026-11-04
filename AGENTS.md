@@ -187,6 +187,7 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 ├── deny.toml                       the advisory and licence audit (§15.5)
 ├── docker-compose.yml              the local stack: PostgreSQL and the log store
 ├── .env.example                    what the stack reads. NEVER copied to .env
+├── .gitattributes                  every text file checked out with LF, on every system
 ├── .github/workflows/ci.yml        HAS NEVER RUN — there is no repository yet
 ├── catalog/                        HAND-WRITTEN — THE shared-core registries (§15.2)
 │   ├── errors.toml                 every error this platform can produce (§15.1)

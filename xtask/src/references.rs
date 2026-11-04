@@ -510,10 +510,10 @@ const READ: [&str; 12] = [
 
 /// The files this gate opens that have no extension to be named by.
 ///
-/// `Path::extension` answers `None` for both — a leading dot is not a separator
+/// `Path::extension` answers `None` for each — a leading dot is not a separator
 /// and `justfile` has nothing to separate — so no list of extensions can reach
 /// them, however wide it grows.
-const READ_BY_NAME: [&str; 2] = ["justfile", ".gitignore"];
+const READ_BY_NAME: [&str; 3] = ["justfile", ".gitignore", ".gitattributes"];
 
 /// The kinds this repository holds that this gate does not open, and why.
 ///
@@ -1128,7 +1128,7 @@ fn looks_like_a_path(token: &str) -> bool {
     // ordinary words and renaming one leaves those sentences behind with
     // `check passed`. `.gitignore` also walks straight into the rule below,
     // which refuses `.rs` for being the name of a kind and cannot tell the two
-    // apart. `READ_BY_NAME` is the same two names this gate opens, and the
+    // apart. `READ_BY_NAME` is the same names this gate opens, and the
     // partition test holds it to every extensionless file on disk.
     if READ_BY_NAME.contains(&token) {
         return true;

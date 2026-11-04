@@ -29743,8 +29743,9 @@ mod the_frozen_path_rule {
     /// are not what `Path::extension` calls a `gitignore` and an `example`. A
     /// kind-based allowance at the root would have to admit "no extension at
     /// all", which is the exact shape a scratch note and a private key wear.
-    const WHAT_MAY_SIT_AT_THE_ROOT: [&str; 13] = [
+    const WHAT_MAY_SIT_AT_THE_ROOT: [&str; 14] = [
         ".env.example",
+        ".gitattributes",
         ".gitignore",
         "AGENTS.md",
         "CLAUDE.md",
