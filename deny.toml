@@ -163,9 +163,9 @@ skip = [
     # when `sqlx` moves.
     "base64",
     # `windows-sys` 0.52 is `ring`'s, under `rustls`, and 0.61 is `tokio`'s,
-    # under `mio` — the bindings each was written against, compiled only for a
-    # Windows target, which no build of this tree is. They unify when `ring`
-    # moves.
+    # under `mio`, and `nc-platform`'s own, for its Windows half — the bindings
+    # each was written against, compiled only for a Windows target, which the
+    # Windows job of the workflow builds. They unify when `ring` moves.
     "windows-sys",
     # Two randomness stacks: `proptest`'s, dev-only, on `rand` 0.9, and the
     # one `sqlx-postgres` draws SCRAM's nonce from, on `rand` 0.10 — each with

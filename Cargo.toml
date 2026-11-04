@@ -155,6 +155,12 @@ nc-schema = { path = "crates/nc-schema" }
 # objects `local-migrations/` must build — the one list the crate checks a
 # database against when it opens one, so the gate and the check cannot differ.
 nc-local = { path = "crates/nc-local" }
+# What makes a path one user's alone on each system (`NOCTUA.md §2.7`): who
+# this process runs as, a directory and a file created private, an existing
+# path judged, a profile held for one open. The local database's open and the
+# kernel's blob directory both stand on it, so the rule is written once per
+# system, and it is the one crate that asks which system it runs on.
+nc-platform = { path = "crates/nc-platform" }
 # The decision point as a library: the core and one realm's pack, embedded when
 # it is built (`NOCTUA.md §14.2`). The kernel holds every command a plugin
 # declares at `activate` to the actions its schema declares and the resource

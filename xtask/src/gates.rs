@@ -65,7 +65,7 @@ const NOTHING_ELSE_MAY_BE_SKIPPED: [&str; 3] = [".git", "target", "node_modules"
 /// reach this too", and a directory holding no files yet cannot be listed: the
 /// walk-level test would fail for the absence rather than for a skip.
 #[cfg(test)]
-const COVERED: [&str; 20] = [
+const COVERED: [&str; 21] = [
     "crates/nc-authz/src",
     "crates/nc-canon/src",
     "crates/nc-catalog/src",
@@ -76,6 +76,7 @@ const COVERED: [&str; 20] = [
     "crates/nc-kernel/src",
     "crates/nc-local/src",
     "crates/nc-log/src",
+    "crates/nc-platform/src",
     "crates/nc-policy/src",
     "crates/nc-prune/src",
     "crates/nc-schema/src",
@@ -1221,7 +1222,7 @@ pub(crate) fn in_the_error_code_scope(relative: &str) -> bool {
 /// per member crate.* A member added here and to the exclusion list in the
 /// same edit is a contradiction the test names.
 #[cfg(test)]
-const JUDGED_BY_THE_ERROR_CODE_RULE: [&str; 12] = [
+const JUDGED_BY_THE_ERROR_CODE_RULE: [&str; 13] = [
     "crates/nc-authz/",
     "crates/nc-canon/",
     "crates/nc-guest/",
@@ -1230,6 +1231,7 @@ const JUDGED_BY_THE_ERROR_CODE_RULE: [&str; 12] = [
     "crates/nc-kernel/",
     "crates/nc-local/",
     "crates/nc-log/",
+    "crates/nc-platform/",
     "crates/nc-policy/",
     "crates/nc-prune/",
     "crates/nc-schema/",
@@ -5463,7 +5465,54 @@ mod the_unsafe_rule {
         (written, read)
     }
 
-    /// No `unsafe` is written in any Rust file of this tree.
+    /// The one file of this tree that writes `unsafe`.
+    ///
+    /// **The Win32 security calls are `unsafe` to make**, and the Windows half
+    /// of `nc-platform` is where they are made (`NOCTUA.md §2.7`, decided on
+    /// 2026-11-02): who the token says this process is, an access list built
+    /// and read, a file and a directory created with one. Its crate takes
+    /// `unsafe_code = "deny"` where the workspace takes `forbid`, which nothing
+    /// under it could lift, and allows it on this module alone; and each use of
+    /// the keyword in it is held below to the comment that says why it is
+    /// sound.
+    const WRITES_UNSAFE: &str = "crates/nc-platform/src/windows.rs";
+
+    /// Whether the `unsafe` on line `at` of `text` is explained where it is
+    /// written: a block under a `// SAFETY:` comment, a function under a doc
+    /// with a `# Safety` section.
+    ///
+    /// **The comment block nearest above, not anywhere in the file.** Walking
+    /// up, a line of the same statement — `let sized =` above `unsafe {` — and
+    /// an attribute are passed over; a line that ends a statement or a block
+    /// before any comment is reached means the comment above it is another
+    /// statement's.
+    fn explained(text: &str, at: usize) -> bool {
+        let lines: Vec<&str> = text.lines().collect();
+        let mut index = at.saturating_sub(1);
+        while index > 0 {
+            index -= 1;
+            let line = lines[index].trim();
+            if line.starts_with("//") {
+                let mut said = false;
+                while lines[index].trim().starts_with("//") {
+                    let comment = lines[index].trim();
+                    said |= comment.starts_with("// SAFETY:") || comment == "/// # Safety";
+                    if index == 0 {
+                        break;
+                    }
+                    index -= 1;
+                }
+                return said;
+            }
+            if line.ends_with(';') || line.ends_with('{') || line.ends_with('}') {
+                return false;
+            }
+        }
+        false
+    }
+
+    /// No `unsafe` is written in any Rust file of this tree but one, and
+    /// every `unsafe` in that one says why it is sound.
     ///
     /// **`forbid(unsafe_code)` is the rule, and what it covers is narrower
     /// than it reads.** It refuses `unsafe` written in a crate and says
@@ -5474,7 +5523,8 @@ mod the_unsafe_rule {
     /// this repository states is *no `unsafe` is written here*, and this is
     /// the test of that sentence rather than of the lint: every `.rs` the tree
     /// holds — members, plugins, fixtures, canaries and tests alike — with its
-    /// comments and strings blanked, holds no `unsafe` keyword.
+    /// comments and strings blanked, holds no `unsafe` keyword, except
+    /// [`WRITES_UNSAFE`], which must still hold one, each beside its reason.
     ///
     /// It walks the files the gates walk and asserts it reached three of them
     /// by name, one per place a generated `unsafe` sits beside hand-written
@@ -5483,10 +5533,31 @@ mod the_unsafe_rule {
     fn no_unsafe_is_written_in_any_rust_file_of_this_tree() {
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let (written, read) = unsafe_written_under(root);
+        let (excused, written): (Vec<super::Finding>, Vec<super::Finding>) = written
+            .into_iter()
+            .partition(|finding| finding.file == WRITES_UNSAFE);
         assert!(
             written.is_empty(),
-            "`unsafe` is written in this tree, which `AGENTS.md` says it never is: \
-             {written:?}"
+            "`unsafe` is written in this tree outside `{WRITES_UNSAFE}`, which `AGENTS.md` \
+             says it never is: {written:?}"
+        );
+        assert!(
+            !excused.is_empty(),
+            "`{WRITES_UNSAFE}` writes no `unsafe`, so the one exception this test makes \
+             excuses nothing: take it out, here and in `AGENTS.md`'s invariant 17"
+        );
+        let text = std::fs::read_to_string(root.join(WRITES_UNSAFE))
+            .unwrap_or_else(|error| panic!("`{WRITES_UNSAFE}` is readable: {error}"));
+        let unexplained: Vec<usize> = excused
+            .iter()
+            .map(|finding| finding.line)
+            .filter(|line| !explained(&text, *line))
+            .collect();
+        assert!(
+            unexplained.is_empty(),
+            "`{WRITES_UNSAFE}` writes `unsafe` on line(s) {unexplained:?} with no `// SAFETY:` \
+             comment above the block, or `# Safety` in the function's doc, saying why each \
+             pointer it hands the system is valid and what is freed where"
         );
         for expected in [
             "crates/nc-kernel/src/bindings.rs",
@@ -5498,6 +5569,50 @@ mod the_unsafe_rule {
                 "`{expected}` was not read, so this walk did not reach the code it is about"
             );
         }
+    }
+
+    /// A block is explained by the comment block directly above its statement,
+    /// and a function by its doc's `# Safety`; a comment above an earlier
+    /// statement explains nothing.
+    #[test]
+    fn an_unsafe_block_is_explained_only_where_it_is_written() {
+        let text = [
+            "// SAFETY: the pointer is the caller's.\n",
+            "let a = unsafe { f() };\n",
+            "// SAFETY: two lines,\n",
+            "// the second of them.\n",
+            "let b =\n",
+            "    unsafe { g() };\n",
+            "/// Reads it.\n",
+            "///\n",
+            "/// # Safety\n",
+            "///\n",
+            "/// The pointer is valid.\n",
+            "#[inline]\n",
+            "unsafe fn h() {}\n",
+            "// A comment about something else.\n",
+            "let c = 1;\n",
+            "let d = unsafe { i() };\n",
+            "/// A doc with no section.\n",
+            "unsafe fn j() {}\n",
+            "let e = unsafe { k() };\n",
+        ]
+        .concat();
+        let verdicts: Vec<(usize, bool)> = written_unsafe(&text)
+            .into_iter()
+            .map(|line| (line, explained(&text, line)))
+            .collect();
+        assert_eq!(
+            verdicts,
+            [
+                (2, true),
+                (6, true),
+                (13, true),
+                (16, false),
+                (18, false),
+                (19, false)
+            ]
+        );
     }
 }
 
@@ -5729,6 +5844,13 @@ pub(crate) fn the_workspace_lints(root: &Path) -> Result<Vec<(String, String)>, 
 /// A crate added without the stanza is unlinted from birth, which is the more
 /// likely way it happens.
 ///
+/// **One member writes them out instead, held to them entry for entry.**
+/// `crates/nc-platform` holds the one module of this tree that writes `unsafe`
+/// — the Win32 security calls — and a `forbid` cannot be lifted by anything
+/// under it, so that crate's `[lints]` is the workspace's own table with
+/// `unsafe_code` at `deny`, and nothing else changed ([`WRITES_THE_LINTS_OUT`]).
+/// Any other difference, and the same table in any other member, is a finding.
+///
 /// # Errors
 ///
 /// Returns why the manifests could not be read.
@@ -5789,10 +5911,13 @@ pub(crate) fn every_member_takes_the_workspace_lints(
         // that refusal and turn every manifest in the tree into a finding, which
         // at least fails loudly. A parse that cannot fail quietly is worth more
         // than one that reads the right thing most of the time.
-        let takes_them = toml::from_str::<toml::Value>(&text)
-            .ok()
+        let manifest = toml::from_str::<toml::Value>(&text).ok();
+        let takes_them = manifest
+            .as_ref()
             .and_then(|manifest| manifest.get("lints")?.get("workspace")?.as_bool())
-            .unwrap_or(false);
+            .unwrap_or(false)
+            || relative == WRITES_THE_LINTS_OUT.0
+                && writes_the_workspace_lints_out(root, manifest.as_ref());
         if !takes_them {
             findings.push(Finding {
                 file: relative,
@@ -5816,6 +5941,42 @@ pub(crate) fn every_member_takes_the_workspace_lints(
         checked += 1;
     }
     Ok((findings, checked))
+}
+
+/// The one member that writes the workspace's lints out, the lint it changes,
+/// and the level it changes it to.
+///
+/// **`deny` where the workspace says `forbid`**: still refused everywhere in
+/// that crate, and allowed by one attribute on the one module whose Win32
+/// calls are `unsafe` to make (`AGENTS.md`, invariant 17).
+const WRITES_THE_LINTS_OUT: (&str, &str, &str) =
+    ("crates/nc-platform/Cargo.toml", "unsafe_code", "deny");
+
+/// Whether `manifest`'s `[lints]` is the workspace's own table with the one
+/// entry [`WRITES_THE_LINTS_OUT`] names at its level, and nothing else.
+///
+/// **Compared as TOML values, not as text**, so a comment, an order or a
+/// spelling changes nothing and a level, a lint or a priority does.
+fn writes_the_workspace_lints_out(root: &Path, manifest: Option<&toml::Value>) -> bool {
+    let Some(lints) = manifest.and_then(|manifest| manifest.get("lints")) else {
+        return false;
+    };
+    let workspace = std::fs::read_to_string(root.join("Cargo.toml"))
+        .ok()
+        .and_then(|text| toml::from_str::<toml::Value>(&text).ok())
+        .and_then(|manifest| manifest.get("workspace")?.get("lints").cloned());
+    let Some(mut expected) = workspace else {
+        return false;
+    };
+    let (_, lint, level) = WRITES_THE_LINTS_OUT;
+    let Some(rust) = expected.get_mut("rust").and_then(toml::Value::as_table_mut) else {
+        return false;
+    };
+    if !rust.contains_key(lint) {
+        return false;
+    }
+    rust.insert(lint.to_owned(), toml::Value::String(level.to_owned()));
+    *lints == expected
 }
 
 /// The lint groups a source file may not turn off for itself.
@@ -9489,7 +9650,7 @@ mod tests {
     // SCOPE` naming the compiler's crate, and a second copy of that text
     // anywhere in this file leaves the operator with nothing unique to apply to
     // — reported as `not applicable`, which is a clause with no coverage.
-    const READ_BY_THE_HATCH_WALK: [&str; 15] = [
+    const READ_BY_THE_HATCH_WALK: [&str; 16] = [
         "crates/nc-authz",
         "crates/nc-canon",
         "crates/nc-catalog",
@@ -9500,6 +9661,7 @@ mod tests {
         "crates/nc-kernel",
         "crates/nc-local",
         "crates/nc-log",
+        "crates/nc-platform",
         "crates/nc-policy",
         "crates/nc-prune",
         "crates/nc-schema",
@@ -9516,7 +9678,7 @@ mod tests {
     ///
     /// The registry's own crate and its compiler are absent on purpose: they are
     /// the declaration rather than a producer.
-    const JUDGED_BY_THE_RAISING_RULE: [&str; 12] = [
+    const JUDGED_BY_THE_RAISING_RULE: [&str; 13] = [
         "crates/nc-authz/",
         "crates/nc-canon/",
         "crates/nc-guest/",
@@ -9525,6 +9687,7 @@ mod tests {
         "crates/nc-kernel/",
         "crates/nc-local/",
         "crates/nc-log/",
+        "crates/nc-platform/",
         "crates/nc-policy/",
         "crates/nc-prune/",
         "crates/nc-schema/",
@@ -11473,6 +11636,79 @@ mod tests {
         let _ = std::fs::remove_dir_all(&scratch);
     }
 
+    /// The one member that writes the lints out is held to the workspace's
+    /// table with its one entry changed, and no other member may do the same.
+    #[test]
+    fn the_member_that_writes_the_lints_out_writes_the_workspaces_own() {
+        let guard = crate::check::LeavesNothingBehind::new("lints-written-out");
+        let scratch = guard.root.clone();
+        for crate_name in ["nc-platform", "free"] {
+            std::fs::create_dir_all(scratch.join(format!("crates/{crate_name}/src")))
+                .expect("writable");
+        }
+        std::fs::write(
+            scratch.join("Cargo.toml"),
+            "[workspace]\n\n[workspace.lints.rust]\nunsafe_code = \"forbid\"\n\
+             missing_docs = \"warn\"\n\n[workspace.lints.clippy]\n\
+             all = { level = \"warn\", priority = -1 }\n",
+        )
+        .expect("writable");
+        std::fs::write(
+            scratch.join("crates/free/Cargo.toml"),
+            "[package]\nname = \"free\"\n\n[lints]\nworkspace = true\n",
+        )
+        .expect("writable");
+        let platform = scratch.join("crates/nc-platform/Cargo.toml");
+        let judged = |lints: &str| {
+            std::fs::write(
+                &platform,
+                format!("[package]\nname = \"nc-platform\"\n\n{lints}"),
+            )
+            .expect("writable");
+            let (findings, _) = every_member_takes_the_workspace_lints(&scratch).expect("readable");
+            findings
+                .iter()
+                .map(|finding| finding.file.clone())
+                .collect::<Vec<_>>()
+        };
+        let written_out = "[lints.rust]\nunsafe_code = \"deny\"\nmissing_docs = \"warn\"\n\n\
+                           [lints.clippy]\nall = { level = \"warn\", priority = -1 }\n";
+        assert_eq!(judged(written_out), [] as [String; 0]);
+        assert_eq!(judged("[lints]\nworkspace = true\n"), [] as [String; 0]);
+        for (changed, lints) in [
+            (
+                "unsafe allowed",
+                written_out.replace("\"deny\"", "\"allow\""),
+            ),
+            (
+                "a lint dropped",
+                written_out.replace("missing_docs = \"warn\"\n", ""),
+            ),
+            (
+                "a lint added",
+                format!("{written_out}pedantic = \"warn\"\n"),
+            ),
+            ("a priority moved", written_out.replace("-1", "0")),
+            ("no table at all", String::new()),
+        ] {
+            assert_eq!(
+                judged(&lints),
+                ["crates/nc-platform/Cargo.toml"],
+                "with {changed}, the written-out table passed as the workspace's own"
+            );
+        }
+        std::fs::write(
+            scratch.join("crates/free/Cargo.toml"),
+            format!("[package]\nname = \"free\"\n\n{written_out}"),
+        )
+        .expect("writable");
+        assert_eq!(
+            judged(written_out),
+            ["crates/free/Cargo.toml"],
+            "a member the exception does not name wrote the lints out and passed"
+        );
+    }
+
     #[test]
     fn nothing_may_be_added_to_the_exclusion_list() {
         // `COVERED` matches by path and a skip matches by name at any depth, so
@@ -11870,6 +12106,7 @@ mod tests {
                 "crates/nc-kernel/src",
                 "crates/nc-local/src",
                 "crates/nc-log/src",
+                "crates/nc-platform/src",
                 "crates/nc-policy/src",
                 "crates/nc-prune/src",
                 "crates/nc-schema/src",

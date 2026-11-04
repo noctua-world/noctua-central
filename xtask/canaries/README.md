@@ -580,7 +580,9 @@ what a plugin announces, is woken by and shows, `events.rs`,
 `timers.rs` and `ui.rs`, and what the kernel does between call trees,
 `pump.rs`, the reference plugin's `lib.rs`, `behaviour.rs` and `adapter.rs`, `plugins.rs`,
 which builds that plugin into what the kernel loads, the local database's
-`lib.rs`, `open.rs`, `schema.rs` and `store.rs`, `nc-prune`'s `sqlite.rs`, and
+`lib.rs`, `open.rs`, `schema.rs` and `store.rs`, what makes that database's
+files private on the system it runs on — `nc-platform`'s `lib.rs`, `unix.rs`
+and the test doors `testing.rs` — `nc-prune`'s `sqlite.rs`, and
 `local.rs`, which builds that database's schema from its migrations, and restores **all of them** before each mutation: its first multi-file version
 restored only the one it was editing, so sixteen weakenings were reported killed
 by a corpus that had not seen them.

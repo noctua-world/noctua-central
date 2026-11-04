@@ -15996,7 +15996,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 
         // And the real manifest, or the assertions above are about a shape
         // nothing here is written in.
-        assert_eq!(members_of(root()), 15);
+        assert_eq!(members_of(root()), 16);
 
         // **Zero when cargo cannot say**, rather than a number invented from a
         // tree that is not a workspace; the caller reads the members itself and
@@ -16185,7 +16185,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     /// against — four sets compared with a set the same call produces. A bound
     /// under it shrinks with the run it is judging, which is the shape this
     /// table exists to refuse.
-    const SOURCE_ROOTS: [(&str, usize); 15] = [
+    const SOURCE_ROOTS: [(&str, usize); 16] = [
         ("nc-authz", 2),
         ("nc-canon", 2),
         ("nc-catalog", 2),
@@ -16196,6 +16196,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         ("nc-kernel", 11),
         ("nc-local", 3),
         ("nc-log", 2),
+        ("nc-platform", 1),
         ("nc-plugin-reference", 1),
         ("nc-policy", 3),
         ("nc-prune", 3),
@@ -18184,7 +18185,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 143] = [
+    const DOCUMENTED: [(&str, usize, usize); 147] = [
         ("nc-authz/directory.rs", 28, 13),
         ("nc-authz/embedded.rs", 12, 4),
         ("nc-authz/lib.rs", 30, 19),
@@ -18236,7 +18237,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/activation.rs", 23, 67),
         ("nc-kernel/backend.rs", 35, 38),
         ("nc-kernel/bindings.rs", 34, 8),
-        ("nc-kernel/blobs.rs", 70, 52),
+        ("nc-kernel/blobs.rs", 69, 52),
         ("nc-kernel/both_stores_answer_alike.rs", 51, 21),
         ("nc-kernel/built.rs", 7, 7),
         ("nc-kernel/builtin.rs", 35, 13),
@@ -18277,9 +18278,9 @@ mod the_frozen_path_rule {
         ("nc-kernel/where_a_blob_is.rs", 40, 36),
         ("nc-kernel/world.rs", 4, 1),
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 52, 15),
-        ("nc-local/lib.rs", 11, 8),
-        ("nc-local/open.rs", 30, 6),
-        ("nc-local/opening_refuses_what_it_did_not_make.rs", 58, 5),
+        ("nc-local/lib.rs", 12, 8),
+        ("nc-local/open.rs", 17, 6),
+        ("nc-local/opening_refuses_what_it_did_not_make.rs", 59, 4),
         ("nc-local/schema.rs", 23, 2),
         ("nc-local/store.rs", 82, 12),
         ("nc-log/events.rs", 22, 110),
@@ -18287,6 +18288,10 @@ mod the_frozen_path_rule {
         ("nc-log/lib.rs", 19, 25),
         ("nc-log/ship.rs", 105, 50),
         ("nc-log/value.rs", 18, 36),
+        ("nc-platform/lib.rs", 35, 21),
+        ("nc-platform/testing.rs", 17, 1),
+        ("nc-platform/unix.rs", 35, 2),
+        ("nc-platform/windows.rs", 63, 11),
         ("nc-policy/an_entity_type_is_a_name_cedar_parses.rs", 7, 3),
         ("nc-policy/cases.rs", 10, 13),
         ("nc-policy/lib.rs", 103, 20),
@@ -18307,7 +18312,7 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 630, 56),
+        ("xtask/check.rs", 632, 56),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 44, 29),
         ("xtask/database.rs", 29, 6),
@@ -18315,7 +18320,7 @@ mod the_frozen_path_rule {
         ("xtask/dev.rs", 60, 8),
         ("xtask/docs.rs", 8, 1),
         ("xtask/every_generated_value_is_compared.rs", 30, 8),
-        ("xtask/gates.rs", 213, 33),
+        ("xtask/gates.rs", 219, 33),
         ("xtask/limits.rs", 176, 59),
         ("xtask/local.rs", 79, 8),
         ("xtask/main.rs", 2, 24),
@@ -21105,8 +21110,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 516 scratches this tree
-    /// builds, 426 of the 516 are removed however the test leaves and 90 are
+    /// directories accumulated in an afternoon. Of the 526 scratches this tree
+    /// builds, 436 of the 526 are removed however the test leaves and 90 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -21172,7 +21177,7 @@ mod the_frozen_path_rule {
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 31] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 32] = [
         ("nc-catalog-compiler/ledger.rs", 1, 0),
         ("nc-catalog-compiler/the_gates_fire.rs", 149, 149),
         ("nc-kernel/blobs.rs", 10, 10),
@@ -21181,8 +21186,9 @@ mod the_frozen_path_rule {
         ("nc-kernel/units_and_history.rs", 3, 3),
         ("nc-kernel/where_a_blob_is.rs", 3, 3),
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 26, 26),
-        ("nc-local/open.rs", 4, 4),
+        ("nc-local/open.rs", 3, 3),
         ("nc-local/opening_refuses_what_it_did_not_make.rs", 42, 42),
+        ("nc-platform/lib.rs", 10, 10),
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
         ("nc-prune/in_sqlite.rs", 13, 13),
         ("xtask/build.rs", 8, 8),
@@ -21193,7 +21199,7 @@ mod the_frozen_path_rule {
         ("xtask/dev.rs", 1, 0),
         ("xtask/docs.rs", 2, 2),
         ("xtask/every_generated_value_is_compared.rs", 1, 0),
-        ("xtask/gates.rs", 16, 8),
+        ("xtask/gates.rs", 17, 9),
         ("xtask/limits.rs", 26, 13),
         ("xtask/local.rs", 4, 4),
         ("xtask/members.rs", 1, 0),
@@ -24068,7 +24074,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 13794;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14036;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24087,7 +24093,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2524;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2654;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -24104,7 +24110,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 814;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 859;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -24138,7 +24144,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 19347;
+    const THE_REARRANGEMENTS_JUDGED: usize = 19617;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24192,7 +24198,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **424 of 19,347 are accepted by the first-line
+    /// rules the gates apply: **424 of 19,617 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -24225,7 +24231,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **814 of
+    /// this tree offers, **859 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -31768,7 +31774,16 @@ mod the_meta_gate {
     /// own doc: a module directory may be called anything. Every row here is a
     /// prefix of a workspace-relative path, anchored at its start, so what it
     /// excuses is what it names.
-    const NOT_MUTATED: [(&str, &str); 39] = [
+    const NOT_MUTATED: [(&str, &str); 40] = [
+        (
+            "crates/nc-platform/src/windows.rs",
+            "another system's: the Windows half of what makes a path private, \
+             compiled for a Windows target alone. The runner runs on the machine \
+             it is started on and none of them is Windows, so every operator here \
+             would leave the build it judges byte for byte the same and come back \
+             `SURVIVED` for a clause nothing was asked about. The Windows job of \
+             the workflow runs the suites that decide it",
+        ),
         (
             "crates/nc-log/src/events.rs",
             "generated, and named exactly because the crate root beside it is \
@@ -32287,6 +32302,9 @@ mod the_meta_gate {
         /// argument is decided when a plugin is compiled and no weakening of one
         /// builds.
         Bindings,
+        /// Compiled for Windows alone, by its own inner attribute, so no build
+        /// the runner makes holds a line of it.
+        AnotherSystem,
     }
 
     /// Reading a kind out of a reason, and writing one back as its token.
@@ -32296,13 +32314,14 @@ mod the_meta_gate {
     #[cfg(test)]
     impl Kind {
         /// Every kind there is, for the message that lists them.
-        const ALL: [Self; 6] = [
+        const ALL: [Self; 7] = [
             Self::Generated,
             Self::Suite,
             Self::Fixture,
             Self::Canary,
             Self::Corpus,
             Self::Bindings,
+            Self::AnotherSystem,
         ];
 
         /// The token a row opens with to claim this kind.
@@ -32314,6 +32333,7 @@ mod the_meta_gate {
                 Self::Canary => "a canary",
                 Self::Corpus => "the corpus",
                 Self::Bindings => "bindings",
+                Self::AnotherSystem => "another system's",
             }
         }
 
@@ -32435,6 +32455,45 @@ mod the_meta_gate {
         assert_eq!(
             Kind::opening("bindings: one call and nothing written by hand"),
             Some(Kind::Bindings)
+        );
+    }
+
+    /// An `another system's` row is held to a file compiled for Windows
+    /// alone, by its own inner attribute written as code.
+    ///
+    /// Both answers: the Windows half itself, and the Unix half beside it, the
+    /// attribute in a comment, and the attribute in a string.
+    #[test]
+    fn another_systems_row_is_held_to_a_file_compiled_for_windows_alone() {
+        let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+        let read = |named: &str| {
+            std::fs::read_to_string(root.join(named))
+                .unwrap_or_else(|error| panic!("`{named}` is in this tree: {error}"))
+        };
+        assert!(
+            is_compiled_for_windows_alone(&read("crates/nc-platform/src/windows.rs")),
+            "the Windows half is compiled for Windows alone, and the rule an `another \
+             system's` row is held to does not see it"
+        );
+        for (what, text) in [
+            ("the Unix half", read("crates/nc-platform/src/unix.rs")),
+            (
+                "a comment",
+                "// #![cfg(windows)]\npub fn f() {}\n".to_owned(),
+            ),
+            (
+                "a string",
+                "const NOTE: &str = \"\n#![cfg(windows)]\n\";\n".to_owned(),
+            ),
+        ] {
+            assert!(
+                !is_compiled_for_windows_alone(&text),
+                "{what} reads as a file compiled for Windows alone"
+            );
+        }
+        assert_eq!(
+            Kind::opening("another system's: compiled for a Windows target alone"),
+            Some(Kind::AnotherSystem)
         );
     }
 
@@ -33954,6 +34013,11 @@ Options:
                 "xtask/src/main.rs".to_owned(),
                 "plugins/reference/src/lib.rs".to_owned(),
                 "plugins/reference/src/adapter.rs".to_owned(),
+                // Each system's half of `nc-platform`, whose tests sit in the
+                // crate root over the interface both halves answer, and the test
+                // doors, which the suites of other crates call.
+                "crates/nc-platform/src/unix.rs".to_owned(),
+                "crates/nc-platform/src/testing.rs".to_owned(),
             ],
             "the sources carrying no `#[test]` of their own are not the ones written \
              down. A file that stops carrying tests leaves this rule asking nothing of \
@@ -34105,6 +34169,20 @@ Options:
         })
         .expect("the tree is readable");
         (everything, stems)
+    }
+
+    /// Whether a source holds `#![cfg(windows)]` as code, which compiles it
+    /// for a Windows target alone.
+    ///
+    /// **The fact an `another system's` row rests on, read from the file
+    /// rather than from the row.** The runner builds for the machine it is
+    /// started on, so a file that condition keeps out of every build it makes
+    /// is one no operator of its can change; a file without it is built, and
+    /// excusing it leaves what it builds decided by nobody.
+    fn is_compiled_for_windows_alone(text: &str) -> bool {
+        let code =
+            crate::gates::without_string_contents(&crate::gates::without_comments(text, "//"));
+        code.lines().any(|line| line.trim() == "#![cfg(windows)]")
     }
 
     /// Whether a source is one `generate!` call and nothing written by hand.
@@ -34297,6 +34375,14 @@ Options:
                      source holding code of its own is excused by a sentence that is \
                      not true of it, and that code is then decided by nobody"
                 ),
+                Kind::AnotherSystem => assert!(
+                    std::fs::read_to_string(root.join(named))
+                        .is_ok_and(|text| is_compiled_for_windows_alone(&text)),
+                    "the row for `{named}` calls it another system's, and it does not \
+                     hold `#![cfg(windows)]` as code. A source the runner builds, \
+                     excused as one it never builds, is excused by a sentence that is \
+                     not true of it, and is then decided by nobody"
+                ),
             }
             if let Some(cited) = cites_what_is_not_there(why, &everything, &stems) {
                 panic!(
@@ -34401,7 +34487,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 157,
+            walked, 161,
             "{walked} Rust source(s) were walked, and this tree holds 119. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -34441,7 +34527,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1421] = [
+    static OPERATORS: [(&str, &str, &str); 1422] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -37035,17 +37121,21 @@ Options:
             "is_a_trigger_refusal",
             "a trigger's refusal is its extended code",
         ),
-        ("local_open", "judge", "a group or other bit is refused"),
-        ("local_open", "judge", "a link is refused however it points"),
-        ("local_open", "judge", "a foreign owner is refused"),
+        ("platform_unix", "judged", "a group or other bit is refused"),
         (
-            "local_open",
+            "platform_unix",
+            "judged",
+            "a link is refused however it points",
+        ),
+        ("platform_unix", "judged", "a foreign owner is refused"),
+        (
+            "platform_unix",
             "create_private",
             "the file is created with no other bits",
         ),
         (
-            "local_open",
-            "private_directory",
+            "platform_unix",
+            "create_private_directory",
             "the directory is made private",
         ),
         (
@@ -37270,9 +37360,13 @@ Options:
             "said",
             "a row still referred to is said so, not as a trigger's",
         ),
-        ("local_open", "judge", "a bit its owner needs is required"),
         (
-            "local_open",
+            "platform_unix",
+            "judged",
+            "a bit its owner needs is required",
+        ),
+        (
+            "platform",
             "probe_name",
             "each open makes a probe of its own",
         ),
@@ -38142,8 +38236,8 @@ Options:
         ),
         (
             "kernel_blobs",
-            "create_private",
-            "a writing is created with no other bits",
+            "BlobStore for DirectoryBlobs",
+            "a writing is created private",
         ),
         (
             "kernel_blobs",
@@ -40590,7 +40684,12 @@ Options:
             "for_judging",
             "the connection that judges the file is read-only",
         ),
-        ("local_open", "held", "one open of a profile at a time"),
+        ("platform_unix", "hold", "one open of a profile at a time"),
+        (
+            "platform_testing",
+            "open_to_another_user",
+            "a path opened to another user is opened",
+        ),
         (
             "local_store",
             "unread",

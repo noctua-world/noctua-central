@@ -132,9 +132,10 @@ backend services — everything `NOCTUA.md §1` describes. What is in it today:
   what it changes in a unit of work a person can undo and redo. Plugins reach blobs, the
   network, events, timers and surfaces only through the world, each judged by the kernel.
 - **What the kernel stands on**: the one rule every declared command answers to
-  (`crates/nc-schema`), the decision point it embeds (`crates/nc-authz`), and the local
+  (`crates/nc-schema`), the decision point it embeds (`crates/nc-authz`), the local
   app database its plugins' data is kept in (`crates/nc-local`, SQLite, built by
-  `local-migrations/`).
+  `local-migrations/`), and what makes that file and the blobs beside it one user's alone
+  on each system (`crates/nc-platform`).
 - **What a plugin is built from**: the world's guest half (`crates/nc-guest`) and the
   reference plugin the kernel is proven with (`plugins/reference`).
 
@@ -218,6 +219,7 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 │   ├── nc-log/                     the central log's type wall (§15.4)
 │   │   ├── events.rs              in src/ — GENERATED, one struct per event
 │   │   └── fixtures/               the files that MUST NOT COMPILE
+│   ├── nc-platform/                a path one user's alone, per system (§2.7) — THE ONE `unsafe`
 │   ├── nc-policy/                  the pack's compiler, validator and case runner
 │   ├── nc-authz/                   the decision point: the embedded pack, asked (§14.2)
 │   ├── nc-kernel/                  the local kernel: the host of the plugin world (§11)
@@ -517,22 +519,32 @@ effect; 22 is gated over the statements written today and by nothing over the ne
     leaves its scratch behind — `just leaves-nothing` measures a suite that passes. A
     guard on each closes it.
 
-17. **No `unsafe` is written in this repository — and that is what `forbid(unsafe_code)`
-    means here, exactly.** Every member takes `unsafe_code = "forbid"`, the plugins
-    included. rustc does not lint an external macro's expansion, so `unsafe` a
+17. **No `unsafe` is written in this repository but in one module — and that is what
+    `forbid(unsafe_code)` means here, exactly.** Every member takes
+    `unsafe_code = "forbid"`, the plugins included, but `crates/nc-platform`, whose
+    Windows half makes the Win32 security calls `windows-sys` declares `unsafe`
+    (decided on 2026-11-02, `NOCTUA.md §2.7`): a `forbid` cannot be lifted by anything
+    under it, so that crate writes the workspace's lints out with `unsafe_code = "deny"`
+    and allows it on `crates/nc-platform/src/windows.rs` alone, by one attribute on its
+    `mod` line. Every `unsafe` there sits under the `// SAFETY:` comment — or, on an
+    `unsafe fn`, the `# Safety` doc — that says why each pointer it hands the system is
+    valid and what is freed where. rustc does not lint an external macro's expansion, so `unsafe` a
     dependency's macro expands into is the dependency's: wasmtime's `bindgen!`
     (`TypedFunc::new_unchecked` in `crates/nc-kernel/src/bindings.rs`), and
     `wit-bindgen`'s `generate!` and `export!` in `crates/nc-guest` and every plugin. The
     lints are never judged with `WASMTIME_DEBUG_BINDGEN` or `WIT_BINDGEN_DEBUG` set, which
     make the expansion a local file; and `export!` is invoked from a plugin while
     `generate!` lives in `nc-guest`, because `export!` in the crate that generated it is
-    local code. **Gated three times**: the lint;
+    local code. **Gated three times**: the lint, with
+    `every_member_takes_the_workspace_lints` holding `nc-platform`'s written-out table to
+    the workspace's entry for entry, that one level apart;
     `no_unsafe_is_written_in_any_rust_file_of_this_tree` in `xtask/src/gates.rs`, over
     every `.rs` the tree holds — fixtures, canaries, the `wasm32`-only adapter — comments
-    and strings blanked; and `#![doc(test(attr(forbid(unsafe_code))))]` at every library
-    root, the generated catalog's included, which
-    `every_library_root_forbids_unsafe_in_its_doctests` asks of cargo's member list, a
-    doctest being a crate the other two never read.
+    and strings blanked, which names `windows.rs` as its one exception, fails once that
+    file writes none, and holds each `unsafe` in it to its comment; and
+    `#![doc(test(attr(forbid(unsafe_code))))]` at every library root, the generated
+    catalog's included, which `every_library_root_forbids_unsafe_in_its_doctests` asks
+    of cargo's member list, a doctest being a crate the other two never read.
 
 18. **The local database's schema is `local-migrations/` and nothing else.** Every object
     those files build is listed in `crates/nc-local/src/schema.rs` with the BLAKE3 of its
@@ -662,8 +674,8 @@ entry owns.
 | Undo used to escalate | the asker's own steps, authorized again now, refused on a conflict, compensations dispatched through the decision point | "A person undoes their own steps, with the authority they hold now" |
 | A rule swapped under the kernel | packs compiled into the binary, and a realm's pin held to them | "The pack a kernel decides with is the one it was built with" |
 | Authorization gone stale | decided again on every dispatch, and when a timer or an event comes due | "What a plugin puts off runs only under an authority decided again when it comes due" |
-| Another account reading the local database | `0700` and `0600`, owner and link checks, `trusted_schema = OFF`, `main.`-qualified statements and append-only images | "The local database is private to its user, and refuses what it did not make" |
-| A sandbox escape through this repository's own code | no `unsafe` written anywhere, plugins included, and what `forbid` does not reach written down | invariant 17 |
+| Another account reading the local database | `0700` and `0600` on Unix, an access list naming the user alone on Windows, owner and link checks, `trusted_schema = OFF`, `main.`-qualified statements and append-only images | "The local database is private to its user, and refuses what it did not make" |
+| A sandbox escape through this repository's own code | no `unsafe` written anywhere but the Win32 calls of `nc-platform`'s Windows half, each beside its reason, plugins included, and what `forbid` does not reach written down | invariant 17 |
 
 ### A plugin reaches what it was granted, and is told no to the rest
 
@@ -896,7 +908,9 @@ header:
   writings once nobody has named them for that grace; a unit in flight names its bytes, so
   another realm's sweep never takes them.
 - **Private, and waited for under a deadline**: the directory follows
-  `nc_local::blob_directory`, every file is `0600`, a directory under a blob's or a
+  `nc_local::blob_directory`, every file is created private
+  (`nc_platform::create_private`: `0600` on Unix, an access list naming the user alone on
+  Windows), a directory under a blob's or a
   writing's name stops no sweep, every blob function that reads disk or store waits under
   `host_call_deadline_ms`, and a writer let go is deleted on the blocking pool.
 
@@ -1174,19 +1188,29 @@ wrote it with their before and after images — in one SQLite file in a director
 names (`NOCTUA.md §4`, "Local app database"). What opening does, in order, is that crate's
 header.
 
-- **Another account on the machine** cannot read or rewrite it: the directory is created
-  `0700` and the file `0600` by the crate itself, before SQLite sees it, and the `-wal`
-  and `-shm` companions take the file's mode. One that already exists is opened only if it
-  is not a link, is owned by the process's user, has no group or other bits and gives its
+- **Another account on the machine** cannot read or rewrite it: the directory and the
+  file are created private by the crate itself, before SQLite sees them, through
+  `crates/nc-platform` — the one place each system's answer is written. On Unix the
+  directory is `0700` and the file `0600`, and the `-wal` and `-shm` companions take the
+  file's mode. On Windows each is created owned by the user the process token names,
+  with a protected access list holding one entry, that user with every right — on the
+  directory inherited by what is made in it, which is how SQLite's companions are the
+  user's alone too — and the file with `CREATE_NEW` and `FILE_FLAG_OPEN_REPARSE_POINT`.
+  One that already exists is opened only if it is not a link (on Windows, no reparse
+  point of any kind), is owned by the process's user, lets no other user in (no group or
+  other bit; an access list, every allow entry of which names the user) and gives its
   owner what the store needs; anything else is refused (`NC-DB-0006`) and left exactly as
-  it was — loosening it would decide for the user that whatever made it was harmless. A
-  path the filesystem cannot answer for — a missing parent, a full disk, a read-only
-  mount, a file turned read-only under an open store — is `NC-DB-0001`
-  (`a_missing_parent_is_unavailable_and_not_refused`).
+  it was — loosening it would decide for the user that whatever made it was harmless. The
+  same tests stage each refusal on both systems through `nc_platform::testing`, so a Unix
+  test and its Windows twin are one body. A path the filesystem cannot answer for — a
+  missing parent, a full disk, a read-only mount, a file turned read-only under an open
+  store — is `NC-DB-0001` (`a_missing_parent_is_unavailable_and_not_refused`).
 - **Two opens of one profile** — a second app instance, a command-line tool beside the
   daemon — each use an owner probe of their own
   (`one_profile_opened_from_several_threads_at_once_opens_every_time`) and take turns
-  under an exclusive lock on the directory while the file is judged and migrated, because
+  under an exclusive lock on the directory — on Windows, which locks no directory, on a
+  private file beside the database, `nc_local::LOCK_NAME` — while the file is judged and
+  migrated, because
   SQLite refuses two connections turning a new file's journal into a write-ahead log at
   once and `sqlx` takes no lock around a migration
   (`a_fresh_profile_opened_from_several_threads_at_once_opens_every_time`,
@@ -1691,9 +1715,16 @@ rather than anything decided for the project, and each is a maintainer's to reop
   stops the same people and no more. An open leaves a `-shm` it gave a `-wal` that had
   none (an index holding no data) beside a file it then refuses, and waits without bound
   for another open of the profile, so a process stopped mid-open holds every other.
-- **It is Unix only**: modes and owners are read through `std::os::unix` in
-  `crates/nc-local` and the kernel's blob directory, and another family does not compile
-  rather than opening a file it cannot judge; the Windows half is Stage 12's.
+- **On Windows, the system's own can read or take anything** — the Administrators group,
+  `SYSTEM`, and any process holding the backup or the take-ownership privilege —
+  whatever the access list says: Windows' counterpart of root, which no access list
+  answers. And a file owned by the group the process token gives what this process
+  creates — the Administrators group, in an elevated process — is taken as the user's:
+  SQLite creates its companions with the token's default owner, and that group's members
+  are the ones who can take any file already. A deny entry is read as this user's
+  whoever it names — which groups a user is in is the token's to say, and reading every
+  deny as this user's refuses more, never less. A path past Windows' 260-character limit
+  is refused by the system, since nothing here writes the `\\?\` form for it.
 - **A journal entry's authorization fields are the kernel's to fill, and one stays
   empty**: `actor_chain`, until agents act (Stage 15); an entry another writer makes
   carries what that writer gives it.
@@ -2410,6 +2441,7 @@ and `sqlx`, and are named because the kernel matches on a type of each.
 | `serde`, `serde_json`, `toml` | Reading the registries and writing canonical output, and reading a command's argument schema for `crates/nc-schema` to validate |
 | `proptest` | `§16.3` and `§16.4` have algebraic laws, and `§19.2` puts those under property test |
 | `clap`, `anstream`, `anstyle` | The command surface, in `xtask` only |
+| `windows-sys` | The Win32 security calls of `crates/nc-platform`'s Windows half, and only there, compiled for a Windows target alone — decided on 2026-11-02: who the process token names (`OpenProcessToken`, `GetTokenInformation`), an access list built (`InitializeAcl`, `AddAccessAllowedAceEx`) and read (`GetSecurityInfo`, `GetAce`), and a file and a directory created with a descriptor of their own (`CreateFileW`, `CreateDirectoryW`). Not written here because the declarations — every structure's layout and every function's signature — would be ours to get right, with no compiler to check them against the system's. Version 0.61, which `tokio`'s `mio` already brings, so it adds no package; its features are the modules those calls are in, pinned in that crate's manifest. It is the one dependency whose calls are `unsafe`, and invariant 17 says how that is held |
 | `noctua-design` | The only cross-repository dependency this repository has: a `[workspace.dependencies]` path entry with the git-tag form in a comment above it (`NOCTUA.md §5.3`), reached by path while there is no repository here to resolve a tag from. `noctua-colors` is reached **through** it and never directly (`§8.6`), which a gate holds |
 
 **Three things are written here rather than taken**, all three a maintainer's call: the

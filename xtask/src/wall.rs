@@ -7659,6 +7659,7 @@ mod the_exemption_is_one_directory {
             "crates/nc-kernel/src/lib.rs",
             "crates/nc-local/src/lib.rs",
             "crates/nc-log/src/lib.rs",
+            "crates/nc-platform/src/lib.rs",
             "crates/nc-policy/src/lib.rs",
             "crates/nc-prune/src/lib.rs",
             "crates/nc-schema/src/lib.rs",

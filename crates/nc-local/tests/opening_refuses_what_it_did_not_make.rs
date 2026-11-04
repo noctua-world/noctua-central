@@ -3,14 +3,20 @@
 //!
 //! Every test works on a file in a scratch directory of its own, removed
 //! however the test leaves. What a foreign owner does cannot be staged without
-//! the superuser, so that clause is driven in `open.rs`'s own tests with the
-//! owner handed to it; everything else here is the filesystem and SQLite.
+//! the superuser, so that clause is driven in `nc-platform`'s own tests with
+//! the owner handed to it; everything else here is the filesystem and SQLite.
+//!
+//! **One body for every system.** A path another user can reach, one its
+//! owner cannot write, and a link are staged through `nc_platform::testing`,
+//! which answers the words the refusal names each by on this system — a mode
+//! on Unix, an access list on Windows — so each test here is the Unix test and
+//! its Windows twin at once.
 
-use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
 use std::path::{Path, PathBuf};
 
 use nc_catalog::ErrorCode;
 use nc_local::{LocalError, LocalStore, schema};
+use nc_platform::testing;
 use sqlx::{ConnectOptions as _, Connection as _};
 
 /// A scratch directory for one test, removed however the test leaves.
@@ -38,16 +44,14 @@ impl Scratch {
     }
 }
 
-/// The mode bits of a path, as `ls -l` reads them.
-fn mode(path: &Path) -> u32 {
-    std::fs::symlink_metadata(path)
-        .expect("the path exists")
-        .mode()
-        & 0o777
+/// What a path lets in, as two readings compare.
+fn access(path: &Path) -> testing::Access {
+    testing::access(path).expect("the path exists")
 }
 
-fn chmod(path: &Path, mode: u32) {
-    std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).expect("chmod");
+/// The path made private to this user, as the store makes one.
+fn private(path: &Path) {
+    testing::make_private(path).expect("made private");
 }
 
 /// A connection to the file the way somebody with write access to it has one:
@@ -70,20 +74,21 @@ async fn refused(profile: &Path) -> LocalError {
 
 /// A missing directory and file are created, and each is private.
 ///
-/// **The companions too**: SQLite gives `-wal` and `-shm` the database file's
-/// mode rather than the umask's, so a file made `0600` before SQLite saw it is
-/// what keeps all three away from another user.
+/// **The companions too**: on Unix SQLite gives `-wal` and `-shm` the database
+/// file's mode rather than the umask's, so a file made `0600` before SQLite saw
+/// it is what keeps all three away from another user; on Windows they inherit
+/// the one entry of the directory's access list, which names this user alone.
 #[tokio::test]
 async fn a_missing_directory_and_file_are_created_private() {
     let scratch = Scratch::new("created");
     let profile = scratch.profile();
     let store = LocalStore::open(&profile).await.expect("opens");
-    assert_eq!(mode(&profile), 0o700, "the directory");
+    assert!(testing::is_as_created(&profile), "the directory");
     let file = profile.join(nc_local::FILE_NAME);
-    assert_eq!(mode(&file), 0o600, "the database file");
+    assert!(testing::is_as_created(&file), "the database file");
     for suffix in ["-wal", "-shm"] {
         let companion = PathBuf::from(format!("{}{suffix}", file.display()));
-        assert_eq!(mode(&companion), 0o600, "{suffix}");
+        assert!(testing::is_private(&companion), "{suffix}");
     }
     let names: Vec<String> = std::fs::read_dir(&profile)
         .expect("readable")
@@ -170,10 +175,11 @@ async fn a_directory_another_user_can_reach_is_refused() {
     let scratch = Scratch::new("directory-mode");
     let profile = scratch.profile();
     std::fs::create_dir(&profile).expect("a directory");
-    chmod(&profile, 0o750);
+    private(&profile);
+    let said = testing::open_to_another_user(&profile).expect("opened up");
     let error = refused(&profile).await;
     assert_eq!(error.code(), ErrorCode::DbLocalOpenRefused, "{error}");
-    assert!(error.to_string().contains("mode 750"), "{error}");
+    assert!(error.to_string().contains(&said), "{said}: {error}");
     assert_eq!(
         std::fs::read_dir(&profile).expect("readable").count(),
         0,
@@ -192,13 +198,14 @@ async fn a_file_another_user_can_reach_is_refused() {
         .close()
         .await;
     let file = profile.join(nc_local::FILE_NAME);
-    chmod(&file, 0o604);
+    let said = testing::open_to_another_user(&file).expect("opened up");
+    let before = access(&file);
     let error = refused(&profile).await;
     assert_eq!(error.code(), ErrorCode::DbLocalOpenRefused, "{error}");
-    assert!(error.to_string().contains("mode 604"), "{error}");
+    assert!(error.to_string().contains(&said), "{said}: {error}");
     assert_eq!(
-        mode(&file),
-        0o604,
+        access(&file),
+        before,
         "a refused file was repaired rather than left"
     );
 }
@@ -215,10 +222,10 @@ async fn a_linked_file_is_refused() {
         .close()
         .await;
     std::fs::create_dir(&profile).expect("a directory");
-    chmod(&profile, 0o700);
-    std::os::unix::fs::symlink(
-        elsewhere.join(nc_local::FILE_NAME),
-        profile.join(nc_local::FILE_NAME),
+    private(&profile);
+    testing::link_file(
+        &elsewhere.join(nc_local::FILE_NAME),
+        &profile.join(nc_local::FILE_NAME),
     )
     .expect("a link");
     let error = refused(&profile).await;
@@ -233,7 +240,7 @@ async fn a_linked_directory_is_refused() {
     let real = scratch.0.join("real");
     LocalStore::open(&real).await.expect("opens").close().await;
     let profile = scratch.profile();
-    std::os::unix::fs::symlink(&real, &profile).expect("a link");
+    testing::link_directory(&real, &profile).expect("a link");
     let error = refused(&profile).await;
     assert_eq!(error.code(), ErrorCode::DbLocalOpenRefused, "{error}");
     assert!(error.to_string().contains("symbolic link"), "{error}");
@@ -251,7 +258,7 @@ async fn a_linked_companion_is_refused() {
         .await;
     let wal = profile.join(format!("{}-wal", nc_local::FILE_NAME));
     let _ = std::fs::remove_file(&wal);
-    std::os::unix::fs::symlink(scratch.0.join("somewhere"), &wal).expect("a link");
+    testing::link_file(&scratch.0.join("somewhere"), &wal).expect("a link");
     let error = refused(&profile).await;
     assert_eq!(error.code(), ErrorCode::DbLocalOpenRefused, "{error}");
     assert!(error.to_string().contains("-wal"), "{error}");
@@ -263,7 +270,7 @@ async fn a_file_where_the_directory_should_be_is_refused() {
     let scratch = Scratch::new("not-a-directory");
     let profile = scratch.profile();
     std::fs::write(&profile, b"").expect("a file");
-    chmod(&profile, 0o600);
+    private(&profile);
     let error = refused(&profile).await;
     assert_eq!(error.code(), ErrorCode::DbLocalOpenRefused, "{error}");
     assert!(error.to_string().contains("not a directory"), "{error}");
@@ -306,22 +313,18 @@ async fn a_directory_this_process_cannot_write_in_is_refused() {
     let scratch = Scratch::new("unwritable");
     let profile = scratch.profile();
     std::fs::create_dir(&profile).expect("a directory");
-    chmod(&profile, 0o500);
+    private(&profile);
+    let said = testing::shut_its_owner_out(&profile).expect("shut out");
     let error = LocalStore::open(&profile).await;
     // Writable again before anything is asserted, so the scratch directory can
     // be removed however this ends.
-    chmod(&profile, 0o700);
+    private(&profile);
     let error = error.expect_err(
-        "a 0500 directory was written in: this test must run as a user its mode binds, not \
-         the superuser",
+        "a directory its owner may not write in was written in: this test must run as a user \
+         its access binds, not the superuser",
     );
     assert_eq!(error.code(), ErrorCode::DbLocalOpenRefused, "{error}");
-    assert!(
-        error
-            .to_string()
-            .contains("has mode 500, which does not let its owner read, enter and write in it"),
-        "{error}"
-    );
+    assert!(error.to_string().contains(&said), "{said}: {error}");
     assert_eq!(
         std::fs::read_dir(&profile).expect("readable").count(),
         0,
@@ -344,14 +347,14 @@ async fn a_profile_under_a_parent_this_process_cannot_write_in_is_refused() {
     let scratch = Scratch::new("unwritable-parent");
     let parent = scratch.0.join("parent");
     std::fs::create_dir(&parent).expect("a directory");
-    chmod(&parent, 0o500);
+    testing::shut_its_owner_out(&parent).expect("shut out");
     let error = LocalStore::open(&parent.join("profile")).await;
     // Writable again before anything is asserted, so the scratch directory can
     // be removed however this ends.
-    chmod(&parent, 0o700);
+    private(&parent);
     let error = error.expect_err(
-        "a profile was made under a 0500 directory: this test must run as a user its mode \
-         binds, not the superuser",
+        "a profile was made under a directory its owner may not write in: this test must run \
+         as a user its access binds, not the superuser",
     );
     assert_eq!(error.code(), ErrorCode::DbLocalOpenRefused, "{error}");
     assert!(matches!(error, LocalError::Refused(_)), "{error:?}");
@@ -383,16 +386,13 @@ async fn a_file_its_owner_cannot_write_is_refused_and_left_as_it_was() {
         .close()
         .await;
     let file = profile.join(nc_local::FILE_NAME);
-    chmod(&file, 0o400);
+    let said = testing::shut_its_owner_out(&file).expect("shut out");
+    let before = access(&file);
     let error = refused(&profile).await;
     assert_eq!(error.code(), ErrorCode::DbLocalOpenRefused, "{error}");
-    assert!(
-        error
-            .to_string()
-            .contains("has mode 400, which does not let its owner read and write it"),
-        "{error}"
-    );
-    assert_eq!(mode(&file), 0o400, "a refused file was repaired");
+    assert!(error.to_string().contains(&said), "{said}: {error}");
+    assert_eq!(access(&file), before, "a refused file was repaired");
+    private(&file);
 }
 
 /// Opens of one profile awaited together on one runtime each open, however
@@ -594,7 +594,7 @@ async fn another_applications_database_is_refused_and_left_alone() {
     let scratch = Scratch::new("foreign");
     let profile = scratch.profile();
     std::fs::create_dir(&profile).expect("a directory");
-    chmod(&profile, 0o700);
+    private(&profile);
     let file = profile.join(nc_local::FILE_NAME);
     let mut foreign = sqlx::sqlite::SqliteConnectOptions::new()
         .filename(&file)
@@ -607,7 +607,7 @@ async fn another_applications_database_is_refused_and_left_alone() {
         .await
         .expect("a table");
     foreign.close().await.expect("closes");
-    chmod(&file, 0o600);
+    private(&file);
     let before = std::fs::read(&file).expect("readable");
     let error = refused(&profile).await;
     assert_eq!(error.code(), ErrorCode::DbLocalSchemaUnexpected, "{error}");
@@ -629,6 +629,7 @@ async fn another_applications_database_is_refused_and_left_alone() {
                 .to_string_lossy()
                 .into_owned()
         })
+        .filter(|name| name != nc_local::LOCK_NAME)
         .collect();
     assert_eq!(beside, [nc_local::FILE_NAME], "{beside:?}");
     let mut connection = raw(&profile).await;
@@ -645,10 +646,10 @@ async fn a_file_that_is_not_a_database_is_refused() {
     let scratch = Scratch::new("not-a-database");
     let profile = scratch.profile();
     std::fs::create_dir(&profile).expect("a directory");
-    chmod(&profile, 0o700);
+    private(&profile);
     let file = profile.join(nc_local::FILE_NAME);
     std::fs::write(&file, vec![0x5a_u8; 8192]).expect("garbage");
-    chmod(&file, 0o600);
+    private(&file);
     let error = refused(&profile).await;
     assert_eq!(error.code(), ErrorCode::DbLocalSchemaUnexpected, "{error}");
 }
@@ -1362,9 +1363,14 @@ fn names_in(directory: &Path) -> Vec<String> {
 
 /// The file, and each companion SQLite keeps beside it, as they stand: by
 /// name, byte for byte.
+///
+/// **Not the profile's lock** (`nc_local::LOCK_NAME`), which a system that
+/// locks no directory keeps beside the file once it has been opened: it holds
+/// nothing, and is no companion of SQLite's.
 fn as_it_stands(profile: &Path) -> Vec<(String, Vec<u8>)> {
     names_in(profile)
         .into_iter()
+        .filter(|name| name != nc_local::LOCK_NAME)
         .map(|name| {
             let bytes = std::fs::read(profile.join(&name)).expect("readable");
             (name, bytes)
@@ -1428,11 +1434,11 @@ async fn a_profile_with_frames_in_its_wal(
     }
     let profile = scratch.0.join(name);
     std::fs::create_dir(&profile).expect("a directory");
-    chmod(&profile, 0o700);
+    private(&profile);
     for suffix in ["", "-wal"] {
         let to = profile.join(format!("{}{suffix}", nc_local::FILE_NAME));
         std::fs::copy(format!("{}{suffix}", file.display()), &to).expect("copied");
-        chmod(&to, 0o600);
+        private(&to);
     }
     writer.close().await.expect("closes");
     profile
@@ -1525,11 +1531,11 @@ async fn a_damaged_file_with_frames_in_its_wal_is_refused_and_left_as_it_stood()
     }
     let profile = scratch.0.join("profile");
     std::fs::create_dir(&profile).expect("a directory");
-    chmod(&profile, 0o700);
+    private(&profile);
     for suffix in ["", "-wal"] {
         let to = profile.join(format!("{}{suffix}", nc_local::FILE_NAME));
         std::fs::copy(format!("{}{suffix}", file.display()), &to).expect("copied");
-        chmod(&to, 0o600);
+        private(&to);
     }
     let root: i64 = sqlx::query_scalar(
         "SELECT rootpage FROM main.sqlite_schema WHERE name = 'store_units_by_principal'",
@@ -1595,11 +1601,11 @@ async fn a_file_beside_a_hot_journal_is_refused_and_left_as_it_stood() {
     }
     let profile = scratch.profile();
     std::fs::create_dir(&profile).expect("a directory");
-    chmod(&profile, 0o700);
+    private(&profile);
     for suffix in ["", "-journal"] {
         let to = profile.join(format!("{}{suffix}", nc_local::FILE_NAME));
         std::fs::copy(format!("{}{suffix}", file.display()), &to).expect("copied");
-        chmod(&to, 0o600);
+        private(&to);
     }
     sqlx::query("ROLLBACK")
         .execute(&mut writer)
@@ -1686,10 +1692,10 @@ fn an_unmigrated_file_opened_from_several_threads_at_once_opens_every_time() {
         let scratch = Scratch::new(&format!("unmigrated-{round}"));
         let profile = scratch.profile();
         std::fs::create_dir(&profile).expect("a directory");
-        chmod(&profile, 0o700);
+        private(&profile);
         let file = profile.join(nc_local::FILE_NAME);
         std::fs::write(&file, b"").expect("an empty file");
-        chmod(&file, 0o600);
+        private(&file);
         failed.extend(opened_at_once(&profile, 4));
     }
     assert!(

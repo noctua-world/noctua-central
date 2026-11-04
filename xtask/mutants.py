@@ -470,6 +470,16 @@ SOURCES = {
     # and a child process killed mid-commit.
     "local_lib": os.path.join(ROOT, "crates/nc-local/src/lib.rs"),
     "local_open": os.path.join(ROOT, "crates/nc-local/src/open.rs"),
+    # **What makes those files private, on the system this runs on**: the
+    # owner, the mode and the link judged, and the directory and the file
+    # created, in `nc-platform`'s Unix half and the probe beside it. Decided by
+    # that crate's own tests and by the local database's suites, which open
+    # real directories with each refusal staged; the test doors are decided by
+    # the suites that stage through them. The Windows half is not here:
+    # `NOT_MUTATED` in `check.rs` says why.
+    "platform": os.path.join(ROOT, "crates/nc-platform/src/lib.rs"),
+    "platform_unix": os.path.join(ROOT, "crates/nc-platform/src/unix.rs"),
+    "platform_testing": os.path.join(ROOT, "crates/nc-platform/src/testing.rs"),
     "local_schema": os.path.join(ROOT, "crates/nc-local/src/schema.rs"),
     "local_store": os.path.join(ROOT, "crates/nc-local/src/store.rs"),
     # The pruner's second target, over the same file: decided by `nc-prune`'s
@@ -2810,19 +2820,19 @@ WEAKENINGS = [
     ("local_lib", "is_a_trigger_refusal", "a trigger's refusal is its extended code",
      ".is_some_and(|code| code == TRIGGER_REFUSED)",
      ".is_some_and(|code| code == \"19\")"),
-    ("local_open", "judge", "a group or other bit is refused",
+    ("platform_unix", "judged", "a group or other bit is refused",
      "if mode & OTHERS != 0 {",
      "if mode & OTHERS == OTHERS {"),
-    ("local_open", "judge", "a link is refused however it points",
+    ("platform_unix", "judged", "a link is refused however it points",
      "if file_type.is_symlink() {",
      "if false {"),
-    ("local_open", "judge", "a foreign owner is refused",
-     "if found.uid() != owner {",
+    ("platform_unix", "judged", "a foreign owner is refused",
+     "if found.uid() != owner.0 {",
      "if false {"),
-    ("local_open", "create_private", "the file is created with no other bits",
+    ("platform_unix", "create_private", "the file is created with no other bits",
      "file.set_permissions(Permissions::from_mode(0o600))?;",
      "file.set_permissions(Permissions::from_mode(0o644))?;"),
-    ("local_open", "private_directory", "the directory is made private",
+    ("platform_unix", "create_private_directory", "the directory is made private",
      ".mode(0o700)",
      ".mode(0o755)"),
     ("local_schema", "after_migrating", "the schema is held to the list at open",
@@ -2988,10 +2998,10 @@ WEAKENINGS = [
     ("local_lib", "said", "a row still referred to is said so, not as a trigger's",
      "    if is_a_trigger_refusal(error) && database.message() == STILL_REFERRED_TO {\n",
      "    if is_a_trigger_refusal(error) && database.message() == STILL_HELD {\n"),
-    ("local_open", "judge", "a bit its owner needs is required",
+    ("platform_unix", "judged", "a bit its owner needs is required",
      "    if mode & needed != needed {",
      "    if false {"),
-    ("local_open", "probe_name", "each open makes a probe of its own",
+    ("platform", "probe_name", "each open makes a probe of its own",
      "    format!(\"{PROBE}-{}-{now}-{made}\", std::process::id())",
      "    format!(\"{PROBE}-{}\", std::process::id())"),
     ("local_schema", "before_migrating", "the floor is applied at open",
@@ -3562,9 +3572,9 @@ WEAKENINGS = [
     ("kernel_blobs", "BlobStore for DirectoryBlobs", "bytes under a hash that are not its bytes are replaced",
      "let held_before = file_of(&root, &hash)?.is_some_and(|(_, held)| held == size);",
      "let held_before = file_of(&root, &hash)?.is_some_and(|(_, held)| held <= size);"),
-    ("kernel_blobs", "create_private", "a writing is created with no other bits",
-     "    file.set_permissions(std::fs::Permissions::from_mode(0o600))?;",
-     "    file.set_permissions(std::fs::Permissions::from_mode(0o644))?;"),
+    ("kernel_blobs", "BlobStore for DirectoryBlobs", "a writing is created private",
+     "            let file = nc_platform::create_private(&path)",
+     "            let file = std::fs::File::create_new(&path)"),
     ("kernel_blobs", "Drop for Abandoned", "an unfinished writing is deleted with its writer",
      "        let _left_for_the_sweep = std::fs::remove_file(&self.path);\n",
      ""),
@@ -5156,9 +5166,15 @@ WEAKENINGS = [
     ("local_open", "for_judging", "the connection that judges the file is read-only",
      "    connection(file).read_only(true)\n",
      "    connection(file)\n"),
-    ("local_open", "held", "one open of a profile at a time",
+    ("platform_unix", "hold", "one open of a profile at a time",
      "    held.lock().map_err(|error| {",
      "    Ok::<(), std::io::Error>(()).map_err(|error| {"),
+    # **The doors other crates' suites stage a path through.** A door that
+    # stages nothing leaves the refusal it is there to provoke unprovoked, and
+    # the suite that asked for it red.
+    ("platform_testing", "open_to_another_user", "a path opened to another user is opened",
+     "    imp::open_to_another_user(path)\n",
+     "    Ok(path.display().to_string())\n"),
     ("local_store", "unread", "a hot journal is a file this build did not leave",
      ".is_some_and(|code| code == crate::open::HOT_JOURNAL);",
      ".is_some_and(|code| code == \"no such code\");"),
@@ -5516,6 +5532,11 @@ ELSEWHERE = {
     "local_open": ["cargo", "test", "-q", "-p", "nc-local"],
     "local_schema": ["cargo", "test", "-q", "-p", "nc-local"],
     "local_store": ["cargo", "test", "-q", "-p", "nc-local"],
+    # Each system's privacy, by its own crate's tests first, and then — in
+    # `ALSO_RUN` — by the local database's suites that stand on it.
+    "platform": ["cargo", "test", "-q", "-p", "nc-platform"],
+    "platform_unix": ["cargo", "test", "-q", "-p", "nc-platform"],
+    "platform_testing": ["cargo", "test", "-q", "-p", "nc-platform"],
     # The pruner's crate, whose `in_sqlite.rs` needs no service.
     "prune_sqlite": ["cargo", "test", "-q", "-p", "nc-prune"],
     # **Built, not tested.** Each of these is compiled for `wasm32` alone, so
@@ -5616,6 +5637,13 @@ ALSO_RUN = {
     # different plugin; the kernel activating it is what says so.
     "reference": ["cargo", "test", "-q", "-p", "nc-kernel"],
     "reference_adapter": ["cargo", "test", "-q", "-p", "nc-kernel"],
+    # **The callers that open real files.** `nc-platform`'s own tests judge
+    # paths it made itself; the local database's suites open profiles with
+    # every refusal staged through the test doors, which nothing in
+    # `nc-platform` calls from outside.
+    "platform": ["cargo", "test", "-q", "-p", "nc-local"],
+    "platform_unix": ["cargo", "test", "-q", "-p", "nc-local"],
+    "platform_testing": ["cargo", "test", "-q", "-p", "nc-local"],
 }
 
 

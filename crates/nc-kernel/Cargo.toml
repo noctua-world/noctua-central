@@ -41,6 +41,11 @@ blake3.workspace = true
 # implements the kernel's store over it, and the store held in memory answers
 # in the same types.
 nc-local.workspace = true
+# A writing of a blob created private, and the blobs' directory made durable
+# after a rename, as each system does both (`NOCTUA.md §2.7`): the directory
+# itself is judged by `nc_local::blob_directory`, which stands on the same
+# crate.
+nc-platform.workspace = true
 # A unit is a Snowflake and a realm or a principal an opaque identifier, taken
 # typed. The kernel never builds either from text: it reaches the central log,
 # whose wall refuses that.
@@ -114,6 +119,9 @@ nc-plugin-reference.workspace = true
 nc-local = { workspace = true, features = ["test-support"] }
 # The model-based test holds both stores to one sequence of operations.
 proptest.workspace = true
+# A blob directory another user can reach, a link where a blob's bytes would
+# be and what a path lets in, staged the same way on every system.
+nc-platform = { workspace = true, features = ["test-support"] }
 # The pruner's target a store answers `pruner` with, which every store a suite
 # wraps names in its own `StoreBackend` — and which the suite that pumps runs
 # over the local database.

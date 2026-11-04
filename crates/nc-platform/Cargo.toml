@@ -1,0 +1,56 @@
+[package]
+name = "nc-platform"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "Who this process runs as, and a directory or a file private to that user: the one place each system's answer is written."
+
+[features]
+# The doors other crates' suites stage a path through: one another user can
+# reach, one its owner cannot write, a link, and what a path lets in, read back
+# so a refused one can be held to what it was. **Off by default**, so nothing
+# shipped can loosen a path through this crate.
+test-support = []
+
+# **The Win32 security calls, and nothing else of Windows** (`NOCTUA.md §2.3`,
+# decided 2026-11-02): who the token says this process is, an access list built
+# and read, a file and a directory created with one, and a handle's attributes.
+# Each feature is a module of the declarations this crate calls, and none is
+# turned on for a call it does not make. Already in the graph at this version,
+# under `tokio`'s `mio`, so it adds no package; compiled only for a Windows
+# target. Not written here because the declarations would be ours to get right,
+# layout for layout, with no compiler to check them against the system's.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+    "Win32_Storage_FileSystem",
+    "Win32_System_SystemServices",
+    "Win32_System_Threading",
+] }
+
+[dev-dependencies]
+# **Itself, with the doors open**, so the documentation gate can read this
+# crate's suite and the suite can stage a path another user can reach. Cargo
+# resolves it to this same unit, so nothing is built twice.
+nc-platform = { path = ".", features = ["test-support"] }
+
+# **The workspace's lints, written out, with one word changed.** The workspace
+# sets `unsafe_code = "forbid"`, and a `forbid` cannot be lifted by anything
+# under it, so a crate taking `workspace = true` could not hold the Windows
+# module at all. Here it is `deny`: refused everywhere in this crate as it is
+# everywhere else, and allowed on `src/windows.rs` alone, by the one attribute
+# on that `mod` line. Every other line is the workspace's own, and
+# `every_member_takes_the_workspace_lints` holds this table to that one, entry
+# for entry, so the two cannot drift apart.
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+unreachable_pub = "warn"
+missing_debug_implementations = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
