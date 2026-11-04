@@ -1168,6 +1168,53 @@ mod tests {
         crate::ui::forget_counts();
     }
 
+    /// The verb itself asks this system, through its own entry point.
+    ///
+    /// **The test above holds the helper and not the call.** It hands
+    /// `stands_aside` each answer, so `run` handing it `true`, or not asking at
+    /// all, leaves it green, and nothing else drives `run` off Linux: CI's
+    /// macOS and Windows jobs run `cargo xtask check` and never `dev`. So this
+    /// drives `run` over a root with no `docker-compose.yml`, which stops it
+    /// before docker on every system. Where no stack runs it must stand aside
+    /// and say so, which the macOS and Windows jobs hold. Where one does it
+    /// must go on and meet the missing file, which the Linux job holds.
+    #[test]
+    fn the_verb_asks_this_system_before_it_reaches_docker() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        assert!(
+            !root.join("docker-compose.yml").exists(),
+            "the root this drives holds a compose file, so the verb would go on to docker"
+        );
+        let _printing = crate::ui::printing();
+        crate::ui::forget_counts();
+        let answer = super::run(root, false);
+        let parts = crate::ui::not_applicable_parts();
+        crate::ui::forget_counts();
+        if crate::check::RUNS_THE_STACK {
+            assert_eq!(
+                answer,
+                Err("docker-compose.yml is missing, so there is no stack to bring up".to_owned()),
+                "on a system that runs the stack the verb stood aside, or went past the \
+                 compose file"
+            );
+            assert!(
+                parts.is_empty(),
+                "on a system that runs the stack the verb said it does not apply: {parts:?}"
+            );
+        } else {
+            assert_eq!(
+                answer,
+                Ok(()),
+                "on a system that runs no stack the verb went on toward docker"
+            );
+            assert_eq!(
+                parts,
+                ["the container stack, which this verb brings up and takes down"],
+                "on a system that runs no stack the verb did not say it does not apply"
+            );
+        }
+    }
+
     /// A stack that did not come up says what to look at.
     ///
     /// **Acceptance criterion 10's failure half, which is the half that can be

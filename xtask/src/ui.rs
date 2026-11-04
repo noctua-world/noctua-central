@@ -162,14 +162,16 @@ pub(crate) fn not_applicable_parts() -> Vec<String> {
 /// Records that this run fetched the packages the lockfile names.
 ///
 /// **What the run did, kept where the verdict reads it.** `--offline` promises
-/// no network, and that promise is kept by one call site and the function it
-/// calls: with the call handed the wrong flag, a run under `--offline` fetches
-/// and a run without it never does. On a machine that already holds every
-/// package, either run differs from one that got it right only by the fetch's
-/// own `ok` line, there or missing, and no step reads that line. With
-/// `!offline` at the call every xtask test stays green; this record is what
-/// tells the runs apart, and `check::finish` holds it against what the run was
-/// asked to do, the way it holds the parts that stood aside.
+/// no network. The fetch keeps that by not running at all, and every other
+/// cargo the gate starts by being told so (`check::cargo_command`). The fetch's
+/// half is one call site and the function it calls: with the call handed the
+/// wrong flag, a run under `--offline` fetches and a run without it never does.
+/// On a machine that already holds every package, either run differs from one
+/// that got it right only by the fetch's own `ok` line, there or missing, and
+/// no step reads that line. With `!offline` at the call every xtask test stays
+/// green; this record is what tells the runs apart, and `check::finish` holds
+/// it against what the run was asked to do, the way it holds the parts that
+/// stood aside.
 pub(crate) fn fetched() {
     let _printing = while_printing();
     FETCHED.store(true, core::sync::atomic::Ordering::Relaxed);
@@ -931,7 +933,7 @@ mod tests {
         /// failure spells out: source added is ordinary work and the number goes
         /// up with it, but source *deleted* and a class *exempted* look
         /// identical from here, and only one of them is something to accept.
-        const THE_GROUND_THIS_READS: usize = 64_676;
+        const THE_GROUND_THIS_READS: usize = 64_705;
 
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let mut directories = vec![root.join("xtask/src")];

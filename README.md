@@ -75,8 +75,10 @@ the migrated functions' paths, and the journal's protections each fail and name
 been read. A database that answers and holds nothing is a database to migrate.
 
 `cargo xtask check` first runs `cargo fetch --locked`, so a fresh clone holds every
-package the lockfile names before any step asks cargo for the graph; `--offline` fetches
-nothing, and a package missing from the machine is then named with that command.
+package the lockfile names before any step asks cargo for the graph. Under `--offline` the
+fetch does not run and every cargo the gate starts is told to stay off the network, so a
+package missing from the machine fails instead of being downloaded, and is named with that
+command.
 
 `cargo xtask check --offline` skips **nine** things — the advisory database, which is
 fetched (the audit's licence, ban and source checks read only the lockfile and still

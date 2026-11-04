@@ -278,14 +278,18 @@ cargo xtask release <version> --dry-run    # say what would change and change no
 **Five verbs, and the surface does not grow** (`NOCTUA.md §10.2`). A new capability goes
 behind one of them — a flag, a step inside `check` — and never becomes a sixth.
 
-`cargo xtask check` first runs `cargo fetch --locked` and says so in one `ok` line: a
-fresh clone holds only what its first build fetched, and every step that asks cargo for the
-graph asks it `--offline`. With `--offline` nothing is fetched, and a graph that fails for
-a package missing from the machine names that command. The fetch records that it ran and
-the verdict holds the record to the flag: on a machine that already holds every package, a
-run that fetched under `--offline` and one that never fetched without it differ from one
-that got it right only by the fetch's own `ok` line, which no step reads, so the verdict
-refuses both.
+`cargo xtask check` first runs `cargo fetch --locked` and says so in one `ok` line: a fresh
+clone holds only what its first build fetched, and every step that asks cargo for the graph
+asks it `--offline`. With `--offline` the gate fetches nothing: the fetch does not run, and
+every other cargo the gate starts is handed `CARGO_NET_OFFLINE=true`, so a package missing
+from the machine fails the steps that build it instead of being downloaded, and the graph,
+which fails first, names that command. The build of this tool, which `cargo xtask` runs
+before the gate starts, is cargo's own and not the gate's:
+`cargo --offline xtask check --offline` keeps that one off the network too. The fetch
+records that it ran and the verdict holds the record to the flag: on a machine that already
+holds every package, a run that fetched under `--offline` and one that never fetched
+without it differ from one that got it right only by the fetch's own `ok` line, which no
+step reads, so the verdict refuses both.
 
 `cargo xtask check --offline` skips **nine** things: the advisory database, which is
 fetched — the audit's licence, ban and source checks read only the lockfile and still
@@ -1819,6 +1823,15 @@ rather than anything decided for the project, and each is a maintainer's to reop
   and `--offline` adds its own **nine** on top — the one figure here read from a constant,
   `OFFLINE_SKIPS`. A run with no workspace above it is not distinguishable *by the number*
   from one where the section gate broke, which is why the names are printed.
+- **`--offline` keeps the gate off the network, not the build of the gate**: under the
+  flag the fetch does not run and every cargo the gate starts is handed
+  `CARGO_NET_OFFLINE=true`, but `cargo xtask` builds this tool before the gate starts,
+  and that build fetches what `xtask` itself lacks unless cargo is asked as well
+  (`cargo --offline xtask check --offline`). And the flag reaches each cargo through the
+  steps that start one, as a parameter: a step handed the wrong value would be seen only
+  by a run under `--offline` on a machine missing a package, which neither the local full
+  check nor CI makes. `every_cargo_the_gate_starts_under_the_flag_stays_off_the_network`
+  holds the place the child is built, and not every way to it.
 - **On macOS and Windows the stack's steps do not run at all**: the journal's protections,
   the migration record, where `pg_temp` sits in the migrated functions' paths, the log
   store's bounds, the database's sort order, the digest comparison, the PostgreSQL suites

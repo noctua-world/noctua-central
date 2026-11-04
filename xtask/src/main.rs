@@ -111,7 +111,8 @@ enum Command {
     /// the workflow and against every sentence stating it.
     Check {
         /// Skip the nine steps that need the local stack or the network, and
-        /// fetch nothing. CI never passes this.
+        /// fetch nothing: every cargo this starts is told to stay offline. CI
+        /// never passes this.
         #[arg(long)]
         offline: bool,
     },

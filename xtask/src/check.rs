@@ -284,7 +284,7 @@ pub(crate) fn run(root: &Path, offline: bool) -> Result<(), String> {
     // the last section is about is the database and what needs it, and that is
     // what it is called.
     let database = database::report(stack, &mut failures);
-    workspace(root, database.as_deref(), stack, &mut failures);
+    workspace(root, database.as_deref(), stack, offline, &mut failures);
 
     ui::gap();
     ui::heading("dependencies");
@@ -298,9 +298,9 @@ pub(crate) fn run(root: &Path, offline: bool) -> Result<(), String> {
     if offline {
         ui::warn("skipped: --offline, and the advisory database is fetched");
         ui::detail("the licence, ban and source checks read only the lockfile and still run");
-        dependencies(root, &mut failures, Audit::WhatNeedsNoNetwork);
+        dependencies(root, offline, &mut failures, Audit::WhatNeedsNoNetwork);
     } else {
-        dependencies(root, &mut failures, Audit::Everything);
+        dependencies(root, offline, &mut failures, Audit::Everything);
     }
 
     if let Err(problem) = a_step_that_did_not_run(&ui::headings()) {
@@ -334,11 +334,12 @@ pub(crate) fn run(root: &Path, offline: bool) -> Result<(), String> {
 /// against the checksum the lockfile records, so this adds nothing to the build
 /// that the lockfile does not already name.
 ///
-/// **And under `--offline` it returns before reading anything**, so the flag
-/// that promises no network is kept by the function that would use it, where a
-/// test can hold it. Past that return it records that it ran, and the verdict
-/// holds the record against the flag, so the call handed the wrong one is a
-/// refusal in every run rather than a fetch nobody sees.
+/// **And under `--offline` it returns before reading anything**, so the fetch
+/// keeps the flag's promise of no network in the function that would break it,
+/// where a test can hold it; every other cargo the gate starts keeps it by
+/// being told so ([`cargo_command`]). Past that return it records that it ran,
+/// and the verdict holds the record against the flag, so the call handed the
+/// wrong one is a refusal in every run rather than a fetch nobody sees.
 fn the_packages_the_lockfile_names_are_here(
     root: &Path,
     offline: bool,
@@ -359,7 +360,7 @@ fn the_packages_the_lockfile_names_are_here(
             return;
         }
     };
-    match cargo(root, &["fetch", "--locked"]) {
+    match cargo(root, &["fetch", "--locked"], offline) {
         Ok(_) => ui::ok(&format!(
             "cargo fetch --locked: the {named} package(s) the lockfile names from a registry \
              are here"
@@ -5822,7 +5823,13 @@ fn refuse_while_a_mutation_is_in_flight(root: &Path, failures: &mut Vec<String>)
 }
 
 /// Formatting, lints and tests — each run even if the one before it failed.
-fn workspace(root: &Path, database: Option<&str>, stack: Stack, failures: &mut Vec<String>) {
+fn workspace(
+    root: &Path,
+    database: Option<&str>,
+    stack: Stack,
+    offline: bool,
+    failures: &mut Vec<String>,
+) {
     refuse_while_a_mutation_is_in_flight(root, failures);
     // `--locked` on everything that resolves dependencies, and the same flag is
     // in the `xtask` alias itself. Both are needed: without the flag on the
@@ -5830,7 +5837,7 @@ fn workspace(root: &Path, database: Option<&str>, stack: Stack, failures: &mut V
     // starts, so the check that was supposed to catch a dirty lockfile runs
     // against one cargo had just cleaned up.
     for (label, args) in the_tools_that_judge_the_whole_tree() {
-        match cargo(root, &args) {
+        match cargo(root, &args, offline) {
             Ok(output) => match label {
                 "formatting" => the_formatting_step_read_the_whole_tree(root, &output, failures),
                 "lints" => the_lints_step_read_the_whole_tree(root, &output, failures),
@@ -5849,7 +5856,7 @@ fn workspace(root: &Path, database: Option<&str>, stack: Stack, failures: &mut V
         }
     }
 
-    the_test_targets_are_documented_too(root, failures);
+    the_test_targets_are_documented_too(root, offline, failures);
 
     // **The ninth skip, and it is docker rather than the database.** `--offline`
     // promises a run that needs no stack, and
@@ -5876,6 +5883,7 @@ fn workspace(root: &Path, database: Option<&str>, stack: Stack, failures: &mut V
         &["test", "--workspace", "--locked", "--no-fail-fast"],
         database,
         stack,
+        offline,
     ) {
         Ok(output) => match tests_verdict(&output, &suites()) {
             Ok(passed) => {
@@ -7438,7 +7446,7 @@ fn suites() -> Vec<String> {
 /// inside a function body resolves, because rustdoc does not read bodies — so a
 /// test file that documents cleanly without the self-dependency is no proof
 /// that the rest would.
-fn the_test_targets_are_documented_too(root: &Path, failures: &mut Vec<String>) {
+fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mut Vec<String>) {
     let mut documented = 0_usize;
     let mut broken: Vec<String> = Vec::new();
     for (package, file) in SUITES {
@@ -7446,6 +7454,7 @@ fn the_test_targets_are_documented_too(root: &Path, failures: &mut Vec<String>) 
         match cargo(
             root,
             &["rustdoc", "-q", "-p", package, "--test", target, "--locked"],
+            offline,
         ) {
             Ok(_) => documented += 1,
             Err(output) => {
@@ -11817,9 +11826,9 @@ fn the_audit_is_not_narrowed(root: &Path, failures: &mut Vec<String>) {
 }
 
 /// The advisory and licence audit `NOCTUA.md §15.5` requires.
-fn dependencies(root: &Path, failures: &mut Vec<String>, audit: Audit) {
+fn dependencies(root: &Path, offline: bool, failures: &mut Vec<String>, audit: Audit) {
     the_audit_is_not_narrowed(root, failures);
-    match cargo(root, &audit.command()) {
+    match cargo(root, &audit.command(), offline) {
         Ok(output) => {
             // **Its warnings are reported, not swallowed.** Acceptance criterion
             // 1 is "no failures **and no warnings**", and output discarded on
@@ -12025,15 +12034,43 @@ fn unset_what_proptest_reads(
 }
 
 /// Runs cargo, returning its combined output either way.
-pub(crate) fn cargo(root: &Path, args: &[&str]) -> Result<String, String> {
-    cargo_with(root, args, None, Stack::Asked)
+///
+/// The run's own `--offline` is handed on as `offline`, and the child is told
+/// it in [`cargo_command`].
+pub(crate) fn cargo(root: &Path, args: &[&str], offline: bool) -> Result<String, String> {
+    cargo_with(root, args, None, Stack::Asked, offline)
 }
 
 /// The same, with `DATABASE_URL` set for the child.
+fn cargo_with(
+    root: &Path,
+    args: &[&str],
+    database: Option<&str>,
+    stack: Stack,
+    offline: bool,
+) -> Result<String, String> {
+    let output = cargo_command(root, args, database, stack, offline)
+        .output()
+        .map_err(|error| format!("could not run cargo {}: {error}", args.join(" ")))?;
+    let mut combined = String::from_utf8_lossy(&output.stdout).into_owned();
+    combined.push_str(&String::from_utf8_lossy(&output.stderr));
+    if output.status.success() {
+        Ok(combined)
+    } else {
+        Err(combined)
+    }
+}
+
+/// Every cargo the gate starts through [`cargo`] and [`cargo_with`], built and
+/// not yet run.
 ///
-/// **Set by the gate rather than left to the environment.** The integration
-/// tests refuse to run without it, so a developer with no variable exported
-/// would get a suite that either skipped or failed for the wrong reason.
+/// **Its own function so a test reads what the child is given**, from the
+/// command itself, without starting one.
+///
+/// **`DATABASE_URL` is set by the gate rather than left to the environment.**
+/// The integration tests refuse to run without it, so a developer with no
+/// variable exported would get a suite that either skipped or failed for the
+/// wrong reason.
 ///
 /// **And removed before it is set**, which is what makes the line below
 /// load-bearing rather than decorative. Without the removal the child inherits
@@ -12043,18 +12080,42 @@ pub(crate) fn cargo(root: &Path, args: &[&str]) -> Result<String, String> {
 /// claim matters.
 /// It also means the tests run against the url this gate actually probed and
 /// found listening, never against one somebody exported last week.
-fn cargo_with(
+///
+/// **Under `--offline` the child is told to stay off the network**, in
+/// `CARGO_NET_OFFLINE`, cargo's own name for `net.offline`. The flag is this
+/// tool's and not cargo's, so a child told nothing downloads whatever package
+/// the machine lacks — the formatter, clippy, rustdoc, the tests and the audit
+/// alike, and on a fresh clone that is every package they build. Told, it fails
+/// instead, after the graph has already failed naming `cargo fetch --locked` as
+/// the fix. Measured with an empty cargo home and no network: told nothing, the
+/// lint step printed `Updating crates.io index` and retried the connection for
+/// three minutes, and the documentation step was still retrying when the run
+/// was stopped; told, the whole `check --offline` ended in 25 seconds, every
+/// cargo step failing in cargo's own words: a package not found, and
+/// `offline mode`.
+///
+/// Decided by the flag and never by [`Stack`], which off Linux is
+/// `NotApplicable` with the flag or without. Without the flag nothing is set or
+/// removed, and the child starts as it always did. The graph
+/// (`members::metadata`), the wall's fixtures and the plugin build pass cargo
+/// `--offline` of their own as well, and of those three only the plugin build
+/// comes through here.
+fn cargo_command(
     root: &Path,
     args: &[&str],
     database: Option<&str>,
     stack: Stack,
-) -> Result<String, String> {
+    offline: bool,
+) -> Command {
     let program = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned());
     #[expect(
         clippy::disallowed_methods,
         reason = "a tool this gate drives; its output is read, not printed"
     )]
     let mut command = Command::new(program);
+    if offline {
+        command.env("CARGO_NET_OFFLINE", "true");
+    }
     command.env_remove("DATABASE_URL");
     // **Handed to this child, not exported.** `cargo doc` has no `-- -D
     // warnings`; rustdoc takes its deny through `RUSTDOCFLAGS`, and this
@@ -12113,18 +12174,8 @@ fn cargo_with(
         command.env_remove("NC_NO_STACK");
     }
     unset_what_proptest_reads(&mut command, std::env::vars_os().map(|(name, _)| name));
-    let output = command
-        .args(args)
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("could not run cargo {}: {error}", args.join(" ")))?;
-    let mut combined = String::from_utf8_lossy(&output.stdout).into_owned();
-    combined.push_str(&String::from_utf8_lossy(&output.stderr));
-    if output.status.success() {
-        Ok(combined)
-    } else {
-        Err(combined)
-    }
+    command.args(args).current_dir(root);
+    command
 }
 
 /// The complaint, if the steps this run opened are not the ones written down.
@@ -18256,12 +18307,12 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 628, 56),
+        ("xtask/check.rs", 630, 56),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 44, 29),
         ("xtask/database.rs", 29, 6),
         ("xtask/determinism.rs", 29, 11),
-        ("xtask/dev.rs", 59, 8),
+        ("xtask/dev.rs", 60, 8),
         ("xtask/docs.rs", 8, 1),
         ("xtask/every_generated_value_is_compared.rs", 30, 8),
         ("xtask/gates.rs", 213, 33),
@@ -24017,7 +24068,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 13785;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 13794;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24036,7 +24087,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2525;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2524;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -24087,7 +24138,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 19331;
+    const THE_REARRANGEMENTS_JUDGED: usize = 19347;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24141,7 +24192,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **424 of 19,331 are accepted by the first-line
+    /// rules the gates apply: **424 of 19,347 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25445,6 +25496,46 @@ mod the_frozen_path_rule {
                 ("PROPTEST_DISABLE_FAILURE_PERSISTENCE".to_owned(), true),
             ]
         );
+    }
+
+    /// Under `--offline` every cargo the gate starts is told to stay off the
+    /// network, and without the flag none is told anything.
+    ///
+    /// **With every answer the stack can give**, because the flag decides this
+    /// and the stack does not. Off Linux [`super::Stack`] is `NotApplicable`
+    /// with the flag or without, so a rule read from it would send every macOS
+    /// and Windows run under `--offline` to the network for whatever package
+    /// the machine lacks. And the half without the flag is asserted as nothing
+    /// at all, neither set nor removed: such a run starts its children as it
+    /// always did.
+    #[test]
+    fn every_cargo_the_gate_starts_under_the_flag_stays_off_the_network() {
+        let told = |stack: super::Stack, offline: bool| -> Vec<Option<String>> {
+            let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+            super::cargo_command(root, &["test"], None, stack, offline)
+                .get_envs()
+                .filter(|(name, _)| *name == "CARGO_NET_OFFLINE")
+                .map(|(_, value)| value.map(|value| value.to_string_lossy().into_owned()))
+                .collect()
+        };
+        for stack in [
+            super::Stack::Asked,
+            super::Stack::Offline,
+            super::Stack::NotApplicable,
+        ] {
+            assert_eq!(
+                told(stack, true),
+                [Some("true".to_owned())],
+                "a cargo started under --offline, with the stack {stack:?}, was not told to \
+                 stay off the network"
+            );
+            assert_eq!(
+                told(stack, false),
+                [],
+                "a cargo started without --offline, with the stack {stack:?}, was told \
+                 something about the network"
+            );
+        }
     }
 
     fn asks_for_it(neutral: &[char], at: usize) -> bool {
