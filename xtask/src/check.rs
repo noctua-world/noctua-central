@@ -5822,6 +5822,29 @@ fn refuse_while_a_mutation_is_in_flight(root: &Path, failures: &mut Vec<String>)
     failures.push("a mutation is in flight".to_owned());
 }
 
+/// This running binary, moved off the name cargo links the test build's
+/// binary to, so that build may write there.
+///
+/// **On Windows a running program's file can be renamed and not removed**, and
+/// cargo removes what stands at this binary's own name before it links the
+/// test build's binary there — another binary than this one, since every
+/// member's features are unified with the test dependencies' for that build.
+/// Measured on the Windows runner: left in place, the test step stopped at
+/// `Access is denied` with nothing run. Elsewhere nothing stood in the way, and
+/// the move changes nothing this run reads.
+///
+/// **A move that fails is answered by the build that needed the name**, whose
+/// refusal is the test step's own output.
+fn step_aside_for_the_test_build() {
+    if let Ok(running) = std::env::current_exe()
+        && let Some(name) = running.file_name()
+    {
+        let mut aside = name.to_owned();
+        aside.push(".running");
+        let _answered_by_the_build = std::fs::rename(&running, running.with_file_name(aside));
+    }
+}
+
 /// Formatting, lints and tests — each run even if the one before it failed.
 fn workspace(
     root: &Path,
@@ -5870,6 +5893,7 @@ fn workspace(
     // `OFFLINE_SKIPS` are for. Off Linux the same suite, and this tool's own
     // image-pin cases, are not applicable, and the line says that instead.
     the_stacks_own_tests_stand_aside(stack);
+    step_aside_for_the_test_build();
     // Deliberately not `--quiet`: the count is the assertion. A suite with no
     // tests exits zero, so "tests passed" without a number is the gate
     // `NOCTUA.md §19.3` opens with — one that is green because it checked
@@ -7512,7 +7536,7 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// `xtask/mutants.py` are where a predicate's verdict is decided. It says the
 /// guard is still there, which is the question a deletion asks.
 #[cfg(test)]
-const WHAT_THE_GATE_CAN_SAY: [&str; 844] = [
+const WHAT_THE_GATE_CAN_SAY: [&str; 845] = [
     "`{named}` was passed to `docker compose` among its arguments. The project is this checkout's and is set above; docker resolves the flag to the later of two, so the stack would come up under a name `--down` does not address",
     "what CI reaches is more than {HOPS} hops deep",
     "Cedar denies by default, so a core rule that permits widens what is allowed rather than restricting it — move it to a pack, or make it a `forbid`",
@@ -7543,6 +7567,7 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 844] = [
     ".env.example declares no variable, so the stack's settings are written down nowhere",
     ".env.example is not there, so nothing says what the stack reads",
     ".partial",
+    ".running",
     "CI names `{image}` itself instead of bringing the stack up",
     "CI never passes --offline. Where the comparison does run it can only answer for a tag that has been pulled, and `cargo xtask dev` does not pull one: compose resolves `tag@sha256:…` by the digest",
     "a mutation run is in flight, or one was killed before it restored the tree, so the operator census stood down and this run cannot speak for it",
@@ -18312,7 +18337,7 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 632, 56),
+        ("xtask/check.rs", 633, 56),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 44, 29),
         ("xtask/database.rs", 29, 6),
@@ -24074,7 +24099,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14086;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14089;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24144,7 +24169,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 19698;
+    const THE_REARRANGEMENTS_JUDGED: usize = 19703;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24198,7 +24223,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **424 of 19,698 are accepted by the first-line
+    /// rules the gates apply: **424 of 19,703 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
