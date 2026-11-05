@@ -18402,7 +18402,7 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 636, 56),
+        ("xtask/check.rs", 637, 56),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 44, 29),
         ("xtask/database.rs", 29, 6),
@@ -21200,8 +21200,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 533 scratches this tree
-    /// builds, 443 of the 533 are removed however the test leaves and 90 are
+    /// directories accumulated in an afternoon. Of the 534 scratches this tree
+    /// builds, 444 of the 534 are removed however the test leaves and 90 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -21287,7 +21287,7 @@ mod the_frozen_path_rule {
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
         ("nc-prune/in_sqlite.rs", 13, 13),
         ("xtask/build.rs", 8, 8),
-        ("xtask/check.rs", 37, 25),
+        ("xtask/check.rs", 38, 26),
         ("xtask/corpus.rs", 15, 15),
         ("xtask/counts.rs", 7, 0),
         ("xtask/determinism.rs", 6, 0),
@@ -24169,7 +24169,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14153;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14156;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24239,7 +24239,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 19809;
+    const THE_REARRANGEMENTS_JUDGED: usize = 19814;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24293,7 +24293,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **424 of 19,809 are accepted by the first-line
+    /// rules the gates apply: **424 of 19,814 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -31937,13 +31937,15 @@ mod the_meta_gate {
     /// absolute path opens with `/`. The `sh` Git ships for Windows runs the
     /// script and keeps none of the three — measured on a Windows runner, a
     /// decoy reaching the script through a junction was taken for the
-    /// repository it belongs to — so a drive there would prove guards the
-    /// script does not have. `nc_platform::testing::A_POSIX_SHELL` is where the
-    /// system says so.
+    /// repository it belongs to. So the script refuses to run there before its
+    /// first guard, which `the_script_refuses_a_system_its_guards_do_not_hold_on`
+    /// holds on every system, and a drive of a guard would meet that refusal
+    /// and prove nothing about the guard. `nc_platform::testing::A_POSIX_SHELL`
+    /// is where the system says so.
     const NO_POSIX_SHELL: &str = "the checkout script's guards spend a path as a POSIX \
                                   shell does, and the sh this system has spends it as \
-                                  Windows does, so they are not the guards they read as \
-                                  here; the Linux and macOS jobs run it";
+                                  Windows does, so the script refuses to run here before \
+                                  the first of them; the Linux and macOS jobs run it";
 
     /// Why each Rust source the mutation runner does not edit is not edited.
     ///
@@ -42295,6 +42297,114 @@ impl<T: Shown> Shown for Option<T> {
         );
     }
 
+    /// The checkout script refuses to run where its guards are not the guards
+    /// they read as, before it has made or removed anything.
+    ///
+    /// **The one drive of the script that runs on every system.** Where the
+    /// system's `sh` is not POSIX's, the answer is the system's own: the shell
+    /// Git ships for Windows is asked what it runs on, and the script has to
+    /// refuse it. Where it is POSIX's, a `uname` planted ahead of the system's
+    /// on the path answers as each POSIX layer over Windows does, so the arm
+    /// is held on the systems the mutation runner runs on as well, and a
+    /// spelling it misses fails here rather than reaching an `rm -rf` there.
+    ///
+    /// **Driven to the line above the first call in the copy**, with the
+    /// removal and the copy still in it, so a refusal that does not happen is
+    /// seen on disk: the `rm -rf` takes the sentinel the destination holds,
+    /// and the copy lands beside it.
+    #[test]
+    fn the_script_refuses_a_system_its_guards_do_not_hold_on() {
+        let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+        let source =
+            std::fs::read_to_string(root.join("xtask/the-checkout-shape.sh")).expect("readable");
+        let runs = "\ncargo xtask dev";
+        let cut = source
+            .find(runs)
+            .expect("the script brings the copy's stack up, and this test ends before it does");
+        let held = super::LeavesNothingBehind::new("checkout-system");
+        let fake = held.root.join("repository");
+        a_scratch_repository(&fake);
+        let script = fake.join("xtask/the-checkout-shape.sh");
+        std::fs::write(&script, format!("{}\nexit 77\n", &source[..cut])).expect("writable");
+        let destination = held.root.join("copy");
+        std::fs::create_dir_all(&destination).expect("writable");
+        std::fs::write(destination.join("sentinel"), "named by nobody\n").expect("writable");
+        // What `uname -s` answers under Git's shell, under MSYS2's own, under
+        // Cygwin, and under an MSYS2 environment only the last pattern takes;
+        // `None` is the system's own answer, asked where it is one of them.
+        let answers: Vec<Option<&str>> = if nc_platform::testing::A_POSIX_SHELL {
+            [
+                "MINGW64_NT-10.0-26100",
+                "MSYS_NT-10.0-26100",
+                "CYGWIN_NT-10.0-26100",
+                "UCRT64_NT-10.0-26100",
+            ]
+            .into_iter()
+            .map(Some)
+            .collect()
+        } else {
+            vec![None]
+        };
+        let planted = held.root.join("bin");
+        std::fs::create_dir_all(&planted).expect("writable");
+        let path = std::env::var_os("PATH").unwrap_or_default();
+        for answer in answers {
+            let searched = match answer {
+                Some(answer) => {
+                    let uname = planted.join("uname");
+                    std::fs::write(&uname, format!("#!/bin/sh\necho {answer}\n"))
+                        .expect("writable");
+                    // The permissions of the binary running this test, which
+                    // this system runs already, so no mode is spelled here.
+                    let runnable = std::env::current_exe()
+                        .and_then(std::fs::metadata)
+                        .expect("a test binary can read its own metadata")
+                        .permissions();
+                    std::fs::set_permissions(&uname, runnable).expect("writable");
+                    std::env::join_paths(
+                        std::iter::once(planted.clone()).chain(std::env::split_paths(&path)),
+                    )
+                    .expect("the path this test was given joins again")
+                }
+                None => path.clone(),
+            };
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "the script is driven and its output is read, not printed"
+            )]
+            let refused = std::process::Command::new("sh")
+                .arg(&script)
+                .arg(&destination)
+                .current_dir(&fake)
+                .env("PATH", &searched)
+                .env_remove(super::CHECKOUT_SHAPE_GUARD)
+                .output()
+                .expect("sh is on this machine");
+            let said = String::from_utf8_lossy(&refused.stderr).into_owned();
+            let system = answer.unwrap_or("this system");
+            assert!(
+                said.contains("which spends a path the way Windows does"),
+                "the script ran on {system} without refusing, and every guard it went \
+                 on to read spends a path as POSIX does: {said}"
+            );
+            assert!(
+                answer.is_none_or(|answer| said.contains(answer)),
+                "the refusal does not name the system it refused: {said}"
+            );
+            assert_eq!(refused.status.code(), Some(2), "{system}: {said}");
+            assert!(
+                destination.join("sentinel").exists() && !destination.join("checkout").exists(),
+                "the script refused {system} after it had removed or copied something: \
+                 {said}"
+            );
+        }
+        assert!(
+            script.exists(),
+            "the scratch repository was destroyed by a run the script reports refusing"
+        );
+        drop(held);
+    }
+
     /// An absolute path that resolves inside this repository is refused too.
     ///
     /// Beside [`the_checkout_script_refuses_a_copy_inside_this_repository`]
@@ -43241,8 +43351,8 @@ impl<T: Shown> Shown for Option<T> {
         // nothing, which is the rule `THE_REST_IT_SAYS` states, so this
         // paragraph does not carry it.
         assert_eq!(
-            drives, 12,
-            "{drives} drive(s) of the checkout script were found in this file, and twelve \
+            drives, 13,
+            "{drives} drive(s) of the checkout script were found in this file, and thirteen \
              are written down. One fewer is a drive spelled a way this rule cannot see; \
              one more is a drive to read before writing the number"
         );

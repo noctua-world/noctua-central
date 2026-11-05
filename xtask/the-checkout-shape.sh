@@ -31,6 +31,36 @@
 # runs a binary that reads the tree it was built in.
 set -eu
 
+# **Not on Windows, where no guard below is the guard it reads as.** Every
+# guard between here and the `rm -rf` is a claim about how a POSIX shell spends
+# a path: `cd -P` resolves a link before the `..` after it, two leading slashes
+# are one directory, and an absolute path opens with `/`. The `sh` Git ships for
+# Windows runs this file and keeps none of the three, because it hands each path
+# to Windows, which strikes out the name before a `..` whether or not it is a
+# link. Measured on a Windows runner: a decoy that reached this script through a
+# junction passed every guard as the repository it belongs to, and the line
+# after them is an `rm -rf` of it. A guard that cannot hold is refused here,
+# before anything is derived from a path, rather than run and trusted.
+#
+# **By what the shell says it runs on.** A POSIX layer over Windows names itself
+# to `uname -s` as `<layer>_NT-<version>`: Git's and MSYS2's `MINGW64_NT-...`
+# and `MSYS_NT-...`, and Cygwin's `CYGWIN_NT-...`, which the last pattern takes
+# whatever the layer is called. Linux under WSL answers `Linux`, and its `sh` is
+# POSIX's own. **Assigned before it is compared**, because inside the `case`
+# word a `uname` that fails is an empty answer and no refusal, while a failing
+# assignment stops the script under `set -e` here, before anything — the
+# direction a guard before `rm -rf` must fail in.
+# `the_script_refuses_a_system_its_guards_do_not_hold_on` drives this arm.
+the_system=$(uname -s)
+case $the_system in
+  MINGW*|MSYS*|CYGWIN*|*_NT*)
+    echo "this shell runs on $the_system, which spends a path the way Windows does." >&2
+    echo "Every guard in this script before its removal is a claim about how a POSIX" >&2
+    echo "shell spends one, so none of them is the guard it reads as here. Run it on" >&2
+    echo "Linux or macOS." >&2
+    exit 2;;
+esac
+
 # **It must not run inside a checkout it made.** The last thing this script does
 # is `cargo xtask check` in the copy, and `check` drives this script — so in the
 # one shape this script exists to produce, a checkout with no `.noctua-workspace`

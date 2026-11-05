@@ -13,7 +13,9 @@
 
 # **Windows runs a recipe in PowerShell**, which every Windows machine has, and
 # not in `sh`, which `just` asks for by default and Windows does not ship. Each
-# recipe is a `cargo xtask` verb, the listing, or a script that names `sh` itself.
+# recipe is a `cargo xtask` verb, the listing, or a script that names `sh` itself —
+# and the checkout script refuses to run under the `sh` Git ships there, before it
+# derives anything, because every guard it has spends a path as POSIX does.
 set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
 
 default:

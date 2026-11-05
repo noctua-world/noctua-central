@@ -1878,14 +1878,20 @@ rather than anything decided for the project, and each is a maintainer's to reop
   named beside the verdict as `not applicable here:`. A defect that shows only with the
   stack on macOS or Windows is caught by nothing, and no stack is run there by decision
   (`NOCTUA.md §22.2`).
-- **On Windows the checkout script's guards are not proven**: each guard before its
-  `rm -rf` is a claim about how a POSIX shell spends a path — `cd -P` resolving a link
-  before the `..` after it, two leading slashes being one directory, an absolute path
-  opening with `/` — and the `sh` Git ships for Windows keeps none of them. Measured on a
-  Windows runner, a decoy reaching the script through a junction passed every guard as the
-  repository the script belongs to. So its drives stand aside there, saying so, and the
-  Linux and macOS jobs run them; somebody who runs the script on Windows anyway runs guards
-  no test holds.
+- **On Windows the checkout script refuses to run, and its guards are proven elsewhere**:
+  each guard before its `rm -rf` is a claim about how a POSIX shell spends a path —
+  `cd -P` resolving a link before the `..` after it, two leading slashes being one
+  directory, an absolute path opening with `/` — and the `sh` Git ships for Windows keeps
+  none of them. Measured on a Windows runner, a decoy reaching the script through a
+  junction passed every guard as the repository the script belongs to. So the script asks
+  `uname -s` before it derives anything from a path, and a shell naming a POSIX layer over
+  Windows (`MINGW*`, `MSYS*`, `CYGWIN*`, or anything with `_NT` in it) is refused, with
+  exit 2 and the reason. `the_script_refuses_a_system_its_guards_do_not_hold_on` holds
+  that on every system — on Windows by the system's own answer, elsewhere through a
+  `uname` planted on the path, with nothing removed or copied either way — and the drives
+  of the guards themselves stand aside on Windows, saying so, while the Linux and macOS
+  jobs run them. A layer over Windows that names itself some other way to `uname` is not
+  refused, and runs guards no test holds.
 - **That the catalog's output does not follow a directory's order is measured on Linux
   alone**: macOS lists a directory by a hash of each name and Windows by the name, so two
   layouts of the locale files come back in one order there and the suite holding the
