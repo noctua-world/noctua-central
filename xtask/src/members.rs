@@ -363,9 +363,9 @@ mod built_from_tests {
 /// has one test.
 ///
 /// **And either separator, answered with `/`.** On Windows cargo writes every
-/// manifest path with a backslash, under a root written the same way, so a
-/// separator read as `/` alone found no member there, and every gate scoped by
-/// the members failed for having nothing to judge. Both spellings are turned
+/// manifest path with a backslash, under a root written the same way, so
+/// read with `/` alone no member is found there, and every gate scoped by the
+/// members fails for having nothing to judge. Both spellings are turned
 /// into `/` before they are compared, which is the rule [`crate::relative_to`]
 /// keeps for every path this tool prints or compares, and what comes back is
 /// the form every list here is written in.
@@ -1273,8 +1273,8 @@ mod tests {
     /// A member cargo names with Windows' separator is a member, written with `/`.
     ///
     /// The answer on a Windows runner, in the shape it came: read with `/` as
-    /// the only separator, no package in it was inside the root and the walk
-    /// answered that cargo listed no member at all. A sibling is still outside
+    /// the only separator, no package in it is inside the root and the walk
+    /// answers that cargo lists no member at all. A sibling is still outside
     /// with either separator, because what decides inside is still a separator
     /// after the root.
     #[test]

@@ -2202,7 +2202,8 @@ fn every_policy_file() -> Vec<(String, String)> {
                 // With `/`, which is how every path the pack is compiled
                 // under is written and what the filters below compare: on
                 // Windows the separator is `\`, and a core read as
-                // `policy\core\…` was filtered out whole as no core at all.
+                // `policy\core\…` would be filtered out whole as no core at
+                // all.
                 let relative = path
                     .strip_prefix(root)
                     .expect("under the repository")

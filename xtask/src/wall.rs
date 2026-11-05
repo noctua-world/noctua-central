@@ -3067,8 +3067,8 @@ fn pointed_at(diagnostic: &str) -> Vec<usize> {
         // primary span is in the crate's own `main.rs`, which is the one file a
         // fixture is. **With either separator**: rustc on Windows names it with
         // a backslash, which JSON writes escaped, and read with `/` alone no
-        // span there was the fixture's, so every fixture was refused at no line
-        // at all.
+        // span there is the fixture's, so every fixture would be refused at no
+        // line at all.
         let span = &rest[..at];
         let names_the_fixture = span
             .rsplit_once("\"file_name\":\"")

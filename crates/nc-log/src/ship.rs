@@ -1878,13 +1878,14 @@ impl Target {
             // `EINVAL` here once the store has reset the connection, because a
             // socket shut down both ways takes no new option — and what the
             // store sent before the reset is still there, readable at once with
-            // the reset after it. Read as `Silent`, that refusal threw the
-            // answer away and counted a store that had gone as one that
-            // answered: on a macOS runner a shutdown offered a gone store one
-            // batch more than `GIVE_UP_AFTER`, and an acceptance split by a
-            // pause came back `Silent`. So the read goes ahead under the last
-            // bound that took, which `exchange` set before the first slice: it
-            // is bounded either way, and what it returns is the verdict.
+            // the reset after it. Read as `Silent`, the refusal would throw
+            // away an answer still in the socket and count a store that has
+            // gone as one that answered: measured on a macOS runner, a shutdown
+            // offers a gone store one batch more than `GIVE_UP_AFTER`, and an
+            // acceptance split by a pause comes back `Silent`. So the read goes
+            // ahead under the last bound that took, which `exchange` set before
+            // the first slice: it is bounded either way, and what it returns is
+            // the verdict.
             let _ = stream.set_read_timeout(Some(slice));
             match answer.read(&mut byte) {
                 // A slice that expired is not a verdict: the loop goes round,
@@ -3404,11 +3405,11 @@ mod hostile_store_tests {
     /// **The request is read before it is answered**, so the store that goes
     /// closes the connection rather than resetting it. A socket closed with
     /// bytes still unread sends a reset, and Windows discards what of the answer
-    /// the client had not read yet when the reset arrives: measured on a
-    /// Windows runner, part of the status line read and then `os error 10054`,
-    /// so the one batch the store took was read as a store that stopped
-    /// answering, which is a store that answered — and the shutdown offered
-    /// three batches where this test is about two.
+    /// the client has not read yet when the reset arrives. With the request
+    /// unread, a Windows runner reads part of the status line and then
+    /// `os error 10054`, so the one batch the store took reads as a store that
+    /// stopped answering, which is a store that answered — and the shutdown
+    /// offers three batches where this test is about two.
     fn a_store_that_answers_once_and_then_goes(stall: core::time::Duration) -> u16 {
         let listener = TcpListener::bind("127.0.0.1:0").expect("a port");
         let port = listener.local_addr().expect("bound").port();
@@ -3993,9 +3994,9 @@ mod hostile_store_tests {
                 return;
             };
             // **The request read whole**, so the close is a close and not a
-            // reset: Windows discards what of an answer the client had not
-            // read when a reset arrives, and there the status that began was
-            // measured arriving as no status at all, on a Windows runner.
+            // reset: Windows discards what of an answer the client has not
+            // read when a reset arrives, and on a Windows runner the status
+            // that began then arrives as no status at all.
             let _ = the_lines_in_one_request(&mut stream);
             // No newline: a status line that began and stopped.
             let _ = stream.write_all(b"HTTP/1.1 200 OK");
@@ -4882,7 +4883,7 @@ mod hostile_store_tests {
         // binary. Its stderr is a pipe whose reader is gone before the child
         // starts, which refuses every write on every system — a broken pipe on
         // Unix, where the Rust runtime ignores `SIGPIPE`, and a closing pipe on
-        // Windows. `/dev/full` did the same with `ENOSPC` on Linux alone: macOS
+        // Windows. `/dev/full` does the same with `ENOSPC` on Linux alone: macOS
         // and Windows have no such device. And `2>&-` does not work — the first
         // socket reuses the closed descriptor.
         let (unread, refusing) = std::io::pipe().expect("a pipe");
@@ -5585,15 +5586,15 @@ mod hostile_store_tests {
     /// **macOS refuses a new read bound once a reset has arrived**, because a
     /// socket shut down both ways takes no new option, while the answer the
     /// store sent first is still there to be read. Taken for a verdict, that
-    /// refusal made this exchange `Silent` — a store that answered, holding the
-    /// batch nobody knows the fate of — with its answer one read away. This
-    /// store never reads the request, so its close is a reset that follows its
-    /// answer at once. What the client reads then is the system's: Linux and
-    /// macOS keep what arrived before the reset, and Windows discards it. So
-    /// what is held is what every system shares — the verdict is the answer, or
-    /// the reset: `Unreadable` after part of the answer, `Unreachable` before
-    /// any of it, which is what Windows gives — and never the silence of a
-    /// store that said nothing.
+    /// refusal would make this exchange `Silent` — a store that answered,
+    /// holding the batch nobody knows the fate of — with its answer one read
+    /// away. This store never reads the request, so its close is a reset that
+    /// follows its answer at once. What the client reads then is the system's:
+    /// Linux and macOS keep what arrived before the reset, and Windows
+    /// discards it. So what is held is what every system shares — the verdict
+    /// is the answer, or the reset: `Unreadable` after part of the answer,
+    /// `Unreachable` before any of it, which is what Windows gives — and never
+    /// the silence of a store that said nothing.
     #[test]
     fn an_answer_a_reset_follows_is_not_read_as_silence() {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a port");

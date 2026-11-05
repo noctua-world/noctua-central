@@ -37,8 +37,8 @@ set -eu
 # are one directory, and an absolute path opens with `/`. The `sh` Git ships for
 # Windows runs this file and keeps none of the three, because it hands each path
 # to Windows, which strikes out the name before a `..` whether or not it is a
-# link. Measured on a Windows runner: a decoy that reached this script through a
-# junction passed every guard as the repository it belongs to, and the line
+# link. Measured on a Windows runner: a decoy that reaches this script through a
+# junction passes every guard as the repository it belongs to, and the line
 # after them is an `rm -rf` of it. A guard that cannot hold is refused here,
 # before anything is derived from a path, rather than run and trusted.
 #

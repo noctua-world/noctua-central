@@ -6195,8 +6195,8 @@ fn the_lints_step_read_the_whole_tree(root: &Path, output: &str, failures: &mut 
 ///
 /// **Answered with `/`, as clippy's and rustdoc's roots are.** The quoted path
 /// is the path as Rust debug-prints it, so on Windows each separator arrives as
-/// an escaped backslash, and compared with `/` no root there was one cargo
-/// declares.
+/// an escaped backslash, and compared with `/` alone no root there is one
+/// cargo declares.
 fn the_source_roots_rustfmt_reported(output: &str) -> Vec<String> {
     output
         .lines()
@@ -7389,7 +7389,7 @@ fn tests_verdict(output: &str, expected: &[String]) -> Result<usize, String> {
     // appeared only inside warning text and none of them had run.
     // **With `/`, the separator every suite here is written with.** Cargo on
     // Windows announces `Running tests\the_decision_point.rs`, and compared
-    // as written no suite there was ever announced.
+    // as written no suite there is ever announced.
     let announcements: Vec<String> = output
         .lines()
         .filter_map(|line| line.trim().strip_prefix("Running "))
@@ -32047,7 +32047,7 @@ mod the_meta_gate {
     /// the `..` after it, two leading slashes are one directory, and an
     /// absolute path opens with `/`. The `sh` Git ships for Windows runs the
     /// script and keeps none of the three — measured on a Windows runner, a
-    /// decoy reaching the script through a junction was taken for the
+    /// decoy reaching the script through a junction is taken for the
     /// repository it belongs to. So the script refuses to run there before its
     /// first guard, which `the_script_refuses_a_system_its_guards_do_not_hold_on`
     /// holds on every system, and a drive of a guard would meet that refusal
@@ -42518,8 +42518,8 @@ impl<T: Shown> Shown for Option<T> {
                  it removed or copied something: {said}"
             );
             // **And the same scratch, answered `Linux`, reaches its removal and
-            // its copy**, so the runs above stopped at the arm and not at a
-            // guard after it that this scratch would fail anyway. What it did
+            // its copy**, so the runs above stop at the arm and not at a
+            // guard after it that this scratch would fail anyway. What it does
             // is read on disk, not from its status, which the script's trap on
             // `EXIT` has the last word on.
             let ran = drive(Some("echo Linux"));

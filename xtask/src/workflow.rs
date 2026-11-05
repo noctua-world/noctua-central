@@ -1800,10 +1800,10 @@ fn answers_to(name: &str, names: &[&str]) -> bool {
 ///
 /// **Listed, not joined.** `root.join("JUSTFILE").is_file()` asks the
 /// filesystem, and one that ignores case says yes to every spelling of a file
-/// that is there under one of them: that is how one justfile was read three
-/// times on macOS and Windows. A name read from the directory is the name the
-/// file has, so it is read once, and named in a finding as it is named on
-/// disk.
+/// that is there under one of them, so a walk that joins each name reads one
+/// justfile three times on macOS and Windows. A name read from the directory
+/// is the name the file has, so it is read once, and named in a finding as it
+/// is named on disk.
 ///
 /// **Compared without case, on every system.** `just` compares so on its
 /// own, so a justfile renamed `JuStFiLe` is still the surface a developer
@@ -1836,13 +1836,16 @@ fn the_files_answering_to(directory: &Path, names: &[&str]) -> Vec<std::path::Pa
 /// before it asks the filesystem anything, striking a name and the `..` after
 /// it out whether or not the name exists, so `cd "$(dirname "$0")/.."` in
 /// `xtask/leaves-nothing.sh` names the root there — a name that is no
-/// directory, then a step back from it — and every word was resolved a second
-/// time against it, which accounts for the ten commands Windows counted past
-/// macOS: the two scripts and the justfile the words reach. POSIX's `cd`
-/// refuses such a path (bash: `cd: missing/../ci: No such file or directory`),
-/// and Linux and macOS refuse it on their own; asking for each segment before
-/// stepping past it makes the three systems reach the same directories and the
-/// same files. What the last segment must be is the caller's question.
+/// directory, then a step back from it — and a walk that joins a word whole
+/// resolves every word a second time against it. On one tree such a walk
+/// prints `ok 41 cargo command(s)` on Windows and `31` on macOS; by the count,
+/// the ten are the two scripts and the justfile the words reach, read once
+/// more through that second root, which is inferred and not measured apart.
+/// POSIX's `cd` refuses such a path, as bash says with
+/// `cd: missing/../ci: No such file or directory`, and Linux and macOS refuse
+/// it on their own; asking for each segment before stepping past it makes the
+/// three systems reach the same directories and the same files. What the last
+/// segment must be is the caller's question.
 fn under(base: &Path, named: &str) -> Option<std::path::PathBuf> {
     let mut reached = base.to_path_buf();
     for segment in Path::new(named).components() {
@@ -4734,13 +4737,13 @@ mod tests {
 
     /// The walk reads each file once, however many spellings reach it.
     ///
-    /// **Measured on CI before it held**: one tree printed
-    /// `ok 19 cargo command(s)` on Linux, `31` on macOS and `41` on Windows.
-    /// A filesystem that ignores case answers for every name `just` loads at
-    /// once, so the one justfile was read three times; and Windows makes a
-    /// directory of `cd "$(dirname "$0")/.."`, the root under a second
-    /// spelling, through which every file a word reached was read once more,
-    /// which is the ten past macOS — inferred from the count. Linux's
+    /// **A walk that compares spellings counts one tree three ways**: CI
+    /// prints `ok 19 cargo command(s)` on Linux, `31` on macOS and `41` on
+    /// Windows. A filesystem that ignores case answers for every name `just`
+    /// loads at once, so such a walk reads the one justfile three times; and
+    /// Windows makes a directory of `cd "$(dirname "$0")/.."`, the root under a
+    /// second spelling, through which it reads every file a word reaches once
+    /// more, which by the count is the ten past macOS, inferred. Linux's
     /// filesystem holds neither shape, so the scratch below plants each in a
     /// form every system reads alike: a justfile only a lookup without case
     /// finds, a `cd` into a directory and back out of it, and a `cd` through a

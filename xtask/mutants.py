@@ -6310,8 +6310,8 @@ def main():
 
     for caught in (signal.SIGTERM, signal.SIGINT, getattr(signal, "SIGHUP", None)):
         # **The hangup where the system has one.** Windows has no `SIGHUP`, and
-        # naming it there ended the run before its first operator. Read by
-        # name, so a system that has it is caught as it always was.
+        # naming it there raises before the first operator. Read by name, so a
+        # system that has it catches it here with the other two.
         if caught is not None:
             signal.signal(caught, lambda number, frame: (restore(), sys.exit(128 + number)))
     try:

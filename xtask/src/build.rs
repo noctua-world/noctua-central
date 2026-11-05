@@ -933,8 +933,8 @@ mod tests {
         // The directory takes no new file; the ledger in it is still writable.
         // **Through the door each system shuts a directory with.** A read-only
         // mark is a mode on Unix and an attribute Windows ignores on a
-        // directory, so there it shut nothing and the build wrote its sibling
-        // and renamed it as though nothing were in the way.
+        // directory, so there the mark shuts nothing, and the build would
+        // write its sibling and rename it as though nothing were in the way.
         nc_platform::testing::shut_its_owner_out(&scratch.join("catalog")).expect("shut");
         let refused = super::write_what_changed(
             &scratch,

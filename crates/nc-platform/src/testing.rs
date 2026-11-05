@@ -40,7 +40,7 @@ pub const LISTED_AS_MADE: Option<&str> = imp::LISTED_AS_MADE;
 /// link or not, and reads two leading slashes as a network host; and a native
 /// caller hands it a drive's path that is not rooted at `/` at all. A guard
 /// written against POSIX paths is not, there, the guard it reads as: measured on a
-/// Windows runner, a decoy that reaches a script through a junction was taken
+/// Windows runner, a decoy that reaches a script through a junction is taken
 /// for the repository the script belongs to. A suite driving such a guard
 /// stands aside where this is false and says so in its own output, by the
 /// system's name, and the Linux and macOS jobs run it.
