@@ -144,6 +144,19 @@ const MERGED_NOW: &str = "mutation MergedNow($id: ID!) { mergePullRequest(input:
                           {pullRequestId: $id, mergeMethod: MERGE}) { pullRequest { number \
                           merged } } }";
 
+/// Whether the branch below already holds a release commit: GitHub compares
+/// it with that branch's head.
+///
+/// **A commit's hash is a head GitHub compares**, as a branch's name is:
+/// measured on 2026-11-05 against this repository, `dev` compared with its
+/// own head answered `IDENTICAL`, with a commit it does not hold `AHEAD`, and
+/// with one of its older commits `BEHIND`.
+const WHAT_THE_BRANCH_BELOW_HOLDS: &str = "query HeldBelow($owner: String!, $name: String!, \
+                                           $below: String!, $at: String!) { \
+                                           repository(owner: $owner, name: $name) { \
+                                           ref(qualifiedName: $below) { compare(headRef: \
+                                           $at) { status } } } }";
+
 /// A part of a release's section of the changelog (`NOCTUA.md §22.4`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Part {
@@ -391,7 +404,8 @@ struct Releasing<'a> {
     channel: Channel,
     /// How far it goes.
     mode: Mode,
-    /// This process's environment, which git and cargo are handed.
+    /// This process's environment, which git and cargo are handed less the
+    /// variables of `gh`'s own ([`ghs_own`]), and git less its own too.
     inherited: &'a [(OsString, OsString)],
     /// Where it is published, under `--publish`.
     github: Option<&'a GitHub>,
@@ -416,6 +430,9 @@ struct OnGitHub {
     release: bool,
     /// The pull request that carries the release back, when one exists.
     carried: Option<CarriedBack>,
+    /// Whether the branch below holds the release commit already: an earlier
+    /// release's pull request, open when this one was made, merged it since.
+    below: bool,
 }
 
 /// A pull request from the released branch into the one below.
@@ -450,14 +467,15 @@ impl GitHub {
     /// repository `GITHUB_REPOSITORY` names and the token in `GH_TOKEN`.
     ///
     /// **The token reaches `gh` through its environment and nowhere else** —
-    /// never an argument, which a process listing shows, and never a line this
-    /// prints. **And it is the one `gh` can use**: every other variable of
-    /// `gh`'s own is removed, so `GH_HOST` and `GH_REPO` cannot point it at
-    /// another place, `GH_DEBUG` cannot put the traffic on the log, and
-    /// `GITHUB_TOKEN` — the workflow's own token, which `gh` falls back to —
-    /// cannot stand in for the App's: a pull request opened with it starts no
-    /// checks, and auto-merge would wait on them for ever. The host is set to
-    /// GitHub's.
+    /// never an argument, which a process listing shows, never a line this
+    /// prints, and never another child ([`ghs_own`]), though this process
+    /// holds it in its own environment. **And it is the one `gh` can use**:
+    /// every other variable of `gh`'s own is removed, so `GH_HOST` and
+    /// `GH_REPO` cannot point it at another place, `GH_DEBUG` cannot put the
+    /// traffic on the log, and `GITHUB_TOKEN` — the workflow's own token,
+    /// which `gh` falls back to — cannot stand in for the App's: a pull
+    /// request opened with it starts no checks, and auto-merge would wait on
+    /// them for ever. The host is set to GitHub's.
     ///
     /// # Errors
     ///
@@ -519,9 +537,77 @@ impl GitHub {
 /// Whether `name` is a variable `gh` reads for itself: every `GH_` one, and
 /// the two tokens it falls back to. **In any case**, because Windows reads a
 /// variable's name without its case.
-fn ghs_own(name: &OsStr) -> bool {
+///
+/// **No child but `gh` is handed one** — the gate, the cargo that relocks,
+/// and the git the history is read through (`crate::history`) — so the App's
+/// token `--publish` holds reaches `gh` alone.
+pub(crate) fn ghs_own(name: &OsStr) -> bool {
     let name = name.to_string_lossy().to_ascii_uppercase();
     name.starts_with("GH_") || name == "GITHUB_TOKEN" || name == "GITHUB_ENTERPRISE_TOKEN"
+}
+
+/// Every variable of `inherited` but `gh`'s own ([`ghs_own`]), as a child
+/// that is not `gh` is handed them.
+fn without_ghs_own(
+    inherited: &[(OsString, OsString)],
+) -> impl Iterator<Item = (&OsString, &OsString)> {
+    inherited
+        .iter()
+        .filter(|(name, _)| !ghs_own(name))
+        .map(|(name, value)| (name, value))
+}
+
+/// Runs the gate, this tool's `check`, in a child of its own, started with
+/// every variable of `inherited` but `gh`'s.
+///
+/// **A child, so the App's token reaches nothing the gate starts.** Under
+/// `--publish` this process holds `GH_TOKEN` in its environment, where every
+/// child it starts finds it unless told otherwise, and nothing here can take
+/// a variable out of this process's own: that is `unsafe` in this edition,
+/// which this workspace forbids. The gate starts cargo, which runs every
+/// build script, procedural macro and test of the workspace and of every
+/// dependency, and docker and git besides. Run here, each would be handed a
+/// token that may push to `staging` and `main` past their rules and move a
+/// `v*` tag; run in a child whose environment holds none of `gh`'s
+/// variables, none of them is.
+///
+/// # Errors
+///
+/// Returns why the gate could not be started, or that it refused, as its
+/// own lines above say.
+fn the_gate(root: &Path, inherited: &[(OsString, OsString)]) -> Result<(), String> {
+    let itself = std::env::current_exe().map_err(|error| {
+        format!("this tool could not find itself to run the gate: {error}. Nothing was written")
+    })?;
+    let ran = a_gate(&itself, root, inherited)
+        .status()
+        .map_err(|error| format!("the gate could not be started: {error}. Nothing was written"))?;
+    if ran.success() {
+        Ok(())
+    } else {
+        Err("the gate refused, as its lines above say, so nothing was written".to_owned())
+    }
+}
+
+/// The gate as [`the_gate`] starts it, from `itself`, over `root`.
+///
+/// **Cleared before it is handed anything**, so a variable this process holds
+/// reaches it only through `inherited`, and `gh`'s do not reach it through
+/// that. Its lines are this same tool's, each through its own `ui`, so they
+/// are shown as it prints them; nothing reads its standard input.
+fn a_gate(itself: &Path, root: &Path, inherited: &[(OsString, OsString)]) -> std::process::Command {
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the gate is this same tool, and every line it prints goes through its own `ui`"
+    )]
+    let mut command = std::process::Command::new(itself);
+    command
+        .arg("check")
+        .env_clear()
+        .envs(without_ghs_own(inherited))
+        .current_dir(root)
+        .stdin(std::process::Stdio::null());
+    command
 }
 
 /// Puts the lockfile's pristine bytes back after a release failed part way.
@@ -573,7 +659,7 @@ pub(crate) fn run(
         ui::warn("--dry-run: the gate is not run and nothing is written");
     } else {
         ui::detail("running the gate before anything is written");
-        crate::check::run(root, false)?;
+        the_gate(root, &inherited)?;
     }
     released(&Releasing {
         root,
@@ -749,7 +835,19 @@ fn carried_on(
             the_tree_is_clean(history)?;
             let holds = what_github_holds(github, setting.channel, version)?;
             what_github_holds_is_this_releases(&holds, setting.channel, version, Some(&head.hash))?;
-            published(github, setting.channel, version, &head.hash, &notes, &holds)
+            // **Asked when no pull request carries it**, before anything is
+            // made: an earlier release's, open when this one was made, may
+            // have merged it below since, and GitHub refuses a pull request
+            // between a branch and one already holding all of it.
+            let below = holds.carried.is_none() && held_below(github, setting.channel, &head.hash)?;
+            published(
+                github,
+                setting.channel,
+                version,
+                &head.hash,
+                &notes,
+                &OnGitHub { below, ..holds },
+            )
         }
         (Mode::Write | Mode::Publish, _) => {
             ui::ok("nothing to write: HEAD already carries the release");
@@ -1750,7 +1848,7 @@ fn what_github_holds_is_this_releases(
 /// have not run. Into `staging`, whose rules the App alone may pass, a merge
 /// asked now would land the release before any check of it ran. **A merged
 /// one carried what the branch held before**, never the commit just made, so
-/// the release opens its own.
+/// the release opens its own. And no branch below holds a commit just made.
 fn once_the_branch_moved(holds: &OnGitHub) -> OnGitHub {
     let carried = holds
         .carried
@@ -1764,6 +1862,7 @@ fn once_the_branch_moved(holds: &OnGitHub) -> OnGitHub {
         tag: holds.tag.clone(),
         release: holds.release,
         carried,
+        below: false,
     }
 }
 
@@ -1783,6 +1882,12 @@ fn once_the_branch_moved(holds: &OnGitHub) -> OnGitHub {
 /// that finish between the question and the request are a refusal of this
 /// run, and the next run merges. A run that made the release commit hands in
 /// [`once_the_branch_moved`], whose pull request is never merged now.
+///
+/// **A release the branch below holds already is not carried back again**:
+/// the pull request that merged it there was an earlier release's, and a
+/// second is refused between a branch and another that holds all of it, so
+/// that run, and every run after it, would fail over a release carried back
+/// whole.
 ///
 /// # Errors
 ///
@@ -1806,17 +1911,22 @@ fn published(
         the_github_release(github, channel, version, notes)?;
         made += 1;
     }
-    let carried = if let Some(carried) = &holds.carried {
-        carried.clone()
-    } else {
-        made += 1;
-        the_pull_request_back(github, channel, version)?
+    let carried = match &holds.carried {
+        Some(carried) => Some(carried.clone()),
+        None if holds.below => None,
+        None => {
+            made += 1;
+            Some(the_pull_request_back(github, channel, version)?)
+        }
     };
-    if carried.state == Carried::Open && !carried.auto_merge {
+    if let Some(carried) = carried
+        .as_ref()
+        .filter(|carried| carried.state == Carried::Open && !carried.auto_merge)
+    {
         if carried.mergeable {
-            merged_now(github, &carried)?;
+            merged_now(github, carried)?;
         } else {
-            auto_merged(github, &carried)?;
+            auto_merged(github, carried)?;
         }
         made += 1;
     }
@@ -1825,10 +1935,15 @@ fn published(
             "already released: {tag} is tagged, released, and carried back to {}",
             channel.below()
         ));
-    } else {
+    } else if let Some(carried) = &carried {
         ui::ok(&format!(
             "{tag} is released, and pull request #{} carries it back to {}",
             carried.number,
+            channel.below()
+        ));
+    } else {
+        ui::ok(&format!(
+            "{tag} is released, and {} holds it already",
             channel.below()
         ));
     }
@@ -1931,10 +2046,18 @@ fn what_github_holds(
         tag,
         release,
         carried,
+        below: false,
     })
 }
 
 /// A pull request as GitHub's answer describes it.
+///
+/// **Its node is `node_id` where GitHub answers through REST**, as it does the
+/// pull request the release opens, whose `id` there is a number; and `id`
+/// where it answers through GraphQL, as it does the question, which has no
+/// `node_id`. Read the other way round, the number stands first, is no
+/// node, and every release made fresh would be refused after its tag, its
+/// release and its pull request were made.
 ///
 /// # Errors
 ///
@@ -1946,9 +2069,9 @@ fn a_carried_back(node: &serde_json::Value) -> Result<CarriedBack, String> {
         .and_then(serde_json::Value::as_u64)
         .ok_or_else(|| "GitHub answered a pull request with no number".to_owned())?;
     let id = node
-        .get("id")
-        .or_else(|| node.get("node_id"))
+        .get("node_id")
         .and_then(serde_json::Value::as_str)
+        .or_else(|| node.get("id").and_then(serde_json::Value::as_str))
         .filter(|id| !id.is_empty())
         .ok_or_else(|| format!("GitHub answered pull request #{number} with no node"))?
         .to_owned();
@@ -2029,6 +2152,48 @@ fn from_this_repository(
         None => Err(format!(
             "GitHub answered pull request #{number} without saying whether its head is in a \
              fork, and a fork's never carries a release"
+        )),
+    }
+}
+
+/// Whether the branch below `channel` holds the commit `at` already: GitHub
+/// compares the two, and `at` is that branch's head or behind it.
+///
+/// **Ahead or diverged, it does not**, and the release carries it back; any
+/// other answer is refused, since one read as held would leave a release
+/// nobody carried back, ended as if it were.
+///
+/// # Errors
+///
+/// Returns what `gh` refused, or why GitHub's answer is not one of the four
+/// a comparison is.
+fn held_below(github: &GitHub, channel: Channel, at: &str) -> Result<bool, String> {
+    let (owner, name) = github.repository.split_once('/').unwrap_or_default();
+    let answer = gh(
+        github,
+        "graphql",
+        &serde_json::json!({
+            "query": WHAT_THE_BRANCH_BELOW_HOLDS,
+            "variables": {
+                "owner": owner,
+                "name": name,
+                "below": format!("refs/heads/{}", channel.below()),
+                "at": at,
+            },
+        }),
+    )?;
+    match answer
+        .pointer("/data/repository/ref/compare/status")
+        .and_then(serde_json::Value::as_str)
+    {
+        Some("BEHIND" | "IDENTICAL") => Ok(true),
+        Some("AHEAD" | "DIVERGED") => Ok(false),
+        other => Err(format!(
+            "GitHub did not say whether {} holds {}: it answered {}, and a comparison is \
+             ahead, behind, diverged or identical",
+            channel.below(),
+            short(at),
+            escaped(other.unwrap_or("nothing"))
         )),
     }
 }
@@ -2418,7 +2583,8 @@ fn read(root: &Path, name: &str) -> Result<String, String> {
 /// needs.
 ///
 /// **Cargo as `$CARGO` names it**, from the environment the release was
-/// handed, so the cargo that built this tool is the cargo that relocks.
+/// handed, so the cargo that built this tool is the cargo that relocks, and
+/// with none of `gh`'s variables, which no child but `gh` is handed.
 fn relock(root: &Path, inherited: &[(OsString, OsString)]) -> Result<(), String> {
     let program = inherited
         .iter()
@@ -2431,7 +2597,7 @@ fn relock(root: &Path, inherited: &[(OsString, OsString)]) -> Result<(), String>
     let output = std::process::Command::new(program)
         .args(["update", "--workspace"])
         .env_clear()
-        .envs(inherited.iter().map(|(name, value)| (name, value)))
+        .envs(without_ghs_own(inherited))
         .current_dir(root)
         .output()
         .map_err(|error| format!("could not run cargo update: {error}"))?;
@@ -2824,17 +2990,14 @@ mod tests {
         said
     }
 
-    /// One file rewritten, and the file then read back.
+    /// `files` written into `directory`, and then the version in each
+    /// rewritten to `version` through `rewrite_listed`.
     ///
-    /// **`run` itself cannot be driven with `dry_run = false` from a test.** Everything its
-    /// header promises — the gate before the write, the refusal on a listed
-    /// file with no version, the refusal when the files already disagree,
-    /// printing the git commands rather than running them — could be deleted
-    /// with the whole gate green, `check passed`, exit 0, if nothing drove the
-    /// writing half. This drives that half, `rewrite_listed`, against a scratch
-    /// tree, which is what makes those branches real rather than documentation.
-    ///
-    /// `dry_run` is passed so the gate is not re-entered from inside itself.
+    /// **`run` itself cannot be driven to write from a test**: it runs the
+    /// whole gate first. The refusals `rewrite_listed` holds — a listed file
+    /// with no version, and files that already disagree — are held here,
+    /// against a scratch tree, which is what makes those branches real rather
+    /// than documentation.
     fn rewrite(directory: &Path, files: &[(&str, &str)], version: &str) -> Result<(), String> {
         for (name, text) in files {
             let path = directory.join(name);
@@ -2843,33 +3006,24 @@ mod tests {
             }
             std::fs::write(path, text).expect("writable");
         }
-        // **The names this call was given, not `CARRIES_THE_VERSION`.**
-        // `rewrite_the_version` reads the shipped list — one entry — so through
-        // it every case here that names two scratch files writes both and then
-        // rewrites a third, and every assertion about the first going back is
-        // true because nothing has touched it. A refusal part-way through a list
-        // is exactly the case the shipped list does not reach today.
+        // **The names this call was given, not `CARRIES_THE_VERSION`.** The
+        // shipped list has one entry, so through it every case here that names
+        // two scratch files writes both and then rewrites a third, and every
+        // assertion about the first going back is true because nothing has
+        // touched it. A refusal part-way through a list is exactly the case the
+        // shipped list does not reach today.
         let named: Vec<&str> = files.iter().map(|(name, _)| *name).collect();
         super::rewrite_listed(directory, &named, version).map(|_| ())
     }
 
-    /// The write half of `run` is a call a test enters.
+    /// `rewrite_listed` rewrites every file it is handed, and reports each.
     ///
-    /// **`a_dry_run_writes_nothing` drives the `true` arm, and every other test
-    /// in this module passes `true` too.** So the one call in `run` that
-    /// rewrites the listed files was reached by
-    /// no test: replacing the write with an empty vector left
-    /// `cargo test -p xtask --bin xtask release` at `12 passed; 0 failed` and
-    /// `check passed`, and a real `cargo xtask release 0.2.0` then printed
-    /// `1 file(s) carry 0.2.0`, relocked and printed the tag commands having
-    /// written nothing, in a tree with no git to notice.
-    ///
-    /// `run` cannot be driven with `dry_run = false` from a test — it runs the
-    /// whole gate first, on a scratch tree that is not a workspace — so what is
-    /// held here is the call itself: the same arguments `run` passes, over
-    /// the same list, with the file required to change. The count `run` prints
-    /// is `rewritten.len()`, so a write that does nothing cannot report a
-    /// file.
+    /// **Held with the arguments `written` passes**, the list
+    /// `CARRIES_THE_VERSION` and the version as it writes it, with each listed
+    /// file required to carry the new version afterwards. The count `written`
+    /// prints as `N file(s) carry <version>` is `rewritten.len()`, so it is
+    /// held to the length of the list: a write that does nothing reports no
+    /// file, and one that skips a file reports one fewer.
     #[test]
     fn the_write_half_writes() {
         let scratch = std::env::temp_dir().join(format!("nc-write-{}", std::process::id()));
@@ -2889,7 +3043,7 @@ mod tests {
         assert_eq!(
             rewritten.len(),
             CARRIES_THE_VERSION.len(),
-            "the write half reported {} file(s) for a list of {}, and `run` prints that \
+            "the write half reported {} file(s) for a list of {}, and `written` prints that \
              number as `N file(s) carry <version>`",
             rewritten.len(),
             CARRIES_THE_VERSION.len()
@@ -3173,14 +3327,11 @@ mod tests {
     /// So this is a name list, compared both directions the way
     /// `xtask/src/policy.rs`'s `CORE_POLICIES` is: a call into this workspace
     /// that is not written here fails, and a name written here that the module
-    /// stopped calling fails too. The gate, and the two rules this module
-    /// reads with rather than writes again: a conventional subject, and a
-    /// character nobody can see.
-    const MAY_REACH: [&str; 3] = [
-        "crate::check::run",
-        "crate::history::subject",
-        "nc_schema::unseen",
-    ];
+    /// stopped calling fails too. The two rules this module reads with rather
+    /// than writes again: a conventional subject, and a character nobody can
+    /// see. The gate is not a call: it runs in a child of its own, this same
+    /// tool's `check`, which the `Command` census counts.
+    const MAY_REACH: [&str; 2] = ["crate::history::subject", "nc_schema::unseen"];
 
     /// Every `use` statement the shipped half is allowed to carry.
     ///
@@ -4077,7 +4228,7 @@ mod tests {
     /// test is running in. What can be checked is the order of the calls, which
     /// is the whole of each rule — and deleting the gate call fails this test.
     ///
-    /// What this does not prove: that `check::run` checks anything. That is
+    /// What this does not prove: that the gate checks anything. That is
     /// `check`'s own suite.
     #[test]
     fn the_gate_runs_before_the_first_write() {
@@ -4085,7 +4236,7 @@ mod tests {
             .expect("this file is readable");
         let run = the_body_of(&source, "run");
         let gate = run
-            .find(&["crate::check::run(", "root, false)"].join(""))
+            .find(&["the_gate(", "root, &inherited)"].join(""))
             .expect("the gate is run from the release verb");
         let onwards = run
             .find(&["rele", "ased(&Releasing"].join(""))
@@ -4232,19 +4383,22 @@ mod tests {
         }
     }
 
-    /// This module starts two programs: cargo for the relock, and `gh` to
-    /// publish. Git is asked through the history step's reader, never here.
+    /// This module starts three programs: this same tool for the gate, cargo
+    /// for the relock, and `gh` to publish. Git is asked through the history
+    /// step's reader, never here.
     #[track_caller]
     fn the_children_are_cargo_and_gh(ran: &str) {
         let spent = crate::gates::blanked(ran);
         assert_eq!(
             spent.matches(&["Command", "::new("].join("")).count(),
-            2,
-            "this module starts another number of programs than two — cargo for the relock \
-             and `gh` to publish; git is asked through `crate::history`, which holds what it \
-             inherits"
+            3,
+            "this module starts another number of programs than three — this tool for the \
+             gate, cargo for the relock and `gh` to publish; git is asked through \
+             `crate::history`, which holds what it inherits"
         );
         for started in [
+            ["std::process::Command::new(", "itself)"].join(""),
+            [".arg(", "\"check\")"].join(""),
             ["std::process::Command::new(", "program)"].join(""),
             ["std::process::Command::new(", "\"gh\")"].join(""),
             [".args([\"update\", ", "\"--workspace\"])"].join(""),
@@ -5231,10 +5385,17 @@ fn main() {
                 let (head, input) = text.split_once("--\n").expect("a record's two halves");
                 let lines: Vec<String> = head.lines().map(str::to_owned).collect();
                 let split = lines.len() - 5;
+                // **Nothing, from a child that is not `gh`**: the gate and the
+                // relock, started at the fake, are handed no request.
+                let request = if input.is_empty() {
+                    serde_json::Value::Null
+                } else {
+                    serde_json::from_str(input).expect("a JSON request")
+                };
                 Call {
                     arguments: lines[..split].to_vec(),
                     handed: lines[split..].to_vec(),
-                    request: serde_json::from_str(input).expect("a JSON request"),
+                    request,
                 }
             })
             .collect()
@@ -5347,13 +5508,22 @@ fn main() {
                 &serde_json::json!({ "ref": "refs/tags/v0.1.0-rc.1", "object": { "sha": at, "type": "commit" } }),
             ),
             answered(&serde_json::json!({ "tag_name": "v0.1.0-rc.1", "prerelease": true })),
+            // REST's shape: `id` is a number, and the node is `node_id`.
             answered(
-                &serde_json::json!({ "number": 7, "node_id": "PR_seven", "title": "chore(release): carry v0.1.0-rc.1 back to dev", "state": "open" }),
+                &serde_json::json!({ "number": 7, "id": 5_147_253_185_u64, "node_id": "PR_seven", "title": "chore(release): carry v0.1.0-rc.1 back to dev", "state": "open" }),
             ),
             answered(
                 &serde_json::json!({ "data": { "enablePullRequestAutoMerge": { "pullRequest": { "number": 7, "autoMergeRequest": { "mergeMethod": "MERGE" } } } } }),
             ),
         ]
+    }
+
+    /// GitHub's answer to whether `dev` holds a release commit: `status`, as
+    /// a comparison of the two says it.
+    fn the_branch_below(status: &str) -> String {
+        answered(
+            &serde_json::json!({ "data": { "repository": { "ref": { "compare": { "status": status } } } } }),
+        )
     }
 
     /// The release of `root` on `staging`, published through the GitHub
@@ -5391,6 +5561,8 @@ fn main() {
         carried_on_after_each_step(&root, &repository.head(), &bin, &fixtures);
         what_github_holds_is_judged_before_anything_is_made(&root, &bin, &fixtures, &made);
         each_steps_answer_is_held_to_the_shape_asked(&root, &repository.head(), &bin, &fixtures);
+        each_merge_answer_is_held_to_the_shape_asked(&root, &repository.head(), &bin, &fixtures);
+        the_branch_below_is_held_to_the_shape_asked(&root, &repository.head(), &bin, &fixtures);
         the_answer_to_the_question_is_held_to_the_shape_asked(&root, &bin, &fixtures);
         a_release_commit_not_as_written_is_not_carried_on(&repository, &bin, &fixtures);
     }
@@ -5451,9 +5623,9 @@ fn main() {
     /// there.
     ///
     /// **By its own sentence, and nothing is asked after it**: a tag at another
-    /// commit or of another name, another release, another pull request or
-    /// one that does not say its number or its node, auto-merge by another
-    /// method or not on, and a merge GitHub does not say happened.
+    /// commit or of another name, another release, and another pull request or
+    /// one that does not say its number or its node. The merge's steps are
+    /// [`each_merge_answer_is_held_to_the_shape_asked`]'s.
     fn each_steps_answer_is_held_to_the_shape_asked(
         root: &Path,
         release_commit: &str,
@@ -5462,84 +5634,123 @@ fn main() {
     ) {
         let at = Some(release_commit);
         let title = "chore(release): carry v0.1.0-rc.1 back to dev";
-        let standing = |status: &str| {
-            let mut node = a_pull_request(title, "OPEN", false);
-            node["mergeStateStatus"] = status.into();
-            node
+        // **No pull request carries it, and `dev` does not hold it**: the two
+        // answers before the tag, the release or the pull request is made.
+        let unheld = |tag: Option<&str>, release: bool| {
+            vec![holding_these(tag, release, &[]), the_branch_below("AHEAD")]
         };
         let elsewhere = "2".repeat(40);
+        // REST's shape: `id` is a number, and the node is `node_id`.
+        let id = 5_147_253_185_u64;
         let (refs, releases, pulls) = (
             "repos/noctua-world/probe/git/refs",
             "repos/noctua-world/probe/releases",
             "repos/noctua-world/probe/pulls",
         );
-        for (what, holds, answer, step, refusal) in [
+        for (what, before, answer, step, refusal) in [
             (
                 "a tag at another commit",
-                holding_these(None, false, &[]),
+                unheld(None, false),
                 serde_json::json!({ "ref": "refs/tags/v0.1.0-rc.1", "object": { "sha": elsewhere } }),
                 refs,
                 "GitHub answered the tag v0.1.0-rc.1 with another tag, or another commit",
             ),
             (
                 "another tag",
-                holding_these(None, false, &[]),
+                unheld(None, false),
                 serde_json::json!({ "ref": "refs/tags/v0.1.0-rc.2", "object": { "sha": release_commit } }),
                 refs,
                 "GitHub answered the tag v0.1.0-rc.1 with another tag, or another commit",
             ),
             (
                 "another release",
-                holding_these(at, false, &[]),
+                unheld(at, false),
                 serde_json::json!({ "tag_name": "v0.1.0-rc.2", "prerelease": true }),
                 releases,
                 "GitHub answered the release of v0.1.0-rc.1 with another release",
             ),
             (
                 "another pull request",
-                holding_these(at, true, &[]),
-                serde_json::json!({ "number": 8, "node_id": "PR_eight", "title": "chore: something else", "state": "open" }),
+                unheld(at, true),
+                serde_json::json!({ "number": 8, "id": id, "node_id": "PR_eight", "title": "chore: something else", "state": "open" }),
                 pulls,
                 "GitHub answered the pull request that carries v0.1.0-rc.1 back with another one",
             ),
             (
                 "a pull request with no number",
-                holding_these(at, true, &[]),
-                serde_json::json!({ "node_id": "PR_seven", "title": title, "state": "open" }),
+                unheld(at, true),
+                serde_json::json!({ "id": id, "node_id": "PR_seven", "title": title, "state": "open" }),
                 pulls,
                 "GitHub answered a pull request with no number",
             ),
             (
-                "a pull request with no node",
-                holding_these(at, true, &[]),
-                serde_json::json!({ "number": 7, "title": title, "state": "open" }),
+                "a pull request with no node, its id a number",
+                unheld(at, true),
+                serde_json::json!({ "number": 7, "id": id, "title": title, "state": "open" }),
                 pulls,
                 "GitHub answered pull request #7 with no node",
             ),
+        ] {
+            let mut expected = ["WhatGitHubHolds", "HeldBelow"][..before.len()].to_vec();
+            expected.push(step);
+            let mut answers = before;
+            answers.push(answered(&answer));
+            let refused =
+                published_on_staging(root, &a_github(bin, fixtures, &answers)).expect_err(what);
+            assert!(refused.contains(refusal), "{what}: {refused}");
+            assert_eq!(
+                asked(&the_calls(fixtures)),
+                expected,
+                "{what}: the release went on past a step GitHub answered in another shape"
+            );
+        }
+    }
+
+    /// Auto-merge or the merge, answered by GitHub with success in another
+    /// shape, is refused there.
+    ///
+    /// **By its own sentence**: auto-merge by another method or not on, and a
+    /// merge GitHub does not say happened.
+    fn each_merge_answer_is_held_to_the_shape_asked(
+        root: &Path,
+        release_commit: &str,
+        bin: &Path,
+        fixtures: &Path,
+    ) {
+        let standing = |status: &str| {
+            let mut node = a_pull_request(
+                "chore(release): carry v0.1.0-rc.1 back to dev",
+                "OPEN",
+                false,
+            );
+            node["mergeStateStatus"] = status.into();
+            holding_these(Some(release_commit), true, &[node])
+        };
+        for (what, holds, answer, step, refusal) in [
             (
                 "auto-merge by squashing",
-                holding_these(at, true, &[standing("BLOCKED")]),
+                standing("BLOCKED"),
                 serde_json::json!({ "data": { "enablePullRequestAutoMerge": { "pullRequest": { "number": 7, "autoMergeRequest": { "mergeMethod": "SQUASH" } } } } }),
                 "AutoMerge",
                 "GitHub did not answer pull request #7 with auto-merge on, by merge commit",
             ),
             (
                 "auto-merge not on",
-                holding_these(at, true, &[standing("BLOCKED")]),
+                standing("BLOCKED"),
                 serde_json::json!({ "data": { "enablePullRequestAutoMerge": { "pullRequest": { "number": 7, "autoMergeRequest": null } } } }),
                 "AutoMerge",
                 "GitHub did not answer pull request #7 with auto-merge on, by merge commit",
             ),
             (
                 "a merge that did not happen",
-                holding_these(at, true, &[standing("CLEAN")]),
+                standing("CLEAN"),
                 serde_json::json!({ "data": { "mergePullRequest": { "pullRequest": { "number": 7, "merged": false } } } }),
                 "MergedNow",
                 "GitHub did not answer pull request #7 as merged",
             ),
             (
                 "a merge answered with nothing",
-                holding_these(at, true, &[standing("CLEAN")]),
+                standing("CLEAN"),
                 serde_json::json!({ "data": { "mergePullRequest": null } }),
                 "MergedNow",
                 "GitHub did not answer pull request #7 as merged",
@@ -5553,6 +5764,50 @@ fn main() {
                 asked(&the_calls(fixtures)),
                 ["WhatGitHubHolds", step],
                 "{what}: the release went on past a step GitHub answered in another shape"
+            );
+        }
+    }
+
+    /// GitHub's answer to whether the branch below holds the release commit
+    /// is one of the four a comparison is, or it is refused.
+    ///
+    /// **No branch below, a comparison GitHub could not make, and a word that
+    /// is none of the four**, each with nothing made after the question.
+    fn the_branch_below_is_held_to_the_shape_asked(
+        root: &Path,
+        release_commit: &str,
+        bin: &Path,
+        fixtures: &Path,
+    ) {
+        for (what, answer) in [
+            (
+                "no branch below",
+                serde_json::json!({ "data": { "repository": { "ref": null } } }),
+            ),
+            (
+                "a comparison GitHub could not make",
+                serde_json::json!({ "data": { "repository": { "ref": { "compare": null } } } }),
+            ),
+            (
+                "a comparison in a word that is none of the four",
+                serde_json::json!({ "data": { "repository": { "ref": { "compare": { "status": "UNRELATED" } } } } }),
+            ),
+        ] {
+            let holds = holding_these(Some(release_commit), true, &[]);
+            let refused =
+                published_on_staging(root, &a_github(bin, fixtures, &[holds, answered(&answer)]))
+                    .expect_err(what);
+            assert!(
+                refused.contains(&format!(
+                    "GitHub did not say whether dev holds {}",
+                    &release_commit[..7]
+                )),
+                "{what}: {refused}"
+            );
+            assert_eq!(
+                asked(&the_calls(fixtures)),
+                ["WhatGitHubHolds", "HeldBelow"],
+                "{what}: the release went on past a question GitHub answered in another shape"
             );
         }
     }
@@ -5819,6 +6074,7 @@ fn main() {
     fn carried_on_after_each_step(root: &Path, release_commit: &str, bin: &Path, fixtures: &Path) {
         for (stopped_after, holds, missing, expected) in the_runs_carried_on(release_commit)
             .into_iter()
+            .chain(the_runs_beside_an_earlier_release(release_commit))
             .chain(the_runs_by_merge_state(release_commit))
         {
             let mut answers = vec![holds];
@@ -5844,6 +6100,17 @@ fn main() {
                         "the tag is not at HEAD"
                     );
                 }
+                if operation == "HeldBelow" {
+                    assert_eq!(
+                        (
+                            &call.request["variables"]["below"],
+                            &call.request["variables"]["at"]
+                        ),
+                        (&"refs/heads/dev".into(), &release_commit.into()),
+                        "carried on after {stopped_after}, the release asked whether another \
+                         branch holds another commit"
+                    );
+                }
                 if operation == "AutoMerge" || operation == "MergedNow" {
                     assert_eq!(
                         call.request["variables"]["id"], "PR_seven",
@@ -5858,20 +6125,16 @@ fn main() {
     /// Each run carried on from the release commit at `release_commit`.
     ///
     /// What it stopped after, what GitHub holds, the answers to what it then
-    /// makes, and what it asks for after the question.
+    /// asks and makes, and what it asks for after the question. **With no pull
+    /// request carrying it, it asks whether `dev` holds it**, and carries it
+    /// back only when `dev` does not. An earlier release's pull request is
+    /// [`the_runs_beside_an_earlier_release`]'s.
     fn the_runs_carried_on(
         release_commit: &str,
     ) -> Vec<(String, String, Vec<String>, Vec<String>)> {
         let [tag, release, opened, queued] = the_steps_answered(release_commit);
         let ours = |state: &str, auto: bool| {
             a_pull_request("chore(release): carry v0.1.0-rc.1 back to dev", state, auto)
-        };
-        let earlier = |state: &str| {
-            a_pull_request(
-                "chore(release): carry v0.0.9-rc.1 back to dev",
-                state,
-                false,
-            )
         };
         let stranger = a_forks_pull_request("OPEN", Some("stranger/probe"));
         let at = Some(release_commit);
@@ -5880,25 +6143,33 @@ fn main() {
             "repos/noctua-world/probe/releases",
             "repos/noctua-world/probe/pulls",
         );
-        let opened_and_queued = vec![opened.clone(), queued.clone()];
+        let unheld = the_branch_below("AHEAD");
+        let carried_back = vec![unheld.clone(), opened.clone(), queued.clone()];
+        let and_carried_back = vec!["HeldBelow", pulls, "AutoMerge"];
         owned(vec![
             (
                 "the commit",
                 holding_these(None, false, &[]),
-                vec![tag, release.clone(), opened.clone(), queued.clone()],
-                vec![refs, releases, pulls, "AutoMerge"],
+                vec![
+                    unheld.clone(),
+                    tag.clone(),
+                    release.clone(),
+                    opened.clone(),
+                    queued.clone(),
+                ],
+                vec!["HeldBelow", refs, releases, pulls, "AutoMerge"],
             ),
             (
                 "the tag",
                 holding_these(at, false, &[]),
-                vec![release, opened, queued.clone()],
-                vec![releases, pulls, "AutoMerge"],
+                vec![unheld, release.clone(), opened, queued.clone()],
+                vec!["HeldBelow", releases, pulls, "AutoMerge"],
             ),
             (
                 "the release",
                 holding_these(at, true, &[]),
-                opened_and_queued.clone(),
-                vec![pulls, "AutoMerge"],
+                carried_back.clone(),
+                and_carried_back.clone(),
             ),
             (
                 "the pull request",
@@ -5918,8 +6189,54 @@ fn main() {
                 vec![],
                 vec![],
             ),
-            // **An earlier release's pull request, still open, carries this
-            // one** — its head is the branch — and one already merged does not.
+            // **A fork's, open and ready to merge, is not this release's**,
+            // nor is one closed under this release's title.
+            (
+                "a fork's pull request, open and ready",
+                holding_these(at, true, std::slice::from_ref(&stranger)),
+                carried_back.clone(),
+                and_carried_back.clone(),
+            ),
+            (
+                "a fork's pull request, closed under the release's title, the fork deleted",
+                holding_these(at, true, &[a_forks_pull_request("CLOSED", None)]),
+                carried_back,
+                and_carried_back,
+            ),
+            (
+                "a fork's pull request beside the release's own",
+                holding_these(at, true, &[stranger, ours("OPEN", false)]),
+                vec![queued],
+                vec!["AutoMerge"],
+            ),
+        ])
+    }
+
+    /// Each run carried on from the release commit at `release_commit` with an
+    /// earlier release's pull request from `staging` to `dev`.
+    ///
+    /// **Open, it carries this release** — its head is the branch. **Merged
+    /// before the release commit, it does not**, and the release carries it
+    /// back; **merged since, at the release commit or past it, it did**: `dev`
+    /// holds it, and the release opens nothing.
+    fn the_runs_beside_an_earlier_release(
+        release_commit: &str,
+    ) -> Vec<(String, String, Vec<String>, Vec<String>)> {
+        let [tag, release, opened, queued] = the_steps_answered(release_commit);
+        let earlier = |state: &str| {
+            a_pull_request(
+                "chore(release): carry v0.0.9-rc.1 back to dev",
+                state,
+                false,
+            )
+        };
+        let at = Some(release_commit);
+        let (refs, releases, pulls) = (
+            "repos/noctua-world/probe/git/refs",
+            "repos/noctua-world/probe/releases",
+            "repos/noctua-world/probe/pulls",
+        );
+        owned(vec![
             (
                 "an earlier release's pull request, still open",
                 holding_these(at, true, &[earlier("OPEN")]),
@@ -5927,30 +6244,28 @@ fn main() {
                 vec!["AutoMerge"],
             ),
             (
-                "an earlier release's pull request, merged",
+                "an earlier release's pull request, merged before the release commit",
                 holding_these(at, true, &[earlier("MERGED")]),
-                opened_and_queued.clone(),
-                vec![pulls, "AutoMerge"],
-            ),
-            // **A fork's, open and ready to merge, is not this release's**,
-            // nor is one closed under this release's title.
-            (
-                "a fork's pull request, open and ready",
-                holding_these(at, true, std::slice::from_ref(&stranger)),
-                opened_and_queued.clone(),
-                vec![pulls, "AutoMerge"],
+                vec![the_branch_below("AHEAD"), opened, queued.clone()],
+                vec!["HeldBelow", pulls, "AutoMerge"],
             ),
             (
-                "a fork's pull request, closed under the release's title, the fork deleted",
-                holding_these(at, true, &[a_forks_pull_request("CLOSED", None)]),
-                opened_and_queued,
-                vec![pulls, "AutoMerge"],
+                "an earlier release's pull request, merged since at the release commit",
+                holding_these(at, true, &[earlier("MERGED")]),
+                vec![the_branch_below("IDENTICAL")],
+                vec!["HeldBelow"],
             ),
             (
-                "a fork's pull request beside the release's own",
-                holding_these(at, true, &[stranger, ours("OPEN", false)]),
-                vec![queued],
-                vec!["AutoMerge"],
+                "an earlier release's pull request, merged since past the release commit",
+                holding_these(at, true, &[earlier("MERGED")]),
+                vec![the_branch_below("BEHIND")],
+                vec!["HeldBelow"],
+            ),
+            (
+                "the commit, an earlier release's pull request merged since",
+                holding_these(None, false, &[earlier("MERGED")]),
+                vec![the_branch_below("BEHIND"), tag, release],
+                vec!["HeldBelow", refs, releases],
             ),
         ])
     }
@@ -6316,6 +6631,109 @@ fn main() {
             let refused = GitHub::of(&without).expect_err(missing);
             assert!(refused.contains(missing), "{refused}");
         }
+    }
+
+    /// What tells this test binary, run again, that it is the child of
+    /// [`no_child_but_gh_is_handed_ghs_variables`], and where the fake it
+    /// starts records.
+    const CHILD: &str = "NC_RELEASE_TESTS_CHILD";
+
+    /// No child of the release but `gh` is handed `gh`'s variables, though
+    /// this process holds them in its own environment, as it does under
+    /// `--publish`.
+    ///
+    /// **This test binary is run again with them exported** — the App's
+    /// token, the workflow's, another host, a debug switch and another
+    /// repository — the one way to give a process an environment without
+    /// setting it in this one. There the gate and the relock are each started
+    /// at the fake, which records what it was handed: each is cleared before
+    /// it is handed anything, so what this process holds reaches it only
+    /// through its list, and `gh`'s are taken out of that. The git the release
+    /// reads its history through is `crate::history`'s, whose own test holds
+    /// it to the same.
+    #[test]
+    fn no_child_but_gh_is_handed_ghs_variables() {
+        if let Some(fixtures) = std::env::var_os(CHILD) {
+            let fixtures = PathBuf::from(fixtures);
+            let fake = fixtures
+                .with_file_name("bin")
+                .join(format!("gh{}", std::env::consts::EXE_SUFFIX));
+            let mut inherited: Vec<(OsString, OsString)> = std::env::vars_os().collect();
+            let gated = super::a_gate(&fake, &fixtures, &inherited).status();
+            inherited.retain(|(name, _)| name != "CARGO");
+            inherited.push(("CARGO".into(), fake.into_os_string()));
+            let relocked = super::relock(&fixtures, &inherited);
+            let ran = format!("{:?} {relocked:?}", gated.map(|status| status.success()));
+            std::fs::write(fixtures.join("ran"), ran).expect("a writable scratch");
+            return;
+        }
+        let (held, _) = a_fake_gh();
+        let fixtures = held.root.join("fixtures");
+        std::fs::create_dir_all(fixtures.join("answers")).expect("a writable scratch");
+        for nth in 0..2 {
+            std::fs::write(fixtures.join("answers").join(format!("{nth:03}")), "0\n")
+                .expect("a writable scratch");
+        }
+        let child = this_binary_again(&fixtures);
+        assert!(child.success(), "the child failed: {child}");
+        assert_eq!(
+            std::fs::read_to_string(fixtures.join("ran"))
+                .expect("the child writes what it ran, when it runs this test by its name"),
+            "Ok(true) Ok(())"
+        );
+        let calls = the_calls(&fixtures);
+        assert_eq!(
+            calls
+                .iter()
+                .map(|call| call.arguments.join(" "))
+                .collect::<Vec<_>>(),
+            ["check", "update --workspace"],
+            "the gate and the relock are not the children that were started"
+        );
+        for call in &calls {
+            assert_eq!(
+                call.handed,
+                [
+                    "GH_TOKEN=unset",
+                    "GITHUB_TOKEN=unset",
+                    "GH_HOST=unset",
+                    "GH_DEBUG=unset",
+                    "GH_REPO=unset",
+                ],
+                "`{}` was handed a variable of `gh`'s, and the App's token is one",
+                call.arguments.join(" ")
+            );
+        }
+    }
+
+    /// This test binary, run again as [`CHILD`] says, with `gh`'s variables
+    /// in its environment and nothing it prints shown.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the child is this same test binary, its output discarded: the one way to \
+                  give a process an environment without setting it in this one"
+    )]
+    fn this_binary_again(fixtures: &Path) -> std::process::ExitStatus {
+        std::process::Command::new(std::env::current_exe().expect("this test binary"))
+            .args([
+                "--exact",
+                "release::tests::no_child_but_gh_is_handed_ghs_variables",
+                "--test-threads=1",
+            ])
+            .env(CHILD, fixtures)
+            .env("NC_FAKE_GH", fixtures)
+            .envs([
+                ("GH_TOKEN", "the-apps-token"),
+                ("GITHUB_TOKEN", "the-workflows-token"),
+                ("GH_HOST", "elsewhere.example"),
+                ("GH_DEBUG", "api"),
+                ("GH_REPO", "someone/else"),
+            ])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .expect("the child runs")
     }
 }
 

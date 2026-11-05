@@ -1684,6 +1684,15 @@ makes only what is missing, and ends `already released` when nothing is; there, 
 request back whose checks have passed already is merged by merge commit, because GitHub
 refuses auto-merge on one it would merge now.
 
+**A release the branch below holds already is not carried back again.** A release made
+while an earlier one's pull request back is still open is carried by that one, and once it
+merges, the branch below holds the release commit with no pull request of this release's
+title anywhere. So a run carried on with no pull request carrying the release asks GitHub,
+before it makes anything, whether the branch below holds the release commit — GitHub
+compares the two, and the commit is that branch's head or behind it — and opens none when
+it does: GitHub refuses a pull request between a branch and one already holding all of it,
+and that run, and every run after it, would fail over a release carried back whole.
+
 **A run that makes the release commit never merges now.** That commit moves the head of
 the pull request back, and the merge state GitHub gave was of the head before: no check
 has run on the commit just made, and into `staging`, whose rules the App alone may pass, a
@@ -1708,8 +1717,11 @@ changelog is not the one the history gives, a pull request GitHub describes with
 whether its head is in a fork, one of this repository's own whose head is elsewhere, one
 with no merge state, and an answer from `gh` that is not the shape asked for — a step
 answered with success and a tag at another commit, another release, another pull request,
-auto-merge by another method or none, or a merge GitHub does not say happened — are each a
-refusal, by name, before the step that would act on it. What GitHub holds is judged right
+auto-merge by another method or none, or a merge GitHub does not say happened, and a
+comparison with the branch below that is not ahead, behind, diverged or identical — are
+each a refusal, by name, before the step that would act on it. A pull request's node is
+read from `node_id` where GitHub answers through REST, whose `id` there is a number, and
+from `id` where it answers through GraphQL. What GitHub holds is judged right
 after it is asked, on a run that makes the release commit as on one carried on from it, so
 a refusal of it never leaves a release commit with no tag, which every run after it on that
 branch would carry on into the same refusal. A fork's pull request whose head repository
@@ -1719,19 +1731,30 @@ is gone is passed over, not refused, or deleting a fork would stop every release
 release App's installation token, is never an argument and never a line the verb prints.
 Every other variable of `gh`'s own is removed — `GH_HOST`, `GH_REPO`, `GH_DEBUG` — and so
 is `GITHUB_TOKEN`, so `gh` cannot fall back to the workflow's own token, whose pull
-requests start no checks; the host is set to GitHub's. **What the token merges is this
-repository's own pull request, never another**: auto-merge and the merge are asked only
-of a pull request whose head is a branch here, never of a fork's that shares the branch's
-name. What `gh` answers is read and never printed, and a refusal quoting it has every
-character a reader cannot see written as its escape, a newline among them, so no line of
-GitHub's can open a line of CI's log. Git is never started here: the history is read
-through the history step's own reader. A test drives the whole sequence through a fake
-`gh` first on `PATH`, compiled for the system it runs on, which records each call — its
-arguments, the variables of `gh`'s own it was handed, and the request — and answers from
-fixtures, a run carried on after each step among them, a fork's pull request beside the
-release's own, one whose checks have passed in each state GitHub merges at once, a release
-commit made with such a pull request open, and each step answered with success in another
-shape.
+requests start no checks; the host is set to GitHub's. **No other child is handed it.**
+CI's release step puts the token in the environment of `cargo xtask release`, where every
+child it starts would find it, and that App may push to `staging` and `main` past their
+rules and move a `v*` tag. So the gate runs in a child of its own — this tool's `check`,
+cleared and started with every variable but `gh`'s — and no build script, procedural macro
+or test it runs, and no cargo, docker or git it starts, holds the token; the cargo that
+relocks and the git the history is read through are started without `gh`'s variables too.
+Nothing takes the token out of the release's own environment, which in this edition is
+`unsafe`, and this workspace forbids it. **What the token merges is this repository's own
+pull request, never another**: auto-merge and the merge are asked only of a pull request
+whose head is a branch here, never of a fork's that shares the branch's name. What `gh`
+answers is read and never printed, and a refusal quoting it has every character a reader
+cannot see written as its escape, a newline among them, so no line of GitHub's can open a
+line of CI's log. Git is never started here: the history is read through the history
+step's own reader. A test drives the whole sequence through a fake `gh` first on `PATH`,
+compiled for the system it runs on, which records each call — its arguments, the variables
+of `gh`'s own it was handed, and the request — and answers from fixtures, a run carried on
+after each step among them, a fork's pull request beside the release's own, one whose
+checks have passed in each state GitHub merges at once, an earlier release's pull request
+merged before the release commit and since it, a release commit made with such a pull
+request open, a pull request answered in REST's shape, its `id` a number, and each step
+answered with success in another shape. Another runs its own test binary again with
+`gh`'s variables exported, and holds the gate and the relock, each started at the fake, to
+being handed none of them.
 
 ### The history says what each change is, credits no agent, and stays small
 
@@ -2146,6 +2169,17 @@ rather than anything decided for the project, and each is a maintainer's to reop
   asked**, on a run carried on from the release commit: checks that finish between the
   question and the request make GitHub refuse auto-merge, and that run fails; the next run
   reads them passed and merges. A run that made the release commit never merges now.
+- **Whether the branch below holds the release commit is GitHub's answer when the release
+  asked**, the same way: an earlier release's pull request that merges between that
+  question and the one the release opens makes GitHub refuse the second, and that run
+  fails; the next run finds the branch below holding it and ends `already released`.
+- **The release's own process holds the App's token for its whole run**, in the
+  environment CI's step gives it, and so does the `cargo run` the alias starts it with:
+  every child but `gh` is started without it, and a dependency of this tool's own running
+  code inside this process could still read it. That cargo builds nothing there only
+  because `cargo xtask dev`, the step before, built this tool without the token; a step
+  between them that left the tool stale would have cargo build it with the token in every
+  build script's environment.
 - **`cargo xtask dev` from a clean machine** — Stage 10's criterion 10 — has been watched
   with one of the two images removed and the data volumes kept, never on a host with an
   empty image store; a run on a host sharing nothing with this one would close it.

@@ -1281,12 +1281,17 @@ fn a_git(reading: &Reading) -> std::process::Command {
 /// so git there reads `git_dir` as `GIT_DIR`. **Each named on the command**,
 /// removed or set, so what git is handed is what a test reads back from it,
 /// and a variable a test hands in reaches git as one inherited would.
+///
+/// **And every one of `gh`'s goes too** (`crate::release::ghs_own`): the
+/// release reads its history through this reader while it holds the App's
+/// token in its environment, and no child but `gh` is handed that.
 fn inheriting(command: &mut std::process::Command, inherited: &[(OsString, OsString)]) {
     for (name, value) in inherited {
         if name
             .as_encoded_bytes()
             .get(..4)
             .is_some_and(|start| start.eq_ignore_ascii_case(b"GIT_"))
+            || crate::release::ghs_own(name)
         {
             command.env_remove(name);
         } else {
@@ -2595,8 +2600,8 @@ mod tests {
     }
 
     /// Git is started with this process's environment less every variable
-    /// of its own, in any case, handed this tree's own repository, and with
-    /// the lazy fetch and the replacement refs closed.
+    /// of its own and every one of `gh`'s, in any case, handed this tree's own
+    /// repository, and with the lazy fetch and the replacement refs closed.
     ///
     /// No two names here are one name to Windows, which reads them without
     /// their case.
@@ -2611,6 +2616,10 @@ mod tests {
             ("PATH", "the path"),
             ("GITHUB_SHA", "a commit"),
             ("MY_GIT_DIR", "a variable of another tool"),
+            ("GH_TOKEN", "the release App's token"),
+            ("GITHUB_TOKEN", "the workflow's token"),
+            ("gh_debug", "api"),
+            ("GH", "a word"),
         ]
         .map(|(name, value)| (name.into(), value.into()))
         .to_vec();
@@ -2634,14 +2643,18 @@ mod tests {
         assert_eq!(
             started,
             [
+                set("GH", "a word"),
+                removed("GH_TOKEN"),
                 set("GIT", "a word"),
                 set("GITHUB_SHA", "a commit"),
+                removed("GITHUB_TOKEN"),
                 set("GIT_DIR", ".git"),
                 set("GIT_NO_LAZY_FETCH", "1"),
                 removed("GIT_OBJECT_DIRECTORY"),
                 removed("Git_Config_Parameters"),
                 set("MY_GIT_DIR", "a variable of another tool"),
                 set("PATH", "the path"),
+                removed("gh_debug"),
                 removed("git_index_file"),
             ]
         );

@@ -7707,7 +7707,7 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// `xtask/mutants.py` are where a predicate's verdict is decided. It says the
 /// guard is still there, which is the question a deletion asks.
 #[cfg(test)]
-const WHAT_THE_GATE_CAN_SAY: [&str; 980] = [
+const WHAT_THE_GATE_CAN_SAY: [&str; 984] = [
     // The release (`xtask/src/release.rs`).
     "--publish publishes to the repository GITHUB_REPOSITORY names, and it is not set. CI's release job sets it; a release is published from there and nowhere else",
     "--publish publishes with the token in GH_TOKEN, and it is not set. CI's release job sets it to the release App's installation token; the workflow's own token is never used, because a pull request it opens starts no checks",
@@ -7733,6 +7733,7 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 980] = [
     "GitHub answered the tag {} with another tag, or another commit",
     "GitHub did not answer pull request #{} as merged",
     "GitHub did not answer pull request #{} with auto-merge on, by merge commit",
+    "GitHub did not say whether {} holds {}: it answered {}, and a comparison is ahead, behind, diverged or identical",
     "GitHub named the tag {} with no commit",
     "HEAD is a release commit and {CHANGELOG} could not be read: {error}",
     "HEAD is titled as the release commit of {} and Cargo.toml carries {manifest}. A release commit carries its own version, so this one was not written by this verb",
@@ -7757,6 +7758,8 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 980] = [
     "nothing was written; {} is carried on from HEAD",
     "nothing was written; {} is what it would be",
     "the asset `{}` is {size} byte(s), and GitHub takes each under {LARGEST_ASSET} ({GITHUBS_LIMITS}). Split it into chunk packs (`NOCTUA.md §17.8`)",
+    "the gate could not be started: {error}. Nothing was written",
+    "the gate refused, as its lines above say, so nothing was written",
     "the history between releases is asked for by hashes, and was handed {asked:?}",
     "the pull request that carried {tag} back to {}, #{}, was closed without merging. Reopen it, or carry the release back by hand: the release makes it once",
     "the release carries {} asset(s), and GitHub takes {MOST_ASSETS} at most ({GITHUBS_LIMITS}). Split them into fewer, larger chunk packs (`NOCTUA.md §17.8`)",
@@ -7765,6 +7768,7 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 980] = [
     "the tag `{}` opens as a release tag does, and {why}",
     "the thread writing gh's input panicked",
     "the tree holds changes no commit has ({}), and a release is made from HEAD and the files it writes. Commit them, or put them aside, and run the release again",
+    "this tool could not find itself to run the gate: {error}. Nothing was written",
     "this tree has no .git of its own, and a release is computed from the history: the tags and the commits between them. Release from a clone",
     "this tree is at `{}`, and {why}. A version is written by the release; set it back by hand to the last one it wrote",
     "whether this tree has a .git could not be read: {error}",
@@ -10889,7 +10893,7 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 657] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 660] = [
     // The release: what it prints that is not a verdict, the requests it
     // hands GitHub, and the changelog's own prose.
     "  What to do: {note}\n",
@@ -10917,11 +10921,14 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 657] = [
     "nothing to release: none of the {} commit(s) since {} is a feat, a fix, a perf or a breaking change",
     "nothing to write: HEAD already carries the release",
     "pull request #{} carries {} back to {}",
+    "query HeldBelow($owner: String!, $name: String!, $below: String!, $at: String!) { repository(owner: $owner, name: $name) { ref(qualifiedName: $below) { compare(headRef: $at) { status } } } }",
     "query WhatGitHubHolds($owner: String!, $name: String!, $tag: String!, $ref: String!, $head: String!, $base: String!) { repository(owner: $owner, name: $name) { ref(qualifiedName: $ref) { target { oid } } release(tagName: $tag) { tagName } pullRequests(headRefName: $head, baseRefName: $base, first: 100, orderBy: {field: CREATED_AT, direction: DESC}) { nodes { number id title state isCrossRepository headRepository { nameWithOwner } mergeStateStatus autoMergeRequest { mergeMethod } } } } }",
     "released {tag} on GitHub",
     "the CLI the release publishes through; its output is read, not printed",
+    "the gate is this same tool, and every line it prints goes through its own `ui`",
     "the release commit {} is on {}, over {}",
     "{tag} is released, and pull request #{} carries it back to {}",
+    "{tag} is released, and {} holds it already",
     "{} asset(s), within GitHub's limits for one release: {MOST_ASSETS} at most, each under {} GiB ({GITHUBS_LIMITS})",
     "{} commit(s) since {}, and the furthest-reaching of them is {reason}",
     "{} file(s) carry {target}, and {CHANGELOG} is written whole",
@@ -18757,7 +18764,7 @@ mod the_frozen_path_rule {
         ("xtask/plugins.rs", 25, 5),
         ("xtask/policy.rs", 57, 5),
         ("xtask/references.rs", 54, 26),
-        ("xtask/release.rs", 188, 14),
+        ("xtask/release.rs", 200, 14),
         ("xtask/sections.rs", 38, 10),
         ("xtask/store.rs", 29, 4),
         ("xtask/the_pages_reach_the_catalog.rs", 37, 20),
@@ -24508,7 +24515,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14713;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14740;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24527,7 +24534,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2947;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2959;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -24544,7 +24551,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 964;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 969;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -24578,7 +24585,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 20554;
+    const THE_REARRANGEMENTS_JUDGED: usize = 20607;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24596,7 +24603,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 442;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 441;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -24632,7 +24639,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **442 of 20,554 are accepted by the first-line
+    /// rules the gates apply: **441 of 20,607 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -24665,7 +24672,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **964 of
+    /// this tree offers, **969 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -26855,7 +26862,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 657;
+    const THE_REST_IT_SAYS: usize = 660;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -27003,7 +27010,7 @@ mod the_frozen_path_rule {
     /// verdicts that agree for that long are one row, and — because a prefix
     /// matches nothing the two censuses hold — every row is a shipped literal
     /// accounted for nowhere. Written out, each row is its own accounting.
-    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 482] = [
+    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 483] = [
         ("—", "compiled catalog/"),
         (
             "—",
@@ -28409,9 +28416,10 @@ mod the_frozen_path_rule {
             "already released: {tag} is tagged, released, and carried back to {}",
         ),
         (
-            "else",
+            "if let Some(carried) = &carried",
             "{tag} is released, and pull request #{} carries it back to {}",
         ),
+        ("else", "{tag} is released, and {} holds it already"),
         ("—", "the release commit {} is on {}, over {}"),
         ("—", "tagged {} at {}"),
         ("—", "released {tag} on GitHub"),
@@ -35336,7 +35344,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1488] = [
+    static OPERATORS: [(&str, &str, &str); 1497] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -35641,6 +35649,42 @@ Options:
             "merged_now",
             "a merge GitHub does not say happened is refused",
         ),
+        ("release", "run", "the gate runs in a child of its own"),
+        (
+            "release",
+            "without_ghs_own",
+            "no child but gh is handed gh's variables",
+        ),
+        (
+            "release",
+            "a_gate",
+            "the gate is handed nothing this process holds that its list leaves out",
+        ),
+        (
+            "release",
+            "relock",
+            "the relock is handed none of gh's variables",
+        ),
+        (
+            "release",
+            "carried_on",
+            "the branch below is asked about a release no pull request carries",
+        ),
+        (
+            "release",
+            "published",
+            "a release the branch below holds is not carried back again",
+        ),
+        (
+            "release",
+            "held_below",
+            "a branch below gone on past the release commit holds it",
+        ),
+        (
+            "release",
+            "a_carried_back",
+            "a pull request's node is its node_id where its id is a number",
+        ),
         (
             "history",
             "subject",
@@ -35794,6 +35838,11 @@ Options:
             "history",
             "inheriting",
             "a variable of git's own is removed in any case",
+        ),
+        (
+            "history",
+            "inheriting",
+            "no variable of gh's own reaches git",
         ),
         (
             "history",

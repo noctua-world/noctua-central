@@ -766,6 +766,36 @@ WEAKENINGS = [
     ("release", "merged_now", "a merge GitHub does not say happened is refused",
      "        != Some(true)",
      "        == Some(false)"),
+    # **Who is handed the App's token, what a run carried on finds below, and
+    # how a pull request's node is read.** A child of the release handed `gh`'s
+    # variables holds a token that may push past `staging`'s and `main`'s rules;
+    # a release the branch below already holds, carried back again, fails that
+    # run and every run after it; and a node read from REST's numeric `id`
+    # refuses every release made fresh. Only the test written for each says so.
+    ("release", "run", "the gate runs in a child of its own",
+     "        the_gate(root, &inherited)?;",
+     "        crate::check::run(root, false)?;"),
+    ("release", "without_ghs_own", "no child but gh is handed gh's variables",
+     "        .filter(|(name, _)| !ghs_own(name))",
+     "        .filter(|_| true)"),
+    ("release", "a_gate", "the gate is handed nothing this process holds that its list leaves out",
+     "        .arg(\"check\")\n        .env_clear()\n",
+     "        .arg(\"check\")\n"),
+    ("release", "relock", "the relock is handed none of gh's variables",
+     "        .env_clear()\n        .envs(without_ghs_own(inherited))\n        .current_dir(root)\n        .output()",
+     "        .env_clear()\n        .envs(inherited.iter().map(|(name, value)| (name, value)))\n        .current_dir(root)\n        .output()"),
+    ("release", "carried_on", "the branch below is asked about a release no pull request carries",
+     "let below = holds.carried.is_none() && held_below(",
+     "let below = false && held_below("),
+    ("release", "published", "a release the branch below holds is not carried back again",
+     "        None if holds.below => None,",
+     "        None if false => None,"),
+    ("release", "held_below", "a branch below gone on past the release commit holds it",
+     "        Some(\"BEHIND\" | \"IDENTICAL\") => Ok(true),",
+     "        Some(\"IDENTICAL\") => Ok(true),"),
+    ("release", "a_carried_back", "a pull request's node is its node_id where its id is a number",
+     "        .get(\"node_id\")\n        .and_then(serde_json::Value::as_str)\n        .or_else(|| node.get(\"id\").and_then(serde_json::Value::as_str))",
+     "        .get(\"id\")\n        .or_else(|| node.get(\"node_id\"))\n        .and_then(serde_json::Value::as_str)"),
     # -- history: what a commit and a pull request may say -------------------
     ("history", "subject", "a subject opens with one of the types",
      "    if !TYPES.contains(&kind) {",
@@ -881,6 +911,9 @@ WEAKENINGS = [
     ("history", "inheriting", "a variable of git's own is removed in any case",
      "start.eq_ignore_ascii_case(b\"GIT_\")",
      "start == b\"GIT_\""),
+    ("history", "inheriting", "no variable of gh's own reaches git",
+     "            || crate::release::ghs_own(name)\n",
+     "            || false\n"),
     ("history", "judged_against", "git's variables are removed from this process's own environment",
      "std::env::vars_os().collect();\n    judged_inheriting(",
      "Vec::new();\n    judged_inheriting("),
