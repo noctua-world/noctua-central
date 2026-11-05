@@ -1208,6 +1208,14 @@ pub(crate) fn symlink_directory(target: &Path, link: &Path) -> io::Result<()> {
 
 /// A junction at `link` to the directory `target`: `mklink /J`, which needs
 /// no privilege, where a symbolic link to a directory does.
+///
+/// **Each path handed over with `\` alone.** `cmd` reads a `/` inside a word
+/// as the start of a switch, so a link named through one, as a test's
+/// `join(".github/d")` names it, reaches `mklink` cut at the `/`. Measured on
+/// a Windows runner, that link is refused with `Cannot create a file when that
+/// file already exists`, which is the answer for a link named `.github` alone,
+/// a directory that is there. Rebuilt from its components, a path is written
+/// with Windows' separator throughout.
 #[cfg(any(test, feature = "test-support"))]
 #[expect(
     clippy::disallowed_methods,
@@ -1215,10 +1223,11 @@ pub(crate) fn symlink_directory(target: &Path, link: &Path) -> io::Result<()> {
               captured and read, never inherited, so it prints nothing"
 )]
 pub(crate) fn link_directory(target: &Path, link: &Path) -> io::Result<()> {
+    let spelled = |path: &Path| path.components().collect::<std::path::PathBuf>();
     let made = std::process::Command::new("cmd")
         .args(["/C", "mklink", "/J"])
-        .arg(link)
-        .arg(target)
+        .arg(spelled(link))
+        .arg(spelled(target))
         .output()?;
     if made.status.success() {
         Ok(())
