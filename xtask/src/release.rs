@@ -5626,7 +5626,7 @@ fn main() {
     /// makes, and what it asks for after the question.
     fn the_runs_carried_on(
         release_commit: &str,
-    ) -> Vec<(&'static str, String, Vec<String>, Vec<&'static str>)> {
+    ) -> Vec<(String, String, Vec<String>, Vec<String>)> {
         let [tag, release, opened, queued] = the_steps_answered(release_commit);
         let merged = answered(
             &serde_json::json!({ "data": { "mergePullRequest": { "pullRequest": { "number": 7, "merged": true } } } }),
@@ -5651,7 +5651,7 @@ fn main() {
             "repos/noctua-world/probe/pulls",
         );
         let opened_and_queued = vec![opened.clone(), queued.clone()];
-        vec![
+        owned(vec![
             (
                 "the commit",
                 holding_these(None, false, &[]),
@@ -5730,7 +5730,26 @@ fn main() {
                 vec![queued],
                 vec!["AutoMerge"],
             ),
-        ]
+        ])
+    }
+
+    /// The runs `the_runs_carried_on` writes, as strings of their own.
+    ///
+    /// **Owned, because this is a function**: one handing back a `&'static str`
+    /// is a door into the log's type wall, whatever it is for.
+    fn owned(
+        runs: Vec<(&str, String, Vec<String>, Vec<&str>)>,
+    ) -> Vec<(String, String, Vec<String>, Vec<String>)> {
+        runs.into_iter()
+            .map(|(after, holds, missing, expected)| {
+                (
+                    after.to_owned(),
+                    holds,
+                    missing,
+                    expected.into_iter().map(str::to_owned).collect(),
+                )
+            })
+            .collect()
     }
 
     /// A tree holding what no commit has is neither written nor published.
