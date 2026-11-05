@@ -18402,7 +18402,7 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 637, 56),
+        ("xtask/check.rs", 640, 56),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 44, 29),
         ("xtask/database.rs", 29, 6),
@@ -24169,7 +24169,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14156;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14162;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24239,7 +24239,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 19814;
+    const THE_REARRANGEMENTS_JUDGED: usize = 19829;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24293,7 +24293,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **424 of 19,814 are accepted by the first-line
+    /// rules the gates apply: **424 of 19,829 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25851,21 +25851,22 @@ mod the_frozen_path_rule {
     /// `nc_platform::testing` whether this system can give it what it needs,
     /// and returning when it cannot, is counted by cargo as a pass; unnamed, it
     /// is a suite standing aside on macOS or Windows with nothing judging
-    /// whether it says so. Each door is asked for as code, so the census rows
-    /// below, which name it inside a string, are not suites.
+    /// whether it says so. Each door is looked for by its own name, through
+    /// [`names_a_door`], in every source but `nc-platform`'s, which defines
+    /// the doors and pins every system's answer to them.
     #[test]
     fn every_source_that_asks_what_the_system_lacks_is_one_the_census_names() {
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
-        let doors: Vec<&str> = super::ANNOUNCES_WHAT_THE_SYSTEM_LACKS
-            .iter()
-            .map(|(_, asks, _, _)| asks.trim_start_matches('!').trim_end_matches(".is_none()"))
-            .collect();
+        let doors = the_doors_a_suite_stands_aside_by();
         let mut found: Vec<String> = Vec::new();
         for (_, _, path) in every_source_of_every_member(root, &["src", "tests"]) {
+            let relative = crate::relative_to(root, &path);
+            if relative.starts_with("crates/nc-platform/") {
+                continue;
+            }
             let raw = std::fs::read_to_string(&path).expect("a source file is readable");
-            let neutral = crate::gates::blanked(&raw);
-            if doors.iter().any(|door| neutral.contains(door)) {
-                found.push(crate::relative_to(root, &path));
+            if names_a_door(&raw, &doors) {
+                found.push(relative);
             }
         }
         found.sort();
@@ -25888,6 +25889,116 @@ mod the_frozen_path_rule {
                 controls,
                 "`{file}` holds a different number of guards that announce themselves \
                  than the census writes down"
+            );
+        }
+    }
+
+    /// The doors of `nc_platform::testing` a suite stands aside by.
+    ///
+    /// Each by its own name: what a needle of the census asks, without the
+    /// path in front of it, the `!` and the method that reads it.
+    fn the_doors_a_suite_stands_aside_by() -> Vec<String> {
+        let mut doors: Vec<String> = super::ANNOUNCES_WHAT_THE_SYSTEM_LACKS
+            .iter()
+            .map(|&(_, asks, _, _)| {
+                let path = asks.trim_start_matches('!');
+                let name = path.rsplit("::").next().unwrap_or(path);
+                name.split('.').next().unwrap_or(name).to_owned()
+            })
+            .collect();
+        doors.sort_unstable();
+        doors.dedup();
+        doors
+    }
+
+    /// Whether `text` asks one of `doors` in its code, however the door was
+    /// brought into scope.
+    ///
+    /// **By the door's own name, and not by its path.** Suites of this tree
+    /// already reach the module as `use nc_platform::testing;`, after which a
+    /// door is `testing::A_POSIX_SHELL`, and a walk for the whole path misses it —
+    /// as it misses a `use` of the door itself, or of the module under another
+    /// name. What every spelling shares is the constant's name, so that is
+    /// what is looked for, as a whole word, since a longer name holding it is
+    /// another item; and in code, through [`crate::gates::blanked`], so a
+    /// comment or a string naming it, this file's census rows among them,
+    /// asks nothing.
+    fn names_a_door(text: &str, doors: &[String]) -> bool {
+        let code = crate::gates::blanked(text);
+        let in_a_name = |character: char| character.is_alphanumeric() || character == '_';
+        doors.iter().any(|door| {
+            code.match_indices(door.as_str()).any(|(at, _)| {
+                let joined_before = code[..at].chars().next_back().is_some_and(in_a_name);
+                let joined_after = code[at + door.len()..]
+                    .chars()
+                    .next()
+                    .is_some_and(in_a_name);
+                !joined_before && !joined_after
+            })
+        })
+    }
+
+    /// A door is asked however it was brought into scope, and is not asked by
+    /// a comment, a string or a longer name.
+    ///
+    /// **The fixtures the tree does not hold.** The walk above reads the tree
+    /// as it is, and no source in it reaches a door through its module today,
+    /// so the spellings that walk exists for are handed to its reader here: a
+    /// reader that knew only the whole path would leave such a suite outside
+    /// the census on every system, standing aside in silence on Windows.
+    #[test]
+    fn a_door_is_asked_however_it_was_brought_into_scope() {
+        let doors = the_doors_a_suite_stands_aside_by();
+        assert_eq!(
+            doors,
+            ["A_POSIX_SHELL", "LISTED_AS_MADE"],
+            "the census asks other doors than these fixtures do, so they hold nothing"
+        );
+        for (how, text) in [
+            (
+                "through its module",
+                "use nc_platform::testing;\n\
+                 fn drive() { if !testing::A_POSIX_SHELL { return; } }\n",
+            ),
+            (
+                "by its own name",
+                "use nc_platform::testing::LISTED_AS_MADE;\n\
+                 fn drive() { if LISTED_AS_MADE.is_none() { return; } }\n",
+            ),
+            (
+                "through the module under another name",
+                "use nc_platform::testing as system;\n\
+                 fn drive() -> bool { system::A_POSIX_SHELL }\n",
+            ),
+            (
+                "by its whole path",
+                "fn drive() { if !nc_platform::testing::A_POSIX_SHELL { return; } }\n",
+            ),
+        ] {
+            assert!(
+                names_a_door(text, &doors),
+                "a door asked {how} was not read as one, so a suite asking it that \
+                 way stands aside outside the census: {text}"
+            );
+        }
+        for (how, text) in [
+            (
+                "in a comment",
+                "// if !testing::A_POSIX_SHELL { return; }\nfn drive() {}\n",
+            ),
+            (
+                "in a string",
+                "const ROW: &str = \"!nc_platform::testing::A_POSIX_SHELL\";\n",
+            ),
+            (
+                "inside a longer name",
+                "const NOT_A_POSIX_SHELL: bool = true;\nconst LISTED_AS_MADE_HERE: u8 = 0;\n",
+            ),
+        ] {
+            assert!(
+                !names_a_door(text, &doors),
+                "a door named {how} was read as asked, so the census would name a \
+                 source that stands aside for nothing: {text}"
             );
         }
     }

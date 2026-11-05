@@ -2218,7 +2218,11 @@ system. Each guard prints `skipped, not applicable on <system>:` and why, in its
 and `ANNOUNCES_WHAT_THE_SYSTEM_LACKS` in `xtask/src/check.rs` counts the guards into the
 same line as the database suites, read by the same rule, with
 `every_source_that_asks_what_the_system_lacks_is_one_the_census_names` naming every source
-that asks.
+outside `nc-platform` whose code names a door. It looks for the door by its own name, as a
+whole word, so a suite that reaches it through `use nc_platform::testing;`, or under
+another name, is found as one writing the whole path is, and
+`a_door_is_asked_however_it_was_brought_into_scope` hands that reader the spellings the
+tree does not hold.
 
 ### Two tallies are not a pairing
 
