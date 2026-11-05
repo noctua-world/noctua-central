@@ -7395,16 +7395,21 @@ fn tests_verdict(output: &str, expected: &[String]) -> Result<usize, String> {
     // appeared only inside warning text and none of them had run.
     // **With `/`, the separator every suite here is written with.** Cargo on
     // Windows announces `Running tests\the_decision_point.rs`, and compared
-    // as written no suite there is ever announced. A line that holds a `/` is
-    // compared as written, because a backslash in it is part of a name.
+    // as written no suite there is ever announced. Only the suite, the part
+    // before ` (`, is compared, and its spelling is decided by the binary path
+    // inside the parentheses: cargo joins `debug`, `deps` and the binary's
+    // name onto the target directory with the system's own separator, however
+    // the target directory is spelled. A binary whose last separator is `/`
+    // was named on Unix, where a backslash in the suite is part of a name.
     let announcements: Vec<String> = output
         .lines()
         .filter_map(|line| line.trim().strip_prefix("Running "))
         .map(|line| {
-            if crate::in_windows_spelling(line) {
-                line.replace('\\', "/")
+            let (suite, binary) = line.split_once(" (").unwrap_or((line, line));
+            if ends_in_a_backslash(binary) {
+                suite.replace('\\', "/")
             } else {
-                line.to_owned()
+                suite.to_owned()
             }
         })
         .collect();
@@ -7427,6 +7432,12 @@ fn tests_verdict(output: &str, expected: &[String]) -> Result<usize, String> {
         ));
     }
     Ok(passed)
+}
+
+/// Whether the last separator in a path cargo joined is Windows' `\`.
+fn ends_in_a_backslash(path: &str) -> bool {
+    path.rfind(['/', '\\'])
+        .is_some_and(|at| path.as_bytes()[at] == b'\\')
 }
 
 /// Every integration-test suite this repository has written, by name.
@@ -17176,6 +17187,23 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
             tests_verdict(apart, &["tests/tampering.rs".to_owned()]).is_err(),
             "a file whose name holds a backslash was read as the suite it spells"
         );
+        // And a target directory spelled with `/` on Windows, which cargo
+        // extends with `\`: the line holds both separators, and the binary's
+        // last one is the system's.
+        for binary in [
+            "C:/t\\debug\\deps\\tampering-1.exe",
+            "target/win\\debug\\deps\\tampering-1.exe",
+        ] {
+            let mixed = format!(
+                "     Running tests\\tampering.rs ({binary})\n\
+                 test result: ok. 19 passed; 0 failed;\n"
+            );
+            assert_eq!(
+                tests_verdict(&mixed, &["tests/tampering.rs".to_owned()]),
+                Ok(19),
+                "a suite under a target directory spelled `{binary}` was read as one that did not run"
+            );
+        }
 
         // **And a name two crates share has to be announced twice.** Asked
         // only whether a name was announced, one crate announcing a shared file
@@ -18423,7 +18451,7 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 641, 56),
+        ("xtask/check.rs", 642, 56),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 44, 29),
         ("xtask/database.rs", 29, 6),
@@ -24190,7 +24218,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14193;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14194;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
