@@ -48,6 +48,8 @@ pub(crate) const WORKFLOWS: &str = ".github";
 ///
 /// It searches all four, and a gate that reads one makes the whole surface a
 /// developer types invisible with a `git mv` on a case-sensitive filesystem.
+/// **And without regard to case**, which [`the_files_answering_to`] says
+/// more about: `just` loads `JuStFiLe` as readily as `justfile`.
 const JUSTFILE: [&str; 4] = ["justfile", ".justfile", "JUSTFILE", "Justfile"];
 
 /// Every name GNU make looks for, in the order it looks for them.
@@ -818,12 +820,10 @@ fn everything_ci_reaches(root: &Path) -> Result<(Vec<std::path::PathBuf>, bool),
     // and `check passed`. A committed file that makes the claim is read whether
     // or not CI mentions it, which is the reasoning written above for the
     // justfile and applies to this one unchanged.
-    for name in JUSTFILE.iter().chain(MAKEFILE.iter()) {
-        let recipes = root.join(name);
-        if recipes.is_file() && !files.contains(&recipes) {
-            files.push(recipes);
-        }
-    }
+    let recipes = the_files_answering_to(root, &JUSTFILE)
+        .into_iter()
+        .chain(the_files_answering_to(root, &MAKEFILE));
+    joined(&mut files, recipes);
     let ran_out = follow_what_they_reach(root, &mut files, &mut hops) || ran_out;
     files.sort();
     Ok((files, ran_out))
@@ -1724,6 +1724,112 @@ fn one_alias_file(root: &Path, file: &str, findings: &mut Vec<Finding>) {
     }
 }
 
+/// What a path names, however it is spelled.
+///
+/// **A spelling is not a file.** On a filesystem that ignores case, as macOS's
+/// and Windows' do, `JUSTFILE` and `justfile` are one file; and a step into a
+/// directory and back out of it is a second spelling of where it began. A walk
+/// that asked whether it already held a path by its spelling read the one
+/// justfile three times there, and counted each of its six commands three
+/// times: `ok 31 cargo command(s)` on macOS and `41` on Windows, against
+/// Linux's `19`, on one tree. The path the system resolves a spelling to is the
+/// file; a path it cannot resolve is kept as spelled, which is then all there
+/// is to compare.
+fn the_file_itself(path: &Path) -> std::path::PathBuf {
+    std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
+/// Adds to `files` each path in `reached` that names a file it does not hold
+/// yet, and says whether any did.
+///
+/// By [`the_file_itself`], so a file reached under a second spelling is not
+/// read twice, and its commands not counted twice. The spelling kept is the
+/// one that reached it first.
+fn joined(
+    files: &mut Vec<std::path::PathBuf>,
+    reached: impl IntoIterator<Item = std::path::PathBuf>,
+) -> bool {
+    let mut known: Vec<std::path::PathBuf> =
+        files.iter().map(|path| the_file_itself(path)).collect();
+    let mut grew = false;
+    for path in reached {
+        let itself = the_file_itself(&path);
+        if !known.contains(&itself) {
+            known.push(itself);
+            files.push(path);
+            grew = true;
+        }
+    }
+    grew
+}
+
+/// Whether `name` is one of `names`, with case set aside.
+///
+/// What [`the_files_answering_to`] reads a directory by, and what tells
+/// [`the_recipe_above`] that a file it was handed is a justfile.
+fn answers_to(name: &str, names: &[&str]) -> bool {
+    names.iter().any(|known| known.eq_ignore_ascii_case(name))
+}
+
+/// The files in `directory` that answer to one of `names`, by the names they
+/// have.
+///
+/// **Listed, not joined.** `root.join("JUSTFILE").is_file()` asks the
+/// filesystem, and one that ignores case says yes to every spelling of a file
+/// that is there under one of them: that is how one justfile was read three
+/// times on macOS and Windows. A name read from the directory is the name the
+/// file has, so it is read once, and named in a finding as it is named on
+/// disk.
+///
+/// **Compared without case, on every system.** `just` compares so on its
+/// own, so a justfile renamed `JuStFiLe` is still the surface a developer
+/// types on Linux, measured against `just 1.55.1`; and a name that differs
+/// from one of make's only in case is that name on the filesystems macOS and
+/// Windows check out onto. A file one of the two would load on any system is
+/// read on every system, so all three read the same files.
+fn the_files_answering_to(directory: &Path, names: &[&str]) -> Vec<std::path::PathBuf> {
+    let Ok(entries) = std::fs::read_dir(directory) else {
+        return Vec::new();
+    };
+    let mut found: Vec<std::path::PathBuf> = entries
+        .flatten()
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_str()
+                .is_some_and(|name| answers_to(name, names))
+        })
+        .map(|entry| entry.path())
+        .filter(|path| path.is_file())
+        .collect();
+    found.sort();
+    found
+}
+
+/// `named` under `base`, when every segment before its last is a directory.
+///
+/// **As POSIX resolves a path, on every system.** Windows normalizes a path
+/// before it asks the filesystem anything, striking a name and the `..` after
+/// it out whether or not the name exists, so `cd "$(dirname "$0")/.."` in
+/// `xtask/leaves-nothing.sh` names the root there — a name that is no
+/// directory, then a step back from it — and every word was resolved a second
+/// time against it, which accounts for the ten commands Windows counted past
+/// macOS: the two scripts and the justfile the words reach. POSIX's `cd`
+/// refuses such a path (bash: `cd: missing/../ci: No such file or directory`),
+/// and Linux and macOS refuse it on their own; asking for each segment before
+/// stepping past it makes the three systems reach the same directories and the
+/// same files. What the last segment must be is the caller's question.
+fn under(base: &Path, named: &str) -> Option<std::path::PathBuf> {
+    let mut reached = base.to_path_buf();
+    for segment in Path::new(named).components() {
+        if !reached.is_dir() {
+            return None;
+        }
+        reached.push(segment);
+    }
+    Some(reached)
+}
+
 /// Adds every file `files` reaches, until nothing new appears.
 ///
 /// Called twice: once for what the workflows reach, and again after the
@@ -1756,14 +1862,7 @@ fn follow_what_they_reach(
     // `depth=15 chain_scripts_read=15 ran_out=true` — the false finding the
     // shared budget exists to prevent, one off.
     while *left > 0 {
-        let mut grew = false;
-        for reached in reached_from(root, files) {
-            if !files.contains(&reached) {
-                files.push(reached);
-                grew = true;
-            }
-        }
-        if !grew {
+        if !joined(files, reached_from(root, files)) {
             return false;
         }
         *left -= 1;
@@ -1774,9 +1873,10 @@ fn follow_what_they_reach(
     // as too deep is the same false finding the shared budget and the hop rule
     // prevent, one step further along. So the question is asked rather than
     // inferred from the counter.
+    let known: Vec<std::path::PathBuf> = files.iter().map(|path| the_file_itself(path)).collect();
     reached_from(root, files)
         .into_iter()
-        .any(|reached| !files.contains(&reached))
+        .any(|reached| !known.contains(&the_file_itself(&reached)))
 }
 
 /// Every file in the tree one word of a CI file could name.
@@ -1826,8 +1926,7 @@ fn what_this_word_names(
             found.extend(matching(&base, named));
             continue;
         }
-        let candidate = base.join(named);
-        if candidate.is_file() {
+        if let Some(candidate) = under(&base, named).filter(|path| path.is_file()) {
             found.push(candidate);
         }
     }
@@ -1878,7 +1977,7 @@ fn matching(base: &Path, pattern: &str) -> Vec<std::path::PathBuf> {
     }
     let (before, after) = name.split_once('*').unwrap_or((name, ""));
     let mut found = Vec::new();
-    let Ok(entries) = std::fs::read_dir(base.join(directory)) else {
+    let Some(Ok(entries)) = under(base, directory).map(std::fs::read_dir) else {
         return found;
     };
     for entry in entries.flatten() {
@@ -1927,8 +2026,10 @@ fn reached_from(root: &Path, walked: &[std::path::PathBuf]) -> Vec<std::path::Pa
                 });
             if let Some(named) = named {
                 let named = named.trim_matches(['"', '\'']);
-                if !named.is_empty() && root.join(named).is_dir() {
-                    directories.push(root.join(named));
+                if !named.is_empty()
+                    && let Some(directory) = under(root, named).filter(|path| path.is_dir())
+                {
+                    directories.push(directory);
                 }
             }
         }
@@ -1947,10 +2048,8 @@ fn reached_from(root: &Path, walked: &[std::path::PathBuf]) -> Vec<std::path::Pa
                 && local.starts_with("./")
             {
                 for name in ["action.yml", "action.yaml"] {
-                    let candidate = root.join(local.trim_start_matches("./")).join(name);
-                    if candidate.is_file() {
-                        reached.push(candidate);
-                    }
+                    let named = format!("{}/{name}", local.trim_start_matches("./"));
+                    reached.extend(under(root, &named).filter(|path| path.is_file()));
                 }
             }
             // **A task runner reaches its own file by name, not by path.**
@@ -1966,12 +2065,7 @@ fn reached_from(root: &Path, walked: &[std::path::PathBuf]) -> Vec<std::path::Pa
                     .split_whitespace()
                     .any(|word| word.trim_matches(['"', '\'']) == command)
                 {
-                    for file in names {
-                        let candidate = root.join(file);
-                        if candidate.is_file() {
-                            reached.push(candidate);
-                        }
-                    }
+                    reached.extend(the_files_answering_to(root, names));
                 }
             }
             // **A `just` module names a file the word does not.** `just` loads
@@ -2005,10 +2099,7 @@ fn reached_from(root: &Path, walked: &[std::path::PathBuf]) -> Vec<std::path::Pa
                         format!("{name}/.justfile"),
                     ]);
                     for candidate in candidates {
-                        let path = root.join(candidate);
-                        if path.is_file() {
-                            reached.push(path);
-                        }
+                        reached.extend(under(root, &candidate).filter(|path| path.is_file()));
                     }
                 }
             }
@@ -3809,7 +3900,7 @@ fn the_recipe_above(text: &str, index: usize, file_is_ci: bool, named: &str) -> 
     // writing as one; what this narrowing must not do is *look* like it covers
     // them, which is why it says so here.
     let basename = named.rsplit('/').next().unwrap_or(named);
-    if file_is_ci || !JUSTFILE.contains(&basename) {
+    if file_is_ci || !answers_to(basename, &JUSTFILE) {
         return String::new();
     }
     // A comment at column zero can end in a colon — this file's own
@@ -4617,6 +4708,94 @@ mod tests {
         // The floor: a workflow that stopped invoking cargo at all would produce
         // no findings and prove nothing.
         assert!(seen >= 2, "only {seen} cargo command(s) were inspected");
+    }
+
+    /// The walk reads each file once, however many spellings reach it.
+    ///
+    /// **Measured on CI before it held**: one tree printed
+    /// `ok 19 cargo command(s)` on Linux, `31` on macOS and `41` on Windows.
+    /// A filesystem that ignores case answers for every name `just` loads at
+    /// once, so the one justfile was read three times; and Windows makes a
+    /// directory of `cd "$(dirname "$0")/.."`, the root under a second
+    /// spelling, through which every file a word reached was read once more,
+    /// which is the ten past macOS — inferred from the count. Linux's
+    /// filesystem holds neither shape, so the scratch below plants each in a
+    /// form every system reads alike: a justfile only a lookup without case
+    /// finds, a `cd` into a directory and back out of it, and a `cd` through a
+    /// name that is no directory, which POSIX's `cd` refuses and which a path
+    /// handed to Windows whole resolves.
+    #[test]
+    fn the_walk_reads_each_file_once_however_it_is_reached() {
+        let (files, _) = super::everything_ci_reaches(root()).expect("the walk runs");
+        let mut distinct: Vec<std::path::PathBuf> = files
+            .iter()
+            .map(|path| std::fs::canonicalize(path).expect("a file the walk found resolves"))
+            .collect();
+        distinct.sort();
+        distinct.dedup();
+        assert_eq!(
+            distinct.len(),
+            files.len(),
+            "the walk holds one file under two spellings, and counts its commands twice: \
+             {files:#?}"
+        );
+        let (_, seen) = only_runs_the_gate(root()).expect("the workflow is readable");
+        assert_eq!(
+            seen,
+            super::a_second_count_of(&distinct),
+            "the walk's count is not the count over the distinct files it reaches"
+        );
+
+        let held = crate::check::LeavesNothingBehind::new("workflow-spellings");
+        let scratch = &held.root;
+        std::fs::create_dir_all(scratch.join(".github/workflows")).expect("writable");
+        std::fs::create_dir_all(scratch.join("ci")).expect("writable");
+        std::fs::write(
+            scratch.join(super::WORKFLOW),
+            "on: push\njobs:\n  check:\n    steps:\n      - run: cd ci/.. && sh ci/gate.sh\n      \
+             - run: cd missing/../ci && sh elsewhere.sh\n      - run: cargo xtask check\n",
+        )
+        .expect("writable");
+        std::fs::write(scratch.join("ci/gate.sh"), "cargo fmt --all --check\n").expect("writable");
+        std::fs::write(scratch.join("ci/elsewhere.sh"), "cargo test --workspace\n")
+            .expect("writable");
+        std::fs::write(
+            scratch.join("JuStFiLe"),
+            "lint:\n    cargo clippy --workspace\n",
+        )
+        .expect("writable");
+        let (findings, seen) = only_runs_the_gate(scratch).expect("the scratch tree reads");
+        // By the file's last name, so a second spelling of its path is
+        // counted with the first rather than beside it.
+        let about = |name: &str| {
+            findings
+                .iter()
+                .filter(|said| said.file.rsplit('/').next() == Some(name))
+                .count()
+        };
+        assert_eq!(
+            about("gate.sh"),
+            1,
+            "a script reached through the root and through a `cd` into `ci` and back was \
+             not reported once: {findings:#?}"
+        );
+        assert_eq!(
+            about("elsewhere.sh"),
+            0,
+            "the walk stepped back out of a name that is no directory, which POSIX's `cd` \
+             refuses: {findings:#?}"
+        );
+        assert_eq!(
+            about("JuStFiLe"),
+            1,
+            "a justfile `just` loads was not reported once, under the name it has: \
+             {findings:#?}"
+        );
+        assert_eq!(
+            seen, 3,
+            "three cargo commands, each counted once: {findings:#?}"
+        );
+        drop(held);
     }
 
     /// The seven attacks measured against `yq 3.4.3`.
