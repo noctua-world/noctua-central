@@ -37,6 +37,28 @@ fn root() -> PathBuf {
     Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../..")).to_path_buf()
 }
 
+/// A scratch directory under the temporary directory, removed however the
+/// test leaves.
+struct Scratch(PathBuf);
+
+/// Removes the directory, however much of it the test made.
+impl Drop for Scratch {
+    /// Whatever the test left, and on whichever path it left by.
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+/// Where a scratch is made.
+impl Scratch {
+    /// A directory of this process's own, for the catalog the bar is put in.
+    fn new() -> Self {
+        let root = std::env::temp_dir().join(format!("nc-cell-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        Self(root)
+    }
+}
+
 /// Copies `catalog/` into `into`, creating the locale files in `first` order.
 ///
 /// Everything else is copied in whatever order the source walk gives; only
@@ -103,11 +125,24 @@ fn as_the_filesystem_gives_them(directory: &Path) -> Vec<String> {
 
 #[test]
 fn two_directory_orders_produce_the_same_bytes() {
+    // **Only where a directory lists in the order it was made.** macOS's APFS
+    // lists by a hash of the name and Windows' NTFS by the name, so there both
+    // layouts below come back in one order and there is nothing to compare: the
+    // suite says so, by the system's name, and the Linux job runs it.
+    if nc_platform::testing::LISTED_AS_MADE.is_none() {
+        println!(
+            "skipped, not applicable on {}: no directory here lists its entries in the \
+             order they were made, and the Linux job runs it",
+            std::env::consts::OS
+        );
+        return;
+    }
     // tmpfs returns entries in creation order, which is what makes the two
     // layouts below actually differ. A filesystem that sorts or hashes would
     // make this test vacuous, so the orders are compared before they are relied
     // on and a run that cannot produce two of them fails rather than passes.
-    let base = Path::new("/dev/shm").join(format!("nc-order-{}", std::process::id()));
+    let base = Path::new(nc_platform::testing::LISTED_AS_MADE.expect("asked above"))
+        .join(format!("nc-order-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&base);
     let en_first = base.join("en-first");
     let pt_first = base.join("pt-first");
@@ -120,7 +155,7 @@ fn two_directory_orders_produce_the_same_bytes() {
         one, other,
         "both layouts came back in the same order, so this test would pass \
          whatever the emitter does with it — it needs a filesystem that returns \
-         creation order, which /dev/shm is"
+         creation order, which `LISTED_AS_MADE` names"
     );
 
     let first =
@@ -247,8 +282,8 @@ fn every_page_lists_its_entries_in_order() {
 /// the call site and not the function.
 #[test]
 fn a_bar_in_a_registry_value_does_not_end_its_cell() {
-    let base = Path::new("/dev/shm").join(format!("nc-cell-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = Scratch::new();
+    let base = scratch.0.clone();
     lay_out(&base, "en");
     // **Not a hand list of three.** Of the other values `docs.rs` writes, two
     // are reachable: the message-key column of every registry's sentence table,
@@ -387,8 +422,7 @@ fn a_bar_in_a_registry_value_does_not_end_its_cell() {
     // And then the floor on what is in them: a page set with no tables would
     // satisfy the loop by never entering it.
     assert!(rows > 20, "only {rows} table row(s) were read");
-
-    let _ = std::fs::remove_dir_all(&base);
+    drop(scratch);
 }
 
 /// A selector holding a bar is refused by name, so its row is never written.

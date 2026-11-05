@@ -453,9 +453,7 @@ impl Fixture {
         for entry in std::fs::read_dir(&self.blobs).expect("listed") {
             let path = entry.expect("an entry").path();
             if path.is_file() {
-                std::fs::File::open(&path)
-                    .and_then(|file| file.set_modified(long_ago))
-                    .expect("this test's own file is aged");
+                nc_platform::set_modified(&path, long_ago).expect("this test's own file is aged");
             }
         }
     }
@@ -1212,14 +1210,20 @@ async fn an_announcement_reaches_no_peer_and_says_so() {
 }
 
 /// A directory another user could reach is not one a kernel keeps blobs in.
+///
+/// **One body for every system**: `nc_platform::testing` opens the directory
+/// to another user as this system does — a group bit on Unix, an entry for a
+/// group on Windows — and answers the words the refusal names that by.
 #[test]
 fn a_blob_directory_another_user_can_reach_is_refused() {
-    use std::os::unix::fs::PermissionsExt as _;
+    use nc_platform::testing;
 
     let scratch = Scratch::new("refused");
     let blobs: &Path = &scratch.0.join("blobs");
     std::fs::create_dir(blobs).expect("made");
-    std::fs::set_permissions(blobs, std::fs::Permissions::from_mode(0o750)).expect("chmod");
-    let refused = DirectoryBlobs::open(blobs).expect_err("0750 is refused");
+    testing::make_private(blobs).expect("private");
+    let said = testing::open_to_another_user(blobs).expect("opened up");
+    let refused = DirectoryBlobs::open(blobs).expect_err("refused");
     assert_eq!(refused.code(), ErrorCode::DbLocalOpenRefused, "{refused}");
+    assert!(refused.to_string().contains(&said), "{said}: {refused}");
 }

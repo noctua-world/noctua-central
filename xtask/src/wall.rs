@@ -3065,11 +3065,16 @@ fn pointed_at(diagnostic: &str) -> Vec<usize> {
         //
         // The span's own object carries the file; every shipped fixture's
         // primary span is in the crate's own `main.rs`, which is the one file a
-        // fixture is.
+        // fixture is. **With either separator**: rustc on Windows names it with
+        // a backslash, which JSON writes escaped, and read with `/` alone no
+        // span there is the fixture's, so every fixture would be refused at no
+        // line at all.
         let span = &rest[..at];
         let names_the_fixture = span
             .rsplit_once("\"file_name\":\"")
-            .is_none_or(|(_, after)| after.starts_with("src/main.rs"));
+            .is_none_or(|(_, after)| {
+                after.starts_with("src/main.rs") || after.starts_with(r"src\\main.rs")
+            });
         rest = &rest[at + needle.len()..];
         if !names_the_fixture {
             continue;
@@ -3711,11 +3716,11 @@ fn compile_it_alone(
         // error check failed: 11 finding(s) about the compile-fail fixtures
         // ```
         //
-        // The word *network* appeared nowhere in the run, and `--offline`'s own
-        // documentation says the advisory database is the one thing here that
-        // fetches anything. Every dependency this build needs is in the local
-        // cache by the time it runs — the workspace has already been built and
-        // tested by earlier steps of the same command.
+        // The word *network* appeared nowhere in the run. Every package this
+        // build needs is on the machine by the time it runs: `cargo xtask check`
+        // runs `cargo fetch --locked` before any step, and under `--offline`,
+        // where nothing is fetched, a package missing from the machine has
+        // already failed the `wiring` step, which names that fetch as the fix.
         .args(["build", "--quiet", "--offline", "--message-format=json"])
         // Its own target directory, so a fixture that must not compile never
         // leaves a half-built artifact in the workspace's.
@@ -4093,11 +4098,11 @@ fn fails_the_same_way_without_the_crate(
         // error check failed: 11 finding(s) about the compile-fail fixtures
         // ```
         //
-        // The word *network* appeared nowhere in the run, and `--offline`'s own
-        // documentation says the advisory database is the one thing here that
-        // fetches anything. Every dependency this build needs is in the local
-        // cache by the time it runs — the workspace has already been built and
-        // tested by earlier steps of the same command.
+        // The word *network* appeared nowhere in the run. Every package this
+        // build needs is on the machine by the time it runs: `cargo xtask check`
+        // runs `cargo fetch --locked` before any step, and under `--offline`,
+        // where nothing is fetched, a package missing from the machine has
+        // already failed the `wiring` step, which names that fetch as the fix.
         .args(["build", "--quiet", "--offline", "--message-format=json"])
         .env("CARGO_TARGET_DIR", scratch.join("hollow-target"))
         .current_dir(scratch)
@@ -4793,6 +4798,13 @@ mod tests {
         // The floor: a diagnostic naming only the fixture keeps every line.
         let ours = r#"{"spans":[{"file_name":"src/main.rs","line_start":9},{"file_name":"src/main.rs","line_start":12}]}"#;
         assert_eq!(super::pointed_at(ours), vec![9, 12]);
+        // And the fixture as rustc names it on Windows, its separator escaped.
+        let windows = r#"{"spans":[{"file_name":"src\\main.rs","line_start":9},{"file_name":"C:\\w\\crates\\nc-log\\src\\value.rs","line_start":190}]}"#;
+        assert_eq!(
+            super::pointed_at(windows),
+            vec![9],
+            "the fixture named with Windows' separator is still the fixture"
+        );
     }
 
     /// A token written in a comment is not a fixture naming its subject.
@@ -7659,6 +7671,7 @@ mod the_exemption_is_one_directory {
             "crates/nc-kernel/src/lib.rs",
             "crates/nc-local/src/lib.rs",
             "crates/nc-log/src/lib.rs",
+            "crates/nc-platform/src/lib.rs",
             "crates/nc-policy/src/lib.rs",
             "crates/nc-prune/src/lib.rs",
             "crates/nc-schema/src/lib.rs",

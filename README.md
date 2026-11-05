@@ -74,9 +74,15 @@ the migrated functions' paths, and the journal's protections each fail and name
 `cargo xtask dev`, so no green run is compatible with the journal's forty-four protections never having
 been read. A database that answers and holds nothing is a database to migrate.
 
+`cargo xtask check` first runs `cargo fetch --locked`, so a fresh clone holds every
+package the lockfile names before any step asks cargo for the graph. Under `--offline` the
+fetch does not run and every cargo the gate starts is told to stay off the network, so a
+package missing from the machine fails instead of being downloaded, and is named with that
+command.
+
 `cargo xtask check --offline` skips **nine** things — the advisory database, which is
-the one thing here that fetches anything (the audit's licence, ban and source checks
-read only the lockfile and still run); the PostgreSQL tests; the corroboration of
+fetched (the audit's licence, ban and source checks read only the lockfile and still
+run); the PostgreSQL tests; the corroboration of
 `migrations/` against what a database has actually applied; where `pg_temp` sits in
 the migrated functions' search paths; the journal's own protections, which are
 triggers and constraints held by the database and not by any file here; the bounds
@@ -90,6 +96,10 @@ what CI runs.
 
 `OFFLINE_SKIPS` in `xtask/src/check.rs` holds that number, and
 `the_documents_agree_about_what_offline_skips` holds this list to it.
+
+On macOS and Windows no stack runs (`NOCTUA.md §22.2`), so every one of those steps but
+the advisory database says it is not applicable on that system, by name, and that the
+Linux job runs it; the verdict names each one, and on Linux it holds the run to none.
 
 ## What is here
 

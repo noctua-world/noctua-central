@@ -1719,6 +1719,7 @@ version = "0.1.0"
 dependencies = [
  "blake3",
  "nc-catalog-compiler",
+ "nc-platform",
  "nc-schema",
  "serde",
  "toml",
@@ -1769,6 +1770,7 @@ dependencies = [
  "nc-kernel",
  "nc-local",
  "nc-log",
+ "nc-platform",
  "nc-plugin-reference",
  "nc-prune",
  "nc-schema",
@@ -1795,6 +1797,7 @@ dependencies = [
  "nc-catalog",
  "nc-ids",
  "nc-local",
+ "nc-platform",
  "proptest",
  "sqlx",
  "tokio",
@@ -1808,6 +1811,14 @@ dependencies = [
  "nc-catalog",
  "nc-ids",
  "nc-log",
+]
+
+[[package]]
+name = "nc-platform"
+version = "0.1.0"
+dependencies = [
+ "nc-platform",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1826,6 +1837,7 @@ name = "nc-policy"
 version = "0.1.0"
 dependencies = [
  "cedar-policy",
+ "nc-platform",
  "nc-policy",
  "nc-schema",
  "serde",
@@ -3863,6 +3875,7 @@ dependencies = [
  "nc-catalog",
  "nc-catalog-compiler",
  "nc-local",
+ "nc-platform",
  "nc-policy",
  "nc-schema",
  "serde_json",

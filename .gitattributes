@@ -1,0 +1,8 @@
+# Every text file is checked out with LF line endings, on every system.
+#
+# The gate compares files byte for byte: generated sources and pages against
+# what the catalog compiles to, golden outputs, the kernel's copy of the plugin
+# world against its digest. A checkout that rewrote line endings to CRLF on
+# Windows would make every one of those comparisons fail on a tree that is
+# right. No file here is binary, so nothing needs to be marked `-text`.
+* text=auto eol=lf

@@ -110,7 +110,8 @@ enum Command {
     /// diffs two builds. `crate::check::WHAT_CI_RUNS` is that set, held against
     /// the workflow and against every sentence stating it.
     Check {
-        /// Skip the nine steps that need the local stack or the network. CI
+        /// Skip the nine steps that need the local stack or the network, and
+        /// fetch nothing: every cargo this starts is told to stay offline. CI
         /// never passes this.
         #[arg(long)]
         offline: bool,
@@ -175,4 +176,22 @@ pub(crate) fn relative_to(root: &Path, path: &Path) -> String {
         .unwrap_or(path)
         .to_string_lossy()
         .replace('\\', "/")
+}
+
+/// Whether a path a tool wrote is in Windows' spelling, where `\` separates.
+///
+/// **Read from the spelling, not from the system**, so a test can hand
+/// Windows' answer to a reader on every system. It is asked of the paths cargo
+/// writes for the workspace itself: its root, and the manifest and source
+/// paths under that root. On Windows those are written with `\` alone, so one
+/// of them that holds a `/` is Unix's, where `\` is a character a name may
+/// hold. A path cargo joins onto a spelling someone chose, such as a target
+/// directory, can hold both separators on Windows, and its reader decides from
+/// the part cargo wrote, as `check::tests_verdict` does. Measured with `cargo
+/// metadata` on Linux, a path dependency on a sibling directory named
+/// `w\vendored` beside a root `w` is written as that sibling under that root's
+/// own spelling, and a reader that turns every `\` into `/` takes the sibling
+/// for a directory inside the root.
+pub(crate) fn in_windows_spelling(path: &str) -> bool {
+    path.contains('\\') && !path.contains('/')
 }

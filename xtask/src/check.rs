@@ -63,6 +63,153 @@ const WHAT_CI_RUNS: [&str; 4] = [
     "cargo xtask build",
 ];
 
+/// Whether this system runs the container stack the gate's stack steps read.
+///
+/// **The one place this tool asks which system it runs on** (`NOCTUA.md §2.7`),
+/// and it asks the target it was compiled for — never whether docker answers,
+/// which would make a Linux machine with its stack down read as a system the
+/// stack does not apply to, and every step that needs it stand aside there in
+/// silence. Linux runs every step; on macOS and Windows each step that needs
+/// the stack says it is not applicable, by name, and the Linux job is what runs it
+/// (`NOCTUA.md §22.2`). That is a property of the system, which is why it is
+/// decided here rather than by a flag anybody can pass.
+pub(crate) const RUNS_THE_STACK: bool = cfg!(target_os = "linux");
+
+/// Whether this run asks the container stack, and when it does not, why.
+///
+/// **Two reasons, and they print two different things.** `--offline` is a
+/// developer asking for the steps that need the stack not to run, and each
+/// says `skipped:` — counted against [`OFFLINE_SKIPS`]. A system that runs no
+/// stack is not asking for anything, and each of those steps says it is not
+/// applicable —
+/// held against [`THE_STACKS_PARTS`]. A step written to ask `!stack.asked()`
+/// stands aside for both and says which.
+///
+/// **Decided once, in [`run`], and handed down**, so every step sees the same
+/// answer and a test can hand a step either answer on any system.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Stack {
+    /// The stack is asked: this system runs it and no flag said otherwise.
+    Asked,
+    /// `--offline`: the steps that need the stack were asked not to run.
+    Offline,
+    /// This system runs no stack, and its steps are not applicable here.
+    NotApplicable,
+}
+
+impl Stack {
+    /// The answer for this run, on this system.
+    pub(crate) const fn here(offline: bool) -> Self {
+        Self::of(offline, RUNS_THE_STACK)
+    }
+
+    /// The answer for a run with `offline` on a system that does or does not
+    /// run the stack.
+    ///
+    /// **The system first.** A step that does not apply on this system is not a
+    /// step the flag skipped, so `--offline` off Linux leaves the stack's steps
+    /// saying they are not applicable, and only the advisory database — the one
+    /// `--offline` skip
+    /// that needs no stack — saying `skipped:`.
+    pub(crate) const fn of(offline: bool, runs_the_stack: bool) -> Self {
+        if !runs_the_stack {
+            Self::NotApplicable
+        } else if offline {
+            Self::Offline
+        } else {
+            Self::Asked
+        }
+    }
+
+    /// Whether the steps that need the stack read it.
+    pub(crate) const fn asked(self) -> bool {
+        matches!(self, Self::Asked)
+    }
+
+    /// What a child process is told about the stack, in `NC_NO_STACK`.
+    ///
+    /// **The reason is the value**, so a suite that stands aside can say why in
+    /// its own words: `--offline`, or `not applicable on <system>`. `None` when
+    /// the stack is asked, and then the variable is removed from the child, so
+    /// one inherited from a shell cannot stand a suite aside unasked.
+    fn told(self) -> Option<String> {
+        match self {
+            Self::Asked => None,
+            Self::Offline => Some("--offline".to_owned()),
+            Self::NotApplicable => Some(format!(
+                "not applicable on {}, and the Linux job runs it",
+                ui::SYSTEM
+            )),
+        }
+    }
+}
+
+/// Every part of the gate that needs the container stack, by the name its
+/// not-applicable line gives it, in the order a run reaches them.
+///
+/// **What a not-applicable line may say, exactly.** Off Linux a run prints
+/// these and nothing else on one; on Linux it prints none of them, which is
+/// [`the_parts_not_applicable`] and the test beside it. Each is one of the
+/// steps `--offline` skips too, so a part added here is a part the flag
+/// announces as well, and the advisory database — which needs the network and
+/// no stack — is the one `--offline` skip that is not here.
+///
+/// **Written twice, and held together.** Each part writes its sentence where it
+/// stands aside, so the census of what the gate can say reads it as a literal
+/// beside the arm that chooses it; `every_part_of_the_stack_says_why_it_stands_aside`
+/// drives every part and holds what they print to this list, in order.
+pub(crate) const THE_STACKS_PARTS: [&str; 8] = [
+    "comparing each pinned digest against what its tag resolves to",
+    "corroborating the migrations against what a database has applied",
+    "reading where `pg_temp` sits in the migrated functions' paths",
+    "reading the journal's own protections, which live in the database",
+    "reading the bounds the running log store reports",
+    "reading how the database sorts and encodes",
+    "running the PostgreSQL tests against a database",
+    "running the stack's own tests and the image-pin cases, which ask docker what it resolves",
+];
+
+/// The parts a run with `stack` says do not apply: every part of the stack on
+/// a system that runs none, and none at all on one that does.
+pub(crate) const fn the_parts_not_applicable(stack: Stack) -> &'static [&'static str] {
+    match stack {
+        Stack::NotApplicable => &THE_STACKS_PARTS,
+        Stack::Asked | Stack::Offline => &[],
+    }
+}
+
+/// How many steps a run with `stack` announces as skipped by `--offline`.
+///
+/// Every one of them on a system that runs the stack, and off it only the ones
+/// that are not the stack's — those say they are not applicable instead.
+const fn skipped_by_the_flag(offline: bool, stack: Stack) -> usize {
+    match (offline, stack) {
+        (false, _) => 0,
+        (true, Stack::NotApplicable) => OFFLINE_SKIPS - THE_STACKS_PARTS.len(),
+        (true, Stack::Asked | Stack::Offline) => OFFLINE_SKIPS,
+    }
+}
+
+/// Whether a test that asks docker stands aside on this system, saying so.
+///
+/// The gate's own tests of the image-pin step resolve a stack through `docker
+/// compose`, which no runner but Linux's has. They ask the same question as
+/// [`Stack::here`], because they are the gate's, and the not-applicable line
+/// the gate prints for the stack's own tests names them.
+///
+/// The sentence a test prints when it stands aside, or `None` where docker is
+/// asked. The test prints it, because printing outside `ui` belongs in a test
+/// module and nowhere else.
+#[cfg(test)]
+pub(crate) fn docker_stands_aside(what: &str) -> Option<String> {
+    (!RUNS_THE_STACK).then(|| {
+        format!(
+            "{what}: not applicable on {}, where no stack runs, and the Linux job runs it",
+            ui::SYSTEM
+        )
+    })
+}
+
 /// The compose names that were looked for, floored.
 fn assert_the_names_were_read(looked: usize, failures: &mut Vec<String>) {
     if looked >= 7 {
@@ -81,11 +228,23 @@ fn assert_the_names_were_read(looked: usize, failures: &mut Vec<String>) {
 /// skips` holds every place that states the number against the constant. The
 /// number is deliberately not repeated here. CI never passes the flag
 /// (`NOCTUA.md §19.4`).
+///
+/// On a system that runs no stack, the steps that need it say they are not
+/// applicable instead, whatever the flag — [`Stack`] says which, and
+/// [`THE_STACKS_PARTS`] is what such a run is held to.
 pub(crate) fn run(root: &Path, offline: bool) -> Result<(), String> {
     let mut failures: Vec<String> = Vec::new();
+    // **What the stack's steps do, decided once.** Every step that needs the
+    // container stack is handed this and nothing else: asked, skipped by the
+    // flag, or not applicable on this system — see [`Stack`].
+    let stack = Stack::here(offline);
 
     ui::heading("wiring");
-    wiring(root, offline, &mut failures);
+    // **Before anything asks cargo for the graph.** Under `--offline` it
+    // fetches nothing, and a package missing here is named by the step that
+    // needed it (`members::metadata`).
+    the_packages_the_lockfile_names_are_here(root, offline, &mut failures);
+    wiring(root, stack, &mut failures);
 
     ui::gap();
     ui::heading("generated output");
@@ -98,7 +257,7 @@ pub(crate) fn run(root: &Path, offline: bool) -> Result<(), String> {
     crate::policy::check(root, &mut failures);
 
     ui::gap();
-    bounds(root, offline, &mut failures);
+    bounds(root, stack, &mut failures);
 
     ui::gap();
     the_wall(root, &mut failures);
@@ -124,8 +283,8 @@ pub(crate) fn run(root: &Path, offline: bool) -> Result<(), String> {
     // `database` — the defect the comment above the policy pack describes. What
     // the last section is about is the database and what needs it, and that is
     // what it is called.
-    let database = database::report(offline, &mut failures);
-    workspace(root, database.as_deref(), offline, &mut failures);
+    let database = database::report(stack, &mut failures);
+    workspace(root, database.as_deref(), stack, offline, &mut failures);
 
     ui::gap();
     ui::heading("dependencies");
@@ -139,16 +298,107 @@ pub(crate) fn run(root: &Path, offline: bool) -> Result<(), String> {
     if offline {
         ui::warn("skipped: --offline, and the advisory database is fetched");
         ui::detail("the licence, ban and source checks read only the lockfile and still run");
-        dependencies(root, &mut failures, Audit::WhatNeedsNoNetwork);
+        dependencies(root, offline, &mut failures, Audit::WhatNeedsNoNetwork);
     } else {
-        dependencies(root, &mut failures, Audit::Everything);
+        dependencies(root, offline, &mut failures, Audit::Everything);
     }
 
     if let Err(problem) = a_step_that_did_not_run(&ui::headings()) {
         ui::failure(&problem);
         failures.push("a step did not run".to_owned());
     }
-    finish(&failures, if offline { OFFLINE_SKIPS } else { 0 })
+    finish(
+        &failures,
+        skipped_by_the_flag(offline, stack),
+        the_parts_not_applicable(stack),
+        !offline,
+    )
+}
+
+/// Downloads every package the lockfile names, before any step reads the graph.
+///
+/// **A fresh clone holds only what its first build fetched.** `cargo xtask`
+/// builds this tool and nothing else, so a package only another member needs
+/// is not on the machine yet — and `members::metadata` asks cargo for the graph
+/// with `--offline`, which then fails, and every gate scoped by the members
+/// fails after it: on a fresh runner, the formatter, clippy and rustdoc floors,
+/// the alias scope, the plugin build, and every kernel test that loads the
+/// reference plugin.
+///
+/// **In the gate and not in CI**, because CI runs what a developer runs
+/// (`NOCTUA.md §19.4`): a step in the workflow would fix CI and leave a fresh
+/// clone failing the same way.
+///
+/// **`--locked`, so it fetches exactly what the lockfile says.** Cargo refuses
+/// to change a lockfile that is behind its manifests, and checks every download
+/// against the checksum the lockfile records, so this adds nothing to the build
+/// that the lockfile does not already name.
+///
+/// **And under `--offline` it returns before reading anything**, so the fetch
+/// keeps the flag's promise of no network in the function that would break it,
+/// where a test can hold it; every other cargo the gate starts keeps it by
+/// being told so ([`cargo_command`]). Past that return it records that it ran,
+/// and the verdict holds the record against the flag, so the call handed the
+/// wrong one is a refusal in every run rather than a fetch nobody sees.
+fn the_packages_the_lockfile_names_are_here(
+    root: &Path,
+    offline: bool,
+    failures: &mut Vec<String>,
+) {
+    if offline {
+        return;
+    }
+    ui::fetched();
+    let named = std::fs::read_to_string(root.join("Cargo.lock"))
+        .map_err(|error| format!("Cargo.lock could not be read: {error}"))
+        .and_then(|text| from_a_registry(&text));
+    let named = match named {
+        Ok(named) => named,
+        Err(problem) => {
+            ui::failure(&problem);
+            failures.push("the packages the lockfile names could not be counted".to_owned());
+            return;
+        }
+    };
+    match cargo(root, &["fetch", "--locked"], offline) {
+        Ok(_) => ui::ok(&format!(
+            "cargo fetch --locked: the {named} package(s) the lockfile names from a registry \
+             are here"
+        )),
+        Err(output) => {
+            ui::failure(
+                "cargo fetch --locked could not download what the lockfile names, so every \
+                 step that reads the members fails after it",
+            );
+            for line in what_cargo_said(&output) {
+                ui::detail(line);
+            }
+            failures.push("the packages the lockfile names could not be fetched".to_owned());
+        }
+    }
+}
+
+/// How many packages a lockfile names from a registry, which is what a fetch
+/// downloads.
+///
+/// The members and the path packages are not counted: they are this tree, and
+/// nothing fetches them.
+fn from_a_registry(lockfile: &str) -> Result<usize, String> {
+    let parsed: toml::Value =
+        toml::from_str(lockfile).map_err(|error| format!("Cargo.lock is not TOML: {error}"))?;
+    let packages = parsed
+        .get("package")
+        .and_then(toml::Value::as_array)
+        .ok_or_else(|| "Cargo.lock names no package at all".to_owned())?;
+    Ok(packages
+        .iter()
+        .filter(|package| {
+            package
+                .get("source")
+                .and_then(toml::Value::as_str)
+                .is_some_and(|source| source.starts_with("registry+"))
+        })
+        .count())
 }
 
 /// Both sweeps reached every file the walk enumerated.
@@ -184,23 +434,33 @@ fn the_walk_swept_every_file(
 /// The stack's images are pinned by digest, and the digest is the tag's.
 ///
 /// Split from `wiring`, which crosses clippy's line limit with it inline.
-fn the_images_are_pinned(root: &Path, offline: bool, failures: &mut Vec<String>) {
+fn the_images_are_pinned(root: &Path, stack: Stack, failures: &mut Vec<String>) {
     // **`--offline` really skips this.** The step asks the local docker image
     // store what each pinned tag resolves to, so under the flag it announces a
     // skip, which `finish` counts and the verdict reports as a step that did
-    // not run.
+    // not run — and on a system that runs no stack it is not applicable, and
+    // says that instead.
     //
     // **And a missing tag does not make the gate red, in CI or anywhere.**
     // `judge_a_pin` does not make a missing tag a finding: a tag nobody has
     // pulled is `announced` — a `skipped:` line the verdict counts and the run
     // passes with, which is what `AGENTS.md` says. A machine that has pulled
     // neither image announces two of these and still passes.
-    if offline {
-        ui::warn("skipped: --offline, and a digest is compared against a pulled image");
-        ui::detail(
-            "CI never passes --offline. Where the comparison does run it can only answer for a tag that has been pulled, and `cargo xtask dev` does not pull one: compose resolves `tag@sha256:…` by the digest",
-        );
+    match stack {
+        Stack::Asked => {}
+        Stack::Offline => {
+            ui::warn("skipped: --offline, and a digest is compared against a pulled image");
+            ui::detail(
+                "CI never passes --offline. Where the comparison does run it can only answer for a tag that has been pulled, and `cargo xtask dev` does not pull one: compose resolves `tag@sha256:…` by the digest",
+            );
+        }
+        Stack::NotApplicable => {
+            ui::not_applicable("comparing each pinned digest against what its tag resolves to");
+        }
     }
+    // Everything below reads the files either way and asks docker only when
+    // the stack is asked.
+    let offline = !stack.asked();
     // **Called either way.** Returning here would take the pure-text rules
     // with the comparison, and those read only the files — see
     // `every_image_is_pinned`, which applies them with the flag and without it.
@@ -310,7 +570,7 @@ pub(crate) fn every_pin_was_answered_for(
 }
 
 /// The cross-repository wiring `NOCTUA.md §5.3` and `§8.6` fix.
-fn wiring(root: &Path, offline: bool, failures: &mut Vec<String>) {
+fn wiring(root: &Path, stack: Stack, failures: &mut Vec<String>) {
     match gates::manifests(root) {
         Err(problem) => {
             ui::failure(&problem);
@@ -449,7 +709,7 @@ fn wiring(root: &Path, offline: bool, failures: &mut Vec<String>) {
 
     // Every image the stack runs, pinned by digest rather than by a tag
     // whoever publishes it can repoint.
-    the_images_are_pinned(root, offline, failures);
+    the_images_are_pinned(root, stack, failures);
 
     the_formatter_config_stops_here(root, failures);
     let (_, _, _) = the_excused_lines_are_counted(root, failures);
@@ -1514,13 +1774,15 @@ fn the_record_against_the_files(
     applied: &[(i64, String, Vec<u8>)],
     on_disk: &[String],
     lost: &[String],
-    offline: bool,
+    stack: Stack,
     unreachable: bool,
     failures: &mut Vec<String>,
 ) -> Option<String> {
     let mut corroborated: Option<String> = None;
     if lost.is_empty() {
-        if offline {
+        if stack == Stack::NotApplicable {
+            ui::not_applicable("corroborating the migrations against what a database has applied");
+        } else if stack == Stack::Offline {
             // **The third thing `--offline` skips, said out loud.** Falling
             // through to the line below would report that *the database has
             // applied none* — a claim about a database this run never asked,
@@ -1618,7 +1880,7 @@ fn the_record_against_the_files(
 /// that gate is what makes this a policy rather than a habit.** It reads the
 /// migrations rather than a live database, because the moment somebody adds a
 /// table is the moment the migration is written, not the moment it is applied.
-fn bounds(root: &Path, offline: bool, failures: &mut Vec<String>) {
+fn bounds(root: &Path, stack: Stack, failures: &mut Vec<String>) {
     // **The heading before anything that can print.** The fetch below reports
     // its own failure, so with the heading after it and the stack down the
     // error would land in the gap after the previous section, under no heading
@@ -1648,7 +1910,7 @@ fn bounds(root: &Path, offline: bool, failures: &mut Vec<String>) {
     // How many migrations this database has already applied, when there is one.
     // `None` under `--offline`, where the floor falls back to the walk's own
     // count and the step says so rather than implying a check it did not make.
-    let (applied, unreachable) = applied_record(offline, failures);
+    let (applied, unreachable) = applied_record(stack, failures);
 
     // The numbering first: a migration set that cannot be applied in order is
     // one whose tables nobody will ever see.
@@ -1691,7 +1953,7 @@ fn bounds(root: &Path, offline: bool, failures: &mut Vec<String>) {
                 &applied,
                 &on_disk,
                 &lost,
-                offline,
+                stack,
                 unreachable,
                 failures,
             );
@@ -1716,8 +1978,8 @@ fn bounds(root: &Path, offline: bool, failures: &mut Vec<String>) {
                 // answered held anything.
                 how_names_resolve(
                     root,
-                    offline,
-                    Record::of(offline, unreachable, applied.is_empty()),
+                    stack,
+                    Record::of(stack, unreachable, applied.is_empty()),
                     failures,
                 );
             }
@@ -1829,6 +2091,8 @@ fn the_local_schema_is_the_listed_one(root: &Path, failures: &mut Vec<String>) {
 pub(crate) enum Record {
     /// `--offline`: the record was never asked for.
     NotAsked,
+    /// This system runs no stack, so there was no record to ask for.
+    NotApplicable,
     /// Asked for and not answered. The failure is already reported where it was
     /// asked, so these steps say only what they could not read.
     Unreachable,
@@ -1841,11 +2105,13 @@ pub(crate) enum Record {
 impl Record {
     /// The state, decided where both facts are known.
     ///
-    /// The order matters: `--offline` never asked, so it cannot have found the
-    /// database unreachable, and a database that did not answer has not
-    /// "applied none".
-    const fn of(offline: bool, unreachable: bool, nothing_applied: bool) -> Self {
-        if offline {
+    /// The order matters: a run that never asked — off Linux, or under
+    /// `--offline` — cannot have found the database unreachable, and a database
+    /// that did not answer has not "applied none".
+    const fn of(stack: Stack, unreachable: bool, nothing_applied: bool) -> Self {
+        if matches!(stack, Stack::NotApplicable) {
+            Self::NotApplicable
+        } else if matches!(stack, Stack::Offline) {
             Self::NotAsked
         } else if unreachable {
             Self::Unreachable
@@ -1863,11 +2129,8 @@ impl Record {
 /// own count and the step says so rather than implying a check it did not make.
 /// Split out of [`bounds`] only because inline it would put that function past
 /// the line limit.
-fn applied_record(
-    offline: bool,
-    failures: &mut Vec<String>,
-) -> (Vec<(i64, String, Vec<u8>)>, bool) {
-    if offline {
+fn applied_record(stack: Stack, failures: &mut Vec<String>) -> (Vec<(i64, String, Vec<u8>)>, bool) {
+    if !stack.asked() {
         return (Vec::new(), false);
     }
     match crate::database::url().and_then(|url| crate::database::applied(&url)) {
@@ -1887,7 +2150,7 @@ fn applied_record(
 ///
 /// Split out of [`bounds`] only because inline it would put that function past
 /// the line limit.
-fn how_names_resolve(root: &Path, offline: bool, record: Record, failures: &mut Vec<String>) {
+fn how_names_resolve(root: &Path, stack: Stack, record: Record, failures: &mut Vec<String>) {
     // The two halves print their counts on adjacent lines, and uncompared they
     // disagree with both `ok` — measured, `4` and `3`, with the fourth function
     // created into a schema the database half does not read. This carries the
@@ -1950,8 +2213,8 @@ fn how_names_resolve(root: &Path, offline: bool, record: Record, failures: &mut 
     }
     where_pg_temp_sits(record, declared, failures);
     the_journal_is_still_append_only(record, failures);
-    the_running_log_store_is_bounded_as_declared(root, offline, failures);
-    the_database_sorts_the_way_it_was_initialised(offline, failures);
+    the_running_log_store_is_bounded_as_declared(root, stack, failures);
+    the_database_sorts_the_way_it_was_initialised(stack, failures);
 }
 
 /// Whether a frozen `search_path` really keeps a planted name out.
@@ -2425,10 +2688,17 @@ const PROTECTIONS: [(&str, &str); 44] = [
 /// What a wrong collation costs is written beside the argument itself: `ORDER
 /// BY` returns a different answer per host, which arrives as one failing test
 /// nobody can reproduce.
-fn the_database_sorts_the_way_it_was_initialised(offline: bool, failures: &mut Vec<String>) {
-    if offline {
-        ui::warn("skipped: --offline, and how a database sorts is a property of that database");
-        return;
+fn the_database_sorts_the_way_it_was_initialised(stack: Stack, failures: &mut Vec<String>) {
+    match stack {
+        Stack::Asked => {}
+        Stack::Offline => {
+            ui::warn("skipped: --offline, and how a database sorts is a property of that database");
+            return;
+        }
+        Stack::NotApplicable => {
+            ui::not_applicable("reading how the database sorts and encodes");
+            return;
+        }
     }
     // The same shape the journal-protection step uses: the URL is resolved here
     // rather than threaded down, and a database that cannot be reached has
@@ -2832,12 +3102,19 @@ fn a_path_that_is_not_a_mount(
 /// is one the source tree cannot check by reading itself.
 fn the_running_log_store_is_bounded_as_declared(
     root: &Path,
-    offline: bool,
+    stack: Stack,
     failures: &mut Vec<String>,
 ) {
-    if offline {
-        ui::warn("skipped: --offline, and only the running log store states its own bounds");
-        return;
+    match stack {
+        Stack::Asked => {}
+        Stack::Offline => {
+            ui::warn("skipped: --offline, and only the running log store states its own bounds");
+            return;
+        }
+        Stack::NotApplicable => {
+            ui::not_applicable("reading the bounds the running log store reports");
+            return;
+        }
     }
     let port = crate::dev::setting(crate::dev::LOGS_PORT);
     let held = match crate::store::flags(&port) {
@@ -3019,6 +3296,10 @@ fn the_journal_is_still_append_only(record: Record, failures: &mut Vec<String>) 
             ui::warn("skipped: --offline, and the journal's own protections live in the database");
             return;
         }
+        Record::NotApplicable => {
+            ui::not_applicable("reading the journal's own protections, which live in the database");
+            return;
+        }
         Record::Unreachable => {
             ui::warn("skipped: no database answered, so the journal's protections were not read");
             return;
@@ -3148,6 +3429,10 @@ fn where_pg_temp_sits(record: Record, declared: usize, failures: &mut Vec<String
                 "skipped: --offline, so where `pg_temp` sits in the migrated functions' \
                  paths was not read",
             );
+            return;
+        }
+        Record::NotApplicable => {
+            ui::not_applicable("reading where `pg_temp` sits in the migrated functions' paths");
             return;
         }
         Record::Unreachable => {
@@ -5197,7 +5482,7 @@ fn the_tools_that_judge_the_whole_tree() -> Vec<(&'static str, Vec<&'static str>
 ///
 /// **The decision, not the call.** The variable's name alone is also held by
 /// the `println!` beside the guard, and the call alone is satisfied by a
-/// `let _ = std::env::var_os("NC_OFFLINE");` while the guard beneath it stands
+/// `let _ = std::env::var_os("NC_NO_STACK");` while the guard beneath it stands
 /// aside for something else entirely — measured, with a suite that fails
 /// thirty-five times reporting thirty-seven passes and a census of the call
 /// alone still saying it asks for the flag. What is looked for is the call *and
@@ -5211,13 +5496,13 @@ fn the_tools_that_judge_the_whole_tree() -> Vec<(&'static str, Vec<&'static str>
 const ANNOUNCES_NO_DATABASE: [(&str, &str, &str, usize); 5] = [
     (
         "crates/nc-journal/tests/in_postgres.rs",
-        "var_os(\"NC_OFFLINE\").is_some()",
+        "var_os(\"NC_NO_STACK\").is_some()",
         "skipped, no database",
         1,
     ),
     (
         "crates/nc-prune/tests/in_postgres.rs",
-        "var_os(\"NC_OFFLINE\").is_some()",
+        "var_os(\"NC_NO_STACK\").is_some()",
         "skipped, no database",
         1,
     ),
@@ -5226,7 +5511,7 @@ const ANNOUNCES_NO_DATABASE: [(&str, &str, &str, usize); 5] = [
     // kernel stopped in a child process over it.
     (
         "crates/nc-kernel/tests/the_decision_point.rs",
-        "var_os(\"NC_OFFLINE\").is_some()",
+        "var_os(\"NC_NO_STACK\").is_some()",
         "skipped, no database",
         1,
     ),
@@ -5239,7 +5524,7 @@ const ANNOUNCES_NO_DATABASE: [(&str, &str, &str, usize); 5] = [
     // and that is the same shape the rows above it exist for.
     (
         "xtask/tests/the_stack_enforces_the_declared_bounds.rs",
-        "var_os(\"NC_OFFLINE\").is_some()",
+        "var_os(\"NC_NO_STACK\").is_some()",
         "skipped, docker was not asked",
         1,
     ),
@@ -5251,16 +5536,45 @@ const ANNOUNCES_NO_DATABASE: [(&str, &str, &str, usize); 5] = [
     // above exist for exactly that hazard, and this file has it too.
     (
         "xtask/src/database.rs",
-        "var_os(\"NC_OFFLINE\").is_some()",
+        "var_os(\"NC_NO_STACK\").is_some()",
         "skipped, no database",
         2,
+    ),
+];
+
+/// The suites that stand aside where the system lacks what they need, and say so.
+///
+/// **The other half of [`ANNOUNCES_NO_DATABASE`].** There the gate tells a suite
+/// through `NC_NO_STACK`; here the system answers, through
+/// `nc_platform::testing`, which is the one place a system is asked what it can
+/// do (`NOCTUA.md §2.7`). Each guard says in its own output which system stood
+/// it aside and why, and the same reader counts it into the same line, so the
+/// number printed is every suite that stands aside. On Linux none of these does,
+/// which `linux_lacks_nothing_a_suite_stands_aside_for` holds in `nc-platform`,
+/// since the Linux job is the one that runs them.
+const ANNOUNCES_WHAT_THE_SYSTEM_LACKS: [(&str, &str, &str, usize); 2] = [
+    // A directory listed in the order its entries were made, without which the
+    // suite about the order on disk has two layouts in one order.
+    (
+        "crates/nc-catalog-compiler/tests/the_order_on_disk_stays_on_disk.rs",
+        "nc_platform::testing::LISTED_AS_MADE.is_none()",
+        "skipped, not applicable on",
+        1,
+    ),
+    // A POSIX shell of the system's own, which every guard of the checkout
+    // script is a claim about.
+    (
+        "xtask/src/check.rs",
+        "!nc_platform::testing::A_POSIX_SHELL",
+        "skipped, not applicable on",
+        10,
     ),
 ];
 
 /// How many of a suite's guards both ask for the flag and say so inside themselves.
 ///
 /// **Read as code, not as a file.** Needles looked for anywhere in the text let
-/// a deletion of the whole `NC_OFFLINE` arm *and* the fail-closed `panic!` —
+/// a deletion of the whole `NC_NO_STACK` arm *and* the fail-closed `panic!` —
 /// with a comment left behind saying what was there — keep this census reporting
 /// that the suite asks for the flag and says so, while it stands aside for
 /// **any** missing `DATABASE_URL`. That is a gate satisfied by a comment, and the
@@ -5283,7 +5597,7 @@ const ANNOUNCES_NO_DATABASE: [(&str, &str, &str, usize); 5] = [
 /// returning in silence under `--offline` and that census reporting four suites
 /// that say so.
 /// And a guard can keep both strings verbatim while deciding on something else
-/// entirely: `let offline = var_os("NC_OFFLINE").is_some();` beside a
+/// entirely: `let offline = var_os("NC_NO_STACK").is_some();` beside a
 /// `DATABASE_URL` check that no longer fails closed leaves 66 journal tests
 /// passing against no database at all, with that census still satisfied.
 ///
@@ -5348,7 +5662,7 @@ fn announcing_guards(text: &str, asks: &str, says: &str) -> usize {
         // **And the condition decides on this and nothing else.** A second
         // disjunct in the same condition adds no statement boundary, so under a
         // rule that looks only for one,
-        // `var_os("NC_OFFLINE").is_some() || var_os("PATH").is_some()` stands
+        // `var_os("NC_NO_STACK").is_some() || var_os("PATH").is_some()` stands
         // aside on every machine there is with the census satisfied. The span is
         // this statement or this arm — back to the nearest boundary — so a `||`
         // anywhere else in the function is not read as one here.
@@ -5465,7 +5779,30 @@ fn the_database_suites_still_stand_aside(root: &Path, failures: &mut Vec<String>
             failures.push("a database suite did not announce itself".to_owned());
         }
     }
-    if said == ANNOUNCES_NO_DATABASE.len() {
+    // **And the suites the system stands aside**, read by the same rule and
+    // counted into the same line.
+    for (named, asks, says, controls) in ANNOUNCES_WHAT_THE_SYSTEM_LACKS {
+        let Ok(text) = std::fs::read_to_string(root.join(named)) else {
+            ui::failure(&format!(
+                "{named} is a suite that stands aside where the system lacks what it \
+                 needs and it is not in this tree, so where it stands aside is unknown"
+            ));
+            failures.push("a suite the system stands aside is missing".to_owned());
+            continue;
+        };
+        let announcing = announcing_guards(&text, asks, says);
+        if announcing == controls {
+            said += 1;
+        } else {
+            ui::failure(&format!(
+                "{named} holds {announcing} guard(s) that ask what the system lacks and \
+                 say so inside the guard, and {controls} are written down — cargo counts \
+                 a test that returned early as one that passed"
+            ));
+            failures.push("a suite the system stands aside did not announce itself".to_owned());
+        }
+    }
+    if said == ANNOUNCES_NO_DATABASE.len() + ANNOUNCES_WHAT_THE_SYSTEM_LACKS.len() {
         ui::detail(&format!(
             "{said} suite(s) stand aside when what they need is absent and say so in their own output"
         ));
@@ -5537,8 +5874,37 @@ fn refuse_while_a_mutation_is_in_flight(root: &Path, failures: &mut Vec<String>)
     failures.push("a mutation is in flight".to_owned());
 }
 
+/// This running binary, moved off the name cargo links the test build's
+/// binary to, so that build may write there.
+///
+/// **On Windows a running program's file can be renamed and not removed**, and
+/// cargo removes what stands at this binary's own name before it links the
+/// test build's binary there — another binary than this one, since every
+/// member's features are unified with the test dependencies' for that build.
+/// Measured on the Windows runner: left in place, the test step stopped at
+/// `Access is denied` with nothing run. Elsewhere nothing stood in the way, and
+/// the move changes nothing this run reads.
+///
+/// **A move that fails is answered by the build that needed the name**, whose
+/// refusal is the test step's own output.
+fn step_aside_for_the_test_build() {
+    if let Ok(running) = std::env::current_exe()
+        && let Some(name) = running.file_name()
+    {
+        let mut aside = name.to_owned();
+        aside.push(".running");
+        let _answered_by_the_build = std::fs::rename(&running, running.with_file_name(aside));
+    }
+}
+
 /// Formatting, lints and tests — each run even if the one before it failed.
-fn workspace(root: &Path, database: Option<&str>, offline: bool, failures: &mut Vec<String>) {
+fn workspace(
+    root: &Path,
+    database: Option<&str>,
+    stack: Stack,
+    offline: bool,
+    failures: &mut Vec<String>,
+) {
     refuse_while_a_mutation_is_in_flight(root, failures);
     // `--locked` on everything that resolves dependencies, and the same flag is
     // in the `xtask` alias itself. Both are needed: without the flag on the
@@ -5546,7 +5912,7 @@ fn workspace(root: &Path, database: Option<&str>, offline: bool, failures: &mut 
     // starts, so the check that was supposed to catch a dirty lockfile runs
     // against one cargo had just cleaned up.
     for (label, args) in the_tools_that_judge_the_whole_tree() {
-        match cargo(root, &args) {
+        match cargo(root, &args, offline) {
             Ok(output) => match label {
                 "formatting" => the_formatting_step_read_the_whole_tree(root, &output, failures),
                 "lints" => the_lints_step_read_the_whole_tree(root, &output, failures),
@@ -5565,7 +5931,7 @@ fn workspace(root: &Path, database: Option<&str>, offline: bool, failures: &mut 
         }
     }
 
-    the_test_targets_are_documented_too(root, failures);
+    the_test_targets_are_documented_too(root, offline, failures);
 
     // **The ninth skip, and it is docker rather than the database.** `--offline`
     // promises a run that needs no stack, and
@@ -5573,13 +5939,13 @@ fn workspace(root: &Path, database: Option<&str>, offline: bool, failures: &mut 
     // `docker compose config`: measured with that unconditional and the binary
     // off `PATH`, three of its tests panic on `kind: NotFound`, so
     // `check --offline` exits 1 on a machine that has exactly what that flag
-    // says it needs. The tests read `NC_OFFLINE`, in the shape
+    // says it needs. The tests read `NC_NO_STACK`, in the shape
     // `crates/nc-journal/tests/in_postgres.rs` uses — and a test that did not
     // run must not read as one that passed, which is what this line and
-    // `OFFLINE_SKIPS` are for.
-    if offline {
-        ui::warn("skipped: --offline, and the stack's own tests ask docker what it resolves");
-    }
+    // `OFFLINE_SKIPS` are for. Off Linux the same suite, and this tool's own
+    // image-pin cases, are not applicable, and the line says that instead.
+    the_stacks_own_tests_stand_aside(stack);
+    step_aside_for_the_test_build();
     // Deliberately not `--quiet`: the count is the assertion. A suite with no
     // tests exits zero, so "tests passed" without a number is the gate
     // `NOCTUA.md §19.3` opens with — one that is green because it checked
@@ -5592,6 +5958,7 @@ fn workspace(root: &Path, database: Option<&str>, offline: bool, failures: &mut 
         root,
         &["test", "--workspace", "--locked", "--no-fail-fast"],
         database,
+        stack,
         offline,
     ) {
         Ok(output) => match tests_verdict(&output, &suites()) {
@@ -5667,7 +6034,7 @@ fn workspace(root: &Path, database: Option<&str>, offline: bool, failures: &mut 
                 // where the suites do run. What it reads is source,
                 // which is there either way.
                 the_database_suites_still_stand_aside(root, failures);
-                if offline {
+                if !stack.asked() {
                     caveats.push("the ones that need a database");
                 }
                 if workspace_above(root).is_none() {
@@ -5693,6 +6060,24 @@ fn workspace(root: &Path, database: Option<&str>, offline: bool, failures: &mut 
                 ui::detail(line);
             }
             failures.push("tests".to_owned());
+        }
+    }
+}
+
+/// What the tests that ask docker about the stack say when they do not run.
+///
+/// Its own function so a test can hand it each answer: it is one of
+/// [`THE_STACKS_PARTS`], and the census of them is driven rather than read.
+fn the_stacks_own_tests_stand_aside(stack: Stack) {
+    match stack {
+        Stack::Asked => {}
+        Stack::Offline => {
+            ui::warn("skipped: --offline, and the stack's own tests ask docker what it resolves");
+        }
+        Stack::NotApplicable => {
+            ui::not_applicable(
+                "running the stack's own tests and the image-pin cases, which ask docker what it resolves",
+            );
         }
     }
 }
@@ -5807,6 +6192,13 @@ fn the_lints_step_read_the_whole_tree(root: &Path, output: &str, failures: &mut 
 /// The path is quoted and the kind is bracketed, so the parse is anchored on
 /// both: a diff line begins `Diff in`, and a rustfmt command line begins with
 /// the program name. Neither can be mistaken for a target.
+///
+/// **Answered with `/` where it is written in Windows' spelling.** The quoted
+/// path is the path as Rust debug-prints it, so on Windows each separator
+/// arrives as an escaped backslash, and compared with `/` alone no root there
+/// is one cargo declares. A path that holds a `/` is compared as written,
+/// because a backslash in it is part of a name, as
+/// [`crate::in_windows_spelling`] measures.
 fn the_source_roots_rustfmt_reported(output: &str) -> Vec<String> {
     output
         .lines()
@@ -5816,7 +6208,13 @@ fn the_source_roots_rustfmt_reported(output: &str) -> Vec<String> {
                 return None;
             }
             let (_, rest) = line.split_once("] ")?;
-            rest.strip_prefix('"')?.strip_suffix('"').map(str::to_owned)
+            rest.strip_prefix('"')?.strip_suffix('"').map(|path| {
+                if crate::in_windows_spelling(path) {
+                    path.replace(r"\\", "/").replace('\\', "/")
+                } else {
+                    path.to_owned()
+                }
+            })
         })
         .collect()
 }
@@ -6995,9 +7393,25 @@ fn tests_verdict(output: &str, expected: &[String]) -> Result<usize, String> {
     // names a test file, a panic message, this tool's own echo of a command.
     // Measured: `Ok(400)` from an output where all four `xtask` suite names
     // appeared only inside warning text and none of them had run.
-    let announcements: Vec<&str> = output
+    // **With `/`, the separator every suite here is written with.** Cargo on
+    // Windows announces `Running tests\the_decision_point.rs`, and compared
+    // as written no suite there is ever announced. Only the suite, the part
+    // before ` (`, is compared, and its spelling is decided by the binary path
+    // inside the parentheses: cargo joins `debug`, `deps` and the binary's
+    // name onto the target directory with the system's own separator, however
+    // the target directory is spelled. A binary whose last separator is `/`
+    // was named on Unix, where a backslash in the suite is part of a name.
+    let announcements: Vec<String> = output
         .lines()
         .filter_map(|line| line.trim().strip_prefix("Running "))
+        .map(|line| {
+            let (suite, binary) = line.split_once(" (").unwrap_or((line, line));
+            if ends_in_a_backslash(binary) {
+                suite.replace('\\', "/")
+            } else {
+                suite.to_owned()
+            }
+        })
         .collect();
     let mut missing = Vec::new();
     for suite in expected {
@@ -7018,6 +7432,12 @@ fn tests_verdict(output: &str, expected: &[String]) -> Result<usize, String> {
         ));
     }
     Ok(passed)
+}
+
+/// Whether the last separator in a path cargo joined is Windows' `\`.
+fn ends_in_a_backslash(path: &str) -> bool {
+    path.rfind(['/', '\\'])
+        .is_some_and(|at| path.as_bytes()[at] == b'\\')
 }
 
 /// Every integration-test suite this repository has written, by name.
@@ -7137,7 +7557,7 @@ fn suites() -> Vec<String> {
 /// inside a function body resolves, because rustdoc does not read bodies — so a
 /// test file that documents cleanly without the self-dependency is no proof
 /// that the rest would.
-fn the_test_targets_are_documented_too(root: &Path, failures: &mut Vec<String>) {
+fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mut Vec<String>) {
     let mut documented = 0_usize;
     let mut broken: Vec<String> = Vec::new();
     for (package, file) in SUITES {
@@ -7145,6 +7565,7 @@ fn the_test_targets_are_documented_too(root: &Path, failures: &mut Vec<String>) 
         match cargo(
             root,
             &["rustdoc", "-q", "-p", package, "--test", target, "--locked"],
+            offline,
         ) {
             Ok(_) => documented += 1,
             Err(output) => {
@@ -7202,7 +7623,7 @@ fn the_test_targets_are_documented_too(root: &Path, failures: &mut Vec<String>) 
 /// `xtask/mutants.py` are where a predicate's verdict is decided. It says the
 /// guard is still there, which is the question a deletion asks.
 #[cfg(test)]
-const WHAT_THE_GATE_CAN_SAY: [&str; 818] = [
+const WHAT_THE_GATE_CAN_SAY: [&str; 849] = [
     "`{named}` was passed to `docker compose` among its arguments. The project is this checkout's and is set above; docker resolves the flag to the later of two, so the stack would come up under a name `--down` does not address",
     "what CI reaches is more than {HOPS} hops deep",
     "Cedar denies by default, so a core rule that permits widens what is allowed rather than restricting it — move it to a pack, or make it a `forbid`",
@@ -7233,6 +7654,7 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 818] = [
     ".env.example declares no variable, so the stack's settings are written down nowhere",
     ".env.example is not there, so nothing says what the stack reads",
     ".partial",
+    ".running",
     "CI names `{image}` itself instead of bringing the stack up",
     "CI never passes --offline. Where the comparison does run it can only answer for a tag that has been pulled, and `cargo xtask dev` does not pull one: compose resolves `tag@sha256:…` by the digest",
     "a mutation run is in flight, or one was killed before it restored the tree, so the operator census stood down and this run cannot speak for it",
@@ -7254,7 +7676,33 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 818] = [
     "`_sqlx_migrations` is the only thing outside this tree that remembers what was applied, and `NOCTUA.md §5.3` says there is no git here to ask instead — `cargo xtask dev` applies them",
     "`cargo metadata` did not answer in JSON: {error}",
     "`cargo metadata` did not run: {error}",
-    "`cargo metadata` failed: {}",
+    "`cargo metadata` failed: {said}",
+    "`cargo metadata` failed: {said}\nA package the lockfile names is not on this machine. `cargo fetch --locked` downloads every one of them, and `cargo xtask check` without `--offline` runs it before anything reads the graph",
+    "Cargo.lock could not be read: {error}",
+    "Cargo.lock is not TOML: {error}",
+    "Cargo.lock names no package at all",
+    "cargo fetch --locked could not download what the lockfile names, so every step that reads the members fails after it",
+    "the packages the lockfile names could not be counted",
+    "the packages the lockfile names could not be fetched",
+    "the `{job}` job runs on `{runner}`, which is not a `{family}` runner",
+    "the `{system}` job brings the stack up, and only Linux runs one",
+    "comparing each pinned digest against what its tag resolves to",
+    "corroborating the migrations against what a database has applied",
+    "reading where `pg_temp` sits in the migrated functions' paths",
+    "reading the journal's own protections, which live in the database",
+    "reading the bounds the running log store reports",
+    "reading how the database sorts and encodes",
+    "running the PostgreSQL tests against a database",
+    "running the stack's own tests and the image-pin cases, which ask docker what it resolves",
+    "the container stack, which this verb brings up and takes down",
+    "not applicable here: {part}",
+    "not run: {skip}",
+    "the parts not applicable on this system are not the ones written down for it",
+    "the packages the lockfile names were fetched under --offline, which promises no network: the fetch returns at once when it is handed the flag, so a run that reached it was handed the wrong one",
+    "the fetch ran under --offline",
+    "the packages the lockfile names were not fetched, and --offline was not passed: on a fresh clone every step that reads the members fails without that fetch, and on a machine that already holds them nothing else notices it is gone",
+    "the fetch did not run, and nothing asked it not to",
+    "{} part(s) of this run said they are not applicable on {} and {} are written down for it: {said:?}, against {inapplicable:?}. What applies is a property of the system, so the list is exact — on Linux it is empty, and a part standing aside there is a step the Linux job no longer judges",
     "`cargo metadata` listed no packages",
     "`cargo metadata` listed no packages",
     "`cargo metadata` listed no workspace member",
@@ -7337,6 +7785,8 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 818] = [
     "a crate outside nc-log depends on it and has not logged yet, so there is nothing at a call site to read",
     "a database suite did not announce itself",
     "a database suite is missing",
+    "a suite the system stands aside did not announce itself",
+    "a suite the system stands aside is missing",
     "a digest pin was neither compared nor announced",
     "a file is not a rule, and three of the seven core files hold more than one: deleting one rule from a file that keeps another moved three counts by one and left the file count unchanged. Add the id to `CORE_RULES` in xtask/src/policy.rs, or take the rule out of policy/core/",
     "a hatch with no reason",
@@ -7573,9 +8023,9 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 818] = [
     "the .env.example walk",
     "the CI workflow",
     "the `cargo xtask` alias is not there",
-    "the `check` job brings the stack up after running the gate",
-    "the `check` job brings the stack up and never runs the gate",
-    "the `check` job runs the gate without bringing the stack up",
+    "the `linux` job brings the stack up after running the gate",
+    "the `linux` job brings the stack up and never runs the gate",
+    "the `linux` job runs the gate without bringing the stack up",
     "the `deterministic` job does not reach `{step}` in the order {IN_THIS_ORDER:?}",
     "the `deterministic` job runs `{}` before its second `cargo xtask build`",
     "the `xtask` alias is a list holding something that is not a string",
@@ -7843,7 +8293,7 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 818] = [
     "the §15.1 walk",
     "the §15.1 walk",
     "the §15.1 walk",
-    "there is no `check` job to bring the stack up in",
+    "there is no `linux` job to bring the stack up in",
     "there is no git here (§5.3), so the applied record is the only thing that remembers what was there. Restore the file, or say in a new migration what replaces it",
     "there is no rustfmt.toml in this repository, so rustfmt walks up out of it looking for one",
     "these function(s) do not search `pg_temp` last, so a `CREATE TEMP TABLE` of the right name decides what they read: {}",
@@ -7909,10 +8359,12 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 818] = [
     "{judged} {subject}(s) became this gate's to judge and {reached} reached a verdict",
     "{looked} compose name(s) were looked for, and docker merges eight",
     "{named} is a suite that stands aside without a database and it is not in this tree, so what --offline skipped is unknown",
+    "{named} is a suite that stands aside where the system lacks what it needs and it is not in this tree, so where it stands aside is unknown",
     "{named} is generated and is not on disk. Run `cargo xtask build`",
     "{named} is named as generated and nothing generates it any more — delete it and take it out of GENERATED_FILES",
     "{named} is neither a file nor a directory, so this gate inspected nothing where the emitter is supposed to be",
     "{named} holds {announcing} control(s) that ask for the flag and say so inside the guard, and {controls} are written down — cargo counts a test that returned early as one that passed",
+    "{named} holds {announcing} guard(s) that ask what the system lacks and say so inside the guard, and {controls} are written down — cargo counts a test that returned early as one that passed",
     "{name} holds a version and not `{from}`, so the files already disagree",
     "{name} holds no `permit` or `forbid`, so it decides nothing",
     "{name} is listed as carrying the version and holds none. Either it stopped carrying one — take it out of CARRIES_THE_VERSION — or the line was lost, and a release now would ship a tree that disagrees with itself",
@@ -8124,6 +8576,11 @@ fn the_verdicts_the_source_can_push() -> Vec<String> {
     // bounds another reason. Pinned here, adding a skip is the same two-place
     // edit as adding a guard — and the second place is a list a reviewer reads.
     const THE_SKIP: &str = "ui::warn(";
+    // **And a part saying it does not apply on this system.** `finish` holds
+    // the parts a run prints to the list written for the system, and this holds
+    // every sentence such a line can carry, so a new one is the same two-place
+    // edit as a new skip.
+    const THE_ASIDE: &str = "ui::not_applicable(";
     let directory = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
     // **`walk`, not `read_dir`.** `ui.rs`'s own scanner holds the same rule: a
     // module written as a directory of its own, declared with a `mod` line and
@@ -8191,6 +8648,7 @@ fn the_verdicts_the_source_can_push() -> Vec<String> {
             (THE_MAPPED, ""),
             (THE_MISSING, ""),
             (THE_SKIP, ""),
+            (THE_ASIDE, ""),
             (THE_DETAIL, ""),
         ] {
             found.extend(the_sentences_after(&text, needle, after));
@@ -8923,13 +9381,7 @@ fn the_files_that_excuse_a_line(root: &Path) -> Vec<(String, String)> {
             )
         });
         if readable && let Ok(text) = std::fs::read_to_string(path) {
-            found.push((
-                path.strip_prefix(root)
-                    .unwrap_or(path)
-                    .to_string_lossy()
-                    .into_owned(),
-                text,
-            ));
+            found.push((crate::relative_to(root, path), text));
         }
     });
     found
@@ -10220,10 +10672,15 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 597] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 607] = [
     // The prefix every finding about this gate's own arithmetic carries, so the
     // three attack helpers can refuse such an answer without naming a sentence.
     "this gate's own accounting — ",
+    "cargo fetch --locked: the {named} package(s) the lockfile names from a registry are here",
+    "  {ASIDE}n/a{ASIDE:#}   {}",
+    "check passed, with {skipped} warn line(s) and {parts} not-applicable line(s) above — a step that did not run is not a step that passed, and the Linux job runs what does not apply on {}",
+    "not applicable on {SYSTEM}: {what}, and the Linux job runs it",
+    "not applicable on {}, and the Linux job runs it",
     "`--offline` skips the steps that need the stack — the database, the integration tests and the dependency audit — so whatever runs this reports a gate it did not run. It exists for a developer with no network, in a recipe whose name ends `-offline` and says so, and `check.rs` says CI never passes it",
     "`{recipe}` runs a cargo command holding `{{{{{inside}}}}}`, which this gate reads as text and cannot resolve — a variable in the body is how the gate a developer types becomes a different gate with the name and the description above it unchanged. A recipe's own parameters are declared in its header; this one is not",
     "`{recipe}` is the name a developer types and `{named}` is what this body runs. The description above it is the whole of what `just --list` prints, so a recipe that changes what it runs goes on saying what it used to do — and `check` carrying `--offline` is the smaller gate wearing the gate's name",
@@ -10594,7 +11051,11 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 597] = [
     "regexp_replace(current_setting('search_path'), ', pg_temp$', ''), false);",
     "release",
     "reserved {code} — permanently",
-    "runs `cargo xtask check`, which is the whole gate (NOCTUA.md §19.4)",
+    "runs `cargo xtask check`, which is the whole gate (NOCTUA.md §19.4), on the one system whose runner brings the stack up",
+    "runs `cargo xtask check` on macOS (NOCTUA.md §22.2), where the steps that need the stack say they are not applicable and everything else is judged",
+    "runs `cargo xtask check` on Windows (NOCTUA.md §22.2), where the steps that need the stack say they are not applicable and everything else is judged",
+    "a job named for a system is the proof that the gate passes there (NOCTUA.md §22.2), and one on another runner proves it of the wrong system with every rule here green. Run `{job}` on a `{family}…` runner",
+    "the stack runs on Linux, where the `linux` job brings it up and the gate reads it (NOCTUA.md §22.2); on macOS and Windows the gate says which of its steps are not applicable and runs the rest. Remove the `cargo xtask dev` step from this job",
     "rustc refused it at line(s) {:?}, and none of those lines uses `{}` — so the refusal this counts as proof is not the wall's",
     "rustfmt took no stdin",
     "rustfmt's configuration walk stops in this repository",
@@ -10606,6 +11067,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 597] = [
     "sharing what the house already shares needs no quorum",
     "skipped, docker was not asked",
     "skipped, no database",
+    "skipped, not applicable on",
     "something inside the walk is filtering, and a `§` in the part it skipped reads as checked. The number of citations cannot say this: its floor is zero",
     "something inside the walk is filtering, and a citation in the part it skipped reads as checked. The number of citations cannot say this: its floor is zero, and a walk that reads one file reports a number that looks like a measurement",
     "struct `Shipper` is private",
@@ -11475,9 +11937,9 @@ fn the_audit_is_not_narrowed(root: &Path, failures: &mut Vec<String>) {
 }
 
 /// The advisory and licence audit `NOCTUA.md §15.5` requires.
-fn dependencies(root: &Path, failures: &mut Vec<String>, audit: Audit) {
+fn dependencies(root: &Path, offline: bool, failures: &mut Vec<String>, audit: Audit) {
     the_audit_is_not_narrowed(root, failures);
-    match cargo(root, &audit.command()) {
+    match cargo(root, &audit.command(), offline) {
         Ok(output) => {
             // **Its warnings are reported, not swallowed.** Acceptance criterion
             // 1 is "no failures **and no warnings**", and output discarded on
@@ -11664,7 +12126,7 @@ fn report(findings: &[gates::Finding], clean: &str, subject: &str, failures: &mu
 /// process's environment — that `proptest` reads: each beginning `PROPTEST_`.
 ///
 /// **A variable this tool does not control decides what the child runs**, as
-/// `NC_OFFLINE` would: `proptest` reads `PROPTEST_CASES` over the `cases` a
+/// `NC_NO_STACK` would: `proptest` reads `PROPTEST_CASES` over the `cases` a
 /// suite's own `#![proptest_config]` writes, so exported at `0` in a shell and
 /// inherited, it would run every property suite of the gate — the model-based
 /// ones of the kernel and the local store among them — on no generated input:
@@ -11683,15 +12145,43 @@ fn unset_what_proptest_reads(
 }
 
 /// Runs cargo, returning its combined output either way.
-pub(crate) fn cargo(root: &Path, args: &[&str]) -> Result<String, String> {
-    cargo_with(root, args, None, false)
+///
+/// The run's own `--offline` is handed on as `offline`, and the child is told
+/// it in [`cargo_command`].
+pub(crate) fn cargo(root: &Path, args: &[&str], offline: bool) -> Result<String, String> {
+    cargo_with(root, args, None, Stack::Asked, offline)
 }
 
 /// The same, with `DATABASE_URL` set for the child.
+fn cargo_with(
+    root: &Path,
+    args: &[&str],
+    database: Option<&str>,
+    stack: Stack,
+    offline: bool,
+) -> Result<String, String> {
+    let output = cargo_command(root, args, database, stack, offline)
+        .output()
+        .map_err(|error| format!("could not run cargo {}: {error}", args.join(" ")))?;
+    let mut combined = String::from_utf8_lossy(&output.stdout).into_owned();
+    combined.push_str(&String::from_utf8_lossy(&output.stderr));
+    if output.status.success() {
+        Ok(combined)
+    } else {
+        Err(combined)
+    }
+}
+
+/// Every cargo the gate starts through [`cargo`] and [`cargo_with`], built and
+/// not yet run.
 ///
-/// **Set by the gate rather than left to the environment.** The integration
-/// tests refuse to run without it, so a developer with no variable exported
-/// would get a suite that either skipped or failed for the wrong reason.
+/// **Its own function so a test reads what the child is given**, from the
+/// command itself, without starting one.
+///
+/// **`DATABASE_URL` is set by the gate rather than left to the environment.**
+/// The integration tests refuse to run without it, so a developer with no
+/// variable exported would get a suite that either skipped or failed for the
+/// wrong reason.
 ///
 /// **And removed before it is set**, which is what makes the line below
 /// load-bearing rather than decorative. Without the removal the child inherits
@@ -11701,18 +12191,42 @@ pub(crate) fn cargo(root: &Path, args: &[&str]) -> Result<String, String> {
 /// claim matters.
 /// It also means the tests run against the url this gate actually probed and
 /// found listening, never against one somebody exported last week.
-fn cargo_with(
+///
+/// **Under `--offline` the child is told to stay off the network**, in
+/// `CARGO_NET_OFFLINE`, cargo's own name for `net.offline`. The flag is this
+/// tool's and not cargo's, so a child told nothing downloads whatever package
+/// the machine lacks — the formatter, clippy, rustdoc, the tests and the audit
+/// alike, and on a fresh clone that is every package they build. Told, it fails
+/// instead, after the graph has already failed naming `cargo fetch --locked` as
+/// the fix. Measured with an empty cargo home and no network: told nothing, the
+/// lint step printed `Updating crates.io index` and retried the connection for
+/// three minutes, and the documentation step was still retrying when the run
+/// was stopped; told, the whole `check --offline` ended in 25 seconds, every
+/// cargo step failing in cargo's own words: a package not found, and
+/// `offline mode`.
+///
+/// Decided by the flag and never by [`Stack`], which off Linux is
+/// `NotApplicable` with the flag or without. Without the flag nothing is set or
+/// removed, and the child starts as it always did. The graph
+/// (`members::metadata`), the wall's fixtures and the plugin build pass cargo
+/// `--offline` of their own as well, and of those three only the plugin build
+/// comes through here.
+fn cargo_command(
     root: &Path,
     args: &[&str],
     database: Option<&str>,
+    stack: Stack,
     offline: bool,
-) -> Result<String, String> {
+) -> Command {
     let program = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned());
     #[expect(
         clippy::disallowed_methods,
         reason = "a tool this gate drives; its output is read, not printed"
     )]
     let mut command = Command::new(program);
+    if offline {
+        command.env("CARGO_NET_OFFLINE", "true");
+    }
     command.env_remove("DATABASE_URL");
     // **Handed to this child, not exported.** `cargo doc` has no `-- -D
     // warnings`; rustdoc takes its deny through `RUSTDOCFLAGS`, and this
@@ -11752,8 +12266,12 @@ fn cargo_with(
     // so. Deriving it from `database.is_none()` would make cutting the line
     // above indistinguishable from `--offline` — which is the very hole this
     // exists to close, since a skipped test still counts as passed.
-    if offline {
-        command.env("NC_OFFLINE", "1");
+    //
+    // **And the value is the reason**, so a suite standing aside says in its
+    // own output whether it was asked to (`--offline`) or is not applicable on
+    // this system.
+    if let Some(why) = stack.told() {
+        command.env("NC_NO_STACK", why);
     } else {
         // **And removed when it was not asked for**, the way `DATABASE_URL` is
         // three lines up and for the same reason: a variable this tool does not
@@ -11764,21 +12282,11 @@ fn cargo_with(
         // `ok 1337 test(s)` printed over a run that asked docker nothing.
         // Asking for a skip is `--offline`; inheriting one is the hole
         // `--offline` exists to close.
-        command.env_remove("NC_OFFLINE");
+        command.env_remove("NC_NO_STACK");
     }
     unset_what_proptest_reads(&mut command, std::env::vars_os().map(|(name, _)| name));
-    let output = command
-        .args(args)
-        .current_dir(root)
-        .output()
-        .map_err(|error| format!("could not run cargo {}: {error}", args.join(" ")))?;
-    let mut combined = String::from_utf8_lossy(&output.stdout).into_owned();
-    combined.push_str(&String::from_utf8_lossy(&output.stderr));
-    if output.status.success() {
-        Ok(combined)
-    } else {
-        Err(combined)
-    }
+    command.args(args).current_dir(root);
+    command
 }
 
 /// The complaint, if the steps this run opened are not the ones written down.
@@ -11946,9 +12454,21 @@ const STEPS: [&str; 10] = [
     "dependencies",
 ];
 
-fn finish(failures: &[String], announced: usize) -> Result<(), String> {
+/// The verdict: whether anything failed, and whether what stood aside is what
+/// was meant to.
+///
+/// `announced` is how many steps `--offline` skips on this system, and the
+/// parts a run here says do not apply are `inapplicable` — none on Linux.
+/// `to_fetch` is whether the run was to fetch the packages the lockfile names,
+/// which is every run not under `--offline`.
+fn finish(
+    failures: &[String],
+    announced: usize,
+    inapplicable: &[&str],
+    to_fetch: bool,
+) -> Result<(), String> {
     // **Taken before this function prints anything of its own.** What the rule
-    // below is about is error lines a *step* printed; the two refusals in this
+    // below is about is error lines a *step* printed; the refusals in this
     // function print their own and record them in the same breath, so counting
     // those would make the rule true of itself.
     let printed = ui::failures();
@@ -11993,6 +12513,29 @@ fn finish(failures: &[String], announced: usize) -> Result<(), String> {
         ));
         return Err("a step the flag skips stopped announcing it".to_owned());
     }
+    // **And what does not apply on this system is exactly what was written for
+    // it.** On Linux that is nothing: every step runs there, and a part saying
+    // not applicable on Linux is a step the Linux job no longer judges — acceptance
+    // criterion 2's whole subject — with every other line of the run green.
+    // Elsewhere it is every part that needs the stack, in order, so a part that
+    // stopped saying so reads as a part that ran.
+    let said = ui::not_applicable_parts();
+    if said != inapplicable {
+        ui::failure(&format!(
+            "{} part(s) of this run said they are not applicable on {} and {} are \
+             written down for it: {said:?}, against {inapplicable:?}. What applies is a \
+             property of the system, so the list is exact — on Linux it is empty, and a \
+             part standing aside there is a step the Linux job no longer judges",
+            said.len(),
+            ui::SYSTEM,
+            inapplicable.len()
+        ));
+        return Err(
+            "the parts not applicable on this system are not the ones written down for it"
+                .to_owned(),
+        );
+    }
+    the_fetch_did_what_it_was_asked(to_fetch)?;
     // **Reported whether or not something else failed.** Inside
     // `failures.is_empty()`, an unexplained warning would be invisible on any
     // run that also had a failure — which is every run a developer is in the
@@ -12041,9 +12584,9 @@ fn finish(failures: &[String], announced: usize) -> Result<(), String> {
         // gate in the suite checked nothing end in the same three words as one
         // in which everything ran. `ui::warnings` is the count; the words stay so
         // that anything reading for them still finds them.
-        match ui::warnings() {
-            0 => ui::heading("check passed"),
-            skipped => {
+        match (ui::warnings(), said.len()) {
+            (0, 0) => ui::heading("check passed"),
+            (skipped, 0) => {
                 ui::heading(&format!(
                     "check passed, with {skipped} warn line(s) above — a step that did not \
                      run is not a step that passed"
@@ -12060,11 +12603,59 @@ fn finish(failures: &[String], announced: usize) -> Result<(), String> {
                     ui::detail(&format!("not run: {skip}"));
                 }
             }
+            // **And what does not apply here, named the same way.** A macOS or
+            // Windows run that ended `check passed` over the stack's steps with
+            // nothing beside the verdict would read as one that ran them.
+            (skipped, parts) => {
+                ui::heading(&format!(
+                    "check passed, with {skipped} warn line(s) and {parts} not-applicable \
+                     line(s) above — a step that did not run is not a step that passed, and \
+                     the Linux job runs what does not apply on {}",
+                    ui::SYSTEM
+                ));
+                for skip in ui::announced() {
+                    ui::detail(&format!("not run: {skip}"));
+                }
+                for part in &said {
+                    ui::detail(&format!("not applicable here: {part}"));
+                }
+            }
         }
         Ok(())
     } else {
         Err(format!("check failed: {}", failures.join(", ")))
     }
+}
+
+/// The fetch ran exactly where the network may be used.
+///
+/// **What a whole run barely shows.** On a machine that already holds every
+/// package, a fetch brings down nothing and prints one `ok` line, so a run that
+/// fetched under `--offline` and one that never fetched without it differ from
+/// runs that got it right only by that line, there or missing, and no step
+/// reads it. The first breaks the flag's one promise; the second is a fresh
+/// clone failing every step that reads the members again, seen only there. The
+/// fetch records that it ran, and this holds the record to the flag.
+fn the_fetch_did_what_it_was_asked(to_fetch: bool) -> Result<(), String> {
+    let fetched = ui::the_fetch_ran();
+    if fetched && !to_fetch {
+        ui::failure(
+            "the packages the lockfile names were fetched under --offline, which promises \
+             no network: the fetch returns at once when it is handed the flag, so a run \
+             that reached it was handed the wrong one",
+        );
+        return Err("the fetch ran under --offline".to_owned());
+    }
+    if to_fetch && !fetched {
+        ui::failure(
+            "the packages the lockfile names were not fetched, and --offline was not \
+             passed: on a fresh clone every step that reads the members fails without \
+             that fetch, and on a machine that already holds them nothing else notices \
+             it is gone",
+        );
+        return Err("the fetch did not run, and nothing asked it not to".to_owned());
+    }
+    Ok(())
 }
 
 // **Where this file's tests begin.** The spacing gate reads a file's source
@@ -12158,6 +12749,111 @@ mod tests {
 
     fn root() -> &'static Path {
         Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."))
+    }
+
+    /// The fetch counts what it downloads: a registry's packages, not the
+    /// members or a path package, and a lockfile it cannot read is said.
+    #[test]
+    fn the_fetch_counts_what_a_registry_gives_and_nothing_else() {
+        let lockfile = "version = 4\n\n[[package]]\nname = \"nc-ids\"\nversion = \"0.1.0\"\n\n\
+                        [[package]]\nname = \"toml\"\nversion = \"1.0.0\"\nsource = \
+                        \"registry+https://github.com/rust-lang/crates.io-index\"\n\n\
+                        [[package]]\nname = \"near\"\nversion = \"0.1.0\"\nsource = \
+                        \"git+https://example.invalid/near\"\n";
+        assert_eq!(super::from_a_registry(lockfile), Ok(1));
+        assert!(
+            super::from_a_registry("version = 4\n").is_err(),
+            "a lockfile naming no package was counted as one naming none from a registry"
+        );
+        assert!(super::from_a_registry("[[package").is_err());
+        // And the tree's own, which names hundreds.
+        let ours = std::fs::read_to_string(root().join("Cargo.lock")).expect("the lockfile");
+        assert!(
+            super::from_a_registry(&ours).is_ok_and(|named| named > 100),
+            "this tree's lockfile was read as naming almost nothing from a registry"
+        );
+    }
+
+    /// The fetch runs without `--offline` and does nothing at all with it.
+    ///
+    /// **Both halves, over a root with no lockfile**, so neither reaches the
+    /// network: the first thing the fetch does is read `Cargo.lock`, and a
+    /// root without one fails there. Without the flag that failure is the
+    /// proof the fetch ran; with it, no failure and no line is the proof it
+    /// did not. On a machine that already holds every package, a fetch under
+    /// `--offline` changes a whole run only by the fetch's own `ok` line, which
+    /// no step reads: this holds the function and the record it leaves, and
+    /// `the_verdict_holds_the_fetch_to_the_flag` holds the verdict that reads
+    /// the record.
+    #[test]
+    fn the_fetch_runs_only_where_the_network_may_be_used() {
+        let held = super::LeavesNothingBehind::new("fetch");
+        let _printing = crate::ui::printing();
+        ui::forget_counts();
+        let mut failures = Vec::new();
+        super::the_packages_the_lockfile_names_are_here(&held.root, true, &mut failures);
+        assert!(
+            failures.is_empty() && ui::failures() == 0,
+            "under --offline the fetch read the lockfile, which is the first thing it does \
+             before it reaches the network: {failures:?}"
+        );
+        assert!(
+            !ui::the_fetch_ran(),
+            "under --offline the fetch recorded that it ran, so the verdict refuses every \
+             run under the flag"
+        );
+        super::the_packages_the_lockfile_names_are_here(&held.root, false, &mut failures);
+        assert_eq!(
+            failures,
+            ["the packages the lockfile names could not be counted"],
+            "without --offline the fetch did not run"
+        );
+        assert_eq!(ui::failures(), 1, "the fetch failed without saying so");
+        assert!(
+            ui::the_fetch_ran(),
+            "without --offline the fetch ran and left no record, so the verdict refuses \
+             every run without the flag"
+        );
+        ui::forget_counts();
+    }
+
+    /// The verdict holds what the fetch did to what the run was asked.
+    ///
+    /// **Both refusals and both passes.** The fetch's call in `run` is one
+    /// token from being handed the wrong flag, and on a machine that already
+    /// holds every package only the fetch's own `ok` line, there or missing,
+    /// would show it, and no step reads that line: under `--offline` it reaches
+    /// the network, and without it a fresh clone fails every step that reads
+    /// the members. The verdict reads the record the fetch leaves, so either is
+    /// a refusal in every run.
+    #[test]
+    fn the_verdict_holds_the_fetch_to_the_flag() {
+        let _printing = crate::ui::printing();
+        ui::forget_counts();
+        let refusal = finish(&[], 0, &[], true);
+        assert!(
+            refusal
+                .as_ref()
+                .is_err_and(|why| why.contains("the fetch did not run")),
+            "a run without --offline that never fetched was accepted: {refusal:?}"
+        );
+        ui::forget_counts();
+        ui::fetched();
+        let refusal = finish(&[], 0, &[], false);
+        assert!(
+            refusal
+                .as_ref()
+                .is_err_and(|why| why.contains("the fetch ran under --offline")),
+            "a run under --offline that fetched was accepted: {refusal:?}"
+        );
+        // And the two that did what they were asked pass, or the rule would
+        // refuse every run.
+        ui::forget_counts();
+        ui::fetched();
+        finish(&[], 0, &[], true).expect("a run that fetched without the flag was refused");
+        ui::forget_counts();
+        finish(&[], 0, &[], false).expect("a run under the flag that fetched nothing was refused");
+        ui::forget_counts();
     }
 
     /// Whether this line declares the function `signature` names.
@@ -12705,12 +13401,7 @@ mod tests {
             }
             let text = std::fs::read_to_string(path).unwrap_or_default();
             if text.lines().any(|line| a_line_declares(line, DECLARED)) {
-                declared.push(
-                    path.strip_prefix(root())
-                        .unwrap_or(path)
-                        .to_string_lossy()
-                        .into_owned(),
-                );
+                declared.push(crate::relative_to(root(), path));
             }
         })
         .expect("the tree can be walked");
@@ -14294,7 +14985,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         // changed bytes under one placed above the tree, with both determinism
         // gates still green.
         let mut failures = Vec::new();
-        wiring(&scratch, false, &mut failures);
+        wiring(&scratch, super::Stack::Asked, &mut failures);
         assert!(
             failures.iter().any(|failure| failure.contains("rustfmt")),
             "the formatter-configuration gate is not called from the step that owns it: \
@@ -14308,7 +14999,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         let held = std::fs::read_to_string(&unreadable).expect("written above");
         std::fs::remove_dir_all(scratch.join("crates")).expect("removable");
         let mut failures = Vec::new();
-        wiring(&scratch, false, &mut failures);
+        wiring(&scratch, super::Stack::Asked, &mut failures);
         assert!(
             failures.iter().any(|failure| failure.contains("census")),
             "the marker census is not called from the step that owns it: {failures:?}"
@@ -14321,7 +15012,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         // Through `wiring`, which is the step that owns it — calling
         // `settings_are_read` directly would pass with its call site deleted.
         let mut failures = Vec::new();
-        wiring(&scratch, false, &mut failures);
+        wiring(&scratch, super::Stack::Asked, &mut failures);
         assert!(
             failures
                 .iter()
@@ -14405,6 +15096,164 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         }
     }
 
+    /// On Linux nothing is not applicable, whatever the flag, and elsewhere
+    /// every part of the stack is.
+    ///
+    /// **Acceptance criterion 2 is that Linux judges the same steps as before**,
+    /// and this is that, held where it is decided: no answer this tree can give
+    /// on Linux makes a part stand aside as not applicable, so the list of such
+    /// parts a Linux run is held to is empty. `--offline` still skips there,
+    /// and says `skipped:`, which is the flag and not the system.
+    #[test]
+    fn nothing_is_not_applicable_on_linux() {
+        use super::{Stack, THE_STACKS_PARTS, skipped_by_the_flag, the_parts_not_applicable};
+        assert_eq!(Stack::of(false, true), Stack::Asked);
+        assert_eq!(Stack::of(true, true), Stack::Offline);
+        for offline in [false, true] {
+            assert_eq!(Stack::of(offline, false), Stack::NotApplicable);
+            assert!(
+                the_parts_not_applicable(Stack::of(offline, true)).is_empty(),
+                "a system that runs the stack has a part written down as not applicable \
+                 there, with --offline {offline}"
+            );
+            assert_eq!(
+                the_parts_not_applicable(Stack::of(offline, false)),
+                THE_STACKS_PARTS
+            );
+        }
+        if cfg!(target_os = "linux") {
+            for offline in [false, true] {
+                assert!(
+                    the_parts_not_applicable(Stack::here(offline)).is_empty(),
+                    "a Linux run with --offline {offline} would stand a part aside as not \
+                     applicable, which is a step the Linux job no longer judges"
+                );
+            }
+            // **And the gate's own tests that ask docker.** They stand aside
+            // through `docker_stands_aside` rather than through the flag, so
+            // neither the census of suites nor the list above reads them, and
+            // one that returned early here would be counted by cargo as passed.
+            assert!(
+                super::docker_stands_aside("probe").is_none(),
+                "a test that asks docker would stand aside on Linux and still count as \
+                 passed, which is a step the Linux job no longer judges"
+            );
+        } else {
+            assert!(
+                super::docker_stands_aside("probe")
+                    .is_some_and(|why| why.contains("not applicable on")),
+                "a test that asks docker would ask it on a system that runs no stack"
+            );
+        }
+        // And what the flag announces is the same nine on a system that runs
+        // the stack and only the advisory database's on one that does not.
+        assert_eq!(skipped_by_the_flag(false, Stack::Asked), 0);
+        assert_eq!(
+            skipped_by_the_flag(true, Stack::Offline),
+            super::OFFLINE_SKIPS
+        );
+        assert_eq!(skipped_by_the_flag(false, Stack::NotApplicable), 0);
+        assert_eq!(skipped_by_the_flag(true, Stack::NotApplicable), 1);
+    }
+
+    /// Every part of the stack says it is not applicable when it is handed that
+    /// answer, in the order the run reaches it, and says it was skipped when it
+    /// is handed `--offline`.
+    ///
+    /// **Driven, so the written list is the printed one.** Each part writes its
+    /// sentence where it stands aside and [`super::THE_STACKS_PARTS`] writes it
+    /// again for the verdict; this is what holds the two copies to each other,
+    /// over the real tree's record limits, the image step, the database step
+    /// and the stack's own tests. Nothing here asks docker or a database: that
+    /// is the property under test.
+    #[test]
+    fn every_part_of_the_stack_says_why_it_stands_aside() {
+        use super::{Stack, THE_STACKS_PARTS};
+        let _printing = crate::ui::printing();
+        for (stack, parts, skips) in [
+            (Stack::NotApplicable, &THE_STACKS_PARTS[..], 0),
+            (Stack::Offline, &[][..], THE_STACKS_PARTS.len()),
+        ] {
+            ui::forget_counts();
+            let mut failures = Vec::new();
+            super::the_images_are_pinned(root(), stack, &mut failures);
+            bounds(root(), stack, &mut failures);
+            assert!(
+                crate::database::report(stack, &mut failures).is_none(),
+                "a run that does not ask the stack was handed a database"
+            );
+            super::the_stacks_own_tests_stand_aside(stack);
+            assert_eq!(
+                ui::not_applicable_parts(),
+                parts,
+                "with {stack:?}, the parts that said they are not applicable are not the \
+                 ones the verdict is held to"
+            );
+            assert_eq!(
+                ui::skips_because("--offline"),
+                skips,
+                "with {stack:?}, the parts that said `--offline` skipped them are not every \
+                 part of the stack"
+            );
+            assert!(
+                failures.is_empty(),
+                "with {stack:?}, a part that stood aside also failed: {failures:?}"
+            );
+        }
+        ui::forget_counts();
+    }
+
+    /// The verdict takes not-applicable lines only where they are written down,
+    /// and names each one beside the pass.
+    #[test]
+    fn a_part_not_applicable_passes_only_where_it_is_written_down() {
+        use super::THE_STACKS_PARTS;
+        let _printing = crate::ui::printing();
+        ui::forget_counts();
+        for part in THE_STACKS_PARTS {
+            ui::not_applicable(part);
+        }
+        assert!(
+            finish(&[], 0, &THE_STACKS_PARTS, false).is_ok(),
+            "every part of the stack said it does not apply, as written down for a system \
+             that runs no stack, and the run was refused"
+        );
+        // **The Linux case.** Written down for Linux, nothing is not applicable,
+        // so the same lines are a refusal.
+        let refusal = finish(&[], 0, &[], false);
+        assert!(
+            refusal
+                .as_ref()
+                .is_err_and(|why| why.contains("not the ones written down")),
+            "a part said it does not apply on a system where every step runs, and the \
+             run was accepted: {refusal:?}"
+        );
+        // And one part fewer than written is a part that stopped saying so.
+        ui::forget_counts();
+        for part in &THE_STACKS_PARTS[1..] {
+            ui::not_applicable(part);
+        }
+        assert!(
+            finish(&[], 0, &THE_STACKS_PARTS, false).is_err(),
+            "a part stopped saying it does not apply and the run was accepted"
+        );
+        ui::forget_counts();
+    }
+
+    /// What a child is told about the stack is the reason, or nothing.
+    #[test]
+    fn a_child_is_told_why_the_stack_stands_aside() {
+        use super::Stack;
+        assert_eq!(Stack::Asked.told(), None);
+        assert_eq!(Stack::Offline.told().as_deref(), Some("--offline"));
+        assert!(
+            Stack::NotApplicable
+                .told()
+                .is_some_and(|why| why.starts_with("not applicable on ")),
+            "a suite standing aside off Linux would say nothing about why"
+        );
+    }
+
     /// The verdict says how many `warn` lines a run printed.
     ///
     /// **This holds the line.** It exists once in the tree — the string itself
@@ -14440,11 +15289,32 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         // checkout, where five steps correctly announce what that environment
         // cannot answer: four that there is no workspace above the repository,
         // and one that there is no sibling design system beside it.
+        //
+        // **From nothing, and asserted by what it says.** `finish` refuses for
+        // three things before it reads the warnings — a flag count that moved,
+        // a part standing aside, a fetch the run was not asked for — and each
+        // reads a record another test can leave behind. Behind an `is_err`
+        // alone, this rule can be switched off: measured, with
+        // `unexplained > 0` planted as never true and this run beside a test
+        // that left one not-applicable part recorded, at `--test-threads=2`,
+        // 11 of 40 runs passed. Forgotten under the hold, the run holds this
+        // probe alone.
+        ui::forget_counts();
+        ui::warn("a probe line, counted by the verdict");
+        let refusal = finish(&[], 0, &[], false);
         assert!(
-            finish(&[], 0).is_err(),
-            "a warn line that is not a skip passed the run"
+            refusal
+                .as_ref()
+                .is_err_and(|why| why.contains("a step was skipped without being asked to be")),
+            "a warn line that is not a skip passed the run: {refusal:?}"
         );
-        assert!(finish(&["something".to_owned()], 0).is_err());
+        ui::forget_counts();
+        let refusal = finish(&["something".to_owned()], 0, &[], false);
+        assert_eq!(
+            refusal,
+            Err("check failed: something".to_owned()),
+            "a step that recorded a failure was not refused for it alone"
+        );
         // And a skip does pass, which is the floor: a rule that failed on every
         // warning would make `--offline` and a bare checkout impossible to run.
         //
@@ -14497,7 +15367,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         // `--offline` skips than the constant is a step that stopped saying it
         // did not run, which a reader takes as a step that ran.
         let asked = ui::skips_because("--offline");
-        let refusal = finish(&[], asked + 1);
+        let refusal = finish(&[], asked + 1, &[], false);
         assert!(
             refusal
                 .as_ref()
@@ -15141,7 +16011,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         // Nothing printed and nothing recorded is the ordinary passing run, and
         // it has to stay one or the rule below would fail every green check.
         ui::forget_counts();
-        finish(&[], 0).expect("a run that printed nothing and recorded nothing passed");
+        finish(&[], 0, &[], false).expect("a run that printed nothing and recorded nothing passed");
 
         // An error line, and no step recorded it: the shape a redirected wire
         // produces.
@@ -15152,7 +16022,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
             1,
             "an error line was printed and the verdict would not have counted it"
         );
-        let refusal = finish(&[], 0);
+        let refusal = finish(&[], 0, &[], false);
         assert!(
             refusal
                 .as_ref()
@@ -15166,7 +16036,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         // failure would be reported as a broken wire.
         ui::forget_counts();
         ui::failure("a probe error line, recorded by the step that printed it");
-        let recorded = finish(&["the policy pack disagrees".to_owned()], 0);
+        let recorded = finish(&["the policy pack disagrees".to_owned()], 0, &[], false);
         assert!(
             recorded
                 .as_ref()
@@ -15232,7 +16102,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 
         // And the real manifest, or the assertions above are about a shape
         // nothing here is written in.
-        assert_eq!(members_of(root()), 15);
+        assert_eq!(members_of(root()), 16);
 
         // **Zero when cargo cannot say**, rather than a number invented from a
         // tree that is not a workspace; the caller reads the members itself and
@@ -15262,7 +16132,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         let scratch = held.root.clone();
 
         let mut failures = Vec::new();
-        wiring(&scratch, false, &mut failures);
+        wiring(&scratch, super::Stack::Asked, &mut failures);
         assert!(
             failures.contains(&"the manifest walk found nothing".to_owned()),
             "a tree with no manifest passed the wiring gates: {failures:?}"
@@ -15286,7 +16156,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         let mut failures = Vec::new();
         // `true`, so the floor does not reach for a database this scratch tree
         // has nothing to do with — what is under test is the empty walk.
-        bounds(&scratch, true, &mut failures);
+        bounds(&scratch, super::Stack::Offline, &mut failures);
         assert!(
             failures.contains(&"the migration walk found no table".to_owned()),
             "an empty migrations directory passed the unbounded-table gate: {failures:?}"
@@ -15421,7 +16291,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     /// against — four sets compared with a set the same call produces. A bound
     /// under it shrinks with the run it is judging, which is the shape this
     /// table exists to refuse.
-    const SOURCE_ROOTS: [(&str, usize); 15] = [
+    const SOURCE_ROOTS: [(&str, usize); 16] = [
         ("nc-authz", 2),
         ("nc-canon", 2),
         ("nc-catalog", 2),
@@ -15432,6 +16302,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         ("nc-kernel", 11),
         ("nc-local", 3),
         ("nc-log", 2),
+        ("nc-platform", 1),
         ("nc-plugin-reference", 1),
         ("nc-policy", 3),
         ("nc-prune", 3),
@@ -16300,6 +17171,39 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         let gone = tests_verdict(ran, &["tests/in_postgres.rs".to_owned()])
             .expect_err("a suite that never ran is not a pass");
         assert!(gone.contains("tests/in_postgres.rs"), "{gone}");
+        // And as cargo announces it on Windows.
+        let on_windows = "     Running tests\\tampering.rs (target\\debug\\deps\\tampering-1.exe)\n\
+                          test result: ok. 19 passed; 0 failed;\n";
+        assert_eq!(
+            tests_verdict(on_windows, &["tests/tampering.rs".to_owned()]),
+            Ok(19),
+            "a suite announced with Windows' separator was read as one that did not run"
+        );
+        // And in a line that holds a `/`, a backslash is part of a name: a file
+        // named with one is not the suite.
+        let apart = "     Running tests\\tampering.rs (target/debug/deps/tampering-1)\n\
+                     test result: ok. 19 passed; 0 failed;\n";
+        assert!(
+            tests_verdict(apart, &["tests/tampering.rs".to_owned()]).is_err(),
+            "a file whose name holds a backslash was read as the suite it spells"
+        );
+        // And a target directory spelled with `/` on Windows, which cargo
+        // extends with `\`: the line holds both separators, and the binary's
+        // last one is the system's.
+        for binary in [
+            "C:/t\\debug\\deps\\tampering-1.exe",
+            "target/win\\debug\\deps\\tampering-1.exe",
+        ] {
+            let mixed = format!(
+                "     Running tests\\tampering.rs ({binary})\n\
+                 test result: ok. 19 passed; 0 failed;\n"
+            );
+            assert_eq!(
+                tests_verdict(&mixed, &["tests/tampering.rs".to_owned()]),
+                Ok(19),
+                "a suite under a target directory spelled `{binary}` was read as one that did not run"
+            );
+        }
 
         // **And a name two crates share has to be announced twice.** Asked
         // only whether a name was announced, one crate announcing a shared file
@@ -16912,7 +17816,7 @@ mod the_frozen_path_rule {
     /// The name is the item's, not its line, so the list survives every edit
     /// above it.
     #[cfg(test)]
-    const UNDOCUMENTED: [&str; 79] = [
+    const UNDOCUMENTED: [&str; 78] = [
         "nc-canon/lib.rs:deep_values",
         "nc-canon/lib.rs:digit",
         "nc-canon/lib.rs:messages_are_one_line",
@@ -16977,7 +17881,6 @@ mod the_frozen_path_rule {
         "nc-policy/lib.rs:request_for",
         "nc-policy/value.rs:table_to_cedar",
         "xtask/check.rs:PROTECTIONS",
-        "xtask/check.rs:finish",
         "xtask/dev.rs:unavailable",
         "xtask/main.rs:Cli",
         "xtask/main.rs:Command",
@@ -17421,7 +18324,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 143] = [
+    const DOCUMENTED: [(&str, usize, usize); 147] = [
         ("nc-authz/directory.rs", 28, 13),
         ("nc-authz/embedded.rs", 12, 4),
         ("nc-authz/lib.rs", 30, 19),
@@ -17440,7 +18343,7 @@ mod the_frozen_path_rule {
         ("nc-catalog-compiler/the_gates_fire.rs", 65, 93),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
-            8,
+            13,
             2,
         ),
         ("nc-catalog/capabilities.rs", 7, 1),
@@ -17473,7 +18376,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/activation.rs", 23, 67),
         ("nc-kernel/backend.rs", 35, 38),
         ("nc-kernel/bindings.rs", 34, 8),
-        ("nc-kernel/blobs.rs", 70, 52),
+        ("nc-kernel/blobs.rs", 69, 52),
         ("nc-kernel/both_stores_answer_alike.rs", 51, 21),
         ("nc-kernel/built.rs", 7, 7),
         ("nc-kernel/builtin.rs", 35, 13),
@@ -17514,16 +18417,20 @@ mod the_frozen_path_rule {
         ("nc-kernel/where_a_blob_is.rs", 40, 36),
         ("nc-kernel/world.rs", 4, 1),
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 52, 15),
-        ("nc-local/lib.rs", 11, 8),
-        ("nc-local/open.rs", 30, 6),
-        ("nc-local/opening_refuses_what_it_did_not_make.rs", 58, 5),
+        ("nc-local/lib.rs", 12, 8),
+        ("nc-local/open.rs", 19, 6),
+        ("nc-local/opening_refuses_what_it_did_not_make.rs", 62, 4),
         ("nc-local/schema.rs", 23, 2),
         ("nc-local/store.rs", 82, 12),
         ("nc-log/events.rs", 22, 110),
         ("nc-log/every_event_reaches_the_store.rs", 4, 1),
         ("nc-log/lib.rs", 19, 25),
-        ("nc-log/ship.rs", 105, 50),
+        ("nc-log/ship.rs", 106, 50),
         ("nc-log/value.rs", 18, 36),
+        ("nc-platform/lib.rs", 42, 21),
+        ("nc-platform/testing.rs", 26, 1),
+        ("nc-platform/unix.rs", 46, 2),
+        ("nc-platform/windows.rs", 84, 11),
         ("nc-policy/an_entity_type_is_a_name_cedar_parses.rs", 7, 3),
         ("nc-policy/cases.rs", 10, 13),
         ("nc-policy/lib.rs", 103, 20),
@@ -17544,19 +18451,19 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 606, 55),
+        ("xtask/check.rs", 642, 56),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 44, 29),
         ("xtask/database.rs", 29, 6),
         ("xtask/determinism.rs", 29, 11),
-        ("xtask/dev.rs", 57, 8),
+        ("xtask/dev.rs", 60, 8),
         ("xtask/docs.rs", 8, 1),
         ("xtask/every_generated_value_is_compared.rs", 30, 8),
-        ("xtask/gates.rs", 213, 33),
+        ("xtask/gates.rs", 219, 33),
         ("xtask/limits.rs", 176, 59),
         ("xtask/local.rs", 79, 8),
-        ("xtask/main.rs", 2, 24),
-        ("xtask/members.rs", 31, 7),
+        ("xtask/main.rs", 3, 24),
+        ("xtask/members.rs", 35, 7),
         ("xtask/plugins.rs", 25, 5),
         ("xtask/policy.rs", 57, 5),
         ("xtask/references.rs", 54, 26),
@@ -17566,9 +18473,9 @@ mod the_frozen_path_rule {
         ("xtask/the_pages_reach_the_catalog.rs", 37, 20),
         ("xtask/the_registry_reaches_the_code.rs", 26, 21),
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 30, 6),
-        ("xtask/ui.rs", 42, 12),
+        ("xtask/ui.rs", 52, 12),
         ("xtask/wall.rs", 129, 28),
-        ("xtask/workflow.rs", 118, 23),
+        ("xtask/workflow.rs", 133, 23),
     ];
 
     /// The name an item declaration introduces, for the message below.
@@ -20342,8 +21249,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 515 scratches this tree
-    /// builds, 425 of the 515 are removed however the test leaves and 90 are
+    /// directories accumulated in an afternoon. Of the 537 scratches this tree
+    /// builds, 447 of the 537 are removed however the test leaves and 90 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -20409,9 +21316,14 @@ mod the_frozen_path_rule {
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 31] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 33] = [
         ("nc-catalog-compiler/ledger.rs", 1, 0),
         ("nc-catalog-compiler/the_gates_fire.rs", 149, 149),
+        (
+            "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
+            2,
+            2,
+        ),
         ("nc-kernel/blobs.rs", 10, 10),
         ("nc-kernel/the_decision_point.rs", 3, 3),
         ("nc-kernel/the_rest_of_the_world.rs", 2, 2),
@@ -20420,17 +21332,18 @@ mod the_frozen_path_rule {
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 26, 26),
         ("nc-local/open.rs", 4, 4),
         ("nc-local/opening_refuses_what_it_did_not_make.rs", 42, 42),
+        ("nc-platform/lib.rs", 14, 14),
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
         ("nc-prune/in_sqlite.rs", 13, 13),
         ("xtask/build.rs", 8, 8),
-        ("xtask/check.rs", 36, 24),
+        ("xtask/check.rs", 38, 26),
         ("xtask/corpus.rs", 15, 15),
         ("xtask/counts.rs", 7, 0),
         ("xtask/determinism.rs", 6, 0),
         ("xtask/dev.rs", 1, 0),
         ("xtask/docs.rs", 2, 2),
         ("xtask/every_generated_value_is_compared.rs", 1, 0),
-        ("xtask/gates.rs", 16, 8),
+        ("xtask/gates.rs", 17, 9),
         ("xtask/limits.rs", 26, 13),
         ("xtask/local.rs", 4, 4),
         ("xtask/members.rs", 1, 0),
@@ -20440,7 +21353,7 @@ mod the_frozen_path_rule {
         ("xtask/sections.rs", 9, 1),
         ("xtask/ui.rs", 1, 0),
         ("xtask/wall.rs", 3, 2),
-        ("xtask/workflow.rs", 21, 3),
+        ("xtask/workflow.rs", 24, 6),
     ];
 
     /// Where every function in a blanked file begins and ends, in char offsets.
@@ -23305,7 +24218,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 13704;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14194;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -23324,7 +24237,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2507;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2720;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -23341,7 +24254,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 808;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 885;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -23375,7 +24288,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 19185;
+    const THE_REARRANGEMENTS_JUDGED: usize = 19895;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -23429,7 +24342,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **424 of 19,185 are accepted by the first-line
+    /// rules the gates apply: **424 of 19,895 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -23462,7 +24375,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **808 of
+    /// this tree offers, **885 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -24157,6 +25070,32 @@ mod the_frozen_path_rule {
         let mut clean = Vec::new();
         super::the_formatting_step_read_the_whole_tree(root, &whole.join("\n"), &mut clean);
         assert!(clean.is_empty(), "a whole run was reported: {clean:?}");
+        // And the whole tree as rustfmt names it on Windows, each separator an
+        // escaped backslash.
+        let on_windows: Vec<String> = declared
+            .iter()
+            .map(|source| format!("[lib (2024)] \"D:\\\\w\\\\{}\"", source.replace('/', r"\\")))
+            .collect();
+        let mut clean = Vec::new();
+        super::the_formatting_step_read_the_whole_tree(root, &on_windows.join("\n"), &mut clean);
+        assert!(
+            clean.is_empty(),
+            "a whole run named with Windows' separator was reported: {clean:?}"
+        );
+        // And in a path that holds a `/`, a backslash is part of a name, so a
+        // root named with one is not the root cargo declares.
+        let mut apart = whole.clone();
+        apart[0] = format!(
+            "[lib (2024)] \"/w/{}\"",
+            declared[0].replacen('/', r"\\", 1)
+        );
+        let mut failures = Vec::new();
+        super::the_formatting_step_read_the_whole_tree(root, &apart.join("\n"), &mut failures);
+        assert_eq!(
+            failures,
+            vec!["formatting".to_owned()],
+            "a root whose name holds a backslash was read as the root it spells"
+        );
 
         // One root formatted, which is what a narrowed argument list looks like.
         let mut failures = Vec::new();
@@ -24418,7 +25357,7 @@ mod the_frozen_path_rule {
     /// A stand-aside guard is read as code, in a comment of either kind.
     ///
     /// **A `/* … */` comment as well as a `//` one.** Deleting a suite's
-    /// `NC_OFFLINE` arm and leaving a note saying what used to be there keeps a
+    /// `NC_NO_STACK` arm and leaving a note saying what used to be there keeps a
     /// census that reads text reporting that the suite still asks for the flag.
     /// Splitting each line at `//` stops that for a line comment; the same
     /// deletion with the same note written as a block comment walks straight
@@ -24428,7 +25367,7 @@ mod the_frozen_path_rule {
     /// line scan that cut there would take real code out of the text it judges.
     #[test]
     fn a_stand_aside_guard_written_in_a_comment_is_not_a_guard() {
-        let asks = "var_os(\"NC_OFFLINE\").is_some()";
+        let asks = "var_os(\"NC_NO_STACK\").is_some()";
         let says = "skipped, no database";
         let real = format!(
             "fn main() {{\n    if std::env::{asks} {{\n        println!(\"{says}\");\n        \
@@ -24483,7 +25422,7 @@ mod the_frozen_path_rule {
         let elsewhere = format!(
             "fn main() {{\n    let offline = std::env::{asks};\n    let Some(url) = \
              std::env::var(\"DATABASE_URL\").ok() else {{\n        \
-             println!(\"{says} (NC_OFFLINE={{offline}})\");\n        return;\n    }};\n    \
+             println!(\"{says} (NC_NO_STACK={{offline}})\");\n        return;\n    }};\n    \
              let _ = url;\n}}\n"
         );
         assert_eq!(
@@ -24569,7 +25508,7 @@ mod the_frozen_path_rule {
     /// file, which is why this returns a count and not an answer.
     #[test]
     fn a_stand_aside_guard_announces_inside_the_block_it_opens() {
-        let asks = "var_os(\"NC_OFFLINE\").is_some()";
+        let asks = "var_os(\"NC_NO_STACK\").is_some()";
         let says = "skipped, no database";
         // A second disjunct in the same condition: no statement boundary, no
         // `||` that clippy refuses, and the suite stands aside on every machine
@@ -24619,9 +25558,9 @@ mod the_frozen_path_rule {
         // `[flag, true].contains(&true)` is a third with neither. The rule
         // reads the whole condition, so none of them needs naming.
         for widened in [
-            "std::env::var_os(\"NC_OFFLINE\").is_some().max(cfg!(unix))",
-            "[std::env::var_os(\"NC_OFFLINE\").is_some(), true].contains(&true)",
-            "std::env::var_os(\"NC_OFFLINE\").is_some() || std::env::var_os(\"PATH\").is_some()",
+            "std::env::var_os(\"NC_NO_STACK\").is_some().max(cfg!(unix))",
+            "[std::env::var_os(\"NC_NO_STACK\").is_some(), true].contains(&true)",
+            "std::env::var_os(\"NC_NO_STACK\").is_some() || std::env::var_os(\"PATH\").is_some()",
         ] {
             let plant = format!(
                 "fn main() {{\n    if {widened} {{\n        println!(\"{says}\");\n        \
@@ -24653,13 +25592,13 @@ mod the_frozen_path_rule {
     /// Whether what sits before this position reads the environment.
     ///
     /// **The flag is read in one kind of place and written in others.** A walk
-    /// over the flag's own name finds `command.env("NC_OFFLINE", "1")` — this
+    /// over the flag's own name finds `command.env("NC_NO_STACK", why)` — this
     /// file's own harness *setting* the flag for a child process — and reports
     /// `check.rs` as a suite that stands aside, which is the too-strong half of
     /// the rule. What every spelling of a *read* shares is the call that opens
     /// it.
     /// **Driven, because over this tree the `var(` half can never fire.** Every
-    /// `var("NC_OFFLINE")` in the repository is inside a comment in this file,
+    /// `var("NC_NO_STACK")` in the repository is inside a comment in this file,
     /// so the disjunct decides nothing anywhere and dropping it moved no line,
     /// measured. What it guards is a suite that starts standing aside
     /// under the other spelling, which is the one thing the completeness walk
@@ -24669,7 +25608,7 @@ mod the_frozen_path_rule {
         let driven = |source: &str| {
             let neutral: Vec<char> = crate::gates::blanked(source).chars().collect();
             let raw: Vec<char> = source.chars().collect();
-            let needle: Vec<char> = ["\"NC_OFF", "LINE\""].join("").chars().collect();
+            let needle: Vec<char> = ["\"NC_NO", "_STACK\""].join("").chars().collect();
             (0..raw.len()).any(|at| {
                 raw.len() - at >= needle.len()
                     && raw[at..at + needle.len()] == needle[..]
@@ -24678,8 +25617,8 @@ mod the_frozen_path_rule {
             })
         };
         for spelled in [
-            "if std::env::var_os(\"NC_OFFLINE\").is_some() {}",
-            "if std::env::var(\"NC_OFFLINE\").is_ok() {}",
+            "if std::env::var_os(\"NC_NO_STACK\").is_some() {}",
+            "if std::env::var(\"NC_NO_STACK\").is_ok() {}",
         ] {
             assert!(
                 driven(spelled),
@@ -24688,8 +25627,8 @@ mod the_frozen_path_rule {
         }
         // And setting the flag for a child process is not asking for it.
         for written in [
-            "command.env(\"NC_OFFLINE\", \"1\");",
-            "command.env_remove(\"NC_OFFLINE\");",
+            "command.env(\"NC_NO_STACK\", \"1\");",
+            "command.env_remove(\"NC_NO_STACK\");",
         ] {
             assert!(
                 !driven(written),
@@ -24733,6 +25672,46 @@ mod the_frozen_path_rule {
                 ("PROPTEST_DISABLE_FAILURE_PERSISTENCE".to_owned(), true),
             ]
         );
+    }
+
+    /// Under `--offline` every cargo the gate starts is told to stay off the
+    /// network, and without the flag none is told anything.
+    ///
+    /// **With every answer the stack can give**, because the flag decides this
+    /// and the stack does not. Off Linux [`super::Stack`] is `NotApplicable`
+    /// with the flag or without, so a rule read from it would send every macOS
+    /// and Windows run under `--offline` to the network for whatever package
+    /// the machine lacks. And the half without the flag is asserted as nothing
+    /// at all, neither set nor removed: such a run starts its children as it
+    /// always did.
+    #[test]
+    fn every_cargo_the_gate_starts_under_the_flag_stays_off_the_network() {
+        let told = |stack: super::Stack, offline: bool| -> Vec<Option<String>> {
+            let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+            super::cargo_command(root, &["test"], None, stack, offline)
+                .get_envs()
+                .filter(|(name, _)| *name == "CARGO_NET_OFFLINE")
+                .map(|(_, value)| value.map(|value| value.to_string_lossy().into_owned()))
+                .collect()
+        };
+        for stack in [
+            super::Stack::Asked,
+            super::Stack::Offline,
+            super::Stack::NotApplicable,
+        ] {
+            assert_eq!(
+                told(stack, true),
+                [Some("true".to_owned())],
+                "a cargo started under --offline, with the stack {stack:?}, was not told to \
+                 stay off the network"
+            );
+            assert_eq!(
+                told(stack, false),
+                [],
+                "a cargo started without --offline, with the stack {stack:?}, was told \
+                 something about the network"
+            );
+        }
     }
 
     fn asks_for_it(neutral: &[char], at: usize) -> bool {
@@ -24879,12 +25858,12 @@ mod the_frozen_path_rule {
     fn every_source_that_stands_aside_for_the_flag_is_one_the_census_names() {
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         // **The flag, not one way of asking for it.** Searching for the whole
-        // call `var_os("NC_OFFLINE").is_some()` leaves a suite standing aside
-        // for the same flag written `var("NC_OFFLINE").is_ok()` invisible to
+        // call `var_os("NC_NO_STACK").is_some()` leaves a suite standing aside
+        // for the same flag written `var("NC_NO_STACK").is_ok()` invisible to
         // the walk *and* to the census — measured, a journal test returned in
-        // silence under `NC_OFFLINE=1` and such a comparison said nothing. The
+        // silence under `NC_NO_STACK=1` and such a comparison said nothing. The
         // flag's name in quotes is what every spelling shares.
-        let asks = ["\"NC_OFF", "LINE\""].join("");
+        let asks = ["\"NC_NO", "_STACK\""].join("");
         let needle: Vec<char> = asks.chars().collect();
         let mut found: Vec<String> = Vec::new();
         for (_, _, path) in every_source_of_every_member(root, &["src", "tests"]) {
@@ -24924,6 +25903,165 @@ mod the_frozen_path_rule {
                 controls,
                 "`{file}` holds a different number of guards that announce themselves \
                  than the census writes down"
+            );
+        }
+    }
+
+    /// Every source that asks what the system lacks is one the census names,
+    /// with as many guards as it writes down.
+    ///
+    /// **The same two halves as the flag's census above.** A suite asking
+    /// `nc_platform::testing` whether this system can give it what it needs,
+    /// and returning when it cannot, is counted by cargo as a pass; unnamed, it
+    /// is a suite standing aside on macOS or Windows with nothing judging
+    /// whether it says so. Each door is looked for by its own name, through
+    /// [`names_a_door`], in every source but `nc-platform`'s, which defines
+    /// the doors and pins every system's answer to them.
+    #[test]
+    fn every_source_that_asks_what_the_system_lacks_is_one_the_census_names() {
+        let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+        let doors = the_doors_a_suite_stands_aside_by();
+        let mut found: Vec<String> = Vec::new();
+        for (_, _, path) in every_source_of_every_member(root, &["src", "tests"]) {
+            let relative = crate::relative_to(root, &path);
+            if relative.starts_with("crates/nc-platform/") {
+                continue;
+            }
+            let raw = std::fs::read_to_string(&path).expect("a source file is readable");
+            if names_a_door(&raw, &doors) {
+                found.push(relative);
+            }
+        }
+        found.sort();
+        found.dedup();
+        let mut named: Vec<String> = super::ANNOUNCES_WHAT_THE_SYSTEM_LACKS
+            .iter()
+            .map(|(file, _, _, _)| (*file).to_owned())
+            .collect();
+        named.sort();
+        assert_eq!(
+            found, named,
+            "the sources whose code asks what the system lacks are not the ones this \
+             census names, so a suite stands aside on some system and nothing judges \
+             whether it says so"
+        );
+        for (file, asks, says, controls) in super::ANNOUNCES_WHAT_THE_SYSTEM_LACKS {
+            let text = std::fs::read_to_string(root.join(file)).expect("the suite is readable");
+            assert_eq!(
+                super::announcing_guards(&text, asks, says),
+                controls,
+                "`{file}` holds a different number of guards that announce themselves \
+                 than the census writes down"
+            );
+        }
+    }
+
+    /// The doors of `nc_platform::testing` a suite stands aside by.
+    ///
+    /// Each by its own name: what a needle of the census asks, without the
+    /// path in front of it, the `!` and the method that reads it.
+    fn the_doors_a_suite_stands_aside_by() -> Vec<String> {
+        let mut doors: Vec<String> = super::ANNOUNCES_WHAT_THE_SYSTEM_LACKS
+            .iter()
+            .map(|&(_, asks, _, _)| {
+                let path = asks.trim_start_matches('!');
+                let name = path.rsplit("::").next().unwrap_or(path);
+                name.split('.').next().unwrap_or(name).to_owned()
+            })
+            .collect();
+        doors.sort_unstable();
+        doors.dedup();
+        doors
+    }
+
+    /// Whether `text` asks one of `doors` in its code, however the door was
+    /// brought into scope.
+    ///
+    /// **By the door's own name, and not by its path.** Suites of this tree
+    /// already reach the module as `use nc_platform::testing;`, after which a
+    /// door is `testing::A_POSIX_SHELL`, and a walk for the whole path misses it —
+    /// as it misses a `use` of the door itself, or of the module under another
+    /// name. What every spelling shares is the constant's name, so that is
+    /// what is looked for, as a whole word, since a longer name holding it is
+    /// another item; and in code, through [`crate::gates::blanked`], so a
+    /// comment or a string naming it, this file's census rows among them,
+    /// asks nothing.
+    fn names_a_door(text: &str, doors: &[String]) -> bool {
+        let code = crate::gates::blanked(text);
+        let in_a_name = |character: char| character.is_alphanumeric() || character == '_';
+        doors.iter().any(|door| {
+            code.match_indices(door.as_str()).any(|(at, _)| {
+                let joined_before = code[..at].chars().next_back().is_some_and(in_a_name);
+                let joined_after = code[at + door.len()..]
+                    .chars()
+                    .next()
+                    .is_some_and(in_a_name);
+                !joined_before && !joined_after
+            })
+        })
+    }
+
+    /// A door is asked however it was brought into scope, and is not asked by
+    /// a comment, a string or a longer name.
+    ///
+    /// **The fixtures the tree does not hold.** The walk above reads the tree
+    /// as it is, and no source in it reaches a door through its module today,
+    /// so the spellings that walk exists for are handed to its reader here: a
+    /// reader that knew only the whole path would leave such a suite outside
+    /// the census on every system, standing aside in silence on Windows.
+    #[test]
+    fn a_door_is_asked_however_it_was_brought_into_scope() {
+        let doors = the_doors_a_suite_stands_aside_by();
+        assert_eq!(
+            doors,
+            ["A_POSIX_SHELL", "LISTED_AS_MADE"],
+            "the census asks other doors than these fixtures do, so they hold nothing"
+        );
+        for (how, text) in [
+            (
+                "through its module",
+                "use nc_platform::testing;\n\
+                 fn drive() { if !testing::A_POSIX_SHELL { return; } }\n",
+            ),
+            (
+                "by its own name",
+                "use nc_platform::testing::LISTED_AS_MADE;\n\
+                 fn drive() { if LISTED_AS_MADE.is_none() { return; } }\n",
+            ),
+            (
+                "through the module under another name",
+                "use nc_platform::testing as system;\n\
+                 fn drive() -> bool { system::A_POSIX_SHELL }\n",
+            ),
+            (
+                "by its whole path",
+                "fn drive() { if !nc_platform::testing::A_POSIX_SHELL { return; } }\n",
+            ),
+        ] {
+            assert!(
+                names_a_door(text, &doors),
+                "a door asked {how} was not read as one, so a suite asking it that \
+                 way stands aside outside the census: {text}"
+            );
+        }
+        for (how, text) in [
+            (
+                "in a comment",
+                "// if !testing::A_POSIX_SHELL { return; }\nfn drive() {}\n",
+            ),
+            (
+                "in a string",
+                "const ROW: &str = \"!nc_platform::testing::A_POSIX_SHELL\";\n",
+            ),
+            (
+                "inside a longer name",
+                "const NOT_A_POSIX_SHELL: bool = true;\nconst LISTED_AS_MADE_HERE: u8 = 0;\n",
+            ),
+        ] {
+            assert!(
+                !names_a_door(text, &doors),
+                "a door named {how} was read as asked, so the census would name a \
+                 source that stands aside for nothing: {text}"
             );
         }
     }
@@ -25427,7 +26565,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 597;
+    const THE_REST_IT_SAYS: usize = 607;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -25575,7 +26713,7 @@ mod the_frozen_path_rule {
     /// verdicts that agree for that long are one row, and — because a prefix
     /// matches nothing the two censuses hold — every row is a shipped literal
     /// accounted for nowhere. Written out, each row is its own accounting.
-    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 442] = [
+    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 465] = [
         ("—", "compiled catalog/"),
         (
             "—",
@@ -25617,17 +26755,37 @@ mod the_frozen_path_rule {
             "a step did not run",
         ),
         (
+            "Err(problem) =>",
+            "the packages the lockfile names could not be counted",
+        ),
+        (
+            "—",
+            "cargo fetch --locked: the {named} package(s) the lockfile names from a registry are here",
+        ),
+        (
+            "Err(output) =>",
+            "cargo fetch --locked could not download what the lockfile names, so every step that reads the members fails after it",
+        ),
+        (
+            "Err(output) =>",
+            "the packages the lockfile names could not be fetched",
+        ),
+        (
             "—",
             "the type-wall walk enumerated {enumerated} source file(s) and swept {leaks} for a manufactured `&'static str` and {queries} for a compile-time query: something inside the loop is filtering, and a defect in the part it skipped reads exactly like no defect",
         ),
         ("—", "the type-wall walk is short"),
         (
-            "if offline",
+            "Stack::Offline =>",
             "skipped: --offline, and a digest is compared against a pulled image",
         ),
         (
-            "if offline",
+            "Stack::Offline =>",
             "CI never passes --offline. Where the comparison does run it can only answer for a tag that has been pulled, and `cargo xtask dev` does not pull one: compose resolves `tag@sha256:…` by the digest",
+        ),
+        (
+            "Stack::NotApplicable =>",
+            "comparing each pinned digest against what its tag resolves to",
         ),
         ("—", "skipped: {}"),
         (
@@ -25824,7 +26982,11 @@ mod the_frozen_path_rule {
         ),
         ("else", "{} stale generated file(s)"),
         (
-            "if offline",
+            "if stack == Stack::NotApplicable",
+            "corroborating the migrations against what a database has applied",
+        ),
+        (
+            "if stack == Stack::Offline",
             "skipped: --offline, so nothing corroborated the files against what a database has applied",
         ),
         (
@@ -25964,8 +27126,12 @@ mod the_frozen_path_rule {
             "a local migration's pin was compared with nothing",
         ),
         (
-            "if offline",
+            "Stack::Offline =>",
             "skipped: --offline, and how a database sorts is a property of that database",
+        ),
+        (
+            "Stack::NotApplicable =>",
+            "reading how the database sorts and encodes",
         ),
         ("Err(problem) =>", "the database would not say how it sorts"),
         (
@@ -25991,8 +27157,12 @@ mod the_frozen_path_rule {
         ),
         ("—", "a package is built from outside this repository"),
         (
-            "if offline",
+            "Stack::Offline =>",
             "skipped: --offline, and only the running log store states its own bounds",
+        ),
+        (
+            "Stack::NotApplicable =>",
+            "reading the bounds the running log store reports",
         ),
         (
             "Err(problem) =>",
@@ -26027,6 +27197,10 @@ mod the_frozen_path_rule {
             "skipped: --offline, and the journal's own protections live in the database",
         ),
         (
+            "Record::NotApplicable =>",
+            "reading the journal's own protections, which live in the database",
+        ),
+        (
             "Record::Unreachable =>",
             "skipped: no database answered, so the journal's protections were not read",
         ),
@@ -26058,6 +27232,10 @@ mod the_frozen_path_rule {
         (
             "Record::NotAsked =>",
             "skipped: --offline, so where `pg_temp` sits in the migrated functions' paths was not read",
+        ),
+        (
+            "Record::NotApplicable =>",
+            "reading where `pg_temp` sits in the migrated functions' paths",
         ),
         (
             "Record::Unreachable =>",
@@ -26293,7 +27471,23 @@ mod the_frozen_path_rule {
         ),
         ("else", "a database suite did not announce itself"),
         (
-            "if said == ANNOUNCES_NO_DATABASE.len()",
+            "let Ok(text) = std::fs::read_to_string(root.join(named)) else",
+            "{named} is a suite that stands aside where the system lacks what it needs and it is not in this tree, so where it stands aside is unknown",
+        ),
+        (
+            "let Ok(text) = std::fs::read_to_string(root.join(named)) else",
+            "a suite the system stands aside is missing",
+        ),
+        (
+            "else",
+            "{named} holds {announcing} guard(s) that ask what the system lacks and say so inside the guard, and {controls} are written down — cargo counts a test that returned early as one that passed",
+        ),
+        (
+            "else",
+            "a suite the system stands aside did not announce itself",
+        ),
+        (
+            "if said == ANNOUNCES_NO_DATABASE.len() + ANNOUNCES_WHAT_THE_SYSTEM_LACKS.len()",
             "{said} suite(s) stand aside when what they need is absent and say so in their own output",
         ),
         (
@@ -26305,10 +27499,6 @@ mod the_frozen_path_rule {
             "put those sources back, delete the file, and run this again. What may hold a weakening, and where each one's pristine text is, is written in `target/.mutants-in-flight`", // allow-reference: pins the sentence above, which names `target/.mutants-in-flight` — a file that exists only while a mutation run is between operators
         ),
         ("—", "a mutation is in flight"),
-        (
-            "if offline",
-            "skipped: --offline, and the stack's own tests ask docker what it resolves",
-        ),
         (
             "if read < gates::rust_lines(root, &root.join(\"target\")).unwrap_or(0) =>",
             "the test census read {read} Rust line(s) and a second count of the tree found more: it is the floor under the number below and had none of its own, so a filter inside it makes both sides shrink together",
@@ -26335,6 +27525,14 @@ mod the_frozen_path_rule {
         ("Err(problem) =>", "no tests ran"),
         ("Err(output) =>", "tests"),
         ("Err(output) =>", "tests"),
+        (
+            "Stack::Offline =>",
+            "skipped: --offline, and the stack's own tests ask docker what it resolves",
+        ),
+        (
+            "Stack::NotApplicable =>",
+            "running the stack's own tests and the image-pin cases, which ask docker what it resolves",
+        ),
         (
             "if declared.is_empty()",
             "clippy's run has no floor: cargo did not say how many source roots this workspace has, so a step that linted nothing would print the same line as one that linted the tree",
@@ -26524,6 +27722,10 @@ mod the_frozen_path_rule {
             "{by_the_flag} step(s) named the flag as why they did not run and this run asked for {announced}: the flag names which, so a step that stopped saying it did not run is one a reader would take as having run, and one that started is a document saying the wrong number",
         ),
         (
+            "if said != inapplicable",
+            "{} part(s) of this run said they are not applicable on {} and {} are written down for it: {said:?}, against {inapplicable:?}. What applies is a property of the system, so the list is exact — on Linux it is empty, and a part standing aside there is a step the Linux job no longer judges",
+        ),
+        (
             "if unexplained > 0",
             "{unexplained} warn line(s) that are not a step announcing a skip. A step that did not run says `skipped:` and is counted as one; anything else printed as a warning is something wrong, and criterion 1 is no failures and no warnings",
         ),
@@ -26537,24 +27739,46 @@ mod the_frozen_path_rule {
         ),
         ("—", "check passed"),
         (
-            "skipped =>",
+            "(skipped, 0) =>",
             "check passed, with {skipped} warn line(s) above — a step that did not run is not a step that passed",
         ),
         ("—", "not run: {skip}"),
+        (
+            "(skipped, parts) =>",
+            "check passed, with {skipped} warn line(s) and {parts} not-applicable line(s) above — a step that did not run is not a step that passed, and the Linux job runs what does not apply on {}",
+        ),
+        ("—", "not run: {skip}"),
+        ("—", "not applicable here: {part}"),
+        (
+            "if fetched && !to_fetch",
+            "the packages the lockfile names were fetched under --offline, which promises no network: the fetch returns at once when it is handed the flag, so a run that reached it was handed the wrong one",
+        ),
+        (
+            "if to_fetch && !fetched",
+            "the packages the lockfile names were not fetched, and --offline was not passed: on a fresh clone every step that reads the members fails without that fetch, and on a machine that already holds them nothing else notices it is gone",
+        ),
         ("—", "database"),
         (
-            "if offline",
+            "crate::check::Stack::Offline =>",
             "skipped: --offline, and the journal's PostgreSQL tests need one",
         ),
         (
-            "if offline",
+            "crate::check::Stack::Offline =>",
             "CI never passes --offline, so those tests always run there",
+        ),
+        (
+            "crate::check::Stack::NotApplicable =>",
+            "running the PostgreSQL tests against a database",
         ),
         ("Ok(url) =>", "postgres is reachable at {}"),
         ("Err(problem) =>", "no database"),
         (
             "else",
             "{applied} migration(s) applied, and the database now holds {now} of {count} on disk",
+        ),
+        (
+            "—",
+            "the container stack, which this verb brings up and takes down",
         ),
         ("—", "dev"),
         (
@@ -26914,7 +28138,7 @@ mod the_frozen_path_rule {
     /// record byte-identical — the same swap the census beside this one is
     /// written in pairs to catch, one level in. The condition is computed for
     /// every site either way, so it is kept.
-    const THE_CONSOLE_SITES_THIS_CANNOT_READ: [(&str, &str); 108] = [
+    const THE_CONSOLE_SITES_THIS_CANNOT_READ: [(&str, &str); 110] = [
         ("—", "&what_a_run_wrote(compiled.files.len("),
         (
             "if let Some(reserved) = reserved",
@@ -26926,6 +28150,8 @@ mod the_frozen_path_rule {
             "if let Err(problem) = a_step_that_did_not_run(&ui::headings())",
             "&problem",
         ),
+        ("Err(problem) =>", "&problem"),
+        ("—", "line"),
         ("—", "&skipped.fix"),
         (
             "if !offline && let Err(problem) = inspected_something(read, \"images\")",
@@ -27175,8 +28401,15 @@ mod the_frozen_path_rule {
     /// is made the only one there is.
     #[test]
     fn the_console_is_reached_through_its_module() {
-        /// The five ways this tool speaks, as both censuses spell them.
-        const SPOKEN: [&str; 5] = ["ok", "detail", "failure", "warn", "heading"];
+        /// The six ways this tool speaks, as both censuses spell them.
+        const SPOKEN: [&str; 6] = [
+            "ok",
+            "detail",
+            "failure",
+            "warn",
+            "heading",
+            "not_applicable",
+        ];
         /// The sources under `xtask/src`, so a walk that reached none fails.
         const THE_SOURCES: usize = 22;
 
@@ -27426,6 +28659,10 @@ mod the_frozen_path_rule {
             concat!("ui::", "failure("),
             concat!("ui::", "warn("),
             concat!("ui::", "heading("),
+            // **And a part saying it does not apply on this system**, whose
+            // sentence is chosen by the arm that hands it `Stack::NotApplicable`
+            // — two parts exchanged would each name the other's step.
+            concat!("ui::", "not_applicable("),
             concat!("failures.", "push("),
         ];
         let (mut found, mut unread) = the_console_lines(&says);
@@ -27525,7 +28762,7 @@ mod the_frozen_path_rule {
     /// Seven words of each remedy, because a remedy is long and its opening is
     /// what tells one from another; the rule beside the list is that those
     /// seven are unique.
-    const WHAT_A_REMEDY_ANSWERS: [(&str, &str, &str); 103] = [
+    const WHAT_A_REMEDY_ANSWERS: [(&str, &str, &str); 105] = [
         (
             "counts.rs",
             "this document has an odd number of",
@@ -27968,23 +29205,28 @@ mod the_frozen_path_rule {
         ),
         (
             "workflow.rs",
-            "there is no `check` job to bring",
+            "there is no `linux` job to bring",
             "`JOBS` says what this workflow has to",
         ),
         (
             "workflow.rs",
-            "the `check` job runs the gate without",
+            "the `linux` job runs the gate without",
             "`cargo xtask check` asks a running database",
         ),
         (
             "workflow.rs",
-            "the `check` job brings the stack up",
+            "the `linux` job brings the stack up",
             "the stack is what the gate needs,",
         ),
         (
             "workflow.rs",
-            "the `check` job brings the stack up",
+            "the `linux` job brings the stack up",
             "the gate reads the database and the",
+        ),
+        (
+            "workflow.rs",
+            "the `{system}` job brings the stack up,",
+            "the stack runs on Linux, where the",
         ),
         (
             "workflow.rs",
@@ -28025,6 +29267,11 @@ mod the_frozen_path_rule {
             "workflow.rs",
             "the `deterministic` job does not reach `{step}`",
             "the job proves that two *processes* emit",
+        ),
+        (
+            "workflow.rs",
+            "the `{job}` job runs on `{runner}`, which",
+            "a job named for a system is",
         ),
         (
             "workflow.rs",
@@ -28797,15 +30044,16 @@ mod the_frozen_path_rule {
             .expect("the workflow is a file in this tree");
         let commands = the_cargo_commands_of(&workflow);
         // **An equality, because a lower bound is paid by any extra line.** A
-        // floor of four under a workflow that runs five — `cargo install`,
-        // `dev`, `check` and `build` twice — lets a step deleted from CI leave
-        // the reader satisfied and every rule below it looking at one command
-        // fewer. Five is what the file has; a sixth is a step four documents
+        // floor under the workflow's own count lets a step deleted from CI
+        // leave the reader satisfied and every rule below it looking at one
+        // command fewer. Nine is what the file has — `cargo install`, `dev` and
+        // `check` on Linux, `cargo install` and `check` on macOS and on
+        // Windows, and `build` twice — and a tenth is a step four documents
         // are silent about, and `WHAT_CI_RUNS` below is what says which.
         assert_eq!(
             commands.len(),
-            5,
-            "the workflow runs {} cargo command(s) and this expects five: either a step \
+            9,
+            "the workflow runs {} cargo command(s) and this expects nine: either a step \
              moved, or this is reading the wrong file or the wrong lines — {commands:?}",
             commands.len()
         );
@@ -29617,8 +30865,9 @@ mod the_frozen_path_rule {
     /// are not what `Path::extension` calls a `gitignore` and an `example`. A
     /// kind-based allowance at the root would have to admit "no extension at
     /// all", which is the exact shape a scratch note and a private key wear.
-    const WHAT_MAY_SIT_AT_THE_ROOT: [&str; 13] = [
+    const WHAT_MAY_SIT_AT_THE_ROOT: [&str; 14] = [
         ".env.example",
+        ".gitattributes",
         ".gitignore",
         "AGENTS.md",
         "CLAUDE.md",
@@ -30421,7 +31670,7 @@ mod every_report_wire {
     fn the_committed_env_finding_reaches_its_call_site() {
         let held = a_tree("env", &[(".env", "SECRET=1\n")]);
         let mut failures = Vec::new();
-        super::wiring(&held.root, true, &mut failures);
+        super::wiring(&held.root, super::Stack::Offline, &mut failures);
         reported(&failures, ".env files");
     }
 
@@ -30503,7 +31752,7 @@ mod every_report_wire {
             ],
         );
         let mut failures = Vec::new();
-        super::bounds(&held.root, true, &mut failures);
+        super::bounds(&held.root, super::Stack::Offline, &mut failures);
         reported(&failures, "migration numbering");
     }
 
@@ -30647,7 +31896,12 @@ mod every_report_wire {
             )],
         );
         let mut failures = Vec::new();
-        super::how_names_resolve(&held.root, true, super::Record::NotAsked, &mut failures);
+        super::how_names_resolve(
+            &held.root,
+            super::Stack::Offline,
+            super::Record::NotAsked,
+            &mut failures,
+        );
         reported(&failures, "migration name resolution");
     }
 
@@ -30792,6 +32046,12 @@ mod every_report_wire {
     /// needs a container runtime on the machine.
     #[test]
     fn the_image_pin_finding_reaches_its_call_site() {
+        if let Some(why) =
+            crate::check::docker_stands_aside("the_image_pin_finding_reaches_its_call_site")
+        {
+            println!("{why}");
+            return;
+        }
         let held = a_tree(
             "images",
             &[(
@@ -30800,7 +32060,7 @@ mod every_report_wire {
             )],
         );
         let mut failures = Vec::new();
-        super::the_images_are_pinned(&held.root, false, &mut failures);
+        super::the_images_are_pinned(&held.root, super::Stack::Asked, &mut failures);
         reported(&failures, "image pins");
     }
 }
@@ -30841,6 +32101,26 @@ mod every_report_wire {
 /// Rust fragments is the defect one level down.
 #[cfg(test)]
 mod the_meta_gate {
+    /// Why a drive of the checkout script stands aside where the system has no POSIX
+    /// shell of its own, as that drive says it.
+    ///
+    /// **The script's guards are the reason it is safe to run, and they are
+    /// POSIX's.** They stand before an `rm -rf` and a `cpio`, and each is a
+    /// claim about how a shell spends a path: `cd -P` resolves a link before
+    /// the `..` after it, two leading slashes are one directory, and an
+    /// absolute path opens with `/`. The `sh` Git ships for Windows runs the
+    /// script and keeps none of the three — measured on a Windows runner, a
+    /// decoy reaching the script through a junction is taken for the
+    /// repository it belongs to. So the script refuses to run there before its
+    /// first guard, which `the_script_refuses_a_system_its_guards_do_not_hold_on`
+    /// holds on every system, and a drive of a guard would meet that refusal
+    /// and prove nothing about the guard. `nc_platform::testing::A_POSIX_SHELL`
+    /// is where the system says so.
+    const NO_POSIX_SHELL: &str = "the checkout script's guards spend a path as a POSIX \
+                                  shell does, and the sh this system has spends it as \
+                                  Windows does, so the script refuses to run here before \
+                                  the first of them; the Linux and macOS jobs run it";
+
     /// Why each Rust source the mutation runner does not edit is not edited.
     ///
     /// **This table is where *excluded* is told from *forgotten*.** A file left
@@ -30859,7 +32139,16 @@ mod the_meta_gate {
     /// own doc: a module directory may be called anything. Every row here is a
     /// prefix of a workspace-relative path, anchored at its start, so what it
     /// excuses is what it names.
-    const NOT_MUTATED: [(&str, &str); 39] = [
+    const NOT_MUTATED: [(&str, &str); 40] = [
+        (
+            "crates/nc-platform/src/windows.rs",
+            "another system's: the Windows half of what makes a path private, \
+             compiled for a Windows target alone. The runner runs on the machine \
+             it is started on and none of them is Windows, so every operator here \
+             would leave the build it judges byte for byte the same and come back \
+             `SURVIVED` for a clause nothing was asked about. The Windows job of \
+             the workflow runs the suites that decide it",
+        ),
         (
             "crates/nc-log/src/events.rs",
             "generated, and named exactly because the crate root beside it is \
@@ -31378,6 +32667,9 @@ mod the_meta_gate {
         /// argument is decided when a plugin is compiled and no weakening of one
         /// builds.
         Bindings,
+        /// Compiled for Windows alone, by its own inner attribute, so no build
+        /// the runner makes holds a line of it.
+        AnotherSystem,
     }
 
     /// Reading a kind out of a reason, and writing one back as its token.
@@ -31387,13 +32679,14 @@ mod the_meta_gate {
     #[cfg(test)]
     impl Kind {
         /// Every kind there is, for the message that lists them.
-        const ALL: [Self; 6] = [
+        const ALL: [Self; 7] = [
             Self::Generated,
             Self::Suite,
             Self::Fixture,
             Self::Canary,
             Self::Corpus,
             Self::Bindings,
+            Self::AnotherSystem,
         ];
 
         /// The token a row opens with to claim this kind.
@@ -31405,6 +32698,7 @@ mod the_meta_gate {
                 Self::Canary => "a canary",
                 Self::Corpus => "the corpus",
                 Self::Bindings => "bindings",
+                Self::AnotherSystem => "another system's",
             }
         }
 
@@ -31526,6 +32820,45 @@ mod the_meta_gate {
         assert_eq!(
             Kind::opening("bindings: one call and nothing written by hand"),
             Some(Kind::Bindings)
+        );
+    }
+
+    /// An `another system's` row is held to a file compiled for Windows
+    /// alone, by its own inner attribute written as code.
+    ///
+    /// Both answers: the Windows half itself, and the Unix half beside it, the
+    /// attribute in a comment, and the attribute in a string.
+    #[test]
+    fn another_systems_row_is_held_to_a_file_compiled_for_windows_alone() {
+        let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+        let read = |named: &str| {
+            std::fs::read_to_string(root.join(named))
+                .unwrap_or_else(|error| panic!("`{named}` is in this tree: {error}"))
+        };
+        assert!(
+            is_compiled_for_windows_alone(&read("crates/nc-platform/src/windows.rs")),
+            "the Windows half is compiled for Windows alone, and the rule an `another \
+             system's` row is held to does not see it"
+        );
+        for (what, text) in [
+            ("the Unix half", read("crates/nc-platform/src/unix.rs")),
+            (
+                "a comment",
+                "// #![cfg(windows)]\npub fn f() {}\n".to_owned(),
+            ),
+            (
+                "a string",
+                "const NOTE: &str = \"\n#![cfg(windows)]\n\";\n".to_owned(),
+            ),
+        ] {
+            assert!(
+                !is_compiled_for_windows_alone(&text),
+                "{what} reads as a file compiled for Windows alone"
+            );
+        }
+        assert_eq!(
+            Kind::opening("another system's: compiled for a Windows target alone"),
+            Some(Kind::AnotherSystem)
         );
     }
 
@@ -31792,7 +33125,7 @@ mod the_meta_gate {
                 clippy::disallowed_methods,
                 reason = "the guard is driven for its refusal, and its output is read"
             )]
-            let mut command = std::process::Command::new("python3");
+            let mut command = std::process::Command::new(nc_platform::testing::PYTHON);
             command
                 .arg("-c")
                 .arg(&asking)
@@ -31802,7 +33135,7 @@ mod the_meta_gate {
                 Some(url) => command.env("DATABASE_URL", url),
                 None => command.env_remove("DATABASE_URL"),
             };
-            command.output().expect("python3 imports the meta-gate")
+            command.output().expect("Python 3 imports the meta-gate")
         };
 
         let absent = drive(None);
@@ -31897,7 +33230,7 @@ mod the_meta_gate {
                 clippy::disallowed_methods,
                 reason = "the runner's verdict is driven with a suite's output, and read"
             )]
-            let mut command = std::process::Command::new("python3");
+            let mut command = std::process::Command::new(nc_platform::testing::PYTHON);
             command
                 .arg("-c")
                 .arg(&asking)
@@ -31905,7 +33238,7 @@ mod the_meta_gate {
                 .current_dir(root)
                 .env("PYTHONDONTWRITEBYTECODE", "1")
                 .output()
-                .expect("python3 imports the meta-gate")
+                .expect("Python 3 imports the meta-gate")
         };
         let stale = drive(&format!(
             "thread 'the_reference_plugin_activates_and_declares_its_one_command' panicked \
@@ -31992,7 +33325,7 @@ mod the_meta_gate {
                 reason = "the runner's verdict is driven with stubbed suites over a scratch \
                           source, and read"
             )]
-            let mut command = std::process::Command::new("python3");
+            let mut command = std::process::Command::new(nc_platform::testing::PYTHON);
             let ran = command
                 .arg("-c")
                 .arg(&asking)
@@ -32000,7 +33333,7 @@ mod the_meta_gate {
                 .current_dir(root)
                 .env("PYTHONDONTWRITEBYTECODE", "1")
                 .output()
-                .expect("python3 imports the meta-gate");
+                .expect("Python 3 imports the meta-gate");
             let said = String::from_utf8_lossy(&ran.stdout).into_owned();
             let verdict = said
                 .lines()
@@ -32096,7 +33429,7 @@ mod the_meta_gate {
             clippy::disallowed_methods,
             reason = "the runner's table is read by the interpreter that runs it"
         )]
-        let asked = std::process::Command::new("python3")
+        let asked = std::process::Command::new(nc_platform::testing::PYTHON)
             .arg("-c")
             .arg(format!(
                 "import importlib.util, json; \
@@ -32109,7 +33442,7 @@ mod the_meta_gate {
             .current_dir(root)
             .env("PYTHONDONTWRITEBYTECODE", "1")
             .output()
-            .expect("python3 imports the meta-gate");
+            .expect("Python 3 imports the meta-gate");
         let table: Vec<(String, String)> = serde_json::from_slice(&asked.stdout)
             .expect("`NEVER_REACHED` is pairs of a saying and its fix");
         let the_code = the_rust_under(&root.join("crates"));
@@ -32185,13 +33518,13 @@ mod the_meta_gate {
             clippy::disallowed_methods,
             reason = "the runner's predicate is driven by the interpreter that runs it"
         )]
-        let said = std::process::Command::new("python3")
+        let said = std::process::Command::new(nc_platform::testing::PYTHON)
             .arg("-c")
             .arg(&asking)
             .current_dir(root)
             .env("PYTHONDONTWRITEBYTECODE", "1")
             .output()
-            .expect("python3 imports the meta-gate");
+            .expect("Python 3 imports the meta-gate");
         let built = String::from_utf8_lossy(&said.stdout).trim().to_owned();
         assert_eq!(
             built,
@@ -33045,6 +34378,11 @@ Options:
                 "xtask/src/main.rs".to_owned(),
                 "plugins/reference/src/lib.rs".to_owned(),
                 "plugins/reference/src/adapter.rs".to_owned(),
+                // Each system's half of `nc-platform`, whose tests sit in the
+                // crate root over the interface both halves answer, and the test
+                // doors, which the suites of other crates call.
+                "crates/nc-platform/src/unix.rs".to_owned(),
+                "crates/nc-platform/src/testing.rs".to_owned(),
             ],
             "the sources carrying no `#[test]` of their own are not the ones written \
              down. A file that stops carrying tests leaves this rule asking nothing of \
@@ -33196,6 +34534,20 @@ Options:
         })
         .expect("the tree is readable");
         (everything, stems)
+    }
+
+    /// Whether a source holds `#![cfg(windows)]` as code, which compiles it
+    /// for a Windows target alone.
+    ///
+    /// **The fact an `another system's` row rests on, read from the file
+    /// rather than from the row.** The runner builds for the machine it is
+    /// started on, so a file that condition keeps out of every build it makes
+    /// is one no operator of its can change; a file without it is built, and
+    /// excusing it leaves what it builds decided by nobody.
+    fn is_compiled_for_windows_alone(text: &str) -> bool {
+        let code =
+            crate::gates::without_string_contents(&crate::gates::without_comments(text, "//"));
+        code.lines().any(|line| line.trim() == "#![cfg(windows)]")
     }
 
     /// Whether a source is one `generate!` call and nothing written by hand.
@@ -33388,6 +34740,14 @@ Options:
                      source holding code of its own is excused by a sentence that is \
                      not true of it, and that code is then decided by nobody"
                 ),
+                Kind::AnotherSystem => assert!(
+                    std::fs::read_to_string(root.join(named))
+                        .is_ok_and(|text| is_compiled_for_windows_alone(&text)),
+                    "the row for `{named}` calls it another system's, and it does not \
+                     hold `#![cfg(windows)]` as code. A source the runner builds, \
+                     excused as one it never builds, is excused by a sentence that is \
+                     not true of it, and is then decided by nobody"
+                ),
             }
             if let Some(cited) = cites_what_is_not_there(why, &everything, &stems) {
                 panic!(
@@ -33492,7 +34852,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 157,
+            walked, 161,
             "{walked} Rust source(s) were walked, and this tree holds 119. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -33532,7 +34892,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1421] = [
+    static OPERATORS: [(&str, &str, &str); 1422] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -36126,17 +37486,21 @@ Options:
             "is_a_trigger_refusal",
             "a trigger's refusal is its extended code",
         ),
-        ("local_open", "judge", "a group or other bit is refused"),
-        ("local_open", "judge", "a link is refused however it points"),
-        ("local_open", "judge", "a foreign owner is refused"),
+        ("platform_unix", "judged", "a group or other bit is refused"),
         (
-            "local_open",
+            "platform_unix",
+            "judged",
+            "a link is refused however it points",
+        ),
+        ("platform_unix", "judged", "a foreign owner is refused"),
+        (
+            "platform_unix",
             "create_private",
             "the file is created with no other bits",
         ),
         (
-            "local_open",
-            "private_directory",
+            "platform_unix",
+            "create_private_directory",
             "the directory is made private",
         ),
         (
@@ -36361,9 +37725,13 @@ Options:
             "said",
             "a row still referred to is said so, not as a trigger's",
         ),
-        ("local_open", "judge", "a bit its owner needs is required"),
         (
-            "local_open",
+            "platform_unix",
+            "judged",
+            "a bit its owner needs is required",
+        ),
+        (
+            "platform",
             "probe_name",
             "each open makes a probe of its own",
         ),
@@ -37233,8 +38601,8 @@ Options:
         ),
         (
             "kernel_blobs",
-            "create_private",
-            "a writing is created with no other bits",
+            "BlobStore for DirectoryBlobs",
+            "a writing is created private",
         ),
         (
             "kernel_blobs",
@@ -39681,7 +41049,12 @@ Options:
             "for_judging",
             "the connection that judges the file is read-only",
         ),
-        ("local_open", "held", "one open of a profile at a time"),
+        ("platform_unix", "hold", "one open of a profile at a time"),
+        (
+            "platform_testing",
+            "open_to_another_user",
+            "a path opened to another user is opened",
+        ),
         (
             "local_store",
             "unread",
@@ -41098,6 +42471,155 @@ impl<T: Shown> Shown for Option<T> {
         );
     }
 
+    /// The checkout script refuses to run where its guards are not the guards
+    /// they read as, before it has made or removed anything.
+    ///
+    /// **The one drive of the script that runs on every system.** Where the
+    /// system's `sh` is not POSIX's, the answer is the system's own: the shell
+    /// Git ships for Windows is asked what it runs on, and the script has to
+    /// refuse it. Where it is POSIX's, a `uname` planted ahead of the system's
+    /// on the path answers as each POSIX layer over Windows does, so the arm
+    /// is held on the systems the mutation runner runs on as well, and a
+    /// spelling it misses fails here rather than reaching an `rm -rf` there.
+    /// There a `uname` that fails is driven too, and one that answers `Linux`,
+    /// which the same scratch lets through to the removal.
+    ///
+    /// **Driven to the line above the first call in the copy**, with the
+    /// removal and the copy still in it, so a refusal that does not happen is
+    /// seen on disk: the `rm -rf` takes the sentinel the destination holds,
+    /// and the copy lands beside it.
+    #[test]
+    fn the_script_refuses_a_system_its_guards_do_not_hold_on() {
+        let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+        let source =
+            std::fs::read_to_string(root.join("xtask/the-checkout-shape.sh")).expect("readable");
+        let runs = "\ncargo xtask dev";
+        let cut = source
+            .find(runs)
+            .expect("the script brings the copy's stack up, and this test ends before it does");
+        let held = super::LeavesNothingBehind::new("checkout-system");
+        let fake = held.root.join("repository");
+        a_scratch_repository(&fake);
+        let script = fake.join("xtask/the-checkout-shape.sh");
+        std::fs::write(&script, format!("{}\nexit 77\n", &source[..cut])).expect("writable");
+        let destination = held.root.join("copy");
+        std::fs::create_dir_all(&destination).expect("writable");
+        std::fs::write(destination.join("sentinel"), "named by nobody\n").expect("writable");
+        // What `uname -s` answers under Git's shell, under MSYS2's own, under
+        // Cygwin, and under an MSYS2 environment only the last pattern takes;
+        // `None` is the system's own answer, asked where it is one of them.
+        let answers: Vec<Option<&str>> = if nc_platform::testing::A_POSIX_SHELL {
+            [
+                "MINGW64_NT-10.0-26100",
+                "MSYS_NT-10.0-26100",
+                "CYGWIN_NT-10.0-26100",
+                "UCRT64_NT-10.0-26100",
+            ]
+            .into_iter()
+            .map(Some)
+            .collect()
+        } else {
+            vec![None]
+        };
+        let planted = held.root.join("bin");
+        // Run with the system's own path, or with one whose first `uname` runs
+        // the body given.
+        let drive = |uname: Option<&str>| {
+            let searched = uname.map_or_else(
+                || std::env::var_os("PATH").unwrap_or_default(),
+                |body| a_path_whose_uname_runs(&planted, body),
+            );
+            #[expect(
+                clippy::disallowed_methods,
+                reason = "the script is driven and its output is read, not printed"
+            )]
+            let output = std::process::Command::new("sh")
+                .arg(&script)
+                .arg(&destination)
+                .current_dir(&fake)
+                .env("PATH", searched)
+                .env_remove(super::CHECKOUT_SHAPE_GUARD)
+                .output()
+                .expect("sh is on this machine");
+            output
+        };
+        for answer in answers {
+            let refused = drive(answer.map(|answer| format!("echo {answer}")).as_deref());
+            let said = String::from_utf8_lossy(&refused.stderr).into_owned();
+            let system = answer.unwrap_or("this system");
+            assert!(
+                said.contains("which spends a path the way Windows does"),
+                "the script ran on {system} without refusing, and every guard it went \
+                 on to read spends a path as POSIX does: {said}"
+            );
+            assert!(
+                answer.is_none_or(|answer| said.contains(answer)),
+                "the refusal does not name the system it refused: {said}"
+            );
+            assert_eq!(refused.status.code(), Some(2), "{system}: {said}");
+            assert!(
+                destination.join("sentinel").exists() && !destination.join("checkout").exists(),
+                "the script refused {system} after it had removed or copied something: \
+                 {said}"
+            );
+        }
+        if nc_platform::testing::A_POSIX_SHELL {
+            // **A `uname` that fails stops the script, and is not read as a
+            // system it may run on.** Asked inside the `case` word, a failing
+            // `uname` is an empty answer that no pattern takes, and the script
+            // goes on to its `rm -rf` of the sentinel; assigned first, it stops
+            // under `set -e` before anything is derived from a path.
+            let stopped = drive(Some("exit 1"));
+            let said = String::from_utf8_lossy(&stopped.stderr).into_owned();
+            assert!(
+                !stopped.status.success(),
+                "a `uname` that failed did not stop the script: {said}"
+            );
+            assert!(
+                destination.join("sentinel").exists() && !destination.join("checkout").exists(),
+                "a `uname` that failed was read as a system the script may run on, and \
+                 it removed or copied something: {said}"
+            );
+            // **And the same scratch, answered `Linux`, reaches its removal and
+            // its copy**, so the runs above stop at the arm and not at a
+            // guard after it that this scratch would fail anyway. What it does
+            // is read on disk, not from its status, which the script's trap on
+            // `EXIT` has the last word on.
+            let ran = drive(Some("echo Linux"));
+            let said = String::from_utf8_lossy(&ran.stderr).into_owned();
+            assert!(
+                !destination.join("sentinel").exists() && destination.join("checkout").exists(),
+                "answered Linux, the script did not remove and copy what this scratch \
+                 names, so the runs above prove nothing about the arm: {said}"
+            );
+        }
+        assert!(
+            script.exists(),
+            "the scratch repository was destroyed by a run the script reports refusing"
+        );
+        drop(held);
+    }
+
+    /// A path whose first `uname` is a script running `body`, and the rest is
+    /// the path this test was given.
+    fn a_path_whose_uname_runs(planted: &std::path::Path, body: &str) -> std::ffi::OsString {
+        std::fs::create_dir_all(planted).expect("writable");
+        let uname = planted.join("uname");
+        std::fs::write(&uname, format!("#!/bin/sh\n{body}\n")).expect("writable");
+        // The permissions of the binary running this test, which this system
+        // runs already, so no mode is spelled here.
+        let runnable = std::env::current_exe()
+            .and_then(std::fs::metadata)
+            .expect("a test binary can read its own metadata")
+            .permissions();
+        std::fs::set_permissions(&uname, runnable).expect("writable");
+        let path = std::env::var_os("PATH").unwrap_or_default();
+        std::env::join_paths(
+            std::iter::once(planted.to_path_buf()).chain(std::env::split_paths(&path)),
+        )
+        .expect("the path this test was given joins again")
+    }
+
     /// An absolute path that resolves inside this repository is refused too.
     ///
     /// Beside [`the_checkout_script_refuses_a_copy_inside_this_repository`]
@@ -41106,6 +42628,13 @@ impl<T: Shown> Shown for Option<T> {
     /// absolute, which is the difference the guard has to see.
     #[test]
     fn a_path_that_resolves_inside_this_repository_is_refused() {
+        if !nc_platform::testing::A_POSIX_SHELL {
+            println!(
+                "skipped, not applicable on {}: {NO_POSIX_SHELL}",
+                crate::ui::SYSTEM
+            );
+            return;
+        }
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let script = root.join("xtask/the-checkout-shape.sh");
         // **Resolved, not merely absolute.** The spellings
@@ -41129,7 +42658,7 @@ impl<T: Shown> Shown for Option<T> {
         a_scratch_repository(&fake);
         std::fs::copy(&script, fake.join("xtask/the-checkout-shape.sh")).expect("writable");
         let link = held.root.join("link");
-        std::os::unix::fs::symlink(&fake, &link).expect("a symlink is writable");
+        nc_platform::testing::link_directory(&fake, &link).expect("a link is writable");
         for inside in [
             fake.display().to_string(),
             format!("{}/xtask/../nc-dotdot-probe", fake.display()),
@@ -41227,6 +42756,13 @@ impl<T: Shown> Shown for Option<T> {
     /// run `rm -rf` as root's parent.
     #[test]
     fn the_root_is_refused_though_it_contains_everything() {
+        if !nc_platform::testing::A_POSIX_SHELL {
+            println!(
+                "skipped, not applicable on {}: {NO_POSIX_SHELL}",
+                crate::ui::SYSTEM
+            );
+            return;
+        }
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let source =
             std::fs::read_to_string(root.join("xtask/the-checkout-shape.sh")).expect("readable");
@@ -41315,6 +42851,13 @@ impl<T: Shown> Shown for Option<T> {
     /// `rm -rf` of a directory the caller did not name.
     #[test]
     fn the_script_reached_through_a_doubled_slash_still_knows_where_it_is() {
+        if !nc_platform::testing::A_POSIX_SHELL {
+            println!(
+                "skipped, not applicable on {}: {NO_POSIX_SHELL}",
+                crate::ui::SYSTEM
+            );
+            return;
+        }
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let source =
             std::fs::read_to_string(root.join("xtask/the-checkout-shape.sh")).expect("readable");
@@ -41407,6 +42950,13 @@ impl<T: Shown> Shown for Option<T> {
     /// inodes after following them.
     #[test]
     fn a_link_to_this_script_does_not_make_its_directory_the_repository() {
+        if !nc_platform::testing::A_POSIX_SHELL {
+            println!(
+                "skipped, not applicable on {}: {NO_POSIX_SHELL}",
+                crate::ui::SYSTEM
+            );
+            return;
+        }
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let source =
             std::fs::read_to_string(root.join("xtask/the-checkout-shape.sh")).expect("readable");
@@ -41444,8 +42994,8 @@ impl<T: Shown> Shown for Option<T> {
         // two rows reach `rm -rf` with only that confirmation in place.
         let linked = held.root.join("linked/xtask");
         std::fs::create_dir_all(&linked).expect("writable");
-        std::os::unix::fs::symlink(&script, linked.join("the-checkout-shape.sh"))
-            .expect("a symlink is writable");
+        nc_platform::testing::link_file(&script, &linked.join("the-checkout-shape.sh"))
+            .expect("a link is writable");
         let hard = held.root.join("hard/xtask");
         std::fs::create_dir_all(&hard).expect("writable");
         std::fs::hard_link(&script, hard.join("the-checkout-shape.sh")).expect("writable");
@@ -41471,8 +43021,8 @@ impl<T: Shown> Shown for Option<T> {
         let held_dir = held.root.join("held");
         std::fs::create_dir_all(held_dir.join("crates")).expect("writable");
         std::fs::write(held_dir.join("Cargo.toml"), "[workspace]\n").expect("writable");
-        std::os::unix::fs::symlink(fake.join("xtask"), held_dir.join("xtask"))
-            .expect("a symlink is writable");
+        nc_platform::testing::link_directory(&fake.join("xtask"), &held_dir.join("xtask"))
+            .expect("a link is writable");
         for (how, named) in [
             (
                 "a symlink under a directory called xtask",
@@ -41523,6 +43073,13 @@ impl<T: Shown> Shown for Option<T> {
     /// where `dirname` answers `.` and `.` is right.
     #[test]
     fn the_script_reached_by_another_name_refuses_rather_than_guessing() {
+        if !nc_platform::testing::A_POSIX_SHELL {
+            println!(
+                "skipped, not applicable on {}: {NO_POSIX_SHELL}",
+                crate::ui::SYSTEM
+            );
+            return;
+        }
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let source =
             std::fs::read_to_string(root.join("xtask/the-checkout-shape.sh")).expect("readable");
@@ -41541,7 +43098,7 @@ impl<T: Shown> Shown for Option<T> {
         let far = held.root.join("far/sub");
         std::fs::create_dir_all(&far).expect("writable");
         let link = far.join("shortcut.sh");
-        std::os::unix::fs::symlink(&script, &link).expect("a symlink is writable");
+        nc_platform::testing::link_file(&script, &link).expect("a link is writable");
 
         let drive = |named: &std::path::Path, from: &std::path::Path, argument: &str| {
             #[expect(
@@ -41649,6 +43206,13 @@ impl<T: Shown> Shown for Option<T> {
     /// same spelling is read in.
     #[test]
     fn an_ordinary_cdpath_does_not_move_the_repository() {
+        if !nc_platform::testing::A_POSIX_SHELL {
+            println!(
+                "skipped, not applicable on {}: {NO_POSIX_SHELL}",
+                crate::ui::SYSTEM
+            );
+            return;
+        }
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let source =
             std::fs::read_to_string(root.join("xtask/the-checkout-shape.sh")).expect("readable");
@@ -41716,6 +43280,13 @@ impl<T: Shown> Shown for Option<T> {
     /// fails this rather than passing it.
     #[test]
     fn the_guard_is_armed_before_the_gate_that_can_come_back() {
+        if !nc_platform::testing::A_POSIX_SHELL {
+            println!(
+                "skipped, not applicable on {}: {NO_POSIX_SHELL}",
+                crate::ui::SYSTEM
+            );
+            return;
+        }
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let source =
             std::fs::read_to_string(root.join("xtask/the-checkout-shape.sh")).expect("readable");
@@ -41797,6 +43368,13 @@ impl<T: Shown> Shown for Option<T> {
     /// arrived.
     #[test]
     fn the_copy_leaves_the_build_directory_behind() {
+        if !nc_platform::testing::A_POSIX_SHELL {
+            println!(
+                "skipped, not applicable on {}: {NO_POSIX_SHELL}",
+                crate::ui::SYSTEM
+            );
+            return;
+        }
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let source =
             std::fs::read_to_string(root.join("xtask/the-checkout-shape.sh")).expect("readable");
@@ -41863,7 +43441,7 @@ impl<T: Shown> Shown for Option<T> {
     /// it.** The script exports [`super::CHECKOUT_SHAPE_GUARD`] above the
     /// `cargo xtask check` it runs inside its copy; that `check` runs
     /// `cargo test --workspace`, whose `cargo_with` sets or clears
-    /// `DATABASE_URL`, `NC_OFFLINE` and `CARGO_TERM_COLOR`, removes every
+    /// `DATABASE_URL`, `NC_NO_STACK` and `CARGO_TERM_COLOR`, removes every
     /// variable beginning `PROPTEST_`, and passes the rest of the environment
     /// through — so the name reaches the test binary, and the test binary
     /// drives this script again to prove its guards. A drive that does not
@@ -41988,8 +43566,8 @@ impl<T: Shown> Shown for Option<T> {
         // nothing, which is the rule `THE_REST_IT_SAYS` states, so this
         // paragraph does not carry it.
         assert_eq!(
-            drives, 12,
-            "{drives} drive(s) of the checkout script were found in this file, and twelve \
+            drives, 13,
+            "{drives} drive(s) of the checkout script were found in this file, and thirteen \
              are written down. One fewer is a drive spelled a way this rule cannot see; \
              one more is a drive to read before writing the number"
         );
@@ -42018,6 +43596,13 @@ impl<T: Shown> Shown for Option<T> {
     /// first `rm -rf`, so the test costs a process and no copying.
     #[test]
     fn the_checkout_script_refuses_a_copy_inside_this_repository() {
+        if !nc_platform::testing::A_POSIX_SHELL {
+            println!(
+                "skipped, not applicable on {}: {NO_POSIX_SHELL}",
+                crate::ui::SYSTEM
+            );
+            return;
+        }
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let script = root.join("xtask/the-checkout-shape.sh");
         // Syntax first, because a script nothing runs is a script nothing
@@ -42150,6 +43735,13 @@ impl<T: Shown> Shown for Option<T> {
     /// script is for.
     #[test]
     fn the_script_refuses_to_run_inside_a_checkout_it_made() {
+        if !nc_platform::testing::A_POSIX_SHELL {
+            println!(
+                "skipped, not applicable on {}: {NO_POSIX_SHELL}",
+                crate::ui::SYSTEM
+            );
+            return;
+        }
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let source =
             std::fs::read_to_string(root.join("xtask/the-checkout-shape.sh")).expect("readable");
@@ -42262,7 +43854,7 @@ impl<T: Shown> Shown for Option<T> {
             clippy::disallowed_methods,
             reason = "the runner is driven and its summary is read, not printed"
         )]
-        let printed = std::process::Command::new("python3")
+        let printed = std::process::Command::new(nc_platform::testing::PYTHON)
             .arg(runner)
             .arg("--summary")
             .current_dir(runner.parent().expect("the runner is in a directory"))
@@ -42270,7 +43862,7 @@ impl<T: Shown> Shown for Option<T> {
             // `__pycache__` beside it is a file of a kind no rule here knows.
             .env("PYTHONDONTWRITEBYTECODE", "1")
             .output()
-            .expect("python3 is on this machine");
+            .expect("Python 3 is on this machine");
         assert!(
             printed.status.success(),
             "`python3 xtask/mutants.py --summary` failed: {}",

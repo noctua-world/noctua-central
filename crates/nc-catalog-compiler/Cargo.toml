@@ -29,6 +29,10 @@ nc-schema.workspace = true
 # unless the package depends on itself here. Cargo resolves it to this
 # same unit, so nothing is built twice.
 nc-catalog-compiler = { path = "." }
+# **What this system lists in the order it was made**, which the suite about
+# the order on disk needs and stands aside without, saying so: the one place
+# a system is asked what it can do (`NOCTUA.md §2.7`).
+nc-platform = { workspace = true, features = ["test-support"] }
 
 [lints]
 workspace = true

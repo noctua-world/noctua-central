@@ -1787,8 +1787,6 @@ fn a_pack_that_cannot_be_read_is_refused_by_name() {
 /// about the wrong thing.
 #[test]
 fn a_file_that_cannot_be_read_is_refused_by_name() {
-    use std::os::unix::fs::PermissionsExt as _;
-
     for (named, check) in [
         ("policy/schema.cedarschema", "schema-unreadable"),
         ("policy/world.json", "world-unreadable"),
@@ -1806,14 +1804,14 @@ fn a_file_that_cannot_be_read_is_refused_by_name() {
     ] {
         let scratch = Scratch::new(check);
         let path = scratch.root.join(named);
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o000))
-            .expect("this test wrote the copy it is chmod-ing");
+        nc_platform::testing::make_unreadable(&path)
+            .expect("this test wrote the copy it is shutting");
         let said = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             scratch.must_fail(check, named.rsplit('/').next().expect("a file name"));
         }));
         // Readable again before the assertion is re-raised, so a failure here
         // does not leave a directory `Scratch`'s own `Drop` cannot remove.
-        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644));
+        let _ = nc_platform::testing::make_private(&path);
         if let Err(panic) = said {
             std::panic::resume_unwind(panic);
         }
@@ -2058,7 +2056,7 @@ fn an_empty_pack_is_refused_rather_than_passing_everything() {
                     path.strip_prefix(&scratch.root)
                         .expect("under the copy")
                         .to_string_lossy()
-                        .into_owned(),
+                        .replace('\\', "/"),
                 );
             }
         }
@@ -2201,11 +2199,16 @@ fn every_policy_file() -> Vec<(String, String)> {
             if path.is_dir() {
                 gather(&path, root, into);
             } else if path.extension().is_some_and(|kind| kind == "cedar") {
+                // With `/`, which is how every path the pack is compiled
+                // under is written and what the filters below compare: on
+                // Windows the separator is `\`, and a core read as
+                // `policy\core\…` would be filtered out whole as no core at
+                // all.
                 let relative = path
                     .strip_prefix(root)
                     .expect("under the repository")
                     .to_string_lossy()
-                    .into_owned();
+                    .replace('\\', "/");
                 let text = std::fs::read_to_string(&path).expect("the policy is readable");
                 into.push((relative, text));
             }

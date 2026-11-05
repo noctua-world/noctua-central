@@ -61,8 +61,9 @@ const THE_LARGEST_FAN_OUT: u32 = 16;
 /// count with all four of these having done nothing. The reachability line is
 /// about the gate's own socket, not the child's.
 ///
-/// So the default is to fail. `cargo xtask check --offline` sets `NC_OFFLINE`,
-/// and that — not the absence of a variable — is what permits a skip. Cutting
+/// So the default is to fail. `cargo xtask check` sets `NC_NO_STACK` under
+/// `--offline` and on a system that runs no stack, with the reason as its
+/// value, and that — not the absence of a variable — is what permits a skip. Cutting
 /// either wire turns the suite red, which is `§2.4`'s rule applied to a test:
 /// if the check cannot be performed, the answer is no.
 ///
@@ -93,7 +94,7 @@ async fn pool(schema: &str) -> Option<sqlx::PgPool> {
     let schema = &format!("{schema}_{}", std::process::id());
     let url = match std::env::var("DATABASE_URL").ok() {
         Some(url) => url,
-        None if std::env::var_os("NC_OFFLINE").is_some() => {
+        None if std::env::var_os("NC_NO_STACK").is_some() => {
             // **Announced, so the count cannot mean two things.** `check`
             // reports the test count from cargo's own totals, and a skipped
             // test still counts as passed — so unannounced, `--offline` would
@@ -101,7 +102,8 @@ async fn pool(schema: &str) -> Option<sqlx::PgPool> {
             // a real store. The line below reaches the gate's output through
             // cargo's `--nocapture`-less stdout on a *failing* run only, so
             // `check` also counts these and says so beside the number.
-            println!("nc-journal: skipped, no database (NC_OFFLINE)");
+            let why = std::env::var("NC_NO_STACK").unwrap_or_default();
+            println!("nc-journal: skipped, no database: {why}");
             return None;
         }
         None => panic!(

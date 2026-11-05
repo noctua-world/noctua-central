@@ -2145,9 +2145,8 @@ async fn a_commit_killed_anywhere_leaves_the_unit_absent_or_whole() {
             assert!(whole, "a child that finished left the unit absent");
             break;
         }
-        assert_eq!(
-            std::os::unix::process::ExitStatusExt::signal(&status),
-            Some(6),
+        assert!(
+            nc_platform::testing::stopped_by_abort(status),
             "the child did not stop the way `abort` stops it: {status}"
         );
         killed += 1;

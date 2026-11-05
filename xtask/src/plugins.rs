@@ -45,8 +45,8 @@ use crate::ui;
 
 /// The one target a plugin is built for.
 ///
-/// `rust-toolchain.toml` and the `check` job in `ci.yml` both ask for it, and a
-/// test in `workflow.rs` holds each of them to that.
+/// `rust-toolchain.toml` and every job in `ci.yml` that runs the gate ask for
+/// it, and a test in `workflow.rs` holds each of them to that.
 pub(crate) const TARGET: &str = "wasm32-unknown-unknown";
 
 /// Where plugin builds go, relative to the repository.
@@ -198,7 +198,7 @@ fn build_one(root: &Path, plugin: &crate::members::Member, offline: bool) -> Res
     let out = root.join(OUT);
     let out = out.to_string_lossy();
     let [build, lint, document] = plugin_commands(&plugin.name, &out, offline);
-    run_cargo(root, "build", &build, &plugin.path)?;
+    run_cargo(root, "build", &build, &plugin.path, offline)?;
     let library = plugin.name.replace('-', "_");
     let core_path = root
         .join(OUT)
@@ -233,19 +233,27 @@ fn build_one(root: &Path, plugin: &crate::members::Member, offline: bool) -> Res
         &components.join(format!("{directory}.inputs")),
         listing.as_bytes(),
     )?;
-    run_cargo(root, "clippy", &lint, &plugin.path)?;
-    run_cargo(root, "doc", &document, &plugin.path)?;
+    run_cargo(root, "clippy", &lint, &plugin.path, offline)?;
+    run_cargo(root, "doc", &document, &plugin.path, offline)?;
     Ok(())
 }
 
 /// One cargo command for one plugin, or what cargo said when it refused.
-fn run_cargo(root: &Path, verb: &str, args: &[&str], plugin: &str) -> Result<(), String> {
-    crate::check::cargo(root, args).map(drop).map_err(|output| {
-        format!(
-            "`cargo {verb}` refused `{plugin}` for {TARGET}:\n{}",
-            crate::check::what_cargo_said(&output).join("\n")
-        )
-    })
+fn run_cargo(
+    root: &Path,
+    verb: &str,
+    args: &[&str],
+    plugin: &str,
+    offline: bool,
+) -> Result<(), String> {
+    crate::check::cargo(root, args, offline)
+        .map(drop)
+        .map_err(|output| {
+            format!(
+                "`cargo {verb}` refused `{plugin}` for {TARGET}:\n{}",
+                crate::check::what_cargo_said(&output).join("\n")
+            )
+        })
 }
 
 /// A core module, encoded as a component, once it is shown to reach nothing but `world`.

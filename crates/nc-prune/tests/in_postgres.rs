@@ -74,8 +74,9 @@ async fn pool(schema: &str) -> Option<sqlx::PgPool> {
     let schema = &format!("{schema}_{}", std::process::id());
     let url = match std::env::var("DATABASE_URL").ok() {
         Some(url) => url,
-        None if std::env::var_os("NC_OFFLINE").is_some() => {
-            println!("nc-prune: skipped, no database (NC_OFFLINE)");
+        None if std::env::var_os("NC_NO_STACK").is_some() => {
+            let why = std::env::var("NC_NO_STACK").unwrap_or_default();
+            println!("nc-prune: skipped, no database: {why}");
             return None;
         }
         None => panic!(

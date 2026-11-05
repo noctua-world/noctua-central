@@ -48,6 +48,8 @@ pub(crate) const WORKFLOWS: &str = ".github";
 ///
 /// It searches all four, and a gate that reads one makes the whole surface a
 /// developer types invisible with a `git mv` on a case-sensitive filesystem.
+/// **And without regard to case**, which [`the_files_answering_to`] says
+/// more about: `just` loads `JuStFiLe` as readily as `justfile`.
 const JUSTFILE: [&str; 4] = ["justfile", ".justfile", "JUSTFILE", "Justfile"];
 
 /// Every name GNU make looks for, in the order it looks for them.
@@ -68,9 +70,9 @@ pub(crate) const WORKFLOW: &str = ".github/workflows/ci.yml";
 /// `run: echo the determinism check used to be here` and the gate calls it
 /// `ok`. That job is the only cross-process determinism check in the
 /// repository, criterion 4's sole enforcement, and the only thing that can see
-/// an ambient rustfmt configuration or a locale. And the `check` job's own
+/// an ambient rustfmt configuration or a locale. And a system job's own
 /// command can become `cargo xtask docs` — every cargo invocation still being
-/// `cargo xtask <verb>` — while nothing runs the gate at all.
+/// `cargo xtask <verb>` — while nothing runs the gate on that system at all.
 ///
 /// A name checked without its body is the defect a bare count of invocations
 /// has, moved one level in: from the job's name to the job's body.
@@ -104,8 +106,11 @@ pub(crate) const WORKFLOW: &str = ".github/workflows/ci.yml";
 /// reached by deleting one line.
 const JOBS_MUST_RUN: &[(&str, &str, usize)] = &[
     // Without the `run:` prefix: what is compared is the *command*, after
-    // the key that introduces it and after any `&&` before it.
-    ("check", "cargo xtask check", 1),
+    // the key that introduces it and after any `&&` before it. One gate on each
+    // of the three systems (`NOCTUA.md §22.2`).
+    ("linux", "cargo xtask check", 1),
+    ("macos", "cargo xtask check", 1),
+    ("windows", "cargo xtask check", 1),
     // Two builds, which is what makes the second generation a second *process*.
     ("deterministic", "cargo xtask build", 2),
     // **And the second build is in a second directory**, which is what makes it
@@ -217,15 +222,26 @@ const HOPS: usize = 16;
 /// The jobs CI must have, and what each is for.
 ///
 /// **A count of invocations is not a claim that CI does anything.** Deleting the
-/// whole `deterministic` job takes the number from four to two, and a floor
-/// that compares it against zero does not see that — so without this list the
+/// whole `deterministic` job takes two from the number, and a floor that
+/// compares it against zero does not see that — so without this list the
 /// sole cross-process determinism check in the repository, and the only place
 /// the ledger's determinism is checked at all, can be removed with `check passed`
 /// printed over it.
-const JOBS: [(&str, &str); 2] = [
+const JOBS: [(&str, &str); 4] = [
     (
-        "check",
-        "runs `cargo xtask check`, which is the whole gate (NOCTUA.md §19.4)",
+        "linux",
+        "runs `cargo xtask check`, which is the whole gate (NOCTUA.md §19.4), on the \
+         one system whose runner brings the stack up",
+    ),
+    (
+        "macos",
+        "runs `cargo xtask check` on macOS (NOCTUA.md §22.2), where the steps that need \
+         the stack say they are not applicable and everything else is judged",
+    ),
+    (
+        "windows",
+        "runs `cargo xtask check` on Windows (NOCTUA.md §22.2), where the steps that need \
+         the stack say they are not applicable and everything else is judged",
     ),
     (
         "deterministic",
@@ -236,6 +252,26 @@ const JOBS: [(&str, &str); 2] = [
          process — an ambient rustfmt configuration, a locale, a path",
     ),
 ];
+
+/// The jobs that run the gate, and the runner family each must run on.
+///
+/// **A job named for a system runs on it.** A `macos` job whose `runs-on:`
+/// names an Ubuntu runner satisfies every other rule here — it runs the gate,
+/// and nothing needs the stack — and proves nothing about macOS, so a defect
+/// only that system has would pass CI with all three jobs green. The family
+/// is read, not the version: `macos-latest` and `macos-15` are both macOS.
+const RUNS_ON: [(&str, &str); 3] = [
+    ("linux", "ubuntu-"),
+    ("macos", "macos-"),
+    ("windows", "windows-"),
+];
+
+/// The jobs that run the gate where no stack runs (`NOCTUA.md §22.2`).
+///
+/// Each runs `cargo xtask check` and nothing that brings the stack up: their
+/// runners have no container stack, and the gate says which of its steps are
+/// not applicable there.
+const WITHOUT_THE_STACK: [&str; 2] = ["macos", "windows"];
 
 /// The one command CI is allowed to reach the gate through.
 const XTASK: &str = "xtask";
@@ -784,12 +820,10 @@ fn everything_ci_reaches(root: &Path) -> Result<(Vec<std::path::PathBuf>, bool),
     // and `check passed`. A committed file that makes the claim is read whether
     // or not CI mentions it, which is the reasoning written above for the
     // justfile and applies to this one unchanged.
-    for name in JUSTFILE.iter().chain(MAKEFILE.iter()) {
-        let recipes = root.join(name);
-        if recipes.is_file() && !files.contains(&recipes) {
-            files.push(recipes);
-        }
-    }
+    let recipes = the_files_answering_to(root, &JUSTFILE)
+        .into_iter()
+        .chain(the_files_answering_to(root, &MAKEFILE));
+    joined(root, &mut files, recipes);
     let ran_out = follow_what_they_reach(root, &mut files, &mut hops) || ran_out;
     files.sort();
     Ok((files, ran_out))
@@ -835,7 +869,8 @@ pub(crate) fn only_runs_the_gate(root: &Path) -> Result<(Vec<Finding>, usize), S
         let relative = relative_to(root, &path);
         // The workflow's own files, as against the `justfile` and the scripts
         // it reaches: a recipe a developer types may be offline; CI may not.
-        let file_is_ci = relative.starts_with(WORKFLOWS);
+        let place = the_place_of(root, &path);
+        let (file_is_ci, _) = the_role_of(&place);
         // Every file this walk found, not the workflow alone: a `justfile`
         // recipe and a script a step runs discard a verdict the same way.
         no_verdict_is_discarded(&relative, &text, &mut findings);
@@ -848,7 +883,7 @@ pub(crate) fn only_runs_the_gate(root: &Path) -> Result<(Vec<Finding>, usize), S
         // sentence all still calling it THE gate, and nothing else in the tree
         // says a word.
         for (index, line) in joined_continuations(&text) {
-            let (header, recipe) = the_recipe_and_its_name(&text, index, file_is_ci, &relative);
+            let (header, recipe) = the_recipe_and_its_name(&text, index, file_is_ci, &place);
             // Already trimmed and already joined; `trimmed` is kept as the name
             // the rest of this loop reads it by.
             let trimmed = line.as_str();
@@ -1444,11 +1479,10 @@ fn no_flags_reach_the_compiler(root: &Path, file: &str, findings: &mut Vec<Findi
     // **And the environment CI exports, which is not this process's.** Reading
     // `std::env::vars()` alone is silent on every developer machine and fires
     // only on a runner, where it is fatal: a `ci.yml` setting `RUSTFLAGS: -D
-    // warnings` at workflow scope reaches the `check` job's only step, and the
+    // warnings` at workflow scope reaches every job's gate step, and the
     // gate refuses to run with `RUSTFLAGS` set — those two rules cannot both
     // hold, so the workflow can never go green, and nothing finds it unless
-    // something reads the file that sets it. Its own `ci.yml` records that
-    // the workflow has never run.
+    // something reads the file that sets it.
     //
     // Reported against the workflow rather than against `.cargo/config.toml`,
     // because that is the file to edit.
@@ -1691,6 +1725,194 @@ fn one_alias_file(root: &Path, file: &str, findings: &mut Vec<Finding>) {
     }
 }
 
+/// What a path names, however it is spelled.
+///
+/// **A spelling is not a file.** On a filesystem that ignores case, as macOS's
+/// and Windows' do, `JUSTFILE` and `justfile` are one file; and a step into a
+/// directory and back out of it is a second spelling of where it began. A walk
+/// that asks whether it holds a path by its spelling reads the one justfile
+/// three times there and counts each of its six commands three times: on one
+/// tree, `ok 19 cargo command(s)` on Linux and `31` on macOS. The path the
+/// system resolves a spelling to is the file; a path it cannot resolve is kept
+/// as spelled, which is then all there is to compare.
+fn the_file_itself(path: &Path) -> std::path::PathBuf {
+    std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
+/// Where a spelling puts a file: its steps back taken out, and every name
+/// it went through kept as spelled.
+///
+/// **A step back is not a place.** `cd ci && sh ../.github/scripts/x.sh`
+/// reaches a script under `.github/` through a step into `ci` and back out,
+/// and read from the spelling that is a script outside it: a second reading of
+/// the file the `.github/` walk already holds, so its commands are counted
+/// twice and each finding in it is reported twice. And `.github/../justfile`
+/// is the root justfile: read as one of CI's files, its recipe that runs
+/// offline is refused.
+///
+/// **A link is a place.** A link names its file from where the link sits,
+/// and so does a link to a directory: a justfile the `.github/` walk finds
+/// through a directory link is read there as one of CI's files, as it is
+/// found. So the steps back are taken out as written, and the system is asked
+/// only whether what is left names the same file. Where it does not, the
+/// spelling stepped back out of a directory link, which the system takes from
+/// where the link points: the place is then the directory the system resolves,
+/// with the last name as spelled.
+fn the_place_of(root: &Path, path: &Path) -> String {
+    let mut place = std::path::PathBuf::new();
+    for part in path.strip_prefix(root).unwrap_or(path).components() {
+        match part {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir
+                if matches!(
+                    place.components().next_back(),
+                    Some(std::path::Component::Normal(_))
+                ) =>
+            {
+                place.pop();
+            }
+            other => place.push(other),
+        }
+    }
+    let written = root.join(&place);
+    if the_file_itself(&written) == the_file_itself(path) {
+        return relative_to(root, &written);
+    }
+    path.parent()
+        .and_then(|directory| std::fs::canonicalize(directory).ok())
+        .zip(path.file_name())
+        .map_or_else(
+            || relative_to(root, path),
+            |(directory, name)| relative_to(&the_file_itself(root), &directory.join(name)),
+        )
+}
+
+/// What the judgment reads a file as, from the place that reached it: one
+/// of CI's own files, and a justfile.
+///
+/// **One answer, for the walk that joins a file and the loop that judges
+/// it**, so the two cannot disagree about which spellings are one reading.
+/// Both halves are read from where [`the_place_of`] says the spelling puts
+/// the file: a file under `.github/` is CI's, where no command may be offline,
+/// and a file named as one of [`JUSTFILE`] has recipes, whose names are held
+/// to what their bodies run.
+fn the_role_of(relative: &str) -> (bool, bool) {
+    let basename = relative.rsplit('/').next().unwrap_or(relative);
+    (
+        relative.starts_with(WORKFLOWS),
+        answers_to(basename, &JUSTFILE),
+    )
+}
+
+/// Adds to `files` each path in `reached` that is a reading it does not hold
+/// yet, and says whether any was.
+///
+/// **A reading is a file in the role its place gives it.** By
+/// [`the_file_itself`], a file reached under a second spelling is not read
+/// twice, and its commands not counted twice. By [`the_role_of`] as well,
+/// because the judgment reads two roles from where a spelling puts a file and
+/// the `.github/` walk runs first: compared by the file alone, a root
+/// `justfile` that is also a file under `.github/` through a link, in either
+/// direction, is judged as a workflow and nothing else, and no recipe of it
+/// is held to its name. Two spellings are one reading when they name one file
+/// in one role, so two names of one justfile on a filesystem that ignores
+/// case are read once, and by [`the_place_of`] so is a step into a directory
+/// and back out, into `.github/` or out of it as well. The spelling kept is
+/// the first that reached the reading.
+fn joined(
+    root: &Path,
+    files: &mut Vec<std::path::PathBuf>,
+    reached: impl IntoIterator<Item = std::path::PathBuf>,
+) -> bool {
+    let reading = |path: &Path| {
+        (
+            the_file_itself(path),
+            the_role_of(&the_place_of(root, path)),
+        )
+    };
+    let mut known: Vec<_> = files.iter().map(|path| reading(path)).collect();
+    let mut grew = false;
+    for path in reached {
+        let it = reading(&path);
+        if !known.contains(&it) {
+            known.push(it);
+            files.push(path);
+            grew = true;
+        }
+    }
+    grew
+}
+
+/// Whether `name` is one of `names`, with case set aside.
+///
+/// What [`the_files_answering_to`] reads a directory by, and what tells
+/// [`the_role_of`] that a file is a justfile.
+fn answers_to(name: &str, names: &[&str]) -> bool {
+    names.iter().any(|known| known.eq_ignore_ascii_case(name))
+}
+
+/// The files in `directory` that answer to one of `names`, by the names they
+/// have.
+///
+/// **Listed, not joined.** `root.join("JUSTFILE").is_file()` asks the
+/// filesystem, and one that ignores case says yes to every spelling of a file
+/// that is there under one of them, so a walk that joins each name reads one
+/// justfile three times on macOS and Windows. A name read from the directory
+/// is the name the file has, so it is read once, and named in a finding as it
+/// is named on disk.
+///
+/// **Compared without case, on every system.** `just` compares so on its
+/// own, so a justfile renamed `JuStFiLe` is still the surface a developer
+/// types on Linux, measured against `just 1.55.1`; and a name that differs
+/// from one of make's only in case is that name on the filesystems macOS and
+/// Windows check out onto. A file one of the two would load on any system is
+/// read on every system, so all three read the same files.
+fn the_files_answering_to(directory: &Path, names: &[&str]) -> Vec<std::path::PathBuf> {
+    let Ok(entries) = std::fs::read_dir(directory) else {
+        return Vec::new();
+    };
+    let mut found: Vec<std::path::PathBuf> = entries
+        .flatten()
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_str()
+                .is_some_and(|name| answers_to(name, names))
+        })
+        .map(|entry| entry.path())
+        .filter(|path| path.is_file())
+        .collect();
+    found.sort();
+    found
+}
+
+/// `named` under `base`, when every segment before its last is a directory.
+///
+/// **As POSIX resolves a path, on every system.** Windows normalizes a path
+/// before it asks the filesystem anything, striking a name and the `..` after
+/// it out whether or not the name exists, so `cd "$(dirname "$0")/.."` in
+/// `xtask/leaves-nothing.sh` names the root there — a name that is no
+/// directory, then a step back from it — and a walk that joins a word whole
+/// resolves every word a second time against it. On one tree such a walk
+/// prints `ok 41 cargo command(s)` on Windows and `31` on macOS; by the count,
+/// the ten are the two scripts and the justfile the words reach, read once
+/// more through that second root, which is inferred and not measured apart.
+/// POSIX's `cd` refuses such a path, as bash says with
+/// `cd: missing/../ci: No such file or directory`, and Linux and macOS refuse
+/// it on their own; asking for each segment before stepping past it makes the
+/// three systems reach the same directories and the same files. What the last
+/// segment must be is the caller's question.
+fn under(base: &Path, named: &str) -> Option<std::path::PathBuf> {
+    let mut reached = base.to_path_buf();
+    for segment in Path::new(named).components() {
+        if !reached.is_dir() {
+            return None;
+        }
+        reached.push(segment);
+    }
+    Some(reached)
+}
+
 /// Adds every file `files` reaches, until nothing new appears.
 ///
 /// Called twice: once for what the workflows reach, and again after the
@@ -1723,14 +1945,7 @@ fn follow_what_they_reach(
     // `depth=15 chain_scripts_read=15 ran_out=true` — the false finding the
     // shared budget exists to prevent, one off.
     while *left > 0 {
-        let mut grew = false;
-        for reached in reached_from(root, files) {
-            if !files.contains(&reached) {
-                files.push(reached);
-                grew = true;
-            }
-        }
-        if !grew {
+        if !joined(root, files, reached_from(root, files)) {
             return false;
         }
         *left -= 1;
@@ -1740,10 +1955,9 @@ fn follow_what_they_reach(
     // exactly [`HOPS`] is read whole and leaves nothing behind, and reporting it
     // as too deep is the same false finding the shared budget and the hop rule
     // prevent, one step further along. So the question is asked rather than
-    // inferred from the counter.
-    reached_from(root, files)
-        .into_iter()
-        .any(|reached| !files.contains(&reached))
+    // inferred from the counter — by [`joined`] itself, on a copy, so "more to
+    // find" means a reading it would add.
+    joined(root, &mut files.clone(), reached_from(root, files))
 }
 
 /// Every file in the tree one word of a CI file could name.
@@ -1793,8 +2007,7 @@ fn what_this_word_names(
             found.extend(matching(&base, named));
             continue;
         }
-        let candidate = base.join(named);
-        if candidate.is_file() {
+        if let Some(candidate) = under(&base, named).filter(|path| path.is_file()) {
             found.push(candidate);
         }
     }
@@ -1845,7 +2058,7 @@ fn matching(base: &Path, pattern: &str) -> Vec<std::path::PathBuf> {
     }
     let (before, after) = name.split_once('*').unwrap_or((name, ""));
     let mut found = Vec::new();
-    let Ok(entries) = std::fs::read_dir(base.join(directory)) else {
+    let Some(Ok(entries)) = under(base, directory).map(std::fs::read_dir) else {
         return found;
     };
     for entry in entries.flatten() {
@@ -1894,8 +2107,10 @@ fn reached_from(root: &Path, walked: &[std::path::PathBuf]) -> Vec<std::path::Pa
                 });
             if let Some(named) = named {
                 let named = named.trim_matches(['"', '\'']);
-                if !named.is_empty() && root.join(named).is_dir() {
-                    directories.push(root.join(named));
+                if !named.is_empty()
+                    && let Some(directory) = under(root, named).filter(|path| path.is_dir())
+                {
+                    directories.push(directory);
                 }
             }
         }
@@ -1914,10 +2129,8 @@ fn reached_from(root: &Path, walked: &[std::path::PathBuf]) -> Vec<std::path::Pa
                 && local.starts_with("./")
             {
                 for name in ["action.yml", "action.yaml"] {
-                    let candidate = root.join(local.trim_start_matches("./")).join(name);
-                    if candidate.is_file() {
-                        reached.push(candidate);
-                    }
+                    let named = format!("{}/{name}", local.trim_start_matches("./"));
+                    reached.extend(under(root, &named).filter(|path| path.is_file()));
                 }
             }
             // **A task runner reaches its own file by name, not by path.**
@@ -1933,12 +2146,7 @@ fn reached_from(root: &Path, walked: &[std::path::PathBuf]) -> Vec<std::path::Pa
                     .split_whitespace()
                     .any(|word| word.trim_matches(['"', '\'']) == command)
                 {
-                    for file in names {
-                        let candidate = root.join(file);
-                        if candidate.is_file() {
-                            reached.push(candidate);
-                        }
-                    }
+                    reached.extend(the_files_answering_to(root, names));
                 }
             }
             // **A `just` module names a file the word does not.** `just` loads
@@ -1972,10 +2180,7 @@ fn reached_from(root: &Path, walked: &[std::path::PathBuf]) -> Vec<std::path::Pa
                         format!("{name}/.justfile"),
                     ]);
                     for candidate in candidates {
-                        let path = root.join(candidate);
-                        if path.is_file() {
-                            reached.push(path);
-                        }
+                        reached.extend(under(root, &candidate).filter(|path| path.is_file()));
                     }
                 }
             }
@@ -2009,7 +2214,7 @@ fn reached_from(root: &Path, walked: &[std::path::PathBuf]) -> Vec<std::path::Pa
 /// **The gate that keeps CI on one command has to see whether CI can run
 /// it.** This file asserts what the workflow's cargo commands are and what its
 /// jobs are called, and this asserts that the runner is given the things
-/// those commands need. Measured in exactly the state a `check` job produces
+/// those commands need. Measured in exactly the state a gate job produces
 /// — a bare checkout, a fresh unmigrated PostgreSQL service, no log store:
 ///
 /// ```text
@@ -2116,13 +2321,15 @@ fn ci_supplies_what_the_gate_needs(root: &Path, ci: &str, findings: &mut Vec<Fin
                 .to_owned(),
         });
     }
-    // And the step itself, in the job whose subject is the gate: without it the
-    // gate has no database and no store, and every step that reads one fails.
-    let Some(job) = job_body(ci, "check") else {
+    no_stack_where_none_runs(ci, findings);
+    // And the step itself, in the job whose subject is the whole gate: without
+    // it the gate has no database and no store, and every step that reads one
+    // fails.
+    let Some(job) = job_body(ci, "linux") else {
         findings.push(Finding {
             file: WORKFLOW.to_owned(),
             line: 1,
-            what: "there is no `check` job to bring the stack up in".to_owned(),
+            what: "there is no `linux` job to bring the stack up in".to_owned(),
             fix: "`JOBS` says what this workflow has to contain; the rule here is about \
                   what that job does before it runs the gate"
                 .to_owned(),
@@ -2142,7 +2349,7 @@ fn ci_supplies_what_the_gate_needs(root: &Path, ci: &str, findings: &mut Vec<Fin
         (None, _) => findings.push(Finding {
             file: WORKFLOW.to_owned(),
             line: where_it_says(ci, "cargo xtask check"),
-            what: "the `check` job runs the gate without bringing the stack up".to_owned(),
+            what: "the `linux` job runs the gate without bringing the stack up".to_owned(),
             fix: "`cargo xtask check` asks a running database what it holds and a running \
                   log store what it was started with, and neither is a step `--offline` \
                   skips. Add a `cargo xtask dev` step before it"
@@ -2151,18 +2358,49 @@ fn ci_supplies_what_the_gate_needs(root: &Path, ci: &str, findings: &mut Vec<Fin
         (Some(_), None) => findings.push(Finding {
             file: WORKFLOW.to_owned(),
             line: where_it_says(ci, "cargo xtask dev"),
-            what: "the `check` job brings the stack up and never runs the gate".to_owned(),
+            what: "the `linux` job brings the stack up and never runs the gate".to_owned(),
             fix: "the stack is what the gate needs, not a thing to start for its own sake"
                 .to_owned(),
         }),
         (Some(_), Some(_)) => findings.push(Finding {
             file: WORKFLOW.to_owned(),
             line: where_it_says(ci, "cargo xtask dev"),
-            what: "the `check` job brings the stack up after running the gate".to_owned(),
+            what: "the `linux` job brings the stack up after running the gate".to_owned(),
             fix: "the gate reads the database and the store while it runs, so a stack \
                   started afterwards is a stack it never saw"
                 .to_owned(),
         }),
+    }
+}
+
+/// The macOS and Windows jobs bring no stack up.
+///
+/// **And no stack where none runs.** Those jobs run the gate without one, by
+/// design: the steps that need it say they are not applicable there, and a
+/// `cargo xtask dev` step in one of those jobs is a step that cannot succeed on
+/// that runner — or, on one that happened to have docker, a stack the gate
+/// there never reads. Its own function so `ci_supplies_what_the_gate_needs`
+/// stays inside the line limit.
+fn no_stack_where_none_runs(ci: &str, findings: &mut Vec<Finding>) {
+    for system in WITHOUT_THE_STACK {
+        let Some(job) = job_body(ci, system) else {
+            continue;
+        };
+        if commands_in(&job)
+            .iter()
+            .any(|line| line.contains("xtask dev"))
+        {
+            findings.push(Finding {
+                file: WORKFLOW.to_owned(),
+                line: where_it_says(ci, &format!("{system}:")),
+                what: format!("the `{system}` job brings the stack up, and only Linux runs one"),
+                fix: "the stack runs on Linux, where the `linux` job brings it up and the gate \
+                      reads it (NOCTUA.md §22.2); on macOS and Windows the gate says which of \
+                      its steps are not applicable and runs the rest. Remove the \
+                      `cargo xtask dev` step from this job"
+                    .to_owned(),
+            });
+        }
     }
 }
 
@@ -2799,6 +3037,34 @@ fn jobs_are_what_they_are_named(ci: &str, findings: &mut Vec<Finding>) {
                 });
                 break;
             }
+        }
+    }
+    for (job, family) in RUNS_ON {
+        let Some(body) = job_body(ci, job) else {
+            continue;
+        };
+        let runner = body
+            .lines()
+            .map(the_code_before_a_comment)
+            .find_map(|line| {
+                line.trim()
+                    .strip_prefix("runs-on:")
+                    .map(|runner| runner.trim().trim_matches(['"', '\'']).to_owned())
+            })
+            .unwrap_or_default();
+        if !runner.starts_with(family) {
+            findings.push(Finding {
+                file: WORKFLOW.to_owned(),
+                line: where_it_says(ci, &format!("{job}:")),
+                what: format!(
+                    "the `{job}` job runs on `{runner}`, which is not a `{family}` runner"
+                ),
+                fix: format!(
+                    "a job named for a system is the proof that the gate passes there \
+                     (NOCTUA.md §22.2), and one on another runner proves it of the wrong \
+                     system with every rule here green. Run `{job}` on a `{family}…` runner"
+                ),
+            });
         }
     }
     the_workflow_actually_runs(ci, findings);
@@ -3714,8 +3980,8 @@ fn the_recipe_above(text: &str, index: usize, file_is_ci: bool, named: &str) -> 
     // for having the wrong name. A makefile gate is a different rule and wants
     // writing as one; what this narrowing must not do is *look* like it covers
     // them, which is why it says so here.
-    let basename = named.rsplit('/').next().unwrap_or(named);
-    if file_is_ci || !JUSTFILE.contains(&basename) {
+    let (_, has_recipes) = the_role_of(named);
+    if file_is_ci || !has_recipes {
         return String::new();
     }
     // A comment at column zero can end in a colon — this file's own
@@ -3970,7 +4236,7 @@ mod tests {
             let (files, ran_out) = super::everything_ci_reaches(&root).expect("the walk runs");
             let read = files
                 .iter()
-                .filter(|path| path.to_string_lossy().contains("/ci/s"))
+                .filter(|path| crate::relative_to(&root, path).starts_with("ci/s"))
                 .count();
             (read, ran_out)
         };
@@ -4105,6 +4371,30 @@ mod tests {
             "the second call started from a fresh budget instead of continuing the \
              first's, so the walk reaches twice the bound this tree writes down"
         );
+
+        // **And a reading new only by its role is more to find.** The walk
+        // holds the justfile as CI's, through a link beside the workflows, and
+        // a chain one past the bound ends by running it as a justfile: a
+        // reading the walk would add. Asked whether it holds the file alone,
+        // the walk says it read everything and that reading goes unjudged.
+        chain(super::HOPS + 1);
+        std::fs::write(
+            scratch.join(format!("ci/s{:02}.sh", super::HOPS + 1)),
+            "sh justfile\n",
+        )
+        .expect("writable");
+        std::fs::write(scratch.join("justfile"), "check:\n    cargo xtask build\n")
+            .expect("writable");
+        std::fs::create_dir_all(scratch.join(".github")).expect("writable");
+        nc_platform::testing::link_file(&scratch.join("justfile"), &scratch.join(".github/j.yml"))
+            .expect("a link is writable");
+        let mut files = vec![scratch.join("ci/s01.sh"), scratch.join(".github/j.yml")];
+        let mut hops = super::HOPS;
+        assert!(
+            super::follow_what_they_reach(&scratch, &mut files, &mut hops),
+            "the walk spent its bound with the justfile still to be read as one, and \
+             said it had read everything: {files:#?}"
+        );
         drop(held);
     }
 
@@ -4216,15 +4506,25 @@ mod tests {
         // the guard actually decides is whether a `*` in the directory half is
         // a wildcard this refuses or a name it looks up, and the two answers
         // differ only where that name is real.
-        std::fs::create_dir_all(scratch.join("*")).expect("writable");
-        std::fs::write(scratch.join("*/a.yml"), "").expect("writable");
-        let left_over = super::matching(&scratch, "*/a.yml");
-        assert!(
-            left_over.is_empty(),
-            "a `*` in the directory half is a pattern this does not expand, so it \
-             answers with nothing — and a reader that took it for a name would report \
-             a file under a directory no workflow ever wrote: {left_over:?}"
-        );
+        //
+        // **Where a name can hold a `*`.** Windows refuses one in any name, so
+        // there no directory called `*` exists for the two readings to differ
+        // over, in this scratch or in any checkout the reader walks; the clause
+        // is held on the systems where the name is real.
+        match std::fs::create_dir_all(scratch.join("*")) {
+            Err(refused) if refused.kind() == std::io::ErrorKind::InvalidFilename => {}
+            made => {
+                made.expect("writable");
+                std::fs::write(scratch.join("*/a.yml"), "").expect("writable");
+                let left_over = super::matching(&scratch, "*/a.yml");
+                assert!(
+                    left_over.is_empty(),
+                    "a `*` in the directory half is a pattern this does not expand, so it \
+                     answers with nothing — and a reader that took it for a name would \
+                     report a file under a directory no workflow ever wrote: {left_over:?}"
+                );
+            }
+        }
         let left_over = super::matching(&scratch, "one/*/a.yml");
         assert!(
             left_over.is_empty(),
@@ -4353,10 +4653,18 @@ mod tests {
         .expect("writable");
 
         let job = |steps: &str| {
-            format!("jobs:\n  check:\n    runs-on: ubuntu-latest\n    steps:\n{steps}")
+            format!("jobs:\n  linux:\n    runs-on: ubuntu-latest\n    steps:\n{steps}")
         };
         let up = "      - run: cargo xtask dev\n";
         let gate = "      - run: cargo xtask check\n";
+        // A system job with no stack beside a `linux` job that is right, and one
+        // with a stack brought up on a runner that has none.
+        let beside = |system: &str, steps: &str| {
+            format!(
+                "{}  {system}:\n    runs-on: {system}-latest\n    steps:\n{steps}",
+                job(&format!("{up}{gate}"))
+            )
+        };
 
         for (what, ci, expected) in [
             (
@@ -4365,29 +4673,49 @@ mod tests {
                 None,
             ),
             (
+                "the gate on macOS with no stack",
+                beside("macos", gate),
+                None,
+            ),
+            (
+                "the gate on Windows with no stack",
+                beside("windows", gate),
+                None,
+            ),
+            (
+                "a stack brought up on macOS",
+                beside("macos", &format!("{up}{gate}")),
+                Some("the `macos` job brings the stack up, and only Linux runs one"),
+            ),
+            (
+                "a stack brought up on Windows",
+                beside("windows", &format!("{up}{gate}")),
+                Some("the `windows` job brings the stack up, and only Linux runs one"),
+            ),
+            (
                 "the gate with no stack",
                 job(gate),
-                Some("the `check` job runs the gate without bringing the stack up"),
+                Some("the `linux` job runs the gate without bringing the stack up"),
             ),
             (
                 "a stack and no gate",
                 job(up),
-                Some("the `check` job brings the stack up and never runs the gate"),
+                Some("the `linux` job brings the stack up and never runs the gate"),
             ),
             (
                 "the stack after the gate",
                 job(&format!("{gate}{up}")),
-                Some("the `check` job brings the stack up after running the gate"),
+                Some("the `linux` job brings the stack up after running the gate"),
             ),
             (
-                "no check job at all",
+                "no linux job at all",
                 "jobs:\n  other:\n    steps:\n      - run: cargo xtask check\n".to_owned(),
-                Some("there is no `check` job to bring the stack up in"),
+                Some("there is no `linux` job to bring the stack up in"),
             ),
             (
                 "a service block naming the tag, not the digest",
                 format!(
-                    "jobs:\n  check:\n    runs-on: ubuntu-latest\n    services:\n      \
+                    "jobs:\n  linux:\n    runs-on: ubuntu-latest\n    services:\n      \
                      db:\n        image: postgres:18-alpine\n    steps:\n{up}{gate}"
                 ),
                 Some("CI names `postgres:18-alpine` itself instead of bringing the stack up"),
@@ -4395,7 +4723,7 @@ mod tests {
             (
                 "a service block instead of the stack",
                 format!(
-                    "jobs:\n  check:\n    runs-on: ubuntu-latest\n    services:\n      \
+                    "jobs:\n  linux:\n    runs-on: ubuntu-latest\n    services:\n      \
                      db:\n        image: postgres:18-alpine\n    steps:\n{up}{gate}"
                 ),
                 Some("CI names `postgres:18-alpine` itself instead of bringing the stack up"),
@@ -4485,6 +4813,244 @@ mod tests {
         // The floor: a workflow that stopped invoking cargo at all would produce
         // no findings and prove nothing.
         assert!(seen >= 2, "only {seen} cargo command(s) were inspected");
+    }
+
+    /// The walk reads each file once, however many spellings reach it.
+    ///
+    /// **A walk that compares spellings counts one tree three ways**: on one
+    /// tree such a walk prints `ok 19 cargo command(s)` on Linux, `31` on macOS
+    /// and `41` on Windows. A filesystem that ignores case answers for every
+    /// name `just` loads at once, so such a walk reads the one justfile three
+    /// times; and Windows makes a directory of `cd "$(dirname "$0")/.."`, the
+    /// root under a second spelling, through which it reads every file a word
+    /// reaches once more, which by the count is the ten past macOS, inferred.
+    /// Linux's filesystem holds neither shape, so the scratch below plants each
+    /// in a form every system reads alike: a justfile only a lookup without
+    /// case finds, a `cd` into a directory and back out of it, and a `cd`
+    /// through a name that is no directory, which POSIX's `cd` refuses and
+    /// which a path handed to Windows whole resolves.
+    ///
+    /// **And a step back across `.github/` is no second place**, in either
+    /// direction: a script under it reached from a step into another directory
+    /// and back out, and the justfile reached from a step into `.github/` and
+    /// back out, are each read once, in the role of where they are.
+    #[test]
+    fn the_walk_reads_each_file_once_however_it_is_reached() {
+        let (files, _) = super::everything_ci_reaches(root()).expect("the walk runs");
+        let mut distinct: Vec<(std::path::PathBuf, (bool, bool))> = files
+            .iter()
+            .map(|path| {
+                (
+                    std::fs::canonicalize(path).expect("a file the walk found resolves"),
+                    super::the_role_of(&super::the_place_of(root(), path)),
+                )
+            })
+            .collect();
+        distinct.sort();
+        distinct.dedup();
+        assert_eq!(
+            distinct.len(),
+            files.len(),
+            "the walk holds one file in one role under two spellings, and counts its \
+             commands twice: {files:#?}"
+        );
+        let (_, seen) = only_runs_the_gate(root()).expect("the workflow is readable");
+        let readings: Vec<std::path::PathBuf> =
+            distinct.into_iter().map(|(file, _)| file).collect();
+        assert_eq!(
+            seen,
+            super::a_second_count_of(&readings),
+            "the walk's count is not the count over the distinct readings it reaches"
+        );
+
+        let held = crate::check::LeavesNothingBehind::new("workflow-spellings");
+        let scratch = &held.root;
+        std::fs::create_dir_all(scratch.join(".github/workflows")).expect("writable");
+        std::fs::create_dir_all(scratch.join(".github/scripts")).expect("writable");
+        std::fs::create_dir_all(scratch.join("ci")).expect("writable");
+        std::fs::create_dir_all(scratch.join("tools")).expect("writable");
+        std::fs::write(
+            scratch.join(super::WORKFLOW),
+            "on: push\njobs:\n  check:\n    steps:\n      - run: cd ci/.. && sh ci/gate.sh\n      \
+             - run: cd missing/../ci && sh elsewhere.sh\n      \
+             - run: cd tools && sh ../.github/scripts/docs.sh\n      \
+             - run: cd .github && sh ../JuStFiLe\n      - run: cargo xtask check\n",
+        )
+        .expect("writable");
+        std::fs::write(scratch.join("ci/gate.sh"), "cargo fmt --all --check\n").expect("writable");
+        std::fs::write(
+            scratch.join(".github/scripts/docs.sh"),
+            "cargo doc --workspace\n",
+        )
+        .expect("writable");
+        std::fs::write(scratch.join("ci/elsewhere.sh"), "cargo test --workspace\n")
+            .expect("writable");
+        std::fs::write(
+            scratch.join("JuStFiLe"),
+            "lint:\n    cargo clippy --workspace\n",
+        )
+        .expect("writable");
+        let (findings, seen) = only_runs_the_gate(scratch).expect("the scratch tree reads");
+        // By the file's last name, so a second spelling of its path is
+        // counted with the first rather than beside it.
+        let about = |name: &str| {
+            findings
+                .iter()
+                .filter(|said| said.file.rsplit('/').next() == Some(name))
+                .count()
+        };
+        assert_eq!(
+            about("gate.sh"),
+            1,
+            "a script reached through the root and through a `cd` into `ci` and back was \
+             not reported once: {findings:#?}"
+        );
+        assert_eq!(
+            about("elsewhere.sh"),
+            0,
+            "the walk stepped back out of a name that is no directory, which POSIX's `cd` \
+             refuses: {findings:#?}"
+        );
+        assert_eq!(
+            about("JuStFiLe"),
+            1,
+            "a justfile `just` loads was not reported once, under the name it has, nor \
+             once more as a workflow's file through a step into `.github/` and back: \
+             {findings:#?}"
+        );
+        assert_eq!(
+            about("docs.sh"),
+            1,
+            "a script under `.github/` reached through a step into another directory and \
+             back was not reported once: {findings:#?}"
+        );
+        assert_eq!(
+            seen, 4,
+            "four cargo commands, each counted once: {findings:#?}"
+        );
+        drop(held);
+    }
+
+    /// A file reached as one of CI's own, as a script and as a justfile is
+    /// judged in each of the three roles.
+    ///
+    /// **Through links, as a committed tree can hold them.** The `.github/`
+    /// walk meets the root `justfile` first through a link beside the
+    /// workflows, as a workflow's file, where a recipe has no name to hold; a
+    /// step's word reaches it through a second link, as a script with no
+    /// recipes; and the join of what `just` loads reaches it last, as
+    /// `justfile`, where `check:` running `cargo xtask build` is a recipe that
+    /// does not run what it is called. Compared by the file alone, the
+    /// justfile is read as a workflow and nothing else; compared by either half
+    /// of the role alone, one of the three readings is dropped and the count
+    /// says so.
+    ///
+    /// **Made as every suite here makes a file link**, through
+    /// `nc_platform::testing::link_file`, which the refusal twins of `nc-local`
+    /// and of the blob directory make on every system's job.
+    #[test]
+    fn a_file_reached_in_three_roles_is_judged_in_each() {
+        let held = crate::check::LeavesNothingBehind::new("workflow-roles");
+        let scratch = &held.root;
+        std::fs::create_dir_all(scratch.join(".github/workflows")).expect("writable");
+        std::fs::create_dir_all(scratch.join("ci")).expect("writable");
+        std::fs::write(
+            scratch.join(super::WORKFLOW),
+            "on: push\njobs:\n  check:\n    steps:\n      - run: sh ci/lint\n      \
+             - run: cargo xtask check\n",
+        )
+        .expect("writable");
+        let justfile = scratch.join("justfile");
+        std::fs::write(&justfile, "check:\n    cargo xtask build\n").expect("writable");
+        for link in [".github/justfile.yml", "ci/lint"] {
+            nc_platform::testing::link_file(&justfile, &scratch.join(link))
+                .expect("a link is writable");
+        }
+        let (findings, seen) = only_runs_the_gate(scratch).expect("the scratch tree reads");
+        let about = |name: &str| {
+            findings
+                .iter()
+                .filter(|said| said.file == name)
+                .collect::<Vec<_>>()
+        };
+        let recipe = about("justfile");
+        assert!(
+            recipe.len() == 1 && recipe[0].fix.contains("`build` is what this body runs"),
+            "the justfile was not judged as one, under the name `just` loads it by: \
+             {findings:#?}"
+        );
+        assert!(
+            about(".github/justfile.yml").is_empty() && about("ci/lint").is_empty(),
+            "the same file read as a workflow's or as a script was judged as a justfile: \
+             {findings:#?}"
+        );
+        assert_eq!(
+            seen, 4,
+            "the gate, and the recipe once in each of three roles: {findings:#?}"
+        );
+        drop(held);
+    }
+
+    /// A spelling's place has no step back in it, and keeps the links it
+    /// went through.
+    ///
+    /// **Both halves of [`super::the_place_of`], driven.** A step into a
+    /// directory and back out names where it began, across `.github/` in
+    /// either direction. A link to a directory is a place of its own, so a
+    /// justfile the `.github/` walk finds through one is read as CI's, as the
+    /// walk finds it. And a step back out of that link names what the system
+    /// resolves, which taking the step out as written does not, on a system
+    /// that follows the link first.
+    ///
+    /// **The last is asked as the property it is**: a place with no step back
+    /// in it, naming the file the spelling names. Windows takes such a step
+    /// where the spelling puts it, and Linux and macOS where the link points,
+    /// so the two places differ and each is right on its own system.
+    #[test]
+    fn a_place_has_no_step_back_and_keeps_its_links() {
+        let held = crate::check::LeavesNothingBehind::new("workflow-places");
+        let scratch = &held.root;
+        for directory in [".github/scripts", "ci", "sub"] {
+            std::fs::create_dir_all(scratch.join(directory)).expect("writable");
+        }
+        for file in [
+            ".github/scripts/docs.sh",
+            ".github/x",
+            "justfile",
+            "sub/justfile",
+            "x",
+        ] {
+            std::fs::write(scratch.join(file), file).expect("writable");
+        }
+        nc_platform::testing::link_directory(&scratch.join("sub"), &scratch.join(".github/d"))
+            .expect("a link is writable");
+        let place = |spelled: &str| super::the_place_of(scratch, &scratch.join(spelled));
+        assert_eq!(
+            place("ci/../.github/scripts/docs.sh"),
+            ".github/scripts/docs.sh",
+            "a step into a directory and back out is a second place for a file under \
+             `.github/`"
+        );
+        assert_eq!(
+            place(".github/../justfile"),
+            "justfile",
+            "a step into `.github/` and back out makes the justfile one of CI's files"
+        );
+        assert_eq!(
+            super::the_role_of(&place(".github/d/justfile")),
+            (true, true),
+            "a justfile found through a link under `.github/` lost the place it was \
+             found in"
+        );
+        let out_of_the_link = place(".github/d/../x");
+        assert!(
+            out_of_the_link.split('/').all(|name| name != "..")
+                && super::the_file_itself(&scratch.join(&out_of_the_link))
+                    == super::the_file_itself(&scratch.join(".github/d/../x")),
+            "a step back out of a link is placed at `{out_of_the_link}`, which is not \
+             where the system takes it"
+        );
+        drop(held);
     }
 
     /// The seven attacks measured against `yq 3.4.3`.
@@ -5027,9 +5593,8 @@ mod tests {
     /// holds and a runner sets before the step starts — so alone it is silent
     /// everywhere it could be acted on and fatal in the one place it fires.
     /// A `ci.yml` exporting `RUSTFLAGS: -D warnings` at workflow scope reaches
-    /// the `check` job's only step, and the gate refuses to run with it set:
-    /// such a workflow can never go green, and its own header records
-    /// that it has never run.
+    /// every job's gate step, and the gate refuses to run with it set:
+    /// such a workflow can never go green.
     #[test]
     fn a_workflow_that_exports_a_compiler_flag_is_reported() {
         let scratch = std::env::temp_dir().join(format!("nc-wf-env-{}", std::process::id()));
@@ -5990,6 +6555,86 @@ mod tests {
         assert_eq!(plain.as_deref().map(str::trim), Some(""));
     }
 
+    /// A job named for a system runs on that system's runner, and the family is
+    /// what is read, not the version.
+    ///
+    /// **Every system, each moved in turn.** The table is written here and not
+    /// read from [`super::RUNS_ON`], so a row deleted there still has its job
+    /// moved here, and the rule's silence fails this test: with only `macos`
+    /// moved, a `windows` job on an Ubuntu runner would pass every rule.
+    #[test]
+    fn a_job_named_for_a_system_runs_on_it() {
+        let systems = [
+            ("linux", "ubuntu-", "ubuntu-24.04"),
+            ("macos", "macos-", "macos-15"),
+            ("windows", "windows-", "windows-2025"),
+        ];
+        // Every job on its own runner but `moved`, which runs on `runner`, or
+        // names none at all when `runner` is `None`.
+        let ci = |moved: &str, runner: Option<&str>| -> String {
+            systems
+                .iter()
+                .map(|&(job, family, _)| {
+                    let runs_on = if job == moved {
+                        runner.map(|runner| format!("    runs-on: {runner}\n"))
+                    } else {
+                        Some(format!("    runs-on: {family}latest\n"))
+                    };
+                    format!(
+                        "  {job}:\n{}    steps:\n      - run: cargo xtask check\n",
+                        runs_on.unwrap_or_default()
+                    )
+                })
+                .fold("jobs:\n".to_owned(), |all, job| all + &job)
+        };
+        let wrong = |workflow: &str| -> Vec<String> {
+            let mut findings = Vec::new();
+            super::jobs_are_what_they_are_named(workflow, &mut findings);
+            findings
+                .into_iter()
+                .filter(|finding| finding.what.contains(" job runs on `"))
+                .map(|finding| finding.what)
+                .collect()
+        };
+        for (job, family, versioned) in systems {
+            let latest = format!("{family}latest");
+            for runner in [
+                latest.clone(),
+                versioned.to_owned(),
+                format!("\"{latest}\""),
+                format!("'{latest}'"),
+                format!("{latest} # the newest"),
+            ] {
+                let refused = wrong(&ci(job, Some(&runner)));
+                assert!(
+                    refused.is_empty(),
+                    "a `{job}` job on `{runner}` was refused: {refused:#?}"
+                );
+            }
+            let elsewhere = systems
+                .iter()
+                .filter(|&&(other, _, _)| other != job)
+                .map(|&(_, other, _)| format!("{other}latest"));
+            for runner in elsewhere.chain([String::new()]) {
+                assert_eq!(
+                    wrong(&ci(job, Some(&runner))),
+                    [format!(
+                        "the `{job}` job runs on `{runner}`, which is not a `{family}` runner"
+                    )],
+                    "a `{job}` job on `{runner}` proves nothing about its system and was \
+                     accepted"
+                );
+            }
+            assert_eq!(
+                wrong(&ci(job, None)),
+                [format!(
+                    "the `{job}` job runs on ``, which is not a `{family}` runner"
+                )],
+                "a `{job}` job that names no runner was accepted"
+            );
+        }
+    }
+
     #[test]
     fn a_deleted_job_is_a_finding_and_not_a_smaller_number() {
         // **Deleting the whole `deterministic` job is a finding.** The count
@@ -6001,17 +6646,16 @@ mod tests {
         let _ = std::fs::remove_dir_all(&scratch);
         std::fs::create_dir_all(scratch.join(".github/workflows")).expect("writable");
         the_shipped_alias(&scratch);
-        for missing in ["check", "deterministic"] {
-            let kept = if missing == "check" {
-                "deterministic"
-            } else {
-                "check"
-            };
-            std::fs::write(
-                scratch.join(super::WORKFLOW),
-                format!("jobs:\n  {kept}:\n    steps:\n      - run: cargo xtask check\n"),
-            )
-            .expect("writable");
+        let every = super::JOBS.map(|(job, _)| job);
+        for missing in every {
+            let kept: Vec<String> = every
+                .iter()
+                .filter(|job| **job != missing)
+                .map(|job| format!("  {job}:\n    steps:\n      - run: cargo xtask check\n"))
+                .collect();
+            let kept = kept.concat();
+            std::fs::write(scratch.join(super::WORKFLOW), format!("jobs:\n{kept}"))
+                .expect("writable");
             let (findings, _) = only_runs_the_gate(&scratch).expect("readable");
             // **Exactly one, not at least one.** A rule written twice says the
             // same thing twice about one deleted job — and `.any(…)` is as true
@@ -6153,8 +6797,8 @@ mod tests {
     /// rests on that job, because the in-process step generates twice in one
     /// process and cannot see a difference that depends on the filesystem.
     ///
-    /// The job has never run, which `ci.yml` says of itself, so nothing else
-    /// would notice either.
+    /// Nothing but this test would notice such a directory missing from the
+    /// job either.
     #[test]
     fn the_determinism_job_diffs_everything_the_emitter_writes() {
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
@@ -6739,24 +7383,28 @@ mod tests {
             "an emptied job body was not a finding: {findings:#?}"
         );
 
-        // **And the `check` job running something that is not the gate.** Every
+        // **And a system's job running something that is not the gate.** Every
         // cargo invocation is still `cargo xtask <verb>`, so the rule above is
         // satisfied while nothing runs the gate at all. The step's own *label*
         // must not satisfy it either.
-        std::fs::write(
-            scratch.join(super::WORKFLOW),
-            "jobs:\n  check:\n    steps:\n      - name: cargo xtask check\n\
-             \x20       run: cargo xtask docs\n\
-             \x20 deterministic:\n    steps:\n      - run: diff -r a b\n",
-        )
-        .expect("writable");
-        let (findings, _) = only_runs_the_gate(&scratch).expect("readable");
-        assert!(
-            findings
-                .iter()
-                .any(|finding| finding.what.contains("`check` job does not run")),
-            "a check job that does not run the gate was not a finding: {findings:#?}"
-        );
+        for system in ["linux", "macos", "windows"] {
+            std::fs::write(
+                scratch.join(super::WORKFLOW),
+                format!(
+                    "jobs:\n  {system}:\n    steps:\n      - name: cargo xtask check\n\
+                     \x20       run: cargo xtask docs\n\
+                     \x20 deterministic:\n    steps:\n      - run: diff -r a b\n"
+                ),
+            )
+            .expect("writable");
+            let (findings, _) = only_runs_the_gate(&scratch).expect("readable");
+            assert!(
+                findings.iter().any(|finding| finding
+                    .what
+                    .contains(&format!("`{system}` job does not run"))),
+                "a `{system}` job that does not run the gate was not a finding: {findings:#?}"
+            );
+        }
         let _ = std::fs::remove_dir_all(&scratch);
     }
 
@@ -6766,6 +7414,13 @@ mod tests {
     /// fixture about the *cargo* rule has to be a workflow that runs — the same
     /// reason each of them carries both jobs.
     const FIRES: &str = "on:\n  push:\n  pull_request:\n";
+
+    /// The macOS and Windows gates, each on its runner, which a fixture carries
+    /// beside the job it is about so that it is not refused for lacking them.
+    const THE_OTHER_SYSTEMS: &str = "  macos:\n    runs-on: macos-latest\n    steps:\n      \
+                                     - run: cargo xtask check\n  windows:\n    runs-on: \
+                                     windows-latest\n    steps:\n      - run: cargo xtask \
+                                     check\n";
 
     /// The two jobs a fixture must carry, since a workflow without them is a
     /// different finding and these tests are about the cargo rule.
@@ -7213,12 +7868,12 @@ mod tests {
         std::fs::write(
             scratch.join(super::WORKFLOW),
             format!(
-                "{FIRES}jobs:\n  check:\n    steps:\n\
+                "{FIRES}jobs:\n  linux:\n    runs-on: ubuntu-latest\n    steps:\n\
                  \x20     - name: cargo clippy is not run here\n\
                  \x20     - run: cargo install --locked cargo-deny\n\
                  \x20     - run: cargo xtask check\n\
                  \x20     - run: echo ~/.cargo/bin\n\
-                 \x20     # a comment mentioning cargo clippy\n{}",
+                 \x20     # a comment mentioning cargo clippy\n{THE_OTHER_SYSTEMS}{}",
                 the_real_determinism_job()
             ),
         )
@@ -7226,9 +7881,9 @@ mod tests {
         let (findings, seen) = only_runs_the_gate(&scratch).expect("readable");
         assert!(findings.is_empty(), "{findings:#?}");
         assert_eq!(
-            seen, 4,
-            "the allowed invocations were not all counted: the gate, the install, and \
-             the deterministic job's two builds"
+            seen, 6,
+            "the allowed invocations were not all counted: the gate, the install, the \
+             gates on the other two systems, and the deterministic job's two builds"
         );
 
         let _ = std::fs::remove_dir_all(&scratch);
@@ -7495,13 +8150,14 @@ mod tests {
         let _ = std::fs::remove_dir_all(&scratch);
         std::fs::create_dir_all(scratch.join(".github/workflows")).expect("writable");
         the_shipped_alias(&scratch);
-        // Every fixture carries the two jobs, because a workflow without them is
-        // a different finding and this test is about the cargo rule.
+        // Every fixture carries the jobs, because a workflow without them is a
+        // different finding and this test is about the cargo rule.
         let write = |body: &str| {
             std::fs::write(
                 scratch.join(super::WORKFLOW),
                 format!(
-                    "{FIRES}jobs:\n  check:\n    steps:\n{body}{}",
+                    "{FIRES}jobs:\n  linux:\n    runs-on: ubuntu-latest\n    steps:\n{body}\
+                     {THE_OTHER_SYSTEMS}{}",
                     the_real_determinism_job()
                 ),
             )
@@ -7512,7 +8168,10 @@ mod tests {
         // one of the things the gate already does.
         write("      - run: cargo xtask check\n      - run: cargo clippy -- -D warnings\n");
         let (findings, seen) = only_runs_the_gate(&scratch).expect("readable");
-        assert_eq!(seen, 4, "the gate, the offender, and the two builds");
+        assert_eq!(
+            seen, 6,
+            "the gate, the offender, the other two systems' gates, and the two builds"
+        );
         assert_eq!(findings.len(), 1, "{findings:#?}");
         assert!(
             findings[0].what.contains("cargo clippy"),
@@ -7528,14 +8187,14 @@ mod tests {
         );
         let (findings, seen) = only_runs_the_gate(&scratch).expect("readable");
         assert!(findings.is_empty(), "{findings:#?}");
-        assert_eq!(seen, 5, "and the deterministic job's two builds");
+        assert_eq!(seen, 7, "and the other systems' gates and the two builds");
 
         // A comment describing the rule is prose, not a command — this file's own
         // header names `cargo fmt` and `cargo test` while explaining them.
         write("      # never: cargo test, cargo fmt\n      - run: cargo xtask check\n");
         let (findings, seen) = only_runs_the_gate(&scratch).expect("readable");
         assert!(findings.is_empty(), "{findings:#?}");
-        assert_eq!(seen, 3, "the comment was read as a command");
+        assert_eq!(seen, 5, "the comment was read as a command");
 
         // And a step named after what it runs, which is how CI files are
         // ordinarily written. Reading the label as a second invocation would
@@ -7546,7 +8205,7 @@ mod tests {
         );
         let (findings, seen) = only_runs_the_gate(&scratch).expect("readable");
         assert!(findings.is_empty(), "{findings:#?}");
-        assert_eq!(seen, 4, "the step's name was read as a command");
+        assert_eq!(seen, 6, "the step's name was read as a command");
 
         let _ = std::fs::remove_dir_all(&scratch);
     }
@@ -7652,12 +8311,13 @@ mod tests {
     ///
     /// **`cargo xtask check` builds every plugin for that target before the
     /// tests, and neither source of a toolchain installs a target it is not asked
-    /// for.** rustup reads `[toolchain].targets` in `rust-toolchain.toml`; the
-    /// `check` job installs through an action that does not read that file and
-    /// takes its own `targets:`. A machine that already has the target stays green
-    /// with either line deleted, and a fresh clone or the runner then fails its
-    /// first gate at the `plugins` step — which is why the two are read here
-    /// rather than left to that failure.
+    /// for.** rustup reads `[toolchain].targets` in `rust-toolchain.toml`; each
+    /// job that runs the gate (`linux`, `macos`, `windows`) installs through an
+    /// action that does not read that file and takes its own `targets:`. A
+    /// machine that already has the target stays green with either line
+    /// deleted, and a fresh clone or the runner then fails its first gate at
+    /// the `plugins` step — which is why the two are read here rather than left
+    /// to that failure.
     #[test]
     fn the_plugins_target_is_asked_for_by_the_toolchain_file_and_by_ci() {
         let target = crate::plugins::TARGET;
@@ -7685,18 +8345,23 @@ mod tests {
         );
 
         let ci = std::fs::read_to_string(root().join(WORKFLOW)).expect("the workflow is readable");
-        let job = job_body(&ci, "check").expect("the workflow has a `check` job");
-        let installed: Vec<String> = job
-            .lines()
-            .filter_map(|line| line.trim().strip_prefix("targets:"))
-            .flat_map(|value| value.split(','))
-            .map(|name| name.trim().trim_matches(['"', '\'', '[', ']']).to_owned())
-            .collect();
-        assert!(
-            installed.iter().any(|name| name == target),
-            "the `check` job's toolchain step installs the targets {installed:?} and not \
-             `{target}`. The action it uses does not read `rust-toolchain.toml`, so the \
-             target is asked for there as well, as `targets:` beside `components:`"
-        );
+        // **Every job that runs the gate**, because each builds the plugins on
+        // its own runner.
+        for system in ["linux", "macos", "windows"] {
+            let job = job_body(&ci, system)
+                .unwrap_or_else(|| panic!("the workflow has a `{system}` job"));
+            let installed: Vec<String> = job
+                .lines()
+                .filter_map(|line| line.trim().strip_prefix("targets:"))
+                .flat_map(|value| value.split(','))
+                .map(|name| name.trim().trim_matches(['"', '\'', '[', ']']).to_owned())
+                .collect();
+            assert!(
+                installed.iter().any(|name| name == target),
+                "the `{system}` job's toolchain step installs the targets {installed:?} and \
+                 not `{target}`. The action it uses does not read `rust-toolchain.toml`, so \
+                 the target is asked for there as well, as `targets:` beside `components:`"
+            );
+        }
     }
 }

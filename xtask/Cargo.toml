@@ -80,5 +80,13 @@ wit-parser.workspace = true
 # metadata` answers in JSON; this is the deserialiser the tree already uses.
 serde_json.workspace = true
 
+[dev-dependencies]
+# **A link, made the way this system makes one**, for the tests that drive the
+# checkout script through one: a symbolic link on Unix, and on Windows a
+# symbolic link to a file and a junction to a directory, through the test doors
+# of the crate where each system's answer is written. Already in this tool's
+# graph under `nc-local`, so it adds no package.
+nc-platform = { workspace = true, features = ["test-support"] }
+
 [lints]
 workspace = true

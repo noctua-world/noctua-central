@@ -40,6 +40,12 @@ nc-policy = { path = "." }
 # dependency only, and no cycle: `nc-schema` depends on `serde` and
 # `serde_json` alone.
 nc-schema.workspace = true
+# **A file its owner cannot read, staged the way this system stages one** —
+# `0000` on Unix, a deny entry on Windows — through the test doors of the crate
+# where each system's answer is written, so the test stays one body. A test
+# dependency only: it reaches nothing but the standard library and, on
+# Windows, `windows-sys`.
+nc-platform = { workspace = true, features = ["test-support"] }
 
 [lints]
 workspace = true

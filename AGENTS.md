@@ -132,9 +132,10 @@ backend services — everything `NOCTUA.md §1` describes. What is in it today:
   what it changes in a unit of work a person can undo and redo. Plugins reach blobs, the
   network, events, timers and surfaces only through the world, each judged by the kernel.
 - **What the kernel stands on**: the one rule every declared command answers to
-  (`crates/nc-schema`), the decision point it embeds (`crates/nc-authz`), and the local
+  (`crates/nc-schema`), the decision point it embeds (`crates/nc-authz`), the local
   app database its plugins' data is kept in (`crates/nc-local`, SQLite, built by
-  `local-migrations/`).
+  `local-migrations/`), and what makes that file and the blobs beside it one user's alone
+  on each system (`crates/nc-platform`).
 - **What a plugin is built from**: the world's guest half (`crates/nc-guest`) and the
   reference plugin the kernel is proven with (`plugins/reference`).
 
@@ -187,6 +188,7 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 ├── deny.toml                       the advisory and licence audit (§15.5)
 ├── docker-compose.yml              the local stack: PostgreSQL and the log store
 ├── .env.example                    what the stack reads. NEVER copied to .env
+├── .gitattributes                  every text file checked out with LF, on every system
 ├── .github/workflows/ci.yml        HAS NEVER RUN — there is no repository yet
 ├── catalog/                        HAND-WRITTEN — THE shared-core registries (§15.2)
 │   ├── errors.toml                 every error this platform can produce (§15.1)
@@ -217,6 +219,7 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 │   ├── nc-log/                     the central log's type wall (§15.4)
 │   │   ├── events.rs              in src/ — GENERATED, one struct per event
 │   │   └── fixtures/               the files that MUST NOT COMPILE
+│   ├── nc-platform/                a path one user's alone, per system (§2.7) — THE ONE `unsafe`
 │   ├── nc-policy/                  the pack's compiler, validator and case runner
 │   ├── nc-authz/                   the decision point: the embedded pack, asked (§14.2)
 │   ├── nc-kernel/                  the local kernel: the host of the plugin world (§11)
@@ -277,9 +280,22 @@ cargo xtask release <version> --dry-run    # say what would change and change no
 **Five verbs, and the surface does not grow** (`NOCTUA.md §10.2`). A new capability goes
 behind one of them — a flag, a step inside `check` — and never becomes a sixth.
 
-`cargo xtask check --offline` skips **nine** things: the advisory database, which is the
-one thing here that fetches anything — the audit's licence, ban and source checks read
-only the lockfile and still run; the PostgreSQL tests; the corroboration of `migrations/`
+`cargo xtask check` first runs `cargo fetch --locked` and says so in one `ok` line: a fresh
+clone holds only what its first build fetched, and every step that asks cargo for the graph
+asks it `--offline`. With `--offline` the gate fetches nothing: the fetch does not run, and
+every other cargo the gate starts is handed `CARGO_NET_OFFLINE=true`, so a package missing
+from the machine fails the steps that build it instead of being downloaded, and the graph,
+which fails first, names that command. The build of this tool, which `cargo xtask` runs
+before the gate starts, is cargo's own and not the gate's:
+`cargo --offline xtask check --offline` keeps that one off the network too. The fetch
+records that it ran and the verdict holds the record to the flag: on a machine that already
+holds every package, a run that fetched under `--offline` and one that never fetched
+without it differ from one that got it right only by the fetch's own `ok` line, which no
+step reads, so the verdict refuses both.
+
+`cargo xtask check --offline` skips **nine** things: the advisory database, which is
+fetched — the audit's licence, ban and source checks read only the lockfile and still
+run; the PostgreSQL tests; the corroboration of `migrations/`
 against what a database has actually applied, the only thing in this tree that remembers a
 migration applied and then deleted; where `pg_temp` sits in the migrated functions' search
 paths; the journal's own protections, which are triggers and constraints held by the
@@ -292,6 +308,14 @@ and panic where docker is absent. Each prints a `warn` line, so every skip is an
 rather than silent. It exists for a fast loop while editing, and **CI never passes it**
 (`NOCTUA.md §19.4`). `OFFLINE_SKIPS` in `xtask/src/check.rs` holds the number, and a test
 holds this file, `README.md`, the `justfile` and `--help` to it.
+
+**On macOS and Windows the steps that need the container stack are not applicable**
+(`NOCTUA.md §22.2`): every one of those skips but the advisory database prints a line of
+its own kind — not applicable on the system, what it is, and that the Linux job runs it —
+instead of running, the PostgreSQL suites and the stack's own tests stand aside saying the
+same, and `cargo xtask dev` says so and changes nothing. Which parts those are is
+`THE_STACKS_PARTS` in `xtask/src/check.rs`, and the verdict holds a run to that list
+exactly, which on Linux is empty.
 
 **`build` is not a subset of `check`.** `build` compiles the catalog and writes what
 changed in under a second, with first-rate diagnostics, and does not cross-reference the
@@ -495,22 +519,32 @@ effect; 22 is gated over the statements written today and by nothing over the ne
     leaves its scratch behind — `just leaves-nothing` measures a suite that passes. A
     guard on each closes it.
 
-17. **No `unsafe` is written in this repository — and that is what `forbid(unsafe_code)`
-    means here, exactly.** Every member takes `unsafe_code = "forbid"`, the plugins
-    included. rustc does not lint an external macro's expansion, so `unsafe` a
+17. **No `unsafe` is written in this repository but in one module — and that is what
+    `forbid(unsafe_code)` means here, exactly.** Every member takes
+    `unsafe_code = "forbid"`, the plugins included, but `crates/nc-platform`, whose
+    Windows half makes the Win32 security calls `windows-sys` declares `unsafe`
+    (decided on 2026-11-02, `NOCTUA.md §2.7`): a `forbid` cannot be lifted by anything
+    under it, so that crate writes the workspace's lints out with `unsafe_code = "deny"`
+    and allows it on `crates/nc-platform/src/windows.rs` alone, by one attribute on its
+    `mod` line. Every `unsafe` there sits under the `// SAFETY:` comment — or, on an
+    `unsafe fn`, the `# Safety` doc — that says why each pointer it hands the system is
+    valid and what is freed where. rustc does not lint an external macro's expansion, so `unsafe` a
     dependency's macro expands into is the dependency's: wasmtime's `bindgen!`
     (`TypedFunc::new_unchecked` in `crates/nc-kernel/src/bindings.rs`), and
     `wit-bindgen`'s `generate!` and `export!` in `crates/nc-guest` and every plugin. The
     lints are never judged with `WASMTIME_DEBUG_BINDGEN` or `WIT_BINDGEN_DEBUG` set, which
     make the expansion a local file; and `export!` is invoked from a plugin while
     `generate!` lives in `nc-guest`, because `export!` in the crate that generated it is
-    local code. **Gated three times**: the lint;
+    local code. **Gated three times**: the lint, with
+    `every_member_takes_the_workspace_lints` holding `nc-platform`'s written-out table to
+    the workspace's entry for entry, that one level apart;
     `no_unsafe_is_written_in_any_rust_file_of_this_tree` in `xtask/src/gates.rs`, over
     every `.rs` the tree holds — fixtures, canaries, the `wasm32`-only adapter — comments
-    and strings blanked; and `#![doc(test(attr(forbid(unsafe_code))))]` at every library
-    root, the generated catalog's included, which
-    `every_library_root_forbids_unsafe_in_its_doctests` asks of cargo's member list, a
-    doctest being a crate the other two never read.
+    and strings blanked, which names `windows.rs` as its one exception, fails once that
+    file writes none, and holds each `unsafe` in it to its comment; and
+    `#![doc(test(attr(forbid(unsafe_code))))]` at every library root, the generated
+    catalog's included, which `every_library_root_forbids_unsafe_in_its_doctests` asks
+    of cargo's member list, a doctest being a crate the other two never read.
 
 18. **The local database's schema is `local-migrations/` and nothing else.** Every object
     those files build is listed in `crates/nc-local/src/schema.rs` with the BLAKE3 of its
@@ -640,8 +674,8 @@ entry owns.
 | Undo used to escalate | the asker's own steps, authorized again now, refused on a conflict, compensations dispatched through the decision point | "A person undoes their own steps, with the authority they hold now" |
 | A rule swapped under the kernel | packs compiled into the binary, and a realm's pin held to them | "The pack a kernel decides with is the one it was built with" |
 | Authorization gone stale | decided again on every dispatch, and when a timer or an event comes due | "What a plugin puts off runs only under an authority decided again when it comes due" |
-| Another account reading the local database | `0700` and `0600`, owner and link checks, `trusted_schema = OFF`, `main.`-qualified statements and append-only images | "The local database is private to its user, and refuses what it did not make" |
-| A sandbox escape through this repository's own code | no `unsafe` written anywhere, plugins included, and what `forbid` does not reach written down | invariant 17 |
+| Another account reading the local database | `0700` and `0600` on Unix, an access list naming the user alone on Windows, owner and link checks, `trusted_schema = OFF`, `main.`-qualified statements and append-only images | "The local database is private to its user, and refuses what it did not make" |
+| A sandbox escape through this repository's own code | no `unsafe` written anywhere but the Win32 calls of `nc-platform`'s Windows half, each beside its reason, plugins included, and what `forbid` does not reach written down | invariant 17 |
 
 ### A plugin reaches what it was granted, and is told no to the rest
 
@@ -874,7 +908,9 @@ header:
   writings once nobody has named them for that grace; a unit in flight names its bytes, so
   another realm's sweep never takes them.
 - **Private, and waited for under a deadline**: the directory follows
-  `nc_local::blob_directory`, every file is `0600`, a directory under a blob's or a
+  `nc_local::blob_directory`, every file is created private
+  (`nc_platform::create_private`: `0600` on Unix, an access list naming the user alone on
+  Windows), a directory under a blob's or a
   writing's name stops no sweep, every blob function that reads disk or store waits under
   `host_call_deadline_ms`, and a writer let go is deleted on the blocking pool.
 
@@ -1152,19 +1188,34 @@ wrote it with their before and after images — in one SQLite file in a director
 names (`NOCTUA.md §4`, "Local app database"). What opening does, in order, is that crate's
 header.
 
-- **Another account on the machine** cannot read or rewrite it: the directory is created
-  `0700` and the file `0600` by the crate itself, before SQLite sees it, and the `-wal`
-  and `-shm` companions take the file's mode. One that already exists is opened only if it
-  is not a link, is owned by the process's user, has no group or other bits and gives its
-  owner what the store needs; anything else is refused (`NC-DB-0006`) and left exactly as
-  it was — loosening it would decide for the user that whatever made it was harmless. A
-  path the filesystem cannot answer for — a missing parent, a full disk, a read-only
-  mount, a file turned read-only under an open store — is `NC-DB-0001`
-  (`a_missing_parent_is_unavailable_and_not_refused`).
+- **Another account on the machine** cannot read or rewrite it: the directory and the
+  file are created private by the crate itself, before SQLite sees them, through
+  `crates/nc-platform` — the one place each system's answer is written. On Unix the
+  directory is `0700` and the file `0600`, and the `-wal` and `-shm` companions take the
+  file's mode. On Windows each is created owned by the user the process token names,
+  with a protected access list holding one entry, that user with every right — on the
+  directory inherited by what is made in it, which is how SQLite's companions are the
+  user's alone too — and the file with `CREATE_NEW` and `FILE_FLAG_OPEN_REPARSE_POINT`.
+  One that already exists is opened only if it is not a link (on Windows, no reparse
+  point of any kind), is owned by the process's user, lets no other user in (no group or
+  other bit; an access list, every allow entry of which names the user) and gives its
+  owner what the store needs (on Windows also a file not marked read-only, that system's
+  `0400`, which SQLite would open read-only); anything else is refused (`NC-DB-0006`) and
+  left exactly as it was — loosening it would decide for the user that whatever made it
+  was harmless. On Windows the companions SQLite makes are the one thing taken from
+  another owner — the one the process token gives what the process creates
+  (`nc_platform::judge_made_by_default`) — and the directory, the file and the lock,
+  which this crate makes owned by the user, are held to the user alone. The
+  same tests stage each refusal on both systems through `nc_platform::testing`, so a Unix
+  test and its Windows twin are one body. A path the filesystem cannot answer for — a
+  missing parent, a full disk, a read-only mount, a file turned read-only under an open
+  store — is `NC-DB-0001` (`a_missing_parent_is_unavailable_and_not_refused`).
 - **Two opens of one profile** — a second app instance, a command-line tool beside the
   daemon — each use an owner probe of their own
   (`one_profile_opened_from_several_threads_at_once_opens_every_time`) and take turns
-  under an exclusive lock on the directory while the file is judged and migrated, because
+  under an exclusive lock on the directory — on Windows, which locks no directory, on a
+  private file beside the database, `nc_local::LOCK_NAME` — while the file is judged and
+  migrated, because
   SQLite refuses two connections turning a new file's journal into a write-ahead log at
   once and `sqlx` takes no lock around a migration
   (`a_fresh_profile_opened_from_several_threads_at_once_opens_every_time`,
@@ -1551,6 +1602,13 @@ neither the version nor the release. The one way there is an interrupted
 what to do before opening that window, and the recovery is `cargo update --workspace`. No
 gate can hold this: in that state nothing here runs.
 
+The gate's own `cargo fetch --locked` is held the same way, and that is its security
+answer: it downloads only what the lockfile names, cargo checks each download against the
+checksum recorded there, a lockfile behind its manifests is refused rather than rewritten,
+and nothing a fetch brings down runs until a build compiles it — so the fetch adds no
+package and no code the lockfile and the audit have not already been asked about. Under
+`--offline` it does not run at all, and a run in which it did is refused by the verdict.
+
 ### A release reads back what it wrote
 
 `cargo xtask release <version>` runs the whole gate before anything is written, rewrites
@@ -1662,9 +1720,19 @@ rather than anything decided for the project, and each is a maintainer's to reop
   stops the same people and no more. An open leaves a `-shm` it gave a `-wal` that had
   none (an index holding no data) beside a file it then refuses, and waits without bound
   for another open of the profile, so a process stopped mid-open holds every other.
-- **It is Unix only**: modes and owners are read through `std::os::unix` in
-  `crates/nc-local` and the kernel's blob directory, and another family does not compile
-  rather than opening a file it cannot judge; the Windows half is Stage 12's.
+- **On Windows, the system's own can read or take anything** — the Administrators group,
+  `SYSTEM`, and any process holding the backup or the take-ownership privilege —
+  whatever the access list says: Windows' counterpart of root, which no access list
+  answers. And a companion SQLite made beside the database — its `-wal`, `-shm` or
+  `-journal`, and nothing else — owned by the group the process token gives what this
+  process creates (the Administrators group, in an elevated process) is taken as the
+  user's: SQLite creates them with the token's default owner, and that group's members
+  are the ones who can take any file already. The directory, the database file, the lock
+  file and the blobs' directory are this crate's, created owned by the user, and one owned
+  by anybody else is refused. A deny entry is read as this user's
+  whoever it names — which groups a user is in is the token's to say, and reading every
+  deny as this user's refuses more, never less. A path past Windows' 260-character limit
+  is refused by the system, since nothing here writes the `\\?\` form for it.
 - **A journal entry's authorization fields are the kernel's to fill, and one stays
   empty**: `actor_chain`, until agents act (Stage 15); an entry another writer makes
   carries what that writer gives it.
@@ -1794,6 +1862,52 @@ rather than anything decided for the project, and each is a maintainer's to reop
   and `--offline` adds its own **nine** on top — the one figure here read from a constant,
   `OFFLINE_SKIPS`. A run with no workspace above it is not distinguishable *by the number*
   from one where the section gate broke, which is why the names are printed.
+- **`--offline` keeps the gate off the network, not the build of the gate**: under the
+  flag the fetch does not run and every cargo the gate starts is handed
+  `CARGO_NET_OFFLINE=true`, but `cargo xtask` builds this tool before the gate starts,
+  and that build fetches what `xtask` itself lacks unless cargo is asked as well
+  (`cargo --offline xtask check --offline`). And the flag reaches each cargo through the
+  steps that start one, as a parameter: a step handed the wrong value would be seen only
+  by a run under `--offline` on a machine missing a package, which neither the local full
+  check nor CI makes. `every_cargo_the_gate_starts_under_the_flag_stays_off_the_network`
+  holds the place the child is built, and not every way to it.
+- **On macOS and Windows the stack's steps do not run at all**: the journal's protections,
+  the migration record, where `pg_temp` sits in the migrated functions' paths, the log
+  store's bounds, the database's sort order, the digest comparison, the PostgreSQL suites
+  and the stack's own tests are the Linux job's alone, and each says so on those systems,
+  named beside the verdict as `not applicable here:`. A defect that shows only with the
+  stack on macOS or Windows is caught by nothing, and no stack is run there by decision
+  (`NOCTUA.md §22.2`).
+- **On Windows the checkout script refuses to run, and its guards are proven elsewhere**:
+  each guard before its `rm -rf` is a claim about how a POSIX shell spends a path —
+  `cd -P` resolving a link before the `..` after it, two leading slashes being one
+  directory, an absolute path opening with `/` — and the `sh` Git ships for Windows keeps
+  none of them. Measured on a Windows runner, a decoy reaching the script through a
+  junction passed every guard as the repository the script belongs to. So the script asks
+  `uname -s` before it derives anything from a path, and a shell naming a POSIX layer over
+  Windows (`MINGW*`, `MSYS*`, `CYGWIN*`, or anything with `_NT` in it) is refused, with
+  exit 2 and the reason; a `uname` that fails stops the script under `set -e` instead of
+  reading as no answer. `the_script_refuses_a_system_its_guards_do_not_hold_on` holds the
+  refusal on every system — on Windows by the system's own answer, elsewhere through a
+  `uname` planted on the path, with nothing removed or copied either way — and the failing
+  `uname` on Linux and macOS; the drives of the guards themselves stand aside on Windows,
+  saying so, while the Linux and macOS jobs run them. A layer over Windows that names
+  itself some other way to `uname` is not refused, and runs guards no test holds.
+- **That the catalog's output does not follow a directory's order is measured on Linux
+  alone**: macOS lists a directory by a hash of each name and Windows by the name, so two
+  layouts of the locale files come back in one order there and the suite holding the
+  output to both stands aside. The sort it holds is the same code on every system.
+- **An answer a reset overtakes is lost on Windows**: a store that closes the connection
+  with the request unread resets it, and Windows discards what of the answer the shipper
+  had not read yet. What the shipper had read decides the rest. Part of the status line,
+  and the batch is an answer it could not read (`Delivery::Unreadable`): a store that
+  answered, its batch kept on stderr as a possible duplicate. None of it, and the batch is
+  `Delivery::Unreachable`: a store that answered, read as one that has gone, its batch on
+  stderr as a possible duplicate — and during a shutdown it counts toward `GIVE_UP_AFTER`,
+  so two in a row send what is left of the queue to stderr without trying the store again.
+  The second is what a Windows runner measured (`os error 10054`). macOS refuses a new read
+  bound on such a socket and still holds the answer, so the shipper reads it under the
+  bound already set (`an_answer_a_reset_follows_is_not_read_as_silence`).
 - **`.github/workflows/ci.yml` has never run**: there is no repository for it until
   Stage 12. It is committed so that CI and a developer cannot drift into two gates, and a
   gate reads it as a document ("CI's one gate reaches every file CI can reach"); unknown
@@ -2023,12 +2137,15 @@ emitter.
 
 ### CI runs the stack, not a copy of it
 
-The `check` job declares no `services:`: it runs `cargo xtask dev`, the stack a developer
+The `linux` job declares no `services:`: it runs `cargo xtask dev`, the stack a developer
 runs, with the log store's retention flags, the health command that authenticates and the
 migrations applied. A service container cannot carry a command, so its store would report
 no flags, and nothing would apply the migrations. `ci_supplies_what_the_gate_needs`
 refuses an image named in the workflow and requires `cargo xtask dev` before
-`cargo xtask check`, reading the job's commands rather than its prose.
+`cargo xtask check`, reading the job's commands rather than its prose. The `macos` and
+`windows` jobs run the gate with no stack, which says which of its steps are not applicable
+there, and `no_stack_where_none_runs` refuses `cargo xtask dev` in either; every job named
+for a system runs on that system's runner (`RUNS_ON` in `xtask/src/workflow.rs`).
 
 ### An empty database fails the gate, and `--offline` is how to ask
 
@@ -2077,12 +2194,41 @@ one that does. Each door is granted, in a scratch schema to a role named for the
 and its number must move; `superusers=` cannot be given a control safely and has a second
 reader instead.
 
-### A test that needs a database reads `NC_OFFLINE`, not a port probe
+### A test that needs a database reads `NC_NO_STACK`, not a port probe
 
 `url()` falls back to a default and probes the port, so a test guarded by it would connect
 under `--offline` and run its DDL against the developer's own stack. The flag is the only
 thing that means "do not touch a database", and no database is a failure here, not a skip:
-`eprintln!` is captured, so a skipped control is one nobody saw not run.
+`eprintln!` is captured, so a skipped control is one nobody saw not run. The gate sets it
+under `--offline` and on a system that runs no stack, and its value is the reason —
+`--offline`, or `not applicable on <system>` — so a suite says in its own output which.
+
+### Not applicable is a property of the system, never of the machine
+
+`RUNS_THE_STACK` in `xtask/src/check.rs` asks the target `xtask` was compiled for, and
+nothing else in this tool asks which system it is on (`NOCTUA.md §2.7`). That is the
+security answer for this kind of line: a probe for docker would make a Linux machine with
+its stack down read as a system the stack does not apply to, and every step that needs it
+would stand aside there quietly — so the answer is fixed when the tool is built, a flag
+cannot ask for it, and `finish` refuses any not-applicable line on Linux and, elsewhere,
+any list but `THE_STACKS_PARTS`, in order. A part added to the stack's steps is a row
+there and a sentence at its call site, which `every_part_of_the_stack_says_why_it_stands_aside`
+holds to each other.
+
+**A suite that needs what a system lacks asks `nc_platform::testing`, and says so.** The
+system's answer is a constant of that crate, fixed per system as `RUNS_THE_STACK` is —
+`LISTED_AS_MADE`, a directory listed in the order its entries were made, and
+`A_POSIX_SHELL` — never a probe of the machine, so a Linux machine cannot stand a suite
+aside, and `linux_lacks_nothing_a_suite_stands_aside_for` holds every answer on every
+system. Each guard prints `skipped, not applicable on <system>:` and why, in its own output,
+and `ANNOUNCES_WHAT_THE_SYSTEM_LACKS` in `xtask/src/check.rs` counts the guards into the
+same line as the database suites, read by the same rule, with
+`every_source_that_asks_what_the_system_lacks_is_one_the_census_names` naming every source
+outside `nc-platform` whose code names a door. It looks for the door by its own name, as a
+whole word, so a suite that reaches it through `use nc_platform::testing;`, or under
+another name, is found as one writing the whole path is, and
+`a_door_is_asked_however_it_was_brought_into_scope` hands that reader the spellings the
+tree does not hold.
 
 ### Two tallies are not a pairing
 
@@ -2348,6 +2494,7 @@ and `sqlx`, and are named because the kernel matches on a type of each.
 | `serde`, `serde_json`, `toml` | Reading the registries and writing canonical output, and reading a command's argument schema for `crates/nc-schema` to validate |
 | `proptest` | `§16.3` and `§16.4` have algebraic laws, and `§19.2` puts those under property test |
 | `clap`, `anstream`, `anstyle` | The command surface, in `xtask` only |
+| `windows-sys` | The Win32 security calls of `crates/nc-platform`'s Windows half, and only there, compiled for a Windows target alone — decided on 2026-11-02: who the process token names (`OpenProcessToken`, `GetTokenInformation`), an access list built (`InitializeAcl`, `AddAccessAllowedAceEx`) and read (`GetSecurityInfo`, `GetAce`), and a file and a directory created with a descriptor of their own (`CreateFileW`, `CreateDirectoryW`); and, behind the test doors alone, a descriptor written onto one path through its handle (`SetKernelObjectSecurity`), from its text when it holds a conditional entry (`ConvertStringSecurityDescriptorToSecurityDescriptorW`). Not written here because the declarations — every structure's layout and every function's signature — would be ours to get right, with no compiler to check them against the system's. Version 0.61, which `tokio`'s `mio` already brings, so it adds no package; its features are the modules those calls are in, pinned in that crate's manifest. It is the one dependency whose calls are `unsafe`, and invariant 17 says how that is held |
 | `noctua-design` | The only cross-repository dependency this repository has: a `[workspace.dependencies]` path entry with the git-tag form in a comment above it (`NOCTUA.md §5.3`), reached by path while there is no repository here to resolve a tag from. `noctua-colors` is reached **through** it and never directly (`§8.6`), which a gate holds |
 
 **Three things are written here rather than taken**, all three a maintainer's call: the

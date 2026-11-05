@@ -148,13 +148,34 @@ fn metadata(root: &Path) -> Result<serde_json::Value, String> {
         .output()
         .map_err(|error| format!("`cargo metadata` did not run: {error}"))?;
     if !output.status.success() {
-        return Err(format!(
-            "`cargo metadata` failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        ));
+        return Err(what_a_failed_graph_says(&String::from_utf8_lossy(
+            &output.stderr,
+        )));
     }
     serde_json::from_slice(&output.stdout)
         .map_err(|error| format!("`cargo metadata` did not answer in JSON: {error}"))
+}
+
+/// Why `cargo metadata` failed, and the fix where cargo's own words point to it.
+///
+/// **`--offline` asks for a package that is not on this machine.** A fresh
+/// clone holds only what its first build fetched, and cargo's answer then names
+/// a package and offline mode — `no matching package named … found`, `offline
+/// mode (via --offline) can sometimes cause surprising resolution failures` —
+/// and never the command that fixes it. So the refusal names it: `cargo xtask
+/// check` without `--offline` fetches every package the lockfile names before it
+/// asks for the graph.
+fn what_a_failed_graph_says(stderr: &str) -> String {
+    let said = stderr.trim();
+    if said.contains("offline") {
+        format!(
+            "`cargo metadata` failed: {said}\nA package the lockfile names is not on this \
+             machine. `cargo fetch --locked` downloads every one of them, and `cargo xtask \
+             check` without `--offline` runs it before anything reads the graph"
+        )
+    } else {
+        format!("`cargo metadata` failed: {said}")
+    }
 }
 
 /// Every package the build resolves from a path outside this repository.
@@ -261,8 +282,11 @@ fn built_from_in(parsed: &serde_json::Value, package: &str) -> Result<Vec<String
         .iter()
         .filter(|candidate| id(candidate).is_some_and(|found| reached.contains(&found)))
         .filter_map(|candidate| candidate.get("manifest_path")?.as_str())
-        .filter_map(|manifest| inside_the_root(workspace, manifest)?.strip_suffix("/Cargo.toml"))
-        .map(str::to_owned)
+        .filter_map(|manifest| {
+            inside_the_root(workspace, manifest)?
+                .strip_suffix("/Cargo.toml")
+                .map(str::to_owned)
+        })
         .collect();
     directories.sort();
     Ok(directories)
@@ -337,10 +361,25 @@ mod built_from_tests {
 /// separator test would change no verdict anywhere, and `Member::sources` is
 /// the floor under the type wall's count of source roots. A rule with one copy
 /// has one test.
-fn inside_the_root<'a>(root: &str, path: &'a str) -> Option<&'a str> {
-    path.strip_prefix(root)
+///
+/// **And either separator, answered with `/`, under a root in Windows'
+/// spelling.** On Windows cargo writes every manifest path with a backslash,
+/// under a root written the same way, so read with `/` alone no member is
+/// found there, and every gate scoped by the members fails for having nothing
+/// to judge. There both are turned into `/` before they are compared, which is
+/// the form every list here is written in. Under a root that holds a `/`, a
+/// backslash is part of a name, as [`crate::in_windows_spelling`] measures:
+/// read as a separator there, a sibling named with one after the root's last
+/// name is a member, and `outside_of` drops the package that is not.
+fn inside_the_root(root: &str, path: &str) -> Option<String> {
+    let (root, path) = if crate::in_windows_spelling(root) {
+        (root.replace('\\', "/"), path.replace('\\', "/"))
+    } else {
+        (root.to_owned(), path.to_owned())
+    };
+    path.strip_prefix(&root)
         .filter(|rest| rest.starts_with('/'))
-        .map(|rest| rest.trim_start_matches('/'))
+        .map(|rest| rest.trim_start_matches('/').to_owned())
 }
 
 /// The same question, asked of an answer that is already parsed.
@@ -457,6 +496,35 @@ mod outside_tests {
             super::outside_of(&answer).expect("the answer parses").len(),
             1,
             "`/w-vendor` is a sibling of `/w`, not a directory inside it"
+        );
+    }
+
+    /// A backslash in a name under a root written with `/` is part of the
+    /// name, and not a separator.
+    ///
+    /// The shape `cargo metadata` gives on Linux for a path dependency on a
+    /// sibling named with one, as [`crate::in_windows_spelling`] records.
+    /// Read with both separators, the sibling is inside the root, and the
+    /// package built from outside this repository is dropped from the report
+    /// of what is.
+    #[test]
+    fn a_sibling_whose_name_holds_a_backslash_is_outside() {
+        let answer = serde_json::json!({
+            "workspace_root": "/w",
+            "packages": [
+                { "name": "nc-vendored", "source": null,
+                  "manifest_path": "/w\\vendor/nc-vendored/Cargo.toml" },
+            ]
+        });
+        assert_eq!(
+            super::outside_of(&answer).expect("the answer parses").len(),
+            1,
+            "a name holding a backslash beside `/w` is a sibling of it"
+        );
+        assert_eq!(
+            super::inside_the_root("D:\\w", "D:\\w\\vendor\\Cargo.toml").as_deref(),
+            Some("vendor/Cargo.toml"),
+            "under a root in Windows' spelling, a backslash still separates"
         );
     }
 }
@@ -581,8 +649,10 @@ fn opening_the_local_database_in(parsed: &serde_json::Value) -> Result<Vec<Strin
             .get("manifest_path")
             .and_then(serde_json::Value::as_str)
             .and_then(|manifest| inside_the_root(root, manifest))
-            .and_then(|rest| rest.strip_suffix("Cargo.toml"))
-            .map(|directory| directory.trim_end_matches('/'));
+            .and_then(|rest| {
+                rest.strip_suffix("Cargo.toml")
+                    .map(|directory| directory.trim_end_matches('/').to_owned())
+            });
         let (true, Some(directory)) = (is_a_member, directory) else {
             continue;
         };
@@ -591,7 +661,7 @@ fn opening_the_local_database_in(parsed: &serde_json::Value) -> Result<Vec<Strin
             .and_then(serde_json::Value::as_array)
             .is_some_and(|dependencies| dependencies.iter().any(hands_over_sqlite));
         if opens {
-            found.push(directory.to_owned());
+            found.push(directory);
         }
     }
     found.sort();
@@ -740,10 +810,10 @@ fn from_metadata(parsed: &serde_json::Value) -> Result<Vec<Member>, String> {
         // package at `/w-vendor/nc-vendored/Cargo.toml` is
         // admitted with the relative path `-vendor/nc-vendored`, so the lint walk, the source walk and the type-wall scope all judge a manifest outside the repository and count it among the members. <!-- allow-reference: `-vendor/nc-vendored` is the nonsense path the defect produced, in a fixture workspace at `/w` -->
         // A second copy of one rule is a copy proved by nothing.
-        let Some(relative) = inside_the_root(root, manifest)
-            .and_then(|rest| rest.strip_suffix("Cargo.toml"))
-            .map(|directory| directory.trim_end_matches('/'))
-        else {
+        let Some(relative) = inside_the_root(root, manifest).and_then(|rest| {
+            rest.strip_suffix("Cargo.toml")
+                .map(|directory| directory.trim_end_matches('/').to_owned())
+        }) else {
             continue;
         };
         // **Reaches the log, at any depth.** `cargo metadata` has already
@@ -764,8 +834,7 @@ fn from_metadata(parsed: &serde_json::Value) -> Result<Vec<Member>, String> {
                         let relative = target
                             .get("src_path")
                             .and_then(serde_json::Value::as_str)
-                            .and_then(|path| inside_the_root(root, path))
-                            .map(str::to_owned)?;
+                            .and_then(|path| inside_the_root(root, path))?;
                         Some((relative, is_documented(target)))
                     })
                     .collect::<Vec<(String, bool)>>()
@@ -782,7 +851,7 @@ fn from_metadata(parsed: &serde_json::Value) -> Result<Vec<Member>, String> {
             continue;
         };
         found.push(Member {
-            path: relative.to_owned(),
+            path: relative,
             name: name.to_owned(),
             can_log,
             sources,
@@ -974,9 +1043,9 @@ mod tests {
             paths.contains(&"crates/nc-log") && paths.contains(&"xtask"),
             "{paths:?}"
         );
-        // The floor is a real number, not `> 0`: this workspace has fifteen
+        // The floor is a real number, not `> 0`: this workspace has sixteen
         // members and a resolution that lost one is the defect being closed.
-        assert_eq!(found.len(), 15, "{paths:?}");
+        assert_eq!(found.len(), 16, "{paths:?}");
         // And `nc-log` does not depend on itself, so the consumer count this
         // feeds cannot be inflated by the log's own manifest.
         assert!(
@@ -1186,6 +1255,30 @@ mod tests {
         }
     }
 
+    /// A graph that failed for a package not on this machine names the fetch,
+    /// and one that failed for anything else does not.
+    ///
+    /// The first case is cargo's answer on a clone whose cargo home holds
+    /// nothing, measured with `CARGO_HOME` pointed at an empty directory.
+    #[test]
+    fn a_package_missing_offline_is_answered_with_the_fetch() {
+        let missing = "error: no matching package named `cedar-policy` found\nlocation \
+                       searched: crates.io index\nnote: offline mode (via `--offline`) can \
+                       sometimes cause surprising resolution failures\n";
+        let said = super::what_a_failed_graph_says(missing);
+        assert!(
+            said.contains("no matching package named `cedar-policy`")
+                && said.contains("`cargo fetch --locked`"),
+            "a graph that failed for a package not downloaded did not name the fetch: {said}"
+        );
+        let broken = "error: failed to parse manifest at `/w/Cargo.toml`\n";
+        let said = super::what_a_failed_graph_says(broken);
+        assert!(
+            said.contains("failed to parse manifest") && !said.contains("cargo fetch"),
+            "a manifest cargo could not parse was answered with a download: {said}"
+        );
+    }
+
     /// A sibling of the root is not a member of it.
     ///
     /// The same measurement as `a_sibling_whose_name_begins_with_the_roots_is_outside`,
@@ -1209,6 +1302,41 @@ mod tests {
             paths,
             vec!["crates/nc-log"],
             "`/w-vendor` is a sibling of `/w`, not a directory inside it"
+        );
+    }
+
+    /// A member cargo names with Windows' separator is a member, written with `/`.
+    ///
+    /// The answer on a Windows runner, in the shape it came: read with `/` as
+    /// the only separator, no package in it is inside the root and the walk
+    /// answers that cargo lists no member at all. A sibling is still outside
+    /// with either separator, because what decides inside is still a separator
+    /// after the root.
+    #[test]
+    fn a_member_cargo_names_with_backslashes_is_a_member() {
+        let answer = serde_json::json!({
+            "workspace_root": "D:\\w",
+            "packages": [
+                {"name": "nc-log", "id": "log",
+                 "manifest_path": "D:\\w\\crates\\nc-log\\Cargo.toml",
+                 "targets": [{"src_path": "D:\\w\\crates\\nc-log\\src\\lib.rs", "kind": ["lib"]}]},
+                {"name": "nc-vendored", "id": "vendored",
+                 "manifest_path": "D:\\w-vendor\\nc-vendored\\Cargo.toml"},
+            ],
+        });
+        let found = from_metadata(&answer).expect("a readable answer");
+        let read: Vec<(&str, &[String])> = found
+            .iter()
+            .map(|member| (member.path.as_str(), member.sources.as_slice()))
+            .collect();
+        assert_eq!(
+            read,
+            vec![(
+                "crates/nc-log",
+                &["crates/nc-log/src/lib.rs".to_owned()][..]
+            )],
+            "a Windows answer is read as the members it names, with `/`, and its sibling \
+             is not one of them"
         );
     }
 

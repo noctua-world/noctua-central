@@ -27,11 +27,14 @@ disallowed-methods = [
   # answers is *who opens a handle at all*, which no spelling can hide.
   #
   # Every such call in the tree carries an `expect` whose reason says why it
-  # earns it: `nc-log`'s `ship.rs` opens `/dev/full` to give a test a descriptor
-  # that always fails; `nc-local`'s `create_private` creates the database file
-  # and the owner probe `0600` with `create_new`; and `nc-kernel`'s `blobs.rs`
-  # `create_private` creates a writing `0600` with `create_new` inside the
-  # blobs' own directory.
+  # earns it: `nc-platform`, where each system makes a path private,
+  # creates the local database's file, the owner probe and every writing of a
+  # blob `0600` with `create_new` in its Unix half, and in its Windows half
+  # opens a path to judge it, to read and set its access list, or to set the
+  # time a blob was named — which a handle opened to read may not there — never
+  # to write it. The Windows half creates a file through `CreateFileW` itself,
+  # with the descriptor that makes it private, which no rule here can name: it
+  # is inside a directory its caller judged, and never a terminal.
   { path = "std::fs::File::create", reason = "a handle on `/dev/stdout` is the terminal; `ui` is the one output path" },
   { path = "std::fs::File::create_new", reason = "a handle on `/dev/stdout` is the terminal; `ui` is the one output path" },
   { path = "std::fs::File::options", reason = "a handle on `/dev/stdout` is the terminal; `ui` is the one output path" },

@@ -155,12 +155,24 @@ fn redacted(url: &str) -> String {
 }
 
 /// Reports what the gate decided about the database.
-pub(crate) fn report(offline: bool, failures: &mut Vec<String>) -> Option<String> {
+///
+/// **A database is required only where the stack runs.** Off Linux there is
+/// none to require, so the requirement is not applicable and says so, and the
+/// PostgreSQL suites are told the same through `NC_NO_STACK`; on Linux it is
+/// required unless `--offline` asked for it not to be.
+pub(crate) fn report(stack: crate::check::Stack, failures: &mut Vec<String>) -> Option<String> {
     ui::heading("database");
-    if offline {
-        ui::warn("skipped: --offline, and the journal's PostgreSQL tests need one");
-        ui::detail("CI never passes --offline, so those tests always run there");
-        return None;
+    match stack {
+        crate::check::Stack::Asked => {}
+        crate::check::Stack::Offline => {
+            ui::warn("skipped: --offline, and the journal's PostgreSQL tests need one");
+            ui::detail("CI never passes --offline, so those tests always run there");
+            return None;
+        }
+        crate::check::Stack::NotApplicable => {
+            ui::not_applicable("running the PostgreSQL tests against a database");
+            return None;
+        }
     }
     match url() {
         Ok(url) => {
@@ -1419,21 +1431,22 @@ mod tests {
         // **`--offline` is the flag, and `url()` does not read it.** `url()`
         // falls back to `postgres://…@127.0.0.1:${POSTGRES_PORT:-5432}/noctua`
         // and probes the port, so under the environment `cargo xtask check
-        // --offline` hands the test binary — `DATABASE_URL` removed, `NC_OFFLINE`
+        // --offline` hands the test binary — `DATABASE_URL` removed, `NC_NO_STACK`
         // set — a test that asks only `url()` connects anyway and issues
         // `CREATE SCHEMA`, two `GRANT`s and `DROP SCHEMA … CASCADE` against
         // whatever is listening, which by default is the developer's own stack.
-        // Measured: `env -u DATABASE_URL NC_OFFLINE=1 POSTGRES_DB=nc_no_such_db`
+        // Measured: `env -u DATABASE_URL NC_NO_STACK=--offline POSTGRES_DB=nc_no_such_db`
         // panics there with SQLSTATE `3D000`, which is a real connection.
         //
         // `nc-journal`'s and `nc-prune`'s integration suites both read
-        // `NC_OFFLINE`, and so does this.
-        if std::env::var_os("NC_OFFLINE").is_some() {
+        // `NC_NO_STACK`, and so does this.
+        if std::env::var_os("NC_NO_STACK").is_some() {
             // **And it says so.** A control that returns in silence is counted
             // by cargo as a test that passed, and `check --offline` would print
             // its usual total with this one never run — the same hazard the other
             // suites in `ANNOUNCES_NO_DATABASE` announce for.
-            println!("xtask database: skipped, no database (NC_OFFLINE)");
+            let why = std::env::var("NC_NO_STACK").unwrap_or_default();
+            println!("xtask database: skipped, no database: {why}");
             return;
         }
         // **And no database is a failure, not a skip.** This module's header
@@ -1582,8 +1595,9 @@ mod tests {
     /// whatever the query said.
     #[test]
     fn a_rewound_sequence_under_the_ordering_column_is_read() {
-        if std::env::var_os("NC_OFFLINE").is_some() {
-            println!("xtask database: skipped, no database (NC_OFFLINE)");
+        if std::env::var_os("NC_NO_STACK").is_some() {
+            let why = std::env::var("NC_NO_STACK").unwrap_or_default();
+            println!("xtask database: skipped, no database: {why}");
             return;
         }
         let url = super::url().unwrap_or_else(|why| {

@@ -11,6 +11,13 @@
 # last line is a whole sentence that stands alone;
 # `the_listing_reads_as_sentences` holds it.
 
+# **Windows runs a recipe in PowerShell**, which every Windows machine has, and
+# not in `sh`, which `just` asks for by default and Windows does not ship. Each
+# recipe is a `cargo xtask` verb, the listing, or a script that names `sh` itself —
+# and the checkout script refuses to run under the `sh` Git ships there, before it
+# derives anything, because every guard it has spends a path as POSIX does.
+set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
+
 default:
     @just --list
 
@@ -39,9 +46,11 @@ checkout-shape:
 # the bounds only the running log store can state; how a database sorts; the
 # journal's PostgreSQL tests; fetching the advisory database; comparing each
 # pinned digest against what its tag resolves to; and the stack's own tests,
-# which ask docker what it resolves rather than reading one compose file. CI
-# never passes this recipe.
-# The same gate without the nine steps that need the stack or the network.
+# which ask docker what it resolves rather than reading one compose file. Nor
+# does it run `cargo fetch --locked`, which a run without the flag does first,
+# and every cargo it starts is told to stay off the network, so every package the
+# lockfile names must already be on the machine. CI never passes this recipe.
+# The same gate without the nine steps that need the stack or the network, its cargo kept offline.
 check-offline:
     cargo xtask check --offline
 
