@@ -18402,7 +18402,7 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 640, 56),
+        ("xtask/check.rs", 641, 56),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 44, 29),
         ("xtask/database.rs", 29, 6),
@@ -24169,7 +24169,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14162;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14163;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24188,7 +24188,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2721;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2724;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -24205,7 +24205,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 885;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 886;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -24239,7 +24239,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 19829;
+    const THE_REARRANGEMENTS_JUDGED: usize = 19830;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24293,7 +24293,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **424 of 19,829 are accepted by the first-line
+    /// rules the gates apply: **424 of 19,830 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -24326,7 +24326,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **885 of
+    /// this tree offers, **886 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -42418,6 +42418,8 @@ impl<T: Shown> Shown for Option<T> {
     /// on the path answers as each POSIX layer over Windows does, so the arm
     /// is held on the systems the mutation runner runs on as well, and a
     /// spelling it misses fails here rather than reaching an `rm -rf` there.
+    /// There a `uname` that fails is driven too, and one that answers `Linux`,
+    /// which the same scratch lets through to the removal.
     ///
     /// **Driven to the line above the first call in the copy**, with the
     /// removal and the copy still in it, so a refusal that does not happen is
@@ -42457,40 +42459,29 @@ impl<T: Shown> Shown for Option<T> {
             vec![None]
         };
         let planted = held.root.join("bin");
-        std::fs::create_dir_all(&planted).expect("writable");
-        let path = std::env::var_os("PATH").unwrap_or_default();
-        for answer in answers {
-            let searched = match answer {
-                Some(answer) => {
-                    let uname = planted.join("uname");
-                    std::fs::write(&uname, format!("#!/bin/sh\necho {answer}\n"))
-                        .expect("writable");
-                    // The permissions of the binary running this test, which
-                    // this system runs already, so no mode is spelled here.
-                    let runnable = std::env::current_exe()
-                        .and_then(std::fs::metadata)
-                        .expect("a test binary can read its own metadata")
-                        .permissions();
-                    std::fs::set_permissions(&uname, runnable).expect("writable");
-                    std::env::join_paths(
-                        std::iter::once(planted.clone()).chain(std::env::split_paths(&path)),
-                    )
-                    .expect("the path this test was given joins again")
-                }
-                None => path.clone(),
-            };
+        // Run with the system's own path, or with one whose first `uname` runs
+        // the body given.
+        let drive = |uname: Option<&str>| {
+            let searched = uname.map_or_else(
+                || std::env::var_os("PATH").unwrap_or_default(),
+                |body| a_path_whose_uname_runs(&planted, body),
+            );
             #[expect(
                 clippy::disallowed_methods,
                 reason = "the script is driven and its output is read, not printed"
             )]
-            let refused = std::process::Command::new("sh")
+            let output = std::process::Command::new("sh")
                 .arg(&script)
                 .arg(&destination)
                 .current_dir(&fake)
-                .env("PATH", &searched)
+                .env("PATH", searched)
                 .env_remove(super::CHECKOUT_SHAPE_GUARD)
                 .output()
                 .expect("sh is on this machine");
+            output
+        };
+        for answer in answers {
+            let refused = drive(answer.map(|answer| format!("echo {answer}")).as_deref());
             let said = String::from_utf8_lossy(&refused.stderr).into_owned();
             let system = answer.unwrap_or("this system");
             assert!(
@@ -42509,11 +42500,61 @@ impl<T: Shown> Shown for Option<T> {
                  {said}"
             );
         }
+        if nc_platform::testing::A_POSIX_SHELL {
+            // **A `uname` that fails stops the script, and is not read as a
+            // system it may run on.** Asked inside the `case` word, a failing
+            // `uname` is an empty answer that no pattern takes, and the script
+            // goes on to its `rm -rf` of the sentinel; assigned first, it stops
+            // under `set -e` before anything is derived from a path.
+            let stopped = drive(Some("exit 1"));
+            let said = String::from_utf8_lossy(&stopped.stderr).into_owned();
+            assert!(
+                !stopped.status.success(),
+                "a `uname` that failed did not stop the script: {said}"
+            );
+            assert!(
+                destination.join("sentinel").exists() && !destination.join("checkout").exists(),
+                "a `uname` that failed was read as a system the script may run on, and \
+                 it removed or copied something: {said}"
+            );
+            // **And the same scratch, answered `Linux`, reaches its removal and
+            // its copy**, so the runs above stopped at the arm and not at a
+            // guard after it that this scratch would fail anyway. What it did
+            // is read on disk, not from its status, which the script's trap on
+            // `EXIT` has the last word on.
+            let ran = drive(Some("echo Linux"));
+            let said = String::from_utf8_lossy(&ran.stderr).into_owned();
+            assert!(
+                !destination.join("sentinel").exists() && destination.join("checkout").exists(),
+                "answered Linux, the script did not remove and copy what this scratch \
+                 names, so the runs above prove nothing about the arm: {said}"
+            );
+        }
         assert!(
             script.exists(),
             "the scratch repository was destroyed by a run the script reports refusing"
         );
         drop(held);
+    }
+
+    /// A path whose first `uname` is a script running `body`, and the rest is
+    /// the path this test was given.
+    fn a_path_whose_uname_runs(planted: &std::path::Path, body: &str) -> std::ffi::OsString {
+        std::fs::create_dir_all(planted).expect("writable");
+        let uname = planted.join("uname");
+        std::fs::write(&uname, format!("#!/bin/sh\n{body}\n")).expect("writable");
+        // The permissions of the binary running this test, which this system
+        // runs already, so no mode is spelled here.
+        let runnable = std::env::current_exe()
+            .and_then(std::fs::metadata)
+            .expect("a test binary can read its own metadata")
+            .permissions();
+        std::fs::set_permissions(&uname, runnable).expect("writable");
+        let path = std::env::var_os("PATH").unwrap_or_default();
+        std::env::join_paths(
+            std::iter::once(planted.to_path_buf()).chain(std::env::split_paths(&path)),
+        )
+        .expect("the path this test was given joins again")
     }
 
     /// An absolute path that resolves inside this repository is refused too.

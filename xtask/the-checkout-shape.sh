@@ -50,7 +50,8 @@ set -eu
 # word a `uname` that fails is an empty answer and no refusal, while a failing
 # assignment stops the script under `set -e` here, before anything — the
 # direction a guard before `rm -rf` must fail in.
-# `the_script_refuses_a_system_its_guards_do_not_hold_on` drives this arm.
+# `the_script_refuses_a_system_its_guards_do_not_hold_on` drives this arm, a
+# `uname` that fails included.
 the_system=$(uname -s)
 case $the_system in
   MINGW*|MSYS*|CYGWIN*|*_NT*)

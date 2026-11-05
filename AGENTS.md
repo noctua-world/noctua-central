@@ -1886,12 +1886,13 @@ rather than anything decided for the project, and each is a maintainer's to reop
   junction passed every guard as the repository the script belongs to. So the script asks
   `uname -s` before it derives anything from a path, and a shell naming a POSIX layer over
   Windows (`MINGW*`, `MSYS*`, `CYGWIN*`, or anything with `_NT` in it) is refused, with
-  exit 2 and the reason. `the_script_refuses_a_system_its_guards_do_not_hold_on` holds
-  that on every system — on Windows by the system's own answer, elsewhere through a
-  `uname` planted on the path, with nothing removed or copied either way — and the drives
-  of the guards themselves stand aside on Windows, saying so, while the Linux and macOS
-  jobs run them. A layer over Windows that names itself some other way to `uname` is not
-  refused, and runs guards no test holds.
+  exit 2 and the reason; a `uname` that fails stops the script under `set -e` instead of
+  reading as no answer. `the_script_refuses_a_system_its_guards_do_not_hold_on` holds the
+  refusal on every system — on Windows by the system's own answer, elsewhere through a
+  `uname` planted on the path, with nothing removed or copied either way — and the failing
+  `uname` on Linux and macOS; the drives of the guards themselves stand aside on Windows,
+  saying so, while the Linux and macOS jobs run them. A layer over Windows that names
+  itself some other way to `uname` is not refused, and runs guards no test holds.
 - **That the catalog's output does not follow a directory's order is measured on Linux
   alone**: macOS lists a directory by a hash of each name and Windows by the name, so two
   layouts of the locale files come back in one order there and the suite holding the
