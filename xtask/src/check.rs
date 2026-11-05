@@ -18426,7 +18426,7 @@ mod the_frozen_path_rule {
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 30, 6),
         ("xtask/ui.rs", 52, 12),
         ("xtask/wall.rs", 129, 28),
-        ("xtask/workflow.rs", 129, 23),
+        ("xtask/workflow.rs", 131, 23),
     ];
 
     /// The name an item declaration introduces, for the message below.
@@ -21200,8 +21200,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 535 scratches this tree
-    /// builds, 445 of the 535 are removed however the test leaves and 90 are
+    /// directories accumulated in an afternoon. Of the 536 scratches this tree
+    /// builds, 446 of the 536 are removed however the test leaves and 90 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -21304,7 +21304,7 @@ mod the_frozen_path_rule {
         ("xtask/sections.rs", 9, 1),
         ("xtask/ui.rs", 1, 0),
         ("xtask/wall.rs", 3, 2),
-        ("xtask/workflow.rs", 22, 4),
+        ("xtask/workflow.rs", 23, 5),
     ];
 
     /// Where every function in a blanked file begins and ends, in char offsets.
@@ -24169,7 +24169,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14176;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14181;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24239,7 +24239,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 19861;
+    const THE_REARRANGEMENTS_JUDGED: usize = 19871;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24293,7 +24293,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **424 of 19,861 are accepted by the first-line
+    /// rules the gates apply: **424 of 19,871 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph

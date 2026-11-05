@@ -823,7 +823,7 @@ fn everything_ci_reaches(root: &Path) -> Result<(Vec<std::path::PathBuf>, bool),
     let recipes = the_files_answering_to(root, &JUSTFILE)
         .into_iter()
         .chain(the_files_answering_to(root, &MAKEFILE));
-    joined(&mut files, recipes);
+    joined(root, &mut files, recipes);
     let ran_out = follow_what_they_reach(root, &mut files, &mut hops) || ran_out;
     files.sort();
     Ok((files, ran_out))
@@ -869,7 +869,7 @@ pub(crate) fn only_runs_the_gate(root: &Path) -> Result<(Vec<Finding>, usize), S
         let relative = relative_to(root, &path);
         // The workflow's own files, as against the `justfile` and the scripts
         // it reaches: a recipe a developer types may be offline; CI may not.
-        let file_is_ci = relative.starts_with(WORKFLOWS);
+        let (file_is_ci, _) = the_role_of(&relative);
         // Every file this walk found, not the workflow alone: a `justfile`
         // recipe and a script a step runs discard a verdict the same way.
         no_verdict_is_discarded(&relative, &text, &mut findings);
@@ -1729,33 +1729,57 @@ fn one_alias_file(root: &Path, file: &str, findings: &mut Vec<Finding>) {
 /// **A spelling is not a file.** On a filesystem that ignores case, as macOS's
 /// and Windows' do, `JUSTFILE` and `justfile` are one file; and a step into a
 /// directory and back out of it is a second spelling of where it began. A walk
-/// that asked whether it already held a path by its spelling read the one
-/// justfile three times there, and counted each of its six commands three
-/// times: `ok 31 cargo command(s)` on macOS and `41` on Windows, against
-/// Linux's `19`, on one tree. The path the system resolves a spelling to is the
-/// file; a path it cannot resolve is kept as spelled, which is then all there
-/// is to compare.
+/// that asks whether it holds a path by its spelling reads the one justfile
+/// three times there and counts each of its six commands three times: on one
+/// tree, `ok 19 cargo command(s)` on Linux and `31` on macOS. The path the
+/// system resolves a spelling to is the file; a path it cannot resolve is kept
+/// as spelled, which is then all there is to compare.
 fn the_file_itself(path: &Path) -> std::path::PathBuf {
     std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
-/// Adds to `files` each path in `reached` that names a file it does not hold
-/// yet, and says whether any did.
+/// What the judgment reads a file as, from the path that reached it: one
+/// of CI's own files, and a justfile.
 ///
-/// By [`the_file_itself`], so a file reached under a second spelling is not
-/// read twice, and its commands not counted twice. The spelling kept is the
-/// one that reached it first.
+/// **One answer, for the walk that joins a file and the loop that judges
+/// it**, so the two cannot disagree about which spellings are one reading.
+/// Both halves come from the spelling: a file under `.github/` is CI's, where
+/// no command may be offline, and a file named as one of [`JUSTFILE`] has
+/// recipes, whose names are held to what their bodies run.
+fn the_role_of(relative: &str) -> (bool, bool) {
+    let basename = relative.rsplit('/').next().unwrap_or(relative);
+    (
+        relative.starts_with(WORKFLOWS),
+        answers_to(basename, &JUSTFILE),
+    )
+}
+
+/// Adds to `files` each path in `reached` that is a reading it does not hold
+/// yet, and says whether any was.
+///
+/// **A reading is a file in the role its spelling gives it.** By
+/// [`the_file_itself`], a file reached under a second spelling is not read
+/// twice, and its commands not counted twice. By [`the_role_of`] as well,
+/// because the judgment reads two roles from the spelling and the `.github/`
+/// walk runs first: compared by the file alone, a root `justfile` that is also
+/// a file under `.github/` through a link, in either direction, is judged as a
+/// workflow and nothing else, and no recipe of it is held to its name. Two
+/// spellings are one reading when they name one file in one role, so two
+/// names of one justfile on a filesystem that ignores case, and a step into a
+/// directory and back out, are still read once. The spelling kept is the
+/// first that reached the reading.
 fn joined(
+    root: &Path,
     files: &mut Vec<std::path::PathBuf>,
     reached: impl IntoIterator<Item = std::path::PathBuf>,
 ) -> bool {
-    let mut known: Vec<std::path::PathBuf> =
-        files.iter().map(|path| the_file_itself(path)).collect();
+    let reading = |path: &Path| (the_file_itself(path), the_role_of(&relative_to(root, path)));
+    let mut known: Vec<_> = files.iter().map(|path| reading(path)).collect();
     let mut grew = false;
     for path in reached {
-        let itself = the_file_itself(&path);
-        if !known.contains(&itself) {
-            known.push(itself);
+        let it = reading(&path);
+        if !known.contains(&it) {
+            known.push(it);
             files.push(path);
             grew = true;
         }
@@ -1766,7 +1790,7 @@ fn joined(
 /// Whether `name` is one of `names`, with case set aside.
 ///
 /// What [`the_files_answering_to`] reads a directory by, and what tells
-/// [`the_recipe_above`] that a file it was handed is a justfile.
+/// [`the_role_of`] that a file is a justfile.
 fn answers_to(name: &str, names: &[&str]) -> bool {
     names.iter().any(|known| known.eq_ignore_ascii_case(name))
 }
@@ -1862,7 +1886,7 @@ fn follow_what_they_reach(
     // `depth=15 chain_scripts_read=15 ran_out=true` — the false finding the
     // shared budget exists to prevent, one off.
     while *left > 0 {
-        if !joined(files, reached_from(root, files)) {
+        if !joined(root, files, reached_from(root, files)) {
             return false;
         }
         *left -= 1;
@@ -1872,11 +1896,9 @@ fn follow_what_they_reach(
     // exactly [`HOPS`] is read whole and leaves nothing behind, and reporting it
     // as too deep is the same false finding the shared budget and the hop rule
     // prevent, one step further along. So the question is asked rather than
-    // inferred from the counter.
-    let known: Vec<std::path::PathBuf> = files.iter().map(|path| the_file_itself(path)).collect();
-    reached_from(root, files)
-        .into_iter()
-        .any(|reached| !known.contains(&the_file_itself(&reached)))
+    // inferred from the counter — by [`joined`] itself, on a copy, so "more to
+    // find" means a reading it would add.
+    joined(root, &mut files.clone(), reached_from(root, files))
 }
 
 /// Every file in the tree one word of a CI file could name.
@@ -3899,8 +3921,8 @@ fn the_recipe_above(text: &str, index: usize, file_is_ci: bool, named: &str) -> 
     // for having the wrong name. A makefile gate is a different rule and wants
     // writing as one; what this narrowing must not do is *look* like it covers
     // them, which is why it says so here.
-    let basename = named.rsplit('/').next().unwrap_or(named);
-    if file_is_ci || !answers_to(basename, &JUSTFILE) {
+    let (_, has_recipes) = the_role_of(named);
+    if file_is_ci || !has_recipes {
         return String::new();
     }
     // A comment at column zero can end in a colon — this file's own
@@ -4727,23 +4749,30 @@ mod tests {
     #[test]
     fn the_walk_reads_each_file_once_however_it_is_reached() {
         let (files, _) = super::everything_ci_reaches(root()).expect("the walk runs");
-        let mut distinct: Vec<std::path::PathBuf> = files
+        let mut distinct: Vec<(std::path::PathBuf, (bool, bool))> = files
             .iter()
-            .map(|path| std::fs::canonicalize(path).expect("a file the walk found resolves"))
+            .map(|path| {
+                (
+                    std::fs::canonicalize(path).expect("a file the walk found resolves"),
+                    super::the_role_of(&crate::relative_to(root(), path)),
+                )
+            })
             .collect();
         distinct.sort();
         distinct.dedup();
         assert_eq!(
             distinct.len(),
             files.len(),
-            "the walk holds one file under two spellings, and counts its commands twice: \
-             {files:#?}"
+            "the walk holds one file in one role under two spellings, and counts its \
+             commands twice: {files:#?}"
         );
         let (_, seen) = only_runs_the_gate(root()).expect("the workflow is readable");
+        let readings: Vec<std::path::PathBuf> =
+            distinct.into_iter().map(|(file, _)| file).collect();
         assert_eq!(
             seen,
-            super::a_second_count_of(&distinct),
-            "the walk's count is not the count over the distinct files it reaches"
+            super::a_second_count_of(&readings),
+            "the walk's count is not the count over the distinct readings it reaches"
         );
 
         let held = crate::check::LeavesNothingBehind::new("workflow-spellings");
@@ -4794,6 +4823,66 @@ mod tests {
         assert_eq!(
             seen, 3,
             "three cargo commands, each counted once: {findings:#?}"
+        );
+        drop(held);
+    }
+
+    /// A file reached as one of CI's own, as a script and as a justfile is
+    /// judged in each of the three roles.
+    ///
+    /// **Through links, as a committed tree can hold them.** The `.github/`
+    /// walk meets the root `justfile` first through a link beside the
+    /// workflows, as a workflow's file, where a recipe has no name to hold; a
+    /// step's word reaches it through a second link, as a script with no
+    /// recipes; and the join of what `just` loads reaches it last, as
+    /// `justfile`, where `check:` running `cargo xtask build` is a recipe that
+    /// does not run what it is called. Compared by the file alone, the
+    /// justfile is read as a workflow and nothing else; compared by either half
+    /// of the role alone, one of the three readings is dropped and the count
+    /// says so.
+    ///
+    /// **Made as every suite here makes a file link**, through
+    /// `nc_platform::testing::link_file`, which the refusal twins of `nc-local`
+    /// and of the blob directory make on every system's job.
+    #[test]
+    fn a_file_reached_in_three_roles_is_judged_in_each() {
+        let held = crate::check::LeavesNothingBehind::new("workflow-roles");
+        let scratch = &held.root;
+        std::fs::create_dir_all(scratch.join(".github/workflows")).expect("writable");
+        std::fs::create_dir_all(scratch.join("ci")).expect("writable");
+        std::fs::write(
+            scratch.join(super::WORKFLOW),
+            "on: push\njobs:\n  check:\n    steps:\n      - run: sh ci/lint\n      \
+             - run: cargo xtask check\n",
+        )
+        .expect("writable");
+        let justfile = scratch.join("justfile");
+        std::fs::write(&justfile, "check:\n    cargo xtask build\n").expect("writable");
+        for link in [".github/justfile.yml", "ci/lint"] {
+            nc_platform::testing::link_file(&justfile, &scratch.join(link))
+                .expect("a link is writable");
+        }
+        let (findings, seen) = only_runs_the_gate(scratch).expect("the scratch tree reads");
+        let about = |name: &str| {
+            findings
+                .iter()
+                .filter(|said| said.file == name)
+                .collect::<Vec<_>>()
+        };
+        let recipe = about("justfile");
+        assert!(
+            recipe.len() == 1 && recipe[0].fix.contains("`build` is what this body runs"),
+            "the justfile was not judged as one, under the name `just` loads it by: \
+             {findings:#?}"
+        );
+        assert!(
+            about(".github/justfile.yml").is_empty() && about("ci/lint").is_empty(),
+            "the same file read as a workflow's or as a script was judged as a justfile: \
+             {findings:#?}"
+        );
+        assert_eq!(
+            seen, 4,
+            "the gate, and the recipe once in each of three roles: {findings:#?}"
         );
         drop(held);
     }
