@@ -5591,8 +5591,9 @@ mod hostile_store_tests {
     /// answer at once. What the client reads then is the system's: Linux and
     /// macOS keep what arrived before the reset, and Windows discards it. So
     /// what is held is what every system shares — the verdict is the answer, or
-    /// the reset after part of it, and never the silence of a store that said
-    /// nothing.
+    /// the reset: `Unreadable` after part of the answer, `Unreachable` before
+    /// any of it, which is what Windows gives — and never the silence of a
+    /// store that said nothing.
     #[test]
     fn an_answer_a_reset_follows_is_not_read_as_silence() {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a port");

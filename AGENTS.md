@@ -1898,10 +1898,15 @@ rather than anything decided for the project, and each is a maintainer's to reop
   output to both stands aside. The sort it holds is the same code on every system.
 - **An answer a reset overtakes is lost on Windows**: a store that closes the connection
   with the request unread resets it, and Windows discards what of the answer the shipper
-  had not read yet, so the batch is kept on stderr as an answer it could not read
-  (`Delivery::Unreadable`) — a store that answered, and a possible duplicate. macOS refuses
-  a new read bound on such a socket and still holds the answer, so the shipper reads it
-  under the bound already set (`an_answer_a_reset_follows_is_not_read_as_silence`).
+  had not read yet. What the shipper had read decides the rest. Part of the status line,
+  and the batch is an answer it could not read (`Delivery::Unreadable`): a store that
+  answered, its batch kept on stderr as a possible duplicate. None of it, and the batch is
+  `Delivery::Unreachable`: a store that answered, read as one that has gone, its batch on
+  stderr as a possible duplicate — and during a shutdown it counts toward `GIVE_UP_AFTER`,
+  so two in a row send what is left of the queue to stderr without trying the store again.
+  The second is what a Windows runner measured (`os error 10054`). macOS refuses a new read
+  bound on such a socket and still holds the answer, so the shipper reads it under the
+  bound already set (`an_answer_a_reset_follows_is_not_read_as_silence`).
 - **`.github/workflows/ci.yml` has never run**: there is no repository for it until
   Stage 12. It is committed so that CI and a developer cannot drift into two gates, and a
   gate reads it as a document ("CI's one gate reaches every file CI can reach"); unknown
