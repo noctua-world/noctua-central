@@ -914,7 +914,7 @@ mod tests {
         /// Written down because the two counts it compares are two walks of one
         /// directory list, so a filter on that list moves both and neither
         /// notices.
-        const THE_SOURCE_FILES: usize = 114;
+        const THE_SOURCE_FILES: usize = 115;
         /// The lines this gate actually reads: the tree, less both exemptions.
         ///
         /// **A pin, not a ratchet.** It stands at the ground exactly, so it
@@ -933,7 +933,7 @@ mod tests {
         /// failure spells out: source added is ordinary work and the number goes
         /// up with it, but source *deleted* and a class *exempted* look
         /// identical from here, and only one of them is something to accept.
-        const THE_GROUND_THIS_READS: usize = 66_535;
+        const THE_GROUND_THIS_READS: usize = 67_855;
 
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let mut directories = vec![root.join("xtask/src")];

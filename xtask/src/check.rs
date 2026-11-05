@@ -266,6 +266,14 @@ pub(crate) fn run(root: &Path, offline: bool) -> Result<(), String> {
     ci(root, &mut failures);
 
     ui::gap();
+    history(
+        root,
+        std::env::var_os("GITHUB_EVENT_NAME").as_deref(),
+        std::env::var_os("GITHUB_EVENT_PATH").as_deref(),
+        &mut failures,
+    );
+
+    ui::gap();
     ui::heading("references");
     citations(root, &mut failures);
 
@@ -5238,6 +5246,74 @@ fn ci(root: &Path, failures: &mut Vec<String>) {
     }
 }
 
+/// Every commit reachable is conventional and credits no agent, and no blob
+/// ever reachable is above the size limit unless its path is listed
+/// (`NOCTUA.md §22.5`, `NOCTUA.md §17.8`).
+///
+/// Under a pull request, what the event names is judged instead of `HEAD`,
+/// with the title and the body — `crate::history`'s header says why. `event`
+/// and `path` are `GITHUB_EVENT_NAME` and `GITHUB_EVENT_PATH`, which [`run`]
+/// reads and a test hands in, so a test run under CI's own event judges the
+/// tree it built and not that event. Git reads this machine's repository and
+/// nothing else, so `--offline` changes nothing here. A tree with no `.git`, a
+/// tarball, has no history, and the step says so by name.
+fn history(
+    root: &Path,
+    event: Option<&std::ffi::OsStr>,
+    path: Option<&std::ffi::OsStr>,
+    failures: &mut Vec<String>,
+) {
+    ui::heading("history");
+    let judged = crate::history::the_pull_request(event, path)
+        .and_then(|pull_request| crate::history::judged(root, pull_request.as_ref()));
+    match judged {
+        Ok(crate::history::History::NoRepository) => {
+            ui::warn("skipped: this tree has no .git of its own, so it has no history to judge");
+            ui::detail(
+                "a tarball carries none; a clone does, and CI checks out every commit of it",
+            );
+        }
+        Ok(crate::history::History::Judged(judged)) => {
+            if let Err(problem) = inspected_something(judged.commits, COMMITS) {
+                ui::failure(&problem);
+                failures.push("the history step read no commit".to_owned());
+            } else if let Err(problem) = inspected_something(judged.blobs, BLOBS) {
+                ui::failure(&problem);
+                failures.push("the history step measured no blob".to_owned());
+            } else {
+                report(
+                    &judged.findings,
+                    &format!(
+                        "{} commit(s) reachable from {}, each with a conventional subject and \
+                         no agent credit{}; {} blob(s), none above {} byte(s) but the {} at a \
+                         path listed for it",
+                        judged.commits,
+                        if judged.pull_request {
+                            "the pull request's head and base"
+                        } else {
+                            "HEAD"
+                        },
+                        if judged.pull_request {
+                            ", and so are the pull request's title and body"
+                        } else {
+                            ""
+                        },
+                        judged.blobs,
+                        crate::history::LIMIT,
+                        judged.listed
+                    ),
+                    "the history",
+                    failures,
+                );
+            }
+        }
+        Err(problem) => {
+            ui::failure(&problem);
+            failures.push("the history could not be read".to_owned());
+        }
+    }
+}
+
 /// A `§` names a section that exists.
 ///
 /// Split out because only this half needs the workspace above the repository.
@@ -6593,6 +6669,14 @@ fn reserved_lines(text: &str) -> std::collections::BTreeSet<&str> {
 /// test that would have to fake the compiler to reach it.
 const DRIFT: &str = "the catalog produced no file, so the drift check compared nothing";
 
+/// What the history step reads.
+const COMMITS: &str =
+    "no commit was read from the history, so nothing checked that a subject is conventional";
+
+/// What the history step measures.
+const BLOBS: &str =
+    "no blob was measured in the history, so nothing checked that one is below the size limit";
+
 /// What the workflow gate inspects.
 const WORKFLOW: &str =
     "no cargo command was read from the workflow, so nothing checked that CI runs the gate";
@@ -7623,7 +7707,7 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// `xtask/mutants.py` are where a predicate's verdict is decided. It says the
 /// guard is still there, which is the question a deletion asks.
 #[cfg(test)]
-const WHAT_THE_GATE_CAN_SAY: [&str; 849] = [
+const WHAT_THE_GATE_CAN_SAY: [&str; 916] = [
     "`{named}` was passed to `docker compose` among its arguments. The project is this checkout's and is set above; docker resolves the flag to the later of two, so the stack would come up under a name `--down` does not address",
     "what CI reaches is more than {HOPS} hops deep",
     "Cedar denies by default, so a core rule that permits widens what is allowed rather than restricting it — move it to a pack, or make it a `forbid`",
@@ -8487,6 +8571,74 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 849] = [
     "{migrations}/ is missing, so the unbounded-table gate read nothing there. It is what makes NOCTUA.md §15.8 a policy rather than a habit",
     "{} could not be read: {error}",
     "{} is written here",
+    // The history step (`xtask/src/history.rs`).
+    "GITHUB_EVENT_NAME is `pull_request` and GITHUB_EVENT_PATH is not set, so the pull request's commits, title and body could not be read. Unset GITHUB_EVENT_NAME to judge what HEAD reaches",
+    "`git {}` refused: {}",
+    "a blob of {size} byte(s) at {at}, above the limit of {LIMIT} — and every clone downloads it, even where a later commit removed it",
+    "a blob of {size} byte(s) at {at}, above the {ceiling} its line in `ABOVE_THE_LIMIT` allows",
+    "a tarball carries none; a clone does, and CI checks out every commit of it",
+    "base",
+    "base",
+    "commit",
+    "git answered more than the {} object(s) it was asked for",
+    "git answered {} for {}, which is not an object it holds",
+    "git answered {} when asked for the {kind} {}",
+    "git answered {} when asked whether this clone is shallow",
+    "git could not be started, and the history is read through it: {error}",
+    "git described a change as {}, which is not one path added, removed or changed",
+    "git gave a blob the size {}",
+    "git gave {} a size of {}",
+    "git listed the commits in something that is not UTF-8",
+    "git measured an object as {}",
+    "git measured more than the {} object(s) the history names",
+    "git measured {answered} object(s) of the {} the history names, so a blob it did not measure is one this step did not judge",
+    "git measured {} when asked for {}",
+    "git named its graft file in something that is not UTF-8",
+    "git stopped before it answered: {error}",
+    "git's answer for {} is cut short",
+    "git's answer stopped before {}",
+    "git's input could not be written: {error}",
+    "git's list of changes stops part way through a path",
+    "head",
+    "head",
+    "it ends in whitespace",
+    "it ends with a period",
+    "it has no `:`, so no type opens it. A subject opens with one of {}",
+    "it holds a character a reader cannot see: a control, a bidirectional mark or a zero-width one",
+    "its message is declared as {}, and every message here is UTF-8",
+    "its message is not UTF-8, so nothing in it could be read",
+    "its scope holds {}, and a scope is lower-case letters, digits, `-`, `_`, `.` and `/`",
+    "its scope is empty: name what the change is about, or leave the parentheses out",
+    "its scope is not closed by `)` just before the `:`, or the `!` after it",
+    "no blob was measured in the history, so nothing checked that one is below the size limit",
+    "no commit was read from the history, so nothing checked that a subject is conventional",
+    "nothing follows the colon: a subject says what the change does",
+    "one space follows the colon",
+    "one space follows the colon, and only one",
+    "skipped: this tree has no .git of its own, so it has no history to judge",
+    "the event at GITHUB_EVENT_PATH could not be read, so the pull request was not judged: {error}",
+    "the event at GITHUB_EVENT_PATH holds no `pull_request`, and GITHUB_EVENT_NAME says it is one",
+    "the event at GITHUB_EVENT_PATH is not JSON, so the pull request was not judged: {error}",
+    "the history",
+    "the history could not be read",
+    "the history holds the blob {} of {size} byte(s), and no commit puts it at a path, so the path it sits at was not judged",
+    "the history names {}, and this clone does not hold it — a partial clone. The step measures every blob ever reachable, so it needs a clone that holds all of them",
+    "the history step measured no blob",
+    "the history step read no commit",
+    "the line after the subject is not blank, so the subject runs on into it",
+    "the pull request in the event has no body, not even `null`",
+    "the pull request in the event has no title",
+    "the pull request in the event names no `{side}.sha`",
+    "the pull request's `{side}.sha` is {}, which is not a commit's hash",
+    "the subject {} is not a conventional one: {why}",
+    "the thread writing git's input panicked",
+    "the title {} is not a conventional subject: {why}",
+    "this clone grafts its history: its graft file shows git a commit with other parents than it holds, so the history a graft cuts away is not here to judge. Turn the grafts into replacement refs, which this step reads past: `git replace --convert-graft-file`",
+    "this clone is shallow, so the history below where it was cut is not here to judge. Fetch all of it: `git fetch --unshallow`, or a checkout with `fetch-depth: 0`",
+    "this line credits an agent: {how}",
+    "whether this clone grafts its history could not be read: {error}",
+    "whether this tree has a .git could not be read: {error}",
+    "{} is not a type. A subject opens with one of {}, in lower case",
 ];
 
 /// The verdicts the source is able to push, read out of `xtask/src/`.
@@ -10672,7 +10824,7 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 607] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 627] = [
     // The prefix every finding about this gate's own arithmetic carries, so the
     // three attack helpers can refuse such an answer without naming a sentence.
     "this gate's own accounting — ",
@@ -11285,6 +11437,29 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 607] = [
     "`sqlx` writes the key as it is into `PRAGMA {key} = {value}`, so a key built by a macro, read from the build's environment or a file, or holding a statement of its own, sets what no reader of this source can see; write the pragma's name as one literal",
     "`CREATE VIRTUAL TABLE` is in a migration",
     "its rows live in shadow tables SQLite creates and names itself, so no `CREATE` for them is in this file and no `[tables.*]` entry can bound them (§15.8), and the pruner refuses a virtual table outright. Keep the data in an ordinary table, which an entry can bound and the pruner can delete from",
+    // The history step: its remedies, its clean line, the places a finding
+    // names, the step's heading, the reason a path is listed above the size
+    // limit, and what git is asked.
+    ", and so are the pull request's title and body",
+    "--batch-check=%(objectname) %(objecttype) %(objectsize)",
+    "A binary or a build output is a release asset and never a commit (`NOCTUA.md §17.8`): take it out of the commits before they reach a branch others share. Source that has to be this large gets a line in `ABOVE_THE_LIMIT` in `xtask/src/history.rs`, with its reason",
+    "A file that outgrew its line is split, or its line is raised with the reason it needs the room. Either way, a blob already in a shared branch's history stays there: history is never rewritten",
+    "Edit the pull request: what it says becomes the merge commit's message",
+    "Reword the commit before it reaches a branch others share",
+    "Reword the commit before it reaches a branch others share (`git commit --amend`, or `git rebase -i` and `reword`); a shared branch's history is never rewritten",
+    "Write the message again in UTF-8, before the commit reaches a branch others share; a shared branch's history is never rewritten",
+    "a `{key}:` trailer naming an agent or a bot",
+    "a line saying it was {made} {by} an agent",
+    "a link to {site}, an agent's site",
+    "hand-written source, and neither a binary nor a build output: the gate's steps and the tests that hold each of them. A pack stores each version of it as a delta of another, so a clone pays for what a commit changed in it rather than for its size",
+    "history",
+    "the pull request's body",
+    "the pull request's head and base",
+    "the pull request's title",
+    "the robot emoji",
+    "{EDIT}, and its title is the subject the history keeps",
+    "{fix}. Nothing written here credits an agent (`NOCTUA.md §2.6`): the author of a change is the person who asked for it",
+    "{} commit(s) reachable from {}, each with a conventional subject and no agent credit{}; {} blob(s), none above {} byte(s) but the {} at a path listed for it",
 ];
 
 /// Every string literal in `code`, with the byte offset of its contents.
@@ -12441,13 +12616,14 @@ fn the_hatches(root: &Path, failures: &mut Vec<String>) {
 /// steps and are not here; `finish` filters to this list rather than comparing
 /// everything printed, so a heading added *outside* `run` does not fail the
 /// gate for existing.
-const STEPS: [&str; 10] = [
+const STEPS: [&str; 11] = [
     "wiring",
     "generated output",
     "policy",
     "record limits",
     "the log's type wall",
     "CI",
+    "history",
     "references",
     "plugins",
     "database",
@@ -15714,7 +15890,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     fn no_floor_is_handed_a_count_that_cannot_be_zero() {
         // **The floors this file ships, through all three helpers.** A floor
         // added or removed moves this number in the same change.
-        const FLOORS: usize = 27;
+        const FLOORS: usize = 29;
         // **All three helpers.** Reading `inspected_something(` alone lets a
         // floor reached through either of the other two be handed a count
         // arithmetic keeps above zero with the whole suite green. Measured, one
@@ -15858,7 +16034,11 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     /// The two reasons under the image floors are held by `failures.push(` among the console
     /// needles; the subjects below travel by name, which that needle does not
     /// reach. Paired here, so exchanging two moves two rows.
-    const WHAT_A_FLOOR_SAYS: [(&str, &str); 20] = [
+    const WHAT_A_FLOOR_SAYS: [(&str, &str); 22] = [
+        (
+            "BLOBS",
+            "no blob was measured in the history, so nothing checked that one is below the size limit",
+        ),
         (
             "CITATIONS",
             "no citation was read at all, so the reference gate proved nothing about this tree",
@@ -15866,6 +16046,10 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         (
             "COLOURS",
             "manifest(s) the colour gate reached a verdict on",
+        ),
+        (
+            "COMMITS",
+            "no commit was read from the history, so nothing checked that a subject is conventional",
         ),
         (
             "DOCUMENTS",
@@ -18324,7 +18508,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 147] = [
+    const DOCUMENTED: [(&str, usize, usize); 148] = [
         ("nc-authz/directory.rs", 28, 13),
         ("nc-authz/embedded.rs", 12, 4),
         ("nc-authz/lib.rs", 30, 19),
@@ -18451,7 +18635,7 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 642, 56),
+        ("xtask/check.rs", 647, 56),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 44, 29),
         ("xtask/database.rs", 29, 6),
@@ -18460,9 +18644,10 @@ mod the_frozen_path_rule {
         ("xtask/docs.rs", 8, 1),
         ("xtask/every_generated_value_is_compared.rs", 30, 8),
         ("xtask/gates.rs", 219, 33),
+        ("xtask/history.rs", 104, 2),
         ("xtask/limits.rs", 176, 59),
         ("xtask/local.rs", 79, 8),
-        ("xtask/main.rs", 3, 24),
+        ("xtask/main.rs", 3, 25),
         ("xtask/members.rs", 35, 7),
         ("xtask/plugins.rs", 25, 5),
         ("xtask/policy.rs", 57, 5),
@@ -21249,8 +21434,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 537 scratches this tree
-    /// builds, 447 of the 537 are removed however the test leaves and 90 are
+    /// directories accumulated in an afternoon. Of the 538 scratches this tree
+    /// builds, 448 of the 538 are removed however the test leaves and 90 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -21316,7 +21501,7 @@ mod the_frozen_path_rule {
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 33] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 34] = [
         ("nc-catalog-compiler/ledger.rs", 1, 0),
         ("nc-catalog-compiler/the_gates_fire.rs", 149, 149),
         (
@@ -21344,6 +21529,7 @@ mod the_frozen_path_rule {
         ("xtask/docs.rs", 2, 2),
         ("xtask/every_generated_value_is_compared.rs", 1, 0),
         ("xtask/gates.rs", 17, 9),
+        ("xtask/history.rs", 1, 1),
         ("xtask/limits.rs", 26, 13),
         ("xtask/local.rs", 4, 4),
         ("xtask/members.rs", 1, 0),
@@ -24218,7 +24404,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14194;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14376;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24237,7 +24423,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2720;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2820;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -24254,7 +24440,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 885;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 920;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -24288,7 +24474,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 19895;
+    const THE_REARRANGEMENTS_JUDGED: usize = 20150;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24306,7 +24492,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 424;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 429;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -24342,7 +24528,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **424 of 19,895 are accepted by the first-line
+    /// rules the gates apply: **429 of 20,150 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -24375,7 +24561,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **885 of
+    /// this tree offers, **920 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -26565,7 +26751,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 607;
+    const THE_REST_IT_SAYS: usize = 627;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -26713,7 +26899,7 @@ mod the_frozen_path_rule {
     /// verdicts that agree for that long are one row, and — because a prefix
     /// matches nothing the two censuses hold — every row is a shipped literal
     /// accounted for nowhere. Written out, each row is its own accounting.
-    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 465] = [
+    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 471] = [
         ("—", "compiled catalog/"),
         (
             "—",
@@ -27436,6 +27622,24 @@ mod the_frozen_path_rule {
             "the workflow gate read nothing",
         ),
         ("Err(problem) =>", "the workflow gate"),
+        ("—", "history"),
+        (
+            "Ok(crate::history::History::NoRepository) =>",
+            "skipped: this tree has no .git of its own, so it has no history to judge",
+        ),
+        (
+            "Ok(crate::history::History::NoRepository) =>",
+            "a tarball carries none; a clone does, and CI checks out every commit of it",
+        ),
+        (
+            "if let Err(problem) = inspected_something(judged.commits, COMMITS)",
+            "the history step read no commit",
+        ),
+        (
+            "if let Err(problem) = inspected_something(judged.blobs, BLOBS)",
+            "the history step measured no blob",
+        ),
+        ("Err(problem) =>", "the history could not be read"),
         (
             "if let Err(problem) = inspected_something(read, SECTIONS)",
             "the section gate found nothing",
@@ -28138,7 +28342,7 @@ mod the_frozen_path_rule {
     /// record byte-identical — the same swap the census beside this one is
     /// written in pairs to catch, one level in. The condition is computed for
     /// every site either way, so it is kept.
-    const THE_CONSOLE_SITES_THIS_CANNOT_READ: [(&str, &str); 110] = [
+    const THE_CONSOLE_SITES_THIS_CANNOT_READ: [(&str, &str); 113] = [
         ("—", "&what_a_run_wrote(compiled.files.len("),
         (
             "if let Some(reserved) = reserved",
@@ -28280,6 +28484,15 @@ mod the_frozen_path_rule {
         ),
         ("Err(problem) =>", "&problem"),
         (
+            "if let Err(problem) = inspected_something(judged.commits, COMMITS)",
+            "&problem",
+        ),
+        (
+            "if let Err(problem) = inspected_something(judged.blobs, BLOBS)",
+            "&problem",
+        ),
+        ("Err(problem) =>", "&problem"),
+        (
             "if let Err(problem) = inspected_something(read, SECTIONS)",
             "&problem",
         ),
@@ -28411,7 +28624,7 @@ mod the_frozen_path_rule {
             "not_applicable",
         ];
         /// The sources under `xtask/src`, so a walk that reached none fails.
-        const THE_SOURCES: usize = 22;
+        const THE_SOURCES: usize = 23;
 
         let here = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
         let mut imported: Vec<String> = Vec::new();
@@ -28762,7 +28975,7 @@ mod the_frozen_path_rule {
     /// Seven words of each remedy, because a remedy is long and its opening is
     /// what tells one from another; the rule beside the list is that those
     /// seven are unique.
-    const WHAT_A_REMEDY_ANSWERS: [(&str, &str, &str); 105] = [
+    const WHAT_A_REMEDY_ANSWERS: [(&str, &str, &str); 113] = [
         (
             "counts.rs",
             "this document has an odd number of",
@@ -28947,6 +29160,46 @@ mod the_frozen_path_rule {
             "gates.rs",
             "{judged} {subject}(s) became this gate's to judge",
             "a filter between the counter at the",
+        ),
+        (
+            "history.rs",
+            "the title {} is not a conventional",
+            "{EDIT}, and its title is the subject",
+        ),
+        (
+            "history.rs",
+            "this line credits an agent: {how}",
+            "{fix}. Nothing written here credits an agent",
+        ),
+        (
+            "history.rs",
+            "its message is declared as {}, and",
+            "Write the message again in UTF-8, before",
+        ),
+        (
+            "history.rs",
+            "its message is not UTF-8, so nothing",
+            "Write the message again in UTF-8, before",
+        ),
+        (
+            "history.rs",
+            "the subject {} is not a conventional",
+            "— handed in, not written at this site",
+        ),
+        (
+            "history.rs",
+            "the line after the subject is not",
+            "— handed in, not written at this site",
+        ),
+        (
+            "history.rs",
+            "a blob of {size} byte(s) at {at},",
+            "A file that outgrew its line is",
+        ),
+        (
+            "history.rs",
+            "a blob of {size} byte(s) at {at},",
+            "A binary or a build output is",
         ),
         (
             "limits.rs",
@@ -31389,7 +31642,7 @@ mod every_report_wire {
     /// Some are held outside this module, by the tests named against them: the
     /// unbounded-table wire by the shape this one is written after, and the
     /// rest by steps that already build a tree of their own.
-    const EVERY_WIRE: [(&str, &str); 20] = [
+    const EVERY_WIRE: [(&str, &str); 21] = [
         ("image pins", "the_image_pin_finding_reaches_its_call_site"),
         (
             ".env files",
@@ -31445,6 +31698,7 @@ mod every_report_wire {
             "the CI workflow",
             "the_ci_workflow_finding_reaches_its_call_site",
         ),
+        ("the history", "the_history_finding_reaches_its_call_site"),
         (
             "section citations",
             "the_section_citation_finding_reaches_its_call_site",
@@ -31934,6 +32188,41 @@ mod every_report_wire {
         let mut failures = Vec::new();
         super::ci(&held.root, &mut failures);
         reported(&failures, "the CI workflow");
+    }
+
+    /// A commit whose subject is not a conventional one, in a repository the
+    /// test makes.
+    #[test]
+    fn the_history_finding_reaches_its_call_site() {
+        let repository = crate::history::ARepository::new("wire");
+        repository.commit("Not a conventional subject", &[("a.txt", &b"a\n"[..])]);
+        let mut failures = Vec::new();
+        super::history(&repository.root(), None, None, &mut failures);
+        reported(&failures, "the history");
+    }
+
+    /// A tree with no `.git`, as a tarball is: the step announces a skip by
+    /// name and fails nothing.
+    #[test]
+    fn a_tree_with_no_history_is_a_skip_and_not_a_failure() {
+        let held = a_tree("history-tarball", &[("a.txt", "a\n")]);
+        let _printing = crate::ui::printing();
+        let reason = "this tree has no .git";
+        let before = crate::ui::skips_because(reason);
+        let mut failures = Vec::new();
+        super::history(&held.root, None, None, &mut failures);
+        assert!(
+            failures.is_empty(),
+            "a tree with no history failed the step: {failures:?}"
+        );
+        assert_eq!(
+            crate::ui::skips_because(reason),
+            before + 1,
+            "a tree with no history was not announced as a skip"
+        );
+        // Left behind, the skip is one more than any later test asks
+        // `finish` for.
+        crate::ui::forget_counts();
     }
 
     /// A member that does not take the workspace lints, and a file that puts
@@ -34852,7 +35141,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 161,
+            walked, 162,
             "{walked} Rust source(s) were walked, and this tree holds 119. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -34892,7 +35181,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1422] = [
+    static OPERATORS: [(&str, &str, &str); 1462] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -35071,6 +35360,166 @@ Options:
             "written_as_the_reader_reads_it",
             "the rewrite keeps the file's own quotes",
         ),
+        (
+            "history",
+            "subject",
+            "a subject opens with one of the types",
+        ),
+        (
+            "history",
+            "subject",
+            "a description does not end with a period",
+        ),
+        (
+            "history",
+            "subject",
+            "a character nobody sees is refused, not only a control",
+        ),
+        ("history", "in_a_scope", "a scope holds no space"),
+        (
+            "history",
+            "without_the_pull_request",
+            "only digits are GitHub's number",
+        ),
+        (
+            "history",
+            "without_the_pull_request",
+            "and an empty one is not",
+        ),
+        ("history", "names_an_agent", "a bot is named by its bracket"),
+        ("history", "a_trailer", "a trailer ending `-with` is one"),
+        (
+            "history",
+            "a_linked_site",
+            "a link written without its scheme is read",
+        ),
+        (
+            "history",
+            "judge_a_commit",
+            "the line after the subject is blank",
+        ),
+        ("history", "not_shallow", "a shallow clone is refused"),
+        (
+            "history",
+            "the_objects",
+            "an answer longer than the question is refused",
+        ),
+        ("history", "the_blobs", "a blob above the limit is judged"),
+        (
+            "history",
+            "judge_the_places",
+            "a listed path is held to its ceiling",
+        ),
+        ("history", "the_blobs", "every object named is measured"),
+        (
+            "history",
+            "names_an_agent",
+            "an address under an agent's site names it",
+        ),
+        (
+            "history",
+            "names_an_agent",
+            "an address at an agent vendor's domain names it",
+        ),
+        (
+            "history",
+            "an_agent_opens",
+            "an article may stand before the agent's name",
+        ),
+        (
+            "history",
+            "an_agent_opens",
+            "the agent is named right after the words, not later",
+        ),
+        (
+            "history",
+            "an_agent_opens",
+            "a maker's name may stand before its agent's",
+        ),
+        (
+            "history",
+            "an_agent",
+            "a name that is an ordinary word is not read in prose in lower case",
+        ),
+        (
+            "history",
+            "an_agent",
+            "a name that is an ordinary word is read in prose written as a name",
+        ),
+        (
+            "history",
+            "a_trailer",
+            "spaces and a tab before a trailer's colon are its key's",
+        ),
+        (
+            "history",
+            "a_credit",
+            "a trailer's value folded onto the lines below is read",
+        ),
+        (
+            "history",
+            "judge_a_commit",
+            "a message declared in another encoding is refused",
+        ),
+        (
+            "history",
+            "judge_a_commit",
+            "a message that is not UTF-8 is refused",
+        ),
+        ("history", "measure_the_blobs", "a partial clone is refused"),
+        (
+            "history",
+            "measure_the_blobs",
+            "a root commit's paths are read",
+        ),
+        (
+            "history",
+            "measure_the_blobs",
+            "a merge's own paths are read",
+        ),
+        ("history", "placed", "a blob no commit places is refused"),
+        (
+            "history",
+            "judge_the_places",
+            "a listed path is matched byte for byte",
+        ),
+        (
+            "history",
+            "judge_the_places",
+            "every path a blob sits at is judged",
+        ),
+        (
+            "history",
+            "judge_the_places",
+            "the path a finding names is quoted",
+        ),
+        (
+            "history",
+            "a_git",
+            "a replacement ref shows git no other commit",
+        ),
+        (
+            "history",
+            "a_git",
+            "git is handed the tree's own repository and searches for none",
+        ),
+        ("history", "a_git", "a missing object is never fetched"),
+        (
+            "history",
+            "inheriting",
+            "no variable of git's own reaches it",
+        ),
+        (
+            "history",
+            "inheriting",
+            "a variable of git's own is removed in any case",
+        ),
+        (
+            "history",
+            "judged_against",
+            "git's variables are removed from this process's own environment",
+        ),
+        ("history", "not_grafted", "a grafted clone is refused"),
         ("ui", "warn", "a skip is declared at the start of its line"),
         ("ui", "warn", "and the colon is what declares it"),
         ("docs", "already_there", "a page that differs is written"),

@@ -555,7 +555,8 @@ crate sources with clauses no other operator reaches — the compiler's `problem
 the log's own `lib.rs`,
 and
 the two stores that need a database — `nc-journal`'s `postgres.rs` and
-`nc-prune`'s `postgres.rs` — the release verb's `release.rs`, the console's `ui.rs`, the
+`nc-prune`'s `postgres.rs` — the release verb's `release.rs`, the history step's
+`history.rs`, the console's `ui.rs`, the
 documentation step's `docs.rs`, one integration test,
 `the_registry_reaches_the_code.rs`, which is the only place a generated limit is
 held against the file it came from, the journal's own `lib.rs`, `entry.rs`,

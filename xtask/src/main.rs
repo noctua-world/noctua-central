@@ -55,6 +55,7 @@ mod determinism;
 mod dev;
 mod docs;
 mod gates;
+mod history;
 mod limits;
 mod local;
 mod members;

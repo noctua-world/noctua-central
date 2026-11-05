@@ -80,6 +80,11 @@ fetch does not run and every cargo the gate starts is told to stay off the netwo
 package missing from the machine fails instead of being downloaded, and is named with that
 command.
 
+`cargo xtask check` judges the history as well: every commit reachable from `HEAD` has a
+conventional subject and credits no agent, and no blob ever reachable is above the size
+limit unless its path is listed (`NOCTUA.md §22.5`). It needs the whole history, so a
+shallow clone is refused, and a tree with no `.git` says it was not judged.
+
 `cargo xtask check --offline` skips **nine** things — the advisory database, which is
 fetched (the audit's licence, ban and source checks read only the lockfile and still
 run); the PostgreSQL tests; the corroboration of
