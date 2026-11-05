@@ -18757,7 +18757,7 @@ mod the_frozen_path_rule {
         ("xtask/plugins.rs", 25, 5),
         ("xtask/policy.rs", 57, 5),
         ("xtask/references.rs", 54, 26),
-        ("xtask/release.rs", 181, 14),
+        ("xtask/release.rs", 188, 14),
         ("xtask/sections.rs", 38, 10),
         ("xtask/store.rs", 29, 4),
         ("xtask/the_pages_reach_the_catalog.rs", 37, 20),
@@ -24508,7 +24508,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14697;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14713;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24578,7 +24578,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 20519;
+    const THE_REARRANGEMENTS_JUDGED: usize = 20554;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24632,7 +24632,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **442 of 20,519 are accepted by the first-line
+    /// rules the gates apply: **442 of 20,554 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -35336,7 +35336,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1480] = [
+    static OPERATORS: [(&str, &str, &str); 1488] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -35561,7 +35561,11 @@ Options:
             "carried_on",
             "a release commit's changelog is the history's",
         ),
-        ("release", "published", "a tag is never moved"),
+        (
+            "release",
+            "what_github_holds_is_this_releases",
+            "a tag is never moved",
+        ),
         (
             "release",
             "what_github_holds",
@@ -35596,6 +35600,46 @@ Options:
             "release",
             "published",
             "a pull request whose checks have passed is merged, not queued",
+        ),
+        (
+            "release",
+            "released",
+            "what GitHub holds is judged before the release is written",
+        ),
+        (
+            "release",
+            "what_github_holds_is_this_releases",
+            "a version GitHub holds is not made again",
+        ),
+        (
+            "release",
+            "what_github_holds_is_this_releases",
+            "a pull request closed without merging stops the release",
+        ),
+        (
+            "release",
+            "once_the_branch_moved",
+            "a pull request whose head this run moved is queued, never merged now",
+        ),
+        (
+            "release",
+            "once_the_branch_moved",
+            "a pull request merged before the release commit does not carry it",
+        ),
+        (
+            "release",
+            "a_carried_back",
+            "a pull request passing with hooks or beside checks no rule requires is merged now",
+        ),
+        (
+            "release",
+            "auto_merged",
+            "auto-merge is on by merge commit, or refused",
+        ),
+        (
+            "release",
+            "merged_now",
+            "a merge GitHub does not say happened is refused",
         ),
         (
             "history",

@@ -1674,14 +1674,22 @@ branch the release is made from.
   again.
 
 **Published by CI's release job and nowhere else.** `--publish` asks GitHub first what
-exists, then makes the release commit through `createCommitOnBranch` with the commit the
-job checked out as the branch's expected head — so a branch that moved meanwhile fails
-the release — then the tag, the GitHub release (a pre-release on `staging`), and the pull
-request that carries it back (`main` to `staging`, `staging` to `dev`) with auto-merge by
-merge commit — or, when that pull request's checks have passed already, merges it by merge
-commit, because GitHub refuses auto-merge on a pull request it would merge now. A run on a
-release commit — the push that commit causes, or a job run again after one died — carries
-that release on, makes only what is missing, and ends `already released` when nothing is.
+exists and judges the answer before anything is written, then makes the release commit
+through `createCommitOnBranch` with the commit the job checked out as the branch's expected
+head — so a branch that moved meanwhile fails the release — then the tag, the GitHub
+release (a pre-release on `staging`), and the pull request that carries it back (`main` to
+`staging`, `staging` to `dev`) with auto-merge by merge commit. A run on a release commit —
+the push that commit causes, or a job run again after one died — carries that release on,
+makes only what is missing, and ends `already released` when nothing is; there, a pull
+request back whose checks have passed already is merged by merge commit, because GitHub
+refuses auto-merge on one it would merge now.
+
+**A run that makes the release commit never merges now.** That commit moves the head of
+the pull request back, and the merge state GitHub gave was of the head before: no check
+has run on the commit just made, and into `staging`, whose rules the App alone may pass, a
+merge asked then would land the release before any check of it ran. So that run queues
+auto-merge, whatever the state it read; and a pull request merged under the release's title
+before the commit existed carried none of it, so the release opens its own.
 
 **Only this repository's own pull request carries a release back.** GitHub finds a pull
 request by the name of its head branch, and a fork's `staging` has the same name as this
@@ -1698,9 +1706,14 @@ of, a tag naming another commit, a pull request that carried the release and was
 without merging, a release commit whose manifest carries another version or whose
 changelog is not the one the history gives, a pull request GitHub describes without saying
 whether its head is in a fork, one of this repository's own whose head is elsewhere, one
-with no merge state, and an answer from `gh` that is not the shape asked for are each a
-refusal, by name, before the step that would act on it. A fork's pull request whose head
-repository is gone is passed over, not refused, or deleting a fork would stop every release.
+with no merge state, and an answer from `gh` that is not the shape asked for — a step
+answered with success and a tag at another commit, another release, another pull request,
+auto-merge by another method or none, or a merge GitHub does not say happened — are each a
+refusal, by name, before the step that would act on it. What GitHub holds is judged right
+after it is asked, on a run that makes the release commit as on one carried on from it, so
+a refusal of it never leaves a release commit with no tag, which every run after it on that
+branch would carry on into the same refusal. A fork's pull request whose head repository
+is gone is passed over, not refused, or deleting a fork would stop every release.
 
 **The token reaches `gh` through its environment and nowhere else.** `GH_TOKEN`, the
 release App's installation token, is never an argument and never a line the verb prints.
@@ -1716,7 +1729,9 @@ through the history step's own reader. A test drives the whole sequence through 
 `gh` first on `PATH`, compiled for the system it runs on, which records each call — its
 arguments, the variables of `gh`'s own it was handed, and the request — and answers from
 fixtures, a run carried on after each step among them, a fork's pull request beside the
-release's own, and one whose checks have passed.
+release's own, one whose checks have passed in each state GitHub merges at once, a release
+commit made with such a pull request open, and each step answered with success in another
+shape.
 
 ### The history says what each change is, credits no agent, and stays small
 
@@ -2128,8 +2143,9 @@ rather than anything decided for the project, and each is a maintainer's to reop
   refuses while the first is open: the release stops, by name, until they are closed. No
   page past the first is read.
 - **Whether that pull request is merged now or queued is GitHub's answer when the release
-  asked**: checks that finish between the question and the request make GitHub refuse
-  auto-merge, and that run fails; the next run reads them passed and merges.
+  asked**, on a run carried on from the release commit: checks that finish between the
+  question and the request make GitHub refuse auto-merge, and that run fails; the next run
+  reads them passed and merges. A run that made the release commit never merges now.
 - **`cargo xtask dev` from a clean machine** — Stage 10's criterion 10 — has been watched
   with one of the two images removed and the data volumes kept, never on a host with an
   empty image store; a run on a host sharing nothing with this one would close it.

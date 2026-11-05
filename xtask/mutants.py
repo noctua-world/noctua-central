@@ -699,9 +699,9 @@ WEAKENINGS = [
     ("release", "carried_on", "a release commit's changelog is the history's",
      "    if written != the_changelog(&sections).into_bytes() {",
      "    if written.is_empty() {"),
-    ("release", "published", "a tag is never moved",
-     "    if let Some(tagged) = holds.tag.as_deref().filter(|tagged| *tagged != at) {",
-     "    if let Some(tagged) = holds.tag.as_deref().filter(|_| false) {"),
+    ("release", "what_github_holds_is_this_releases", "a tag is never moved",
+     "        (Some(at), Some(tagged)) if tagged != at => {",
+     "        (Some(at), Some(tagged)) if false => {"),
     ("release", "what_github_holds", "an open pull request carries the release whatever its title",
      "        if read.state == Carried::Open {",
      "        if read.state == Carried::Merged {"),
@@ -729,6 +729,43 @@ WEAKENINGS = [
     ("release", "published", "a pull request whose checks have passed is merged, not queued",
      "        if carried.mergeable {",
      "        if false {"),
+    # **What GitHub holds is judged before a release commit is made, and what
+    # it answers is held to the shape asked.** A refusal judged after the
+    # commit leaves a release commit with no tag, which every run after it
+    # carries into the same refusal; a merge asked on a head this run moved
+    # lands a release before its checks; and a step answered in another shape
+    # taken as done publishes what was never made. Only the test written for
+    # each says so.
+    ("release", "released", "what GitHub holds is judged before the release is written",
+     "            what_github_holds_is_this_releases(&holds, setting.channel, version, None)?;\n"
+     "            let files = written(setting, version, &changelog)?;\n",
+     "            let files = written(setting, version, &changelog)?;\n"
+     "            what_github_holds_is_this_releases(&holds, setting.channel, version, None)?;\n"),
+    ("release", "what_github_holds_is_this_releases", "a version GitHub holds is not made again",
+     "        (None, tagged) if tagged.is_some() || holds.release => {",
+     "        (None, tagged) if tagged.is_some() && holds.release => {"),
+    ("release", "what_github_holds_is_this_releases",
+     "a pull request closed without merging stops the release",
+     "        .filter(|carried| carried.state == Carried::Closed)",
+     "        .filter(|_| false)"),
+    ("release", "once_the_branch_moved",
+     "a pull request whose head this run moved is queued, never merged now",
+     "            mergeable: false,",
+     "            mergeable: carried.mergeable,"),
+    ("release", "once_the_branch_moved",
+     "a pull request merged before the release commit does not carry it",
+     "        .filter(|carried| carried.state != Carried::Merged)",
+     "        .filter(|_| true)"),
+    ("release", "a_carried_back",
+     "a pull request passing with hooks or beside checks no rule requires is merged now",
+     "        Some(\"CLEAN\" | \"HAS_HOOKS\" | \"UNSTABLE\")",
+     "        Some(\"CLEAN\")"),
+    ("release", "auto_merged", "auto-merge is on by merge commit, or refused",
+     "        != Some(\"MERGE\")",
+     "        == Some(\"SQUASH\")"),
+    ("release", "merged_now", "a merge GitHub does not say happened is refused",
+     "        != Some(true)",
+     "        == Some(false)"),
     # -- history: what a commit and a pull request may say -------------------
     ("history", "subject", "a subject opens with one of the types",
      "    if !TYPES.contains(&kind) {",
