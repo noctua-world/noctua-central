@@ -210,6 +210,16 @@ const NOT_READ: [(&str, &str); 2] = [
     ),
 ];
 
+/// Markdown the release writes, which this gate does not read: the changelog.
+///
+/// **Beside [`NOT_READ`] rather than in it, because a hole there holds a file**
+/// and the changelog is there only once a release has written it. Each of its
+/// lines is a commit's subject, written whole from the history by
+/// `cargo xtask release`, so a number in one is what a commit said of the tree
+/// when it was made, and the tree a later release reads is not held to it.
+#[cfg(test)]
+const WRITTEN_BY_THE_RELEASE: [&str; 1] = [crate::release::CHANGELOG];
+
 /// The nouns this repository can count, and where each is counted.
 ///
 /// A noun is here only when the tree answers it exactly. "Gates" is not, because
@@ -2658,6 +2668,9 @@ mod tests {
                 .find(|(entry, _)| super::the_hole(entry, &relative));
             if hole.is_some() {
                 skipped.insert(relative);
+                return;
+            }
+            if super::WRITTEN_BY_THE_RELEASE.contains(&relative.as_str()) {
                 return;
             }
             assert!(

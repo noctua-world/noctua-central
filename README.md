@@ -44,8 +44,8 @@ cargo xtask check    # the whole gate. CI runs this, `cargo xtask dev` for the
                      # job that builds twice and diffs — the only
                      # cross-process determinism check there is
 cargo xtask docs     # regenerate docs/ from the registries
-cargo xtask release <version>            # rewrite it everywhere, print the commands
-cargo xtask release <version> --dry-run   # say what would change and change nothing
+cargo xtask release --channel staging --dry-run   # what a channel would release
+cargo xtask release --channel staging   # gate, then write its version and changelog
 ```
 
 `cargo xtask dev --down` removes the stack and its data, which makes the next `dev`

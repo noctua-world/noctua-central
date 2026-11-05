@@ -5141,7 +5141,7 @@ mod tests {
             (
                 "a name no sigil declares",
                 "justfile",
-                "\nrelease version:\n",
+                "\nrelease channel *flags:\n",
                 "\nrelease +flags:\n    cargo xtask check {{other}}\n",
             ),
             // **A `just` function that reads the environment.** An excuse for
@@ -7910,32 +7910,32 @@ mod tests {
         // [`every_shape_of_recipe_header_is_read_as_one`] beside this.
         for (header, command, refused) in [
             (
-                "release version",
-                "    cargo xtask release {{version}}",
+                "release channel",
+                "    cargo xtask release --channel {{channel}}",
                 false,
             ),
             (
-                "release version=\"0.1.0\"",
-                "    cargo xtask release {{version}}",
+                "release channel=\"staging\"",
+                "    cargo xtask release --channel {{channel}}",
                 false,
             ),
             (
-                "release +version",
-                "    cargo xtask release {{version}}",
+                "release +channel",
+                "    cargo xtask release --channel {{channel}}",
                 false,
             ),
             (
-                "release *version",
-                "    cargo xtask release {{version}}",
+                "release *channel",
+                "    cargo xtask release --channel {{channel}}",
                 false,
             ),
             (
-                "release $version",
-                "    cargo xtask release {{version}}",
+                "release $channel",
+                "    cargo xtask release --channel {{channel}}",
                 false,
             ),
             (
-                "release +version",
+                "release +channel",
                 "    cargo xtask release {{elsewhere}}",
                 true,
             ),
@@ -7975,21 +7975,21 @@ mod tests {
         // against `just 1.55.1`: one assignment plus one recipe — `--summary`
         // prints `release`, `--dump` echoes the file back, `just release 9`
         // runs it.
-        let assigned = "flags := \"\"\"\ncheck: not a recipe\n\"\"\"\nrelease version:\n    \
-                        cargo xtask release {{version}}\n";
+        let assigned = "flags := \"\"\"\ncheck: not a recipe\n\"\"\"\nrelease channel:\n    \
+                        cargo xtask release --channel {{channel}}\n";
         assert_eq!(
             super::the_recipe_above(assigned, assigned.lines().count() - 1, false, "justfile"),
-            "release version",
+            "release channel",
             "the content line of a multi-line assignment was read as the recipe header"
         );
         // **A `#` comment holding a triple opens nothing.** `just` ends a
         // comment at the newline, so the quote inside one is not a string; a
         // reader that carries it swallows every line below into one group.
-        let commented = "# a note about \"\"\" quoting\nrelease version:\n    \
-                         cargo xtask release {{version}}\n";
+        let commented = "# a note about \"\"\" quoting\nrelease channel:\n    \
+                         cargo xtask release --channel {{channel}}\n";
         assert_eq!(
             super::the_recipe_above(commented, commented.lines().count() - 1, false, "justfile"),
-            "release version",
+            "release channel",
             "a comment holding a triple quote opened a string that never closed"
         );
         // And the two legitimate spellings the `#` guard must not refuse, both
@@ -7997,13 +7997,13 @@ mod tests {
         for (what, text, header) in [
             (
                 "a hash inside a quoted default",
-                "release version=\"a#b\":\n    cargo xtask release {{version}}\n",
-                "release version=\"a#b\"",
+                "release channel=\"a#b\":\n    cargo xtask release --channel {{channel}}\n",
+                "release channel=\"a#b\"",
             ),
             (
                 "a trailing comment after the header",
-                "release version: # the gate this wraps\n    cargo xtask release {{version}}\n",
-                "release version",
+                "release channel: # the gate this wraps\n    cargo xtask release --channel {{channel}}\n",
+                "release channel",
             ),
         ] {
             assert_eq!(
@@ -8032,19 +8032,19 @@ mod tests {
     /// that takes it for one refuses this repository's own script.
     #[test]
     fn every_shape_of_recipe_header_is_read_as_one() {
-        let body = "\n    cargo xtask release {{version}}\n";
+        let body = "\n    cargo xtask release --channel {{channel}}\n";
         for (what, text, expected) in [
-            ("the plain header", "release version:", "release version"),
+            ("the plain header", "release channel:", "release channel"),
             (
                 "a dependency after the colon",
-                "release version: build",
-                "release version",
+                "release channel: build",
+                "release channel",
             ),
-            ("the echo sigil", "@release version:", "@release version"),
+            ("the echo sigil", "@release channel:", "@release channel"),
             (
                 "a default and a dependency together",
-                "release version=\"0.1.0\": build",
-                "release version=\"0.1.0\"",
+                "release channel=\"staging\": build",
+                "release channel=\"staging\"",
             ),
             (
                 "an assignment is not a recipe",

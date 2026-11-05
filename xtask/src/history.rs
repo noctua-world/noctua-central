@@ -1341,6 +1341,90 @@ fn git(reading: &Reading, args: &[&str], input: Option<Vec<u8>>) -> Result<Vec<u
     Ok(output.stdout)
 }
 
+/// This tree's own history, as the release reads it (`crate::release`): the
+/// tags, and the commits between them.
+///
+/// **Read as this step reads its own**: git is started over this tree's
+/// `.git` and nothing else, with none of git's own variables inherited
+/// ([`a_git`]), and a tree with no `.git`, a shallow clone and a grafted one
+/// are each refused before the first question — every one of them holds less
+/// history than there is, and a version or a changelog computed from part of
+/// it is computed wrong.
+#[derive(Debug)]
+pub(crate) struct Own {
+    /// The tree whose own repository is read.
+    root: std::path::PathBuf,
+    /// The environment git is handed all of but git's own variables.
+    inherited: Vec<(OsString, OsString)>,
+}
+
+impl Own {
+    /// The history of `root`, with `inherited` as the environment git is
+    /// started with.
+    ///
+    /// # Errors
+    ///
+    /// Returns why the tree has no history to read, or why it holds less than
+    /// all of it.
+    pub(crate) fn of(root: &Path, inherited: &[(OsString, OsString)]) -> Result<Self, String> {
+        let here = root
+            .join(".git")
+            .try_exists()
+            .map_err(|error| format!("whether this tree has a .git could not be read: {error}"))?;
+        if !here {
+            return Err(
+                "this tree has no .git of its own, and a release is computed from the history: \
+                 the tags and the commits between them. Release from a clone"
+                    .to_owned(),
+            );
+        }
+        let own = Self {
+            root: root.to_path_buf(),
+            inherited: inherited.to_vec(),
+        };
+        not_shallow(&own.reading())?;
+        not_grafted(&own.reading())?;
+        Ok(own)
+    }
+
+    /// The reading every question goes through.
+    fn reading(&self) -> Reading<'_> {
+        Reading {
+            root: &self.root,
+            inherited: &self.inherited,
+        }
+    }
+
+    /// Asks git `args`, with `input` on its standard input, and answers what
+    /// it printed.
+    ///
+    /// # Errors
+    ///
+    /// Returns git's refusal, or why git could not be run.
+    pub(crate) fn asked(&self, args: &[&str], input: Option<Vec<u8>>) -> Result<Vec<u8>, String> {
+        git(&self.reading(), args, input)
+    }
+
+    /// Every commit of `hashes`, as git stores it, in the order asked.
+    ///
+    /// # Errors
+    ///
+    /// Returns why git could not answer, or why its answer is not the commits
+    /// asked for.
+    pub(crate) fn commits(&self, hashes: &[&str]) -> Result<Vec<(String, Vec<u8>)>, String> {
+        if hashes.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut asked = hashes.join("\n").into_bytes();
+        asked.push(b'\n');
+        let answer = git(&self.reading(), &["cat-file", "--batch"], Some(asked))?;
+        Ok(the_objects(&answer, hashes, "commit")?
+            .into_iter()
+            .map(|(hash, raw)| (hash, raw.to_vec()))
+            .collect())
+    }
+}
+
 #[cfg(test)]
 /// A repository made in a scratch of its own, with `git init`, for the tests
 /// here and for the one that drives the step in `check`.
@@ -1372,7 +1456,7 @@ impl ARepository {
 
     /// Runs git in the repository, as a test commits, and answers what it
     /// printed.
-    fn git(&self, args: &[&str]) -> String {
+    pub(crate) fn git(&self, args: &[&str]) -> String {
         self.git_fed(args, &[])
     }
 
@@ -1483,7 +1567,7 @@ impl ARepository {
     }
 
     /// The commit `HEAD` names.
-    fn head(&self) -> String {
+    pub(crate) fn head(&self) -> String {
         self.git(&["rev-parse", "HEAD"]).trim().to_owned()
     }
 
@@ -1527,7 +1611,7 @@ impl ARepository {
     }
 
     /// Merges `branch` into the branch checked out, with exactly `message`.
-    fn merge(&self, branch: &str, message: &str) -> String {
+    pub(crate) fn merge(&self, branch: &str, message: &str) -> String {
         let written = self.held.root.join("message");
         std::fs::write(&written, message).expect("a writable scratch");
         self.git(&[
@@ -2658,8 +2742,9 @@ mod tests {
         );
     }
 
-    /// No line of this file, of the one that plants its mutants, or of the
-    /// one that writes its rule down is a line the step reads as a credit.
+    /// No line of this file, of the one that plants its mutants, of the one
+    /// that writes its rule down, or of the release that publishes notes and
+    /// pull requests is a line the step reads as a credit.
     ///
     /// **The whole file, its tests included**, because every commit that
     /// carries a line is history: a must-fail case exists only at run time,
@@ -2671,6 +2756,7 @@ mod tests {
             ("xtask/src/history.rs", include_str!("history.rs")),
             ("xtask/mutants.py", include_str!("../mutants.py")),
             ("AGENTS.md", include_str!("../../AGENTS.md")),
+            ("xtask/src/release.rs", include_str!("release.rs")),
         ] {
             assert_eq!(
                 super::credits(text),

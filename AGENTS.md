@@ -170,9 +170,10 @@ gives it one — public, under `github.com/noctua-world`, beside `noctua-colors`
    can date it.
 4. **There is no `LICENSE` file and no `license` key**, by decision
    (`NOCTUA.md §5.10`). Do not add either.
-5. **Nothing publishes.** There is no remote and no registry name, every crate is
-   `publish = false`, and `cargo xtask release` means *the version is written consistently
-   everywhere* and nothing more.
+5. **Nothing publishes to a registry.** Every crate is `publish = false`, and there is
+   no registry name. `cargo xtask release` computes a channel's version and changelog from
+   the history and writes them; only CI's release job, with `--publish`, makes the release
+   on GitHub ("A release is computed from the history, and made on GitHub once").
 
 ## Repository map
 
@@ -273,8 +274,8 @@ cargo xtask check     # THE gate. CI runs this, `cargo xtask dev` for the stack
                       #   `cargo xtask build` twice in the determinism job
 cargo xtask dev       # bring up PostgreSQL and the central log store
 cargo xtask docs      # regenerate the developer surfaces under docs/
-cargo xtask release <version>              # write a version everywhere it appears
-cargo xtask release <version> --dry-run    # say what would change and change nothing
+cargo xtask release --channel staging --dry-run   # what a channel would release
+cargo xtask release --channel staging   # gate, then write its version and changelog
 ```
 
 `cargo xtask check` judges the history too — every commit reachable from `HEAD` and every
@@ -1616,25 +1617,89 @@ package and no code the lockfile and the audit have not already been asked about
 
 ### A release reads back what it wrote
 
-`cargo xtask release <version>` runs the whole gate before anything is written, rewrites
-the version in every file `CARRIES_THE_VERSION` names, relocks, and **prints** the commit
-and tag commands rather than running them.
+`cargo xtask release --channel staging|main` runs the whole gate before anything is
+written, then writes the version in every file `CARRIES_THE_VERSION` names and
+CHANGELOG.md, relocks, and reads every one back.
 
-- **It reads the version from its own table, and reads it back.** The version is
-  `[workspace.package]`'s or `[package]`'s as TOML writes it — never the first line that
-  happens to begin `version = "`, which a comment or a dependency above the table can be —
-  and the write is read back through a reader that shares nothing with the writer's
-  search.
+- **It reads the version from its own table, and reads it back through another reader.**
+  The version is `[workspace.package]`'s or `[package]`'s as TOML writes it — never the
+  first line that happens to begin `version = "`, which a comment or a dependency above
+  the table can be — and the write is read back with `toml`, which shares nothing with
+  the writer's search: the manifest's table, every package of this workspace in the
+  lockfile, and the changelog byte for byte.
 - **A version is written the way cargo writes it**: no leading zero, or the manifest
   becomes one nothing in the workspace parses, `xtask` included, and the tool cannot be
   run to undo its own write.
-- **It only goes forwards**: a downgrade or a repeat would print a tag for a tag that
-  already names something else, and a pushed tag cannot be taken back.
-- **A version it cannot order** — a pre-release, a part that is not a number — is refused:
-  ordering those is semver's, a dependency this repository has not taken.
+- **It only goes forwards**: a release is refused unless it is ahead of every release tag
+  `HEAD` reaches and its numbers are not behind the manifest's, because a pushed tag
+  cannot be taken back.
+- **A version it cannot order is refused**: it orders `X.Y.Z` and `X.Y.Z-rc.N`, a
+  candidate below the release it is a candidate for, and nothing else — ordering more is
+  semver's, a dependency this repository has not taken.
+- **A failure puts back what it wrote** — the manifest, the lockfile and the changelog —
+  and says which of them did not go back.
 
 A document illustrating a version's *spelling* never uses the version this tree is at: the
 release walks every file for it, and the illustration would read as a file left behind.
+
+### A release is computed from the history, and made on GitHub once
+
+The version and the changelog are functions of git (`xtask/src/release.rs`,
+`NOCTUA.md §22.3`, §22.4): nothing a caller passes chooses them, and the channel is the
+branch the release is made from.
+
+- **The version.** The last production release is the highest `vX.Y.Z` tag `HEAD`
+  reaches; with none, the first release is the version the manifest carries, its numbers
+  unbumped. After one, the commits since it decide: a breaking change (`!`, or a
+  `BREAKING CHANGE:` footer) is a major, which is a minor while the major is 0; a `feat`
+  a minor; a `fix` or a `perf` a patch; anything else is **nothing to release**, said by
+  name, with nothing written. `staging` releases `X.Y.Z-rc.N`, `N` one past the highest
+  candidate of those numbers that exists; `main` releases `X.Y.Z`, refused when its tag
+  exists. **`staging` refuses while the latest production tag is not one `HEAD`
+  reaches**: the back-merge from `main` has not landed, and the version computed would
+  repeat what `main` shipped.
+- **The changelog** is regenerated whole every time: a section per production release,
+  newest first, and above the newest a section per release candidate of numbers not yet
+  released, which folds into its release's section once that ships. Each commit sits in
+  the section of the first release that reaches it, as its subject, its scope and its
+  short hash, in the part its type says; a release's notes are its section without the
+  heading. No date and no machine reach it, so the same history gives the same bytes.
+- **The assets** are judged against GitHub's limits on a release before anything is
+  published: `cargo xtask release --channel staging --dry-run` lists them against those
+  limits, which GitHub publishes at
+  https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases —
+  the page `GITHUBS_LIMITS` in `xtask/src/release.rs` names, and where they are read
+  again.
+
+**Published by CI's release job and nowhere else.** `--publish` asks GitHub first what
+exists, then makes the release commit through `createCommitOnBranch` with the commit the
+job checked out as the branch's expected head — so a branch that moved meanwhile fails
+the release — then the tag, the GitHub release (a pre-release on `staging`), and the pull
+request that carries it back (`main` to `staging`, `staging` to `dev`) with auto-merge by
+merge commit. A run on a release commit — the push that commit causes, or a job run again
+after one died — carries that release on, makes only what is missing, and ends
+`already released` when nothing is.
+
+**Fail closed.** A tree with no `.git`, a shallow or grafted clone, a release tag this
+cannot read, a commit whose subject the history step refuses, a tree holding changes no
+commit has, a tag or a release on GitHub for a version `HEAD` is not the release commit
+of, a tag naming another commit, a pull request that carried the release and was closed
+without merging, a release commit whose changelog is not the one the history gives, and
+an answer from `gh` that is not the shape asked for are each a refusal, by name, before
+the step that would act on it.
+
+**The token reaches `gh` through its environment and nowhere else.** `GH_TOKEN`, the
+release App's installation token, is never an argument and never a line the verb prints.
+Every other variable of `gh`'s own is removed — `GH_HOST`, `GH_REPO`, `GH_DEBUG` — and so
+is `GITHUB_TOKEN`, so `gh` cannot fall back to the workflow's own token, whose pull
+requests start no checks; the host is set to GitHub's. What `gh` answers is read and never
+printed, and a refusal quoting it has every character a reader cannot see written as its
+escape, a newline among them, so no line of GitHub's can open a line of CI's log. Git is
+never started here: the history is read through the history step's own reader. A test
+drives the whole sequence through a fake `gh` first on `PATH`, compiled for the system it
+runs on, which records each call — its arguments, the variables of `gh`'s own it was
+handed, and the request — and answers from fixtures, a run carried on after each step
+among them.
 
 ### The history says what each change is, credits no agent, and stays small
 
@@ -2022,6 +2087,24 @@ rather than anything decided for the project, and each is a maintainer's to reop
   step, and `NOCTUA.md §17.8` is held there by review. A blob above the limit is judged at
   every path a commit puts it at; one below it is measured once, whatever its paths — one
   object in every clone either way.
+- **A release commit is known by its subject and its one parent**, never by who made it:
+  on `staging` and `main` every commit a person brings is a merge, and only the release App
+  may push to either directly, so a commit there titled `chore(release): v…` with one
+  parent is the App's. The release does not ask GitHub who authored it.
+- **CHANGELOG.md on `dev` and on a feature branch is the last release's**: only the
+  release writes it, and no step holds it to the history in between.
+- **CHANGELOG.md is read by the citation gates as any document is**: a path or a `§` a
+  commit's subject cites is held to the tree there for as long as that release is listed,
+  so a subject citing a file later renamed fails the citation step on every branch the
+  changelog has reached, and the history is never rewritten. Review of the subject is what
+  keeps one from landing; the counts gate alone stands aside, since a number in a subject
+  is the tree as it was.
+- **A breaking change with no `BREAKING CHANGE:` footer is listed with nothing to do**:
+  the history step does not require the footer, and the changelog says what the commit
+  says.
+- **GitHub's limits on a release's assets are the ones read on the date
+  `xtask/src/release.rs` gives**: nothing fetches the page, so a limit GitHub moves is
+  moved by a person who reads it again.
 - **`cargo xtask dev` from a clean machine** — Stage 10's criterion 10 — has been watched
   with one of the two images removed and the data volumes kept, never on a host with an
   empty image store; a run on a host sharing nothing with this one would close it.
