@@ -869,7 +869,8 @@ pub(crate) fn only_runs_the_gate(root: &Path) -> Result<(Vec<Finding>, usize), S
         let relative = relative_to(root, &path);
         // The workflow's own files, as against the `justfile` and the scripts
         // it reaches: a recipe a developer types may be offline; CI may not.
-        let (file_is_ci, _) = the_role_of(&relative);
+        let place = the_place_of(root, &path);
+        let (file_is_ci, _) = the_role_of(&place);
         // Every file this walk found, not the workflow alone: a `justfile`
         // recipe and a script a step runs discard a verdict the same way.
         no_verdict_is_discarded(&relative, &text, &mut findings);
@@ -882,7 +883,7 @@ pub(crate) fn only_runs_the_gate(root: &Path) -> Result<(Vec<Finding>, usize), S
         // sentence all still calling it THE gate, and nothing else in the tree
         // says a word.
         for (index, line) in joined_continuations(&text) {
-            let (header, recipe) = the_recipe_and_its_name(&text, index, file_is_ci, &relative);
+            let (header, recipe) = the_recipe_and_its_name(&text, index, file_is_ci, &place);
             // Already trimmed and already joined; `trimmed` is kept as the name
             // the rest of this loop reads it by.
             let trimmed = line.as_str();
@@ -1738,14 +1739,63 @@ fn the_file_itself(path: &Path) -> std::path::PathBuf {
     std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
-/// What the judgment reads a file as, from the path that reached it: one
+/// Where a spelling puts a file: its steps back taken out, and every name
+/// it went through kept as spelled.
+///
+/// **A step back is not a place.** `cd ci && sh ../.github/scripts/x.sh`
+/// reaches a script under `.github/` through a step into `ci` and back out,
+/// and read from the spelling that is a script outside it: a second reading of
+/// the file the `.github/` walk already holds, so its commands are counted
+/// twice and each finding in it is reported twice. And `.github/../justfile`
+/// is the root justfile: read as one of CI's files, its recipe that runs
+/// offline is refused.
+///
+/// **A link is a place.** A link names its file from where the link sits,
+/// and so does a link to a directory: a justfile the `.github/` walk finds
+/// through a directory link is read there as one of CI's files, as it is
+/// found. So the steps back are taken out as written, and the system is asked
+/// only whether what is left names the same file. Where it does not, the
+/// spelling stepped back out of a directory link, which the system takes from
+/// where the link points: the place is then the directory the system resolves,
+/// with the last name as spelled.
+fn the_place_of(root: &Path, path: &Path) -> String {
+    let mut place = std::path::PathBuf::new();
+    for part in path.strip_prefix(root).unwrap_or(path).components() {
+        match part {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir
+                if matches!(
+                    place.components().next_back(),
+                    Some(std::path::Component::Normal(_))
+                ) =>
+            {
+                place.pop();
+            }
+            other => place.push(other),
+        }
+    }
+    let written = root.join(&place);
+    if the_file_itself(&written) == the_file_itself(path) {
+        return relative_to(root, &written);
+    }
+    path.parent()
+        .and_then(|directory| std::fs::canonicalize(directory).ok())
+        .zip(path.file_name())
+        .map_or_else(
+            || relative_to(root, path),
+            |(directory, name)| relative_to(&the_file_itself(root), &directory.join(name)),
+        )
+}
+
+/// What the judgment reads a file as, from the place that reached it: one
 /// of CI's own files, and a justfile.
 ///
 /// **One answer, for the walk that joins a file and the loop that judges
 /// it**, so the two cannot disagree about which spellings are one reading.
-/// Both halves come from the spelling: a file under `.github/` is CI's, where
-/// no command may be offline, and a file named as one of [`JUSTFILE`] has
-/// recipes, whose names are held to what their bodies run.
+/// Both halves are read from where [`the_place_of`] says the spelling puts
+/// the file: a file under `.github/` is CI's, where no command may be offline,
+/// and a file named as one of [`JUSTFILE`] has recipes, whose names are held
+/// to what their bodies run.
 fn the_role_of(relative: &str) -> (bool, bool) {
     let basename = relative.rsplit('/').next().unwrap_or(relative);
     (
@@ -1757,23 +1807,29 @@ fn the_role_of(relative: &str) -> (bool, bool) {
 /// Adds to `files` each path in `reached` that is a reading it does not hold
 /// yet, and says whether any was.
 ///
-/// **A reading is a file in the role its spelling gives it.** By
+/// **A reading is a file in the role its place gives it.** By
 /// [`the_file_itself`], a file reached under a second spelling is not read
 /// twice, and its commands not counted twice. By [`the_role_of`] as well,
-/// because the judgment reads two roles from the spelling and the `.github/`
-/// walk runs first: compared by the file alone, a root `justfile` that is also
-/// a file under `.github/` through a link, in either direction, is judged as a
-/// workflow and nothing else, and no recipe of it is held to its name. Two
-/// spellings are one reading when they name one file in one role, so two
-/// names of one justfile on a filesystem that ignores case, and a step into a
-/// directory and back out, are still read once. The spelling kept is the
-/// first that reached the reading.
+/// because the judgment reads two roles from where a spelling puts a file and
+/// the `.github/` walk runs first: compared by the file alone, a root
+/// `justfile` that is also a file under `.github/` through a link, in either
+/// direction, is judged as a workflow and nothing else, and no recipe of it
+/// is held to its name. Two spellings are one reading when they name one file
+/// in one role, so two names of one justfile on a filesystem that ignores
+/// case are read once, and by [`the_place_of`] so is a step into a directory
+/// and back out, into `.github/` or out of it as well. The spelling kept is
+/// the first that reached the reading.
 fn joined(
     root: &Path,
     files: &mut Vec<std::path::PathBuf>,
     reached: impl IntoIterator<Item = std::path::PathBuf>,
 ) -> bool {
-    let reading = |path: &Path| (the_file_itself(path), the_role_of(&relative_to(root, path)));
+    let reading = |path: &Path| {
+        (
+            the_file_itself(path),
+            the_role_of(&the_place_of(root, path)),
+        )
+    };
     let mut known: Vec<_> = files.iter().map(|path| reading(path)).collect();
     let mut grew = false;
     for path in reached {
@@ -4315,6 +4371,30 @@ mod tests {
             "the second call started from a fresh budget instead of continuing the \
              first's, so the walk reaches twice the bound this tree writes down"
         );
+
+        // **And a reading new only by its role is more to find.** The walk
+        // holds the justfile as CI's, through a link beside the workflows, and
+        // a chain one past the bound ends by running it as a justfile: a
+        // reading the walk would add. Asked whether it holds the file alone,
+        // the walk says it read everything and that reading goes unjudged.
+        chain(super::HOPS + 1);
+        std::fs::write(
+            scratch.join(format!("ci/s{:02}.sh", super::HOPS + 1)),
+            "sh justfile\n",
+        )
+        .expect("writable");
+        std::fs::write(scratch.join("justfile"), "check:\n    cargo xtask build\n")
+            .expect("writable");
+        std::fs::create_dir_all(scratch.join(".github")).expect("writable");
+        nc_platform::testing::link_file(&scratch.join("justfile"), &scratch.join(".github/j.yml"))
+            .expect("a link is writable");
+        let mut files = vec![scratch.join("ci/s01.sh"), scratch.join(".github/j.yml")];
+        let mut hops = super::HOPS;
+        assert!(
+            super::follow_what_they_reach(&scratch, &mut files, &mut hops),
+            "the walk spent its bound with the justfile still to be read as one, and \
+             said it had read everything: {files:#?}"
+        );
         drop(held);
     }
 
@@ -4737,18 +4817,23 @@ mod tests {
 
     /// The walk reads each file once, however many spellings reach it.
     ///
-    /// **A walk that compares spellings counts one tree three ways**: CI
-    /// prints `ok 19 cargo command(s)` on Linux, `31` on macOS and `41` on
-    /// Windows. A filesystem that ignores case answers for every name `just`
-    /// loads at once, so such a walk reads the one justfile three times; and
-    /// Windows makes a directory of `cd "$(dirname "$0")/.."`, the root under a
-    /// second spelling, through which it reads every file a word reaches once
-    /// more, which by the count is the ten past macOS, inferred. Linux's
-    /// filesystem holds neither shape, so the scratch below plants each in a
-    /// form every system reads alike: a justfile only a lookup without case
-    /// finds, a `cd` into a directory and back out of it, and a `cd` through a
-    /// name that is no directory, which POSIX's `cd` refuses and which a path
-    /// handed to Windows whole resolves.
+    /// **A walk that compares spellings counts one tree three ways**: on one
+    /// tree such a walk prints `ok 19 cargo command(s)` on Linux, `31` on macOS
+    /// and `41` on Windows. A filesystem that ignores case answers for every
+    /// name `just` loads at once, so such a walk reads the one justfile three
+    /// times; and Windows makes a directory of `cd "$(dirname "$0")/.."`, the
+    /// root under a second spelling, through which it reads every file a word
+    /// reaches once more, which by the count is the ten past macOS, inferred.
+    /// Linux's filesystem holds neither shape, so the scratch below plants each
+    /// in a form every system reads alike: a justfile only a lookup without
+    /// case finds, a `cd` into a directory and back out of it, and a `cd`
+    /// through a name that is no directory, which POSIX's `cd` refuses and
+    /// which a path handed to Windows whole resolves.
+    ///
+    /// **And a step back across `.github/` is no second place**, in either
+    /// direction: a script under it reached from a step into another directory
+    /// and back out, and the justfile reached from a step into `.github/` and
+    /// back out, are each read once, in the role of where they are.
     #[test]
     fn the_walk_reads_each_file_once_however_it_is_reached() {
         let (files, _) = super::everything_ci_reaches(root()).expect("the walk runs");
@@ -4757,7 +4842,7 @@ mod tests {
             .map(|path| {
                 (
                     std::fs::canonicalize(path).expect("a file the walk found resolves"),
-                    super::the_role_of(&crate::relative_to(root(), path)),
+                    super::the_role_of(&super::the_place_of(root(), path)),
                 )
             })
             .collect();
@@ -4781,14 +4866,23 @@ mod tests {
         let held = crate::check::LeavesNothingBehind::new("workflow-spellings");
         let scratch = &held.root;
         std::fs::create_dir_all(scratch.join(".github/workflows")).expect("writable");
+        std::fs::create_dir_all(scratch.join(".github/scripts")).expect("writable");
         std::fs::create_dir_all(scratch.join("ci")).expect("writable");
+        std::fs::create_dir_all(scratch.join("tools")).expect("writable");
         std::fs::write(
             scratch.join(super::WORKFLOW),
             "on: push\njobs:\n  check:\n    steps:\n      - run: cd ci/.. && sh ci/gate.sh\n      \
-             - run: cd missing/../ci && sh elsewhere.sh\n      - run: cargo xtask check\n",
+             - run: cd missing/../ci && sh elsewhere.sh\n      \
+             - run: cd tools && sh ../.github/scripts/docs.sh\n      \
+             - run: cd .github && sh ../JuStFiLe\n      - run: cargo xtask check\n",
         )
         .expect("writable");
         std::fs::write(scratch.join("ci/gate.sh"), "cargo fmt --all --check\n").expect("writable");
+        std::fs::write(
+            scratch.join(".github/scripts/docs.sh"),
+            "cargo doc --workspace\n",
+        )
+        .expect("writable");
         std::fs::write(scratch.join("ci/elsewhere.sh"), "cargo test --workspace\n")
             .expect("writable");
         std::fs::write(
@@ -4820,12 +4914,19 @@ mod tests {
         assert_eq!(
             about("JuStFiLe"),
             1,
-            "a justfile `just` loads was not reported once, under the name it has: \
+            "a justfile `just` loads was not reported once, under the name it has, nor \
+             once more as a workflow's file through a step into `.github/` and back: \
              {findings:#?}"
         );
         assert_eq!(
-            seen, 3,
-            "three cargo commands, each counted once: {findings:#?}"
+            about("docs.sh"),
+            1,
+            "a script under `.github/` reached through a step into another directory and \
+             back was not reported once: {findings:#?}"
+        );
+        assert_eq!(
+            seen, 4,
+            "four cargo commands, each counted once: {findings:#?}"
         );
         drop(held);
     }
@@ -4886,6 +4987,68 @@ mod tests {
         assert_eq!(
             seen, 4,
             "the gate, and the recipe once in each of three roles: {findings:#?}"
+        );
+        drop(held);
+    }
+
+    /// A spelling's place has no step back in it, and keeps the links it
+    /// went through.
+    ///
+    /// **Both halves of [`super::the_place_of`], driven.** A step into a
+    /// directory and back out names where it began, across `.github/` in
+    /// either direction. A link to a directory is a place of its own, so a
+    /// justfile the `.github/` walk finds through one is read as CI's, as the
+    /// walk finds it. And a step back out of that link names what the system
+    /// resolves, which taking the step out as written does not, on a system
+    /// that follows the link first.
+    ///
+    /// **The last is asked as the property it is**: a place with no step back
+    /// in it, naming the file the spelling names. Windows takes such a step
+    /// where the spelling puts it, and Linux and macOS where the link points,
+    /// so the two places differ and each is right on its own system.
+    #[test]
+    fn a_place_has_no_step_back_and_keeps_its_links() {
+        let held = crate::check::LeavesNothingBehind::new("workflow-places");
+        let scratch = &held.root;
+        for directory in [".github/scripts", "ci", "sub"] {
+            std::fs::create_dir_all(scratch.join(directory)).expect("writable");
+        }
+        for file in [
+            ".github/scripts/docs.sh",
+            ".github/x",
+            "justfile",
+            "sub/justfile",
+            "x",
+        ] {
+            std::fs::write(scratch.join(file), file).expect("writable");
+        }
+        nc_platform::testing::link_directory(&scratch.join("sub"), &scratch.join(".github/d"))
+            .expect("a link is writable");
+        let place = |spelled: &str| super::the_place_of(scratch, &scratch.join(spelled));
+        assert_eq!(
+            place("ci/../.github/scripts/docs.sh"),
+            ".github/scripts/docs.sh",
+            "a step into a directory and back out is a second place for a file under \
+             `.github/`"
+        );
+        assert_eq!(
+            place(".github/../justfile"),
+            "justfile",
+            "a step into `.github/` and back out makes the justfile one of CI's files"
+        );
+        assert_eq!(
+            super::the_role_of(&place(".github/d/justfile")),
+            (true, true),
+            "a justfile found through a link under `.github/` lost the place it was \
+             found in"
+        );
+        let out_of_the_link = place(".github/d/../x");
+        assert!(
+            out_of_the_link.split('/').all(|name| name != "..")
+                && super::the_file_itself(&scratch.join(&out_of_the_link))
+                    == super::the_file_itself(&scratch.join(".github/d/../x")),
+            "a step back out of a link is placed at `{out_of_the_link}`, which is not \
+             where the system takes it"
         );
         drop(held);
     }
