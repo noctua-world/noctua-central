@@ -6193,10 +6193,12 @@ fn the_lints_step_read_the_whole_tree(root: &Path, output: &str, failures: &mut 
 /// both: a diff line begins `Diff in`, and a rustfmt command line begins with
 /// the program name. Neither can be mistaken for a target.
 ///
-/// **Answered with `/`, as clippy's and rustdoc's roots are.** The quoted path
-/// is the path as Rust debug-prints it, so on Windows each separator arrives as
-/// an escaped backslash, and compared with `/` alone no root there is one
-/// cargo declares.
+/// **Answered with `/` where it is written in Windows' spelling.** The quoted
+/// path is the path as Rust debug-prints it, so on Windows each separator
+/// arrives as an escaped backslash, and compared with `/` alone no root there
+/// is one cargo declares. A path that holds a `/` is compared as written,
+/// because a backslash in it is part of a name, as
+/// [`crate::in_windows_spelling`] measures.
 fn the_source_roots_rustfmt_reported(output: &str) -> Vec<String> {
     output
         .lines()
@@ -6206,9 +6208,13 @@ fn the_source_roots_rustfmt_reported(output: &str) -> Vec<String> {
                 return None;
             }
             let (_, rest) = line.split_once("] ")?;
-            rest.strip_prefix('"')?
-                .strip_suffix('"')
-                .map(|path| path.replace(r"\\", "/").replace('\\', "/"))
+            rest.strip_prefix('"')?.strip_suffix('"').map(|path| {
+                if crate::in_windows_spelling(path) {
+                    path.replace(r"\\", "/").replace('\\', "/")
+                } else {
+                    path.to_owned()
+                }
+            })
         })
         .collect()
 }
@@ -7389,11 +7395,18 @@ fn tests_verdict(output: &str, expected: &[String]) -> Result<usize, String> {
     // appeared only inside warning text and none of them had run.
     // **With `/`, the separator every suite here is written with.** Cargo on
     // Windows announces `Running tests\the_decision_point.rs`, and compared
-    // as written no suite there is ever announced.
+    // as written no suite there is ever announced. A line that holds a `/` is
+    // compared as written, because a backslash in it is part of a name.
     let announcements: Vec<String> = output
         .lines()
         .filter_map(|line| line.trim().strip_prefix("Running "))
-        .map(|line| line.replace('\\', "/"))
+        .map(|line| {
+            if crate::in_windows_spelling(line) {
+                line.replace('\\', "/")
+            } else {
+                line.to_owned()
+            }
+        })
         .collect();
     let mut missing = Vec::new();
     for suite in expected {
@@ -17155,6 +17168,14 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
             Ok(19),
             "a suite announced with Windows' separator was read as one that did not run"
         );
+        // And in a line that holds a `/`, a backslash is part of a name: a file
+        // named with one is not the suite.
+        let apart = "     Running tests\\tampering.rs (target/debug/deps/tampering-1)\n\
+                     test result: ok. 19 passed; 0 failed;\n";
+        assert!(
+            tests_verdict(apart, &["tests/tampering.rs".to_owned()]).is_err(),
+            "a file whose name holds a backslash was read as the suite it spells"
+        );
 
         // **And a name two crates share has to be announced twice.** Asked
         // only whether a name was announced, one crate announcing a shared file
@@ -18413,8 +18434,8 @@ mod the_frozen_path_rule {
         ("xtask/gates.rs", 219, 33),
         ("xtask/limits.rs", 176, 59),
         ("xtask/local.rs", 79, 8),
-        ("xtask/main.rs", 2, 24),
-        ("xtask/members.rs", 34, 7),
+        ("xtask/main.rs", 3, 24),
+        ("xtask/members.rs", 35, 7),
         ("xtask/plugins.rs", 25, 5),
         ("xtask/policy.rs", 57, 5),
         ("xtask/references.rs", 54, 26),
@@ -24169,7 +24190,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14181;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14185;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24239,7 +24260,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 19871;
+    const THE_REARRANGEMENTS_JUDGED: usize = 19881;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24293,7 +24314,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **424 of 19,871 are accepted by the first-line
+    /// rules the gates apply: **424 of 19,881 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25032,6 +25053,20 @@ mod the_frozen_path_rule {
         assert!(
             clean.is_empty(),
             "a whole run named with Windows' separator was reported: {clean:?}"
+        );
+        // And in a path that holds a `/`, a backslash is part of a name, so a
+        // root named with one is not the root cargo declares.
+        let mut apart = whole.clone();
+        apart[0] = format!(
+            "[lib (2024)] \"/w/{}\"",
+            declared[0].replacen('/', r"\\", 1)
+        );
+        let mut failures = Vec::new();
+        super::the_formatting_step_read_the_whole_tree(root, &apart.join("\n"), &mut failures);
+        assert_eq!(
+            failures,
+            vec!["formatting".to_owned()],
+            "a root whose name holds a backslash was read as the root it spells"
         );
 
         // One root formatted, which is what a narrowed argument list looks like.

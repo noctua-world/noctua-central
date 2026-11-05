@@ -177,3 +177,16 @@ pub(crate) fn relative_to(root: &Path, path: &Path) -> String {
         .to_string_lossy()
         .replace('\\', "/")
 }
+
+/// Whether a path a tool wrote is in Windows' spelling, where `\` separates.
+///
+/// **Read from the spelling, not from the system**, so a test can hand
+/// Windows' answer to a reader on every system. A path written with `\` and no
+/// `/` is Windows'; one that holds a `/` is Unix's, where `\` is a character
+/// a name may hold. Measured with `cargo metadata` on Linux, a path
+/// dependency on a sibling directory named `w\vendored` beside a root `w` is
+/// written as that sibling under that root's own spelling, and a reader that
+/// turns every `\` into `/` takes the sibling for a directory inside the root.
+pub(crate) fn in_windows_spelling(path: &str) -> bool {
+    path.contains('\\') && !path.contains('/')
+}

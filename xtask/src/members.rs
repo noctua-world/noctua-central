@@ -362,15 +362,21 @@ mod built_from_tests {
 /// the floor under the type wall's count of source roots. A rule with one copy
 /// has one test.
 ///
-/// **And either separator, answered with `/`.** On Windows cargo writes every
-/// manifest path with a backslash, under a root written the same way, so
-/// read with `/` alone no member is found there, and every gate scoped by the
-/// members fails for having nothing to judge. Both spellings are turned
-/// into `/` before they are compared, which is the rule [`crate::relative_to`]
-/// keeps for every path this tool prints or compares, and what comes back is
-/// the form every list here is written in.
+/// **And either separator, answered with `/`, under a root in Windows'
+/// spelling.** On Windows cargo writes every manifest path with a backslash,
+/// under a root written the same way, so read with `/` alone no member is
+/// found there, and every gate scoped by the members fails for having nothing
+/// to judge. There both are turned into `/` before they are compared, which is
+/// the form every list here is written in. Under a root that holds a `/`, a
+/// backslash is part of a name, as [`crate::in_windows_spelling`] measures:
+/// read as a separator there, a sibling named with one after the root's last
+/// name is a member, and `outside_of` drops the package that is not.
 fn inside_the_root(root: &str, path: &str) -> Option<String> {
-    let (root, path) = (root.replace('\\', "/"), path.replace('\\', "/"));
+    let (root, path) = if crate::in_windows_spelling(root) {
+        (root.replace('\\', "/"), path.replace('\\', "/"))
+    } else {
+        (root.to_owned(), path.to_owned())
+    };
     path.strip_prefix(&root)
         .filter(|rest| rest.starts_with('/'))
         .map(|rest| rest.trim_start_matches('/').to_owned())
@@ -490,6 +496,35 @@ mod outside_tests {
             super::outside_of(&answer).expect("the answer parses").len(),
             1,
             "`/w-vendor` is a sibling of `/w`, not a directory inside it"
+        );
+    }
+
+    /// A backslash in a name under a root written with `/` is part of the
+    /// name, and not a separator.
+    ///
+    /// The shape `cargo metadata` gives on Linux for a path dependency on a
+    /// sibling named with one, as [`crate::in_windows_spelling`] records.
+    /// Read with both separators, the sibling is inside the root, and the
+    /// package built from outside this repository is dropped from the report
+    /// of what is.
+    #[test]
+    fn a_sibling_whose_name_holds_a_backslash_is_outside() {
+        let answer = serde_json::json!({
+            "workspace_root": "/w",
+            "packages": [
+                { "name": "nc-vendored", "source": null,
+                  "manifest_path": "/w\\vendor/nc-vendored/Cargo.toml" },
+            ]
+        });
+        assert_eq!(
+            super::outside_of(&answer).expect("the answer parses").len(),
+            1,
+            "a name holding a backslash beside `/w` is a sibling of it"
+        );
+        assert_eq!(
+            super::inside_the_root("D:\\w", "D:\\w\\vendor\\Cargo.toml").as_deref(),
+            Some("vendor/Cargo.toml"),
+            "under a root in Windows' spelling, a backslash still separates"
         );
     }
 }
