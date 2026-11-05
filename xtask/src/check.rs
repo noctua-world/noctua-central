@@ -7707,7 +7707,7 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// `xtask/mutants.py` are where a predicate's verdict is decided. It says the
 /// guard is still there, which is the question a deletion asks.
 #[cfg(test)]
-const WHAT_THE_GATE_CAN_SAY: [&str; 976] = [
+const WHAT_THE_GATE_CAN_SAY: [&str; 980] = [
     // The release (`xtask/src/release.rs`).
     "--publish publishes to the repository GITHUB_REPOSITORY names, and it is not set. CI's release job sets it; a release is published from there and nowhere else",
     "--publish publishes with the token in GH_TOKEN, and it is not set. CI's release job sets it to the release App's installation token; the workflow's own token is never used, because a pull request it opens starts no checks",
@@ -7718,18 +7718,20 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 976] = [
     "Cargo.lock does not read back as TOML: {error}",
     "Cargo.lock reads back with {} package(s) of this workspace, and these not at {target}: {behind:?}",
     "Cargo.lock",
-    "Cargo.toml does not read back as TOML: {error}",
-    "Cargo.toml reads back as carrying {carries:?}, and the release wrote {target}",
     "GITHUB_REPOSITORY is `{}`, and a repository is its owner and its name with a slash between",
     "GitHub answered a pull request with no number",
     "GitHub answered no list of pull requests",
     "GitHub answered no repository {} for the token the release holds",
+    "GitHub answered pull request #{number} as one of this repository's own with its head in {}, and this repository is {repository}",
     "GitHub answered pull request #{number} as {}, which is not open, merged or closed",
     "GitHub answered pull request #{number} with no node",
+    "GitHub answered pull request #{number} without saying whether its head is in a fork, and a fork's never carries a release",
+    "GitHub answered pull request #{} with no merge state, and whether it is merged now or queued rests on it",
     "GitHub answered the pull request that carries {} back with another one",
     "GitHub answered the release commit with no commit",
     "GitHub answered the release of {tag} with another release",
     "GitHub answered the tag {} with another tag, or another commit",
+    "GitHub did not answer pull request #{} as merged",
     "GitHub did not answer pull request #{} with auto-merge on, by merge commit",
     "GitHub named the tag {} with no commit",
     "HEAD is a release commit and {CHANGELOG} could not be read: {error}",
@@ -7771,6 +7773,8 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 976] = [
     "{CHANGELOG} could not be written: {error}{put_back}",
     "{CHANGELOG} reads back as other bytes than were written",
     "{name} could not be read back: {error}",
+    "{name} does not read back as TOML: {error}",
+    "{name} reads back as carrying {carries:?}, and the release wrote {target}",
     "{name}: {size} byte(s)",
     "{tag} is tagged at {} on GitHub, and this release is at {}. A tag is never moved: look at both before releasing again",
     "{} has no section of its own in the changelog, which is a release no reader of it would see",
@@ -10885,11 +10889,12 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 655] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 657] = [
     // The release: what it prints that is not a verdict, the requests it
     // hands GitHub, and the changelog's own prose.
     "  What to do: {note}\n",
     "# Changelog\n\nWhat each release of this repository adds, changes, fixes, speeds up, secures and removes, newest first (`NOCTUA.md §22.4`). `cargo xtask release` writes this file whole from the conventional commits between the release tags every time it makes a release, so an edit by hand is gone at the next one.\n",
+    "#{} is merged, by merge commit: its checks had passed already",
     "Cargo.lock rebuilt, and every file read back as written",
     "Five verbs, and the surface does not grow (NOCTUA.md §10.2).\n\nbuild    compile catalog/ into its generated crate and pages\ncheck    THE gate. CI runs it, `dev` for the stack it needs,\nthe `cargo install` for `cargo deny`, and `build` twice\ndev      bring up PostgreSQL and the central log store\ndocs     regenerate the self-documentation surfaces under docs/\nrelease  compute a channel's version and changelog, and publish them",
     "HEAD is the release commit of {}, so the release is carried on and not made again",
@@ -10905,13 +10910,14 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 655] = [
     "chore(release): carry {} back to {}",
     "its notes, which are its section of the changelog:",
     "mutation AutoMerge($id: ID!) { enablePullRequestAutoMerge(input: {pullRequestId: $id, mergeMethod: MERGE}) { pullRequest { number autoMergeRequest { mergeMethod } } } }",
+    "mutation MergedNow($id: ID!) { mergePullRequest(input: {pullRequestId: $id, mergeMethod: MERGE}) { pullRequest { number merged } } }",
     "mutation ReleaseCommit($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }",
     "no production release yet, so the first is the version Cargo.toml carries",
     "nothing that moves it",
     "nothing to release: none of the {} commit(s) since {} is a feat, a fix, a perf or a breaking change",
     "nothing to write: HEAD already carries the release",
     "pull request #{} carries {} back to {}",
-    "query WhatGitHubHolds($owner: String!, $name: String!, $tag: String!, $ref: String!, $head: String!, $base: String!) { repository(owner: $owner, name: $name) { ref(qualifiedName: $ref) { target { oid } } release(tagName: $tag) { tagName } pullRequests(headRefName: $head, baseRefName: $base, first: 100, orderBy: {field: CREATED_AT, direction: DESC}) { nodes { number id title state autoMergeRequest { mergeMethod } } } } }",
+    "query WhatGitHubHolds($owner: String!, $name: String!, $tag: String!, $ref: String!, $head: String!, $base: String!) { repository(owner: $owner, name: $name) { ref(qualifiedName: $ref) { target { oid } } release(tagName: $tag) { tagName } pullRequests(headRefName: $head, baseRefName: $base, first: 100, orderBy: {field: CREATED_AT, direction: DESC}) { nodes { number id title state isCrossRepository headRepository { nameWithOwner } mergeStateStatus autoMergeRequest { mergeMethod } } } } }",
     "released {tag} on GitHub",
     "the CLI the release publishes through; its output is read, not printed",
     "the release commit {} is on {}, over {}",
@@ -18751,7 +18757,7 @@ mod the_frozen_path_rule {
         ("xtask/plugins.rs", 25, 5),
         ("xtask/policy.rs", 57, 5),
         ("xtask/references.rs", 54, 26),
-        ("xtask/release.rs", 170, 14),
+        ("xtask/release.rs", 180, 14),
         ("xtask/sections.rs", 38, 10),
         ("xtask/store.rs", 29, 4),
         ("xtask/the_pages_reach_the_catalog.rs", 37, 20),
@@ -24502,7 +24508,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14671;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14695;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24521,7 +24527,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2940;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2947;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -24538,7 +24544,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 961;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 964;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -24572,7 +24578,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 20469;
+    const THE_REARRANGEMENTS_JUDGED: usize = 20514;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24590,7 +24596,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 441;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 442;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -24626,7 +24632,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **441 of 20,469 are accepted by the first-line
+    /// rules the gates apply: **442 of 20,514 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -24659,7 +24665,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **961 of
+    /// this tree offers, **964 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -26849,7 +26855,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 655;
+    const THE_REST_IT_SAYS: usize = 657;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -26997,7 +27003,7 @@ mod the_frozen_path_rule {
     /// verdicts that agree for that long are one row, and — because a prefix
     /// matches nothing the two censuses hold — every row is a shipped literal
     /// accounted for nowhere. Written out, each row is its own accounting.
-    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 481] = [
+    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 482] = [
         ("—", "compiled catalog/"),
         (
             "—",
@@ -28411,6 +28417,10 @@ mod the_frozen_path_rule {
         ("—", "released {tag} on GitHub"),
         ("—", "pull request #{} carries {} back to {}"),
         ("—", "auto-merge is on for #{}, by merge commit"),
+        (
+            "—",
+            "#{} is merged, by merge commit: its checks had passed already",
+        ),
     ];
 
     /// A quote inside a char literal does not open a string.
@@ -35326,7 +35336,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1475] = [
+    static OPERATORS: [(&str, &str, &str); 1480] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -35561,6 +35571,31 @@ Options:
             "release",
             "of",
             "gh is handed none of its own variables but the token",
+        ),
+        (
+            "release",
+            "carried_on",
+            "a release commit carries its own version",
+        ),
+        (
+            "release",
+            "the_tree_is_clean",
+            "a tree holding what no commit has is not released",
+        ),
+        (
+            "release",
+            "from_this_repository",
+            "a fork's pull request never carries a release",
+        ),
+        (
+            "release",
+            "from_this_repository",
+            "this repository's own pull request has its head here",
+        ),
+        (
+            "release",
+            "published",
+            "a pull request whose checks have passed is merged, not queued",
         ),
         (
             "history",

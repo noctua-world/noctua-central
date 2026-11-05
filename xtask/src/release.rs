@@ -113,13 +113,20 @@ const PARTS: [Part; 6] = [
 
 /// What the release asks GitHub before it makes anything: whether the tag,
 /// the release and the pull request that carries it back already exist.
+///
+/// **Each pull request says where its head is**, because `headRefName`
+/// matches a branch of that name in every fork as well as here, **and how
+/// close it is to merging**, because GitHub refuses auto-merge on one it
+/// would merge now.
 const WHAT_GITHUB_HOLDS: &str = "query WhatGitHubHolds($owner: String!, $name: String!, \
                                  $tag: String!, $ref: String!, $head: String!, $base: String!) \
                                  { repository(owner: $owner, name: $name) { ref(qualifiedName: \
                                  $ref) { target { oid } } release(tagName: $tag) { tagName } \
                                  pullRequests(headRefName: $head, baseRefName: $base, first: \
                                  100, orderBy: {field: CREATED_AT, direction: DESC}) { nodes { \
-                                 number id title state autoMergeRequest { mergeMethod } } } } }";
+                                 number id title state isCrossRepository headRepository { \
+                                 nameWithOwner } mergeStateStatus autoMergeRequest { \
+                                 mergeMethod } } } } }";
 
 /// The release commit, made on the branch by GitHub, which signs it.
 const THE_RELEASE_COMMIT: &str = "mutation ReleaseCommit($input: CreateCommitOnBranchInput!) \
@@ -130,6 +137,12 @@ const THE_RELEASE_COMMIT: &str = "mutation ReleaseCommit($input: CreateCommitOnB
 const AUTO_MERGE: &str = "mutation AutoMerge($id: ID!) { enablePullRequestAutoMerge(input: \
                           {pullRequestId: $id, mergeMethod: MERGE}) { pullRequest { number \
                           autoMergeRequest { mergeMethod } } } }";
+
+/// The merge, by merge commit, of a pull request that carries a release back
+/// and whose checks have passed already.
+const MERGED_NOW: &str = "mutation MergedNow($id: ID!) { mergePullRequest(input: \
+                          {pullRequestId: $id, mergeMethod: MERGE}) { pullRequest { number \
+                          merged } } }";
 
 /// A part of a release's section of the changelog (`NOCTUA.md §22.4`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -416,6 +429,9 @@ struct CarriedBack {
     state: Carried,
     /// Whether auto-merge is on.
     auto_merge: bool,
+    /// Whether GitHub would merge it now: its checks have passed and nothing
+    /// blocks it, which is when GitHub refuses to turn auto-merge on.
+    mergeable: bool,
 }
 
 /// Where a pull request that carries a release back stands.
@@ -1584,8 +1600,15 @@ fn written(
     }
     ui::ok("Cargo.lock rebuilt, and every file read back as written");
 
+    // **Every file the release wrote, each listed one among them**: a file
+    // `CARRIES_THE_VERSION` names and the commit left out would be rewritten
+    // here and published at the version before, which is the one file left
+    // behind that list is written down to prevent.
     let mut carried: Vec<(String, Vec<u8>)> = Vec::new();
-    for name in [CHANGELOG, "Cargo.lock", CARRIES_THE_VERSION[0]] {
+    for name in [CHANGELOG, "Cargo.lock"]
+        .into_iter()
+        .chain(CARRIES_THE_VERSION)
+    {
         let bytes = std::fs::read(root.join(name))
             .map_err(|error| format!("{name} could not be read back: {error}"))?;
         carried.push((name.to_owned(), bytes));
@@ -1595,7 +1618,8 @@ fn written(
 }
 
 /// Reads the release back through readers that share nothing with the
-/// writers: the manifest and the lockfile as TOML, and the changelog as bytes.
+/// writers: every manifest [`CARRIES_THE_VERSION`] names and the lockfile as
+/// TOML, and the changelog as bytes.
 ///
 /// **A parser, not the line the writer found.** The writer rewrites the line
 /// `version_of` finds, and a read-back through `version_of` agrees with
@@ -1608,18 +1632,20 @@ fn written(
 /// Returns which file does not read back as written.
 fn read_back(root: &Path, version: Version, changelog: &str) -> Result<(), String> {
     let target = version.to_string();
-    let manifest: toml::Table = toml::from_str(&read(root, CARRIES_THE_VERSION[0])?)
-        .map_err(|error| format!("Cargo.toml does not read back as TOML: {error}"))?;
-    let carries = manifest
-        .get("workspace")
-        .and_then(|workspace| workspace.get("package"))
-        .or_else(|| manifest.get("package"))
-        .and_then(|package| package.get("version"))
-        .and_then(toml::Value::as_str);
-    if carries != Some(target.as_str()) {
-        return Err(format!(
-            "Cargo.toml reads back as carrying {carries:?}, and the release wrote {target}"
-        ));
+    for name in CARRIES_THE_VERSION {
+        let manifest: toml::Table = toml::from_str(&read(root, name)?)
+            .map_err(|error| format!("{name} does not read back as TOML: {error}"))?;
+        let carries = manifest
+            .get("workspace")
+            .and_then(|workspace| workspace.get("package"))
+            .or_else(|| manifest.get("package"))
+            .and_then(|package| package.get("version"))
+            .and_then(toml::Value::as_str);
+        if carries != Some(target.as_str()) {
+            return Err(format!(
+                "{name} reads back as carrying {carries:?}, and the release wrote {target}"
+            ));
+        }
     }
     let lockfile: toml::Table = toml::from_str(&read(root, "Cargo.lock")?)
         .map_err(|error| format!("Cargo.lock does not read back as TOML: {error}"))?;
@@ -1665,6 +1691,14 @@ fn read_back(root: &Path, version: Version, changelog: &str) -> Result<(), Strin
 /// a pull request that carried this release and was closed without merging,
 /// are each a refusal before the first call, so a refusal never leaves half of
 /// a release behind.
+///
+/// **A pull request whose checks have passed is merged, not queued.** GitHub
+/// refuses auto-merge on one it would merge now, and a run carried on after
+/// the checks of the one it opened had finished would be refused at that
+/// step on every run after it, the release never carried back. Its merge
+/// state is GitHub's when it was asked: checks that finish between the
+/// question and the request are a refusal of this run, and the next run
+/// merges.
 ///
 /// # Errors
 ///
@@ -1715,7 +1749,11 @@ fn published(
         the_pull_request_back(github, channel, version)?
     };
     if carried.state == Carried::Open && !carried.auto_merge {
-        auto_merged(github, &carried)?;
+        if carried.mergeable {
+            merged_now(github, &carried)?;
+        } else {
+            auto_merged(github, &carried)?;
+        }
         made += 1;
     }
     if made == 0 {
@@ -1736,11 +1774,16 @@ fn published(
 /// What GitHub holds of `version` on `channel`: its tag, its release, and the
 /// pull request that carries it back.
 ///
-/// **An open pull request from the branch to the one below carries this
-/// release, whatever its title**: GitHub keeps one open per pair, and its head
-/// is the branch itself, so a release made while an earlier one's is still
-/// open is carried by that one. Otherwise the pull request is the one titled
-/// as this release's.
+/// **Only a pull request whose head is this repository's own branch is
+/// one.** `headRefName` matches the branch of that name in every fork too:
+/// a stranger's pull request from a fork's `staging`, taken as the one
+/// carrying the release back, would have auto-merge turned on with the App's
+/// token for code nobody reviewed, and one closed and titled as the release
+/// would stop it. **An open pull request from this repository's branch to the
+/// one below carries this release, whatever its title**: GitHub keeps one open
+/// per pair of a repository's branches, and its head is the branch itself, so
+/// a release made while an earlier one's is still open is carried by that
+/// one. Otherwise the pull request is the one titled as this release's.
 ///
 /// # Errors
 ///
@@ -1797,6 +1840,20 @@ fn what_github_holds(
     let mut carried = None;
     for node in nodes {
         let read = a_carried_back(node)?;
+        if !from_this_repository(node, read.number, &github.repository)? {
+            continue;
+        }
+        if node
+            .get("mergeStateStatus")
+            .and_then(serde_json::Value::as_str)
+            .is_none()
+        {
+            return Err(format!(
+                "GitHub answered pull request #{} with no merge state, and whether it is merged \
+                 now or queued rests on it",
+                read.number
+            ));
+        }
         let titled = node.get("title").and_then(serde_json::Value::as_str) == Some(&title);
         if read.state == Carried::Open {
             carried = Some(read);
@@ -1851,12 +1908,65 @@ fn a_carried_back(node: &serde_json::Value) -> Result<CarriedBack, String> {
     let auto_merge = node
         .get("autoMergeRequest")
         .is_some_and(|request| !request.is_null());
+    // **Ready to merge as GitHub's merge box reads it**, in the states `gh`
+    // itself merges at once rather than queue: clean, or passing with hooks or
+    // with checks no rule requires. An answer that names none — the one a pull
+    // request just opened gives — is not.
+    let mergeable = matches!(
+        node.get("mergeStateStatus")
+            .and_then(serde_json::Value::as_str),
+        Some("CLEAN" | "HAS_HOOKS" | "UNSTABLE")
+    );
     Ok(CarriedBack {
         number,
         id,
         state,
         auto_merge,
+        mergeable,
     })
+}
+
+/// Whether the pull request numbered `number`, as `node` describes it, has its
+/// head in `repository`, this one, rather than in a fork.
+///
+/// **A fork's is passed over, whatever else it says**: its head repository is
+/// gone once the fork is deleted, and a refusal there would let anyone stop
+/// every release by opening one and deleting the fork. One of this
+/// repository's own names it as its head, or the answer is refused.
+///
+/// # Errors
+///
+/// Returns why GitHub's answer does not say where the head is.
+fn from_this_repository(
+    node: &serde_json::Value,
+    number: u64,
+    repository: &str,
+) -> Result<bool, String> {
+    match node
+        .get("isCrossRepository")
+        .and_then(serde_json::Value::as_bool)
+    {
+        Some(true) => Ok(false),
+        Some(false) => {
+            let head = node
+                .pointer("/headRepository/nameWithOwner")
+                .and_then(serde_json::Value::as_str);
+            // GitHub reads an owner and a name without their case.
+            if head.is_some_and(|head| head.eq_ignore_ascii_case(repository)) {
+                Ok(true)
+            } else {
+                Err(format!(
+                    "GitHub answered pull request #{number} as one of this repository's own \
+                     with its head in {}, and this repository is {repository}",
+                    escaped(head.unwrap_or("no repository"))
+                ))
+            }
+        }
+        None => Err(format!(
+            "GitHub answered pull request #{number} without saying whether its head is in a \
+             fork, and a fork's never carries a release"
+        )),
+    }
 }
 
 /// Makes the release commit on `channel`'s branch: `files` over `head`, titled
@@ -2058,6 +2168,38 @@ fn auto_merged(github: &GitHub, carried: &CarriedBack) -> Result<(), String> {
     }
     ui::ok(&format!(
         "auto-merge is on for #{}, by merge commit",
+        carried.number
+    ));
+    Ok(())
+}
+
+/// Merges the pull request `carried`, by merge commit, now.
+///
+/// **For one whose checks have passed already**, which GitHub merges at once
+/// and will not queue: auto-merge on it is refused.
+///
+/// # Errors
+///
+/// Returns what `gh` refused, or why GitHub's answer is not the pull request
+/// merged.
+fn merged_now(github: &GitHub, carried: &CarriedBack) -> Result<(), String> {
+    let answer = gh(
+        github,
+        "graphql",
+        &serde_json::json!({ "query": MERGED_NOW, "variables": { "id": carried.id } }),
+    )?;
+    if answer
+        .pointer("/data/mergePullRequest/pullRequest/merged")
+        .and_then(serde_json::Value::as_bool)
+        != Some(true)
+    {
+        return Err(format!(
+            "GitHub did not answer pull request #{} as merged",
+            carried.number
+        ));
+    }
+    ui::ok(&format!(
+        "#{} is merged, by merge commit: its checks had passed already",
         carried.number
     ));
     Ok(())
@@ -5080,17 +5222,58 @@ fn main() {
         release: bool,
         carried: Option<(&str, &str, bool)>,
     ) -> String {
+        holding_these(
+            tag,
+            release,
+            &carried.map_or_else(Vec::new, |(title, state, auto)| {
+                vec![a_pull_request(title, state, auto)]
+            }),
+        )
+    }
+
+    /// GitHub's answer to what it holds of a release, with `nodes` as the pull
+    /// requests from a branch named as the released one to the one below.
+    fn holding_these(tag: Option<&str>, release: bool, nodes: &[serde_json::Value]) -> String {
         answered(&serde_json::json!({ "data": { "repository": {
             "ref": tag.map(|oid| serde_json::json!({ "target": { "oid": oid } })),
             "release": release.then(|| serde_json::json!({ "tagName": "v0.1.0-rc.1" })),
-            "pullRequests": { "nodes": carried.map_or_else(Vec::new, |(title, state, auto)| vec![serde_json::json!({
-                "number": 7,
-                "id": "PR_seven",
-                "title": title,
-                "state": state,
-                "autoMergeRequest": auto.then(|| serde_json::json!({ "mergeMethod": "MERGE" })),
-            })]) },
+            "pullRequests": { "nodes": nodes },
         } } }))
+    }
+
+    /// This repository's pull request #7 from `staging` to `dev`, with the
+    /// title `title` and required checks that have not passed yet.
+    fn a_pull_request(title: &str, state: &str, auto: bool) -> serde_json::Value {
+        serde_json::json!({
+            "number": 7,
+            "id": "PR_seven",
+            "title": title,
+            "state": state,
+            "isCrossRepository": false,
+            "headRepository": { "nameWithOwner": "noctua-world/probe" },
+            "mergeStateStatus": "BLOCKED",
+            "autoMergeRequest": auto.then(|| serde_json::json!({ "mergeMethod": "MERGE" })),
+        })
+    }
+
+    /// A stranger's pull request #9, from a branch named `staging` in a fork
+    /// into `dev`, titled as the release and ready to merge, its head
+    /// repository named or gone with the fork.
+    fn a_forks_pull_request(state: &str, from: Option<&str>) -> serde_json::Value {
+        let mut node = a_pull_request(
+            "chore(release): carry v0.1.0-rc.1 back to dev",
+            state,
+            false,
+        );
+        node["number"] = 9.into();
+        node["id"] = "PR_nine".into();
+        node["isCrossRepository"] = true.into();
+        node["headRepository"] = from.map_or(
+            serde_json::Value::Null,
+            |named| serde_json::json!({ "nameWithOwner": named }),
+        );
+        node["mergeStateStatus"] = "CLEAN".into();
+        node
     }
 
     /// GitHub's answers to each step after the question, in order.
@@ -5142,12 +5325,32 @@ fn main() {
         repository.git(&["add", "-A"]);
         repository.commit("chore(release): v0.1.0-rc.1\n", &[]);
         carried_on_after_each_step(&root, &repository.head(), &bin, &fixtures);
-        // **A tag at another commit, and a pull request closed without
-        // merging, are refused before anything is made.**
+        what_github_holds_is_judged_before_anything_is_made(&root, &bin, &fixtures, &made);
+        a_release_commit_not_as_written_is_not_carried_on(&repository, &bin, &fixtures);
+    }
+
+    /// A tag at another commit, a pull request closed without merging, and an
+    /// answer that does not say where a pull request's head is or how close
+    /// it is to merging, are refused before anything is made.
+    fn what_github_holds_is_judged_before_anything_is_made(
+        root: &Path,
+        bin: &Path,
+        fixtures: &Path,
+        made: &str,
+    ) {
+        let mut unplaced = a_pull_request("chore: anything", "OPEN", false);
+        unplaced
+            .as_object_mut()
+            .expect("a pull request is an object")
+            .remove("isCrossRepository");
+        let mut misplaced = a_pull_request("chore: anything", "OPEN", false);
+        misplaced["headRepository"]["nameWithOwner"] = "someone/else".into();
+        let mut unweighed = a_pull_request("chore: anything", "OPEN", false);
+        unweighed["mergeStateStatus"] = serde_json::Value::Null;
         for (what, holds, refusal) in [
             (
                 "a tag elsewhere",
-                holding(Some(&made), false, None),
+                holding(Some(made), false, None),
                 "is tagged at 1111111",
             ),
             (
@@ -5155,12 +5358,81 @@ fn main() {
                 holding(None, false, Some(("CLOSED", false))),
                 "was closed without merging",
             ),
+            (
+                "a pull request with no word of a fork",
+                holding_these(None, false, &[unplaced]),
+                "without saying whether its head is in a fork",
+            ),
+            (
+                "a pull request of this repository's headed elsewhere",
+                holding_these(None, false, &[misplaced]),
+                "with its head in someone/else",
+            ),
+            (
+                "a pull request with no merge state",
+                holding_these(None, false, &[unweighed]),
+                "with no merge state",
+            ),
         ] {
             let refused =
-                published_on_staging(&root, &a_github(&bin, &fixtures, &[holds])).expect_err(what);
+                published_on_staging(root, &a_github(bin, fixtures, &[holds])).expect_err(what);
             assert!(refused.contains(refusal), "{what}: {refused}");
-            assert_eq!(the_calls(&fixtures).len(), 1, "{what}: something was made");
+            assert_eq!(the_calls(fixtures).len(), 1, "{what}: something was made");
         }
+    }
+
+    /// A run on a release commit refuses what this verb would not have written.
+    ///
+    /// A tree holding what no commit has, a manifest at another version and
+    /// another changelog are each refused before GitHub is asked anything.
+    fn a_release_commit_not_as_written_is_not_carried_on(
+        repository: &ARepository,
+        bin: &Path,
+        fixtures: &Path,
+    ) {
+        let root = repository.root();
+        let note = root.join("probe/notes.txt");
+        std::fs::write(&note, "a note\n").expect("a writable scratch");
+        let refused = published_on_staging(&root, &a_github(bin, fixtures, &[]))
+            .expect_err("a tree with a file no commit has");
+        assert!(
+            refused.contains("the tree holds changes no commit has")
+                && refused.contains("probe/notes.txt"),
+            "{refused}"
+        );
+        assert!(
+            the_calls(fixtures).is_empty(),
+            "GitHub was asked about a tree no commit holds"
+        );
+        std::fs::remove_file(&note).expect("a writable scratch");
+        // **A release commit whose manifest carries another version is not
+        // carried on.**
+        let manifest = std::fs::read_to_string(root.join("Cargo.toml")).expect("the manifest");
+        std::fs::write(
+            root.join("Cargo.toml"),
+            manifest.replace("version = \"0.1.0-rc.1\"", "version = \"0.1.0\""),
+        )
+        .expect("a writable scratch");
+        repository.git(&["add", "-A"]);
+        repository.git(&[
+            "commit",
+            "-q",
+            "--amend",
+            "--no-verify",
+            "-m",
+            "chore(release): v0.1.0-rc.1",
+        ]);
+        let refused = published_on_staging(&root, &a_github(bin, fixtures, &[]))
+            .expect_err("another version");
+        assert!(
+            refused.contains("and Cargo.toml carries 0.1.0."),
+            "{refused}"
+        );
+        assert!(
+            the_calls(fixtures).is_empty(),
+            "GitHub was asked about a release refused"
+        );
+        std::fs::write(root.join("Cargo.toml"), manifest).expect("a writable scratch");
         // **A release commit holding another changelog is not carried on.**
         std::fs::write(root.join(super::CHANGELOG), "# Changelog\n").expect("a writable scratch");
         repository.git(&["add", "-A"]);
@@ -5172,14 +5444,14 @@ fn main() {
             "-m",
             "chore(release): v0.1.0-rc.1",
         ]);
-        let refused = published_on_staging(&root, &a_github(&bin, &fixtures, &[]))
+        let refused = published_on_staging(&root, &a_github(bin, fixtures, &[]))
             .expect_err("another changelog");
         assert!(
             refused.contains("is not the changelog the history gives"),
             "{refused}"
         );
         assert!(
-            the_calls(&fixtures).is_empty(),
+            the_calls(fixtures).is_empty(),
             "GitHub was asked about a release refused"
         );
     }
@@ -5268,15 +5540,26 @@ fn main() {
         assert_eq!(calls[5].request["variables"]["id"], "PR_seven");
     }
 
-    /// The files a release commit carries are the three it writes, as the
-    /// tree holds them, and the manifest carries the release.
+    /// The files a release commit carries are the ones it writes, as the tree
+    /// holds them.
+    ///
+    /// The changelog, the lockfile, and every file `CARRIES_THE_VERSION`
+    /// names, each listed one carrying the release.
     fn the_files_committed_are_the_files_written(root: &Path, additions: &serde_json::Value) {
         let additions = additions.as_array().expect("additions");
         let carried: Vec<&str> = additions
             .iter()
             .map(|addition| addition["path"].as_str().unwrap_or_default())
             .collect();
-        assert_eq!(carried, ["CHANGELOG.md", "Cargo.lock", "Cargo.toml"]);
+        let mut written: Vec<&str> = [super::CHANGELOG, "Cargo.lock"]
+            .into_iter()
+            .chain(CARRIES_THE_VERSION)
+            .collect();
+        written.sort_unstable();
+        assert_eq!(
+            carried, written,
+            "the release commit does not carry every file the release wrote"
+        );
         for addition in additions {
             let path = addition["path"].as_str().unwrap_or_default();
             assert_eq!(
@@ -5285,95 +5568,231 @@ fn main() {
                 "{path} was committed as other bytes than the tree holds"
             );
         }
-        assert!(
-            std::fs::read_to_string(root.join("Cargo.toml"))
-                .expect("written")
-                .contains("version = \"0.1.0-rc.1\""),
-            "the manifest does not carry the release candidate"
-        );
+        for name in CARRIES_THE_VERSION {
+            assert!(
+                std::fs::read_to_string(root.join(name))
+                    .expect("written")
+                    .contains("version = \"0.1.0-rc.1\""),
+                "{name} does not carry the release candidate"
+            );
+        }
     }
 
     /// A run on the release commit at `release_commit` asks what GitHub
     /// holds, and makes only what follows the step it stopped after.
+    ///
+    /// **Only this repository's own pull request is ever merged or queued**: a
+    /// fork's from a branch of the same name is passed over, open or closed,
+    /// and the release opens its own.
     fn carried_on_after_each_step(root: &Path, release_commit: &str, bin: &Path, fixtures: &Path) {
-        let steps = the_steps_answered(release_commit);
-        for (stopped_after, holds, missing) in [
-            ("the commit", holding(None, false, None), &steps[..]),
+        for (stopped_after, holds, missing, expected) in the_runs_carried_on(release_commit) {
+            let mut answers = vec![holds];
+            answers.extend(missing);
+            published_on_staging(root, &a_github(bin, fixtures, &answers))
+                .unwrap_or_else(|error| panic!("carried on after {stopped_after}: {error}"));
+            let calls = the_calls(fixtures);
+            let made = asked(&calls);
+            assert_eq!(
+                made.first().map(String::as_str),
+                Some("WhatGitHubHolds"),
+                "carried on after {stopped_after}"
+            );
+            assert_eq!(
+                made[1..],
+                expected,
+                "carried on after {stopped_after}, the release asked {made:?}"
+            );
+            for (call, operation) in calls.iter().zip(&made) {
+                if operation.ends_with("/git/refs") {
+                    assert_eq!(
+                        call.request["sha"], release_commit,
+                        "the tag is not at HEAD"
+                    );
+                }
+                if operation == "AutoMerge" || operation == "MergedNow" {
+                    assert_eq!(
+                        call.request["variables"]["id"], "PR_seven",
+                        "carried on after {stopped_after}, {operation} was asked for a pull \
+                         request that is not the release's"
+                    );
+                }
+            }
+        }
+    }
+
+    /// Each run carried on from the release commit at `release_commit`.
+    ///
+    /// What it stopped after, what GitHub holds, the answers to what it then
+    /// makes, and what it asks for after the question.
+    fn the_runs_carried_on(
+        release_commit: &str,
+    ) -> Vec<(&'static str, String, Vec<String>, Vec<&'static str>)> {
+        let [tag, release, opened, queued] = the_steps_answered(release_commit);
+        let merged = answered(
+            &serde_json::json!({ "data": { "mergePullRequest": { "pullRequest": { "number": 7, "merged": true } } } }),
+        );
+        let ours = |state: &str, auto: bool| {
+            a_pull_request("chore(release): carry v0.1.0-rc.1 back to dev", state, auto)
+        };
+        let earlier = |state: &str| {
+            a_pull_request(
+                "chore(release): carry v0.0.9-rc.1 back to dev",
+                state,
+                false,
+            )
+        };
+        let mut passed = ours("OPEN", false);
+        passed["mergeStateStatus"] = "CLEAN".into();
+        let stranger = a_forks_pull_request("OPEN", Some("stranger/probe"));
+        let at = Some(release_commit);
+        let (refs, releases, pulls) = (
+            "repos/noctua-world/probe/git/refs",
+            "repos/noctua-world/probe/releases",
+            "repos/noctua-world/probe/pulls",
+        );
+        let opened_and_queued = vec![opened.clone(), queued.clone()];
+        vec![
+            (
+                "the commit",
+                holding_these(None, false, &[]),
+                vec![tag, release.clone(), opened.clone(), queued.clone()],
+                vec![refs, releases, pulls, "AutoMerge"],
+            ),
             (
                 "the tag",
-                holding(Some(release_commit), false, None),
-                &steps[1..],
+                holding_these(at, false, &[]),
+                vec![release, opened, queued.clone()],
+                vec![releases, pulls, "AutoMerge"],
             ),
             (
                 "the release",
-                holding(Some(release_commit), true, None),
-                &steps[2..],
+                holding_these(at, true, &[]),
+                opened_and_queued.clone(),
+                vec![pulls, "AutoMerge"],
             ),
             (
                 "the pull request",
-                holding(Some(release_commit), true, Some(("OPEN", false))),
-                &steps[3..],
+                holding_these(at, true, &[ours("OPEN", false)]),
+                vec![queued.clone()],
+                vec!["AutoMerge"],
             ),
             (
                 "auto-merge",
-                holding(Some(release_commit), true, Some(("OPEN", true))),
-                &steps[4..],
+                holding_these(at, true, &[ours("OPEN", true)]),
+                vec![],
+                vec![],
             ),
             (
                 "the merge",
-                holding(Some(release_commit), true, Some(("MERGED", false))),
-                &steps[4..],
+                holding_these(at, true, &[ours("MERGED", false)]),
+                vec![],
+                vec![],
+            ),
+            // **Checks that finished before auto-merge was asked for**: GitHub
+            // refuses auto-merge there, so the pull request is merged.
+            (
+                "the pull request's checks, passed",
+                holding_these(at, true, &[passed]),
+                vec![merged],
+                vec!["MergedNow"],
             ),
             // **An earlier release's pull request, still open, carries this
             // one** — its head is the branch — and one already merged does not.
             (
                 "an earlier release's pull request, still open",
-                holding_titled(
-                    Some(release_commit),
-                    true,
-                    Some((
-                        "chore(release): carry v0.0.9-rc.1 back to dev",
-                        "OPEN",
-                        false,
-                    )),
-                ),
-                &steps[3..],
+                holding_these(at, true, &[earlier("OPEN")]),
+                vec![queued.clone()],
+                vec!["AutoMerge"],
             ),
             (
                 "an earlier release's pull request, merged",
-                holding_titled(
-                    Some(release_commit),
-                    true,
-                    Some((
-                        "chore(release): carry v0.0.9-rc.1 back to dev",
-                        "MERGED",
-                        false,
-                    )),
-                ),
-                &steps[2..],
+                holding_these(at, true, &[earlier("MERGED")]),
+                opened_and_queued.clone(),
+                vec![pulls, "AutoMerge"],
             ),
+            // **A fork's, open and ready to merge, is not this release's**,
+            // nor is one closed under this release's title.
+            (
+                "a fork's pull request, open and ready",
+                holding_these(at, true, std::slice::from_ref(&stranger)),
+                opened_and_queued.clone(),
+                vec![pulls, "AutoMerge"],
+            ),
+            (
+                "a fork's pull request, closed under the release's title, the fork deleted",
+                holding_these(at, true, &[a_forks_pull_request("CLOSED", None)]),
+                opened_and_queued,
+                vec![pulls, "AutoMerge"],
+            ),
+            (
+                "a fork's pull request beside the release's own",
+                holding_these(at, true, &[stranger, ours("OPEN", false)]),
+                vec![queued],
+                vec!["AutoMerge"],
+            ),
+        ]
+    }
+
+    /// A tree holding what no commit has is neither written nor published.
+    ///
+    /// **A file no commit holds, and a member's manifest edited**: either would
+    /// be relocked into a release commit that does not carry it. The refusal
+    /// names it, the tree is the tree it was given, and GitHub is asked
+    /// nothing.
+    #[test]
+    fn a_tree_holding_what_no_commit_has_is_not_released() {
+        let (fake, bin) = a_fake_gh();
+        let repository = a_workspace("unclean", &["fix: something to release"]);
+        let root = repository.root();
+        let fixtures = fake.root.join("fixtures");
+        let inherited = this_environment();
+        let member = root.join("probe/Cargo.toml");
+        let committed = std::fs::read_to_string(&member).expect("the member's manifest");
+        for (what, named) in [
+            ("a file no commit holds", "probe/notes.txt"),
+            ("a member's manifest edited", "probe/Cargo.toml"),
         ] {
-            let mut answers = vec![holds];
-            answers.extend(missing.iter().cloned());
-            published_on_staging(root, &a_github(bin, fixtures, &answers))
-                .unwrap_or_else(|error| panic!("carried on after {stopped_after}: {error}"));
-            let calls = the_calls(fixtures);
-            assert_eq!(
-                calls.len(),
-                answers.len(),
-                "carried on after {stopped_after}, the release asked {:?}",
-                asked(&calls)
-            );
-            assert_eq!(asked(&calls)[0], "WhatGitHubHolds");
-            if let Some(tagged) = calls
-                .iter()
-                .find(|call| asked(std::slice::from_ref(call))[0].ends_with("/git/refs"))
-            {
-                assert_eq!(
-                    tagged.request["sha"], release_commit,
-                    "the tag is not at HEAD"
+            let (path, text) = if named == "probe/notes.txt" {
+                (root.join(named), "a note\n".to_owned())
+            } else {
+                (
+                    member.clone(),
+                    format!("{committed}description = \"edited\"\n"),
+                )
+            };
+            std::fs::write(path, text).expect("a writable scratch");
+            let before = every_file_under(&root);
+            let written = super::released(&a_setting(
+                &root,
+                Channel::Staging,
+                Mode::Write,
+                &inherited,
+                None,
+            ))
+            .expect_err(what);
+            let published = published_on_staging(
+                &root,
+                &a_github(&bin, &fixtures, &[holding(None, false, None)]),
+            )
+            .expect_err(what);
+            for refused in [written, published] {
+                assert!(
+                    refused.contains("the tree holds changes no commit has")
+                        && refused.contains(named),
+                    "{what}: {refused}"
                 );
             }
+            assert!(
+                the_calls(&fixtures).is_empty(),
+                "{what}: GitHub was asked about a tree no commit holds"
+            );
+            assert_eq!(
+                changed_between(&before, &every_file_under(&root)),
+                Vec::<String>::new(),
+                "{what}: a refused release changed the tree"
+            );
+            repository.git(&["checkout", "-q", "--", "."]);
+            let _ = std::fs::remove_file(root.join("probe/notes.txt"));
         }
     }
 

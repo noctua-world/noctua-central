@@ -708,6 +708,27 @@ WEAKENINGS = [
     ("release", "of", "gh is handed none of its own variables but the token",
      "            .filter(|(key, _)| !ghs_own(key))",
      "            .filter(|_| true)"),
+    # **What a run on a release commit, and a release from a tree, are held
+    # to.** A release commit at another version, a tree holding what no commit
+    # has, a fork's pull request taken as the one carrying the release back,
+    # and auto-merge asked of a pull request GitHub would merge now each
+    # publish what nobody wrote or reviewed, or stop a release for good, and
+    # only the test written for each says so.
+    ("release", "carried_on", "a release commit carries its own version",
+     "    if manifest != version {",
+     "    if false {"),
+    ("release", "the_tree_is_clean", "a tree holding what no commit has is not released",
+     "    if status.is_empty() {",
+     "    if status.len() < usize::MAX {"),
+    ("release", "from_this_repository", "a fork's pull request never carries a release",
+     "        Some(true) => Ok(false),",
+     "        Some(true) => Ok(true),"),
+    ("release", "from_this_repository", "this repository's own pull request has its head here",
+     "            if head.is_some_and(|head| head.eq_ignore_ascii_case(repository)) {",
+     "            if head.is_some() {"),
+    ("release", "published", "a pull request whose checks have passed is merged, not queued",
+     "        if carried.mergeable {",
+     "        if false {"),
     # -- history: what a commit and a pull request may say -------------------
     ("history", "subject", "a subject opens with one of the types",
      "    if !TYPES.contains(&kind) {",
