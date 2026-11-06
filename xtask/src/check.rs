@@ -5230,7 +5230,7 @@ fn ci(root: &Path, failures: &mut Vec<String>) {
                     &findings,
                     &format!(
                         "{seen} cargo command(s) in CI's files and the justfile, each one \
-                         the gate, a build, or the install the gate needs"
+                         `cargo xtask <verb>` or the install the gate needs"
                     ),
                     "the CI workflow",
                     failures,
@@ -11550,7 +11550,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 687] = [
     "{read} source line(s) put no lint down without a written reason, and each of {doors} test door(s) says it is one",
     "{realms} realm(s) pin the version of the pack their profile selects, held to {packs} pack manifest(s)",
     "{reserved} error code(s) reserved, and every code this catalog declares is one of them",
-    "{seen} cargo command(s) in CI's files and the justfile, each one the gate, a build, or the install the gate needs",
+    "{seen} cargo command(s) in CI's files and the justfile, each one `cargo xtask <verb>` or the install the gate needs",
     "{seen} service(s) healthy",
     "{seen} table(s) created in the migrations were checked{}{}",
     "{total} line(s) carry a gate's escape hatch, each with a reason — the gates' own fixtures among them",
