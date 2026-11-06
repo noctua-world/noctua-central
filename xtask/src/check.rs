@@ -7726,8 +7726,12 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// This does not say a guard is *right*; `xtask/src/corpus.rs` and
 /// `xtask/mutants.py` are where a predicate's verdict is decided. It says the
 /// guard is still there, which is the question a deletion asks.
+///
+/// **A `static`, because this list is past what clippy will inline as a
+/// constant**, as `OPERATORS` is: one copy rather than one per use, and nothing
+/// reads it at compile time.
 #[cfg(test)]
-const WHAT_THE_GATE_CAN_SAY: [&str; 1024] = [
+static WHAT_THE_GATE_CAN_SAY: [&str; 1026] = [
     // The workflows' bounds (`xtask/src/workflow.rs`): what `.github/` may hold,
     // the authority each workflow opens with, the pins, and how the release is
     // made; and the `CI` step's two verdicts about them.
@@ -7740,7 +7744,9 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 1024] = [
     "`{file}` opens with `permissions: {value}`",
     "`{file}` runs on `{event}`",
     "`{file}` sits under `{WORKFLOWS}/`, which holds `{WORKFLOW}` and `{RELEASE_WORKFLOW}` and nothing else",
-    "`{relative}` leaves a flow collection open past its line",
+    "`{relative}` ends a line at {named}, which no reader here does",
+    "`{relative}` holds a `#` every reader here ends the line at, and YAML reads on past it",
+    "`{relative}` leaves {what} open past its line",
     "`{relative}` uses an action this gate cannot read on its line",
     "`{relative}` writes a key {how}",
     "`{relative}` {what}, which the release workflow alone does",
@@ -10956,7 +10962,7 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 705] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 710] = [
     // The workflows' bounds: their remedies, the release job's steps as
     // `THE_RELEASE_STEPS` writes them, the environment and the line that hands
     // the token on, a step's words when it is missing, and the clean line.
@@ -10969,8 +10975,12 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 705] = [
     "(indented less than the step) {code}",
     "GH_TOKEN: ${{ steps.app.outputs.token }}",
     "GitHub evaluates an expression before anything runs, and `toJSON(steps)` or `steps['app'].outputs.token` hands the App's token to whatever reads the line as surely as `steps.app.outputs.token` does. The release evaluates six, each on a line of its own where `THE_EXPRESSIONS` in `xtask/src/workflow.rs` puts it: the branch in the concurrency group, the environment and the channel, the App's id and key in the step that mints the token, and the token in the release step's `GH_TOKEN`. Anywhere else the key or the token is in the environment of what runs there, this tree's build scripts and tests among them, and the App may push to `staging` and `main` past their rules",
+    "YAML opens a quoted scalar only where a node starts and reads a `#` inside one as text, and the readers here end a line at a `#` outside any quote, the way a shell does: in `{ ke\"y: \"a # b\", permissions: write-all }` YAML reads a grant none of them reads. Write no quote inside a key or a plain value of that line, or no `#` inside its quoted value",
     "a cache holds what an earlier run built and saved — `dev`'s are restored on every branch, and the run that saved one decided what it holds — and the release is built from the branch it releases and nothing else. The release job builds from cold",
+    "a carriage return",
+    "a flow collection",
     "a push to `staging` or `main` is what releases that channel (NOCTUA.md §22.6), and the workflow is what makes the release, and the one place the release App's token is minted",
+    "a quoted scalar",
     "a release is made by a push to a channel's branch and by nothing else (NOCTUA.md §22.6): another event, another branch, a tag or a path filter releases from something that is not a channel, or does not release where one is. Write `on:`, then `push:` under it, then `branches: [staging, main]` under that",
     "a tag or a branch is a name its owner can move, so the code a step runs could change under a workflow nobody edited — in the job that holds the release App's token as in any other — and a full 40-character commit cannot. Pin it by the commit, with its release in a comment after it",
     "a workflow there is one GitHub runs on its own events, with its own token and its own way into the environments that hold the release App's key, and a script or an action there is code a step runs. A file belongs there with a rule that reads it: name it in `THE_WORKFLOWS` and say what holds it",
@@ -10983,9 +10993,10 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 705] = [
     "every job in it runs on the push that releases a channel, and the rules here read the `release` job alone; a second is a job nothing holds to the steps, the environment or the token. What it would do belongs in the gate",
     "every job without a `permissions:` of its own holds what the top of the file grants, and here that is to be nothing: write `permissions: {}` there, and let each job ask for reading the tree",
     "every key there is one a rule here reads, and the others change what runs beside the App's token: `env:` and `defaults:` reach every step, `container:` runs each inside an image this tree does not build, `services:` starts one beside them, and `strategy:` runs the job more than once. A key written twice is one YAML reads one way and a reader another. A key to add is a line in `THE_RELEASE_WORKFLOWS_KEYS` or `THE_RELEASE_JOBS_KEYS`, with the rule that reads it",
+    "every rule on CI's files reads a line up to its line feed, and a YAML parser ends one at a carriage return too, and some at NEL, LS and PS, so what follows one on a comment or a step's name is a key or a step GitHub reads and no rule here does. End each line with a line feed alone",
     "every rule on a workflow reads a key by the word written before its colon on the line it opens, and a key written after `?`, as an alias or merged in with `<<` is one none of them reads: the environment, the permissions, the actions and the conditions would all pass it unjudged. Write the key out where it stands, as `name: value`",
     "group: release-${{ github.ref }}",
-    "inside `{` or `[` YAML lets an entry, its colon among it, run on to a later line, and every rule on a workflow reads a key with its colon on the line the key stands on: `{ permissions` with `: write-all }` below it is a grant none of them reads. Close each `{` and `[` on the line that opens it, or write the mapping as a block",
+    "inside `{` or `[` YAML lets an entry, its colon among it, run on to a later line, and inside a quote it reads the lines that follow as text; every rule on a workflow reads a key with its colon on the line the key stands on, so `{ permissions` with `: write-all }` below it is a grant none of them reads, and a key inside an open quote is one they read and GitHub does not. Close each `{`, `[` and quote on the line that opens it, or write the mapping as a block",
     "it runs with this repository's secrets and a token that may write, on behalf of a change made in a fork, and a build script of that change holds what the run holds. A pull request is judged on `pull_request`, which a fork's runs with no secret and a token that can only read",
     "nothing at all",
     "private-key: ${{ secrets.RELEASE_APP_KEY }}",
@@ -18887,7 +18898,7 @@ mod the_frozen_path_rule {
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 30, 6),
         ("xtask/ui.rs", 52, 12),
         ("xtask/wall.rs", 129, 28),
-        ("xtask/workflow.rs", 218, 23),
+        ("xtask/workflow.rs", 234, 23),
     ];
 
     /// The name an item declaration introduces, for the message below.
@@ -21661,8 +21672,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 544 scratches this tree
-    /// builds, 456 of the 544 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 546 scratches this tree
+    /// builds, 458 of the 546 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -21766,7 +21777,7 @@ mod the_frozen_path_rule {
         ("xtask/sections.rs", 9, 1),
         ("xtask/ui.rs", 1, 0),
         ("xtask/wall.rs", 3, 2),
-        ("xtask/workflow.rs", 28, 10),
+        ("xtask/workflow.rs", 30, 12),
     ];
 
     /// Where every function in a blanked file begins and ends, in char offsets.
@@ -24629,7 +24640,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14939;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14973;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24648,7 +24659,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3034;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3032;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -24665,7 +24676,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 996;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 995;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -24699,7 +24710,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 20945;
+    const THE_REARRANGEMENTS_JUDGED: usize = 21033;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24753,7 +24764,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **442 of 20,945 are accepted by the first-line
+    /// rules the gates apply: **442 of 21,033 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -24786,7 +24797,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **996 of
+    /// this tree offers, **995 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -26976,7 +26987,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 705;
+    const THE_REST_IT_SAYS: usize = 710;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -29248,7 +29259,7 @@ mod the_frozen_path_rule {
     /// Seven words of each remedy, because a remedy is long and its opening is
     /// what tells one from another; the rule beside the list is that those
     /// seven are unique.
-    const WHAT_A_REMEDY_ANSWERS: [(&str, &str, &str); 142] = [
+    const WHAT_A_REMEDY_ANSWERS: [(&str, &str, &str); 145] = [
         (
             "counts.rs",
             "this document has an odd number of",
@@ -29661,6 +29672,11 @@ mod the_frozen_path_rule {
         ),
         (
             "workflow.rs",
+            "`{relative}` ends a line at {named}, which",
+            "every rule on CI's files reads a",
+        ),
+        (
+            "workflow.rs",
             "`{WORKFLOWS}/` could not be walked: {error}",
             "what sits there is what GitHub runs,",
         ),
@@ -29726,8 +29742,13 @@ mod the_frozen_path_rule {
         ),
         (
             "workflow.rs",
-            "`{relative}` leaves a flow collection open past",
+            "`{relative}` leaves {what} open past its line",
             "inside `{` or `[` YAML lets an",
+        ),
+        (
+            "workflow.rs",
+            "`{relative}` holds a `#` every reader here",
+            "YAML opens a quoted scalar only where",
         ),
         (
             "workflow.rs",
@@ -29923,6 +29944,11 @@ mod the_frozen_path_rule {
             "workflow.rs",
             "a step's commands are inside `{word}`, so",
             "a check CI runs has to run.",
+        ),
+        (
+            "workflow.rs",
+            "— handed in, not written at this site",
+            "— handed in, not written at this site",
         ),
         (
             "workflow.rs",
@@ -35632,7 +35658,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1581] = [
+    static OPERATORS: [(&str, &str, &str); 1610] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -37203,7 +37229,7 @@ Options:
         ),
         (
             "workflow",
-            "as_yaml_reads_them",
+            "the_lines_a_backslash_joins",
             "a line a backslash continues is two lines",
         ),
         (
@@ -37301,12 +37327,12 @@ Options:
         ("workflow", "the_keys_not_written_out", "a merge is no key"),
         (
             "workflow",
-            "the_flow_collections_left_open",
+            "the_lines_left_open",
             "a flow collection may run over lines",
         ),
         (
             "workflow",
-            "the_flow_collections_left_open",
+            "the_lines_of_yaml",
             "a block scalar's braces are a flow collection",
         ),
         (
@@ -37324,6 +37350,151 @@ Options:
             "workflow",
             "the_actions_used",
             "a quoted action keeps its quotes",
+        ),
+        (
+            "workflow",
+            "every_workflow_is_bounded",
+            "a line may end wherever YAML ends one",
+        ),
+        (
+            "workflow",
+            "every_line_ends_at_a_line_feed",
+            "a line holding another break is one line",
+        ),
+        (
+            "workflow",
+            "every_line_ends_at_a_line_feed",
+            "only a file GitHub runs ends its lines",
+        ),
+        (
+            "workflow",
+            "as_yaml_reads_them",
+            "the line after a backslash is read joined alone",
+        ),
+        (
+            "workflow",
+            "the_lines_a_backslash_joins",
+            "a run of backslashes is joined from its first line alone",
+        ),
+        (
+            "workflow",
+            "nothing_made_elsewhere_starts_it",
+            "an escaped event is read as written",
+        ),
+        (
+            "workflow",
+            "nothing_made_elsewhere_starts_it",
+            "an event in capitals is another event",
+        ),
+        (
+            "workflow",
+            "the_property_ending",
+            "a verbatim tag is read as words",
+        ),
+        (
+            "workflow",
+            "the_property_ending",
+            "a verbatim tag may hold a space",
+        ),
+        (
+            "workflow",
+            "the_property_ending",
+            "a verbatim tag may follow any letter",
+        ),
+        (
+            "workflow",
+            "the_lines_left_open",
+            "a quoted scalar may run over lines",
+        ),
+        (
+            "workflow",
+            "the_line_read_as_yaml",
+            "a quote is always a letter",
+        ),
+        (
+            "workflow",
+            "the_line_read_as_yaml",
+            "a quote anywhere opens a scalar",
+        ),
+        (
+            "workflow",
+            "the_line_read_as_yaml",
+            "a doubled single quote closes the scalar",
+        ),
+        (
+            "workflow",
+            "the_line_read_as_yaml",
+            "a backslash's quote closes the scalar",
+        ),
+        (
+            "workflow",
+            "the_line_read_as_yaml",
+            "a # inside a quote opens a comment",
+        ),
+        (
+            "workflow",
+            "a_node_may_open_after",
+            "a value's quote is a letter",
+        ),
+        (
+            "workflow",
+            "a_node_may_open_after",
+            "a value's colon needs no space",
+        ),
+        (
+            "workflow",
+            "a_node_may_open_after",
+            "a property hides the quote after it",
+        ),
+        (
+            "workflow",
+            "no_step_runs_on_a_condition",
+            "an escaped condition is read as written",
+        ),
+        (
+            "workflow",
+            "no_step_runs_on_a_condition",
+            "a condition below its key is none",
+        ),
+        (
+            "workflow",
+            "no_step_runs_on_a_condition",
+            "a condition is read where a line opens on it alone",
+        ),
+        (
+            "workflow",
+            "every_key_is_written_out",
+            "a comment cut too soon is passed",
+        ),
+        (
+            "workflow",
+            "the_comments_cut_too_soon",
+            "a comment cut later is cut too soon",
+        ),
+        (
+            "workflow",
+            "the_comments_cut_too_soon",
+            "no comment is cut too soon",
+        ),
+        (
+            "workflow",
+            "the_line_read_as_yaml",
+            "a comment ends no code",
+        ),
+        (
+            "workflow",
+            "with_the_letters_its_escapes_spell",
+            "an escape that spells a # or a space is resolved",
+        ),
+        (
+            "workflow",
+            "with_the_letters_its_escapes_spell",
+            "no escape is resolved",
+        ),
+        (
+            "workflow",
+            "no_verdict_is_discarded",
+            "a key that neuters a step is read as a needle alone",
         ),
         (
             "determinism",

@@ -1787,7 +1787,9 @@ gate's `CI` step refuses the tree otherwise, before any run of the release can.
   tag, no path filter, no other event. Those branches are the channels `--channel`
   accepts, and a test holds the two lists to one set. Neither workflow runs on
   `pull_request_target` or `workflow_run`, each of which runs with this repository's
-  secrets on behalf of a change made in a fork.
+  secrets on behalf of a change made in a fork: the name is refused wherever it stands
+  outside a comment, however it is written — a key or an entry of a flow sequence, quoted,
+  behind a `\x` or `\u` escape, across a backslash's line break, or in capitals.
 - **Its one job enters `release-${{ github.ref_name }}`**, the environment of the branch
   pushed to, which GitHub lets a job enter from that branch alone and which holds the
   App's id and its key: no other branch and no pull request can mint the App's token.
@@ -1803,20 +1805,37 @@ gate's `CI` step refuses the tree otherwise, before any run of the release can.
   the justfile and a script a step runs among them, is refused if it holds `--publish`. A
   justfile or a script holds no expression GitHub evaluates and no key a runner reads, so
   the first four are not read there, and `docker-compose.yml`, which CI reaches, holds an
-  `environment:` of the stack's own. Each line is read as written, with a double-quoted
-  scalar's escapes resolved and a line a backslash continues joined to the next, and an
-  expression is read in a comment too, because inside a block scalar a `#` line is text
-  GitHub evaluates. The token's action is not on the actions every file shares
-  (`SETS_UP_AND_JUDGES_NOTHING`): the release job runs it as its first step, and no other
-  step anywhere runs it at all.
+  `environment:` of the stack's own. Each line is read on its own, as written and with a
+  double-quoted scalar's escapes resolved, and once more joined to the lines a backslash at
+  its end continues: a backslash continues a double-quoted scalar and a shell's line, and
+  at the end of a comment or a plain scalar it continues nothing, so the line after it is
+  read as a line of its own as well. An expression is read in a comment too, because
+  inside a block scalar a `#` line is text GitHub evaluates. The token's action is not on
+  the actions every file shares (`SETS_UP_AND_JUDGES_NOTHING`): the release job runs it as
+  its first step, and no other step anywhere runs it at all.
 - **Every key of a file GitHub runs is written out, as a word before its colon on one
   line**, because every rule here reads a key that way. A key after `?` (YAML's explicit
   form, its value after a `:` on the line below), an alias standing for a key, `<<`
-  merging a mapping anchored elsewhere, and a `{` or `[` left open past its line, inside
-  which a key's colon may stand on a later line, are each refused in both workflows and in
-  a composite action. Written any of those ways, `? environment` with `: release-main`
-  below it, or `{ permissions` with `: write-all }` below it, would pass the rule that
-  reads that key. A block scalar's lines are a command's text and are not read for braces.
+  merging a mapping anchored elsewhere, a `{` or `[` left open past its line, inside
+  which a key's colon may stand on a later line, and a quoted scalar left open past its
+  line, whose following lines are text to YAML and keys to a reader of lines, are each
+  refused in both workflows and in a composite action — a double-quoted scalar a backslash
+  continues among them. Written any of those ways, `? environment` with `: release-main`
+  below it, `{ permissions` with `: write-all }` below it, or `name: "check` above the
+  only `permissions: {}` of a file, would pass the rule that reads that key. A quote opens
+  a scalar only where YAML starts a node, so `it's` and `echo "a"` are letters of a plain
+  scalar; inside a quote a bracket and a `#` are text. **And no `#` the readers end a line
+  at where YAML reads on**: they end a line's code at a `#` outside a quote as a shell
+  does, with any quote opening a span, so in `{ ke"y: "a # b", permissions: write-all }`
+  they stop at the `#`, and YAML reads a string and then a grant. A line YAML ends sooner
+  than the readers do is read for more than it holds, and passes. A block scalar's lines
+  are a command's text and are not read for braces, quotes or comments.
+- **Every file CI reaches ends each line at a line feed, and nowhere else**, the justfile
+  and a script a step runs among them, because every reader here splits a file there. A
+  carriage return with no line feed after it ends a line to YAML, and NEL, LS and PS end
+  one to a YAML 1.1 parser, so a key or a step after one on a comment or a step's `name:`
+  is read by GitHub and by no rule: each is refused, by name and line. A carriage return
+  before a line feed is part of it.
 - **The file and its job hold their own keys and no other**: `name`, `on`, `permissions`,
   `concurrency` and `jobs` at the top, and `runs-on`, `environment`, `permissions` and
   `steps` in the job, each once. `env:` or `defaults:` would reach every step, the
@@ -1843,10 +1862,10 @@ gate's `CI` step refuses the tree otherwise, before any run of the release can.
   `GH_TOKEN: ${{ steps.app.outputs.token }}` in the release step. Any other line holding
   `${{` is refused, so the token reaches no other step however an expression names it —
   `steps['app'].outputs.token`, `toJSON(steps)`, `github['token']`, `toJSON(github)` —
-  and the file is read the way the other files are: escapes resolved, continued lines
-  joined, comments included. The token is minted with contents and pull requests to write and
-  nothing more, so it stays that narrow if the App is ever granted more, and the action
-  that mints it revokes it when the job ends.
+  and the file is read the way the other files are: each line on its own and joined to the
+  lines a backslash continues, escapes resolved, comments included. The token is minted
+  with contents and pull requests to write and nothing more, so it stays that narrow if the
+  App is ever granted more, and the action that mints it revokes it when the job ends.
 - **It restores no cache.** A cache holds what an earlier run saved — `dev`'s are restored
   on every branch — and the release is built from its branch and nothing an earlier run,
   or a pull request, left behind.
@@ -1854,13 +1873,15 @@ gate's `CI` step refuses the tree otherwise, before any run of the release can.
   nothing more, in a block, a flow mapping or a word: the release writes with the App's
   token and never with the workflow's, and the gate writes nothing on GitHub. Every
   `permissions` key is read wherever YAML opens one — quoted, behind an escape, after an
-  anchor or a tag, or in a job written whole as a flow mapping — and a grant other than
-  `contents: read`, its quotes taken off, is refused.
+  anchor or a tag (a verbatim tag such as `!<tag:yaml.org,2002:str>` runs to its `>`), on
+  the line after a backslash that continues nothing, or in a job written whole as a flow
+  mapping — and a grant other than `contents: read`, its quotes taken off, is refused.
 - **Every action is pinned to a full commit, with its release in a comment** — in either
   workflow, and in a composite action a step reaches — so a tag its owner moves changes
   nothing that runs here. Moving a pin is the commit and the comment, together. Every
   `uses` key of a line is judged wherever YAML opens one: first or after another key of a
-  flow mapping, quoted or escaped, after an anchor or a tag, and inside a flow sequence.
+  flow mapping, quoted or escaped, after an anchor or a tag, a verbatim tag among them, and
+  inside a flow sequence.
   A `uses` whose action is not written plainly on its own line — a value on the line
   below, a block scalar, a value carrying an anchor or a tag, an alias, a collection, or a
   key a backslash carries across a line break — is refused, and the allow-list counts it
@@ -2253,15 +2274,21 @@ rather than anything decided for the project, and each is a maintainer's to reop
   rustup, which reads `rust-toolchain.toml` because no toolchain is named; a rustup that
   needs one named fails that step.
 - **The readers of keys read YAML as lines, not as a parsed document**: a key is a word,
-  plain or quoted, where YAML may open one on a line, with its colon on that line, and
-  each way YAML has of writing a key elsewhere is refused rather than parsed (`?`, an
-  alias, `<<`, a flow collection left open past its line). A spelling outside those, if
-  YAML has one, is read by none of the rules that read keys; the word `secrets`, which is
-  refused wherever it stands in a file GitHub runs, is then what keeps the App's key out
-  of a job whatever environment it enters. A line inside a block scalar is not read for
-  braces, and a block scalar is recognised by its header on the line of its key, so a
-  header this reader does not know leaves its lines read as YAML, which refuses more and
-  never less.
+  plain or quoted, where YAML may open one on a line, after any anchor or tag of its own,
+  with its colon on that line. Each way YAML has of putting a key's text elsewhere is
+  refused rather than parsed: `?`, an alias, `<<`, a flow collection or a quoted scalar
+  left open past its line, a `#` the readers end a line at where YAML reads on, and a
+  line ended at a carriage return, NEL, LS or PS. A spelling outside those, if YAML has
+  one, is read by none of the rules that read keys; the word `secrets`, which is refused
+  wherever it stands in a file GitHub runs, is then what keeps the App's key out of a job
+  whatever environment it enters. A double-quoted scalar a backslash continues is
+  refused, though YAML reads it as one line, because its second line read on its own is
+  text read as keys; and a `{` or `[` outside a quote is counted wherever it stands, a
+  plain scalar's own among them, so `run: echo {` is refused as a collection left open.
+  Both refuse more than YAML holds, never less. A line inside a block scalar is text to
+  YAML and is not read for braces, quotes or comments, and a block scalar is recognised by
+  its header on the line of its key, so a header this reader does not know leaves its
+  lines read as YAML, which refuses more and never less.
 - **The comparison gate's subject is public fields and accessors, not everything the
   compiler writes**: `pub const` arrays (`AREAS`, `KEYS`, `COMMANDS`, `TABLES`, `STORES`,
   `RATE_LIMITS`, `EVENTS`, each `ALL`), enum variants, functions taking an argument, and
@@ -2509,7 +2536,11 @@ a composite action or an action whose job is to run cargo; and in the justfile.
   the reader cannot read on its line is one off the list.
 - The gate refuses a workflow that fires on nothing and a step whose verdict does not
   count, and checks that each job still runs what its name says: the determinism job
-  builds **twice**, in the order that makes the second generation a second process.
+  builds **twice**, in the order that makes the second generation a second process. A
+  condition in either workflow, and a step's own `shell` and `continue-on-error` in any
+  file GitHub runs, are read as keys wherever YAML opens one — quoted, escaped, after an
+  anchor or a tag, in a flow mapping, and a condition written on the lines below its key —
+  as well as by the words a line spells.
 
 ### A compile-fail fixture proves what rustc refused, not what it wrote
 

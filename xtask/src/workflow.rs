@@ -1174,15 +1174,17 @@ pub(crate) fn only_runs_the_gate(root: &Path) -> Result<(Vec<Finding>, usize), S
 /// [`WITH_THIS_REPOSITORYS_AUTHORITY`]; every action any file CI reaches uses
 /// is pinned to a full commit, with its release in a comment; the release is
 /// made as [`the_release_runs_as_written`] says; no other file CI reaches
-/// holds what makes one ([`nothing_else_holds_the_releases_authority`]); and
+/// holds what makes one ([`nothing_else_holds_the_releases_authority`]);
 /// every key of a file GitHub runs is written out where a rule reads it
-/// ([`every_key_is_written_out`]).
+/// ([`every_key_is_written_out`]); and every file CI reaches ends its lines
+/// where every reader here ends them ([`every_line_ends_at_a_line_feed`]).
 ///
 /// The count is of the actions [`every_action_is_a_commit`] judged, for the
 /// floor the step puts under it: every other rule here requires something that
 /// a reader which read nothing cannot find, and that one only refuses.
 pub(crate) fn every_workflow_is_bounded(root: &Path) -> (Vec<Finding>, usize) {
     let mut findings = Vec::new();
+    every_line_ends_at_a_line_feed(root, &mut findings);
     github_holds_the_workflows(root, &mut findings);
     for file in THE_WORKFLOWS {
         let path = root.join(file);
@@ -1214,6 +1216,61 @@ pub(crate) fn every_workflow_is_bounded(root: &Path) -> (Vec<Finding>, usize) {
     every_key_is_written_out(root, &mut findings);
     let judged = every_action_is_a_commit(root, &mut findings);
     (findings, judged)
+}
+
+/// The characters a YAML parser may end a line at and [`str::lines`] does
+/// not, each with the name a finding gives it: a carriage return with no line
+/// feed after it, where YAML 1.2 ends one, and NEL, LS and PS, where a YAML
+/// 1.1 parser ends one as well.
+const THE_OTHER_LINE_BREAKS: [(char, &str); 4] = [
+    ('\r', "a carriage return"),
+    ('\u{85}', "U+0085 (NEL)"),
+    ('\u{2028}', "U+2028 (LS)"),
+    ('\u{2029}', "U+2029 (PS)"),
+];
+
+/// Every file CI reaches ends each line at a line feed, and at none of
+/// [`THE_OTHER_LINE_BREAKS`].
+///
+/// **Every reader here splits a file at a line feed**, and a carriage return
+/// before one goes with it; YAML also ends a line at a carriage return of its
+/// own, and a YAML 1.1 parser at NEL, LS and PS. What follows one of those on
+/// a comment, or on a step's `name:`, which the release's steps leave out as a
+/// label, is YAML no rule here reads. Measured: a step carried after a
+/// carriage return in a comment of `release.yml`, and a `workflow_dispatch`
+/// trigger after one under `on:`, passed the whole gate with `check passed`.
+/// **Every file CI reaches, not the workflows alone**, because the cargo walk
+/// splits the justfile and a script a step runs the same way.
+fn every_line_ends_at_a_line_feed(root: &Path, findings: &mut Vec<Finding>) {
+    // A walk that stopped is said by `every_action_is_a_commit`, which walks
+    // the same files.
+    let Ok((files, _)) = everything_ci_reaches(root) else {
+        return;
+    };
+    for path in files {
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let relative = relative_to(root, &path);
+        for (at, line) in text.lines().enumerate() {
+            for (_, named) in THE_OTHER_LINE_BREAKS
+                .iter()
+                .filter(|&&(other, _)| line.contains(other))
+            {
+                findings.push(Finding {
+                    file: relative.clone(),
+                    line: at + 1,
+                    what: format!("`{relative}` ends a line at {named}, which no reader here does"),
+                    fix: "every rule on CI's files reads a line up to its line feed, and a YAML \
+                          parser ends one at a carriage return too, and some at NEL, LS and PS, \
+                          so what follows one on a comment or a step's name is a key or a step \
+                          GitHub reads and no rule here does. End each line with a line feed \
+                          alone"
+                        .to_owned(),
+                });
+            }
+        }
+    }
 }
 
 /// `.github/` holds every one of [`THE_WORKFLOWS`], and nothing else.
@@ -1271,10 +1328,13 @@ fn github_holds_the_workflows(root: &Path, findings: &mut Vec<Finding>) {
 /// job runs. Opened with none, a job holds only what it asks for.
 ///
 /// **Every `permissions` key, wherever YAML opens one** ([`the_keys_named`]):
-/// quoted, behind an escape, or in a job written as a flow mapping. Each line
-/// is read both ways [`as_yaml_reads_them`] gives it. Read only where a line
-/// opens on the bare word, a job of `ci.yml` under `"permissions":` held a
-/// token that writes, with nothing said.
+/// quoted, behind an escape, after an anchor or a tag, or in a job written as
+/// a flow mapping. Each line is read every way [`as_yaml_reads_them`] gives
+/// it: on its own as written and with the escapes that spell letters
+/// resolved, and joined to the lines a backslash at its end continues. Read only where a line opens on the
+/// bare word, a job of `ci.yml` under `"permissions":` held a token that
+/// writes, with nothing said; and read only joined, `name: gate \` hid
+/// a `permissions: write-all` on the line after it.
 fn no_authority_but_reading(file: &str, text: &str, findings: &mut Vec<Finding>) {
     let lines: Vec<&str> = text.lines().collect();
     let mut opened = false;
@@ -1375,22 +1435,34 @@ fn the_grants(lines: &[&str], at: usize, value: &str) -> Vec<String> {
 
 /// No workflow runs on an event that lends a change made elsewhere this
 /// repository's authority ([`WITH_THIS_REPOSITORYS_AUTHORITY`]).
+///
+/// **Read as a word, every way YAML may read the line** ([`as_yaml_reads_them`])
+/// and without regard to case, so a block key, a flow sequence, a quoted name
+/// and an escape are each the event. Read as the line is written alone,
+/// `"pull_request\x5ftarget":` under `on:` started `ci.yml` on a fork's pull
+/// request with nothing said.
 fn nothing_made_elsewhere_starts_it(file: &str, text: &str, findings: &mut Vec<Finding>) {
-    for (at, line) in text.lines().enumerate() {
-        let code = the_code_before_a_comment(line);
-        for event in WITH_THIS_REPOSITORYS_AUTHORITY {
-            if code.contains(event) {
-                findings.push(Finding {
-                    file: file.to_owned(),
-                    line: at + 1,
-                    what: format!("`{file}` runs on `{event}`"),
-                    fix: "it runs with this repository's secrets and a token that may write, \
-                          on behalf of a change made in a fork, and a build script of that \
-                          change holds what the run holds. A pull request is judged on \
-                          `pull_request`, which a fork's runs with no secret and a token that \
-                          can only read"
-                        .to_owned(),
-                });
+    let mut said: Vec<(usize, &str)> = Vec::new();
+    for (at, read) in as_yaml_reads_them(text) {
+        let codes = read
+            .iter()
+            .map(|version| the_code_before_a_comment(version).to_ascii_lowercase());
+        for code in codes {
+            for event in WITH_THIS_REPOSITORYS_AUTHORITY {
+                if code.contains(event) && !said.contains(&(at, event)) {
+                    said.push((at, event));
+                    findings.push(Finding {
+                        file: file.to_owned(),
+                        line: at + 1,
+                        what: format!("`{file}` runs on `{event}`"),
+                        fix: "it runs with this repository's secrets and a token that may write, \
+                              on behalf of a change made in a fork, and a build script of that \
+                              change holds what the run holds. A pull request is judged on \
+                              `pull_request`, which a fork's runs with no secret and a token \
+                              that can only read"
+                            .to_owned(),
+                    });
+                }
             }
         }
     }
@@ -1405,9 +1477,10 @@ fn nothing_made_elsewhere_starts_it(file: &str, text: &str, findings: &mut Vec<F
 /// **Every `uses` key of every line** ([`the_actions_used`]), and one this
 /// reader cannot read on its line is refused rather than passed over: a value
 /// on the lines below its key, a block scalar, an anchor, a tag, an alias or a
-/// collection, and a key YAML joins across a backslash and a line break,
-/// which no single line holds. The allow-list reads lines as the cargo walk
-/// joins them and would not see that key either.
+/// collection, and a key YAML joins across a backslash and a line break
+/// ([`the_lines_a_backslash_joins`]), which no single line holds. The
+/// allow-list reads lines as the cargo walk joins them and would not see that
+/// key either.
 fn every_action_is_a_commit(root: &Path, findings: &mut Vec<Finding>) -> usize {
     let files = match everything_ci_reaches(root) {
         Ok((files, _)) => files,
@@ -1488,11 +1561,9 @@ fn every_action_is_a_commit(root: &Path, findings: &mut Vec<Finding>) -> usize {
         }
         // **And a key no single line holds**: `"us\` on one line and `es":` on
         // the next are one key to YAML and none to a reader of lines.
-        for (at, read) in as_yaml_reads_them(&text) {
-            if lines[at].ends_with('\\') {
-                for _ in the_actions_used(&read[0]) {
-                    findings.push(not_read(at));
-                }
+        for (at, joined) in the_lines_a_backslash_joins(&text) {
+            for _ in the_actions_used(&joined) {
+                findings.push(not_read(at));
             }
         }
     }
@@ -1566,7 +1637,7 @@ fn nothing_else_holds_the_releases_authority(root: &Path, findings: &mut Vec<Fin
 
 /// Every file GitHub runs that CI reaches writes each key out, as a word
 /// before its colon on one line ([`the_keys_not_written_out`],
-/// [`the_flow_collections_left_open`]).
+/// [`the_lines_left_open`], [`the_comments_cut_too_soon`]).
 ///
 /// **Every rule here reads a key by the word written before its colon**:
 /// `permissions`, `environment`, `uses`, `if`, `shell` and the rest. YAML has
@@ -1577,8 +1648,14 @@ fn nothing_else_holds_the_releases_authority(root: &Path, findings: &mut Vec<Fin
 /// on the line below entered that environment past the rule that refuses one,
 /// and the same three ways pass a grant or an action by every rule that reads
 /// those. A flow collection left open past its line is a fourth, because its
-/// key's colon may stand on a later line. So a file GitHub runs writes none
-/// of them.
+/// key's colon may stand on a later line. A quoted scalar left open is a
+/// fifth, the other way round: the lines it runs on are its text, and a reader
+/// of lines reads them as keys. With `name: "check` at the top of `ci.yml`,
+/// `permissions: {}` on the line after and the quote closed on the line after
+/// that, the file opened with no `permissions` key at all, and the rule that
+/// requires one read the one inside the string. A `#` the readers here take
+/// for a comment where YAML reads on is a sixth, which hides what follows it;
+/// so a file GitHub runs writes none of them.
 fn every_key_is_written_out(root: &Path, findings: &mut Vec<Finding>) {
     // A walk that stopped is said by `every_action_is_a_commit`, which walks
     // the same files.
@@ -1609,16 +1686,34 @@ fn every_key_is_written_out(root: &Path, findings: &mut Vec<Finding>) {
                 });
             }
         }
-        for at in the_flow_collections_left_open(&text) {
+        for (at, what) in the_lines_left_open(&text) {
             findings.push(Finding {
                 file: relative.clone(),
                 line: at + 1,
-                what: format!("`{relative}` leaves a flow collection open past its line"),
+                what: format!("`{relative}` leaves {what} open past its line"),
                 fix: "inside `{` or `[` YAML lets an entry, its colon among it, run on to a \
-                      later line, and every rule on a workflow reads a key with its colon on \
-                      the line the key stands on: `{ permissions` with `: write-all }` below it \
-                      is a grant none of them reads. Close each `{` and `[` on the line that \
-                      opens it, or write the mapping as a block"
+                      later line, and inside a quote it reads the lines that follow as text; \
+                      every rule on a workflow reads a key with its colon on the line the key \
+                      stands on, so `{ permissions` with `: write-all }` below it is a grant \
+                      none of them reads, and a key inside an open quote is one they read and \
+                      GitHub does not. Close each `{`, `[` and quote on the line that opens it, \
+                      or write the mapping as a block"
+                    .to_owned(),
+            });
+        }
+        for at in the_comments_cut_too_soon(&text) {
+            findings.push(Finding {
+                file: relative.clone(),
+                line: at + 1,
+                what: format!(
+                    "`{relative}` holds a `#` every reader here ends the line at, and YAML reads \
+                     on past it"
+                ),
+                fix: "YAML opens a quoted scalar only where a node starts and reads a `#` inside \
+                      one as text, and the readers here end a line at a `#` outside any quote, \
+                      the way a shell does: in `{ ke\"y: \"a # b\", permissions: write-all }` \
+                      YAML reads a grant none of them reads. Write no quote inside a key or a \
+                      plain value of that line, or no `#` inside its quoted value"
                     .to_owned(),
             });
         }
@@ -1737,7 +1832,8 @@ fn the_ends_of_the_word(text: &str, word: &str) -> Vec<usize> {
 /// Whether a key of one line of YAML may open at `at`: at the start of the
 /// line, after a sequence's `-` or an explicit key's `?` with a space after
 /// it, or inside a flow collection after `{`, `[` or `,`; with an anchor or a
-/// tag of its own, such as `&a` or `!!str`, before it or not.
+/// tag of its own before it or not ([`the_property_ending`]): `&a`, `!!str`,
+/// or a verbatim tag such as `!<tag:yaml.org,2002:str>`.
 ///
 /// **Where YAML opens one, and nowhere else**, so `echo uses: x` in a
 /// command is a word and not a key, and `- { name: lint, uses: x }` holds two.
@@ -1749,12 +1845,9 @@ fn a_key_may_open_at(code: &str, at: usize) -> bool {
             return true;
         }
         let spaced = trimmed.len() < before.len();
-        // `- &a uses: x` and `- !!str uses: x` are both the key `uses`.
-        let property = trimmed
-            .rsplit(|letter: char| letter.is_whitespace() || matches!(letter, '{' | '[' | ','))
-            .next()
-            .unwrap_or(trimmed);
-        if spaced && property.starts_with(['&', '!']) {
+        // `- &a uses: x`, `- !!str uses: x` and `- !<tag:yaml.org,2002:str>
+        // uses: x` are each the key `uses`.
+        if spaced && let Some(property) = the_property_ending(trimmed) {
             before = &trimmed[..trimmed.len() - property.len()];
             continue;
         }
@@ -1770,6 +1863,34 @@ fn a_key_may_open_at(code: &str, at: usize) -> bool {
             _ => return false,
         }
     }
+}
+
+/// The anchor or the tag `text` ends with, if it ends with one.
+///
+/// **A verbatim tag runs from its `!<` to its `>`**, and what it holds may
+/// be a `,`, a `[` or a `]`, which split no tag. Read as the last word after a
+/// space, a `{`, a `[` or a `,`, `!<tag:yaml.org,2002:str>`, the tag `!!str`
+/// stands for, left `2002:str>`, which is no property, and a `permissions` or
+/// a `uses` key after it was read by no rule. An anchor's name and a tag's
+/// other spellings hold none of those four.
+fn the_property_ending(text: &str) -> Option<&str> {
+    let verbatim = text
+        .strip_suffix('>')
+        .and_then(|inside| inside.rfind("!<"))
+        .filter(|&opens| {
+            !text[opens + 2..text.len() - 1].contains(|letter: char| letter.is_whitespace())
+                && text[..opens].chars().next_back().is_none_or(|letter| {
+                    letter.is_whitespace() || matches!(letter, '{' | '[' | ',')
+                })
+        });
+    if let Some(opens) = verbatim {
+        return Some(&text[opens..]);
+    }
+    let word = text
+        .rsplit(|letter: char| letter.is_whitespace() || matches!(letter, '{' | '[' | ','))
+        .next()
+        .unwrap_or(text);
+    word.starts_with(['&', '!']).then_some(word)
 }
 
 /// One place a key stands on a line of YAML, as [`the_keys_named`] finds it.
@@ -1819,7 +1940,7 @@ fn the_keys_named(code: &str, key: &str) -> Vec<Keyed> {
         if quote.is_none() && !a_colon_that_ends_a_key {
             continue;
         }
-        let in_flow = the_flow_depth(&code[..at]) > 0;
+        let in_flow = what_a_line_leaves_open(&code[..at]).0 > 0;
         found.push(Keyed {
             at,
             value: the_entry(after, in_flow),
@@ -1828,13 +1949,79 @@ fn the_keys_named(code: &str, key: &str) -> Vec<Keyed> {
     found
 }
 
-/// How many flow collections are open at the end of `text`.
-fn the_flow_depth(text: &str) -> usize {
-    text.chars().fold(0_usize, |depth, letter| match letter {
-        '{' | '[' => depth + 1,
-        '}' | ']' => depth.saturating_sub(1),
-        _ => depth,
-    })
+/// What one line of YAML leaves open at its end: how many flow collections,
+/// and the quote of a quoted scalar still open, if one is
+/// ([`the_line_read_as_yaml`]).
+fn what_a_line_leaves_open(line: &str) -> (usize, Option<char>) {
+    let (depth, quote, _) = the_line_read_as_yaml(line);
+    (depth, quote)
+}
+
+/// One line of YAML as YAML reads it: how many flow collections it leaves
+/// open, the quote of a quoted scalar still open at its end, if one is, and
+/// where its code ends, at the `#` that opens a comment or at the line's end.
+///
+/// **A quote opens a scalar only where a node may start**
+/// ([`a_node_may_open_after`]); anywhere else it is a letter of a plain
+/// scalar, as in `echo "a"` or `it's`. Inside a quoted scalar a bracket is
+/// text, and so is a `#`: read without the quotes, `name: "}"` inside a flow
+/// mapping closed it, and the key the mapping held on the next line was read
+/// by no rule. A double quote is escaped by a backslash, and a single quote by
+/// another. Outside one, `#` opens a comment where a space or the line's start
+/// is before it.
+fn the_line_read_as_yaml(line: &str) -> (usize, Option<char>, usize) {
+    let mut depth = 0_usize;
+    let mut quote: Option<char> = None;
+    let mut letters = line.char_indices().peekable();
+    while let Some((at, letter)) = letters.next() {
+        match (quote, letter) {
+            (Some('"'), '\\') => {
+                letters.next();
+            }
+            (Some('\''), '\'') if letters.peek().is_some_and(|&(_, next)| next == '\'') => {
+                letters.next();
+            }
+            (Some(open), _) if letter == open => quote = None,
+            (None, '#')
+                if line[..at]
+                    .chars()
+                    .next_back()
+                    .is_none_or(char::is_whitespace) =>
+            {
+                return (depth, quote, at);
+            }
+            (None, '"' | '\'') if a_node_may_open_after(&line[..at], depth) => {
+                quote = Some(letter);
+            }
+            (None, '{' | '[') => depth += 1,
+            (None, '}' | ']') => depth = depth.saturating_sub(1),
+            // A letter of a quoted scalar, or of a plain one.
+            _ => {}
+        }
+    }
+    (depth, quote, line.len())
+}
+
+/// Whether a node of one line of YAML may open after `before`, with `depth`
+/// flow collections open.
+///
+/// Where a key may ([`a_key_may_open_at`]), or as a value: after a `:` with a
+/// space after it, or with none in a flow collection; with an anchor or a tag
+/// of its own before it or not.
+fn a_node_may_open_after(before: &str, depth: usize) -> bool {
+    let mut before = before;
+    loop {
+        let trimmed = before.trim_end();
+        match the_property_ending(trimmed) {
+            Some(property) if trimmed.len() < before.len() => {
+                before = &trimmed[..trimmed.len() - property.len()];
+            }
+            _ => break,
+        }
+    }
+    let trimmed = before.trim_end();
+    a_key_may_open_at(before, before.len())
+        || (trimmed.ends_with(':') && (depth > 0 || trimmed.len() < before.len()))
 }
 
 /// The value written at the start of `text`, to the end of its entry.
@@ -1912,15 +2099,61 @@ fn the_keys_not_written_out(code: &str) -> Vec<String> {
     ways
 }
 
-/// The lines of `text` that open a flow collection and leave it open past
-/// their end, a block scalar's own lines left out.
+/// The lines of `text` that leave a flow collection or a quoted scalar open
+/// past their end, a block scalar's own lines left out: each line's index, and
+/// what it leaves open ([`what_a_line_leaves_open`]).
 ///
 /// **Inside a flow collection YAML lets an entry run over lines**, so a key's
 /// colon may stand on a line after the key itself: `{ permissions` with
-/// `: write-all }` on the line below is a grant no reader of lines sees. A
-/// block scalar's lines are its text, a command's braces among them.
-fn the_flow_collections_left_open(text: &str) -> Vec<usize> {
+/// `: write-all }` on the line below is a grant no reader of lines sees.
+/// **And a quoted scalar runs over lines too**, its line breaks folded, with
+/// or without a backslash before them, so the lines it runs on are text a
+/// reader of lines reads as keys. A block scalar's lines are its text, a
+/// command's braces and quotes among them ([`the_lines_of_yaml`]).
+fn the_lines_left_open(text: &str) -> Vec<(usize, String)> {
     let mut open = Vec::new();
+    for (at, line) in the_lines_of_yaml(text) {
+        let (depth, quote) = what_a_line_leaves_open(line);
+        if depth > 0 {
+            open.push((at, "a flow collection".to_owned()));
+        }
+        if quote.is_some() {
+            open.push((at, "a quoted scalar".to_owned()));
+        }
+    }
+    open
+}
+
+/// The lines of `text` whose code the readers here end at a `#` that YAML
+/// reads on past ([`the_line_read_as_yaml`]).
+///
+/// **The readers here end a line's code at a `#` as a shell does**, with any
+/// quote opening a quoted span, and YAML opens a quoted scalar only where a
+/// node starts. So in `{ ke"y: "a # b", permissions: write-all }` the readers
+/// take the `#` for a comment, after a span that opened at the key's `"`, and
+/// YAML reads a key `ke"y`, the string `a # b` and a grant: measured, that
+/// grant, an action, a second cargo command and an environment each passed
+/// every rule. A line YAML ends sooner than the readers do is read for more
+/// than it holds, which refuses more and never less.
+fn the_comments_cut_too_soon(text: &str) -> Vec<usize> {
+    the_lines_of_yaml(text)
+        .into_iter()
+        .filter(|&(_, line)| {
+            let (_, _, code) = the_line_read_as_yaml(line);
+            the_command_without_its_comment(line).len() < code
+        })
+        .map(|(at, _)| at)
+        .collect()
+}
+
+/// The lines of `text` YAML reads as YAML, each at its index: every line but
+/// a comment, a blank and a block scalar's own.
+///
+/// **A block scalar's lines are its text**, a command's braces, quotes and
+/// `#` among them, and run to the first line indented no further than the key
+/// whose value it is.
+fn the_lines_of_yaml(text: &str) -> Vec<(usize, &str)> {
+    let mut held = Vec::new();
     // The column of the key that opened a block scalar, while one is open.
     let mut block: Option<usize> = None;
     for (at, line) in text.lines().enumerate() {
@@ -1933,44 +2166,115 @@ fn the_flow_collections_left_open(text: &str) -> Vec<usize> {
             continue;
         }
         block = None;
-        if the_flow_depth(&code) > 0 {
-            open.push(at);
-        }
+        held.push((at, line));
         let entry = code.trim_start_matches("- ");
         let header = entry.split_once(':').map_or(entry, |(_, rest)| rest);
         if the_block_style(header).is_some() {
             block = Some(indent + code.len() - entry.len());
         }
     }
-    open
+    held
 }
 
-/// Each line of `text` as YAML may read it, at the index it starts on: as it
-/// is written, and with the escapes of a double-quoted scalar resolved.
+/// Each line of `text` as YAML may read it, at the index it starts on, each
+/// as it is written and with the escapes of a double-quoted scalar that spell
+/// letters resolved: every line on its own, and every line that ends in a
+/// backslash once more, joined to the lines it continues
+/// ([`the_lines_a_backslash_joins`]).
 ///
-/// **A line that ends in a backslash is joined to the one after it**, its
-/// indentation dropped, which is what a double-quoted scalar does with an
-/// escaped line break: `"secr\` and `ets"` on the line after are one word to
-/// GitHub and two halves to a reader of lines. And `\x73ecrets` is `secrets`
-/// once resolved ([`with_the_escapes_resolved`]). A rule that refuses a word
-/// reads both, so neither spelling is a way past it.
+/// **On its own as well as joined, because what a backslash at the end of a
+/// line does depends on where it stands.** In a double-quoted scalar it
+/// escapes the line break, so `"secr\` and `ets"` on the line after are one
+/// word to GitHub and two halves to a reader of lines; in a shell script it
+/// continues the command. At the end of a comment or of a plain scalar it is a
+/// letter, and the line after is a line of its own: read only joined,
+/// `runs-on: macos-latest # \` hid an `environment: release-main` below it,
+/// and `name: gate \` a `permissions: write-all`, from every rule. And
+/// `\x73ecrets` is `secrets` once resolved ([`with_the_escapes_resolved`]). A
+/// rule that refuses a word reads every reading, so no spelling is a way past
+/// it; and a quoted scalar a file GitHub runs leaves open past its line is
+/// refused ([`the_lines_left_open`]), so no line read on its own is one GitHub
+/// reads as text. An escape is resolved where it spells a letter
+/// ([`with_the_letters_its_escapes_spell`]).
 fn as_yaml_reads_them(text: &str) -> Vec<(usize, [String; 2])> {
+    let both = |line: &str| [line.to_owned(), with_the_letters_its_escapes_spell(line)];
+    let mut read: Vec<(usize, [String; 2])> = text
+        .lines()
+        .enumerate()
+        .map(|(at, line)| (at, both(line)))
+        .collect();
+    for (at, joined) in the_lines_a_backslash_joins(text) {
+        read.push((at, both(&joined)));
+    }
+    read.sort_by_key(|&(at, _)| at);
+    read
+}
+
+/// A line with each escape a double-quoted scalar may hold resolved, but for
+/// one that spells a quote, a backslash, a `#` or a space, which is left as it
+/// is written.
+///
+/// **What spells a key or a word is resolved, and what decides where a
+/// line's code ends is not**, because every rule that reads this reading ends
+/// it at a `#` again, by a shell's quoting. Resolved whole,
+/// `{ ke"y: "a\x20\x23 b", "perm\x69ssions": write-all }` ended at a `#` its
+/// escapes spelled, before the grant, and its line as written spelled no key
+/// named `permissions`, where YAML reads `a # b` and then the grant.
+fn with_the_letters_its_escapes_spell(line: &str) -> String {
+    let letters: Vec<char> = line.chars().collect();
+    let mut out = String::new();
+    let mut index = 0;
+    while index < letters.len() {
+        if letters[index] != '\\' {
+            out.push(letters[index]);
+            index += 1;
+            continue;
+        }
+        let width = match letters.get(index + 1) {
+            Some('x') => 4,
+            Some('u') => 6,
+            Some('U') => 10,
+            Some(_) => 2,
+            None => 1,
+        };
+        let written: String = letters[index..letters.len().min(index + width)]
+            .iter()
+            .collect();
+        let resolved = with_the_escapes_resolved(&written);
+        let ends_code = resolved.contains(|letter: char| {
+            letter.is_whitespace() || matches!(letter, '"' | '\'' | '\\' | '#')
+        });
+        out.push_str(if ends_code { &written } else { &resolved });
+        index += width;
+    }
+    out
+}
+
+/// Each line of `text` that ends in a backslash, at its index, joined to the
+/// lines the backslashes continue, their indentation dropped: what a
+/// double-quoted scalar does with an escaped line break, and a shell with a
+/// line it continues.
+///
+/// **From every such line, not only the first of a run**, because the first
+/// may be a comment, which continues nothing, and the next one the start of
+/// what the backslashes join.
+fn the_lines_a_backslash_joins(text: &str) -> Vec<(usize, String)> {
     let lines: Vec<&str> = text.lines().collect();
-    let mut read = Vec::new();
-    let mut at = 0;
-    while at < lines.len() {
-        let starts = at;
-        let mut joined = lines[at].to_owned();
+    let mut joined_up = Vec::new();
+    for (starts, line) in lines.iter().enumerate() {
+        if !line.ends_with('\\') {
+            continue;
+        }
+        let mut joined = (*line).to_owned();
+        let mut at = starts;
         while joined.ends_with('\\') && at + 1 < lines.len() {
             joined.pop();
             at += 1;
             joined.push_str(lines[at].trim_start());
         }
-        let resolved = with_the_escapes_resolved(&joined);
-        read.push((starts, [joined, resolved]));
-        at += 1;
+        joined_up.push((starts, joined));
     }
-    read
+    joined_up
 }
 
 /// The release workflow makes the release as [`THE_RELEASE_STEPS`] say, from
@@ -4060,60 +4364,72 @@ fn the_workflow_actually_runs(ci: &str, findings: &mut Vec<Finding>) {
 /// **Of each workflow**, the gate's and the release's: a condition on the
 /// release's steps would let one of them stand aside on a run that
 /// releases, as surely as one on the gate's.
+///
+/// **Every `if` key, wherever YAML opens one** ([`the_keys_named`]), read
+/// every way [`as_yaml_reads_them`] gives each line, with its condition on its
+/// line or on the lines below it. Read where a line opened on `if:`, `"if":`
+/// or `'if':` alone, `"i\x66": false` on the step that runs the gate, and
+/// `if:` with `false` on the line below, each skipped the gate in CI with
+/// nothing said.
 fn no_step_runs_on_a_condition(file: &str, text: &str, findings: &mut Vec<Finding>) {
     // **Any condition, not only the literal false.**
     // `if: github.event_name == 'never-happens'` never holds either, and a gate
     // cannot evaluate an expression — so what it can say is that a job carrying
     // a condition is a job that might not run, which is the thing this file
     // exists to prevent.
-    for (index, line) in text.lines().enumerate() {
-        // **The list marker first, the way every other reader in this file does
-        // it.** `is_label`, `commands_in`, `reached_from` and
-        // `runs_cargo_as_an_action` all strip `- ` before matching, and without
-        // it `- if: false` — the *step*-level spelling, which is what a step
-        // condition looks like in YAML — matches nothing at all. Measured,
-        // on the step that runs the gate:
-        //
-        // ```text
-        //   - if: false
-        //     name: cargo xtask check
-        //     run: cargo xtask check
-        //
-        // cargo xtask check
-        //   ok  10 cargo command(s) in CI's files and the justfile, each one the gate…
-        // check passed
-        // ```
-        //
-        // The whole gate skipped in CI, every run green, and the count unmoved
-        // because `commands_in` still reads the untouched `run:` line. The
-        // quoted key is stripped for the same reason: `"if": false` is valid
-        // YAML and names the same key.
-        let code = the_code_before_a_comment(line);
-        let code = code.as_str();
-        let code = code.trim_start_matches("- ").trim();
-        let Some(condition) = code
-            .strip_prefix("if:")
-            .or_else(|| code.strip_prefix("\"if\":"))
-            .or_else(|| code.strip_prefix("'if':"))
-        else {
-            continue;
-        };
-        let condition = condition.trim().trim_matches(['\'', '"']);
-        if condition.is_empty() {
-            continue;
+    //
+    // **And a step's, not only a job's.** A reader of a line's first word
+    // misses `- if: false`, the *step*-level spelling, which is what a step
+    // condition looks like in YAML. Measured, on the step that runs the gate:
+    //
+    // ```text
+    //   - if: false
+    //     name: cargo xtask check
+    //     run: cargo xtask check
+    //
+    // cargo xtask check
+    //   ok  10 cargo command(s) in CI's files and the justfile, each one the gate…
+    // check passed
+    // ```
+    //
+    // The whole gate skipped in CI, every run green, and the count unmoved
+    // because `commands_in` still reads the untouched `run:` line.
+    let lines: Vec<&str> = text.lines().collect();
+    let mut said: Vec<usize> = Vec::new();
+    for (index, read) in as_yaml_reads_them(text) {
+        let codes = read
+            .iter()
+            .map(|version| the_code_before_a_comment(version));
+        for keyed in codes.flat_map(|code| the_keys_named(&code, "if")) {
+            let written = if keyed.value.is_empty() {
+                the_lines_under(&lines, index)
+                    .into_iter()
+                    .map(|at| the_code_before_a_comment(lines[at]))
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            } else {
+                keyed.value
+            };
+            let condition = written.trim().trim_matches(['\'', '"']);
+            // `if:` with nothing after it and nothing under it states no
+            // condition.
+            if condition.is_empty() || said.contains(&index) {
+                continue;
+            }
+            said.push(index);
+            findings.push(Finding {
+                file: file.to_owned(),
+                line: index + 1,
+                what: format!("this step or job runs only when `{condition}`"),
+                fix: "a required job that runs conditionally is a required job that may not \
+                      run, and every check here reads its name and its body rather than \
+                      whether it was reached. `if: false` was the spelling closed first; \
+                      a comparison against an event name is the same thing said in a way \
+                      no gate can evaluate. Remove the condition, or remove the job so its \
+                      absence is a finding"
+                    .to_owned(),
+            });
         }
-        findings.push(Finding {
-            file: file.to_owned(),
-            line: index + 1,
-            what: format!("this step or job runs only when `{condition}`"),
-            fix: "a required job that runs conditionally is a required job that may not \
-                  run, and every check here reads its name and its body rather than \
-                  whether it was reached. `if: false` was the spelling closed first; \
-                  a comparison against an event name is the same thing said in a way no \
-                  gate can evaluate. Remove the condition, or remove the job so its \
-                  absence is a finding"
-                .to_owned(),
-        });
     }
 }
 
@@ -4282,7 +4598,43 @@ fn no_verdict_is_discarded(file: &str, text: &str, findings: &mut Vec<Finding>) 
             });
         }
     }
+    // **And the two of those that are keys, wherever YAML opens one**
+    // ([`the_keys_named`]), in a file GitHub runs. The needles read a line with
+    // its quoted text spent, so `"continue-on-error": true` and `"shell": bash
+    // {0}` on the step that runs the gate were each a key GitHub reads and no
+    // needle did, with nothing said; an escape and a flow mapping are the same.
+    if !github_runs_it(file) {
+        return;
+    }
+    for (index, read) in as_yaml_reads_them(text) {
+        for (key, needle) in NEUTERS_A_STEP {
+            let Some((_, what, fix)) = NEUTERED.iter().find(|(held, _, _)| *held == needle) else {
+                continue;
+            };
+            let keyed = read.iter().any(|version| {
+                !the_keys_named(&the_code_before_a_comment(version), key).is_empty()
+            });
+            let already = findings.iter().any(|finding| {
+                finding.file == file && finding.line == index + 1 && finding.what == *what
+            });
+            if keyed && !already {
+                findings.push(Finding {
+                    file: file.to_owned(),
+                    line: index + 1,
+                    what: (*what).to_owned(),
+                    fix: (*fix).to_owned(),
+                });
+            }
+        }
+    }
 }
+
+/// The keys of [`NEUTERED`], each with the needle there that names it: a step
+/// that chooses its own shell, and one whose failure is not the job's.
+const NEUTERS_A_STEP: [(&str, &str); 2] = [
+    ("shell", "shell:"),
+    ("continue-on-error", "continue-on-error"),
+];
 
 /// Whether this line carries a command the gate requires CI to run.
 ///
@@ -10267,23 +10619,65 @@ mod tests {
 
     /// No workflow runs on an event that lends a fork's change this
     /// repository's authority.
+    ///
+    /// **However the event is spelled**: as a block key, in a flow sequence,
+    /// quoted, behind a `\x` or a `\u` escape, across a backslash's line break,
+    /// or in capitals. Each escaped spelling passed while the line was read as
+    /// written alone.
     #[test]
     fn no_workflow_runs_for_a_fork_with_this_repositorys_authority() {
         let fires = "on:\n  push:\n  pull_request:\n";
+        let target = "runs on `pull_request_target`";
+        let run = "runs on `workflow_run`";
         each_is_said(&[
             (
                 "pull-request-target",
                 WORKFLOW,
                 fires,
                 "on:\n  push:\n  pull_request:\n  pull_request_target:\n",
-                "runs on `pull_request_target`",
+                target,
             ),
             (
                 "workflow-run",
                 WORKFLOW,
                 fires,
                 "on:\n  push:\n  pull_request:\n  workflow_run:\n    workflows: [check]\n",
-                "runs on `workflow_run`",
+                run,
+            ),
+            (
+                "an-escaped-block-key",
+                WORKFLOW,
+                fires,
+                "on:\n  push:\n  pull_request:\n  \"pull_request\\x5ftarget\":\n",
+                target,
+            ),
+            (
+                "an-escaped-flow-sequence",
+                WORKFLOW,
+                fires,
+                "on: [push, pull_request, \"pull_request\\x5ftarget\"]\n",
+                target,
+            ),
+            (
+                "a-unicode-escape",
+                WORKFLOW,
+                fires,
+                "on:\n  push:\n  pull_request:\n  \"workflow\\u005frun\":\n    workflows: [check]\n",
+                run,
+            ),
+            (
+                "across-a-line-break",
+                WORKFLOW,
+                fires,
+                "on: [push, pull_request, \"workflow_\\\n  run\"]\n",
+                run,
+            ),
+            (
+                "in-capitals",
+                WORKFLOW,
+                fires,
+                "on:\n  push:\n  pull_request:\n  Pull_Request_Target:\n",
+                target,
             ),
         ]);
     }
@@ -10418,6 +10812,11 @@ mod tests {
                 "a-key-across-a-line-break",
                 format!("{gate}      - \"us\\\n        es\": owner/a@{sha} # v1\n"),
                 "uses an action this gate cannot read on its line",
+            ),
+            (
+                "after-a-verbatim-tag",
+                format!("{gate}      - !<tag:yaml.org,2002:str> uses: owner/a@v1\n"),
+                "`uses: owner/a@v1` is not pinned to a full commit",
             ),
         ];
         for (about, to, said) in &after_the_gate {
@@ -10958,6 +11357,84 @@ mod tests {
         ]);
     }
 
+    /// A grant after a verbatim tag is a grant, and a backslash at the end of a
+    /// comment or of a plain scalar continues nothing, so a grant or the
+    /// release's authority on the line after it is refused.
+    ///
+    /// **A verbatim tag runs to its `>`**: read as words split at a comma,
+    /// `!<tag:yaml.org,2002:str>` hid the key after it. **And each line is
+    /// read on its own as well as joined.** Read only joined to the line above,
+    /// a grant, an environment, a secret, the token's action and a publish
+    /// below `# \` or `name: gate \` were each part of a comment or of a name,
+    /// and every one passed.
+    #[test]
+    fn what_follows_a_verbatim_tag_or_a_backslash_that_continues_nothing_is_read() {
+        let macos = "    runs-on: macos-latest\n    permissions:\n      contents: read\n";
+        each_is_said(&[
+            (
+                "a-grant-after-a-verbatim-tag",
+                WORKFLOW,
+                macos,
+                "    runs-on: macos-latest\n    !<tag:yaml.org,2002:str> permissions: write-all\n",
+                "asks for `write-all`",
+            ),
+            (
+                "a-grant-after-a-plain-scalar",
+                WORKFLOW,
+                macos,
+                "    runs-on: macos-latest\n    name: gate \\\n    permissions: write-all\n",
+                "asks for `write-all`",
+            ),
+            (
+                "a-grant-after-a-comment",
+                WORKFLOW,
+                macos,
+                "    runs-on: macos-latest # \\\n    permissions: write-all\n",
+                "asks for `write-all`",
+            ),
+        ]);
+        let gate = THE_GATE;
+        the_gates_workflow_is_said_to(&[
+            (
+                "an-environment-after-a-comment",
+                format!("{gate}    timeout-minutes: 60 # \\\n    environment: release-main\n"),
+                "enters an environment",
+            ),
+            (
+                "an-environment-after-a-plain-scalar",
+                format!("{gate}    name: gate \\\n    environment: release-main\n"),
+                "enters an environment",
+            ),
+            (
+                "a-secret-after-a-plain-scalar",
+                format!("{gate}    name: gate \\\n    secrets: inherit\n"),
+                "reads a secret",
+            ),
+            (
+                "the-token-after-a-name",
+                format!(
+                    "{gate}      - name: lint \\\n        uses: {}@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0\n",
+                    super::MINTS_THE_RELEASE_TOKEN
+                ),
+                "mints the release App's token",
+            ),
+            (
+                "a-publish-after-a-comment",
+                format!(
+                    "{gate}      # \\\n      - run: cargo xtask release --channel main --publish\n"
+                ),
+                "publishes a release",
+            ),
+            (
+                "a-publish-joined-after-a-comment",
+                "        run: |\n          # \\\n          cargo xtask release --channel main --pub\\\n          \
+                 lish\n"
+                    .to_owned(),
+                "publishes a release",
+            ),
+        ]);
+    }
+
     /// A step's output and a publish are refused outside the release workflow,
     /// however they are spelled: by an index, as a whole context, in a comment
     /// inside a block scalar, and in a word a shell joins.
@@ -11250,6 +11727,10 @@ mod tests {
             ("- &a uses: a/b@c", one("a/b@c")),
             ("- !!str \"uses\": a/b@c", one("a/b@c")),
             ("- { !!str uses: a/b@c }", one("a/b@c")),
+            ("- !<tag:yaml.org,2002:str> uses: a/b@c", one("a/b@c")),
+            ("- { !<tag:yaml.org,2002:str> uses: a/b@c }", one("a/b@c")),
+            ("- &a !<tag:x,[y]> \"uses\": a/b@c", one("a/b@c")),
+            ("- &a!<x> uses: a/b@c", one("a/b@c")),
             ("- ? uses : a/b@c", one("a/b@c")),
             (
                 "steps: [ { uses: a/b@c }, { uses: d/e@f, with: { x: 1 } } ]",
@@ -11267,9 +11748,351 @@ mod tests {
             ("- uses-it: a/b@c", vec![]),
             ("- { uses:a/b@c }", vec![]),
             ("- ?uses: a/b@c", vec![]),
+            ("- a!<tag:x,y> uses: a/b@c", vec![]),
+            ("- !<tag:x y> uses: a/b@c", vec![]),
             ("# uses: a/b@c", vec![]),
         ] {
             assert_eq!(read(line), expected, "`{line}`");
+        }
+    }
+
+    /// A line of a file CI reaches ends at a line feed, and at no other
+    /// character a YAML parser ends one at.
+    ///
+    /// **Each case carries a key or a step past every reader**, after a
+    /// carriage return, NEL, LS or PS on a comment or a step's name: a step
+    /// before the release's, a trigger, an input of the release step, an
+    /// action off the list and a grant. Each passed the whole gate while every
+    /// reader ended a line at a line feed and nothing refused the others. A
+    /// carriage return before a line feed is part of it, and the justfile is
+    /// read as the workflows are.
+    #[test]
+    fn a_line_ends_at_a_line_feed_and_nowhere_else() {
+        let release = super::RELEASE_WORKFLOW;
+        let return_ = "ends a line at a carriage return";
+        let named = "      - name: cargo xtask check\n";
+        let macos = "    runs-on: macos-latest\n";
+        each_is_said(&[
+            (
+                "a-step-after-a-comment",
+                release,
+                "brings it up before its own.\n",
+                "brings it up before its own.\r      - run: echo /tmp/evil >> \"$GITHUB_PATH\"\n",
+                return_,
+            ),
+            (
+                "a-step-after-a-name",
+                release,
+                "      - name: cargo xtask dev\n",
+                "      - name: cargo xtask dev\r      - run: echo /tmp/evil >> \"$GITHUB_PATH\"\n",
+                return_,
+            ),
+            (
+                "a-trigger-after-a-comment",
+                release,
+                "on:\n",
+                "on:\n  # also by hand\r  workflow_dispatch:\n",
+                return_,
+            ),
+            (
+                "an-input-after-a-name",
+                release,
+                "      - name: cargo xtask release\n",
+                "      - name: cargo xtask release\u{85}        working-directory: /tmp/evil\n",
+                "ends a line at U+0085 (NEL)",
+            ),
+            (
+                "an-action-after-a-name",
+                WORKFLOW,
+                named,
+                "      - name: lint\r        uses: owner/a@v1\n      - name: cargo xtask check\n",
+                return_,
+            ),
+            (
+                "an-action-after-a-line-separator",
+                WORKFLOW,
+                named,
+                "      - name: lint\u{2028}        uses: owner/a@v1\n      - name: cargo xtask check\n",
+                "ends a line at U+2028 (LS)",
+            ),
+            (
+                "a-grant-after-a-carriage-return",
+                WORKFLOW,
+                macos,
+                "    runs-on: macos-latest\r    permissions: write-all\n",
+                return_,
+            ),
+            (
+                "a-grant-after-a-line-separator",
+                WORKFLOW,
+                macos,
+                "    runs-on: macos-latest\u{2028}    permissions: write-all\n",
+                "ends a line at U+2028 (LS)",
+            ),
+            (
+                "a-grant-after-a-paragraph-separator",
+                WORKFLOW,
+                macos,
+                "    runs-on: macos-latest\u{2029}    permissions: write-all\n",
+                "ends a line at U+2029 (PS)",
+            ),
+        ]);
+
+        let crlf = bounded_after("crlf", WORKFLOW, |text| text.replace('\n', "\r\n"));
+        assert!(
+            !crlf
+                .iter()
+                .any(|finding| finding.what.contains("ends a line at")),
+            "a carriage return before a line feed is part of it: {crlf:#?}"
+        );
+
+        let held = crate::check::LeavesNothingBehind::new("bounded-justfile-breaks");
+        let scratch = held.root.clone();
+        std::fs::create_dir_all(scratch.join(".github/workflows")).expect("writable");
+        for shipped in super::THE_WORKFLOWS {
+            std::fs::copy(root().join(shipped), scratch.join(shipped)).expect("readable");
+        }
+        std::fs::write(
+            scratch.join("justfile"),
+            "check:\n    # the gate\r    cargo clippy --workspace\n    cargo xtask check\n",
+        )
+        .expect("writable");
+        let (findings, _) = super::every_workflow_is_bounded(&scratch);
+        assert!(
+            findings
+                .iter()
+                .any(|finding| finding.file == "justfile" && finding.what.contains(return_)),
+            "a carriage return in the justfile: {findings:#?}"
+        );
+    }
+
+    /// A file GitHub runs closes each quoted scalar on the line that opens it,
+    /// and a quote inside a flow collection holds its brackets.
+    ///
+    /// **A quoted scalar left open runs on over the lines below**, so a key a
+    /// reader of lines finds there is text to GitHub. With `name: "check` at
+    /// the top of `ci.yml`, `permissions: {}` below it and the quote closed on
+    /// the line after, the workflow opened with nothing at its top and nothing
+    /// was said. **And a bracket inside a quote is text**: counted, `name: "}"`
+    /// closed the flow mapping it stands in, and the rest of the mapping, on
+    /// the line below, was read by no rule.
+    #[test]
+    fn a_quoted_scalar_closes_on_its_line_and_holds_its_brackets() {
+        let top = "permissions: {}\n";
+        let quoted = "leaves a quoted scalar open past its line";
+        each_is_said(&[
+            (
+                "a-double-quote-over-lines",
+                WORKFLOW,
+                top,
+                "name: \"check\npermissions: {}\n\"\n",
+                quoted,
+            ),
+            (
+                "a-single-quote-over-lines",
+                WORKFLOW,
+                top,
+                "name: 'check\npermissions: {}\n'\n",
+                quoted,
+            ),
+            (
+                "a-double-quote-continued-by-a-backslash",
+                WORKFLOW,
+                top,
+                "name: \"check \\\npermissions: {}\"\n",
+                quoted,
+            ),
+            (
+                "a-quoted-bracket-in-a-flow-mapping",
+                WORKFLOW,
+                "jobs:\n",
+                "jobs:\n  extra: { runs-on: ubuntu-latest, name: \"}\", permissions\n    : write-all }\n",
+                "leaves a flow collection open past its line",
+            ),
+        ]);
+    }
+
+    /// A file GitHub runs holds no `#` the readers here end a line at where YAML
+    /// reads on, and a line YAML ends sooner than they do is no finding.
+    ///
+    /// **A quote YAML takes for a letter of a key opens a span to a shell's
+    /// reading**, so the `#` inside the quoted value after it ended the line
+    /// for every rule, and a grant, an action, a second cargo command and an
+    /// environment after it each passed with nothing said; `yq` reads each as
+    /// a key.
+    #[test]
+    fn a_hash_the_readers_end_a_line_at_and_yaml_reads_past_is_refused() {
+        let gate = THE_GATE;
+        let said = "holds a `#` every reader here ends the line at, and YAML reads on past it";
+        let cases = [
+            (
+                "a-grant",
+                format!(
+                    "{gate}  extra: {{ ke\"y: \"a # b\", runs-on: ubuntu-latest, permissions: write-all }}\n"
+                ),
+            ),
+            (
+                "an-action",
+                format!("{gate}      - {{ na\"me: \"a # b\", uses: owner/a@v1 }}\n"),
+            ),
+            (
+                "a-second-gate",
+                format!("{gate}      - {{ na\"me: \"a # b\", run: cargo clippy --workspace }}\n"),
+            ),
+            (
+                "an-environment",
+                format!("{gate}  extra: {{ ke\"y: \"a # b\", environment: release-main }}\n"),
+            ),
+        ];
+        for (about, to) in &cases {
+            let findings = bounded_after(about, WORKFLOW, |text| once(text, gate, to));
+            assert!(
+                findings.iter().any(|finding| finding.what.contains(said)),
+                "{about}: nothing said `{said}`: {findings:#?}"
+            );
+        }
+        // **And a `#` an escape spells is no comment**, so the key an escape
+        // spells after it is read.
+        let escaped = bounded_after("an-escaped-hash", WORKFLOW, |text| {
+            once(
+                text,
+                gate,
+                &format!(
+                    "{gate}  extra: {{ ke\"y: \"a\\x20\\x23 b\", \"perm\\x69ssions\": write-all }}\n"
+                ),
+            )
+        });
+        assert!(
+            escaped
+                .iter()
+                .any(|finding| finding.what.contains("asks for `write-all`")),
+            "a grant after an escaped `#`: {escaped:#?}"
+        );
+        let named = "      - name: cargo xtask check\n";
+        for (about, to) in [
+            (
+                "a-comment-after-an-apostrophe",
+                "      - name: the gate's own # note\n",
+            ),
+            (
+                "a-hash-in-a-quoted-value",
+                "      - name: \"a # b\" # note\n",
+            ),
+        ] {
+            let findings = bounded_after(about, WORKFLOW, |text| once(text, named, to));
+            assert!(findings.is_empty(), "{about}: {findings:#?}");
+        }
+    }
+
+    /// What one line of YAML leaves open at its end, row by row.
+    ///
+    /// **Both directions**: a quote where a node starts opens a scalar, and
+    /// one inside a plain scalar is a letter of it; a bracket inside a quote
+    /// is text, and a `#` there opens no comment; a doubled single quote and
+    /// a backslash's quote close nothing.
+    #[test]
+    fn what_a_line_leaves_open_is_read_as_yaml_reads_it() {
+        let double = Some('"');
+        let single = Some('\'');
+        for (line, expected) in [
+            ("name: \"check", (0, double)),
+            ("name: 'check", (0, single)),
+            ("name: \"check \\", (0, double)),
+            ("- \"a", (0, double)),
+            ("- ? \"a", (0, double)),
+            ("x: &a \"b", (0, double)),
+            ("x: !!str \"b", (0, double)),
+            ("x: !<tag:yaml.org,2002:str> 'b", (0, single)),
+            ("x: \"a # b", (0, double)),
+            ("x: [ \"a, b", (1, double)),
+            ("name: \"a \\\" b", (0, double)),
+            ("{ key:\"x", (1, double)),
+            ("x: { name: \"}\", permissions", (1, None)),
+            ("x: { a: \"b # c\", d", (1, None)),
+            ("x: {\"a\":\"}\"", (1, None)),
+            ("x: { name: 'it''s {', run: x }", (0, None)),
+            ("name: \"a \\\"b\"", (0, None)),
+            ("name: \"a\\\\\"", (0, None)),
+            ("name: 'it''s'", (0, None)),
+            ("name: it's fine", (0, None)),
+            ("run: echo \"a", (0, None)),
+            ("key:\"x", (0, None)),
+            ("x: a # \"b", (0, None)),
+            ("x: a#\"b", (0, None)),
+            ("x: { a: b } # {", (0, None)),
+        ] {
+            assert_eq!(super::what_a_line_leaves_open(line), expected, "`{line}`");
+        }
+    }
+
+    /// A condition, a shell of a step's own and a failure that is not the
+    /// job's are each refused on the step that runs the gate, wherever YAML
+    /// opens their key.
+    ///
+    /// **Escaped, below its key, after an anchor, in a flow mapping, and
+    /// quoted.** Each passed with nothing said while `if:` was read where a
+    /// line opened on it and `shell:` and `continue-on-error` as words of a
+    /// line with its quoted text spent; the gate step skipped or its failure
+    /// ignored, in CI, with the walk's count unmoved.
+    #[test]
+    fn a_step_is_neither_skipped_nor_neutered_however_its_key_is_written() {
+        let gate = "      - name: cargo xtask check\n        run: cargo xtask check\n";
+        let run = |about: &str, to: &str| {
+            let held = crate::check::LeavesNothingBehind::new(&format!("neutered-{about}"));
+            let scratch = held.root.clone();
+            std::fs::create_dir_all(scratch.join(".github/workflows")).expect("writable");
+            for shipped in super::THE_WORKFLOWS {
+                std::fs::copy(root().join(shipped), scratch.join(shipped)).expect("readable");
+            }
+            the_shipped_alias(&scratch);
+            let ci = std::fs::read_to_string(scratch.join(WORKFLOW)).expect("copied");
+            std::fs::write(scratch.join(WORKFLOW), once(&ci, gate, to)).expect("writable");
+            only_runs_the_gate(&scratch).expect("readable").0
+        };
+        let named = "        name: cargo xtask check\n        run: cargo xtask check\n";
+        let cases = [
+            (
+                "an-escaped-condition",
+                format!("      - \"i\\x66\": false\n{named}"),
+                "runs only when `false`",
+            ),
+            (
+                "a-condition-below-its-key",
+                format!("      - if:\n          false\n{named}"),
+                "runs only when `false",
+            ),
+            (
+                "an-anchored-condition",
+                format!("      - &c if: false\n{named}"),
+                "runs only when `false`",
+            ),
+            (
+                "a-condition-in-a-flow-mapping",
+                format!("{gate}      - {{ if: false, name: lint, run: cargo xtask check }}\n"),
+                "runs only when `false`",
+            ),
+            (
+                "a-quoted-continue-on-error",
+                format!("{gate}        \"continue-on-error\": true\n"),
+                "is marked `continue-on-error`",
+            ),
+            (
+                "a-quoted-shell",
+                format!("{gate}        \"shell\": bash {{0}}\n"),
+                "chooses its own shell",
+            ),
+            (
+                "an-escaped-shell",
+                format!("{gate}        \"sh\\x65ll\": bash {{0}}\n"),
+                "chooses its own shell",
+            ),
+        ];
+        for (about, to, said) in &cases {
+            let findings = run(about, to);
+            assert!(
+                findings.iter().any(|finding| finding.what.contains(said)),
+                "{about}: nothing said `{said}`: {findings:#?}"
+            );
         }
     }
 

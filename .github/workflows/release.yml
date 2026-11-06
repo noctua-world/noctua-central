@@ -17,7 +17,9 @@
 # six written here, each where it stands. Every action is pinned to a commit,
 # with its release in a comment. No other file GitHub runs may mint the App's
 # token, enter an environment, or read a secret or a step's output, and no
-# other file CI reaches may publish.
+# other file CI reaches may publish. The gate reads this file a line at a time,
+# so each line ends at a line feed, each key is a word before its colon, and
+# each quote and bracket closes on the line that opens it.
 
 name: release
 
