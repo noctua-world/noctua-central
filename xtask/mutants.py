@@ -769,18 +769,25 @@ WEAKENINGS = [
     # **Who is handed the App's token, what a gate that refused stops, what a
     # run carried on finds below, and how a pull request's node is read.** A
     # child of the release handed `gh`'s variables holds a token that may push
-    # past `staging`'s and `main`'s rules; a gate that refused, read as passed,
-    # lets a red tree be committed, tagged and released; a release the branch
+    # past `staging`'s and `main`'s rules; a gate that refused, read as passed
+    # or its refusal dropped on the way out of the verb, lets a red tree be
+    # committed, tagged and released; a release the branch
     # below already holds, carried back again, fails that run and every run
     # after it, and one a branch below that moved on since is read as holding
     # is never carried back; and a node read from REST's numeric `id` refuses
     # every release made fresh. Only the test written for each says so.
-    ("release", "run", "the gate runs in a child of its own",
-     "        the_gate(root, &inherited)?;",
+    ("release", "run_at", "the gate runs in a child of its own",
+     "        the_gate(itself, root, inherited)?;",
      "        crate::check::run(root, false)?;"),
-    ("release", "the_gate_at", "a gate that refused stops the release",
+    ("release", "the_gate", "a gate that refused stops the release",
      "    if ran.success() {",
      "    if true {"),
+    ("release", "run_at", "the verb hands back a gate's refusal",
+     "        the_gate(itself, root, inherited)?;",
+     "        let _ = the_gate(itself, root, inherited);"),
+    ("release", "run", "the verb hands back what the release refused",
+     "    run_at(&itself, root, channel, dry_run, publish, &inherited)\n",
+     "    drop(run_at(&itself, root, channel, dry_run, publish, &inherited));\n    Ok(())\n"),
     ("release", "without_ghs_own", "no child but gh is handed gh's variables",
      "        .filter(|(name, _)| !ghs_own(name))",
      "        .filter(|_| true)"),
@@ -805,6 +812,20 @@ WEAKENINGS = [
     ("release", "a_carried_back", "a pull request's node is its node_id where its id is a number",
      "        .get(\"node_id\")\n        .and_then(serde_json::Value::as_str)\n        .or_else(|| node.get(\"id\").and_then(serde_json::Value::as_str))",
      "        .get(\"id\")\n        .or_else(|| node.get(\"node_id\"))\n        .and_then(serde_json::Value::as_str)"),
+    # **What a production release is.** Published as a pre-release, or not as
+    # the latest, a release on `main` is not the one GitHub shows as current;
+    # carried back to `dev`, it reaches `staging` only when `dev` is next
+    # promoted, and until then `staging` refuses every candidate. Only the test
+    # written for each says so.
+    ("release", "the_github_release", "a production release is not a pre-release",
+     "            \"prerelease\": channel == Channel::Staging,",
+     "            \"prerelease\": true,"),
+    ("release", "the_github_release", "a production release is the latest",
+     "            \"make_latest\": if channel == Channel::Main { \"true\" } else { \"false\" },",
+     "            \"make_latest\": \"false\","),
+    ("release", "below", "a production release is carried back to staging",
+     "            Self::Main => \"staging\",",
+     "            Self::Main => \"dev\","),
     # -- history: what a commit and a pull request may say -------------------
     ("history", "subject", "a subject opens with one of the types",
      "    if !TYPES.contains(&kind) {",

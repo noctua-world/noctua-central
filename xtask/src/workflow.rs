@@ -3856,9 +3856,10 @@ fn a_recipe_runs_what_it_is_called(recipe: &str, header: &str, command: &str) ->
     // `cargo xtask check {{env_var("FLAGS")}}` in this repository's own `check`
     // recipe is the swapped-body attack restored and the gate says nothing at
     // all. Refusing every call costs nothing, measured: the shipped `justfile`
-    // holds one interpolation, `{{version}}`, which is a declared parameter of
-    // `release`. A call form that ever does need to be written here can be
-    // named in the header beside the parameters, where a reader can see it.
+    // holds two interpolations, `{{channel}}` and `{{flags}}`, each a declared
+    // parameter of `release`. A call form that ever does need to be written
+    // here can be named in the header beside the parameters, where a reader
+    // can see it.
     // **And a parameter keeps its sigil as well as its default.** `just` writes
     // a variadic as `+args` or `*args` and an exported one as `$name`; with the
     // sigil left on the declared name, the body's `{{args}}` is never found
@@ -3931,12 +3932,12 @@ fn the_recipe_and_its_name(
 ) -> (String, String) {
     let header = the_recipe_above(text, index, file_is_ci, named);
     // **`just`'s echo sigil is not part of the name.** Read with it,
-    // `@release version:` makes this gate say "`@release` is the name a
+    // `@release channel *flags:` makes this gate say "`@release` is the name a
     // developer types and `release` is what this body runs" — inverted about
     // the one value it quotes, because `just --list` prints `release` and
-    // `just release 9.9.9` is what a developer types, and the remedy it implies
-    // is to rename a recipe that is already named correctly. The sigil is at
-    // the front, so the `-offline` reading beside this is untouched.
+    // `just release staging` is what a developer types, and the remedy it
+    // implies is to rename a recipe that is already named correctly. The sigil
+    // is at the front, so the `-offline` reading beside this is untouched.
     let name = header
         .split_whitespace()
         .next()
@@ -3953,8 +3954,8 @@ fn the_recipe_and_its_name(
 /// reads as text and cannot resolve.
 ///
 /// A recipe header is a line at **column zero** ending in `:`, with its
-/// parameters after the name — `release version:`. `is_label` cannot be asked
-/// this: it matches a YAML `name:` key, and a justfile has none.
+/// parameters after the name — `release channel *flags:`. `is_label` cannot
+/// be asked this: it matches a YAML `name:` key, and a justfile has none.
 fn the_recipe_above(text: &str, index: usize, file_is_ci: bool, named: &str) -> String {
     // **And only in a file that has recipes.** Without this, `ends_with(':')`
     // silently does duty as "this is a justfile", and the header cannot be
@@ -8126,7 +8127,7 @@ mod tests {
         }
 
         // And the name, which the sigil is not part of.
-        let file = format!("@release version:{body}");
+        let file = format!("@release channel *flags:{body}");
         let (_, name) = super::the_recipe_and_its_name(&file, 1, false, "justfile");
         assert_eq!(
             name, "release",

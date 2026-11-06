@@ -562,8 +562,32 @@ fn without_ghs_own(
         .map(|(name, value)| (name, value))
 }
 
-/// Runs the gate, this tool's `check`, in a child of its own, started with
-/// every variable of `inherited` but `gh`'s.
+/// Computes the channel's release, gates, writes and reads it back, and
+/// publishes it under `--publish`: [`run_at`], with this tool as the gate and
+/// this process's environment as the one the release was handed.
+///
+/// **The one place that asks where this tool is**, so a test can drive
+/// [`run_at`] whole with a program of its own as the gate.
+///
+/// # Errors
+///
+/// Returns why this tool could not find itself, or what [`run_at`] refused.
+pub(crate) fn run(
+    root: &Path,
+    channel: Channel,
+    dry_run: bool,
+    publish: bool,
+) -> Result<(), String> {
+    let itself = std::env::current_exe().map_err(|error| {
+        format!("this tool could not find itself to run the gate: {error}. Nothing was written")
+    })?;
+    let inherited: Vec<(OsString, OsString)> = std::env::vars_os().collect();
+    run_at(&itself, root, channel, dry_run, publish, &inherited)
+}
+
+/// Runs the gate, this tool's `check`, in a child of its own started
+/// from `itself` with every variable of `inherited` but `gh`'s, and refuses
+/// unless it passed.
 ///
 /// **A child, so the App's token reaches nothing the gate starts.** Under
 /// `--publish` this process holds `GH_TOKEN` in its environment, where every
@@ -576,35 +600,16 @@ fn without_ghs_own(
 /// `v*` tag; run in a child whose environment holds none of `gh`'s
 /// variables, none of them is.
 ///
-/// # Errors
-///
-/// Returns why this tool could not find itself, or what [`the_gate_at`]
-/// refused.
-fn the_gate(root: &Path, inherited: &[(OsString, OsString)]) -> Result<(), String> {
-    let itself = std::env::current_exe().map_err(|error| {
-        format!("this tool could not find itself to run the gate: {error}. Nothing was written")
-    })?;
-    the_gate_at(&itself, root, inherited)
-}
-
-/// Runs the gate as [`a_gate`] starts it from `itself`, and refuses unless
-/// it passed.
-///
 /// **Its exit status is all the release reads of it**, so a status other
 /// than success stops the release before anything is written: read as
 /// passed, a gate that refused would let `--publish` commit, tag and release
-/// a tree whose tests are red. A parameter so a test can start it at a
-/// program that exits as the test says.
+/// a tree whose tests are red.
 ///
 /// # Errors
 ///
 /// Returns why the gate could not be started, or that it refused, as its
 /// own lines above say.
-fn the_gate_at(
-    itself: &Path,
-    root: &Path,
-    inherited: &[(OsString, OsString)],
-) -> Result<(), String> {
+fn the_gate(itself: &Path, root: &Path, inherited: &[(OsString, OsString)]) -> Result<(), String> {
     let ran = a_gate(itself, root, inherited)
         .status()
         .map_err(|error| format!("the gate could not be started: {error}. Nothing was written"))?;
@@ -615,7 +620,7 @@ fn the_gate_at(
     }
 }
 
-/// The gate as [`the_gate_at`] starts it, from `itself`, over `root`.
+/// The gate as [`the_gate`] starts it, from `itself`, over `root`.
 ///
 /// **Cleared before it is handed anything**, so a variable this process holds
 /// reaches it only through `inherited`, and `gh`'s do not reach it through
@@ -649,20 +654,26 @@ fn put_the_lockfile_back(lockfile: &Path, locked: &[u8]) -> std::io::Result<()> 
     std::fs::write(lockfile, locked)
 }
 
-/// Computes the channel's release, gates, writes and reads it back, and
-/// publishes it under `--publish`.
+/// The release [`run`] makes, with the gate started from `itself` and the
+/// environment the release was handed in `inherited`.
+///
+/// **A function of its own so a test can drive the verb whole**, with a
+/// program that exits as the test says standing in for this tool: a gate
+/// that refused stops the release before anything is written, and one that
+/// passed lets it on to the write.
 ///
 /// # Errors
 ///
 /// Returns why the publishing setting is incomplete, why the gate refused, or
 /// what [`released`] refused.
-pub(crate) fn run(
+fn run_at(
+    itself: &Path,
     root: &Path,
     channel: Channel,
     dry_run: bool,
     publish: bool,
+    inherited: &[(OsString, OsString)],
 ) -> Result<(), String> {
-    let inherited: Vec<(OsString, OsString)> = std::env::vars_os().collect();
     let mode = if dry_run {
         Mode::DryRun
     } else if publish {
@@ -673,7 +684,7 @@ pub(crate) fn run(
     // Asked before the gate, so a job that cannot publish says so in its first
     // second and not after the whole gate has run.
     let github = match mode {
-        Mode::Publish => Some(GitHub::of(&inherited)?),
+        Mode::Publish => Some(GitHub::of(inherited)?),
         Mode::DryRun | Mode::Write => None,
     };
     ui::heading("release");
@@ -685,13 +696,13 @@ pub(crate) fn run(
         ui::warn("--dry-run: the gate is not run and nothing is written");
     } else {
         ui::detail("running the gate before anything is written");
-        the_gate(root, &inherited)?;
+        the_gate(itself, root, inherited)?;
     }
     released(&Releasing {
         root,
         channel,
         mode,
-        inherited: &inherited,
+        inherited,
         github: github.as_ref(),
     })
 }
@@ -2670,12 +2681,12 @@ fn version_in(text: &str) -> Option<String> {
 /// version = "0.1.0"        <- untouched
 /// ```
 ///
-/// `1 file(s) carry 0.2.0`, the lockfile rebuilt, `git tag -s v0.2.0` printed,
-/// a dependency requirement corrupted, and the release not made. A read-back
-/// would not see it, because it re-reads through this same function and would
-/// agree with itself. Today's manifest happens to put
-/// `[workspace.package]` first; the second file added to `CARRIES_THE_VERSION`
-/// is the one that bites.
+/// The release would then start from the dependency's requirement as the
+/// version the tree is at, and corrupt it, while the workspace's own stays
+/// where it was: a read-back through this same function would agree with
+/// itself, which is why [`read_back`] reads the manifest through `toml`.
+/// Today's manifest happens to put `[workspace.package]` first; the second
+/// file added to `CARRIES_THE_VERSION` is the one that bites.
 ///
 /// **And the value is read as TOML writes it.** `version="0.1.0"` with no
 /// spaces and `version = "0.1.0" # keep` are both manifests cargo parses, and
@@ -2760,21 +2771,12 @@ fn rewrite_listed<'a>(
     // **What each file held before this touched it**, so a refusal can put it
     // back. Writing and *then* validating, with `Err` and no restore, lets a
     // comment naming the current version above `[workspace.package]` take the
-    // rewrite while the read-back sees the real version unchanged, and the run
-    // stops with the comment already edited:
-    //
-    // ```text
-    // $ cargo xtask release 0.2.0
-    // check passed
-    //   error Cargo.toml was rewritten and still names 0.1.0, not 0.2.0. … Fix the
-    //         file and run this again
-    //
-    // 6: # The pinned floor for the design system is version = "0.2.0" today.
-    // 13: version = "0.1.0"
-    // ```
-    //
-    // The message says "fix the file" and never says the file has already been
-    // changed. With more than one entry in `CARRIES_THE_VERSION` the same path
+    // rewrite while the read-back sees the real version unchanged, and the
+    // release stops after the gate passed with the comment already edited,
+    // under a message that says to fix the file and never says the file has
+    // already been changed. So every refusal here puts back what this wrote,
+    // and the tree a refused release leaves is the tree it was given. With
+    // more than one entry in `CARRIES_THE_VERSION` the same path
     // leaves file one rewritten when file two refuses. The relock-failure path
     // in `written` restores every file, and so does this one.
     let mut before: Vec<(&str, String)> = Vec::new();
@@ -2816,19 +2818,11 @@ fn rewrite_listed<'a>(
         // `replacen` searches the *raw text* and rewrites the first occurrence
         // anywhere, comments included. One comment line above
         // `[workspace.package]` mentioning the current version is enough for a
-        // `replacen` writer:
-        //
-        // ```text
-        // $ cargo xtask release 0.2.0
-        //   ok    1 file(s) carry 0.2.0
-        //         git tag -s v0.2.0 -m "v0.2.0"
-        // $ grep -n '^version' Cargo.toml
-        // 13:version = "0.1.0"
-        // ```
-        //
-        // Exit 0, the tag command printed, and the release not made —
-        // which is the state this module's own header says it exists to
-        // prevent, reached through the one file it lists.
+        // `replacen` writer to report `1 file(s) carry` the release over a
+        // manifest whose own version did not move — the file left behind that
+        // this module's own header says it exists to prevent, reached through
+        // the one file it lists. So the file is read back here, the way it was
+        // read before, and one still naming another version is a refusal.
         if updated != text {
             std::fs::write(root.join(name), &updated)
                 .map_err(|error| format!("could not write {name}: {error}"))?;
@@ -3021,11 +3015,11 @@ mod tests {
     /// `files` written into `directory`, and then the version in each
     /// rewritten to `version` through `rewrite_listed`.
     ///
-    /// **`run` itself cannot be driven to write from a test**: it runs the
-    /// whole gate first. The refusals `rewrite_listed` holds — a listed file
-    /// with no version, and files that already disagree — are held here,
-    /// against a scratch tree, which is what makes those branches real rather
-    /// than documentation.
+    /// **`rewrite_listed` alone, and not the verb**: the refusals it holds — a
+    /// listed file with no version, and files that already disagree — are
+    /// out of the verb's reach while `CARRIES_THE_VERSION` has one entry. They
+    /// are held here, against a scratch tree, which is what makes those
+    /// branches real rather than documentation.
     fn rewrite(directory: &Path, files: &[(&str, &str)], version: &str) -> Result<(), String> {
         for (name, text) in files {
             let path = directory.join(name);
@@ -3088,11 +3082,11 @@ mod tests {
 
     #[test]
     fn a_version_written_into_a_comment_is_not_a_release() {
-        // **Measured, with the real verb.** `version_in` reads the first
-        // *trimmed line* beginning `version = "`, so it skips a comment; a
-        // `replacen` rewrites the first occurrence in the *raw text*, which a
-        // comment can be. With such a writer: exit 0, `1 file(s) carry 0.2.0`,
-        // the tag command printed — and `[workspace.package]` still saying 0.1.0.
+        // **The reader and the writer are one rule.** `version_in` reads the
+        // first *trimmed line* beginning `version = "`, so it skips a comment;
+        // a `replacen` rewrites the first occurrence in the *raw text*, which a
+        // comment can be. Such a writer reports a file rewritten while
+        // `[workspace.package]` still says 0.1.0.
         let scratch = std::env::temp_dir().join(format!("nc-release-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&scratch);
         std::fs::create_dir_all(&scratch).expect("writable");
@@ -3121,7 +3115,7 @@ mod tests {
         // read-back path; the two above it — a listed file holding no version,
         // and a file whose version is not the one being moved from — still
         // returned with the first file rewritten at the *new* version under a
-        // message saying nothing was released, in a tree with no git.
+        // message saying nothing was released.
         let holds_none = "[package]\nname = \"x\"\n";
         let refused = rewrite(
             &scratch,
@@ -3329,28 +3323,22 @@ mod tests {
     /// Every function of this workspace the shipped half of this module calls.
     ///
     /// **A write can be a call into this workspace, and every rule beside this
-    /// reads `std::fs`.** Measured, two lines inside `run`:
+    /// reads `std::fs`.** One line inside `run_at`, before the gate, rewrites
+    /// every stale page under `docs/` *above* the line announcing that the
+    /// gate is about to run:
     ///
     /// ```text
     /// if !dry_run { crate::docs::run(root)?; }
-    /// validate(version)?;
-    ///
-    ///   the suite passes, `cargo fmt --all --check` clean
-    ///   cargo xtask release 0.1.1, with docs/errors.md stale
-    ///     ->  docs / ok 6 page(s), 1 rewritten
-    ///         running the gate before anything is written
     /// ```
     ///
-    /// Six pages rewritten, one of them changed, *above* the line announcing
-    /// that the gate had not yet run — in a tree with no git (`§5.3`). Without
-    /// this list, all five other guards are silent, and each for the same
-    /// reason: the imports rule reads `use … as`,
+    /// Without this list, all five other guards are silent about it, and each
+    /// for the same reason: the imports rule reads `use … as`,
     /// `nothing_binds_a_write` reads a `fs::` path that is named and not called,
     /// `puts_bytes_on_disk` is twenty literal spellings, and the `Command`
     /// census counts child processes. `crate::docs::run(root)` is none of
-    /// those. The `!dry_run` guard is what puts it on the one path no
-    /// behavioural test enters — both pass `dry_run = true` — and without that
-    /// guard `a_dry_run_writes_nothing` does fire.
+    /// those. The `!dry_run` guard keeps it off the path
+    /// `a_dry_run_writes_nothing` drives, and without that guard that test
+    /// does fire.
     ///
     /// So this is a name list, compared both directions the way
     /// `xtask/src/policy.rs`'s `CORE_POLICIES` is: a call into this workspace
@@ -3381,8 +3369,8 @@ mod tests {
     /// same defect respelled.** This file is a child of the crate root — so
     /// `super::docs::run(root)?` on the `!dry_run` path *is* `crate::docs::run`
     /// to rustc, and it is the write the paragraph on [`MAY_REACH`] records
-    /// verbatim. Measured against a census of the one needle `crate::`, those
-    /// two lines inside `run` spelled that way leave every test passing and
+    /// verbatim. Measured against a census of the one needle `crate::`, that
+    /// line inside `run` spelled that way leaves every test passing and
     /// `cargo xtask check` byte-identical to a clean run. The import half holds
     /// — `use super::docs;` is an import [`MAY_IMPORT`] does not name — and the
     /// call half sees nothing at all.
@@ -3969,7 +3957,7 @@ mod tests {
     /// twice by hand against a scratch tree with no `Cargo.lock` in it. So the
     /// restore could write anything: measured in wave 16 as `&locked[..0]`,
     /// which leaves all 627 tests green and truncates the lockfile to nothing
-    /// after a failed `cargo update`, in a repository with no git.
+    /// after a failed `cargo update`.
     #[test]
     fn the_lockfile_comes_back_byte_for_byte() {
         // **A file, not a directory.** A scratch *tree* is a thing this
@@ -4262,10 +4250,10 @@ mod tests {
     fn the_gate_runs_before_the_first_write() {
         let source = std::fs::read_to_string(root().join("xtask/src/release.rs"))
             .expect("this file is readable");
-        let run = the_body_of(&source, "run");
+        let run = the_body_of(&source, "run_at");
         let gate = run
-            .find(&["the_gate(", "root, &inherited)"].join(""))
-            .expect("the gate is run from the release verb");
+            .find(&["the_gate(", "itself, root, inherited)?;"].join(""))
+            .expect("the gate is run from the release verb, and its refusal handed back");
         let onwards = run
             .find(&["rele", "ased(&Releasing"].join(""))
             .expect("the release verb hands on to `released`");
@@ -4342,6 +4330,14 @@ mod tests {
         );
         the_writes_are_the_ones_written_down(&ran);
         the_children_are_cargo_and_gh(&ran);
+        // **Only `run` asks where this tool is**, so what `run_at` runs is what
+        // a test drives with a gate of its own.
+        let asks = ["current", "_exe("].join("");
+        assert!(
+            ran.matches(&asks).count() == 1 && the_body_of(&source, "run").contains(&asks),
+            "something below `run` asks where this tool is, so the verb a test drives through \
+             `run_at` is not the verb CI runs"
+        );
     }
 
     /// Every way this module puts bytes on disk is one of the writes written
@@ -5230,6 +5226,9 @@ mod tests {
 
     /// The verb refuses a release that would repeat one, and one that would
     /// skip the back-merge, before writing anything.
+    ///
+    /// **The back-merge through `run`, the verb itself**, so what the release
+    /// refused is what the verb hands back.
     #[test]
     fn the_verb_refuses_a_release_that_does_not_move_forward() {
         let repository = a_workspace("forward", &[]);
@@ -5250,14 +5249,8 @@ mod tests {
         let elsewhere = repository.head();
         repository.git(&["tag", "v0.2.0", &elsewhere]);
         repository.git(&["checkout", "-q", "dev"]);
-        let refused = super::released(&a_setting(
-            &root,
-            Channel::Staging,
-            Mode::DryRun,
-            &inherited,
-            None,
-        ))
-        .expect_err("v0.2.0 is not merged");
+        let refused =
+            super::run(&root, Channel::Staging, true, false).expect_err("v0.2.0 is not merged");
         assert!(refused.contains("staging does not reach it"), "{refused}");
         // And a tag at the version main would release is a refusal.
         repository.git(&["tag", "v0.1.1", &elsewhere]);
@@ -5531,14 +5524,22 @@ fn main() {
 
     /// GitHub's answers to each step after the question, in order.
     fn the_steps_answered(at: &str) -> [String; 4] {
+        the_steps_of("v0.1.0-rc.1", "dev", at)
+    }
+
+    /// GitHub's answers to each step after the question, in order.
+    ///
+    /// **Of the release tagged `tag` at `at`**, whose pull request carries it
+    /// back to `below`.
+    fn the_steps_of(tag: &str, below: &str, at: &str) -> [String; 4] {
         [
             answered(
-                &serde_json::json!({ "ref": "refs/tags/v0.1.0-rc.1", "object": { "sha": at, "type": "commit" } }),
+                &serde_json::json!({ "ref": format!("refs/tags/{tag}"), "object": { "sha": at, "type": "commit" } }),
             ),
-            answered(&serde_json::json!({ "tag_name": "v0.1.0-rc.1", "prerelease": true })),
+            answered(&serde_json::json!({ "tag_name": tag, "prerelease": below == "dev" })),
             // REST's shape: `id` is a number, and the node is `node_id`.
             answered(
-                &serde_json::json!({ "number": 7, "id": 5_147_253_185_u64, "node_id": "PR_seven", "title": "chore(release): carry v0.1.0-rc.1 back to dev", "state": "open" }),
+                &serde_json::json!({ "number": 7, "id": 5_147_253_185_u64, "node_id": "PR_seven", "title": format!("chore(release): carry {tag} back to {below}"), "state": "open" }),
             ),
             answered(
                 &serde_json::json!({ "data": { "enablePullRequestAutoMerge": { "pullRequest": { "number": 7, "autoMergeRequest": { "mergeMethod": "MERGE" } } } } }),
@@ -6037,7 +6038,11 @@ fn main() {
             "noctua-world/probe"
         );
         assert_eq!(input["message"]["headline"], "chore(release): v0.1.0-rc.1");
-        the_files_committed_are_the_files_written(&root, &input["fileChanges"]["additions"]);
+        the_files_committed_are_the_files_written(
+            &root,
+            &input["fileChanges"]["additions"],
+            "0.1.0-rc.1",
+        );
         assert_eq!(
             calls[2].request,
             serde_json::json!({ "ref": "refs/tags/v0.1.0-rc.1", "sha": made })
@@ -6059,8 +6064,12 @@ fn main() {
     /// holds them.
     ///
     /// The changelog, the lockfile, and every file `CARRIES_THE_VERSION`
-    /// names, each listed one carrying the release.
-    fn the_files_committed_are_the_files_written(root: &Path, additions: &serde_json::Value) {
+    /// names, each listed one carrying the release, `version`.
+    fn the_files_committed_are_the_files_written(
+        root: &Path,
+        additions: &serde_json::Value,
+        version: &str,
+    ) {
         let additions = additions.as_array().expect("additions");
         let carried: Vec<&str> = additions
             .iter()
@@ -6087,8 +6096,8 @@ fn main() {
             assert!(
                 std::fs::read_to_string(root.join(name))
                     .expect("written")
-                    .contains("version = \"0.1.0-rc.1\""),
-                "{name} does not carry the release candidate"
+                    .contains(&format!("version = \"{version}\"")),
+                "{name} does not carry {version}"
             );
         }
     }
@@ -6669,13 +6678,174 @@ fn main() {
         }
     }
 
-    /// A gate that refused stops the release, and one that passed lets it
-    /// on.
+    /// A production release is made on `main`, published as the latest
+    /// release and not as a pre-release, and carried back to `staging`.
     ///
-    /// **Started at the fake**, which exits 1 and then 0: the release reads
-    /// nothing of the gate but its exit status, so the status is the whole of
-    /// what it decides by. The fake records each start, so both are the gate's
-    /// own `check`.
+    /// **The channel decides each of those, and the branch a run carried on
+    /// asks about**, so each is held here to what GitHub is asked. The
+    /// candidate it ships was released on `staging` and merged, so the
+    /// manifest carries the candidate's version and its section folds into
+    /// the release's.
+    #[test]
+    fn a_production_release_is_made_on_main_and_carried_back_to_staging() {
+        let (fake, bin) = a_fake_gh();
+        let repository = a_workspace("production", &[]);
+        let root = repository.root();
+        // The candidate's release commit, as `staging` made it.
+        for name in ["Cargo.toml", "Cargo.lock"] {
+            let text = std::fs::read_to_string(root.join(name)).expect("the workspace");
+            std::fs::write(
+                root.join(name),
+                text.replace("version = \"0.1.0\"", "version = \"0.1.0-rc.1\""),
+            )
+            .expect("a writable scratch");
+        }
+        repository.git(&["add", "-A"]);
+        repository.commit("chore(release): v0.1.0-rc.1\n", &[]);
+        let candidate = repository.head();
+        repository.git(&["tag", "v0.1.0-rc.1", &candidate]);
+        repository.commit("fix(xtask): something after the candidate", &[]);
+        let head = repository.head();
+        let fixtures = fake.root.join("fixtures");
+        let on_main = |answers: &[String]| {
+            let (github, inherited) = a_github(&bin, &fixtures, answers);
+            super::released(&a_setting(
+                &root,
+                Channel::Main,
+                Mode::Publish,
+                &inherited,
+                Some(&github),
+            ))
+        };
+        let made = "1".repeat(40);
+        let mut answers = vec![
+            holding_these(None, false, &[]),
+            answered(
+                &serde_json::json!({ "data": { "createCommitOnBranch": { "commit": { "oid": made } } } }),
+            ),
+        ];
+        answers.extend(the_steps_of("v0.1.0", "staging", &made));
+        on_main(&answers).expect("a production release published whole");
+        let calls = the_calls(&fixtures);
+        let pulls = "repos/noctua-world/probe/pulls";
+        assert_eq!(
+            asked(&calls),
+            [
+                "WhatGitHubHolds",
+                "ReleaseCommit",
+                "repos/noctua-world/probe/git/refs",
+                "repos/noctua-world/probe/releases",
+                pulls,
+                "AutoMerge",
+            ]
+        );
+        a_production_release_asked(&root, &calls, &head, &made);
+        // **Carried on from the release commit**, which the push it causes runs
+        // the release on: with no pull request carrying it, the release asks
+        // whether `staging` holds it.
+        repository.git(&["add", "-A"]);
+        repository.commit("chore(release): v0.1.0\n", &[]);
+        let release_commit = repository.head();
+        let [_, _, opened, queued] = the_steps_of("v0.1.0", "staging", &release_commit);
+        on_main(&[
+            holding_these(Some(release_commit.as_str()), true, &[]),
+            the_branch_below("AHEAD"),
+            opened,
+            queued,
+        ])
+        .expect("a production release carried on");
+        let calls = the_calls(&fixtures);
+        assert_eq!(
+            asked(&calls),
+            ["WhatGitHubHolds", "HeldBelow", pulls, "AutoMerge"]
+        );
+        assert_eq!(
+            (
+                &calls[1].request["variables"]["below"],
+                &calls[1].request["variables"]["at"]
+            ),
+            (
+                &"refs/heads/staging".into(),
+                &release_commit.as_str().into()
+            ),
+            "a run carried on asked whether another branch holds the release"
+        );
+        assert_eq!(calls[2].request["base"], "staging");
+    }
+
+    /// What a production release made whole asked GitHub for, as the fake
+    /// recorded it in `calls`: `v0.1.0` of `head`, in `root`, its release
+    /// commit answered as `made`.
+    ///
+    /// **On `main` and back to `staging`**: the pull request back is looked
+    /// for and opened between the two, the release commit is made on `main`,
+    /// and the release is the latest and not a pre-release.
+    fn a_production_release_asked(root: &Path, calls: &[Call], head: &str, made: &str) {
+        let question = &calls[0].request["variables"];
+        assert_eq!(question["tag"], "v0.1.0");
+        assert_eq!(
+            (&question["head"], &question["base"]),
+            (&"main".into(), &"staging".into()),
+            "the pull request back is looked for between another pair of branches"
+        );
+        let input = &calls[1].request["variables"]["input"];
+        assert_eq!(
+            input["branch"]["branchName"], "main",
+            "the release commit is made on another branch"
+        );
+        assert_eq!(
+            input["expectedHeadOid"], head,
+            "the commit the job checked out"
+        );
+        assert_eq!(input["message"]["headline"], "chore(release): v0.1.0");
+        the_files_committed_are_the_files_written(
+            root,
+            &input["fileChanges"]["additions"],
+            "0.1.0",
+        );
+        assert_eq!(
+            calls[2].request,
+            serde_json::json!({ "ref": "refs/tags/v0.1.0", "sha": made })
+        );
+        let release = &calls[3].request;
+        assert_eq!(release["tag_name"], "v0.1.0");
+        assert_eq!(
+            release["prerelease"], false,
+            "a production release is published as a pre-release"
+        );
+        assert_eq!(
+            release["make_latest"], "true",
+            "a production release is not published as the latest"
+        );
+        let notes = release["body"].as_str().unwrap_or_default();
+        assert!(
+            notes.starts_with("### Added\n\n- add the probe (")
+                && notes.contains("### Fixed\n\n- **xtask:** something after the candidate ("),
+            "the candidate's section does not fold into the release's notes: {notes}"
+        );
+        assert_eq!(
+            (
+                &calls[4].request["head"],
+                &calls[4].request["base"],
+                &calls[4].request["title"]
+            ),
+            (
+                &"main".into(),
+                &"staging".into(),
+                &"chore(release): carry v0.1.0 back to staging".into()
+            ),
+            "a production release is not carried back to staging"
+        );
+    }
+
+    /// A gate that refused stops the release before anything is written, and
+    /// one that passed lets it on to the write.
+    ///
+    /// **The verb itself, with the fake as its gate**, which exits 1 and then
+    /// 0, over a workspace with something to release: the release reads
+    /// nothing of the gate but its exit status, so every place that hands a
+    /// refusal on lies between the status and what this asserts. The fake
+    /// records each start, so both are the gate's own `check`.
     #[test]
     fn a_gate_that_refused_stops_the_release() {
         let (held, bin) = a_fake_gh();
@@ -6686,18 +6856,32 @@ fn main() {
             std::fs::write(fixtures.join("answers").join(format!("{nth:03}")), exit)
                 .expect("a writable scratch");
         }
+        let repository = a_workspace("gated", &["fix: something to release"]);
+        let root = repository.root();
         let mut inherited = this_environment();
         inherited.push(("NC_FAKE_GH".into(), fixtures.as_os_str().to_owned()));
-        let refused = super::the_gate_at(&fake, &fixtures, &inherited)
+        let before = every_file_under(&root);
+        let refused = super::run_at(&fake, &root, Channel::Staging, false, false, &inherited)
             .expect_err("a gate that exits 1 refused");
         assert!(
             refused.contains("the gate refused, as its lines above say, so nothing was written"),
             "{refused}"
         );
         assert_eq!(
-            super::the_gate_at(&fake, &fixtures, &inherited),
-            Ok(()),
-            "a gate that exits 0 passed, and the release goes on"
+            changed_between(&before, &every_file_under(&root)),
+            Vec::<String>::new(),
+            "a release whose gate refused changed the tree"
+        );
+        super::run_at(&fake, &root, Channel::Staging, false, false, &inherited)
+            .expect("a gate that exits 0 passed, and the release goes on");
+        assert_eq!(
+            changed_between(&before, &every_file_under(&root)),
+            [
+                "CHANGELOG.md appeared",
+                "Cargo.lock was rewritten",
+                "Cargo.toml was rewritten",
+            ],
+            "a release whose gate passed did not write the release"
         );
         assert_eq!(
             the_calls(&fixtures)
@@ -6820,18 +7004,12 @@ mod relock_tests {
     /// **The window between the write and the lockfile.** `relock` runs
     /// `cargo update --workspace`, which is one registry away from the network,
     /// and a failure there left `Cargo.toml` at the new version and `Cargo.lock`
-    /// at the old one — in a repository with no git to undo it (`§5.3`).
-    /// Measured with a cargo that fails only on `update`:
+    /// at the old one, under a message saying nothing was released.
     ///
-    /// ```text
-    /// ok    1 file(s) carry 0.3.0
-    /// error cargo update refused: …
-    /// version after: 0.3.0        lockfile says: 0.2.0
-    /// ```
-    ///
-    /// And without the restore the obvious recovery is refused — `this tree is
-    /// at 0.3.0 and 0.3.0 is not ahead of it` — so the operator has to hand-edit
-    /// the manifest back before they can try again.
+    /// **A refused release leaves the tree it was given.** Left as the failure
+    /// put it, the manifest and the lockfile disagree, so cargo refuses every
+    /// `cargo xtask` verb before it starts — the alias passes `--locked` — and
+    /// the release run again refuses a tree holding changes no commit has.
     ///
     /// Driven over a scratch manifest through the write and the restore, because
     /// running the real verb means running the whole gate twice.
@@ -6862,7 +7040,7 @@ mod relock_tests {
             std::fs::read_to_string(&manifest)
                 .expect("readable")
                 .contains("version = \"0.1.0\""),
-            "the version was not put back, and there is no git here to do it"
+            "the version was not put back, and a refused release leaves the tree it was given"
         );
 
         // And the source carries the restore, because the two calls above are a

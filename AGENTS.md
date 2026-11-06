@@ -1677,12 +1677,12 @@ branch the release is made from.
 exists and judges the answer before anything is written, then makes the release commit
 through `createCommitOnBranch` with the commit the job checked out as the branch's expected
 head — so a branch that moved meanwhile fails the release — then the tag, the GitHub
-release (a pre-release on `staging`), and the pull request that carries it back (`main` to
-`staging`, `staging` to `dev`) with auto-merge by merge commit. A run on a release commit —
-the push that commit causes, or a job run again after one died — carries that release on,
-makes only what is missing, and ends `already released` when nothing is; there, a pull
-request back whose checks have passed already is merged by merge commit, because GitHub
-refuses auto-merge on one it would merge now.
+release (a pre-release on `staging`, the latest on `main`), and the pull request that
+carries it back (`main` to `staging`, `staging` to `dev`) with auto-merge by merge commit.
+A run on a release commit — the push that commit causes, or a job run again after one
+died — carries that release on, makes only what is missing, and ends `already released`
+when nothing is; there, a pull request back whose checks have passed already is merged by
+merge commit, because GitHub refuses auto-merge on one it would merge now.
 
 **A release the branch below holds already is not carried back again.** A release made
 while an earlier one's pull request back is still open is carried by that one, and once it
@@ -1755,10 +1755,17 @@ checks have passed in each state GitHub merges at once, an earlier release's pul
 merged before the release commit, with the branch below stopped there or moved on since,
 and merged since it, a release commit made with such a pull request open, a pull request
 answered in REST's shape, its `id` a number, and each step answered with success in
-another shape. Another runs its own test binary again with `gh`'s variables exported, and
-holds the gate and the relock, each started at the fake, to being handed none of them; and
-a third starts the gate at the fake, exiting 1 and then 0, and holds a gate that refused
-to stopping the release.
+another shape. A second publishes on `main` a release whose candidate was tagged and
+merged, and holds the release commit to `main`, the GitHub release to the latest and not a
+pre-release, and the pull request back, and the branch a run carried on asks about, to
+`staging`. Another runs its own test binary again with `gh`'s variables exported, and
+holds the gate and the relock, each started at the fake, to being handed none of them.
+And the gate's refusal is held through the verb itself: one test runs `run_at`, which `run`
+hands this tool and this process's environment, over a scratch workspace with the fake as
+its gate, exiting 1 and then 0 — the run whose gate refused hands that refusal back and
+leaves every file of the workspace as it was given, and the one whose gate passed writes
+the version, the changelog and the lockfile. A refusal of the release itself is held
+through `run`, so what the release refuses is what the verb hands back.
 
 ### The history says what each change is, credits no agent, and stays small
 

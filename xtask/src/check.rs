@@ -18764,7 +18764,7 @@ mod the_frozen_path_rule {
         ("xtask/plugins.rs", 25, 5),
         ("xtask/policy.rs", 57, 5),
         ("xtask/references.rs", 54, 26),
-        ("xtask/release.rs", 202, 14),
+        ("xtask/release.rs", 205, 14),
         ("xtask/sections.rs", 38, 10),
         ("xtask/store.rs", 29, 4),
         ("xtask/the_pages_reach_the_catalog.rs", 37, 20),
@@ -24515,7 +24515,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14747;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14757;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24534,7 +24534,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2959;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2956;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -24551,7 +24551,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 969;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 968;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -24585,7 +24585,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 20617;
+    const THE_REARRANGEMENTS_JUDGED: usize = 20636;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24603,7 +24603,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 441;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 442;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -24639,7 +24639,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **441 of 20,617 are accepted by the first-line
+    /// rules the gates apply: **442 of 20,636 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -24672,7 +24672,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **969 of
+    /// this tree offers, **968 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -35344,7 +35344,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1499] = [
+    static OPERATORS: [(&str, &str, &str); 1504] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -35649,11 +35649,17 @@ Options:
             "merged_now",
             "a merge GitHub does not say happened is refused",
         ),
-        ("release", "run", "the gate runs in a child of its own"),
+        ("release", "run_at", "the gate runs in a child of its own"),
         (
             "release",
-            "the_gate_at",
+            "the_gate",
             "a gate that refused stops the release",
+        ),
+        ("release", "run_at", "the verb hands back a gate's refusal"),
+        (
+            "release",
+            "run",
+            "the verb hands back what the release refused",
         ),
         (
             "release",
@@ -35694,6 +35700,21 @@ Options:
             "release",
             "a_carried_back",
             "a pull request's node is its node_id where its id is a number",
+        ),
+        (
+            "release",
+            "the_github_release",
+            "a production release is not a pre-release",
+        ),
+        (
+            "release",
+            "the_github_release",
+            "a production release is the latest",
+        ),
+        (
+            "release",
+            "below",
+            "a production release is carried back to staging",
         ),
         (
             "history",
