@@ -1691,7 +1691,9 @@ title anywhere. So a run carried on with no pull request carrying the release as
 before it makes anything, whether the branch below holds the release commit — GitHub
 compares the two, and the commit is that branch's head or behind it — and opens none when
 it does: GitHub refuses a pull request between a branch and one already holding all of it,
-and that run, and every run after it, would fail over a release carried back whole.
+and that run, and every run after it, would fail over a release carried back whole. A
+branch below that took a merge the released branch has not is one GitHub answers as
+diverged from the release commit, not holding it, and the release is carried back there.
 
 **A run that makes the release commit never merges now.** That commit moves the head of
 the pull request back, and the merge state GitHub gave was of the head before: no check
@@ -1750,11 +1752,13 @@ compiled for the system it runs on, which records each call — its arguments, t
 of `gh`'s own it was handed, and the request — and answers from fixtures, a run carried on
 after each step among them, a fork's pull request beside the release's own, one whose
 checks have passed in each state GitHub merges at once, an earlier release's pull request
-merged before the release commit and since it, a release commit made with such a pull
-request open, a pull request answered in REST's shape, its `id` a number, and each step
-answered with success in another shape. Another runs its own test binary again with
-`gh`'s variables exported, and holds the gate and the relock, each started at the fake, to
-being handed none of them.
+merged before the release commit, with the branch below stopped there or moved on since,
+and merged since it, a release commit made with such a pull request open, a pull request
+answered in REST's shape, its `id` a number, and each step answered with success in
+another shape. Another runs its own test binary again with `gh`'s variables exported, and
+holds the gate and the relock, each started at the fake, to being handed none of them; and
+a third starts the gate at the fake, exiting 1 and then 0, and holds a gate that refused
+to stopping the release.
 
 ### The history says what each change is, credits no agent, and stays small
 

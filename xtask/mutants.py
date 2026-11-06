@@ -766,15 +766,21 @@ WEAKENINGS = [
     ("release", "merged_now", "a merge GitHub does not say happened is refused",
      "        != Some(true)",
      "        == Some(false)"),
-    # **Who is handed the App's token, what a run carried on finds below, and
-    # how a pull request's node is read.** A child of the release handed `gh`'s
-    # variables holds a token that may push past `staging`'s and `main`'s rules;
-    # a release the branch below already holds, carried back again, fails that
-    # run and every run after it; and a node read from REST's numeric `id`
-    # refuses every release made fresh. Only the test written for each says so.
+    # **Who is handed the App's token, what a gate that refused stops, what a
+    # run carried on finds below, and how a pull request's node is read.** A
+    # child of the release handed `gh`'s variables holds a token that may push
+    # past `staging`'s and `main`'s rules; a gate that refused, read as passed,
+    # lets a red tree be committed, tagged and released; a release the branch
+    # below already holds, carried back again, fails that run and every run
+    # after it, and one a branch below that moved on since is read as holding
+    # is never carried back; and a node read from REST's numeric `id` refuses
+    # every release made fresh. Only the test written for each says so.
     ("release", "run", "the gate runs in a child of its own",
      "        the_gate(root, &inherited)?;",
      "        crate::check::run(root, false)?;"),
+    ("release", "the_gate_at", "a gate that refused stops the release",
+     "    if ran.success() {",
+     "    if true {"),
     ("release", "without_ghs_own", "no child but gh is handed gh's variables",
      "        .filter(|(name, _)| !ghs_own(name))",
      "        .filter(|_| true)"),
@@ -793,6 +799,9 @@ WEAKENINGS = [
     ("release", "held_below", "a branch below gone on past the release commit holds it",
      "        Some(\"BEHIND\" | \"IDENTICAL\") => Ok(true),",
      "        Some(\"IDENTICAL\") => Ok(true),"),
+    ("release", "held_below", "a branch below that moved on since does not hold the release",
+     "        Some(\"BEHIND\" | \"IDENTICAL\") => Ok(true),\n        Some(\"AHEAD\" | \"DIVERGED\") => Ok(false),",
+     "        Some(\"BEHIND\" | \"IDENTICAL\" | \"DIVERGED\") => Ok(true),\n        Some(\"AHEAD\") => Ok(false),"),
     ("release", "a_carried_back", "a pull request's node is its node_id where its id is a number",
      "        .get(\"node_id\")\n        .and_then(serde_json::Value::as_str)\n        .or_else(|| node.get(\"id\").and_then(serde_json::Value::as_str))",
      "        .get(\"id\")\n        .or_else(|| node.get(\"node_id\"))\n        .and_then(serde_json::Value::as_str)"),

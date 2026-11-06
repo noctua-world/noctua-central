@@ -151,6 +151,11 @@ const MERGED_NOW: &str = "mutation MergedNow($id: ID!) { mergePullRequest(input:
 /// measured on 2026-11-05 against this repository, `dev` compared with its
 /// own head answered `IDENTICAL`, with a commit it does not hold `AHEAD`, and
 /// with one of its older commits `BEHIND`.
+///
+/// **A branch below that moved on since answers `DIVERGED`**: each holds a
+/// commit the other does not, as `dev` does once it takes a merge `staging`
+/// has not. Measured on 2026-11-06 with a branch here and a commit it does
+/// not hold, made on an older head of it.
 const WHAT_THE_BRANCH_BELOW_HOLDS: &str = "query HeldBelow($owner: String!, $name: String!, \
                                            $below: String!, $at: String!) { \
                                            repository(owner: $owner, name: $name) { \
@@ -573,13 +578,34 @@ fn without_ghs_own(
 ///
 /// # Errors
 ///
-/// Returns why the gate could not be started, or that it refused, as its
-/// own lines above say.
+/// Returns why this tool could not find itself, or what [`the_gate_at`]
+/// refused.
 fn the_gate(root: &Path, inherited: &[(OsString, OsString)]) -> Result<(), String> {
     let itself = std::env::current_exe().map_err(|error| {
         format!("this tool could not find itself to run the gate: {error}. Nothing was written")
     })?;
-    let ran = a_gate(&itself, root, inherited)
+    the_gate_at(&itself, root, inherited)
+}
+
+/// Runs the gate as [`a_gate`] starts it from `itself`, and refuses unless
+/// it passed.
+///
+/// **Its exit status is all the release reads of it**, so a status other
+/// than success stops the release before anything is written: read as
+/// passed, a gate that refused would let `--publish` commit, tag and release
+/// a tree whose tests are red. A parameter so a test can start it at a
+/// program that exits as the test says.
+///
+/// # Errors
+///
+/// Returns why the gate could not be started, or that it refused, as its
+/// own lines above say.
+fn the_gate_at(
+    itself: &Path,
+    root: &Path,
+    inherited: &[(OsString, OsString)],
+) -> Result<(), String> {
+    let ran = a_gate(itself, root, inherited)
         .status()
         .map_err(|error| format!("the gate could not be started: {error}. Nothing was written"))?;
     if ran.success() {
@@ -589,7 +615,7 @@ fn the_gate(root: &Path, inherited: &[(OsString, OsString)]) -> Result<(), Strin
     }
 }
 
-/// The gate as [`the_gate`] starts it, from `itself`, over `root`.
+/// The gate as [`the_gate_at`] starts it, from `itself`, over `root`.
 ///
 /// **Cleared before it is handed anything**, so a variable this process holds
 /// reaches it only through `inherited`, and `gh`'s do not reach it through
@@ -2159,9 +2185,11 @@ fn from_this_repository(
 /// Whether the branch below `channel` holds the commit `at` already: GitHub
 /// compares the two, and `at` is that branch's head or behind it.
 ///
-/// **Ahead or diverged, it does not**, and the release carries it back; any
-/// other answer is refused, since one read as held would leave a release
-/// nobody carried back, ended as if it were.
+/// **Ahead or diverged, it does not**, and the release carries it back:
+/// diverged is the branch below holding a commit of its own beside it, as it
+/// does after any merge into it the released branch has not taken. Any other
+/// answer is refused, since one read as held would leave a release nobody
+/// carried back, ended as if it were.
 ///
 /// # Errors
 ///
@@ -6217,8 +6245,9 @@ fn main() {
     ///
     /// **Open, it carries this release** — its head is the branch. **Merged
     /// before the release commit, it does not**, and the release carries it
-    /// back; **merged since, at the release commit or past it, it did**: `dev`
-    /// holds it, and the release opens nothing.
+    /// back, whether `dev` stopped there or moved on since; **merged since, at
+    /// the release commit or past it, it did**: `dev` holds it, and the release
+    /// opens nothing.
     fn the_runs_beside_an_earlier_release(
         release_commit: &str,
     ) -> Vec<(String, String, Vec<String>, Vec<String>)> {
@@ -6246,7 +6275,14 @@ fn main() {
             (
                 "an earlier release's pull request, merged before the release commit",
                 holding_these(at, true, &[earlier("MERGED")]),
-                vec![the_branch_below("AHEAD"), opened, queued.clone()],
+                vec![the_branch_below("AHEAD"), opened.clone(), queued.clone()],
+                vec!["HeldBelow", pulls, "AutoMerge"],
+            ),
+            (
+                "an earlier release's pull request, merged before the release commit, the \
+                 branch below moved on since",
+                holding_these(at, true, &[earlier("MERGED")]),
+                vec![the_branch_below("DIVERGED"), opened, queued.clone()],
                 vec!["HeldBelow", pulls, "AutoMerge"],
             ),
             (
@@ -6631,6 +6667,46 @@ fn main() {
             let refused = GitHub::of(&without).expect_err(missing);
             assert!(refused.contains(missing), "{refused}");
         }
+    }
+
+    /// A gate that refused stops the release, and one that passed lets it
+    /// on.
+    ///
+    /// **Started at the fake**, which exits 1 and then 0: the release reads
+    /// nothing of the gate but its exit status, so the status is the whole of
+    /// what it decides by. The fake records each start, so both are the gate's
+    /// own `check`.
+    #[test]
+    fn a_gate_that_refused_stops_the_release() {
+        let (held, bin) = a_fake_gh();
+        let fixtures = held.root.join("fixtures");
+        let fake = bin.join(format!("gh{}", std::env::consts::EXE_SUFFIX));
+        std::fs::create_dir_all(fixtures.join("answers")).expect("a writable scratch");
+        for (nth, exit) in ["1\n", "0\n"].into_iter().enumerate() {
+            std::fs::write(fixtures.join("answers").join(format!("{nth:03}")), exit)
+                .expect("a writable scratch");
+        }
+        let mut inherited = this_environment();
+        inherited.push(("NC_FAKE_GH".into(), fixtures.as_os_str().to_owned()));
+        let refused = super::the_gate_at(&fake, &fixtures, &inherited)
+            .expect_err("a gate that exits 1 refused");
+        assert!(
+            refused.contains("the gate refused, as its lines above say, so nothing was written"),
+            "{refused}"
+        );
+        assert_eq!(
+            super::the_gate_at(&fake, &fixtures, &inherited),
+            Ok(()),
+            "a gate that exits 0 passed, and the release goes on"
+        );
+        assert_eq!(
+            the_calls(&fixtures)
+                .iter()
+                .map(|call| call.arguments.join(" "))
+                .collect::<Vec<_>>(),
+            ["check", "check"],
+            "the gate was not the child started"
+        );
     }
 
     /// What tells this test binary, run again, that it is the child of

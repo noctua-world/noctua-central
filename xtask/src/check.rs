@@ -18764,7 +18764,7 @@ mod the_frozen_path_rule {
         ("xtask/plugins.rs", 25, 5),
         ("xtask/policy.rs", 57, 5),
         ("xtask/references.rs", 54, 26),
-        ("xtask/release.rs", 200, 14),
+        ("xtask/release.rs", 202, 14),
         ("xtask/sections.rs", 38, 10),
         ("xtask/store.rs", 29, 4),
         ("xtask/the_pages_reach_the_catalog.rs", 37, 20),
@@ -24515,7 +24515,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14740;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14747;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24585,7 +24585,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 20607;
+    const THE_REARRANGEMENTS_JUDGED: usize = 20617;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24639,7 +24639,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **441 of 20,607 are accepted by the first-line
+    /// rules the gates apply: **441 of 20,617 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -35344,7 +35344,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1497] = [
+    static OPERATORS: [(&str, &str, &str); 1499] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -35652,6 +35652,11 @@ Options:
         ("release", "run", "the gate runs in a child of its own"),
         (
             "release",
+            "the_gate_at",
+            "a gate that refused stops the release",
+        ),
+        (
+            "release",
             "without_ghs_own",
             "no child but gh is handed gh's variables",
         ),
@@ -35679,6 +35684,11 @@ Options:
             "release",
             "held_below",
             "a branch below gone on past the release commit holds it",
+        ),
+        (
+            "release",
+            "held_below",
+            "a branch below that moved on since does not hold the release",
         ),
         (
             "release",
