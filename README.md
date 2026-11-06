@@ -144,10 +144,10 @@ included — those it also applies to a scratch SQLite file and holds to the lis
 
 ## Branches and releases
 
-`dev` is the default branch, and every pull request targets it. `staging` and `main`
-are the release channels, each reached by a pull request from the branch below it, and
-a merge into either publishes that channel's release on GitHub: the version and the
-changelog are computed from the conventional commits, and nothing else chooses them
-(`NOCTUA.md §22`). Merges are merge commits, whose title and body are the pull
-request's; every commit is signed; and no branch's history is rewritten. `AGENTS.md`
-says how each of those is held.
+`dev` is the default branch, and every feature branch's pull request targets it.
+`staging` and `main` are the release channels, each reached by a pull request from the
+branch below it, and a merge into either publishes that channel's release on GitHub:
+the version and the changelog are computed from the conventional commits, and nothing
+else chooses them (`NOCTUA.md §22`). Merges are merge commits, whose title and body are
+the pull request's; every commit is signed; and no branch's history is rewritten.
+`AGENTS.md` says how each of those is held.

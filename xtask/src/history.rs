@@ -20,8 +20,9 @@
 //! A merge commit is judged like any other. GitHub titles one with the pull
 //! request's title and appends ` (#N)`, so a merged history is conventional
 //! when every title was, and [`subject`] reads that suffix off. A commit
-//! GitHub or the release App authored is judged by the same rules as one a
-//! person did: what is judged is what a message says, never who wrote it.
+//! GitHub made or the release App authored is judged by the same rules as
+//! one a person made: what is judged is what a message says, never who
+//! wrote it.
 //!
 //! # A pull request is judged as its event names it
 //!

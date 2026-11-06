@@ -164,9 +164,10 @@ This repository is `github.com/noctua-world/noctua-central`, public (`NOCTUA.md 
 2. **Merge commits only.** Squash and rebase are disabled, and a merge commit's title and
    body are the pull request's, so **a pull request's title is a commit subject**:
    conventional, and judged as one. Auto-merge is allowed.
-3. **Every commit is signed** — by its author, or, for a release commit, by GitHub — and a
-   failed signature is a stop, never a bypass (`NOCTUA.md §2.6`). **History is never
-   rewritten** on a pushed branch: a mistake is fixed by a new commit.
+3. **Every commit is signed** — a commit by the developer who makes it, and a merge
+   commit and the release commit by GitHub — and a failed signature is a stop, never a
+   bypass (`NOCTUA.md §2.6`). **History is never rewritten** on a pushed branch: a
+   mistake is fixed by a new commit.
 4. **The rulesets** (rulesets, not classic branch protection): on `dev`, `staging` and
    `main`, a pull request with no approval required and the merge method alone, signed
    commits, no force-push, no deletion, and the checks `linux`, `macos`, `windows` and
@@ -428,9 +429,9 @@ effect; 22 is gated over the statements written today and by nothing over the ne
    refused by the rule that nothing unnamed sits at the root.
 
 3. **Generated output is never hand-edited, and `catalog/errors.reserved.toml` is not
-   generated output.** It is the only record of which error codes have been used, so
-   `build` appends to it, `check` reconciles it with `catalog/errors.toml`, and a checksum
-   over it catches an edit made outside either.
+   generated output.** It is the record of which error codes have been used, a removed
+   one included, so `build` appends to it, `check` reconciles it with
+   `catalog/errors.toml`, and a checksum over it catches an edit made outside either.
 
 4. **A written list is compared with the tree in both directions.** `SUITES`, `SHAPES`,
    `CORE_POLICIES` and the determinism needles are each checked against what exists,
@@ -451,7 +452,8 @@ effect; 22 is gated over the statements written today and by nothing over the ne
    and clippy to every source root cargo declares, the audit reports the crates it read
    and fails without licence statistics, and a step that checks one fact has nothing to
    count. **The migration count leans on the database**: `migrations/` is compared with
-   `_sqlx_migrations`, the only record without git, since deleting the highest-numbered
+   `_sqlx_migrations`, the only thing outside this tree that remembers what was applied
+   — the gate reads no history in its place — since deleting the highest-numbered
    migration leaves no gap in the numbering.
 
 6. **No query is checked against a live database while compiling.** `sqlx`'s `query!`
@@ -2375,10 +2377,10 @@ rather than anything decided for the project, and each is a maintainer's to reop
   compared somewhere today, by no rule. The blind spot is the **shape** — not a `pub`
   field, not a `pub fn(self)` — which `emitted()` writes down; the names illustrate it.
 - **The history step reads what a message says, never who wrote it.** A commit authored
-  under an agent's own name passes when its message credits nobody: GitHub authors the
-  merge commits and the release App its own, and a rule over identities would have to
-  name the App's account exactly — a wrong name there is a permanent failure over a
-  history that is never rewritten.
+  under an agent's own name passes when its message credits nobody: GitHub commits and
+  signs each merge commit, whose author is whoever merged; the release App authors its
+  own; and a rule over identities would have to name the App's account exactly — a wrong
+  name there is a permanent failure over a history that is never rewritten.
 - **A credit in a shape the history step's lists do not hold passes**: a product missing
   from `AGENT_NAMES` or `AGENT_SITES` in `xtask/src/history.rs`, signing from a vendor
   `AGENT_VENDORS` does not hold — one that makes more than agents, such as GitHub, Google
