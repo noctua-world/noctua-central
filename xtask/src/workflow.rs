@@ -1534,7 +1534,7 @@ fn github_runs_it(relative: &str) -> bool {
 /// block scalar a `#` line is text GitHub evaluates. **In any file**,
 /// `--publish`, with the quotes and backslashes a shell spends taken out
 /// first.
-fn the_releases_authority_in(read: &[String; 2], github: bool) -> Vec<&'static str> {
+fn the_releases_authority_in(read: &[String; 2], github: bool) -> Vec<String> {
     let mut held = Vec::new();
     for version in read {
         let code = the_code_before_a_comment(version).to_ascii_lowercase();
@@ -1552,25 +1552,25 @@ fn the_releases_authority_in(read: &[String; 2], github: bool) -> Vec<&'static s
                 .starts_with(':')
         };
         if github && code.contains(&MINTS_THE_RELEASE_TOKEN.to_ascii_lowercase()) {
-            held.push("mints the release App's token");
+            held.push("mints the release App's token".to_owned());
         }
         if github
             && the_ends_of_the_word(&code, "environment")
                 .iter()
                 .any(as_a_key)
         {
-            held.push("enters an environment");
+            held.push("enters an environment".to_owned());
         }
         if github
             && (!the_ends_of_the_word(&code, "secrets").is_empty() || in_an_expression("secrets"))
         {
-            held.push("reads a secret");
+            held.push("reads a secret".to_owned());
         }
         if github && in_an_expression("steps") {
-            held.push("reads a step's output");
+            held.push("reads a step's output".to_owned());
         }
         if code.replace(['"', '\'', '\\'], "").contains("--publish") {
-            held.push("publishes a release");
+            held.push("publishes a release".to_owned());
         }
     }
     held.sort_unstable();
