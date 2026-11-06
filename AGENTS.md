@@ -1831,9 +1831,15 @@ gate's `CI` step refuses the tree otherwise, before any run of the release can.
   than the readers do is read for more than it holds, and passes. A block scalar's lines
   are a command's text and are not read for braces, quotes or comments; they run to the
   first line indented no further than the key's own column, measured past every `-`
-  before the key and all the whitespace after each. Measured past `- ` alone, the keys of
-  a step written `-   run: |` were read as the scalar's text, and a quoted scalar left
-  open on one of them hid the `macos` job's gate step from every rule.
+  before the key and all the whitespace after each, or than the `-` a header follows
+  with no key. Measured past `- ` alone, the keys of a step written `-   run: |` were
+  read as the scalar's text, and a quoted scalar left open on one of them hid the `macos`
+  job's gate step from every rule. **And a header opens one wherever YAML writes it**:
+  on its key's line or on a line of its own below it, a comment line between them or not,
+  with an anchor or a tag before it or not. Read only directly after a key's colon, the
+  text under `- run:` with `|` on the line below was read as YAML, where `name:` is a
+  label, and `name:() { "$@"; }` with `name: cargo clippy --workspace` after it ran a
+  second lints gate with nothing said.
 - **Every file CI reaches ends each line at a line feed, and nowhere else**, the justfile
   and a script a step runs among them, because every reader here splits a file there. A
   carriage return with no line feed after it ends a line to YAML, and NEL, LS and PS end
@@ -2309,22 +2315,27 @@ rather than anything decided for the project, and each is a maintainer's to reop
   text read as keys; and a `{` or `[` outside a quote is counted wherever it stands, a
   plain scalar's own among them, so `run: echo {` is refused as a collection left open.
   Both refuse more than YAML holds, never less. A line inside a block scalar is text to
-  YAML and is not read for braces, quotes or comments, and a block scalar is recognised by
-  its header on the line of its key, so a header this reader does not know leaves its
-  lines read as YAML, which refuses more and never less. It ends at the first line
-  indented no further than its key's own column, measured past every `-` before the key
-  and all the whitespace after each; a header on a line of its own, or as a sequence
-  entry's own node, puts that column further right than YAML does, which reads more lines
-  as YAML and refuses more.
+  YAML and is not read for braces, quotes or comments, and is read as a command, its
+  `name:` among them. A block scalar is recognised wherever YAML 1.2 lets its header
+  stand: after its key's colon or a sequence entry's `-`, or on a line of its own below
+  either, a comment line between them or not, with an anchor or a tag before it or not.
+  It ends at the first line indented no further than that key's own column, measured
+  past every `-` before the key and all the whitespace after each, or than the `-`
+  itself. **A header this reader did not know would refuse less, not more**: its text
+  would be read as YAML, where a `name:` is a label, and a line of YAML read as a
+  block's text has its quotes and brackets unread. Each shape is measured with `yq 3.4.3`
+  or the PyYAML it wraps; this reader is not a YAML parser, and a shape outside them, if
+  YAML has one, is one it reads wrong.
 - **A directory a command runs in is read from `working-directory`, `cd` and `pushd`
   alone**: a script named relative to a directory entered another way, such as `env -C`,
   `make -C`, `git -C` or a variable, is not looked for there, and is read only if a word
   names it from the root or from one of those directories. And the walk refuses more than
-  a shell runs in three places: `x=cargo` inside a quoted word is read as a name for
+  a shell runs in four places: `x=cargo` inside a quoted word is read as a name for
   cargo; a word naming a workflow or a composite action's file where a step finds a
-  script is refused though the command only reads it, as `cat` does; and on a line GitHub
+  script is refused though the command only reads it, as `cat` does; on a line GitHub
   reads as YAML, a `#` glued to a double-quoted scalar's closing quote is read as a shell
-  reads it, though a YAML parser ends the line there.
+  reads it, though a YAML parser ends the line there; and an anchor on such a line, as in
+  `run: &a |`, is read as a command sent to the background with `&`.
 - **The comparison gate's subject is public fields and accessors, not everything the
   compiler writes**: `pub const` arrays (`AREAS`, `KEYS`, `COMMANDS`, `TABLES`, `STORES`,
   `RATE_LIMITS`, `EVENTS`, each `ALL`), enum variants, functions taking an argument, and
@@ -2578,12 +2589,13 @@ deliberately not claimed").
   because a shell resolves none of those escapes: resolved, `echo :"\x20#"#; cargo clippy
   --workspace` held a ` #` that ended the line before the command a shell runs after it.
 - **A `name:` is a label only where GitHub reads it as YAML**: on a line of a workflow or
-  of a composite action's file that is no block scalar's text. In a block scalar, a
-  script, the justfile or a Makefile, a line opening on `name:` is a command, which a
-  shell runs with what follows it once `name:` is a function or a hashed path:
-  `name:() { "$@"; }` or `hash -p /usr/bin/env name:`, then `name: cargo clippy
-  --workspace`, ran a second lints gate there while a label holding no separator was
-  skipped. What a job must run still passes over every label.
+  of a composite action's file that is no block scalar's text, wherever the scalar's
+  header stands: on its key's line or below it, behind an anchor or a tag or not. In a
+  block scalar, a script, the justfile or a Makefile, a line opening on `name:` is a
+  command, which a shell runs with what follows it once `name:` is a function or a
+  hashed path: `name:() { "$@"; }` or `hash -p /usr/bin/env name:`, then `name: cargo
+  clippy --workspace`, ran a second lints gate there while a label holding no separator
+  was skipped. What a job must run still passes over every label.
 - **And no step runs a file GitHub reads as YAML**: a word that names a workflow or a
   composite action's file where a step finds a script, through the checkout root or an
   escape as well, is refused, because a shell running it reads every line as a command,

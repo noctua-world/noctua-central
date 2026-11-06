@@ -18902,7 +18902,7 @@ mod the_frozen_path_rule {
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 30, 6),
         ("xtask/ui.rs", 52, 12),
         ("xtask/wall.rs", 129, 28),
-        ("xtask/workflow.rs", 258, 23),
+        ("xtask/workflow.rs", 264, 23),
     ];
 
     /// The name an item declaration introduces, for the message below.
@@ -24644,7 +24644,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15019;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15033;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24663,7 +24663,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3044;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3047;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -24680,7 +24680,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 999;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1000;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -24714,7 +24714,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 21127;
+    const THE_REARRANGEMENTS_JUDGED: usize = 21153;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24768,7 +24768,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **442 of 21,127 are accepted by the first-line
+    /// rules the gates apply: **442 of 21,153 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -24801,7 +24801,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **999 of
+    /// this tree offers, **1000 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -35672,7 +35672,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1647] = [
+    static OPERATORS: [(&str, &str, &str); 1662] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -37346,7 +37346,7 @@ Options:
         ),
         (
             "workflow",
-            "the_lines_of_yaml",
+            "the_block_scalars",
             "a block scalar's braces are a flow collection",
         ),
         (
@@ -37512,8 +37512,83 @@ Options:
         ),
         (
             "workflow",
-            "the_lines_of_yaml",
+            "the_block_scalars",
             "a block scalar's key stands two columns past its dash",
+        ),
+        (
+            "workflow",
+            "the_lines_of_yaml",
+            "a block's text is read as YAML",
+        ),
+        (
+            "workflow",
+            "the_block_scalars",
+            "a header on a line of its own opens no block",
+        ),
+        (
+            "workflow",
+            "the_block_scalars",
+            "a header on a line of its own opens at its own column",
+        ),
+        (
+            "workflow",
+            "the_block_scalars",
+            "a header alone always opens a block",
+        ),
+        (
+            "workflow",
+            "the_block_scalars",
+            "a property hides the header after it",
+        ),
+        (
+            "workflow",
+            "the_block_scalars",
+            "a dash's node stands where its entry does",
+        ),
+        (
+            "workflow",
+            "the_block_scalars",
+            "a dash that ends its line opens no entry",
+        ),
+        (
+            "workflow",
+            "the_block_scalars",
+            "a comment forgets the node above it",
+        ),
+        (
+            "workflow",
+            "the_block_scalars",
+            "properties alone forget the node above them",
+        ),
+        (
+            "workflow",
+            "the_value_of_its_key",
+            "a key ends at its first colon",
+        ),
+        (
+            "workflow",
+            "the_value_of_its_key",
+            "a colon in a quoted key ends it",
+        ),
+        (
+            "workflow",
+            "the_value_of_its_key",
+            "a colon in a flow collection ends a key",
+        ),
+        (
+            "workflow",
+            "past_its_properties",
+            "a verbatim tag before a header is read as words",
+        ),
+        (
+            "workflow",
+            "past_its_properties",
+            "one property hides a header behind a second",
+        ),
+        (
+            "workflow",
+            "joined_continuations",
+            "a literal block's lines are a plain scalar's",
         ),
         ("workflow", "past_its_dashes", "one space follows a dash"),
         (

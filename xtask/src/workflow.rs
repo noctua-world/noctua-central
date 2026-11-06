@@ -689,8 +689,8 @@ fn joined_continuations(text: &str, yaml: &[usize]) -> Vec<(usize, String)> {
     // The entry a plain scalar's continuation lines are appended to, and the
     // indent that decides which lines those are.
     let mut last: Option<(usize, usize)> = None;
-    // The indent of the key that opened a `|` block, while one is open.
-    let mut literal: Option<usize> = None;
+    // The style of the block scalar whose text each line is, if it is one.
+    let blocks = the_block_scalars(text);
     for (index, raw) in text.lines().enumerate() {
         let indent = raw.len() - raw.trim_start().len();
         let line = raw.trim();
@@ -748,13 +748,15 @@ fn joined_continuations(text: &str, yaml: &[usize]) -> Vec<(usize, String)> {
         // A literal block is the exception and has to be tracked for it: under
         // `run: |` every line is its own command, and joining an indented shell
         // body onto the line above would report a command that is not there.
-        if let Some(opened_at) = literal {
-            if line.is_empty() || indent > opened_at {
-                out.push((index, line.to_owned()));
-                last = None;
-                continue;
-            }
-            literal = None;
+        // **Wherever YAML opens one** ([`the_block_scalars`]): with its header
+        // on a line of its own, or behind an anchor or a tag, a body joined on
+        // ended at `echo hi #` before the `cargo clippy --workspace` a shell
+        // runs on the line after it, and only the two counts' disagreement said
+        // anything.
+        if blocks[index] == Some('|') {
+            out.push((index, line.to_owned()));
+            last = None;
+            continue;
         }
         if let Some((at, opened_at)) = last
             && indent > opened_at
@@ -765,11 +767,6 @@ fn joined_continuations(text: &str, yaml: &[usize]) -> Vec<(usize, String)> {
             body.push(' ');
             body.push_str(line);
             continue;
-        }
-        if let Some(rest) = line.split_once(':').map(|(_, rest)| rest.trim())
-            && the_block_style(rest) == Some('|')
-        {
-            literal = Some(indent);
         }
         // **A double-quoted scalar may hold its own line breaks.** They are
         // resolved here rather than in the rules downstream, so the walk and
@@ -2265,40 +2262,144 @@ fn the_comments_cut_too_soon(text: &str) -> Vec<usize> {
         .collect()
 }
 
-/// The lines of `text` YAML reads as YAML, each at its index: every line but
-/// a comment, a blank and a block scalar's own.
+/// The lines of `text` YAML reads as YAML, each at its index.
 ///
-/// **A block scalar's lines are its text**, a command's braces, quotes and
-/// `#` among them, and run to the first line indented no further than the key
-/// whose value it is, its column measured past every `-` before it and the
-/// whitespace after each ([`past_its_dashes`]). Measured past `- ` alone,
-/// `-   run: |` put that key two columns left of where YAML reads it, so the
-/// step's own keys below it were read as the scalar's text: a quoted scalar
-/// left open on one of them swallowed the macOS job's gate step, and no rule
-/// said a word. A column read too far right reads more lines as YAML, which
-/// refuses more and never less.
+/// Every line but a comment, a blank and a block scalar's text
+/// ([`the_block_scalars`]).
+///
+/// **A column read wrong is wrong in both directions.** A line read as YAML
+/// is one whose `name:` is a label and whose escapes are resolved
+/// ([`the_lines_github_reads_as_yaml`]), so a block scalar's text read as YAML
+/// is a script read for less than a shell runs, its labels skipped; and a
+/// line of YAML read as a block's text is one whose quotes, brackets and `#`
+/// no rule reads. So every header YAML accepts opens a block here, at the
+/// column YAML opens it at, and neither direction refuses more.
 fn the_lines_of_yaml(text: &str) -> Vec<(usize, &str)> {
-    let mut held = Vec::new();
-    // The column of the key that opened a block scalar, while one is open.
-    let mut block: Option<usize> = None;
-    for (at, line) in text.lines().enumerate() {
+    let blocks = the_block_scalars(text);
+    text.lines()
+        .enumerate()
+        .filter(|&(at, line)| blocks[at].is_none() && !the_code_before_a_comment(line).is_empty())
+        .collect()
+}
+
+/// For each line of `text`, the style of the block scalar whose text it is.
+///
+/// `|` or `>`, and `None` for every other line.
+///
+/// **A block scalar's text is every line indented further than the node whose
+/// value it is**, with the blank lines among them (YAML 1.2 §8.1): the key's
+/// column when the header follows the key's colon, and the column of the last
+/// `-` when it follows a sequence entry's `-` with no key. The key's column is
+/// measured past every `-` before it and the whitespace after each
+/// ([`past_its_dashes`]). Measured past `- ` alone, `-   run: |` put that key
+/// two columns left of where YAML reads it, so the step's own keys below it
+/// were read as the scalar's text: a quoted scalar left open on one of them
+/// swallowed the macOS job's gate step, and no rule said a word.
+///
+/// **And every header YAML accepts opens one**, not only one written directly
+/// after its key's colon. An anchor and a tag may stand before it, as in
+/// `run: &a |`, `run: !!str |` and `run: !<tag:yaml.org,2002:str> |`
+/// ([`past_its_properties`]); and the header, its properties with it or not,
+/// may stand on a line below its key or its `-`, a comment line between them
+/// or not, as the value of that node. Read only directly after a key's colon,
+/// and at the header's own column, each of those left the block's text read as
+/// YAML, where a `name:` is a label: under `- run:` with `|` on the line
+/// below, `name:() { "$@"; }` and then `name: cargo clippy --workspace` ran a
+/// second lints gate, which `yq 3.4.3` reads as the step's `run` and `bash -e
+/// -c` runs, with the count unmoved and nothing said. A `|` alone below a node
+/// whose value is already written opens nothing: `yq` reads `run: echo a`,
+/// then `|`, then `b`, as `echo a | b`, the `|` a letter of a plain scalar
+/// running on.
+fn the_block_scalars(text: &str) -> Vec<Option<char>> {
+    let mut styles = Vec::new();
+    // The column a block's text stands right of, and its style, while one is
+    // open.
+    let mut block: Option<(usize, char)> = None;
+    // The column of the node whose value is still to come: a key, or a `-`,
+    // with nothing after it on its line but properties.
+    let mut pending: Option<usize> = None;
+    for line in text.lines() {
+        let indent = indent_of(line);
         let code = the_code_before_a_comment(line);
+        if let Some((parent, style)) = block {
+            if line.trim().is_empty() || indent > parent {
+                styles.push(Some(style));
+                continue;
+            }
+            // A comment left of the text ends no block here.
+            if code.is_empty() {
+                styles.push(None);
+                continue;
+            }
+            block = None;
+        }
+        styles.push(None);
         if code.is_empty() {
             continue;
         }
-        let indent = indent_of(line);
-        if block.is_some_and(|opened| indent > opened) {
-            continue;
-        }
-        block = None;
-        held.push((at, line));
         let entry = past_its_dashes(&code);
-        let header = entry.split_once(':').map_or(entry, |(_, rest)| rest);
-        if the_block_style(header).is_some() {
-            block = Some(indent + code.len() - entry.len());
+        // A `-` that ends its line opens an entry too, with its node below.
+        let entry = match entry.strip_prefix('-') {
+            Some("") => &entry[1..],
+            _ => entry,
+        };
+        let dashes = &code[..code.len() - entry.len()];
+        let (node, value) = match the_value_of_its_key(entry) {
+            Some(value) => (Some(indent + dashes.len()), value),
+            None => (dashes.rfind('-').map(|at| indent + at), entry),
+        };
+        let rest = past_its_properties(value);
+        if let Some(style) = the_block_style(rest) {
+            // A header with no node of its own on its line is the value of
+            // the node above it.
+            block = node.or(pending).map(|parent| (parent, style));
+            pending = None;
+        } else if !rest.is_empty() {
+            pending = None;
+        } else if node.is_some() {
+            pending = node;
         }
+        // Properties alone on a line are the pending node's, and leave it
+        // pending.
     }
-    held
+    styles
+}
+
+/// What a line's entry writes after its key's colon, if the entry opens on a
+/// key.
+///
+/// The key's colon is the first with whitespace or the line's end after it
+/// and nothing left open before it, a quote or a flow collection read as
+/// [`the_line_read_as_yaml`] reads one: a plain key may hold a colon of its
+/// own, as `a:b` does, a quoted key any letter, and a flow collection written
+/// as a key, as `{ a: 1 }` may be, keys of its own.
+fn the_value_of_its_key(entry: &str) -> Option<&str> {
+    entry.match_indices(':').find_map(|(at, _)| {
+        let after = &entry[at + 1..];
+        let ends_a_key = after.is_empty() || after.starts_with(char::is_whitespace);
+        let (depth, quote, _) = the_line_read_as_yaml(&entry[..at]);
+        (ends_a_key && depth == 0 && quote.is_none()).then_some(after)
+    })
+}
+
+/// A node's text past the anchor and the tag that may stand before it.
+///
+/// `&a`, `!x`, `!!str` and `!<tag:yaml.org,2002:str>`, in either order: a
+/// verbatim tag runs to its `>`, and any other property to the whitespace or
+/// the flow indicator that ends it, as [`the_property_ending`] reads one from
+/// the other end.
+fn past_its_properties(node: &str) -> &str {
+    let mut rest = node.trim_start();
+    while rest.starts_with(['&', '!']) {
+        let end = if rest.starts_with("!<") {
+            rest.find('>').map_or(rest.len(), |at| at + 1)
+        } else {
+            rest.find(|letter: char| letter.is_whitespace() || ",[]{}".contains(letter))
+                .unwrap_or(rest.len())
+        };
+        rest = rest[end..].trim_start();
+    }
+    rest
 }
 
 /// The lines GitHub reads as YAML, by index.
@@ -2309,7 +2410,9 @@ fn the_lines_of_yaml(text: &str) -> Vec<(usize, &str)> {
 /// **Where a line stands decides what it is, and not what it holds.** A
 /// `name:` there is a label and a double-quoted scalar's escapes are resolved
 /// there; a block scalar's text, a script, the justfile and a Makefile are
-/// commands, which a shell reads as they are written. And no step runs such a
+/// commands, which a shell reads as they are written. So a block scalar's text
+/// read as YAML is read for less than a shell runs, and every header YAML
+/// accepts opens one here ([`the_block_scalars`]). And no step runs such a
 /// file as a script ([`nothing_runs_what_github_reads`]), so a line of it is
 /// read by GitHub alone.
 fn the_lines_github_reads_as_yaml(relative: &str, text: &str) -> Vec<usize> {
@@ -12532,6 +12635,148 @@ mod tests {
         }
     }
 
+    /// A case of [`HEADERS`]: what it is, its text, and the lines of block
+    /// text it opens, each with its style.
+    type Header = (&'static str, &'static str, &'static [(usize, char)]);
+
+    /// Each header YAML accepts, and the lines of text it opens, by index and
+    /// style, as `yq 3.4.3` reads each.
+    ///
+    /// **A header on a line of its own, behind an anchor or a tag, after a
+    /// `-`, or after a key holding a colon or written as a flow collection**,
+    /// each read as YAML reads it; and a `|` alone below a value already
+    /// written, which opens nothing. `yq` cannot print a mapping held as a
+    /// key, and `PyYAML 6.0.3`, the parser it wraps, composes `{ a: 1 }: |` as
+    /// that key and a literal block.
+    const HEADERS: [Header; 27] = [
+        ("after-its-key", "run: |\n  name: x\nkey: y\n", &[(1, '|')]),
+        (
+            "on-a-line-of-its-own",
+            "run:\n  |\n  name: x\n",
+            &[(2, '|')],
+        ),
+        (
+            "folded-on-a-line-of-its-own",
+            "run:\n  >-\n  name: x\n",
+            &[(2, '>')],
+        ),
+        ("behind-a-tag", "run: !!str |\n  name: x\n", &[(1, '|')]),
+        ("behind-a-local-tag", "run: !x |\n  name: x\n", &[(1, '|')]),
+        ("behind-an-anchor", "run: &a |\n  name: x\n", &[(1, '|')]),
+        (
+            "behind-a-verbatim-tag",
+            "run: !<tag:yaml.org,2002:str> |\n  name: x\n",
+            &[(1, '|')],
+        ),
+        ("behind-both", "run: &a !!str >-\n  name: x\n", &[(1, '>')]),
+        (
+            "below-a-tag-of-its-own",
+            "run:\n  !!str\n  |\n  name: x\n",
+            &[(3, '|')],
+        ),
+        (
+            "with-its-tag-below",
+            "run:\n  !!str |\n  name: x\n",
+            &[(2, '|')],
+        ),
+        (
+            "below-the-tag-after-its-key",
+            "run: !!str\n  |\n  name: x\n",
+            &[(2, '|')],
+        ),
+        (
+            "below-a-comment",
+            "run:\n  # the lints\n  |\n  name: x\n",
+            &[(3, '|')],
+        ),
+        ("right-of-its-text", "run:\n    |\n  name: x\n", &[(2, '|')]),
+        ("after-a-dash", "list:\n  - |\n   name: x\n", &[(2, '|')]),
+        (
+            "below-a-dash",
+            "list:\n  -\n    |\n   name: x\n",
+            &[(3, '|')],
+        ),
+        (
+            "after-a-dash-under-a-dash",
+            "- - |\n   name: x\n",
+            &[(1, '|')],
+        ),
+        (
+            "after-a-dash-and-a-key",
+            "- run: |\n   name: x\n",
+            &[(1, '|')],
+        ),
+        (
+            "after-a-wide-dash-and-a-key",
+            "-   run: |\n     name: x\n",
+            &[(1, '|')],
+        ),
+        (
+            "after-a-key-holding-a-colon",
+            "a:b: |\n  name: x\n",
+            &[(1, '|')],
+        ),
+        (
+            "after-a-quoted-key-holding-one",
+            "\"a: b\": |\n  name: x\n",
+            &[(1, '|')],
+        ),
+        ("after-a-flow-key", "{ a: 1 }: |\n  name: x\n", &[(1, '|')]),
+        (
+            "with-its-indentation-written",
+            "run: |2\n    name: x\n",
+            &[(1, '|')],
+        ),
+        (
+            "ended-at-its-keys-column",
+            "run: |\n  a\nname: x\n",
+            &[(1, '|')],
+        ),
+        (
+            "with-a-blank-line",
+            "run: |\n  a\n\n  b\nname: x\n",
+            &[(1, '|'), (2, '|'), (3, '|')],
+        ),
+        (
+            "under-a-key-behind-an-anchor",
+            "run: &a\n  key: |\n    name: x\n",
+            &[(2, '|')],
+        ),
+        ("below-a-written-value", "run: echo a\n  |\n   b\n", &[]),
+        ("below-a-written-entry", "- echo a\n  |\n   b\n", &[]),
+    ];
+
+    /// Every header YAML accepts opens a block, at the column of the node
+    /// whose value it is.
+    ///
+    /// **Read only directly after a key's colon, and at the header's own
+    /// column**, the text below a header on a line of its own, behind an
+    /// anchor or a tag, after a `-`, or after a key holding a colon was read
+    /// as YAML, and a plain scalar running on past a `|` was read as text. A
+    /// line read as YAML has its `name:` skipped as a label, so the text of
+    /// `- run:` with `|` below it ran a second lints gate past every reader
+    /// here.
+    #[test]
+    fn every_header_yaml_accepts_opens_a_block_at_its_nodes_column() {
+        for (about, text, expected) in HEADERS {
+            let read: Vec<(usize, char)> = super::the_block_scalars(text)
+                .into_iter()
+                .enumerate()
+                .filter_map(|(at, style)| style.map(|style| (at, style)))
+                .collect();
+            assert_eq!(read, expected, "{about}: `{text}`");
+            let yaml: Vec<usize> = super::the_lines_of_yaml(text)
+                .into_iter()
+                .map(|(at, _)| at)
+                .collect();
+            assert!(
+                yaml.iter()
+                    .all(|at| !expected.iter().any(|&(text, _)| text == *at)),
+                "{about}: a block's text is read as YAML: {yaml:?}"
+            );
+        }
+    }
+
     /// The step that runs the gate in the `macos` job, which each case below
     /// replaces.
     const THE_MACOS_GATE: &str = "      - name: cargo xtask check\n        run: cargo xtask check\n\n  # **The gate on Windows";
@@ -12638,7 +12883,7 @@ mod tests {
     /// Each way of writing a second gate: what it is, the step added after the
     /// gate in `ci.yml`, what the script that step runs holds, if it runs
     /// one, the file the finding is about, and what it says.
-    const SECOND_GATES: [(&str, &str, &str, &str, &str); 24] = [
+    const SECOND_GATES: [(&str, &str, &str, &str, &str); 34] = [
         (
             "a-wide-dash",
             "      -   run: C=cargo; $C clippy --workspace\n",
@@ -12807,6 +13052,76 @@ mod tests {
             A_SCRIPT,
             "a command is sent to the background",
         ),
+        (
+            "a-function-under-a-header-of-its-own",
+            "      - run:\n          |\n          name:() { \"$@\"; }\n          name: cargo clippy --workspace\n",
+            "",
+            WORKFLOW,
+            CLIPPY,
+        ),
+        (
+            "a-label-under-a-folded-header-of-its-own",
+            "      - run:\n          >-\n          name: ; cargo clippy --workspace\n",
+            "",
+            WORKFLOW,
+            CLIPPY,
+        ),
+        (
+            "a-label-behind-a-tag",
+            "      - run: !!str |\n          name: ; cargo clippy --workspace\n",
+            "",
+            WORKFLOW,
+            CLIPPY,
+        ),
+        (
+            "a-function-behind-an-anchor",
+            "      - run: &a |\n          name:() { \"$@\"; }\n          name: cargo clippy --workspace\n",
+            "",
+            WORKFLOW,
+            CLIPPY,
+        ),
+        (
+            "a-label-behind-a-verbatim-tag",
+            "      - run: !<tag:yaml.org,2002:str> |\n          name: ; cargo clippy --workspace\n",
+            "",
+            WORKFLOW,
+            CLIPPY,
+        ),
+        (
+            "a-label-below-a-tag-of-its-own",
+            "      - run:\n          !!str\n          |\n          name: ; cargo clippy --workspace\n",
+            "",
+            WORKFLOW,
+            CLIPPY,
+        ),
+        (
+            "a-label-below-a-comment-and-a-header",
+            "      - run:\n          # the lints\n          |\n          name: ; cargo clippy --workspace\n",
+            "",
+            WORKFLOW,
+            CLIPPY,
+        ),
+        (
+            "a-label-left-of-its-header",
+            "      - run:\n            |\n          name: ; cargo clippy --workspace\n",
+            "",
+            WORKFLOW,
+            CLIPPY,
+        ),
+        (
+            "a-comment-under-a-header-of-its-own",
+            "      - run:\n          |\n          echo hi #\n          cargo clippy --workspace\n",
+            "",
+            WORKFLOW,
+            CLIPPY,
+        ),
+        (
+            "a-label-that-discards-under-a-header-of-its-own",
+            "      - run:\n          |\n          name:() { \"$@\" || true; }\n          name: cargo xtask check\n",
+            "",
+            WORKFLOW,
+            "swallowed by what follows `||`",
+        ),
     ];
 
     /// A second cargo command in `ci.yml` is found however the line around it
@@ -12820,7 +13135,9 @@ mod tests {
     /// where GitHub reads YAML alone, and what follows a closing quote is kept:
     /// in a script, `"\x20#"` is five letters to a shell, and the ` #` it
     /// spells once resolved ended the line before the command after it. A `name:` in a block
-    /// scalar or a script runs once it is a function or a hashed path. And each
+    /// scalar or a script runs once it is a function or a hashed path, and a
+    /// block scalar is one wherever YAML opens it: with its header on a line of
+    /// its own, below a comment or a tag, or behind an anchor or a tag. And each
     /// is said as what it is, the two counts agreeing.
     #[test]
     fn a_second_gate_is_found_however_the_line_around_it_is_written() {
@@ -12857,6 +13174,14 @@ mod tests {
             (
                 "a-label-a-shell-would-run-past",
                 "      - name: lint (${{ runner.os }}); cargo xtask check\n        run:",
+            ),
+            (
+                "a-label-above-a-header-of-its-own",
+                "      - name: cargo xtask check\n        run:\n          |\n         ",
+            ),
+            (
+                "a-label-above-a-tagged-header",
+                "      - name: cargo xtask check\n        run: !!str |\n         ",
             ),
         ] {
             let (said, counted) = gate_after(about, &[], |text| {
