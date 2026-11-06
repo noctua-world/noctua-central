@@ -7324,10 +7324,10 @@ mod relock_tests {
 
     /// The files a release writes, each with its bytes, or `None` for one the
     /// tree does not have.
-    fn the_files_written(root: &Path) -> Vec<(&'static str, Option<Vec<u8>>)> {
+    fn the_files_written(root: &Path) -> Vec<(String, Option<Vec<u8>>)> {
         ["CHANGELOG.md", "Cargo.lock", "Cargo.toml"]
             .into_iter()
-            .map(|name| (name, std::fs::read(root.join(name)).ok()))
+            .map(|name| (name.to_owned(), std::fs::read(root.join(name)).ok()))
             .collect()
     }
 
