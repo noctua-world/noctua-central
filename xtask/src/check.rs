@@ -24644,7 +24644,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15033;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15034;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -35672,7 +35672,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1662] = [
+    static OPERATORS: [(&str, &str, &str); 1664] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -37559,6 +37559,16 @@ Options:
             "workflow",
             "the_block_scalars",
             "properties alone forget the node above them",
+        ),
+        (
+            "workflow",
+            "the_block_scalars",
+            "a written value's next line is read for its header",
+        ),
+        (
+            "workflow",
+            "the_block_scalars",
+            "a value below its key runs on nowhere",
         ),
         (
             "workflow",

@@ -2306,10 +2306,15 @@ fn the_lines_of_yaml(text: &str) -> Vec<(usize, &str)> {
 /// YAML, where a `name:` is a label: under `- run:` with `|` on the line
 /// below, `name:() { "$@"; }` and then `name: cargo clippy --workspace` ran a
 /// second lints gate, which `yq 3.4.3` reads as the step's `run` and `bash -e
-/// -c` runs, with the count unmoved and nothing said. A `|` alone below a node
-/// whose value is already written opens nothing: `yq` reads `run: echo a`,
-/// then `|`, then `b`, as `echo a | b`, the `|` a letter of a plain scalar
-/// running on.
+/// -c` runs, with the count unmoved and nothing said.
+///
+/// **A line indented further than a node whose value is already written runs
+/// that value on**, a plain scalar's next line, and opens nothing, whatever it
+/// holds: `yq` reads `run: echo a`, then `|`, then `b`, as `echo a | b`, and
+/// `run: echo` with `- |`, `cargo xtask check` and `--offline` below it as
+/// `echo - | cargo xtask check --offline`. Read for its `-` and its header,
+/// that line opened a block, and the gate run offline was read as two
+/// commands, the bare gate one of them, with nothing said.
 fn the_block_scalars(text: &str) -> Vec<Option<char>> {
     let mut styles = Vec::new();
     // The column a block's text stands right of, and its style, while one is
@@ -2318,6 +2323,9 @@ fn the_block_scalars(text: &str) -> Vec<Option<char>> {
     // The column of the node whose value is still to come: a key, or a `-`,
     // with nothing after it on its line but properties.
     let mut pending: Option<usize> = None;
+    // The column of the node whose value is written: a line indented further
+    // than it runs that value on.
+    let mut written: Option<usize> = None;
     for line in text.lines() {
         let indent = indent_of(line);
         let code = the_code_before_a_comment(line);
@@ -2337,6 +2345,12 @@ fn the_block_scalars(text: &str) -> Vec<Option<char>> {
         if code.is_empty() {
             continue;
         }
+        if let Some(column) = written {
+            if indent > column {
+                continue;
+            }
+            written = None;
+        }
         let entry = past_its_dashes(&code);
         // A `-` that ends its line opens an entry too, with its node below.
         let entry = match entry.strip_prefix('-') {
@@ -2355,6 +2369,7 @@ fn the_block_scalars(text: &str) -> Vec<Option<char>> {
             block = node.or(pending).map(|parent| (parent, style));
             pending = None;
         } else if !rest.is_empty() {
+            written = node.or(pending);
             pending = None;
         } else if node.is_some() {
             pending = node;
@@ -12648,7 +12663,7 @@ mod tests {
     /// written, which opens nothing. `yq` cannot print a mapping held as a
     /// key, and `PyYAML 6.0.3`, the parser it wraps, composes `{ a: 1 }: |` as
     /// that key and a literal block.
-    const HEADERS: [Header; 27] = [
+    const HEADERS: [Header; 33] = [
         ("after-its-key", "run: |\n  name: x\nkey: y\n", &[(1, '|')]),
         (
             "on-a-line-of-its-own",
@@ -12744,6 +12759,36 @@ mod tests {
         ),
         ("below-a-written-value", "run: echo a\n  |\n   b\n", &[]),
         ("below-a-written-entry", "- echo a\n  |\n   b\n", &[]),
+        (
+            "a-dash-below-a-written-value",
+            "run: echo\n  - |\n    b\n",
+            &[],
+        ),
+        (
+            "a-dash-alone-below-a-written-value",
+            "run: echo\n  -\n  |\n    b\n",
+            &[],
+        ),
+        (
+            "a-dash-below-a-written-entry",
+            "- echo a\n  - |\n    b\n",
+            &[],
+        ),
+        (
+            "a-dash-below-a-value-below-its-key",
+            "run:\n  echo\n  - |\n    b\n",
+            &[],
+        ),
+        (
+            "two-dashes-below-a-written-value",
+            "run: echo\n  - - |\n    b\n",
+            &[],
+        ),
+        (
+            "a-tag-below-a-written-value",
+            "run: echo\n  - !!str |\n    b\n",
+            &[],
+        ),
     ];
 
     /// Every header YAML accepts opens a block, at the column of the node
@@ -12883,7 +12928,7 @@ mod tests {
     /// Each way of writing a second gate: what it is, the step added after the
     /// gate in `ci.yml`, what the script that step runs holds, if it runs
     /// one, the file the finding is about, and what it says.
-    const SECOND_GATES: [(&str, &str, &str, &str, &str); 34] = [
+    const SECOND_GATES: [(&str, &str, &str, &str, &str); 38] = [
         (
             "a-wide-dash",
             "      -   run: C=cargo; $C clippy --workspace\n",
@@ -13121,6 +13166,34 @@ mod tests {
             "",
             WORKFLOW,
             "swallowed by what follows `||`",
+        ),
+        (
+            "a-gate-run-offline-below-a-written-value",
+            "      - run: echo\n          - |\n            cargo xtask check\n            --offline\n",
+            "",
+            WORKFLOW,
+            "`cargo xtask check` runs here, and it is not the gate",
+        ),
+        (
+            "a-gate-run-offline-below-a-dash-alone",
+            "      - run: echo\n          -\n          |\n            cargo xtask check\n            --offline\n",
+            "",
+            WORKFLOW,
+            "`cargo xtask check` runs here, and it is not the gate",
+        ),
+        (
+            "a-gate-run-offline-below-a-tagged-header",
+            "      - run: echo\n          - !!str |\n            cargo xtask check\n            --offline\n",
+            "",
+            WORKFLOW,
+            "`cargo xtask check` runs here, and it is not the gate",
+        ),
+        (
+            "a-gate-run-offline-below-a-value-below-its-key",
+            "      - run:\n          echo\n          - |\n            cargo xtask check\n            --offline\n",
+            "",
+            WORKFLOW,
+            "`cargo xtask check` runs here, and it is not the gate",
         ),
     ];
 

@@ -2321,8 +2321,12 @@ rather than anything decided for the project, and each is a maintainer's to reop
   either, a comment line between them or not, with an anchor or a tag before it or not.
   It ends at the first line indented no further than that key's own column, measured
   past every `-` before the key and all the whitespace after each, or than the `-`
-  itself. **A header this reader did not know would refuse less, not more**: its text
-  would be read as YAML, where a `name:` is a label, and a line of YAML read as a
+  itself. A line indented further than a key or a `-` whose value is already written
+  runs that value on, as a plain scalar's next line does, and opens nothing, whatever it
+  holds: `run: echo` with `- |`, `cargo xtask check` and `--offline` below it is the one
+  command `echo - | cargo xtask check --offline`, and is said to run the gate where it
+  is not the gate. **A header this reader did not know would refuse less, not more**:
+  its text would be read as YAML, where a `name:` is a label, and a line of YAML read as a
   block's text has its quotes and brackets unread. Each shape is measured with `yq 3.4.3`
   or the PyYAML it wraps; this reader is not a YAML parser, and a shape outside them, if
   YAML has one, is one it reads wrong.
