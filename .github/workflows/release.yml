@@ -11,8 +11,12 @@
 # `xtask/src/workflow.rs` holds this file to what is written here: it fires on a
 # push to those branches and on nothing else, its one job enters the
 # environment of the branch it runs for, restores no cache, runs exactly the
-# steps below in this order, and hands the App's token to the release step
-# alone. Every action is pinned to a commit, with its release in a comment.
+# steps below in this order, each holding exactly the lines below and no other,
+# and hands the App's token to the release step alone. The file and its job
+# hold no key but the ones written here, and no expression is evaluated but the
+# six written here, each where it stands. Every action is pinned to a commit,
+# with its release in a comment. No other file CI reaches may mint the App's
+# token, enter an environment, read a secret or a step's output, or publish.
 
 name: release
 
@@ -41,7 +45,9 @@ jobs:
     # **The environment of the branch pushed to**, which GitHub lets a job enter
     # from that branch alone: `release-staging` from `staging`, `release-main`
     # from `main`. It holds the App's id and its private key, so no other
-    # branch, no pull request and no other workflow can mint the App's token.
+    # branch and no pull request can mint the App's token; and the gate refuses
+    # an environment, a secret or the token's action in every other file CI
+    # reaches, so no other workflow can either.
     environment: release-${{ github.ref_name }}
     permissions:
       contents: read

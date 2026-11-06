@@ -101,8 +101,9 @@ const THE_ONE_PERMISSION: &str = "contents: read";
 /// restores is one of them.
 const RESTORES_A_CACHE: [&str; 2] = ["actions/cache", "Swatinem/rust-cache"];
 
-/// What the release job runs, step by step and in this order: an action by its
-/// name, a command as it is written.
+/// What the release job runs, step by step and in this order, and every line
+/// each step holds: an action by its name, then its inputs; a command as it is
+/// written, then what it is handed.
 ///
 /// **Every step, not the cargo commands among them.** The job holds the App's
 /// token, which may push to `staging` and `main` past their rules and move a
@@ -110,14 +111,57 @@ const RESTORES_A_CACHE: [&str; 2] = ["actions/cache", "Swatinem/rust-cache"];
 /// a step runs, a composite action, or a second command on a line is a step
 /// that is not here. The stack comes up before the release, whose gate reads
 /// it, and the release's command names the channel as the branch pushed to.
-const THE_RELEASE_STEPS: [&str; 6] = [
-    "uses: actions/create-github-app-token",
-    "uses: actions/checkout",
-    "run: rustup toolchain install --no-self-update",
-    "run: cargo install --locked cargo-deny",
-    "run: cargo xtask dev",
-    "run: cargo xtask release --channel ${{ github.ref_name }} --publish",
+///
+/// **And every line of each, not the line that says what it runs.** An input
+/// is part of what an action does: `repository:` beside the checkout's inputs
+/// checks out another repository's code, which the release then builds and runs
+/// with the App's token, and a `permission-` input of the token's own asks the
+/// App for whatever it was granted. So each step holds exactly these lines,
+/// indented as written here under the step's first key, and a key or an input
+/// more, or one fewer, is a step that is not this one. A step's `name:` is its
+/// label and is not held; the commit an action is pinned to is held by
+/// [`every_action_is_a_commit`].
+const THE_RELEASE_STEPS: [&[&str]; 6] = [
+    &[
+        "uses: actions/create-github-app-token",
+        "id: app",
+        "with:",
+        "  app-id: ${{ vars.RELEASE_APP_ID }}",
+        "  private-key: ${{ secrets.RELEASE_APP_KEY }}",
+        "  permission-contents: write",
+        "  permission-pull-requests: write",
+    ],
+    &[
+        "uses: actions/checkout",
+        "with:",
+        "  fetch-depth: 0",
+        "  persist-credentials: false",
+    ],
+    &["run: rustup toolchain install --no-self-update"],
+    &["run: cargo install --locked cargo-deny"],
+    &["run: cargo xtask dev"],
+    &[
+        "run: cargo xtask release --channel ${{ github.ref_name }} --publish",
+        "env:",
+        "  GH_TOKEN: ${{ steps.app.outputs.token }}",
+    ],
 ];
+
+/// The keys the release workflow holds at its top, each once.
+///
+/// **And no other.** `env:` there reaches every step, the token's among them,
+/// and `defaults:` decides how every `run:` is run; neither is a key any rule
+/// here reads.
+const THE_RELEASE_WORKFLOWS_KEYS: [&str; 5] = ["name", "on", "permissions", "concurrency", "jobs"];
+
+/// The keys the release job holds, each once.
+///
+/// **And no other.** `container:` runs every step, the one handed the token
+/// among them, inside an image this tree does not build; `services:` starts
+/// one beside them; `env:` and `defaults:` reach every step; `strategy:` runs
+/// the job more than once; and `if:`, `needs:` or `outputs:` tie it to what
+/// another job decides.
+const THE_RELEASE_JOBS_KEYS: [&str; 4] = ["runs-on", "environment", "permissions", "steps"];
 
 /// The environment the release job enters: the branch's own, which holds
 /// the App's key and which GitHub lets a job enter from that branch alone.
@@ -127,21 +171,55 @@ const THE_RELEASES_ENVIRONMENT: &str = "release-${{ github.ref_name }}";
 /// variable `gh` reads.
 const THE_TOKEN_HANDED: &str = "GH_TOKEN: ${{ steps.app.outputs.token }}";
 
-/// What names the App's key or a token in the release workflow, wherever it is
-/// written.
+/// Where in the release workflow an expression of [`THE_EXPRESSIONS`] stands.
+#[derive(Clone, Copy, Debug)]
+enum Place {
+    /// The lines under the workflow's `concurrency:`.
+    ConcurrencyGroup,
+    /// The keys of the release job itself.
+    Job,
+    /// The lines of the step that mints the App's token.
+    MintingStep,
+    /// The lines of the step that releases.
+    ReleaseStep,
+}
+
+/// Every line of the release workflow that holds an expression, written out
+/// whole, and where it stands.
 ///
-/// **Any secret, any step's output, and either token's name.** The key is a
-/// secret of the environment and the token is the output of the step that mints
-/// it; `github.token` and `GITHUB_TOKEN` are the workflow's own, which the
-/// release never uses. Each may appear where [`the_token_reaches_the_release_alone`]
-/// allows it and nowhere else.
-const NAMES_A_KEY_OR_A_TOKEN: [&str; 5] = [
-    "secrets",
-    "steps.",
-    "github.token",
-    "GH_TOKEN",
-    "GITHUB_TOKEN",
+/// **Six, and no other, because GitHub evaluates an expression before anything
+/// runs.** The token is in whatever line names it, however it is named:
+/// `steps['app'].outputs.token` is `steps.app.outputs.token` spelled with an
+/// index, `toJSON(steps)` is every step's output at once, and `toJSON(github)`
+/// holds the workflow's own token. A list of names to refuse is a list of
+/// spellings; a list of the lines the release needs is closed. The branch names
+/// the concurrency group, the environment and the channel; the App's id and its
+/// key reach the step that mints the token; and the token reaches the release
+/// step, as the variable `gh` reads.
+const THE_EXPRESSIONS: [(&str, Place); 6] = [
+    ("group: release-${{ github.ref }}", Place::ConcurrencyGroup),
+    ("environment: release-${{ github.ref_name }}", Place::Job),
+    ("app-id: ${{ vars.RELEASE_APP_ID }}", Place::MintingStep),
+    (
+        "private-key: ${{ secrets.RELEASE_APP_KEY }}",
+        Place::MintingStep,
+    ),
+    (
+        "run: cargo xtask release --channel ${{ github.ref_name }} --publish",
+        Place::ReleaseStep,
+    ),
+    (THE_TOKEN_HANDED, Place::ReleaseStep),
 ];
+
+/// The action that mints the release App's token, which the release job runs
+/// and nothing else does.
+///
+/// **Not one of [`SETS_UP_AND_JUDGES_NOTHING`]**, which every file CI reaches
+/// shares. It runs nothing of this tree's, so it is no cargo command, but what
+/// it mints may push to `staging` and `main` past their rules: the release job
+/// runs it as the first of [`THE_RELEASE_STEPS`], and anywhere else
+/// [`nothing_else_holds_the_releases_authority`] refuses it.
+const MINTS_THE_RELEASE_TOKEN: &str = "actions/create-github-app-token";
 
 /// What each job must actually run, beside its name.
 ///
@@ -272,7 +350,7 @@ const IN_THIS_ORDER: [&str; 5] = [
 /// `actions-rs/clippy-check`, which is a real <!-- allow-reference: names `actions-rs/clippy-check` — a GitHub Action, not a path in this tree -->
 /// and widely used clippy action: allowed here it runs a second verdict in CI,
 /// which is what `NOCTUA.md §19.4` is about.
-const SETS_UP_AND_JUDGES_NOTHING: [&str; 5] = [
+const SETS_UP_AND_JUDGES_NOTHING: [&str; 4] = [
     // Fetches the tree.
     "actions/checkout",
     // The cache, which changes what a build costs and not what it decides. The
@@ -281,9 +359,6 @@ const SETS_UP_AND_JUDGES_NOTHING: [&str; 5] = [
     "actions/cache",
     // Uploads what a failing run leaves behind.
     "actions/upload-artifact",
-    // Mints the release App's installation token from the key its environment
-    // holds, in the release job; it runs nothing of this tree's.
-    "actions/create-github-app-token",
 ];
 
 /// The directory CI copies the tree into for its second build.
@@ -1097,8 +1172,9 @@ pub(crate) fn only_runs_the_gate(root: &Path) -> Result<(Vec<Finding>, usize), S
 /// else; each opens with `permissions: {}` and no job asks for more than
 /// [`THE_ONE_PERMISSION`]; neither runs on an event of
 /// [`WITH_THIS_REPOSITORYS_AUTHORITY`]; every action any file CI reaches uses
-/// is pinned to a full commit, with its release in a comment; and the release
-/// is made as [`the_release_runs_as_written`] says.
+/// is pinned to a full commit, with its release in a comment; the release is
+/// made as [`the_release_runs_as_written`] says; and no other file CI reaches
+/// holds what makes one ([`nothing_else_holds_the_releases_authority`]).
 ///
 /// The count is of the actions [`every_action_is_a_commit`] judged, for the
 /// floor the step puts under it: every other rule here requires something that
@@ -1132,6 +1208,7 @@ pub(crate) fn every_workflow_is_bounded(root: &Path) -> (Vec<Finding>, usize) {
             }),
         }
     }
+    nothing_else_holds_the_releases_authority(root, &mut findings);
     let judged = every_action_is_a_commit(root, &mut findings);
     (findings, judged)
 }
@@ -1375,23 +1452,255 @@ fn is_a_commit(reference: &str) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
+/// No file CI reaches but the release workflow holds what makes a release:
+/// the App's token, the environment that holds its key, a secret, a step's
+/// output, or `--publish`.
+///
+/// **Every rule on the release reads `release.yml`**, and `ci.yml` runs on
+/// every push, to `staging` and `main` among them. GitHub admits a job to an
+/// environment by its branch and not by its workflow, so a job there that
+/// entered `release-main`, minted the App's token from the key it holds,
+/// restored a cache a pull request saved and ran `cargo xtask release
+/// --publish` would make a release past every one of those rules. Each part of
+/// that is refused wherever else it is written: in a workflow, a composite
+/// action, a script a step runs and the justfile alike.
+///
+/// **Read as words, not as keys or steps**, so a flow mapping, an index, a
+/// quoted key or a condition is no way past ([`the_releases_authority_in`]),
+/// and each line is read as YAML may read it ([`as_yaml_reads_them`]).
+fn nothing_else_holds_the_releases_authority(root: &Path, findings: &mut Vec<Finding>) {
+    // A walk that stopped is said by `every_action_is_a_commit`, which walks
+    // the same files.
+    let Ok((files, _)) = everything_ci_reaches(root) else {
+        return;
+    };
+    for path in files {
+        let relative = relative_to(root, &path);
+        if relative == RELEASE_WORKFLOW {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let github = github_runs_it(&relative);
+        for (at, read) in as_yaml_reads_them(&text) {
+            for what in the_releases_authority_in(&read, github) {
+                findings.push(Finding {
+                    file: relative.clone(),
+                    line: at + 1,
+                    what: format!("`{relative}` {what}, which the release workflow alone does"),
+                    fix: "the rules that hold the release read `release.yml` alone, and a \
+                          workflow runs on a push to `staging` and `main` like any other: an \
+                          environment admits a job by its branch, so a job elsewhere that \
+                          entered `release-main`, minted the App's token and published would \
+                          make a release past every one of them. The token's action, the \
+                          environment, a secret, a step's output, which is how the token is \
+                          handed on, and `--publish` are the parts of that, and each is the \
+                          release workflow's alone. Make the release there"
+                        .to_owned(),
+                });
+            }
+        }
+    }
+}
+
+/// Whether GitHub reads `relative` as YAML it runs: a file under `.github/`,
+/// or the file a composite action is written in, named action.yml or
+/// action.yaml.
+///
+/// **Not every YAML file CI reaches**: `docker-compose.yml` is reached, and its
+/// `environment:` and `secrets:` are keys of the stack's, which no runner
+/// reads.
+fn github_runs_it(relative: &str) -> bool {
+    let name = relative.rsplit('/').next().unwrap_or(relative);
+    let yaml = Path::new(name)
+        .extension()
+        .is_some_and(|kind| kind.eq_ignore_ascii_case("yml") || kind.eq_ignore_ascii_case("yaml"));
+    yaml && (relative.starts_with(".github/")
+        || name.eq_ignore_ascii_case("action.yml")
+        || name.eq_ignore_ascii_case("action.yaml"))
+}
+
+/// What of the release's authority one line holds, by what it does, read both
+/// ways [`as_yaml_reads_them`] gives it.
+///
+/// **In a file GitHub runs** ([`github_runs_it`]): the token's action wherever
+/// its name is written; a key `environment`, quoted or not, in a block or a
+/// flow mapping; the word `secrets` anywhere in the code, which takes in
+/// `secrets.KEY`, `secrets['KEY']`, `toJSON(secrets)`, a condition and
+/// `secrets: inherit`; and `steps` in any expression, which takes in
+/// `steps.app.outputs.token`, `steps['app']` and `toJSON(steps)` and leaves the
+/// key `steps:` alone. An expression is read in a comment too, because inside a
+/// block scalar a `#` line is text GitHub evaluates. **In any file**,
+/// `--publish`, with the quotes and backslashes a shell spends taken out
+/// first.
+fn the_releases_authority_in(read: &[String; 2], github: bool) -> Vec<&'static str> {
+    let mut held = Vec::new();
+    for version in read {
+        let code = the_code_before_a_comment(version).to_ascii_lowercase();
+        let lowered = version.to_ascii_lowercase();
+        let expressions = the_expressions_in(&lowered);
+        let in_an_expression = |word: &str| {
+            expressions
+                .iter()
+                .any(|expression| !the_ends_of_the_word(expression, word).is_empty())
+        };
+        let as_a_key = |end: &usize| {
+            code[*end..]
+                .trim_start_matches(['"', '\''])
+                .trim_start()
+                .starts_with(':')
+        };
+        if github && code.contains(&MINTS_THE_RELEASE_TOKEN.to_ascii_lowercase()) {
+            held.push("mints the release App's token");
+        }
+        if github
+            && the_ends_of_the_word(&code, "environment")
+                .iter()
+                .any(as_a_key)
+        {
+            held.push("enters an environment");
+        }
+        if github
+            && (!the_ends_of_the_word(&code, "secrets").is_empty() || in_an_expression("secrets"))
+        {
+            held.push("reads a secret");
+        }
+        if github && in_an_expression("steps") {
+            held.push("reads a step's output");
+        }
+        if code.replace(['"', '\'', '\\'], "").contains("--publish") {
+            held.push("publishes a release");
+        }
+    }
+    held.sort_unstable();
+    held.dedup();
+    held
+}
+
+/// The text of every expression `text` opens: what follows each `${{`, up to
+/// the `}}` that closes it or the end of the text.
+fn the_expressions_in(text: &str) -> Vec<&str> {
+    text.split("${{")
+        .skip(1)
+        .map(|after| after.split_once("}}").map_or(after, |(inside, _)| inside))
+        .collect()
+}
+
+/// Where `word` ends, each time it stands in `text` as a word of its own.
+///
+/// **Not as a part of a longer name**: `secrets` is in `toJSON(secrets)` and
+/// `secrets['KEY']`, and not in `my-secrets-dir`. A name is what a context, a
+/// key or a step's id is written with: letters, digits, `_` and `-`.
+fn the_ends_of_the_word(text: &str, word: &str) -> Vec<usize> {
+    let is_a_letter_of_a_name =
+        |letter: char| letter.is_ascii_alphanumeric() || matches!(letter, '_' | '-');
+    text.match_indices(word)
+        .filter(|&(at, _)| {
+            !text[..at]
+                .chars()
+                .next_back()
+                .is_some_and(is_a_letter_of_a_name)
+                && !text[at + word.len()..]
+                    .chars()
+                    .next()
+                    .is_some_and(is_a_letter_of_a_name)
+        })
+        .map(|(at, _)| at + word.len())
+        .collect()
+}
+
+/// Each line of `text` as YAML may read it, at the index it starts on: as it
+/// is written, and with the escapes of a double-quoted scalar resolved.
+///
+/// **A line that ends in a backslash is joined to the one after it**, its
+/// indentation dropped, which is what a double-quoted scalar does with an
+/// escaped line break: `"secr\` and `ets"` on the line after are one word to
+/// GitHub and two halves to a reader of lines. And `\x73ecrets` is `secrets`
+/// once resolved ([`with_the_escapes_resolved`]). A rule that refuses a word
+/// reads both, so neither spelling is a way past it.
+fn as_yaml_reads_them(text: &str) -> Vec<(usize, [String; 2])> {
+    let lines: Vec<&str> = text.lines().collect();
+    let mut read = Vec::new();
+    let mut at = 0;
+    while at < lines.len() {
+        let starts = at;
+        let mut joined = lines[at].to_owned();
+        while joined.ends_with('\\') && at + 1 < lines.len() {
+            joined.pop();
+            at += 1;
+            joined.push_str(lines[at].trim_start());
+        }
+        let resolved = with_the_escapes_resolved(&joined);
+        read.push((starts, [joined, resolved]));
+        at += 1;
+    }
+    read
+}
+
 /// The release workflow makes the release as [`THE_RELEASE_STEPS`] say, from
 /// a channel's branch, and nowhere else.
 ///
-/// It fires on a push to the branches of [`RELEASED_FROM`] and on nothing else;
-/// it holds one job, which runs on Linux and enters
-/// [`THE_RELEASES_ENVIRONMENT`]; it restores no cache; no step of it runs on a
-/// condition; the job runs its steps and no others; and the App's key and
-/// token reach the steps that need them alone.
+/// It holds [`THE_RELEASE_WORKFLOWS_KEYS`] at its top and no other key; it
+/// fires on a push to the branches of [`RELEASED_FROM`] and on nothing else; it
+/// holds one job, which holds [`THE_RELEASE_JOBS_KEYS`] and no other, runs on
+/// Linux and enters [`THE_RELEASES_ENVIRONMENT`]; it restores no cache; no step
+/// of it runs on a condition; the job runs its steps, each holding its own
+/// lines, and no others; and it evaluates [`THE_EXPRESSIONS`], each where that
+/// list puts it, and no other, so the App's key and token reach the steps that
+/// need them alone.
 fn the_release_runs_as_written(text: &str, findings: &mut Vec<Finding>) {
     let lines: Vec<&str> = text.lines().collect();
+    let tops: Vec<usize> = (0..lines.len())
+        .filter(|&at| indent_of(lines[at]) == 0 && !the_code_before_a_comment(lines[at]).is_empty())
+        .collect();
+    holds_these_keys_alone(
+        &lines,
+        &tops,
+        &THE_RELEASE_WORKFLOWS_KEYS,
+        "the release workflow",
+        findings,
+    );
     the_release_fires_on_a_channel(&lines, findings);
     the_release_is_one_job(&lines, findings);
     no_cache_reaches_the_release(&lines, findings);
     no_step_runs_on_a_condition(RELEASE_WORKFLOW, text, findings);
     let steps = the_steps_of(&lines, "release");
     the_release_runs_its_steps(&steps, findings);
-    the_token_reaches_the_release_alone(&lines, &steps, findings);
+    every_expression_is_where_the_release_needs_it(&lines, text, &steps, findings);
+}
+
+/// The keys at `keys` are among `allowed`, each written once.
+///
+/// **Read as written, quotes and all**: `"container":` is a key a parser reads
+/// as `container`, and here it is one more key that is not on the list.
+fn holds_these_keys_alone(
+    lines: &[&str],
+    keys: &[usize],
+    allowed: &[&str],
+    whose: &str,
+    findings: &mut Vec<Finding>,
+) {
+    let mut seen: Vec<String> = Vec::new();
+    for &at in keys {
+        let (key, _) = key_and_value(lines[at]);
+        if !allowed.contains(&key.as_str()) || seen.contains(&key) {
+            findings.push(Finding {
+                file: RELEASE_WORKFLOW.to_owned(),
+                line: at + 1,
+                what: format!("{whose} holds `{key}:`, and it holds {allowed:?} alone, each once"),
+                fix: "every key there is one a rule here reads, and the others change what \
+                      runs beside the App's token: `env:` and `defaults:` reach every step, \
+                      `container:` runs each inside an image this tree does not build, \
+                      `services:` starts one beside them, and `strategy:` runs the job more \
+                      than once. A key written twice is one YAML reads one way and a reader \
+                      another. A key to add is a line in `THE_RELEASE_WORKFLOWS_KEYS` or \
+                      `THE_RELEASE_JOBS_KEYS`, with the rule that reads it"
+                    .to_owned(),
+            });
+        }
+        seen.push(key);
+    }
 }
 
 /// The release fires on a push to a channel's branch, and on nothing else.
@@ -1508,6 +1817,8 @@ fn the_branches(lines: &[&str], at: usize) -> Vec<String> {
 
 /// The release workflow holds the `release` job and no other, on Linux, in
 /// the environment of the branch it releases.
+///
+/// **And no key but [`THE_RELEASE_JOBS_KEYS`]**, each once.
 fn the_release_is_one_job(lines: &[&str], findings: &mut Vec<Finding>) {
     let jobs: Vec<(usize, String)> = top_level(lines, "jobs")
         .map(|at| the_keys_under(lines, at))
@@ -1540,7 +1851,15 @@ fn the_release_is_one_job(lines: &[&str], findings: &mut Vec<Finding>) {
         });
         return;
     };
-    let held: Vec<(String, String)> = the_keys_under(lines, job)
+    let keys = the_keys_under(lines, job);
+    holds_these_keys_alone(
+        lines,
+        &keys,
+        &THE_RELEASE_JOBS_KEYS,
+        "the release job",
+        findings,
+    );
+    let held: Vec<(String, String)> = keys
         .into_iter()
         .map(|at| key_and_value(lines[at]))
         .collect();
@@ -1618,15 +1937,23 @@ struct Step {
     runs: String,
     /// The indices of every line it holds, its first among them.
     lines: Vec<usize>,
+    /// What it holds, as [`THE_RELEASE_STEPS`] writes it, with the index each
+    /// line was read from ([`as_the_steps_are_written`]).
+    held: Vec<(usize, String)>,
+}
+
+/// The line the job `job` opens on.
+fn the_job(lines: &[&str], job: &str) -> Option<usize> {
+    top_level(lines, "jobs").and_then(|jobs| {
+        the_keys_under(lines, jobs)
+            .into_iter()
+            .find(|&at| key_and_value(lines[at]).0 == job)
+    })
 }
 
 /// The steps of the job `job`, in order.
 fn the_steps_of(lines: &[&str], job: &str) -> Vec<Step> {
-    let Some(job) = top_level(lines, "jobs").and_then(|jobs| {
-        the_keys_under(lines, jobs)
-            .into_iter()
-            .find(|&at| key_and_value(lines[at]).0 == job)
-    }) else {
+    let Some(job) = the_job(lines, job) else {
         return Vec::new();
     };
     let Some(steps) = the_keys_under(lines, job)
@@ -1652,88 +1979,218 @@ fn the_steps_of(lines: &[&str], job: &str) -> Vec<Step> {
                     }
                 })
                 .unwrap_or_default();
+            let held = as_the_steps_are_written(lines, opens);
             let lines = std::iter::once(opens)
                 .chain(the_lines_under(lines, opens))
                 .collect();
-            Step { opens, runs, lines }
+            Step {
+                opens,
+                runs,
+                lines,
+                held,
+            }
         })
         .collect()
 }
 
-/// The release job runs [`THE_RELEASE_STEPS`], in order, and nothing else.
-fn the_release_runs_its_steps(steps: &[Step], findings: &mut Vec<Finding>) {
-    let ran: Vec<&str> = steps.iter().map(|step| step.runs.as_str()).collect();
-    let Some(at) = (0..ran.len().max(THE_RELEASE_STEPS.len()))
-        .find(|&at| ran.get(at) != THE_RELEASE_STEPS.get(at))
-    else {
-        return;
-    };
-    let quoted = |step: Option<&&str>, otherwise: &str| {
-        step.filter(|step| !step.is_empty())
-            .map_or_else(|| otherwise.to_owned(), |step| format!("`{step}`"))
-    };
-    findings.push(Finding {
-        file: RELEASE_WORKFLOW.to_owned(),
-        line: steps.get(at).map_or(1, |step| step.opens + 1),
-        what: format!(
-            "the release job's step {} is {}, where it is {}",
-            at + 1,
-            quoted(ran.get(at), "missing"),
-            quoted(THE_RELEASE_STEPS.get(at), "nothing at all")
-        ),
-        fix: "the job holds the App's token, so what runs beside it is `THE_RELEASE_STEPS` \
-              in `xtask/src/workflow.rs` and nothing else: the token, the checkout, the \
-              toolchain, the audit's install, the stack, then the release. A step to add is \
-              a line there, which is a line in a diff"
-            .to_owned(),
-    });
+/// The lines of the step that opens at `opens`, written as
+/// [`THE_RELEASE_STEPS`] writes them, each with the index it was read from.
+///
+/// **Each at its depth under the step's first key**, so an input moved out
+/// of `with:` or a line that continues the value above it is a line that
+/// differs; an action by its name, the commit beside it being the pins' to
+/// judge; and the step's `name:` left out, which is a label. A line indented
+/// less than the step's keys is marked as such, so it matches nothing.
+fn as_the_steps_are_written(lines: &[&str], opens: usize) -> Vec<(usize, String)> {
+    let keys_at = indent_of(lines[opens]) + 2;
+    std::iter::once(opens)
+        .chain(the_lines_under(lines, opens))
+        .filter_map(|at| {
+            let code = the_code_before_a_comment(lines[at]);
+            let (depth, code) = if at == opens {
+                (
+                    Some(0),
+                    code.strip_prefix("- ").unwrap_or(&code).trim().to_owned(),
+                )
+            } else {
+                (indent_of(lines[at]).checked_sub(keys_at), code)
+            };
+            let (key, value) = key_and_value(&code);
+            if depth == Some(0) && key == "name" {
+                return None;
+            }
+            let code = if depth == Some(0) && key == "uses" {
+                format!(
+                    "uses: {}",
+                    value.split('@').next().unwrap_or_default().trim()
+                )
+            } else {
+                code
+            };
+            Some((
+                at,
+                depth.map_or_else(
+                    || format!("(indented less than the step) {code}"),
+                    |depth| format!("{}{code}", " ".repeat(depth)),
+                ),
+            ))
+        })
+        .collect()
 }
 
-/// The App's key reaches the step that mints the token, and the token the
-/// release step alone, as `GH_TOKEN`; nothing in the workflow names either
-/// anywhere else ([`NAMES_A_KEY_OR_A_TOKEN`]).
+/// The release job runs [`THE_RELEASE_STEPS`], in order, and nothing else;
+/// and each step holds its own lines and no other.
+fn the_release_runs_its_steps(steps: &[Step], findings: &mut Vec<Finding>) {
+    let ran: Vec<&str> = steps.iter().map(|step| step.runs.as_str()).collect();
+    let listed: Vec<&str> = THE_RELEASE_STEPS.iter().map(|step| step[0]).collect();
+    let quoted = |step: Option<&&str>, otherwise: &str| {
+        step.filter(|step| !step.is_empty())
+            .map_or_else(|| otherwise.to_owned(), |step| format!("`{}`", step.trim()))
+    };
+    if let Some(at) = (0..ran.len().max(listed.len())).find(|&at| ran.get(at) != listed.get(at)) {
+        findings.push(Finding {
+            file: RELEASE_WORKFLOW.to_owned(),
+            line: steps.get(at).map_or(1, |step| step.opens + 1),
+            what: format!(
+                "the release job's step {} is {}, where it is {}",
+                at + 1,
+                quoted(ran.get(at), "missing"),
+                quoted(listed.get(at), "nothing at all")
+            ),
+            fix: "the job holds the App's token, so what runs beside it is \
+                  `THE_RELEASE_STEPS` in `xtask/src/workflow.rs` and nothing else: the \
+                  token, the checkout, the toolchain, the audit's install, the stack, then \
+                  the release. A step to add is a line there, which is a line in a diff"
+                .to_owned(),
+        });
+    }
+    for (number, (step, written)) in steps.iter().zip(THE_RELEASE_STEPS).enumerate() {
+        if step.runs != written[0] {
+            continue;
+        }
+        let held: Vec<&str> = step.held.iter().map(|(_, line)| line.as_str()).collect();
+        let Some(differs) =
+            (0..held.len().max(written.len())).find(|&at| held.get(at) != written.get(at))
+        else {
+            continue;
+        };
+        let nothing_more = || "nothing more".to_owned();
+        findings.push(Finding {
+            file: RELEASE_WORKFLOW.to_owned(),
+            line: step
+                .held
+                .get(differs)
+                .map_or(step.opens + 1, |(at, _)| at + 1),
+            what: format!(
+                "the release job's step {} holds {}, where it holds {}",
+                number + 1,
+                as_said(&held, differs).unwrap_or_else(nothing_more),
+                as_said(written, differs).unwrap_or_else(nothing_more)
+            ),
+            fix: "an input is part of what an action does, and a key part of how a step \
+                  runs: `repository:` or `ref:` beside the checkout's inputs builds another \
+                  tree with the App's token, a `permission-` input asks the App for more \
+                  than a release writes, and `env:`, `shell:` or `working-directory:` on a \
+                  step change what its command is. Each step holds the lines \
+                  `THE_RELEASE_STEPS` in `xtask/src/workflow.rs` writes for it, and a line \
+                  to add is a line there"
+                .to_owned(),
+        });
+    }
+}
+
+/// The line at `at` of a step's lines, as a finding says it: in backticks, with
+/// the line it sits under named beside it.
 ///
-/// **Written anywhere else, it is in the environment of everything that runs
+/// **So two lines that differ by their indentation alone read differently**:
+/// an input moved out of `with:` is the same text at another depth, and a
+/// sentence that dropped the depth would say a line differs from itself.
+fn as_said(lines: &[&str], at: usize) -> Option<String> {
+    let line = lines.get(at)?;
+    let depth = indent_of(line);
+    let above = lines[..at]
+        .iter()
+        .rev()
+        .find(|above| indent_of(above) < depth);
+    Some(match above {
+        Some(above) => format!("`{}` under `{}`", line.trim(), above.trim()),
+        None => format!("`{}`", line.trim()),
+    })
+}
+
+/// Every expression the release workflow holds is one of [`THE_EXPRESSIONS`],
+/// on a line of its own, where that list puts it.
+///
+/// **Every line YAML may read one on, comments among them**
+/// ([`as_yaml_reads_them`]): inside a block scalar a `#` line is text, and
+/// GitHub evaluates what it holds; an escape can spell `${{` in a
+/// double-quoted scalar; and a line that ends in a backslash continues on the
+/// next. A line holding an expression is compared whole, so a second
+/// expression on it, or a comment beside it, is a line that is not one of
+/// these.
+///
+/// **Written anywhere else, the token is in the environment of what runs
 /// there**: a job's `env:` hands it to every step, the stack's among them,
 /// which builds and runs this tree's code. The release verb hands the token on
 /// to `gh` alone (`crate::release::ghs_own`), and that is only worth anything
 /// if the workflow hands it to the verb alone.
-fn the_token_reaches_the_release_alone(
+fn every_expression_is_where_the_release_needs_it(
     lines: &[&str],
+    text: &str,
     steps: &[Step],
     findings: &mut Vec<Finding>,
 ) {
-    let the_step = |runs: &str| steps.iter().find(|step| step.runs == runs);
-    let minting = the_step(THE_RELEASE_STEPS[0]);
-    let releasing = the_step(THE_RELEASE_STEPS[THE_RELEASE_STEPS.len() - 1]);
-    let inside = |step: Option<&Step>, at: usize| step.is_some_and(|step| step.lines.contains(&at));
-    for (at, line) in lines.iter().enumerate() {
-        let code = the_code_before_a_comment(line);
-        let Some(named) = NAMES_A_KEY_OR_A_TOKEN
-            .iter()
-            .find(|named| code.contains(**named))
-        else {
+    for (at, read) in as_yaml_reads_them(text) {
+        if !read.iter().any(|version| version.contains("${{")) {
             continue;
-        };
-        let allowed = if *named == "secrets" {
-            inside(minting, at)
-        } else {
-            inside(releasing, at) && code == THE_TOKEN_HANDED
-        };
-        if !allowed {
+        }
+        let written = read[0].trim().trim_start_matches("- ").trim();
+        let placed = THE_EXPRESSIONS.iter().any(|&(expression, place)| {
+            written == expression && the_lines_of(lines, steps, place).contains(&at)
+        });
+        if !placed {
             findings.push(Finding {
                 file: RELEASE_WORKFLOW.to_owned(),
                 line: at + 1,
-                what: format!("the release names `{named}` outside the step it belongs to"),
-                fix: "the App's key reaches the step that mints the token and nothing else, \
-                      and the token reaches the release step alone, as `GH_TOKEN: ${{ \
-                      steps.app.outputs.token }}`. Anywhere else it is in the environment of \
-                      what runs there, this tree's build scripts and tests among them, and \
-                      the App may push to `staging` and `main` past their rules. The \
-                      workflow's own token is not used at all"
+                what: format!(
+                    "the release workflow evaluates `{written}`, which is not one of \
+                     `THE_EXPRESSIONS` where it stands"
+                ),
+                fix: "GitHub evaluates an expression before anything runs, and \
+                      `toJSON(steps)` or `steps['app'].outputs.token` hands the App's token \
+                      to whatever reads the line as surely as `steps.app.outputs.token` does. \
+                      The release evaluates six, each on a line of its own where \
+                      `THE_EXPRESSIONS` in `xtask/src/workflow.rs` puts it: the branch in the \
+                      concurrency group, the environment and the channel, the App's id and \
+                      key in the step that mints the token, and the token in the release \
+                      step's `GH_TOKEN`. Anywhere else the key or the token is in the \
+                      environment of what runs there, this tree's build scripts and tests \
+                      among them, and the App may push to `staging` and `main` past their \
+                      rules"
                     .to_owned(),
             });
         }
+    }
+}
+
+/// The indices of the lines `place` names in the release workflow.
+fn the_lines_of(lines: &[&str], steps: &[Step], place: Place) -> Vec<usize> {
+    let the_step = |step: &[&str]| {
+        steps
+            .iter()
+            .find(|held| held.runs == step[0])
+            .map(|held| held.lines.clone())
+            .unwrap_or_default()
+    };
+    match place {
+        Place::ConcurrencyGroup => top_level(lines, "concurrency")
+            .map(|at| the_lines_under(lines, at))
+            .unwrap_or_default(),
+        Place::Job => the_job(lines, "release")
+            .map(|at| the_keys_under(lines, at))
+            .unwrap_or_default(),
+        Place::MintingStep => the_step(THE_RELEASE_STEPS[0]),
+        Place::ReleaseStep => the_step(THE_RELEASE_STEPS[THE_RELEASE_STEPS.len() - 1]),
     }
 }
 
@@ -4452,6 +4909,12 @@ fn runs_cargo_as_an_action(line: &str) -> Option<String> {
     {
         return None;
     }
+    // **The token's action runs no cargo either**, and where it may stand is
+    // the release's rule, not this one: the first of `THE_RELEASE_STEPS`, and
+    // nowhere in any other file (`nothing_else_holds_the_releases_authority`).
+    if MINTS_THE_RELEASE_TOKEN.eq_ignore_ascii_case(name) {
+        return None;
+    }
     Some(format!("uses: {name}"))
 }
 
@@ -6642,7 +7105,6 @@ mod tests {
                 "Swatinem/rust-cache",
                 "actions/cache",
                 "actions/upload-artifact",
-                "actions/create-github-app-token",
             ],
             "the actions CI may use moved: one that judges something is a second gate"
         );
@@ -9663,50 +10125,497 @@ mod tests {
         ]);
     }
 
+    /// Each step of the release job holds the lines `THE_RELEASE_STEPS` writes
+    /// for it, and no other.
+    ///
+    /// **An input is part of what an action does**: another repository checked
+    /// out, a token asked for more, a credential left in the checkout, and a key
+    /// or a continued value on a command are each a step that is not the one
+    /// written down.
+    #[test]
+    fn each_release_step_holds_its_own_lines_and_no_other() {
+        let release = super::RELEASE_WORKFLOW;
+        let checked_out = "          persist-credentials: false\n";
+        let narrowed =
+            "          permission-contents: write\n          permission-pull-requests: write\n";
+        let the_stack = "        run: cargo xtask dev\n";
+        each_is_said(&[
+            (
+                "another-repository",
+                release,
+                checked_out,
+                "          persist-credentials: false\n          repository: someone-else/noctua-central\n",
+                "the release job's step 2 holds `repository: someone-else/noctua-central` \
+                 under `with:`, where it holds nothing more",
+            ),
+            (
+                "another-ref",
+                release,
+                "          fetch-depth: 0\n",
+                "          ref: main\n          fetch-depth: 0\n",
+                "the release job's step 2 holds `ref: main` under `with:`, where it holds \
+                 `fetch-depth: 0` under `with:`",
+            ),
+            (
+                "a-credential-left",
+                release,
+                checked_out,
+                "",
+                "the release job's step 2 holds nothing more, where it holds \
+                 `persist-credentials: false` under `with:`",
+            ),
+            (
+                "a-token-asked-for-more",
+                release,
+                narrowed,
+                "          permission-administration: write\n",
+                "the release job's step 1 holds `permission-administration: write` under \
+                 `with:`, where it holds `permission-contents: write` under `with:`",
+            ),
+            (
+                "an-input-moved-out",
+                release,
+                "          fetch-depth: 0\n",
+                "        fetch-depth: 0\n",
+                "the release job's step 2 holds `fetch-depth: 0`, where it holds \
+                 `fetch-depth: 0` under `with:`",
+            ),
+            (
+                "a-directory",
+                release,
+                the_stack,
+                "        run: cargo xtask dev\n        working-directory: plugins\n",
+                "the release job's step 5 holds `working-directory: plugins`, where it holds \
+                 nothing more",
+            ),
+            (
+                "a-continued-command",
+                release,
+                the_stack,
+                "        run: cargo xtask dev\n          && cargo xtask check\n",
+                "the release job's step 5 holds `&& cargo xtask check` under \
+                 `run: cargo xtask dev`, where it holds nothing more",
+            ),
+            (
+                "indented-less",
+                release,
+                the_stack,
+                "       run: cargo xtask dev\n",
+                "the release job's step 5 holds `(indented less than the step) run: cargo xtask \
+                 dev`, where it holds `run: cargo xtask dev`",
+            ),
+        ]);
+        // **And the label is not held**: a step renamed is the same step.
+        let renamed = bounded_after("renamed-step", release, |text| {
+            once(
+                text,
+                "      - name: cargo xtask dev\n",
+                "      - name: the stack\n",
+            )
+        });
+        assert!(renamed.is_empty(), "{renamed:#?}");
+    }
+
     /// The App's key reaches the step that mints the token, and the token the
     /// release step alone.
+    ///
+    /// **However the expression names it**: by its path, by an index, as the
+    /// whole of a context, in a comment, behind an escape, or across a line
+    /// break a backslash escapes. Each case is a line the release does not need,
+    /// and each is said by the line it is.
     #[test]
     fn the_token_reaches_the_release_step_alone() {
         let release = super::RELEASE_WORKFLOW;
         let handed = "        env:\n          GH_TOKEN: ${{ steps.app.outputs.token }}\n";
         let the_stack = "        run: cargo xtask dev\n";
-        each_is_said(&[
+        let beside_the_stack = |line: &str| format!("{the_stack}        env:\n          {line}\n");
+        let said = |line: &str| {
+            format!(
+                "the release workflow evaluates `{line}`, which is not one of `THE_EXPRESSIONS`"
+            )
+        };
+        let by_index = "LEAK: ${{ steps['app'].outputs.token }}";
+        let every_output = "ALL: ${{ toJSON(steps) }}";
+        let the_workflows_by_index = "OWN: ${{ github['token'] }}";
+        let the_whole_context = "OWN: ${{ toJSON(github) }}";
+        let the_key = "KEY: ${{ secrets.RELEASE_APP_KEY }}";
+        let cases: Vec<(&str, String, String, String)> = vec![
             (
                 "at-the-job",
-                release,
-                "    permissions:\n",
-                "    env:\n      GH_TOKEN: ${{ steps.app.outputs.token }}\n    permissions:\n",
-                "the release names `steps.` outside the step it belongs to",
+                "    permissions:\n".to_owned(),
+                "    env:\n      GH_TOKEN: ${{ steps.app.outputs.token }}\n    permissions:\n"
+                    .to_owned(),
+                said(super::THE_TOKEN_HANDED),
             ),
             (
                 "to-the-stack",
-                release,
-                the_stack,
-                "        run: cargo xtask dev\n        env:\n          GH_TOKEN: ${{ steps.app.outputs.token }}\n",
-                "the release names `steps.` outside the step it belongs to",
+                the_stack.to_owned(),
+                beside_the_stack(super::THE_TOKEN_HANDED),
+                said(super::THE_TOKEN_HANDED),
             ),
             (
                 "the-key-elsewhere",
-                release,
-                the_stack,
-                "        run: cargo xtask dev\n        env:\n          KEY: ${{ secrets.RELEASE_APP_KEY }}\n",
-                "the release names `secrets` outside the step it belongs to",
+                the_stack.to_owned(),
+                beside_the_stack(the_key),
+                said(the_key),
             ),
             (
                 "the-workflows-own",
-                release,
-                handed,
-                "        env:\n          GH_TOKEN: ${{ github.token }}\n",
-                "the release names `github.token` outside the step it belongs to",
+                handed.to_owned(),
+                "        env:\n          GH_TOKEN: ${{ github.token }}\n".to_owned(),
+                said("GH_TOKEN: ${{ github.token }}"),
             ),
             (
                 "a-second-name",
-                release,
-                handed,
-                "        env:\n          GH_TOKEN: ${{ steps.app.outputs.token }}\n          GITHUB_TOKEN: ${{ steps.app.outputs.token }}\n",
-                "the release names `steps.` outside the step it belongs to",
+                handed.to_owned(),
+                format!("{handed}          GITHUB_TOKEN: ${{{{ steps.app.outputs.token }}}}\n"),
+                said("GITHUB_TOKEN: ${{ steps.app.outputs.token }}"),
+            ),
+            (
+                "by-index",
+                the_stack.to_owned(),
+                beside_the_stack(by_index),
+                said(by_index),
+            ),
+            (
+                "every-output",
+                the_stack.to_owned(),
+                beside_the_stack(every_output),
+                said(every_output),
+            ),
+            (
+                "the-workflows-own-by-index",
+                the_stack.to_owned(),
+                beside_the_stack(the_workflows_by_index),
+                said(the_workflows_by_index),
+            ),
+            (
+                "the-whole-context",
+                the_stack.to_owned(),
+                beside_the_stack(the_whole_context),
+                said(the_whole_context),
+            ),
+            (
+                "in-a-comment",
+                the_stack.to_owned(),
+                format!("{the_stack}        # ${{{{ toJSON(steps) }}}}\n"),
+                said("# ${{ toJSON(steps) }}"),
+            ),
+            (
+                "behind-an-escape",
+                "      - name: cargo xtask dev\n".to_owned(),
+                "      - name: \"\\x24{{ toJSON(steps) }}\"\n".to_owned(),
+                said("name: \"\\x24{{ toJSON(steps) }}\""),
+            ),
+            (
+                "across-a-line",
+                "      - name: cargo xtask dev\n".to_owned(),
+                "      - name: \"$\\\n          {{ toJSON(steps) }}\"\n".to_owned(),
+                said("name: \"${{ toJSON(steps) }}\""),
+            ),
+        ];
+        for (about, from, to, said) in &cases {
+            let findings = bounded_after(about, release, |text| once(text, from, to));
+            assert!(
+                findings
+                    .iter()
+                    .any(|finding| finding.what.starts_with(said.as_str())),
+                "{about}: nothing said `{said}`: {findings:#?}"
+            );
+        }
+    }
+
+    /// No file CI reaches but the release workflow mints the App's token,
+    /// enters an environment, reads a secret or a step's output, or publishes.
+    ///
+    /// **The release written into `ci.yml` whole**, as it would be to get past
+    /// every rule on `release.yml`, then each part of it alone, in the
+    /// spellings a reader of keys would miss.
+    #[test]
+    fn nothing_but_the_release_holds_its_authority() {
+        let said =
+            |what: &str| format!("`{WORKFLOW}` {what}, which the release workflow alone does");
+        let release = std::fs::read_to_string(root().join(super::RELEASE_WORKFLOW))
+            .expect("the release workflow is readable");
+        let the_job = &release[release.find("  release:\n").expect("the release job")..];
+        let whole = bounded_after("released-from-ci", WORKFLOW, |text| {
+            format!("{text}{}", the_job.replace("  release:\n", "  publish:\n"))
+        });
+        for what in [
+            "mints the release App's token",
+            "enters an environment",
+            "reads a secret",
+            "reads a step's output",
+            "publishes a release",
+        ] {
+            assert!(
+                whole.iter().any(|finding| finding.what == said(what)),
+                "the release written into the gate's workflow: nothing said `{what}`: {whole:#?}"
+            );
+        }
+    }
+
+    /// Runs each case through [`bounded_after`] on the gate's workflow, the
+    /// line that runs the gate replaced by the case's text, and asserts the
+    /// workflow is said to do what the case names.
+    #[track_caller]
+    fn the_gates_workflow_is_said_to(cases: &[(&str, String, &str)]) {
+        for (about, to, what) in cases {
+            let said = format!("`{WORKFLOW}` {what}, which the release workflow alone does");
+            let findings = bounded_after(about, WORKFLOW, |text| once(text, THE_GATE, to));
+            assert!(
+                findings.iter().any(|finding| finding.what == said),
+                "{about}: nothing said `{what}`: {findings:#?}"
+            );
+        }
+    }
+
+    /// The line of the gate's workflow that runs the gate, after which each
+    /// case of the release's authority is written.
+    const THE_GATE: &str = "        run: cargo xtask check\n";
+
+    /// The token's action, an environment and a secret are refused outside the
+    /// release workflow, in the spellings a reader of keys would miss.
+    ///
+    /// **A quoted key, a flow mapping, an index, a whole context, an escape, a
+    /// line a backslash continues, and a comment inside a block scalar.**
+    #[test]
+    fn each_part_of_the_releases_authority_is_refused_however_it_is_spelled() {
+        let gate = THE_GATE;
+        let env = |line: &str| format!("{gate}        env:\n          {line}\n");
+        the_gates_workflow_is_said_to(&[
+            (
+                "the-token",
+                format!(
+                    "{gate}      - uses: {}@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0\n",
+                    super::MINTS_THE_RELEASE_TOKEN
+                ),
+                "mints the release App's token",
+            ),
+            (
+                "an-environment",
+                format!("{gate}    environment: release-main\n"),
+                "enters an environment",
+            ),
+            (
+                "a-quoted-environment",
+                format!("{gate}    \"environment\": release-main\n"),
+                "enters an environment",
+            ),
+            (
+                "a-flow-environment",
+                format!("{gate}  other: {{ runs-on: ubuntu-latest, environment: release-main }}\n"),
+                "enters an environment",
+            ),
+            (
+                "a-secret",
+                env("KEY: ${{ secrets.RELEASE_APP_KEY }}"),
+                "reads a secret",
+            ),
+            (
+                "a-secret-by-index",
+                env("KEY: ${{ secrets['RELEASE_APP_KEY'] }}"),
+                "reads a secret",
+            ),
+            (
+                "every-secret",
+                env("ALL: ${{ toJSON(secrets) }}"),
+                "reads a secret",
+            ),
+            (
+                "inherited",
+                format!("{gate}    secrets: inherit\n"),
+                "reads a secret",
+            ),
+            (
+                "a-secret-behind-an-escape",
+                env("KEY: \"${{ s\\x65crets.RELEASE_APP_KEY }}\""),
+                "reads a secret",
+            ),
+            (
+                "a-secret-across-a-line",
+                env("KEY: \"${{ secr\\\n            ets.RELEASE_APP_KEY }}\""),
+                "reads a secret",
+            ),
+            (
+                "a-secret-in-a-comment",
+                "        run: |\n          # ${{ toJSON(secrets) }}\n          cargo xtask check\n"
+                    .to_owned(),
+                "reads a secret",
             ),
         ]);
+    }
+
+    /// A step's output and a publish are refused outside the release workflow,
+    /// however they are spelled: by an index, as a whole context, in a comment
+    /// inside a block scalar, and in a word a shell joins.
+    #[test]
+    fn a_steps_output_and_a_publish_are_refused_however_they_are_spelled() {
+        let gate = THE_GATE;
+        let env = |line: &str| format!("{gate}        env:\n          {line}\n");
+        the_gates_workflow_is_said_to(&[
+            (
+                "an-output",
+                env("TOKEN: ${{ steps.app.outputs.token }}"),
+                "reads a step's output",
+            ),
+            (
+                "an-output-by-index",
+                env("TOKEN: ${{ steps['app'].outputs.token }}"),
+                "reads a step's output",
+            ),
+            (
+                "every-output",
+                env("ALL: ${{ toJSON(steps) }}"),
+                "reads a step's output",
+            ),
+            (
+                "an-output-in-a-comment",
+                "        run: |\n          # ${{ toJSON(steps) }}\n          cargo xtask check\n"
+                    .to_owned(),
+                "reads a step's output",
+            ),
+            (
+                "published",
+                "        run: cargo xtask release --channel main --publish\n".to_owned(),
+                "publishes a release",
+            ),
+            (
+                "published-in-parts",
+                "        run: just release main --pub''lish\n".to_owned(),
+                "publishes a release",
+            ),
+        ]);
+    }
+
+    /// What a step reaches holds none of the release's authority: a composite
+    /// action, which GitHub runs as YAML, and a script, which publishes as
+    /// surely as a workflow does.
+    #[test]
+    fn what_a_step_reaches_holds_none_of_the_releases_authority() {
+        let gate = THE_GATE;
+        let held = crate::check::LeavesNothingBehind::new("bounded-authority-reached");
+        let scratch = held.root.clone();
+        std::fs::create_dir_all(scratch.join(".github/workflows")).expect("writable");
+        std::fs::create_dir_all(scratch.join("ci/actions/mint")).expect("writable");
+        for shipped in super::THE_WORKFLOWS {
+            std::fs::copy(root().join(shipped), scratch.join(shipped)).expect("readable");
+        }
+        let ci = std::fs::read_to_string(scratch.join(WORKFLOW)).expect("copied");
+        let ci = once(
+            &ci,
+            gate,
+            &format!("{gate}      - uses: ./ci/actions/mint\n      - run: bash ci/publish.sh\n"),
+        );
+        std::fs::write(scratch.join(WORKFLOW), ci).expect("writable");
+        let action = "ci/actions/mint/action.yml";
+        let script = "ci/publish.sh";
+        std::fs::write(
+            scratch.join(action),
+            format!(
+                "runs:\n  using: composite\n  steps:\n    - uses: {}@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0\n",
+                super::MINTS_THE_RELEASE_TOKEN
+            ),
+        )
+        .expect("writable");
+        std::fs::write(
+            scratch.join(script),
+            "cargo xtask release --channel main --publish\n",
+        )
+        .expect("writable");
+        let (findings, _) = super::every_workflow_is_bounded(&scratch);
+        for (file, what) in [
+            (action, "mints the release App's token"),
+            (script, "publishes a release"),
+        ] {
+            assert!(
+                findings.iter().any(|finding| finding.file == file
+                    && finding
+                        .what
+                        .ends_with(&format!("{what}, which the release workflow alone does"))),
+                "{file}: nothing said `{what}`: {findings:#?}"
+            );
+        }
+    }
+
+    /// The release workflow and its job hold the keys their lists name, each
+    /// once, and no other.
+    #[test]
+    fn the_release_holds_its_keys_and_no_other() {
+        let release = super::RELEASE_WORKFLOW;
+        let at_the_top = |key: &str| {
+            format!(
+                "the release workflow holds `{key}:`, and it holds {:?} alone, each once",
+                super::THE_RELEASE_WORKFLOWS_KEYS
+            )
+        };
+        let in_the_job = |key: &str| {
+            format!(
+                "the release job holds `{key}:`, and it holds {:?} alone, each once",
+                super::THE_RELEASE_JOBS_KEYS
+            )
+        };
+        let runs_on = "    runs-on: ubuntu-latest\n";
+        let jobs = "jobs:\n";
+        let cases: Vec<(&str, String, String)> = vec![
+            (
+                "an-environment-for-every-step",
+                format!("env:\n  RUSTC_WRAPPER: ./wrap.sh\n{jobs}"),
+                at_the_top("env"),
+            ),
+            (
+                "a-default-for-every-step",
+                format!("defaults:\n  run:\n    working-directory: plugins\n{jobs}"),
+                at_the_top("defaults"),
+            ),
+            (
+                "a-second-trigger",
+                format!("on:\n  workflow_dispatch:\n{jobs}"),
+                at_the_top("on"),
+            ),
+            (
+                "a-container",
+                format!("{runs_on}    container: example/any-image:latest\n"),
+                in_the_job("container"),
+            ),
+            (
+                "a-quoted-container",
+                format!("{runs_on}    \"container\": example/any-image:latest\n"),
+                in_the_job("\"container\""),
+            ),
+            (
+                "a-service",
+                format!("{runs_on}    services:\n      any:\n        image: example/any-image\n"),
+                in_the_job("services"),
+            ),
+            (
+                "a-matrix",
+                format!("{runs_on}    strategy:\n      matrix:\n        n: [1, 2]\n"),
+                in_the_job("strategy"),
+            ),
+            (
+                "an-environment-for-the-job",
+                format!("{runs_on}    env:\n      CARGO_HOME: /tmp/cargo\n"),
+                in_the_job("env"),
+            ),
+            (
+                "a-second-runner",
+                format!("{runs_on}{runs_on}"),
+                in_the_job("runs-on"),
+            ),
+        ];
+        for (about, to, said) in &cases {
+            let from = if to.starts_with(runs_on) {
+                runs_on
+            } else {
+                jobs
+            };
+            let findings = bounded_after(about, release, |text| once(text, from, to));
+            assert!(
+                findings.iter().any(|finding| &finding.what == said),
+                "{about}: nothing said `{said}`: {findings:#?}"
+            );
+        }
     }
 
     /// The branches a release fires on are the channels the verb releases.

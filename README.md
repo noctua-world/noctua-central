@@ -88,7 +88,9 @@ shallow clone is refused, and a tree with no `.git` says it was not judged.
 A push to `staging` or `main` releases that channel: `.github/workflows/release.yml`
 brings the stack up and runs `cargo xtask release --channel <branch> --publish` with the
 release App's token, in an environment only that branch can enter. The gate holds that
-workflow to its steps, and every action a workflow here uses is pinned to a commit.
+workflow to its steps, its keys and its expressions, refuses the token, an environment, a
+secret and a publish in every other file CI reaches, and pins every action a workflow
+here uses to a commit.
 
 `cargo xtask check --offline` skips **nine** things — the advisory database, which is
 fetched (the audit's licence, ban and source checks read only the lockfile and still

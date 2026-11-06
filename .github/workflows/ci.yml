@@ -19,6 +19,10 @@
 # Beside it, `release.yml` makes a release on a push to `staging` or `main`, and
 # nothing else sits under `.github/`. Both files open with no permission, and
 # every action either runs is pinned to a commit, with its release in a comment.
+# This file, and every file it reaches, mints no token, enters no environment,
+# reads no secret and no step's output, and publishes nothing: those are
+# `release.yml`'s alone, and the gate refuses them anywhere else, because this
+# workflow runs on a push to `staging` and `main` as well.
 
 name: check
 

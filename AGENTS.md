@@ -1790,20 +1790,49 @@ gate's `CI` step refuses the tree otherwise, before any run of the release can.
   secrets on behalf of a change made in a fork.
 - **Its one job enters `release-${{ github.ref_name }}`**, the environment of the branch
   pushed to, which GitHub lets a job enter from that branch alone and which holds the
-  App's id and its key: no other branch, no pull request and no other workflow can mint
-  the App's token. It runs on Linux, because the gate the release runs first is the whole
-  gate only where the stack runs.
-- **It runs `THE_RELEASE_STEPS`, in that order, and no other step**: the App's token, the
-  checkout, the toolchain `rust-toolchain.toml` names, the install the audit needs,
-  `cargo xtask dev`, then `cargo xtask release --channel ${{ github.ref_name }} --publish`.
-  A script, a composite action or a second command on a line is a step that is not on the
-  list, and a step on a condition is refused. `cargo xtask dev` comes right before the
-  release, so the tool the release step runs is built before the token is in any
-  process's environment, and no build script runs with it.
-- **The App's key reaches the step that mints the token, and the token reaches the release
-  step alone**, as `GH_TOKEN: ${{ steps.app.outputs.token }}`: any other line naming a
-  secret, a step's output, `github.token`, `GH_TOKEN` or `GITHUB_TOKEN` is refused, a job's
-  `env:` among them. The token is minted with contents and pull requests to write and
+  App's id and its key: no other branch and no pull request can mint the App's token.
+  It runs on Linux, because the gate the release runs first is the whole gate only where
+  the stack runs.
+- **No other workflow can mint it either.** An environment admits a job by its branch and
+  not by its workflow, and `ci.yml` runs on a push to `staging` and `main` too. So every
+  file CI reaches but `release.yml` — `ci.yml`, a composite action, a script a step runs,
+  the justfile — is refused if it names the token's action, enters an environment (a key
+  `environment`, quoted or in a flow mapping), reads a secret (the word `secrets` anywhere
+  in its code, a condition and `secrets: inherit` among it), reads a step's output (`steps`
+  in any expression), or holds `--publish`. Each line is read as written, with a
+  double-quoted scalar's escapes resolved and a line a backslash continues joined to the
+  next, and an expression is read in a comment too, because inside a block scalar a `#`
+  line is text GitHub evaluates. The token's action is not on the actions every file
+  shares (`SETS_UP_AND_JUDGES_NOTHING`): the release job runs it as its first step, and
+  no other step anywhere runs it at all.
+- **The file and its job hold their own keys and no other**: `name`, `on`, `permissions`,
+  `concurrency` and `jobs` at the top, and `runs-on`, `environment`, `permissions` and
+  `steps` in the job, each once. `env:` or `defaults:` would reach every step, the
+  token's among them; `container:` would run each inside an image this tree does not
+  build, `services:` would start one beside them, and `strategy:` would run the job more
+  than once.
+- **It runs `THE_RELEASE_STEPS`, in that order, and no other step, and each step holds
+  exactly the lines written there for it**: the App's token, with `app-id`, `private-key`,
+  `permission-contents: write` and `permission-pull-requests: write` as its inputs and no
+  other; the checkout, with `fetch-depth: 0` and `persist-credentials: false` and no
+  other; the toolchain `rust-toolchain.toml` names; the install the audit needs;
+  `cargo xtask dev`; then `cargo xtask release --channel ${{ github.ref_name }} --publish`,
+  handed `GH_TOKEN` alone. Each line is held at its depth, so an input moved out of
+  `with:` or a value continued on the next line is a line that differs; a step's `name:`
+  is its label and is not held. A script, a composite action, a second command on
+  a line, another repository or ref checked out, a token asked for more, and a key such as
+  `env:`, `shell:` or `working-directory:` on a step are each refused, and a step on a
+  condition is too. `cargo xtask dev` comes right before the release, so the tool the
+  release step runs is built before the token is in any process's environment, and no
+  build script runs with it.
+- **It evaluates six expressions and no other, each on a line of its own where
+  `THE_EXPRESSIONS` puts it**: the branch in the concurrency group, the environment and
+  the channel; the App's id and key in the step that mints the token; and
+  `GH_TOKEN: ${{ steps.app.outputs.token }}` in the release step. Any other line holding
+  `${{` is refused, so the token reaches no other step however an expression names it —
+  `steps['app'].outputs.token`, `toJSON(steps)`, `github['token']`, `toJSON(github)` —
+  and the file is read the way the other files are: escapes resolved, continued lines
+  joined, comments included. The token is minted with contents and pull requests to write and
   nothing more, so it stays that narrow if the App is ever granted more, and the action
   that mints it revokes it when the job ends.
 - **It restores no cache.** A cache holds what an earlier run saved — `dev`'s are restored
@@ -2180,19 +2209,33 @@ rather than anything decided for the project, and each is a maintainer's to reop
   user, and on Linux a process of the same user can read another's environment. What
   keeps such a process out is that what runs is what `staging` or `main` holds, after
   review and every check.
-- **`concurrency`, `cancel-in-progress: false` and `persist-credentials: false` are in the
-  workflows and held by no rule**: two releases racing on one branch are stopped by
-  `createCommitOnBranch`'s expected head and by a tag that exists, and a credential a
-  checkout left behind would read the tree and nothing more.
+- **The release's `concurrency` is held only where it evaluates an expression, and
+  `persist-credentials: false` only in `release.yml`**: `cancel-in-progress: false`, and
+  the group's name around its expression, are in the file and held by no rule, and so is
+  every checkout's `persist-credentials: false` in `ci.yml`. Two releases racing on one
+  branch are stopped by `createCommitOnBranch`'s expected head and by a tag that exists,
+  and a credential a checkout of `ci.yml` left behind reads the tree and nothing more.
+- **What only the release may hold is refused elsewhere by the words it is written with**:
+  a shell that builds `--publish` from parts a reader of words cannot join, such as a
+  variable or a command substitution, passes it — and a publish with no token of the
+  App's has nothing to write with, because the App's key is in an environment, the
+  workflows' own tokens may read the tree and nothing more, and the key, the environment
+  and the token's action are what the rule refuses. The workflow's own token, by
+  `github.token` or `toJSON(github)`, is not refused outside the release: it reads the
+  tree, which every job that checks out already does.
+- **The release's top-level `name:` holds what it likes**: it is a label, and an expression
+  in it is refused like any other.
 - **The token action is handed the App's id as `app-id`**, an input its pinned release
   marks as replaced by `client-id`, so each release run prints that warning: the
   environments hold the App's id and not its client id.
 - **The toolchain is whatever `stable` is on the day**, installed by the runner image's
   rustup, which reads `rust-toolchain.toml` because no toolchain is named; a rustup that
   needs one named fails that step.
-- **A `uses:` the line reader cannot see is judged by nothing**: an action written inside a
-  flow sequence on one line is read neither by the allow-list nor by the pins, and the
-  floor under the pins asks only that some action was read.
+- **A `uses:` the line reader cannot see is judged by nothing but the release's rules**: an
+  action written inside a flow sequence on one line is read neither by the allow-list nor
+  by the pins, and the floor under the pins asks only that some action was read. In
+  `release.yml` such a line is a step that is not one of its own, and anywhere else the
+  token's action is refused by its name wherever it is written.
 - **The comparison gate's subject is public fields and accessors, not everything the
   compiler writes**: `pub const` arrays (`AREAS`, `KEYS`, `COMMANDS`, `TABLES`, `STORES`,
   `RATE_LIMITS`, `EVENTS`, each `ALL`), enum variants, functions taking an argument, and
@@ -2426,10 +2469,12 @@ a composite action or an action whose job is to run cargo; and in the justfile.
   such as `ci/*.sh` is matched against the tree, and the tools that judge this tree are
   needles whatever binary they are — `rustfmt --check` as well as `cargo fmt`.
 - **`.github/` holds `ci.yml` and `release.yml` alone**, every action either
-  uses is pinned to a commit, and every job that builds installs the toolchain with
+  uses is pinned to a commit, every job that builds installs the toolchain with
   `rustup toolchain install` and no toolchain named, so what it installs is what
-  `rust-toolchain.toml` says ("The release job is what `release.yml` says, and the App's
-  token reaches its last step alone").
+  `rust-toolchain.toml` says, and no file CI reaches but `release.yml` mints the release
+  App's token, enters an environment, reads a secret or a step's output, or publishes
+  ("The release job is what `release.yml` says, and the App's token reaches its last step
+  alone").
 - **Actions are an allowlist, not a needle**: an action judging anything of ours is a
   second gate whatever it is called — a linting action such as
   `giraffate/clippy-action@v1` <!-- allow-reference: names `giraffate/clippy-action@v1` — an action this repository does not use -->
