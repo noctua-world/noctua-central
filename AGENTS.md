@@ -150,30 +150,59 @@ kernel among them, which is Stage 13 of the plan.
 `NOCTUA.md`** (`NOCTUA.md §0.4`); when they disagree, the reference wins and `NOCTUA.md`
 is what gets corrected.
 
-## There is no git here, and that is on purpose
+## Branches, merges and releases
 
-`NOCTUA.md §5.3` [CLOSED]: this repository **has no git repository until Stage 12**, which
-gives it one — public, under `github.com/noctua-world`, beside `noctua-colors` and
-`noctua-design`. Until then:
+This repository is `github.com/noctua-world/noctua-central`, public (`NOCTUA.md §10.11`);
+`NOCTUA.md §22` is the workflow, and what binds here is:
 
-1. **Never run `git` inside this tree.** With no `.git` here, git walks up and acts on the
-   workspace's repository, which ignores `repos/` — so a `git clean -X` run here deletes
-   this tree.
-2. **There is no history to read a change against, and nothing to restore from**: a
-   destructive command in this tree has no undo. Read a file before you overwrite it, do
-   not "clean up" a directory you have not looked inside, and snapshot the tree before
-   risky work. One thing writes here unasked: a failing property test appends its case to
-   `crates/*/tests/*.proptest-regressions`, which is kept on purpose so the case re-runs
-   first — so a red run leaves the tree changed.
-3. **Anything reusable belongs in one of the tracked repositories.** If what you are about
-   to write would serve `noctua-design` or `noctua-colors` too, it goes there, where git
-   can date it.
-4. **There is no `LICENSE` file and no `license` key**, by decision
-   (`NOCTUA.md §5.10`). Do not add either.
-5. **Nothing publishes to a registry.** Every crate is `publish = false`, and there is
-   no registry name. `cargo xtask release` computes a channel's version and changelog from
-   the history and writes them; only CI's release job, with `--publish`, makes the release
-   on GitHub ("A release is computed from the history, and made on GitHub once").
+1. **Three branches, each changed by a pull request.** `dev` is the default branch and
+   integrates work: every feature branch's pull request targets it. `staging` holds the
+   release candidates and is reached by a pull request from `dev`; `main` is production
+   and is reached by a pull request from `staging`. A feature branch is deleted when it
+   merges. Nothing is pushed to the three directly but the release commit, which the
+   release App makes on `staging` and `main` (item 6).
+2. **Merge commits only.** Squash and rebase are disabled, and a merge commit's title and
+   body are the pull request's, so **a pull request's title is a commit subject**:
+   conventional, and judged as one. Auto-merge is allowed.
+3. **Every commit is signed** — by its author, or, for a release commit, by GitHub — and a
+   failed signature is a stop, never a bypass (`NOCTUA.md §2.6`). **History is never
+   rewritten** on a pushed branch: a mistake is fixed by a new commit.
+4. **The rulesets** (rulesets, not classic branch protection): on `dev`, `staging` and
+   `main`, a pull request with no approval required and the merge method alone, signed
+   commits, no force-push, no deletion, and the checks `linux`, `macos`, `windows` and
+   `deterministic` of `.github/workflows/ci.yml` passed before a merge. On the tags `v*`,
+   creation, update and deletion are blocked. The release App is the one actor that
+   bypasses any of them — on `staging`, `main` and the tags; `dev` has no bypass, and
+   administrators do not bypass. These are GitHub's settings, read with `gh api` and held
+   by nothing in this tree.
+5. **The release App**, `noctua-central-release`, belongs to the `noctua-world`
+   organization and is installed on this repository alone. It writes contents and pull
+   requests and reads metadata, and nothing more: with no workflows permission, GitHub
+   refuses any commit of its that changes a workflow, and it receives no webhook events.
+   Its id is the variable `RELEASE_APP_ID` and its key the secret `RELEASE_APP_KEY`, held
+   only in the environments `release-staging` and `release-main`, each of which admits a
+   job from its own branch alone — so only a push `staging` or `main` already took can
+   mint its token.
+6. **A merge into `staging` or `main` is that channel's release**, and nothing else makes
+   one: `.github/workflows/release.yml` mints the release App's token, and
+   `cargo xtask release --channel <branch> --publish` runs the gate, computes the version
+   and the changelog from the history, and makes the release commit, the tag, the GitHub
+   release and the pull request that carries it back to the branch below — `staging` to
+   `dev`, `main` to `staging` — with auto-merge ("A release is computed from the history,
+   and made on GitHub once"; "The release job is what `release.yml` says, and the App's
+   token reaches its last step alone"). No tag and no release is made by hand.
+   `cargo xtask release --channel staging --dry-run` says what a channel would release.
+7. **`cargo xtask check` judges the history** — every commit reachable from `HEAD` has a
+   conventional subject and credits no agent, and no blob ever reachable is above the
+   size limit unless listed — and, under a pull request, its title and body ("The history
+   says what each change is, credits no agent, and stays small").
+8. **One thing writes here unasked**: a failing property test appends its case to
+   `crates/*/tests/*.proptest-regressions`, which is committed on purpose so the case
+   re-runs first — so a red run leaves the tree changed, and `git status` shows it.
+9. **There is no `LICENSE` file and no `license` key**, by decision
+   (`NOCTUA.md §10.12`). Do not add either.
+10. **Nothing publishes to a registry.** Every crate is `publish = false`, and there
+    is no registry name: what this repository publishes is its releases, on GitHub.
 
 ## Repository map
 
@@ -190,7 +219,7 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 ├── docker-compose.yml              the local stack: PostgreSQL and the log store
 ├── .env.example                    what the stack reads. NEVER copied to .env
 ├── .gitattributes                  every text file checked out with LF, on every system
-├── .github/workflows/ci.yml        HAS NEVER RUN — there is no repository yet
+├── .github/workflows/ci.yml        the gate on Linux, macOS and Windows, and the double build
 ├── .github/workflows/release.yml   the release, on a push to staging or main
 ├── catalog/                        HAND-WRITTEN — THE shared-core registries (§15.2)
 │   ├── errors.toml                 every error this platform can produce (§15.1)
@@ -833,9 +862,9 @@ dispatch whose pack cannot load and one in a realm whose pin is not carried.
 
 **Not answered:** a kernel binary replaced on the user's machine, which carries its pack
 inside it — a process running as the same user is outside what the kernel defends
-(`NOCTUA.md §11.1`); whether a changed pack raised its version, which nothing here has a
-history to compare against (`NOCTUA.md §5.3`) and is a reviewer's question; and a policy
-that says other than its author meant, which only its cases check.
+(`NOCTUA.md §11.1`); whether a changed pack raised its version, which no gate compares
+with the history and is a reviewer's question, asked of the pull request's diff; and a
+policy that says other than its author meant, which only its cases check.
 
 ### A plugin that crashes, hangs or exhausts its budget is stopped, and harms nothing else
 
@@ -1571,10 +1600,10 @@ lets a device or an agent undo a person's history. **Either flag on any case but
 `no_permit_matched` denial is refused** (`boundary-flag-without-a-boundary`), since the
 pairing reads those cases alone.
 
-### Error codes are append-only with no history to check against
+### Error codes are append-only, and a ledger in the tree is what holds them
 
-`NOCTUA.md §15.1` makes `NC-<AREA>-<NNNN>` append-only and there is no git to diff
-against, so the compiler keeps `catalog/errors.reserved.toml`, checksummed, and refuses a
+`NOCTUA.md §15.1` makes `NC-<AREA>-<NNNN>` append-only, and a build reads the tree and not
+its history, so the compiler keeps `catalog/errors.reserved.toml`, checksummed, and refuses a
 code renumbered, reused or removed. `cargo xtask check` always passes `Bootstrap::Refuse`;
 only `cargo xtask build --reserve` may accept a ledger nothing vouches for, and clearing
 the checksum by hand forgives an unvouched ledger and nothing more. `cargo xtask build`
@@ -2249,12 +2278,11 @@ rather than anything decided for the project, and each is a maintainer's to reop
   The second is what a Windows runner measured (`os error 10054`). macOS refuses a new read
   bound on such a socket and still holds the answer, so the shipper reads it under the
   bound already set (`an_answer_a_reset_follows_is_not_read_as_silence`).
-- **`.github/workflows/ci.yml` has never run**: there is no repository for it until
-  Stage 12. It is committed so that CI and a developer cannot drift into two gates, and a
-  gate reads it as a document ("CI's one gate reaches every file CI can reach"); unknown
-  until it runs is what a run supplies — the runner's image, the toolchain it fetches, and
-  whether `cargo xtask dev` comes up there. It carries no `services:` on purpose ("CI runs
-  the stack, not a copy of it").
+- **What a CI run supplies is GitHub's**: the runner's image, and whether
+  `cargo xtask dev` comes up on it, are pinned by nothing here; the gate reads
+  `.github/workflows/ci.yml` as a document ("CI's one gate reaches every file CI can
+  reach"), so CI and a developer cannot drift into two gates. It carries no `services:` on
+  purpose ("CI runs the stack, not a copy of it").
 - **A pinned action is the code at its commit, not code anyone here has read**: the pin
   keeps a moved tag from changing what runs, and nothing reads what the action does or
   fetches when it runs. The release written beside a pin is a comment no gate checks
@@ -2444,7 +2472,7 @@ root's or a member's. **A path dependency outside the tree is refused**:
 `unsafe_code = "forbid"`, the type wall and every floor, and the build would need a
 directory no clone has; `check` reads the resolved graph for path packages outside the
 root and fails on any it does not name. The one it names is the design system, with
-`NOCTUA.md §5.3`'s reason written in the gate, since a manifest is what an edit changes.
+`NOCTUA.md §10.11`'s reason written in the gate, since a manifest is what an edit changes.
 
 ### A scanner narrower than the language it scans
 
@@ -3039,7 +3067,7 @@ and `sqlx`, and are named because the kernel matches on a type of each.
 | `proptest` | `§16.3` and `§16.4` have algebraic laws, and `§19.2` puts those under property test |
 | `clap`, `anstream`, `anstyle` | The command surface, in `xtask` only |
 | `windows-sys` | The Win32 security calls of `crates/nc-platform`'s Windows half, and only there, compiled for a Windows target alone — decided on 2026-11-02: who the process token names (`OpenProcessToken`, `GetTokenInformation`), an access list built (`InitializeAcl`, `AddAccessAllowedAceEx`) and read (`GetSecurityInfo`, `GetAce`), and a file and a directory created with a descriptor of their own (`CreateFileW`, `CreateDirectoryW`); and, behind the test doors alone, a descriptor written onto one path through its handle (`SetKernelObjectSecurity`), from its text when it holds a conditional entry (`ConvertStringSecurityDescriptorToSecurityDescriptorW`). Not written here because the declarations — every structure's layout and every function's signature — would be ours to get right, with no compiler to check them against the system's. Version 0.61, which `tokio`'s `mio` already brings, so it adds no package; its features are the modules those calls are in, pinned in that crate's manifest. It is the one dependency whose calls are `unsafe`, and invariant 17 says how that is held |
-| `noctua-design` | The only cross-repository dependency this repository has: a `[workspace.dependencies]` path entry with the git-tag form in a comment above it (`NOCTUA.md §5.3`), reached by path while there is no repository here to resolve a tag from. `noctua-colors` is reached **through** it and never directly (`§8.6`), which a gate holds |
+| `noctua-design` | The only cross-repository dependency this repository has: a `[workspace.dependencies]` path entry with the git-tag form in a comment above it (`NOCTUA.md §10.11`), reached by path while the two repositories are edited together. `noctua-colors` is reached **through** it and never directly (`§8.6`), which a gate holds |
 
 **Three things are written here rather than taken**, all three a maintainer's call: the
 HTTP client that ships log lines to a store on the same machine, the harness that proves a
@@ -3076,8 +3104,8 @@ unless its line carries the `allow-count:` marker with a reason.
 | Evidence for an assertion | the comment beside that assertion |
 | The story of the change | its commit message, and nowhere else |
 
-Until Stage 12 this repository has no commit messages (`NOCTUA.md §5.3`), so the story of
-a change has nowhere to go: it is left out, never written here. A rule keeps, in a
+A merge commit carries its pull request's title and body (`NOCTUA.md §22.1`), so the
+story of a change goes there and in its commits, and never here. A rule keeps, in a
 sentence or two, the reason a reader needs in order not to undo it; the measurement that
 made it credible goes beside the code it justifies.
 

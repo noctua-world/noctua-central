@@ -357,8 +357,8 @@ fn migrate(root: &Path, port: &str) -> Result<(), String> {
         };
         // **And what landed before it failed.** `Migrator::run` wraps each
         // migration on its own, so a failure half-way through leaves every one
-        // before it committed and recorded — permanently, in a repository with
-        // no git. Saying only which migration failed hides that. Measured, a valid `0013`
+        // before it committed and recorded — permanently, since a migration
+        // only goes forwards. Saying only which migration failed hides that. Measured, a valid `0013`
         // followed by a `0014` that cannot apply:
         //
         // ```text

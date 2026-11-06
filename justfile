@@ -31,8 +31,8 @@ build:
 check:
     cargo xtask check
 
-# CI has never run (`NOCTUA.md §5.3`), so this is the only account of that shape
-# there is, and it is a command rather than a paragraph because a measurement
+# CI runs the gate in a checkout on every push; this reproduces that shape on
+# this machine, as a command rather than a paragraph, because a measurement
 # nobody can reproduce decays into prose. It brings up a stack of the copy's own,
 # on two other ports, the way CI's `cargo xtask dev` step does, and takes it
 # down again.

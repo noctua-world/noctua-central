@@ -80,8 +80,8 @@ pub(crate) fn run(root: &Path, reserve: bool) -> Result<(), String> {
     // **What this build reserves, said on the line it reserves it.** A code
     // added to `catalog/errors.toml` is appended to the ledger by an ordinary
     // `cargo xtask build`, permanently, and the run said `15 generated file(s),
-    // 4 rewritten` — an irreversible write announced as a file count, in a tree
-    // with no history to restore from. A newcomer trying out a number learns
+    // 4 rewritten` — an irreversible write announced as a file count. A
+    // newcomer trying out a number learns
     // what happened one build later, when renumbering it is refused.
     //
     // **And the reading is inside the write, because it is a reading of the
@@ -101,9 +101,8 @@ pub(crate) fn run(root: &Path, reserve: bool) -> Result<(), String> {
         // nothing: measured, `grep -c NC-VAL-0002
         // catalog/errors.reserved.toml` comes back `0`. `AGENTS.md` states the
         // contract in as many words: "announces each code it reserves, **on the
-        // line it reserves it**". A developer told a number was burned, in a
-        // tree with no history to check it against, goes looking for the undo —
-        // which begins by blanking the ledger's checksum.
+        // line it reserves it**". A developer told a number was burned goes
+        // looking for the undo — which begins by blanking the ledger's checksum.
         for code in &reserved {
             ui::ok(&format!("reserved {code} — permanently"));
             ui::detail(
@@ -132,9 +131,9 @@ pub(crate) fn run(root: &Path, reserve: bool) -> Result<(), String> {
 /// grep -c '^"NC-' catalog/errors.reserved.toml   ->  28   (28 before, 28 after)
 /// ```
 ///
-/// A developer reading that has been told a number was burned. In a tree with
-/// no history to check it against, the next thing they do is try to take it
-/// back — and the refusal they get names a code this run never reserved.
+/// A developer reading that has been told a number was burned. The next thing
+/// they do is try to take it back — and the refusal they get names a code this
+/// run never reserved.
 ///
 /// Phrased from `newly_reserved`, which is the same list the lines above are
 /// printed from, so the count and the names cannot disagree.
@@ -1067,7 +1066,7 @@ mod tests {
     /// `!already.contains(code) && !code.starts_with("NC")` — which is every code
     /// this catalog has: `cargo test -p xtask --bin xtask` green at 481, and the
     /// run would then say *"reserving nothing new"* while
-    /// `catalog/errors.reserved.toml` grew, permanently, in a tree with no git.
+    /// `catalog/errors.reserved.toml` grew, permanently.
     ///
     /// `what_the_ledger_write_was` — the sentence *chooser* — has a test; the
     /// list it chooses from needs one too.

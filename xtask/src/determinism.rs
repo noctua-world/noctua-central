@@ -7,8 +7,8 @@
 //! milliseconds apart in
 //! the same process, so a stamp with day granularity — a date in a header, a
 //! year in a licence line — is identical in both and the check passes every day
-//! until it does not. The CI job that builds twice and diffs would catch it, on
-//! the day CI first runs, in a repository that has no CI yet (`§5.3`).
+//! until it does not. The CI job that builds twice and diffs runs both builds
+//! in one job, minutes apart, so it shares the day as well.
 //!
 //! So this reads the source instead. A clock, a random number, an unordered map,
 //! the environment or the process's own identity reaching the emitter is a

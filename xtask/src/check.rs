@@ -577,7 +577,7 @@ pub(crate) fn every_pin_was_answered_for(
     ))
 }
 
-/// The cross-repository wiring `NOCTUA.md §5.3` and `§8.6` fix.
+/// The cross-repository wiring `NOCTUA.md §10.11` and `§8.6` fix.
 fn wiring(root: &Path, stack: Stack, failures: &mut Vec<String>) {
     match gates::manifests(root) {
         Err(problem) => {
@@ -636,7 +636,7 @@ fn wiring(root: &Path, stack: Stack, failures: &mut Vec<String>) {
                 failures.push("the design system does not resolve".to_owned());
             }
         }
-        // Not a failure: it is the switch `NOCTUA.md §5.3` documents, and a gate
+        // Not a failure: it is the switch `NOCTUA.md §10.11` documents, and a gate
         // that went red on the switch it documents would be worse than no gate.
         Ok(Dependency::Tag(tag)) => {
             ui::ok(&format!("the design system is pinned to {tag}"));
@@ -1395,8 +1395,8 @@ fn generated_by(
         Err(problem) => {
             ui::failure(&format!(
                 "catalog/errors.reserved.toml could not be read: {problem}. It is the \
-                 only record of which codes have been used, and there is no git here \
-                 to recover it from (NOCTUA.md §5.3)"
+                 record of which codes have been used, a removed one included: restore \
+                 it from git rather than write a new one (NOCTUA.md §15.1)"
             ));
             failures.push("the error-code ledger is behind".to_owned());
         }
@@ -1414,7 +1414,7 @@ fn generated_by(
         // to catch — leave `ok two generations are byte-identical` printed over
         // two that were not, with
         // the first generation still matching disk. `catalog/errors.reserved.toml`
-        // is append-only and there is no git to diff it against.
+        // is append-only, and every code it holds is permanent.
         // **Destructured, so a fourth output field is a compile error.**
         // `Compiled` has three, and a comparison that enumerates fields by hand
         // agrees about any field it does not know, which is `hashed_form`'s
@@ -1705,8 +1705,8 @@ fn what_the_record_says(
         // migration(s), numbered once each and in order`. sqlx refuses a
         // changed migration when it applies one,
         // and CI applies to a fresh database where nothing is recorded,
-        // so that refusal never runs there. There is no git here to
-        // remember; `_sqlx_migrations` is what does.
+        // so that refusal never runs there. The gate reads no history
+        // to remember; `_sqlx_migrations` is what does.
         // The checksum sqlx itself computes for the file **as it is on
         // disk now** — not the one baked into this binary, which cargo
         // rebuilds by mtime and so misses an edit made with
@@ -1826,8 +1826,8 @@ fn the_record_against_the_files(
             // migrations deleted: `ok 2 migration(s), numbered once each
             // and in order`. The neighbouring gates caught the deletion;
             // this floor did not, and it is the only one that could,
-            // because there is no git here and `_sqlx_migrations` is the
-            // only thing outside the tree that remembers.
+            // because the gate reads no history and `_sqlx_migrations` is
+            // the only thing outside the tree that remembers.
             // What covers the arithmetic everywhere is
             // `what_the_record_says`'s own tests, which need no
             // database at all.
@@ -1838,8 +1838,8 @@ fn the_record_against_the_files(
             );
             ui::detail(
                 "`_sqlx_migrations` is the only thing outside this tree that \
-                 remembers what was applied, and `NOCTUA.md §5.3` says there is no \
-                 git here to ask instead — `cargo xtask dev` applies them",
+                 remembers what was applied, and the gate reads no history in its \
+                 place — `cargo xtask dev` applies them",
             );
             failures.push("the database has applied no migration".to_owned());
         } else if let behind = never_applied(applied, on_disk)
@@ -1873,9 +1873,9 @@ fn the_record_against_the_files(
             lost.join(", ")
         ));
         ui::detail(
-            "there is no git here (§5.3), so the applied record is the only thing \
-             that remembers what was there. Restore the file, or say in a new \
-             migration what replaces it",
+            "the applied record is the only thing the gate reads that remembers \
+             what was there, and git holds the file if a commit did. Restore it, or \
+             say in a new migration what replaces it",
         );
         failures.push("a migration was applied and then removed".to_owned());
     }
@@ -1935,9 +1935,9 @@ fn bounds(root: &Path, stack: Stack, failures: &mut Vec<String>) {
             // **Against the database, not against the directory.** A second walk
             // of `migrations/` with the same walker could only disagree with the
             // first if the walker were broken — deleting a migration would
-            // lower both and still print `ok` (measured: `ok 2 migration(s)`). There is no
-            // git here (`§5.3`), so nothing *in* the tree remembers what was
-            // there yesterday; what does remember is `_sqlx_migrations`, which
+            // lower both and still print `ok` (measured: `ok 2 migration(s)`). The gate
+            // reads the tree and not its history, so nothing *in* the tree remembers
+            // what was there yesterday; what does remember is `_sqlx_migrations`, which
             // records every migration this database has applied. A file that was
             // applied and is now gone is the case a floor derived from the tree
             // cannot see.
@@ -2412,9 +2412,9 @@ fn the_migrations_are_the_ones_written_down(
 ///   check passed
 /// ```
 ///
-/// There is no git here, so CI is the only second reader of a deletion, and it
-/// is the one reader that cannot see it — and what it prints is a positive `ok`
-/// among skips that read as routine. A written list is the reader that does not
+/// The gate reads no history, and CI, which every change passes, migrates a
+/// fresh database and so cannot see a deletion — and what it prints is a
+/// positive `ok` among skips that read as routine. A written list is the reader that does not
 /// depend on any database: removing a migration is then a two-place edit, and
 /// the second place is here.
 ///
@@ -2893,7 +2893,7 @@ fn the_same_place(one: &Path, other: &Path) -> bool {
 /// edit changes, so reading the allowance out of it would allow whatever the
 /// edit said.
 fn nothing_is_built_from_outside_this_repository(root: &Path, failures: &mut Vec<String>) {
-    // `NOCTUA.md §5.3`: the design system is reached by path while it and this
+    // `NOCTUA.md §10.11`: the design system is reached by path while it and this
     // repository are edited together, and becomes a tagged git dependency at
     // its own stage. Nothing else may.
     const REACHED_BY_PATH_FROM_OUTSIDE: [(&str, &str); 1] = [(
@@ -7549,8 +7549,8 @@ fn ends_in_a_backslash(path: &str) -> bool {
 /// **Written out, because a list read from the tree shrinks with the tree.**
 /// A walk of `crates/*/tests/` compared against cargo's output loses a deleted
 /// suite from both sides — measured, nineteen tests
-/// went with `ok 508 test(s)` and `check passed`. There is no git here
-/// (`§5.3`), so nothing outside the tree remembers what was in it.
+/// went with `ok 508 test(s)` and `check passed`. The gate reads the tree and
+/// not its history, so nothing it reads remembers what was in it.
 ///
 /// What this can do, stated exactly: it makes removing a suite a
 /// **two-place edit**, one of them here, where a reviewer reading the diff meets
@@ -7709,8 +7709,8 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// held by nothing but this list, and a floor under a walk — the mechanism this
 /// repository relies on most — is the kind a run cannot show missing. One of
 /// the twenty-six, the edited-migration report, is the only reader of
-/// `_sqlx_migrations` for that case and there is no git here to ask instead:
-/// with it gone, a migration edited after it was applied passed the gate.
+/// `_sqlx_migrations` for that case, and the gate reads no history in its
+/// place: with it gone, a migration edited after it was applied passed the gate.
 ///
 /// A verdict name is what `check failed: …` prints and a finding's `what` is
 /// the line a developer reads, so between them this list is everything the gate
@@ -7897,7 +7897,7 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1028] = [
     "Cargo.lock could not be read, and a release rewrites it: {error}. Nothing was written",
     "Cargo.toml could not be read: {error}",
     "Cargo.toml declares `noctua-design` with neither a path nor a tag: {}",
-    "Cargo.toml declares no `noctua-design` dependency. It is how every later stage reaches the design system, and the two forms it may take — a path while the repositories are edited together, a git tag afterwards — are in NOCTUA.md §5.3",
+    "Cargo.toml declares no `noctua-design` dependency. It is how every later stage reaches the design system, and the two forms it may take — a path while the repositories are edited together, a git tag afterwards — are in NOCTUA.md §10.11",
     "Cargo.toml is not TOML, so which table declares `noctua-design` could not be answered: {error}",
     "Cargo.toml names `noctua-design` at `{path}`, and there is no manifest there. Either the workspace is not laid out as NOCTUA.md §3.1 describes, or this repository was cloned outside the workspace's `repos/` directory",
     "NC-{area}-{digits}",
@@ -7905,7 +7905,7 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1028] = [
     "`#[ignore]`",
     "`GET /flags` on the log store answered `{}`, so what it is running with could not be read",
     "`POSTGRES_INITDB_ARGS` is read only when the data directory is empty, so this volume predates the line or was made without it: `cargo xtask dev --down` removes it and the next `dev` initialises a database that matches the file",
-    "`_sqlx_migrations` is the only thing outside this tree that remembers what was applied, and `NOCTUA.md §5.3` says there is no git here to ask instead — `cargo xtask dev` applies them",
+    "`_sqlx_migrations` is the only thing outside this tree that remembers what was applied, and the gate reads no history in its place — `cargo xtask dev` applies them",
     "`cargo metadata` did not answer in JSON: {error}",
     "`cargo metadata` did not run: {error}",
     "`cargo metadata` failed: {said}",
@@ -8056,7 +8056,7 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1028] = [
     "cargo's own home holds a file cargo reads and this gate cannot parse",
     "cargo-deny is not installed, so the dependency audit did not run. Install it with `cargo install --locked cargo-deny`",
     "cargo-deny printed no licence statistics, so how many crates the audit read is unknown and the `ok` line would be a claim",
-    "catalog/errors.reserved.toml could not be read: {problem}. It is the only record of which codes have been used, and there is no git here to recover it from (NOCTUA.md §5.3)",
+    "catalog/errors.reserved.toml could not be read: {problem}. It is the record of which codes have been used, a removed one included: restore it from git rather than write a new one (NOCTUA.md §15.1)",
     "catalog/errors.reserved.toml holds every code this catalog declares, and its surrounding text is not what the compiler writes. Run `cargo xtask build`: it rewrites the file around the same reservations, so nothing is reserved or freed",
     "check failed: {}",
     "clippy reported {linted} compiled target(s) and named {} of the {} source root(s) cargo declares: the step did not read the whole tree. `--all-targets` covers every source root at least once, so this is a narrowed argument list or a step that did not run. Not linted: {missed:?}",
@@ -8297,6 +8297,7 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1028] = [
     "the migrations ran and the count went backwards: {already} were applied before this \
      run and {now} are recorded now. Something is reading a different table from the one \
      that was written — check `search_path` and the schema the URL names",
+    "the applied record is the only thing the gate reads that remembers what was there, and git holds the file if a commit did. Restore it, or say in a new migration what replaces it",
     "the applied-migration record",
     "the blanket-allow gate",
     "the blanket-allow walk",
@@ -8524,7 +8525,6 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1028] = [
     "the §15.1 walk",
     "the §15.1 walk",
     "there is no `linux` job to bring the stack up in",
-    "there is no git here (§5.3), so the applied record is the only thing that remembers what was there. Restore the file, or say in a new migration what replaces it",
     "there is no rustfmt.toml in this repository, so rustfmt walks up out of it looking for one",
     "these function(s) do not search `pg_temp` last, so a `CREATE TEMP TABLE` of the right name decides what they read: {}",
     "this assembles what it includes — `{}` — so what reaches the compiler is not written in this file",
@@ -12429,7 +12429,7 @@ fn dependencies(root: &Path, offline: bool, failures: &mut Vec<String>, audit: A
 enum Dependency {
     /// A path, so the two repositories can be edited together.
     Path(String),
-    /// A git tag, which is the switch `NOCTUA.md §5.3` documents.
+    /// A git tag, which is the switch `NOCTUA.md §10.11` documents.
     Tag(String),
 }
 
@@ -12482,7 +12482,7 @@ fn design_dependency(manifest: &str) -> Result<Dependency, String> {
             "Cargo.toml declares no `noctua-design` dependency. It is how every later \
              stage reaches the design system, and the two forms it may take — a path \
              while the repositories are edited together, a git tag afterwards — are in \
-             NOCTUA.md §5.3"
+             NOCTUA.md §10.11"
                 .to_owned(),
         );
     };
@@ -13902,10 +13902,11 @@ mod tests {
 
     /// The ledger is put in place by a rename from a sibling path.
     ///
-    /// **A half-written ledger is the one file in this tree with no history
-    /// behind it.** `catalog/errors.reserved.toml` is append-only and there is
-    /// no git here, so a write interrupted part-way leaves a truncated record
-    /// of which codes are burned — and a code's identity is permanent. The
+    /// **A half-written ledger holds what no commit holds yet.**
+    /// `catalog/errors.reserved.toml` is append-only, and a code a build reserves
+    /// is in that file alone until a commit takes it, so a write interrupted
+    /// part-way leaves a truncated record of which codes are burned — and a
+    /// code's identity is permanent. The
     /// sequence that prevents it is: write the whole thing beside the target,
     /// then rename, which the filesystem makes atomic.
     ///
@@ -13953,7 +13954,7 @@ mod tests {
             body.contains("std::fs::rename(&beside, path)"),
             "the ledger is no longer put in place by a rename. A copy, or a write \
              straight to the target, is not atomic: interrupted, it leaves a partial \
-             append-only record in a tree with no history to restore it from"
+             append-only record, and no commit holds what the build reserved since"
         );
     }
 
@@ -14351,8 +14352,8 @@ mod tests {
             "the tree disagrees with itself: {lost:?} / {rewritten:?}"
         );
 
-        // A migration that was applied and whose file is gone. There is no git
-        // here (`§5.3`), so the record is the only thing that remembers it.
+        // A migration that was applied and whose file is gone. The gate reads
+        // no history, so the record is the only thing it reads that remembers it.
         let one_short: Vec<String> = files
             .iter()
             .filter(|name| !name.starts_with("0003_"))
@@ -14824,8 +14825,8 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     ///
     /// **What that line admits is not a wrong answer, it is an irreversible
     /// one.** `--reserve` is the single write in this tree that cannot be
-    /// undone — `catalog/errors.toml` codes are permanent and there is no git
-    /// here — so the same unpinned line equally admits `build::run(&root,
+    /// undone — a code it reserves is permanent (`NOCTUA.md §15.1`), whatever
+    /// git keeps of the file — so the same unpinned line equally admits `build::run(&root,
     /// true)`, which would make every ordinary `cargo xtask build` reserve
     /// against an unvouched ledger. `dev::run(&root, true)` is the same shape:
     /// every `cargo xtask dev` taking the stack and its volumes down.
@@ -14910,9 +14911,9 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         assert!(
             defaulted.is_empty(),
             "a boolean flag carries a default, so what the verb does with the flag \
-             absent is not what its name says: {defaulted:?}. Two of these verbs write \
-             irreversibly in a tree with no git, and the arms below read whatever the \
-             flag arrives as"
+             absent is not what its name says: {defaulted:?}. Two of these verbs act \
+             irreversibly — a reserved code is permanent and a volume taken down is \
+             gone — and the arms below read whatever the flag arrives as"
         );
 
         assert_eq!(
@@ -14923,9 +14924,9 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
                 .collect::<Vec<_>>(),
             "the dispatch in `main` is not what is written down. Every verb's flag \
              reaches its run function through one of these lines and through nothing \
-             else, and two of them — `--reserve` and `dev --down` — are irreversible \
-             in a tree with no git. A line changed here is a line no other test, \
-             fixture or census reads"
+             else, and two of them — `--reserve` and `dev --down` — are \
+             irreversible. A line changed here is a line no other test, fixture or \
+             census reads"
         );
     }
 
@@ -17026,7 +17027,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         let left_over = super::the_strangers_among(&reached, &allowed);
         assert!(
             left_over.is_empty(),
-            "the design system is `NOCTUA.md §5.3`'s one exception and was reported: {left_over:?}"
+            "the design system is `NOCTUA.md §10.11`'s one exception and was reported: {left_over:?}"
         );
 
         // The same name from somewhere else. A hatch that reads the name alone
@@ -24957,7 +24958,7 @@ mod the_frozen_path_rule {
     /// comparison being dropped. Measured: `ledger: _` in the pattern and
     /// `*files == first.files` alone left `ok two generations are byte-identical`
     /// and `check passed`, with `catalog/errors.reserved.toml` — append-only,
-    /// with no git behind it — outside the in-process half of criterion 4.
+    /// every code it holds permanent — outside the in-process half of criterion 4.
     #[test]
     fn a_generation_that_differs_is_not_byte_identical() {
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
@@ -24988,7 +24989,7 @@ mod the_frozen_path_rule {
         assert!(
             !crate::check::everything_it_wrote_is_the_same(&other_ledger, &first),
             "a generation whose ledger differs compared equal, and the ledger is \
-             append-only with no git behind it"
+             append-only, every code it holds permanent"
         );
     }
 
@@ -25034,8 +25035,8 @@ mod the_frozen_path_rule {
                     compiled.files.pop().expect("the emitter writes files");
                 }) as &dyn Fn(&mut nc_catalog_compiler::Compiled),
             ),
-            // **And the ledger**, which is the other output field and the one
-            // with no git behind it.
+            // **And the ledger**, which is the other output field and the
+            // append-only one.
             (
                 "the ledger",
                 &|compiled: &mut nc_catalog_compiler::Compiled| {
@@ -27370,7 +27371,7 @@ mod the_frozen_path_rule {
         ("Ok(on_disk) =>", "the error-code ledger is behind"),
         (
             "Err(problem) =>",
-            "catalog/errors.reserved.toml could not be read: {problem}. It is the only record of which codes have been used, and there is no git here to recover it from (NOCTUA.md §5.3)",
+            "catalog/errors.reserved.toml could not be read: {problem}. It is the record of which codes have been used, a removed one included: restore it from git rather than write a new one (NOCTUA.md §15.1)",
         ),
         ("Err(problem) =>", "the error-code ledger is behind"),
         (
@@ -27425,7 +27426,7 @@ mod the_frozen_path_rule {
         ),
         (
             "if applied.is_empty()",
-            "`_sqlx_migrations` is the only thing outside this tree that remembers what was applied, and `NOCTUA.md §5.3` says there is no git here to ask instead — `cargo xtask dev` applies them",
+            "`_sqlx_migrations` is the only thing outside this tree that remembers what was applied, and the gate reads no history in its place — `cargo xtask dev` applies them",
         ),
         (
             "if applied.is_empty()",
@@ -27449,7 +27450,7 @@ mod the_frozen_path_rule {
         ),
         (
             "else",
-            "there is no git here (§5.3), so the applied record is the only thing that remembers what was there. Restore the file, or say in a new migration what replaces it",
+            "the applied record is the only thing the gate reads that remembers what was there, and git holds the file if a commit did. Restore it, or say in a new migration what replaces it",
         ),
         ("else", "a migration was applied and then removed"),
         ("—", "record limits"),
@@ -44918,8 +44919,8 @@ impl<T: Shown> Shown for Option<T> {
         // the wrong tree from both sides and agree, and the marker walk is no
         // backstop because a checkout has no marker above it either. Driven
         // both ways, it gives exit 2 with
-        // the `-P`, exit 77 without it, every guard walked past, in a tree with
-        // no git to undo an `rm -rf`.
+        // the `-P`, exit 77 without it, every guard walked past, and an `rm -rf`
+        // that takes the `.git` with the tree.
         let held_dir = held.root.join("held");
         std::fs::create_dir_all(held_dir.join("crates")).expect("writable");
         std::fs::write(held_dir.join("Cargo.toml"), "[workspace]\n").expect("writable");
