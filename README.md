@@ -96,7 +96,9 @@ uses to a commit. Those rules read a file a line at a time, so the gate also ref
 line ended anywhere but at a line feed, or spaced with anything but a space or a tab, in
 a file CI reaches, and, in a file GitHub runs, a key not written out before its colon, a
 quote or a bracket not closed on the line that opens it, and a `#` those rules would take
-for a comment where YAML reads on.
+for a comment where YAML reads on. They read a file GitHub runs as GitHub does, a step's
+`name:` as a label, so the gate refuses a word that names one where a step finds a script
+to run.
 
 `cargo xtask check --offline` skips **nine** things — the advisory database, which is
 fetched (the audit's licence, ban and source checks read only the lockfile and still

@@ -2269,10 +2269,16 @@ rather than anything decided for the project, and each is a maintainer's to reop
   branch are stopped by `createCommitOnBranch`'s expected head and by a tag that exists,
   and a credential a checkout of `ci.yml` left behind reads the tree and nothing more.
 - **A cargo command, and a name for one, is read from the words a line writes, not from
-  the word a shell builds**: `"car""go"`, `car"go"`, `$'cargo'`, and a parameter
-  expansion such as `${C:-cargo}` or `${C:=cargo}` each run cargo, and no reader here
-  joins the parts, so a second gate spelled that way in a file CI reaches is read by
-  review and by no rule. A reader that did would be a shell.
+  the word a shell builds or reads as it runs**: `"car""go"`, `car"go"`, `$'cargo'`, a
+  parameter expansion such as `${C:-cargo}` or `${C:=cargo}`, a brace expansion such as
+  `{cargo,}`, a format's parts, as `printf -v C %s%s car go` joins them, a word split
+  from a longer one at `IFS`, as `IFS=, read -r A C <<< "x,cargo"` does, and a value read
+  from a file, as `read -r C < tool.txt` and `C=$(cat tool.txt)` read one, each run cargo,
+  and no reader here joins the parts or opens the file, so a second gate spelled that way
+  in a file CI reaches is read by review and by no rule. A reader that did would be a
+  shell. A name a command assigns from a word the line writes whole is read: `printf -v
+  C cargo`, `read C <<< cargo`, `for C in cargo`, `set -- cargo` and a step's `env:`
+  holding `C: cargo` each name `cargo` as a word, which is read as a cargo command.
 - **What only the release may hold is refused elsewhere by the words it is written with**:
   a shell that builds `--publish` from parts a reader of words cannot join, such as a
   variable or a command substitution, passes it — and a publish with no token of the
@@ -2314,9 +2320,11 @@ rather than anything decided for the project, and each is a maintainer's to reop
   alone**: a script named relative to a directory entered another way, such as `env -C`,
   `make -C`, `git -C` or a variable, is not looked for there, and is read only if a word
   names it from the root or from one of those directories. And the walk refuses more than
-  a shell runs in two places: a step's `name:` holding a separator, a pipe, a `$`, a
-  backtick, a subshell's bracket, a redirection or a backslash is read as the commands it
-  may be, and `x=cargo` inside a quoted word is read as a name for cargo.
+  a shell runs in three places: `x=cargo` inside a quoted word is read as a name for
+  cargo; a word naming a workflow or a composite action's file where a step finds a
+  script is refused though the command only reads it, as `cat` does; and on a line GitHub
+  reads as YAML, a `#` glued to a double-quoted scalar's closing quote is read as a shell
+  reads it, though a YAML parser ends the line there.
 - **The comparison gate's subject is public fields and accessors, not everything the
   compiler writes**: `pub const` arrays (`AREAS`, `KEYS`, `COMMANDS`, `TABLES`, `STORES`,
   `RATE_LIMITS`, `EVENTS`, each `ALL`), enum variants, functions taking an argument, and
@@ -2541,8 +2549,9 @@ order.
 invocation CI can reach must be `cargo xtask <verb>` or the `cargo install` the gate
 needs, however a line writes it — through a script a step runs, up to `HOPS` scripts deep
 in `xtask/src/workflow.rs` and a finding past that; through a `working-directory`, an
-alias, a composite action or an action whose job is to run cargo; and in the justfile. A
-word a shell builds from parts is the one spelling it does not read ("What is
+alias, a composite action or an action whose job is to run cargo; and in the justfile. It
+reads the words a line writes: a word a shell builds from parts or splits from a longer
+one, and a value a command reads from a file as it runs, are not read ("What is
 deliberately not claimed").
 
 - **A file a developer or CI can run is read because it is there**, not because something
@@ -2560,14 +2569,26 @@ deliberately not claimed").
   unread.
 - **A name for `cargo` is read at every `=` whose name is a word of its own**, whatever
   the line opens with and whatever follows the value: after a wide `-`, in a quoted or a
-  flow-mapping `run`, behind another assignment, or before a comment. A double-quoted
-  value of one line is read with its escapes resolved, which is the text a shell is
-  handed, so `\x63argo` is `cargo`.
-- **A `name:` is a label only when a shell would run nothing past its first word.** In a
-  block scalar, a script or the justfile, `name: ; cargo clippy --workspace` is a
-  command, so a line opening on `name:` that holds a separator, a pipe, a `$`, a
-  backtick, a subshell's bracket, a redirection or a backslash is read as the commands it
-  may be; what a job must run still passes over every label.
+  flow-mapping `run`, behind another assignment, or before a comment. An append (`C+=`),
+  an element (`C[0]=`) and every element of an array (`C=(x cargo)`, `([a]=cargo)`) are
+  read as `=` is, and `<<<cargo` as `<<< cargo` is. Where GitHub reads a line as YAML, a double-quoted value of one line is read
+  with its escapes resolved, which is the text a shell is handed, so `\x63argo` is
+  `cargo`, and with what follows its closing quote kept, which the shell's own reading of
+  a comment then judges. A script's line, and a block scalar's, is read as it is written,
+  because a shell resolves none of those escapes: resolved, `echo :"\x20#"#; cargo clippy
+  --workspace` held a ` #` that ended the line before the command a shell runs after it.
+- **A `name:` is a label only where GitHub reads it as YAML**: on a line of a workflow or
+  of a composite action's file that is no block scalar's text. In a block scalar, a
+  script, the justfile or a Makefile, a line opening on `name:` is a command, which a
+  shell runs with what follows it once `name:` is a function or a hashed path:
+  `name:() { "$@"; }` or `hash -p /usr/bin/env name:`, then `name: cargo clippy
+  --workspace`, ran a second lints gate there while a label holding no separator was
+  skipped. What a job must run still passes over every label.
+- **And no step runs a file GitHub reads as YAML**: a word that names a workflow or a
+  composite action's file where a step finds a script, through the checkout root or an
+  escape as well, is refused, because a shell running it reads every line as a command,
+  and its labels with them: `bash ci/tools/action.yml` ran `name: cargo clippy
+  --workspace` past every reader here.
 - **`.github/` holds `ci.yml` and `release.yml` alone**, every action either
   uses is pinned to a commit, every job that builds installs the toolchain with
   `rustup toolchain install` and no toolchain named, so what it installs is what

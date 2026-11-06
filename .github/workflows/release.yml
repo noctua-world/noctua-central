@@ -20,7 +20,8 @@
 # other file CI reaches may publish. The gate reads this file a line at a time,
 # so each line ends at a line feed and is spaced with spaces and tabs alone,
 # each key is a word before its colon, and each quote and bracket closes on the
-# line that opens it.
+# line that opens it. It reads a step's `name:` as a label and a shell reads it
+# as a command, so no step runs this file as a script.
 
 name: release
 

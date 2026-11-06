@@ -7731,7 +7731,7 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// constant**, as `OPERATORS` is: one copy rather than one per use, and nothing
 /// reads it at compile time.
 #[cfg(test)]
-static WHAT_THE_GATE_CAN_SAY: [&str; 1027] = [
+static WHAT_THE_GATE_CAN_SAY: [&str; 1028] = [
     // The workflows' bounds (`xtask/src/workflow.rs`): what `.github/` may hold,
     // the authority each workflow opens with, the pins, and how the release is
     // made; and the `CI` step's two verdicts about them.
@@ -7748,6 +7748,7 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1027] = [
     "`{relative}` holds U+{:04X}, a space to every reader here and a letter to YAML and to a shell",
     "`{relative}` holds a `#` every reader here ends the line at, and YAML reads on past it",
     "`{relative}` leaves {what} open past its line",
+    "`{relative}` names `{yaml}`, a file GitHub reads as YAML, where a step finds a script to run",
     "`{relative}` uses an action this gate cannot read on its line",
     "`{relative}` writes a key {how}",
     "`{relative}` {what}, which the release workflow alone does",
@@ -10963,7 +10964,7 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 711] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 712] = [
     // The workflows' bounds: their remedies, the release job's steps as
     // `THE_RELEASE_STEPS` writes them, the environment and the line that hands
     // the token on, a step's words when it is missing, and the clean line.
@@ -11013,6 +11014,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 711] = [
     "the job holds the App's token, so what runs beside it is `THE_RELEASE_STEPS` in `xtask/src/workflow.rs` and nothing else: the token, the checkout, the toolchain, the audit's install, the stack, then the release. A step to add is a line there, which is a line in a diff",
     "the job is what makes the release, and every rule about its steps, its environment and the App's token reads it by that name",
     "the pins and the actions CI may use are read from the line a `uses` key stands on, plain or quoted, wherever YAML opens a key. A value on the lines below it, a block scalar, an anchor, a tag, an alias or a collection, or a key a backslash carries across a line break, is an action both would pass over. Write `uses: owner/name@<commit> # <release>` on one line",
+    "the readers here read a file GitHub runs as GitHub reads it, a `name:` there as a label, and a shell that runs it reads every line of it as a command: once `name:` is a function, `name: cargo clippy --workspace` runs clippy. Name no workflow or composite action's file on a command line, and run what it should run as a script of its own",
     "the release runs the gate first, and only Linux's runner brings up the stack the gate's steps read (NOCTUA.md §22.2); elsewhere those steps are not applicable, and the release is judged by less than the gate every pull request passed. Run it on `ubuntu-latest`",
     "the rules that hold the release read `release.yml` alone, and a workflow runs on a push to `staging` and `main` like any other: an environment admits a job by its branch, so a job elsewhere that entered `release-main`, minted the App's token and published would make a release past every one of them. The token's action, the environment, a secret, a step's output, which is how the token is handed on, and `--publish` are the parts of that, and each is the release workflow's alone. Make the release there",
     "uses: <an action this walk cannot read>",
@@ -18900,7 +18902,7 @@ mod the_frozen_path_rule {
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 30, 6),
         ("xtask/ui.rs", 52, 12),
         ("xtask/wall.rs", 129, 28),
-        ("xtask/workflow.rs", 248, 23),
+        ("xtask/workflow.rs", 258, 23),
     ];
 
     /// The name an item declaration introduces, for the message below.
@@ -24642,7 +24644,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15000;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15019;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24712,7 +24714,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 21097;
+    const THE_REARRANGEMENTS_JUDGED: usize = 21127;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24766,7 +24768,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **442 of 21,097 are accepted by the first-line
+    /// rules the gates apply: **442 of 21,127 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -26989,7 +26991,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 711;
+    const THE_REST_IT_SAYS: usize = 712;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -29261,7 +29263,7 @@ mod the_frozen_path_rule {
     /// Seven words of each remedy, because a remedy is long and its opening is
     /// what tells one from another; the rule beside the list is that those
     /// seven are unique.
-    const WHAT_A_REMEDY_ANSWERS: [(&str, &str, &str); 146] = [
+    const WHAT_A_REMEDY_ANSWERS: [(&str, &str, &str); 147] = [
         (
             "counts.rs",
             "this document has an odd number of",
@@ -29891,6 +29893,11 @@ mod the_frozen_path_rule {
             "workflow.rs",
             "`cargo xtask` runs `cargo {alias}`, without `--locked`",
             "the lockfile is what makes a run",
+        ),
+        (
+            "workflow.rs",
+            "`{relative}` names `{yaml}`, a file GitHub reads",
+            "the readers here read a file GitHub",
         ),
         (
             "workflow.rs",
@@ -35665,7 +35672,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1629] = [
+    static OPERATORS: [(&str, &str, &str); 1647] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -37521,8 +37528,88 @@ Options:
         ),
         (
             "workflow",
-            "is_only_a_label",
-            "a label is a label whatever a shell runs past it",
+            "only_runs_the_gate",
+            "the walk skips a label wherever it stands",
+        ),
+        (
+            "workflow",
+            "a_second_count_of",
+            "the second count skips a label wherever it stands",
+        ),
+        (
+            "workflow",
+            "a_second_count_of",
+            "the second count reads every line as YAML",
+        ),
+        (
+            "workflow",
+            "no_verdict_is_discarded",
+            "a label discards no verdict wherever it stands",
+        ),
+        (
+            "workflow",
+            "joined_continuations",
+            "the walk reads every line as YAML",
+        ),
+        (
+            "workflow",
+            "the_lines_github_reads_as_yaml",
+            "every file is one GitHub runs",
+        ),
+        (
+            "workflow",
+            "the_lines_github_reads_as_yaml",
+            "a block scalar's text is YAML",
+        ),
+        (
+            "workflow",
+            "every_workflow_is_bounded",
+            "a step may run a file GitHub reads",
+        ),
+        (
+            "workflow",
+            "nothing_runs_what_github_reads",
+            "a file is the one its spelling names",
+        ),
+        (
+            "workflow",
+            "nothing_runs_what_github_reads",
+            "a comment runs what it names",
+        ),
+        (
+            "workflow",
+            "the_readings_of",
+            "a line is read as it is written alone",
+        ),
+        (
+            "workflow",
+            "reached_from",
+            "a script is named as a line is written alone",
+        ),
+        (
+            "workflow",
+            "the_variable_one_statement_assigns",
+            "an append assigns nothing",
+        ),
+        (
+            "workflow",
+            "the_variable_one_statement_assigns",
+            "an element assigns nothing",
+        ),
+        (
+            "workflow",
+            "the_variable_one_statement_assigns",
+            "an array holds no value",
+        ),
+        (
+            "workflow",
+            "the_variable_one_statement_assigns",
+            "an element's key is its value",
+        ),
+        (
+            "workflow",
+            "cargo_commands",
+            "a here-string's word is glued to its marker",
         ),
         (
             "workflow",
@@ -37588,6 +37675,16 @@ Options:
             "workflow",
             "the_lines_behind_the_escapes",
             "a double-quoted scalar of one line is read as written",
+        ),
+        (
+            "workflow",
+            "the_lines_behind_the_escapes",
+            "what follows a closing quote is a comment",
+        ),
+        (
+            "workflow",
+            "the_lines_behind_the_escapes",
+            "what follows a closing quote on a later line is a comment",
         ),
         (
             "workflow",

@@ -531,6 +531,12 @@ fn with_the_escapes_resolved(inner: &str) -> String {
 /// resolved**, because that is the text a shell is handed: read as written,
 /// `run: "\x63argo clippy --workspace"` and `run: "C\x3dcargo; $C clippy
 /// --workspace"` each ran a second lints gate in `ci.yml` with nothing said.
+///
+/// **Asked of a line GitHub reads as YAML alone**
+/// ([`the_lines_github_reads_as_yaml`]). A shell resolves none of these
+/// escapes, and in a script `echo :"\x20#"#; cargo clippy --workspace` read
+/// with its escape resolved holds a ` #` that ends the line before the second
+/// command, which a shell runs.
 fn the_lines_behind_the_escapes(line: &str) -> Vec<String> {
     let Some((key, value)) = line.split_once(':') else {
         return vec![line.to_owned()];
@@ -587,14 +593,21 @@ fn the_lines_behind_the_escapes(line: &str) -> Vec<String> {
         .filter(|piece| !piece.trim().is_empty())
         .map(str::to_owned)
         .collect();
+    // **What follows the closing quote is kept**, and the readers that end a
+    // line where a shell does decide what of it is a comment. Dropped as a
+    // comment, `"\x41"#; cargo clippy --workspace` lost a second lints gate
+    // after a `#` that no shell reads as one.
     if held.len() <= 1 {
         return vec![if resolved == inner {
             line.to_owned()
         } else {
-            format!("{key}: {resolved}")
+            format!("{key}: {resolved}{after}")
         }];
     }
     held[0] = format!("{key}: {}", held[0]);
+    if let Some(last) = held.last_mut() {
+        last.push_str(&after);
+    }
     held
 }
 
@@ -665,7 +678,11 @@ fn the_block_style(rest: &str) -> Option<char> {
 /// is where a reader looks. `\` inside a heredoc is left alone by the caller's
 /// own heredoc tracking; what is joined here is the text, and a `\` at the end
 /// of a line is a continuation in every shell this tree runs.
-fn joined_continuations(text: &str) -> Vec<(usize, String)> {
+///
+/// `yaml` holds the indices of the lines GitHub reads as YAML, in order
+/// ([`the_lines_github_reads_as_yaml`]): a double-quoted scalar's escapes are
+/// resolved on those alone.
+fn joined_continuations(text: &str, yaml: &[usize]) -> Vec<(usize, String)> {
     let mut out: Vec<(usize, String)> = Vec::new();
     let mut folded: Option<(usize, usize, String)> = None;
     let mut continuing: Option<(usize, String)> = None;
@@ -757,8 +774,13 @@ fn joined_continuations(text: &str) -> Vec<(usize, String)> {
         // **A double-quoted scalar may hold its own line breaks.** They are
         // resolved here rather than in the rules downstream, so the walk and
         // the second count read the same YAML and their identity stays an
-        // identity. One line unless the escapes say otherwise.
-        let held = the_lines_behind_the_escapes(line);
+        // identity. One line unless the escapes say otherwise, and a line no
+        // YAML reader reads is read as it is written.
+        let held = if yaml.binary_search(&index).is_ok() {
+            the_lines_behind_the_escapes(line)
+        } else {
+            vec![line.to_owned()]
+        };
         last = Some((out.len(), indent));
         for piece in held {
             out.push((index, piece));
@@ -812,15 +834,33 @@ fn joined_continuations(text: &str) -> Vec<(usize, String)> {
 /// predicates' own tests' job, and `$(which cargo)` is the measured case —
 /// with leading punctuation trimmed and trailing not, both counters agree at a
 /// number that is short by one.
-fn a_second_count_of(files: &[std::path::PathBuf]) -> usize {
+///
+/// A line is read as the walk reads it: by its place, under `root`, as YAML
+/// where GitHub reads it so ([`the_lines_github_reads_as_yaml`]) and as a
+/// command anywhere else.
+fn a_second_count_of(root: &Path, files: &[std::path::PathBuf]) -> usize {
     files
         .iter()
-        .filter_map(|path| std::fs::read_to_string(path).ok())
-        .map(|text| {
+        .filter_map(|path| {
+            let text = std::fs::read_to_string(path).ok()?;
+            Some((relative_to(root, path), text))
+        })
+        .map(|(relative, text)| {
+            let yaml = the_lines_github_reads_as_yaml(&relative, &text);
             text.lines()
                 .map(str::trim)
-                .filter(|line| !line.starts_with('#') && !is_only_a_label(line))
-                .flat_map(the_lines_behind_the_escapes)
+                .enumerate()
+                .filter(|(_, line)| !line.starts_with('#'))
+                .flat_map(|(at, line)| {
+                    let read_as_yaml = yaml.binary_search(&at).is_ok();
+                    let held = if read_as_yaml {
+                        the_lines_behind_the_escapes(line)
+                    } else {
+                        vec![line.to_owned()]
+                    };
+                    held.into_iter()
+                        .filter(move |piece| !(read_as_yaml && is_label(piece)))
+                })
                 .map(|line| {
                     let line = line.as_str();
                     // **All three shapes the walk counts, not one of them.**
@@ -1025,7 +1065,7 @@ pub(crate) fn only_runs_the_gate(root: &Path) -> Result<(Vec<Finding>, usize), S
     let mut findings: Vec<Finding> = a_chain_deeper_than_the_walk(ran_out).into_iter().collect();
     let mut seen = 0_usize;
     let mut judged = 0_usize;
-    let expected = a_second_count_of(&files);
+    let expected = a_second_count_of(root, &files);
     for path in files {
         let Ok(text) = std::fs::read_to_string(&path) else {
             continue;
@@ -1038,6 +1078,7 @@ pub(crate) fn only_runs_the_gate(root: &Path) -> Result<(Vec<Finding>, usize), S
         // Every file this walk found, not the workflow alone: a `justfile`
         // recipe and a script a step runs discard a verdict the same way.
         no_verdict_is_discarded(&relative, &text, &mut findings);
+        let yaml = the_lines_github_reads_as_yaml(&relative, &text);
         // **The recipe a command sits under.** Unless a recipe's *name* is
         // related to the verb its body runs, any recipe can call any verb with
         // the one-line description above it — the whole of what `just --list`
@@ -1046,7 +1087,7 @@ pub(crate) fn only_runs_the_gate(root: &Path) -> Result<(Vec<Finding>, usize), S
         // becomes the smaller gate, with README, AGENTS and the recipe's own
         // sentence all still calling it THE gate, and nothing else in the tree
         // says a word.
-        for (index, line) in joined_continuations(&text) {
+        for (index, line) in joined_continuations(&text, &yaml) {
             let (header, recipe) = the_recipe_and_its_name(&text, index, file_is_ci, &place);
             // Already trimmed and already joined; `trimmed` is kept as the name
             // the rest of this loop reads it by.
@@ -1059,10 +1100,11 @@ pub(crate) fn only_runs_the_gate(root: &Path) -> Result<(Vec<Finding>, usize), S
             // A step's `name:` is a label, not a command, and CI steps are
             // commonly named after what they run — `- name: cargo xtask check`.
             // Reading one as an invocation reports the workflow for describing
-            // itself. **Unless a shell would run more than its first word**
-            // ([`is_only_a_label`]), because the same line in a block scalar or
-            // a script is a command.
-            if is_only_a_label(trimmed) {
+            // itself. **Where GitHub reads it as YAML, and nowhere else**
+            // ([`the_lines_github_reads_as_yaml`]): in a block scalar, a script
+            // or the justfile, `name:` is a command, which a shell runs with its
+            // arguments once it is a function or a hashed path.
+            if yaml.binary_search(&index).is_ok() && is_label(trimmed) {
                 continue;
             }
             // **A standard action is an invocation.** `actions-rs/cargo` <!-- allow-reference: names `actions-rs/cargo` — a GitHub Action, not a path in this tree --> runs
@@ -1187,8 +1229,9 @@ pub(crate) fn only_runs_the_gate(root: &Path) -> Result<(Vec<Finding>, usize), S
 /// made as [`the_release_runs_as_written`] says; no other file CI reaches
 /// holds what makes one ([`nothing_else_holds_the_releases_authority`]);
 /// every key of a file GitHub runs is written out where a rule reads it
-/// ([`every_key_is_written_out`]); and every file CI reaches ends its lines
-/// where every reader here ends them ([`every_line_ends_at_a_line_feed`]).
+/// ([`every_key_is_written_out`]), and no step runs such a file as a script
+/// ([`nothing_runs_what_github_reads`]); and every file CI reaches ends its
+/// lines where every reader here ends them ([`every_line_ends_at_a_line_feed`]).
 ///
 /// The count is of the actions [`every_action_is_a_commit`] judged, for the
 /// floor the step puts under it: every other rule here requires something that
@@ -1226,6 +1269,7 @@ pub(crate) fn every_workflow_is_bounded(root: &Path) -> (Vec<Finding>, usize) {
     }
     nothing_else_holds_the_releases_authority(root, &mut findings);
     every_key_is_written_out(root, &mut findings);
+    nothing_runs_what_github_reads(root, &mut findings);
     let judged = every_action_is_a_commit(root, &mut findings);
     (findings, judged)
 }
@@ -2257,6 +2301,27 @@ fn the_lines_of_yaml(text: &str) -> Vec<(usize, &str)> {
     held
 }
 
+/// The lines GitHub reads as YAML, by index.
+///
+/// In the file at `relative`, in order: those [`the_lines_of_yaml`] yields,
+/// in a file GitHub runs ([`github_runs_it`]), and none in any other.
+///
+/// **Where a line stands decides what it is, and not what it holds.** A
+/// `name:` there is a label and a double-quoted scalar's escapes are resolved
+/// there; a block scalar's text, a script, the justfile and a Makefile are
+/// commands, which a shell reads as they are written. And no step runs such a
+/// file as a script ([`nothing_runs_what_github_reads`]), so a line of it is
+/// read by GitHub alone.
+fn the_lines_github_reads_as_yaml(relative: &str, text: &str) -> Vec<usize> {
+    if !github_runs_it(relative) {
+        return Vec::new();
+    }
+    the_lines_of_yaml(text)
+        .into_iter()
+        .map(|(at, _)| at)
+        .collect()
+}
+
 /// Each line of `text` as YAML may read it, at the index it starts on, each
 /// as it is written and with the escapes of a double-quoted scalar that spell
 /// letters resolved: every line on its own, and every line that ends in a
@@ -3238,7 +3303,9 @@ fn the_workflow_exports_nothing_that_reaches_rustc(root: &Path, findings: &mut V
         // process-environment half still refuses at run time, so CI goes red on
         // the runner after spending the whole build: for the right reason at the
         // wrong moment, which is the cost this file half exists to avoid.
-        for (index, line) in joined_continuations(&text) {
+        for (index, line) in
+            joined_continuations(&text, &the_lines_github_reads_as_yaml(&named, &text))
+        {
             let trimmed = line.trim();
             if trimmed.starts_with('#') {
                 continue;
@@ -4117,28 +4184,14 @@ fn the_directories_a_file_names(text: &str) -> Vec<String> {
 /// action in a directory of its own through.
 /// CI's boundary is what its steps reach.
 fn reached_from(root: &Path, walked: &[std::path::PathBuf]) -> Vec<std::path::PathBuf> {
-    // Every directory a `working-directory:` or a `cd` names, gathered first so
-    // a script is resolved against them as well as against the root
-    // ([`the_directories_a_file_names`]).
-    let mut directories: Vec<std::path::PathBuf> = Vec::new();
-    for path in walked {
-        let Ok(text) = std::fs::read_to_string(path) else {
-            continue;
-        };
-        for named in the_directories_a_file_names(&text) {
-            if let Some(directory) = under(root, &named).filter(|path| path.is_dir()) {
-                directories.push(directory);
-            }
-        }
-    }
-    directories.sort();
-    directories.dedup();
+    let directories = the_directories_named(root, walked);
     let mut reached = Vec::new();
     for path in walked {
         let Ok(text) = std::fs::read_to_string(path) else {
             continue;
         };
-        for line in text.lines() {
+        let yaml = the_lines_github_reads_as_yaml(&relative_to(root, path), &text);
+        for (at, line) in text.lines().enumerate() {
             let trimmed = past_its_dashes(line.trim());
             // `uses: ./ci/actions/extra` — a directory holding an action file.
             // **Read by the reader the pins read with** ([`the_actions_used`]),
@@ -4217,20 +4270,146 @@ fn reached_from(root: &Path, walked: &[std::path::PathBuf]) -> Vec<std::path::Pa
             // the path, and a path this scan finds is a file CI can reach.
             // **The checkout root before the line is cut into words**, because
             // `${{ github.workspace }}/ci/lint.sh` is four words to
-            // `split_whitespace` and one path to CI.
-            let trimmed = &trimmed
-                .replace("${{ github.workspace }}", ".")
-                .replace("${{github.workspace}}", ".");
-            for word in trimmed.split_whitespace().flat_map(|word| word.split('=')) {
-                let named = word.trim_matches(['"', '\'']);
-                if named.starts_with('-') {
-                    continue;
-                }
-                reached.extend(what_this_word_names(root, named, &directories));
+            // `split_whitespace` and one path to CI. **And each reading of the
+            // line** ([`the_readings_of`]): read as written alone, `run: "bash
+            // scripts/g\x61te.sh"` left the script it runs unwalked, and the
+            // `cargo fmt --all` it held passed with nothing said.
+            for reading in the_readings_of(trimmed, yaml.binary_search(&at).is_ok()) {
+                reached.extend(the_files_its_words_name(root, &reading, &directories));
             }
         }
     }
     reached
+}
+
+/// A line as it is written and, where GitHub reads it as YAML, as each line
+/// its double-quoted scalar holds with its escapes resolved
+/// ([`the_lines_behind_the_escapes`]): what a step may run, either way.
+fn the_readings_of(line: &str, read_as_yaml: bool) -> Vec<String> {
+    let mut readings = vec![line.to_owned()];
+    if read_as_yaml {
+        readings.extend(
+            the_lines_behind_the_escapes(line)
+                .into_iter()
+                .filter(|piece| piece != line),
+        );
+    }
+    readings
+}
+
+/// Every directory a `working-directory:` or a `cd` names.
+///
+/// In one of `walked`, under `root` ([`the_directories_a_file_names`]),
+/// gathered first so a script is resolved against them as well as against
+/// the root.
+fn the_directories_named(root: &Path, walked: &[std::path::PathBuf]) -> Vec<std::path::PathBuf> {
+    let mut directories: Vec<std::path::PathBuf> = Vec::new();
+    for path in walked {
+        let Ok(text) = std::fs::read_to_string(path) else {
+            continue;
+        };
+        for named in the_directories_a_file_names(&text) {
+            if let Some(directory) = under(root, &named).filter(|path| path.is_dir()) {
+                directories.push(directory);
+            }
+        }
+    }
+    directories.sort();
+    directories.dedup();
+    directories
+}
+
+/// Every file in the tree a word of `line` names.
+///
+/// As a step names a script: each word, and each side of every `=` in one,
+/// with the checkout root read as `.` ([`what_this_word_names`]).
+fn the_files_its_words_name(
+    root: &Path,
+    line: &str,
+    directories: &[std::path::PathBuf],
+) -> Vec<std::path::PathBuf> {
+    let line = line
+        .replace("${{ github.workspace }}", ".")
+        .replace("${{github.workspace}}", ".");
+    let mut named = Vec::new();
+    for word in line.split_whitespace().flat_map(|word| word.split('=')) {
+        let word = word.trim_matches(['"', '\'']);
+        if word.starts_with('-') {
+            continue;
+        }
+        named.extend(what_this_word_names(root, word, directories));
+    }
+    named
+}
+
+/// No line of a file CI reaches names a file GitHub reads as YAML
+/// ([`github_runs_it`]) where a step would find a script it runs
+/// ([`the_files_its_words_name`]).
+///
+/// **The readers here read such a file as GitHub reads it**: a `name:` there
+/// is a label, and a double-quoted scalar is read with its escapes resolved
+/// ([`the_lines_github_reads_as_yaml`]). A shell that runs the file reads
+/// every line of it as a command. Measured: `bash ci/tools/action.yml` in a
+/// step of `ci.yml`, with `name:() { "$@"; }` and then `name: cargo clippy
+/// --workspace` in that file, ran a second lints gate that every reader here
+/// passed over as a label; `bash .github/workflows/ci.yml` runs a workflow
+/// the same way. So such a file is named by no word a step could run, a
+/// comment's aside, and a word that only reads one is refused with the rest,
+/// which refuses more and never less.
+fn nothing_runs_what_github_reads(root: &Path, findings: &mut Vec<Finding>) {
+    // A walk that stopped is said by `every_action_is_a_commit`, which walks
+    // the same files.
+    let Ok((files, _)) = everything_ci_reaches(root) else {
+        return;
+    };
+    let read_as_yaml: Vec<std::path::PathBuf> = files
+        .iter()
+        .filter(|path| github_runs_it(&relative_to(root, path)))
+        .map(|path| the_file_itself(path))
+        .collect();
+    if read_as_yaml.is_empty() {
+        return;
+    }
+    let directories = the_directories_named(root, &files);
+    for path in &files {
+        let Ok(text) = std::fs::read_to_string(path) else {
+            continue;
+        };
+        let relative = relative_to(root, path);
+        let yaml = the_lines_github_reads_as_yaml(&relative, &text);
+        for (at, line) in text.lines().enumerate() {
+            let mut said: Vec<std::path::PathBuf> = Vec::new();
+            let named = the_readings_of(line, yaml.binary_search(&at).is_ok())
+                .into_iter()
+                .flat_map(|reading| {
+                    let code = the_command_without_its_comment(&reading);
+                    the_files_its_words_name(root, &code, &directories)
+                });
+            for named in named {
+                let itself = the_file_itself(&named);
+                if !read_as_yaml.contains(&itself) || said.contains(&itself) {
+                    continue;
+                }
+                said.push(itself);
+                let yaml = relative_to(root, &named);
+                findings.push(Finding {
+                    file: relative.clone(),
+                    line: at + 1,
+                    what: format!(
+                        "`{relative}` names `{yaml}`, a file GitHub reads as YAML, where a \
+                         step finds a script to run"
+                    ),
+                    fix: "the readers here read a file GitHub runs as GitHub reads it, a \
+                          `name:` there as a label, and a shell that runs it reads every line \
+                          of it as a command: once `name:` is a function, `name: cargo clippy \
+                          --workspace` runs clippy. Name no workflow or composite action's \
+                          file on a command line, and run what it should run as a script of \
+                          its own"
+                        .to_owned(),
+                });
+            }
+        }
+    }
 }
 
 /// CI declares a service for every stack `cargo xtask check` requires.
@@ -4660,13 +4839,15 @@ const NEUTERED: [(&str, &str, &str); 8] = [
 /// verdict is discarded the same way wherever it is written, so this asks it of
 /// every file that walk found.
 fn no_verdict_is_discarded(file: &str, text: &str, findings: &mut Vec<Finding>) {
+    let yaml = the_lines_github_reads_as_yaml(file, text);
     for (index, line) in text.lines().enumerate() {
         let code = the_code_before_a_comment(line);
         let code = code.as_str();
-        // A step named after what it runs is prose. `is_only_a_label` is what
-        // the walk of cargo commands uses, and two halves disagreeing about
-        // whether a `name:` is a command is a defect of its own.
-        if is_only_a_label(code) {
+        // A step named after what it runs is prose, where GitHub reads it as
+        // YAML and nowhere else, as the walk of cargo commands reads it: two
+        // halves disagreeing about whether a `name:` is a command is a defect
+        // of its own.
+        if yaml.binary_search(&index).is_ok() && is_label(code) {
             continue;
         }
         // **A command sent to the background is a command nobody waits for.**
@@ -5326,10 +5507,10 @@ fn commands_in(body: &str) -> Vec<String> {
         // `nothing && cargo xtask build && cp -r … && diff -r …` six commands
         // that satisfy every requirement — with the job's `run:` reading
         // `echo the determinism check used to be here`, the sentence
-        // `JOBS_MUST_RUN`'s own doc names. **Every label, and not
-        // `is_only_a_label`**, which the readers that refuse use: there a label
-        // read as a command refuses more, and here it is a requirement met by
-        // prose.
+        // `JOBS_MUST_RUN`'s own doc names. **Every label, wherever it stands**,
+        // and not only where GitHub reads it as YAML, as the readers that refuse
+        // skip one: there a label read as a command refuses more, and here it
+        // is a requirement met by prose.
         if is_label(line) {
             continue;
         }
@@ -5638,7 +5819,10 @@ fn cargo_commands(line: &str) -> Vec<String> {
         // function — the offline rule, the recipe-name rule, the second-gate
         // rule — never looks at it. Measured: `@cargo xtask check --offline` in
         // the shipped justfile's `docs` recipe, with the whole suite green.
-        let bare = word.trim_matches(['"', '\'', '(', ')', '$', '`', '@', '-', '+']);
+        // **And a here-string's `<<<`**, which hands its word to a command as
+        // its input: `read C <<<cargo` names cargo as `read C <<< cargo` does,
+        // and only the spaced one was read.
+        let bare = word.trim_matches(['"', '\'', '(', ')', '$', '`', '@', '-', '+', '<']);
         // **An assignment is not an invocation.** A word holding `=` sets a
         // variable, and its value may perfectly well be a directory whose last
         // segment is the word `cargo` — a cargo installation directory is the
@@ -5835,7 +6019,16 @@ fn the_variable_one_statement_assigns(before: &str, after: &str) -> Option<Strin
     // stands before it; and `CARGO=$(which cargo)` resolves the path at run
     // time. Each runs cargo, and unread it leaves the count unchanged. A word
     // that opens after anything else, as `--root=cargo` does, is no name.
+    // **An append and an element assign as well**: `C+=cargo` appends to an
+    // empty `C`, and `C[0]=cargo` sets what `${C[0]}` and `$C` expand to, and
+    // each, read for a name ending at the `=`, ran a second lints gate with
+    // nothing said. The `+` and the subscript are taken off first.
     let before = before.trim_end();
+    let before = before.strip_suffix('+').unwrap_or(before);
+    let before = before
+        .strip_suffix(']')
+        .and_then(|inside| inside.rfind('[').map(|at| &inside[..at]))
+        .unwrap_or(before);
     let name = &before[before
         .trim_end_matches(|letter: char| letter.is_alphanumeric() || letter == '_')
         .len()..];
@@ -5865,7 +6058,26 @@ fn the_variable_one_statement_assigns(before: &str, after: &str) -> Option<Strin
     // in `CARGO=cargo; $CARGO clippy …` — assignment and use on one line, which
     // is ordinary shell — is `cargo; $CARGO clippy …`, matches nothing, and
     // leaves `ok 11 cargo command(s)` with a run byte-identical to a clean one.
+    // **An array is every word inside its parentheses**, each an element
+    // `${C[n]}` expands to, and a word `[key]=value` holds its value after its
+    // `=`: `C=(cargo)` and `declare -A C=([a]=cargo)` each ran a second lints
+    // gate as `$C` and `${C[a]}`.
     let after = after.trim_start();
+    let elements: Vec<&str> = after
+        .strip_prefix('(')
+        .and_then(|inside| inside.split_once(')'))
+        .map(|(inside, _)| {
+            inside
+                .split_whitespace()
+                .map(|element| {
+                    element
+                        .rsplit_once('=')
+                        .map_or(element, |(_, value)| value)
+                        .trim_matches(['"', '\''])
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     let end = match after.chars().next() {
         Some('$') if after.starts_with("$(") => after.find(')').map(|at| at + 1),
         Some(quote @ ('"' | '\'' | '`')) => after[1..].find(quote).map(|at| at + 2),
@@ -5896,6 +6108,7 @@ fn the_variable_one_statement_assigns(before: &str, after: &str) -> Option<Strin
         .unwrap_or(value);
     let is_cargo = [value, resolved]
         .iter()
+        .chain(&elements)
         .any(|text| *text == "cargo" || text.rsplit('/').next() == Some("cargo"));
     if is_cargo {
         Some(name.to_owned())
@@ -5915,7 +6128,7 @@ fn the_variable_one_statement_assigns(before: &str, after: &str) -> Option<Strin
 ///
 /// Both directions are rows: what must be found, and what must stay excused.
 #[cfg(test)]
-const ASSIGNMENTS: [(&str, Option<&str>); 23] = [
+const ASSIGNMENTS: [(&str, Option<&str>); 33] = [
     ("run: CARGO=cargo; $CARGO clippy --workspace", Some("CARGO")),
     ("run: export CARGO=cargo", Some("CARGO")),
     ("run: alias c=cargo", Some("c")),
@@ -5944,6 +6157,18 @@ const ASSIGNMENTS: [(&str, Option<&str>); 23] = [
     // after it is no part of it.
     ("run: C=cargo X=1; $C clippy --workspace", Some("C")),
     ("run: C=\"cargo\" X=1; $C clippy --workspace", Some("C")),
+    // **An append, an element and an array assign as `=` does.**
+    ("run: C+=cargo; $C clippy --workspace", Some("C")),
+    ("run: export C+=cargo", Some("C")),
+    ("run: C[0]=cargo; ${C[0]} clippy --workspace", Some("C")),
+    ("run: C[0]+=cargo", Some("C")),
+    ("run: C=(cargo); $C clippy --workspace", Some("C")),
+    ("run: declare -a C=(x cargo)", Some("C")),
+    ("run: declare -A C=([a]=cargo)", Some("C")),
+    ("run: C+=(\"cargo\")", Some("C")),
+    // An array of anything else is no name for cargo.
+    ("run: FLAGS=(--locked cargo-deny)", None),
+    ("run: C=(x y); [ \"$C\" ]", None),
     // A flag's value is no variable.
     ("run: cargo install --locked --root=cargo cargo-deny", None),
     // Named like a location *and* holding one: still excused.
@@ -6327,34 +6552,22 @@ fn the_headers_colon_within(
     (colon.flatten().filter(|_| still_open.is_none()), still_open)
 }
 
-/// Whether a line is a YAML `name:` rather than something that runs, after
-/// its entry's `-` and whatever whitespace follows it ([`past_its_dashes`]).
+/// Whether a line opens on a YAML `name:`, after its entry's `-` and whatever
+/// whitespace follows it ([`past_its_dashes`]).
+///
+/// **A label only where GitHub reads the line as YAML**
+/// ([`the_lines_github_reads_as_yaml`]), which every reader that refuses asks
+/// first. Inside a block scalar, and in a script or the justfile, a line that
+/// opens on `name:` is a command, and a shell runs what follows it once
+/// `name:` is a function or a hashed path: `name:() { "$@"; }` or `hash -p
+/// /usr/bin/env name:`, then `name: cargo clippy --workspace`, ran a second
+/// lints gate in a `run: |` block of `ci.yml`, and in a script a step runs,
+/// with the count unmoved and nothing said, while the line was skipped for
+/// holding no separator. [`commands_in`], which looks for what a job must
+/// run, passes over every label: there, a label read as a command is a
+/// requirement met by prose.
 fn is_label(trimmed: &str) -> bool {
     past_its_dashes(trimmed).starts_with("name:")
-}
-
-/// What lets a shell run more than a command's first word on its line.
-///
-/// A separator, a pipe, an expansion or a substitution, a subshell, a
-/// redirection, and a line continued.
-const WHAT_A_SHELL_RUNS_PAST_A_WORD: [char; 10] =
-    [';', '&', '|', '`', '$', '(', ')', '<', '>', '\\'];
-
-/// Whether a line is a label and nothing a shell would run: [`is_label`],
-/// holding none of [`WHAT_A_SHELL_RUNS_PAST_A_WORD`].
-///
-/// **A line that opens on `name:` is not always YAML.** Inside a block scalar,
-/// and in a script or the justfile, it is a command, and `name: ; cargo
-/// clippy --workspace` there runs clippy once `name:` is not found. Skipped as
-/// a label, that line put a second lints gate in a `run: |` block of `ci.yml`,
-/// and in a script a step runs, with the count unmoved and nothing said. So
-/// the readers that refuse skip a label only when a shell would run nothing
-/// past its first word either, and a label holding a separator is read as the
-/// command it may be, which refuses more and never less. [`commands_in`], which
-/// looks for what a job must run, still passes over every label: there, a
-/// label read as a command is a requirement met by prose.
-fn is_only_a_label(trimmed: &str) -> bool {
-    is_label(trimmed) && !trimmed.contains(WHAT_A_SHELL_RUNS_PAST_A_WORD)
 }
 
 /// The first three words of a command, for a message that fits on a line.
@@ -6979,7 +7192,7 @@ mod tests {
         );
         // And the second count reads what it is given: a file that does not
         // exist contributes nothing rather than panicking.
-        assert_eq!(super::a_second_count_of(&files), 0);
+        assert_eq!(super::a_second_count_of(root(), &files), 0);
     }
 
     #[test]
@@ -7035,7 +7248,7 @@ mod tests {
             distinct.into_iter().map(|(file, _)| file).collect();
         assert_eq!(
             seen,
-            super::a_second_count_of(&readings),
+            super::a_second_count_of(&super::the_file_itself(root()), &readings),
             "the walk's count is not the count over the distinct readings it reaches"
         );
 
@@ -10432,11 +10645,6 @@ mod tests {
         assert!(is_label("name: check"));
         assert!(!is_label("- run: cargo xtask check"));
         assert!(!is_label("cargo xtask build"));
-        // **The readers that refuse skip a label a shell would run nothing
-        // past**, and read the rest as the commands they may be.
-        assert!(super::is_only_a_label("- name: cargo xtask check"));
-        assert!(!super::is_only_a_label("name: ; cargo clippy --workspace"));
-        assert!(!super::is_only_a_label("name: $(cargo clippy --workspace)"));
 
         // **A `name:` is a label whatever is inside it**, and `commands_in` has
         // to agree with the half of this file that reads cargo invocations.
@@ -10594,15 +10802,7 @@ mod tests {
         file: &str,
         change: impl FnOnce(&str) -> String,
     ) -> Vec<crate::gates::Finding> {
-        let held = crate::check::LeavesNothingBehind::new(&format!("bounded-{about}"));
-        let scratch = held.root.clone();
-        std::fs::create_dir_all(scratch.join(".github/workflows")).expect("writable");
-        for shipped in super::THE_WORKFLOWS {
-            std::fs::copy(root().join(shipped), scratch.join(shipped)).expect("a shipped workflow");
-        }
-        let text = std::fs::read_to_string(scratch.join(file)).expect("copied above");
-        std::fs::write(scratch.join(file), change(&text)).expect("writable");
-        super::every_workflow_is_bounded(&scratch).0
+        bounded_with(about, &[], file, change)
     }
 
     /// `text` with its first `from` replaced by `to`, refused when `from` is not
@@ -12423,83 +12623,215 @@ mod tests {
         only_runs_the_gate(&scratch).expect("readable")
     }
 
+    /// The script a case's step runs.
+    const A_SCRIPT: &str = "scripts/case.sh";
+
+    /// The step that runs [`A_SCRIPT`].
+    const IN_A_SCRIPT: &str = "      - run: bash scripts/case.sh\n";
+
+    /// What is said of an alias.
+    const AN_ALIAS: &str = "`C=cargo` runs here";
+
+    /// What is said of a second lints gate.
+    const CLIPPY: &str = "`cargo clippy --workspace` runs here";
+
+    /// Each way of writing a second gate: what it is, the step added after the
+    /// gate in `ci.yml`, what the script that step runs holds, if it runs
+    /// one, the file the finding is about, and what it says.
+    const SECOND_GATES: [(&str, &str, &str, &str, &str); 24] = [
+        (
+            "a-wide-dash",
+            "      -   run: C=cargo; $C clippy --workspace\n",
+            "",
+            WORKFLOW,
+            AN_ALIAS,
+        ),
+        (
+            "a-quoted-value",
+            "      - run: \"C=cargo; $C clippy --workspace\"\n",
+            "",
+            WORKFLOW,
+            AN_ALIAS,
+        ),
+        (
+            "a-quoted-key",
+            "      - \"run\": C=cargo; $C clippy --workspace\n",
+            "",
+            WORKFLOW,
+            AN_ALIAS,
+        ),
+        (
+            "a-flow-mapping",
+            "      - { run: C=cargo; $C clippy --workspace }\n",
+            "",
+            WORKFLOW,
+            AN_ALIAS,
+        ),
+        (
+            "a-second-assignment",
+            "      - run: JOBS=1 C=cargo; $C clippy --workspace\n",
+            "",
+            WORKFLOW,
+            AN_ALIAS,
+        ),
+        (
+            "a-comment",
+            "      - run: |\n          C=cargo # the tool\n          $C clippy --workspace\n",
+            "",
+            WORKFLOW,
+            AN_ALIAS,
+        ),
+        (
+            "an-escaped-command",
+            "      - run: \"\\x63argo clippy --workspace\"\n",
+            "",
+            WORKFLOW,
+            CLIPPY,
+        ),
+        (
+            "an-escaped-assignment",
+            "      - run: \"C\\x3dcargo; $C clippy --workspace\"\n",
+            "",
+            WORKFLOW,
+            AN_ALIAS,
+        ),
+        (
+            "a-hash-after-a-closing-quote",
+            "      - run: \"\\x63argo xtask check\"#; cargo clippy --workspace\n",
+            "",
+            WORKFLOW,
+            CLIPPY,
+        ),
+        (
+            "a-hash-after-a-line-break",
+            "      - run: \"true\\ntrue\"#; cargo clippy --workspace\n",
+            "",
+            WORKFLOW,
+            CLIPPY,
+        ),
+        (
+            "an-escape-before-a-hash-in-a-script",
+            IN_A_SCRIPT,
+            "echo :\"\\x41\"#; cargo clippy --workspace\n",
+            A_SCRIPT,
+            CLIPPY,
+        ),
+        (
+            "a-line-break-before-a-hash-in-a-script",
+            IN_A_SCRIPT,
+            "echo :\"a\\nb\"#; cargo clippy --workspace\n",
+            A_SCRIPT,
+            CLIPPY,
+        ),
+        (
+            "an-escaped-space-in-a-script",
+            IN_A_SCRIPT,
+            "echo :\"\\x20#\"#; cargo clippy --workspace\n",
+            A_SCRIPT,
+            CLIPPY,
+        ),
+        (
+            "an-escaped-space-in-a-block",
+            "      - run: |\n          echo :\"\\x20#\"#; cargo clippy --workspace\n",
+            "",
+            WORKFLOW,
+            CLIPPY,
+        ),
+        (
+            "an-append-in-a-script",
+            IN_A_SCRIPT,
+            "C+=cargo; $C clippy --workspace\n",
+            A_SCRIPT,
+            AN_ALIAS,
+        ),
+        (
+            "an-array-in-a-script",
+            IN_A_SCRIPT,
+            "C=(cargo); $C clippy --workspace\n",
+            A_SCRIPT,
+            AN_ALIAS,
+        ),
+        (
+            "a-here-string-in-a-script",
+            IN_A_SCRIPT,
+            "read -r C <<<cargo; $C clippy --workspace\n",
+            A_SCRIPT,
+            "`<<<cargo ; $C` runs here",
+        ),
+        (
+            "a-label-in-a-block",
+            "      - name: lint\n        run: |\n          name: ; cargo clippy --workspace\n",
+            "",
+            WORKFLOW,
+            CLIPPY,
+        ),
+        (
+            "a-label-in-a-script",
+            IN_A_SCRIPT,
+            "name: ; cargo clippy --workspace\n",
+            A_SCRIPT,
+            CLIPPY,
+        ),
+        (
+            "a-function-in-a-block",
+            "      - run: |\n          name:() { \"$@\"; }\n          name: cargo clippy --workspace\n",
+            "",
+            WORKFLOW,
+            CLIPPY,
+        ),
+        (
+            "a-hashed-path-in-a-block",
+            "      - run: |\n          hash -p /usr/bin/env name:\n          name: cargo clippy --workspace\n",
+            "",
+            WORKFLOW,
+            CLIPPY,
+        ),
+        (
+            "a-function-in-a-script",
+            IN_A_SCRIPT,
+            "name:() { \"$@\"; }\nname: cargo clippy --workspace\n",
+            A_SCRIPT,
+            CLIPPY,
+        ),
+        (
+            "a-hashed-path-in-a-script",
+            IN_A_SCRIPT,
+            "hash -p /usr/bin/env name:\nname: cargo clippy --workspace\n",
+            A_SCRIPT,
+            CLIPPY,
+        ),
+        (
+            "a-label-that-backgrounds-the-gate",
+            IN_A_SCRIPT,
+            "name:() { \"$@\"; }\nname: cargo xtask check &\n",
+            A_SCRIPT,
+            "a command is sent to the background",
+        ),
+    ];
+
     /// A second cargo command in `ci.yml` is found however the line around it
     /// is written, and a label is still a label.
     ///
     /// **A wide `-`, a quoted value, a quoted key, a flow mapping, a second
-    /// assignment, a comment, an escape, and a label a shell runs past.** Each
-    /// ran a second lints gate, in `ci.yml` or in a script a step runs, with
-    /// the count unmoved and nothing said.
+    /// assignment, a comment, an escape, an append, an array, a here-string,
+    /// and a `name:` where no YAML reader reads one.** Each ran a second lints
+    /// gate, in `ci.yml` or in a script a step runs, with the count unmoved and
+    /// nothing said, or threw the gate's verdict away. An escape is resolved
+    /// where GitHub reads YAML alone, and what follows a closing quote is kept:
+    /// in a script, `"\x20#"` is five letters to a shell, and the ` #` it
+    /// spells once resolved ended the line before the command after it. A `name:` in a block
+    /// scalar or a script runs once it is a function or a hashed path. And each
+    /// is said as what it is, the two counts agreeing.
     #[test]
     fn a_second_gate_is_found_however_the_line_around_it_is_written() {
         let gate = THE_GATE;
-        let script = [("scripts/label.sh", "name: ; cargo clippy --workspace\n")];
-        let alias = "`C=cargo` runs here";
-        let clippy = "`cargo clippy --workspace` runs here";
-        let cases = [
-            (
-                "a-wide-dash",
-                "      -   run: C=cargo; $C clippy --workspace\n",
-                WORKFLOW,
-                alias,
-            ),
-            (
-                "a-quoted-value",
-                "      - run: \"C=cargo; $C clippy --workspace\"\n",
-                WORKFLOW,
-                alias,
-            ),
-            (
-                "a-quoted-key",
-                "      - \"run\": C=cargo; $C clippy --workspace\n",
-                WORKFLOW,
-                alias,
-            ),
-            (
-                "a-flow-mapping",
-                "      - { run: C=cargo; $C clippy --workspace }\n",
-                WORKFLOW,
-                alias,
-            ),
-            (
-                "a-second-assignment",
-                "      - run: JOBS=1 C=cargo; $C clippy --workspace\n",
-                WORKFLOW,
-                alias,
-            ),
-            (
-                "a-comment",
-                "      - run: |\n          C=cargo # the tool\n          $C clippy --workspace\n",
-                WORKFLOW,
-                alias,
-            ),
-            (
-                "an-escaped-command",
-                "      - run: \"\\x63argo clippy --workspace\"\n",
-                WORKFLOW,
-                clippy,
-            ),
-            (
-                "an-escaped-assignment",
-                "      - run: \"C\\x3dcargo; $C clippy --workspace\"\n",
-                WORKFLOW,
-                alias,
-            ),
-            (
-                "a-label-in-a-block",
-                "      - name: lint\n        run: |\n          name: ; cargo clippy --workspace\n",
-                WORKFLOW,
-                clippy,
-            ),
-            (
-                "a-label-in-a-script",
-                "      - run: bash scripts/label.sh\n",
-                "scripts/label.sh",
-                clippy,
-            ),
-        ];
-        for (about, step, file, said) in cases {
-            let (findings, _) = gate_after(about, &script, |text| {
+        for (about, step, body, file, said) in SECOND_GATES {
+            let extra: &[(&str, &str)] = if body.is_empty() {
+                &[]
+            } else {
+                &[(A_SCRIPT, body)]
+            };
+            let (findings, _) = gate_after(about, extra, |text| {
                 once(text, gate, &format!("{gate}{step}"))
             });
             assert!(
@@ -12508,30 +12840,46 @@ mod tests {
                     .any(|finding| finding.file == file && finding.what.contains(said)),
                 "{about}: nothing said `{said}` of `{file}`: {findings:#?}"
             );
+            assert!(
+                !findings.iter().any(super::is_about_this_gate),
+                "{about}: the walk and its second count read the case apart: {findings:#?}"
+            );
         }
-        // **And a label after a wide `-` is a label**, counted as nothing.
+        // **And a label where GitHub reads YAML is a label**, after a wide
+        // `-` and whatever it holds, counted as nothing.
         let (clean, seen) = gate_after("clean", &[], str::to_owned);
         assert!(clean.is_empty(), "{clean:#?}");
-        let (wide, counted) = gate_after("a-wide-label", &[], |text| {
-            once(
-                text,
-                THE_MACOS_GATE,
-                "      -   name: cargo xtask check\n          run: cargo xtask check\n\n  # **The gate on Windows",
-            )
-        });
-        assert!(wide.is_empty(), "{wide:#?}");
-        assert_eq!(
-            counted, seen,
-            "a step's name after a wide `-` was read as a command"
-        );
+        for (about, label) in [
+            (
+                "a-wide-label",
+                "      -   name: cargo xtask check\n          run:",
+            ),
+            (
+                "a-label-a-shell-would-run-past",
+                "      - name: lint (${{ runner.os }}); cargo xtask check\n        run:",
+            ),
+        ] {
+            let (said, counted) = gate_after(about, &[], |text| {
+                once(
+                    text,
+                    THE_MACOS_GATE,
+                    &format!("{label} cargo xtask check\n\n  # **The gate on Windows"),
+                )
+            });
+            assert!(said.is_empty(), "{about}: {said:#?}");
+            assert_eq!(
+                counted, seen,
+                "{about}: a step's name was read as a command"
+            );
+        }
     }
 
     /// Every local action a step uses, and every directory a step runs in, is
     /// walked, however the key or the command that names it is written.
     ///
     /// **Read where a line opened on `- uses:`, `working-directory:`, `cd ` or
-    /// `- run: cd `**, each spelling here left the action's or the script's
-    /// second gate unread, with nothing said.
+    /// `- run: cd `**, or as a line is written alone, each spelling here left
+    /// the action's or the script's second gate unread, with nothing said.
     #[test]
     fn every_action_and_every_directory_a_step_names_is_walked() {
         let gate = THE_GATE;
@@ -12605,6 +12953,11 @@ mod tests {
                 "      - run: pushd scripts && bash gate.sh\n",
                 script,
             ),
+            (
+                "a-script-named-through-an-escape",
+                "      - run: \"bash scripts/g\\x61te.sh\"\n",
+                script,
+            ),
         ];
         for (about, step, reached) in cases {
             let (findings, _) = gate_after(about, &extra, |text| {
@@ -12615,6 +12968,86 @@ mod tests {
                 "{about}: `{reached}` was not walked: {findings:#?}"
             );
         }
+    }
+
+    /// No step runs a file GitHub reads as YAML.
+    ///
+    /// **The readers here read such a file as GitHub does**, a `name:` as a
+    /// label, and a shell that runs it reads each line as a command: a
+    /// composite action's file run with `bash`, holding `name:() { "$@"; }`
+    /// and then `name: cargo clippy --workspace`, ran a second lints gate the
+    /// walk passed over. A workflow named through a step back, the checkout
+    /// root or an escape is named all the same; a comment that names one runs
+    /// nothing.
+    #[test]
+    fn no_step_runs_a_file_github_reads_as_yaml() {
+        let action = (
+            "ci/tools/action.yml",
+            "name:() { \"$@\"; }\nname: cargo clippy --workspace\n",
+        );
+        let said = "a file GitHub reads as YAML, where a step finds a script to run";
+        let cases = [
+            ("an-action-file", "      - run: bash ci/tools/action.yml\n"),
+            ("a-workflow", "      - run: bash .github/workflows/ci.yml\n"),
+            (
+                "a-workflow-through-a-step-back",
+                "      - run: bash ci/../.github/workflows/ci.yml\n",
+            ),
+            (
+                "a-workflow-through-the-checkout",
+                "      - run: bash \"$GITHUB_WORKSPACE/.github/workflows/release.yml\"\n",
+            ),
+            (
+                "an-action-file-through-an-escape",
+                "      - run: \"bash ci/tools/act\\x69on.yml\"\n",
+            ),
+        ];
+        for (about, step) in cases {
+            let findings = bounded_with(about, &[action], WORKFLOW, |text| {
+                once(text, THE_GATE, &format!("{THE_GATE}{step}"))
+            });
+            assert!(
+                findings
+                    .iter()
+                    .any(|finding| finding.file == WORKFLOW && finding.what.contains(said)),
+                "{about}: nothing said `{said}`: {findings:#?}"
+            );
+        }
+        let aside = bounded_with("a-comment", &[action], WORKFLOW, |text| {
+            once(
+                text,
+                THE_GATE,
+                &format!("{THE_GATE}      # as .github/workflows/release.yml does\n"),
+            )
+        });
+        assert!(aside.is_empty(), "a comment runs nothing: {aside:#?}");
+    }
+
+    /// What [`super::every_workflow_is_bounded`] says of a scratch tree.
+    ///
+    /// The tree holds the shipped workflows, the files `extra` names, and a
+    /// change to `file`.
+    fn bounded_with(
+        about: &str,
+        extra: &[(&str, &str)],
+        file: &str,
+        change: impl FnOnce(&str) -> String,
+    ) -> Vec<crate::gates::Finding> {
+        let held = crate::check::LeavesNothingBehind::new(&format!("bounded-{about}"));
+        let scratch = held.root.clone();
+        std::fs::create_dir_all(scratch.join(".github/workflows")).expect("writable");
+        for shipped in super::THE_WORKFLOWS {
+            std::fs::copy(root().join(shipped), scratch.join(shipped)).expect("a shipped workflow");
+        }
+        for (file, text) in extra {
+            let path = scratch.join(file);
+            std::fs::create_dir_all(path.parent().expect("a file in a directory"))
+                .expect("writable");
+            std::fs::write(path, text).expect("writable");
+        }
+        let text = std::fs::read_to_string(scratch.join(file)).expect("copied above");
+        std::fs::write(scratch.join(file), change(&text)).expect("writable");
+        super::every_workflow_is_bounded(&scratch).0
     }
 
     /// A file CI reaches holds no space but a space and a tab.
