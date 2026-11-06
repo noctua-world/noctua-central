@@ -170,9 +170,10 @@ gives it one — public, under `github.com/noctua-world`, beside `noctua-colors`
    can date it.
 4. **There is no `LICENSE` file and no `license` key**, by decision
    (`NOCTUA.md §5.10`). Do not add either.
-5. **Nothing publishes.** There is no remote and no registry name, every crate is
-   `publish = false`, and `cargo xtask release` means *the version is written consistently
-   everywhere* and nothing more.
+5. **Nothing publishes to a registry.** Every crate is `publish = false`, and there is
+   no registry name. `cargo xtask release` computes a channel's version and changelog from
+   the history and writes them; only CI's release job, with `--publish`, makes the release
+   on GitHub ("A release is computed from the history, and made on GitHub once").
 
 ## Repository map
 
@@ -190,6 +191,7 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 ├── .env.example                    what the stack reads. NEVER copied to .env
 ├── .gitattributes                  every text file checked out with LF, on every system
 ├── .github/workflows/ci.yml        HAS NEVER RUN — there is no repository yet
+├── .github/workflows/release.yml   the release, on a push to staging or main
 ├── catalog/                        HAND-WRITTEN — THE shared-core registries (§15.2)
 │   ├── errors.toml                 every error this platform can produce (§15.1)
 │   ├── errors.reserved.toml        APPEND-ONLY — which error codes have been used
@@ -273,9 +275,14 @@ cargo xtask check     # THE gate. CI runs this, `cargo xtask dev` for the stack
                       #   `cargo xtask build` twice in the determinism job
 cargo xtask dev       # bring up PostgreSQL and the central log store
 cargo xtask docs      # regenerate the developer surfaces under docs/
-cargo xtask release <version>              # write a version everywhere it appears
-cargo xtask release <version> --dry-run    # say what would change and change nothing
+cargo xtask release --channel staging --dry-run   # what a channel would release
+cargo xtask release --channel staging   # gate, then write its version and changelog
 ```
+
+`cargo xtask check` judges the history too — every commit reachable from `HEAD` and every
+blob ever reachable ("The history says what each change is, credits no agent, and stays
+small") — so it needs the whole of it: a shallow clone is refused, CI checks out with
+`fetch-depth: 0`, and a tree with no `.git` says it was not judged.
 
 **Five verbs, and the surface does not grow** (`NOCTUA.md §10.2`). A new capability goes
 behind one of them — a flag, a step inside `check` — and never becomes a sixth.
@@ -1611,25 +1618,359 @@ package and no code the lockfile and the audit have not already been asked about
 
 ### A release reads back what it wrote
 
-`cargo xtask release <version>` runs the whole gate before anything is written, rewrites
-the version in every file `CARRIES_THE_VERSION` names, relocks, and **prints** the commit
-and tag commands rather than running them.
+`cargo xtask release --channel staging|main` runs the whole gate before anything is
+written, then writes the version in every file `CARRIES_THE_VERSION` names and
+CHANGELOG.md, relocks, and reads every one back.
 
-- **It reads the version from its own table, and reads it back.** The version is
-  `[workspace.package]`'s or `[package]`'s as TOML writes it — never the first line that
-  happens to begin `version = "`, which a comment or a dependency above the table can be —
-  and the write is read back through a reader that shares nothing with the writer's
-  search.
+- **It reads the version from its own table, and reads it back through another reader.**
+  The version is `[workspace.package]`'s or `[package]`'s as TOML writes it — never the
+  first line that happens to begin `version = "`, which a comment or a dependency above
+  the table can be — and the write is read back with `toml`, which shares nothing with
+  the writer's search: the table of every manifest `CARRIES_THE_VERSION` names, every
+  package of this workspace in the lockfile, and the changelog byte for byte. The release
+  commit carries each of those files, so a file added to that list is published with the
+  rest.
 - **A version is written the way cargo writes it**: no leading zero, or the manifest
   becomes one nothing in the workspace parses, `xtask` included, and the tool cannot be
   run to undo its own write.
-- **It only goes forwards**: a downgrade or a repeat would print a tag for a tag that
-  already names something else, and a pushed tag cannot be taken back.
-- **A version it cannot order** — a pre-release, a part that is not a number — is refused:
-  ordering those is semver's, a dependency this repository has not taken.
+- **It only goes forwards**: a release is refused unless it is ahead of every release tag
+  `HEAD` reaches and its numbers are not behind the manifest's, because a pushed tag
+  cannot be taken back.
+- **A version it cannot order is refused**: it orders `X.Y.Z` and `X.Y.Z-rc.N`, a
+  candidate below the release it is a candidate for, and nothing else — ordering more is
+  semver's, a dependency this repository has not taken.
+- **A failure puts back what it wrote, and names what did not go back.** Every file the
+  release writes is read before the first write: each manifest `CARRIES_THE_VERSION`
+  names, the lockfile, and the changelog or its absence. A changelog that is there and
+  cannot be read is refused then, with nothing written, because one taken as absent is
+  one a failure would remove. After the first write, a listed file that cannot be read,
+  written or read back puts every listed file back; a changelog that cannot be written, a
+  relock or a read-back that refused, and a file the release commit carries that cannot be
+  read put back each manifest, the lockfile and the changelog — the bytes each held, a
+  changelog the tree had none of removed, and a file still holding what it held left
+  alone. A file that cannot be put back is named in the refusal with why, and is not tried
+  again.
 
 A document illustrating a version's *spelling* never uses the version this tree is at: the
 release walks every file for it, and the illustration would read as a file left behind.
+
+### A release is computed from the history, and made on GitHub once
+
+The version and the changelog are functions of git (`xtask/src/release.rs`,
+`NOCTUA.md §22.3`, §22.4): nothing a caller passes chooses them, and the channel is the
+branch the release is made from.
+
+- **The version.** The last production release is the highest `vX.Y.Z` tag `HEAD`
+  reaches; with none, the first release is the version the manifest carries, its numbers
+  unbumped. After one, the commits since it decide: a breaking change (`!`, or a
+  `BREAKING CHANGE:` footer) is a major, which is a minor while the major is 0; a `feat`
+  a minor; a `fix` or a `perf` a patch; anything else is **nothing to release**, said by
+  name, with nothing written. `staging` releases `X.Y.Z-rc.N`, `N` one past the highest
+  candidate of those numbers that exists; `main` releases `X.Y.Z`, refused when its tag
+  exists. **`staging` refuses while the latest production tag is not one `HEAD`
+  reaches**: the back-merge from `main` has not landed, and the version computed would
+  repeat what `main` shipped.
+- **The changelog** is regenerated whole every time: a section per production release,
+  newest first, and above the newest a section per release candidate of numbers not yet
+  released, which folds into its release's section once that ships. Each commit sits in
+  the section of the first release that reaches it, as its subject, its scope and its
+  short hash, in the part its type says; a release's notes are its section without the
+  heading. No date and no machine reach it, so the same history gives the same bytes.
+- **The assets** are judged against GitHub's limits on a release before anything is
+  published: `cargo xtask release --channel staging --dry-run` lists them against those
+  limits, which GitHub publishes at
+  https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases —
+  the page `GITHUBS_LIMITS` in `xtask/src/release.rs` names, and where they are read
+  again.
+
+**Published by CI's release job and nowhere else.** `--publish` asks GitHub first what
+exists and judges the answer before anything is written, then makes the release commit
+through `createCommitOnBranch` with the commit the job checked out as the branch's expected
+head — so a branch that moved meanwhile fails the release — then the tag, the GitHub
+release (a pre-release on `staging`, the latest on `main`), and the pull request that
+carries it back (`main` to `staging`, `staging` to `dev`) with auto-merge by merge commit.
+A run on a release commit — the push that commit causes, or a job run again after one
+died — carries that release on, makes only what is missing, and ends `already released`
+when nothing is; there, a pull request back whose checks have passed already is merged by
+merge commit, because GitHub refuses auto-merge on one it would merge now.
+
+**A release the branch below holds already is not carried back again.** A release made
+while an earlier one's pull request back is still open is carried by that one, and once it
+merges, the branch below holds the release commit with no pull request of this release's
+title anywhere. So a run carried on with no pull request carrying the release asks GitHub,
+before it makes anything, whether the branch below holds the release commit — GitHub
+compares the two, and the commit is that branch's head or behind it — and opens none when
+it does: GitHub refuses a pull request between a branch and one already holding all of it,
+and that run, and every run after it, would fail over a release carried back whole. A
+branch below that took a merge the released branch has not is one GitHub answers as
+diverged from the release commit, not holding it, and the release is carried back there.
+
+**A run that makes the release commit never merges now.** That commit moves the head of
+the pull request back, and the merge state GitHub gave was of the head before: no check
+has run on the commit just made, and into `staging`, whose rules the App alone may pass, a
+merge asked then would land the release before any check of it ran. So that run queues
+auto-merge, whatever the state it read; and a pull request merged under the release's title
+before the commit existed carried none of it, so the release opens its own.
+
+**Only this repository's own pull request carries a release back.** GitHub finds a pull
+request by the name of its head branch, and a fork's `staging` has the same name as this
+one's: a stranger's pull request from it, taken as the back-merge, would have auto-merge
+turned on with the App's token for code nobody reviewed, and one closed under the
+release's title would stop the release. So the verb asks GitHub where each pull request's
+head is — in a fork or not, and in which repository — passes over every fork's, open or
+closed, and asks auto-merge and the merge of this repository's alone.
+
+**Fail closed.** A tree with no `.git`, a shallow or grafted clone, a release tag this
+cannot read, a commit whose subject the history step refuses, a tree holding changes no
+commit has, a tag or a release on GitHub for a version `HEAD` is not the release commit
+of, a tag naming another commit, a pull request that carried the release and was closed
+without merging, a release commit whose manifest carries another version or whose
+changelog is not the one the history gives, a pull request GitHub describes without saying
+whether its head is in a fork, one of this repository's own whose head is elsewhere, one
+with no merge state, and an answer from `gh` that is not the shape asked for — a step
+answered with success and a tag at another commit, another release, another pull request,
+auto-merge by another method or none, or a merge GitHub does not say happened, and a
+comparison with the branch below that is not ahead, behind, diverged or identical — are
+each a refusal, by name, before the step that would act on it. A pull request's node is
+read from `node_id` where GitHub answers through REST, whose `id` there is a number, and
+from `id` where it answers through GraphQL. What GitHub holds is judged right
+after it is asked, on a run that makes the release commit as on one carried on from it, so
+a refusal of it never leaves a release commit with no tag, which every run after it on that
+branch would carry on into the same refusal. A fork's pull request whose head repository
+is gone is passed over, not refused, or deleting a fork would stop every release.
+
+**The token reaches `gh` through its environment and nowhere else.** `GH_TOKEN`, the
+release App's installation token, is never an argument and never a line the verb prints.
+Every other variable of `gh`'s own is removed — `GH_HOST`, `GH_REPO`, `GH_DEBUG` — and so
+is `GITHUB_TOKEN`, so `gh` cannot fall back to the workflow's own token, whose pull
+requests start no checks; the host is set to GitHub's. **No other child is handed it.**
+CI's release step puts the token in the environment of `cargo xtask release`, where every
+child it starts would find it, and that App may push to `staging` and `main` past their
+rules and move a `v*` tag. So the gate runs in a child of its own — this tool's `check`,
+cleared and started with every variable but `gh`'s — and no build script, procedural macro
+or test it runs, and no cargo, docker or git it starts, holds the token; the cargo that
+relocks and the git the history is read through are started without `gh`'s variables too.
+Nothing takes the token out of the release's own environment, which in this edition is
+`unsafe`, and this workspace forbids it. **What the token merges is this repository's own
+pull request, never another**: auto-merge and the merge are asked only of a pull request
+whose head is a branch here, never of a fork's that shares the branch's name. What `gh`
+answers is read and never printed, and a refusal quoting it has every character a reader
+cannot see written as its escape, a newline among them, so no line of GitHub's can open a
+line of CI's log. Git is never started here: the history is read through the history
+step's own reader. A test drives the whole sequence through a fake `gh` first on `PATH`,
+compiled for the system it runs on, which records each call — its arguments, the variables
+of `gh`'s own it was handed, and the request — and answers from fixtures, a run carried on
+after each step among them, a fork's pull request beside the release's own, one whose
+checks have passed in each state GitHub merges at once, an earlier release's pull request
+merged before the release commit, with the branch below stopped there or moved on since,
+and merged since it, a release commit made with such a pull request open, a pull request
+answered in REST's shape, its `id` a number, and each step answered with success in
+another shape. A second publishes on `main` a release whose candidate was tagged and
+merged, and holds the release commit to `main`, the GitHub release to the latest and not a
+pre-release, and the pull request back, and the branch a run carried on asks about, to
+`staging`. Another runs its own test binary again with `gh`'s variables exported, and
+holds the gate and the relock, each started at the fake, to being handed none of them.
+And the gate's refusal is held through the verb itself: one test runs `run_at`, which `run`
+hands this tool and this process's environment, over a scratch workspace with the fake as
+its gate, exiting 1 and then 0 — the run whose gate refused hands that refusal back and
+leaves every file of the workspace as it was given, and the one whose gate passed writes
+the version, the changelog and the lockfile. A refusal of the release itself is held
+through `run`, so what the release refuses is what the verb hands back.
+
+### The release job is what `release.yml` says, and the App's token reaches its last step alone
+
+`.github/workflows/release.yml` makes a channel's release on a push to its branch, and
+`every_workflow_is_bounded` in `xtask/src/workflow.rs` holds the file to this shape: the
+gate's `CI` step refuses the tree otherwise, before any run of the release can.
+
+- **It fires on a push to `staging` or `main` and on nothing else** — no pull request, no
+  tag, no path filter, no other event. Those branches are the channels `--channel`
+  accepts, and a test holds the two lists to one set. Neither workflow runs on
+  `pull_request_target` or `workflow_run`, each of which runs with this repository's
+  secrets on behalf of a change made in a fork: the name is refused wherever it stands
+  outside a comment, however it is written — a key or an entry of a flow sequence, quoted,
+  behind a `\x` or `\u` escape, across a backslash's line break, or in capitals.
+- **Its one job enters `release-${{ github.ref_name }}`**, the environment of the branch
+  pushed to, which GitHub lets a job enter from that branch alone and which holds the
+  App's id and its key: no other branch and no pull request can mint the App's token.
+  It runs on Linux, because the gate the release runs first is the whole gate only where
+  the stack runs.
+- **No other workflow can mint it either.** An environment admits a job by its branch and
+  not by its workflow, and `ci.yml` runs on a push to `staging` and `main` too. So every
+  file GitHub runs but `release.yml` — `ci.yml`, and the file of a composite action a
+  step reaches — is refused if it names the token's action, enters an environment (a key
+  `environment`, quoted, in a flow mapping or after `?`), reads a secret (the word
+  `secrets` anywhere in its code, a condition and `secrets: inherit` among it), or reads
+  a step's output (`steps` in any expression). Every file CI reaches but `release.yml`,
+  the justfile and a script a step runs among them, is refused if it holds `--publish`. A
+  justfile or a script holds no expression GitHub evaluates and no key a runner reads, so
+  the first four are not read there, and `docker-compose.yml`, which CI reaches, holds an
+  `environment:` of the stack's own. Each line is read on its own, as written and with a
+  double-quoted scalar's escapes resolved, and once more joined to the lines a backslash at
+  its end continues: a backslash continues a double-quoted scalar and a shell's line, and
+  at the end of a comment or a plain scalar it continues nothing, so the line after it is
+  read as a line of its own as well. An expression is read in a comment too, because
+  inside a block scalar a `#` line is text GitHub evaluates. The token's action is not on
+  the actions every file shares (`SETS_UP_AND_JUDGES_NOTHING`): the release job runs it as
+  its first step, and no other step anywhere runs it at all.
+- **Every key of a file GitHub runs is written out, as a word before its colon on one
+  line**, because every rule here reads a key that way. A key after `?` (YAML's explicit
+  form, its value after a `:` on the line below), an alias standing for a key, `<<`
+  merging a mapping anchored elsewhere, a `{` or `[` left open past its line, inside
+  which a key's colon may stand on a later line, and a quoted scalar left open past its
+  line, whose following lines are text to YAML and keys to a reader of lines, are each
+  refused in both workflows and in a composite action — a double-quoted scalar a backslash
+  continues among them. Written any of those ways, `? environment` with `: release-main`
+  below it, `{ permissions` with `: write-all }` below it, or `name: "check` above the
+  only `permissions: {}` of a file, would pass the rule that reads that key. A quote opens
+  a scalar only where YAML starts a node, so `it's` and `echo "a"` are letters of a plain
+  scalar; inside a quote a bracket and a `#` are text. **And no `#` the readers end a line
+  at where YAML reads on**: they end a line's code at a `#` outside a quote as a shell
+  does, with any quote opening a span, so in `{ ke"y: "a # b", permissions: write-all }`
+  they stop at the `#`, and YAML reads a string and then a grant. A line YAML ends sooner
+  than the readers do is read for more than it holds, and passes. A block scalar's lines
+  are a command's text and are not read for braces, quotes or comments; they run to the
+  first line indented no further than the key's own column, measured past every `-`
+  before the key and all the whitespace after each, or than the `-` a header follows
+  with no key. Measured past `- ` alone, the keys of a step written `-   run: |` were
+  read as the scalar's text, and a quoted scalar left open on one of them hid the `macos`
+  job's gate step from every rule. **And a header opens one wherever YAML writes it**:
+  on its key's line or on a line of its own below it, a comment line between them or not,
+  with an anchor or a tag before it or not. Read only directly after a key's colon, the
+  text under `- run:` with `|` on the line below was read as YAML, where `name:` is a
+  label, and `name:() { "$@"; }` with `name: cargo clippy --workspace` after it ran a
+  second lints gate with nothing said.
+- **Every file CI reaches ends each line at a line feed, and nowhere else**, the justfile
+  and a script a step runs among them, because every reader here splits a file there. A
+  carriage return with no line feed after it ends a line to YAML, and NEL, LS and PS end
+  one to a YAML 1.1 parser, so a key or a step after one on a comment or a step's `name:`
+  is read by GitHub and by no rule: each is refused, by name and line. A carriage return
+  before a line feed is part of it.
+- **And it spaces a line with a space or a tab alone.** Every reader here trims and splits
+  a line at whitespace as Rust's `char::is_whitespace` reads it, and YAML indents with a
+  space and separates with a space or a tab, so a no-break space, U+3000, or any other
+  such character is a letter to YAML and to a shell and a space to every rule. A key
+  indented with U+3000 below a block scalar was read as the scalar's text, and the quote
+  it left open swallowed the `macos` job's gate step. Each is refused, by code point and
+  line.
+- **The file and its job hold their own keys and no other**: `name`, `on`, `permissions`,
+  `concurrency` and `jobs` at the top, and `runs-on`, `environment`, `permissions` and
+  `steps` in the job, each once. `env:` or `defaults:` would reach every step, the
+  token's among them; `container:` would run each inside an image this tree does not
+  build, `services:` would start one beside them, and `strategy:` would run the job more
+  than once.
+- **It runs `THE_RELEASE_STEPS`, in that order, and no other step, and each step holds
+  exactly the lines written there for it**: the App's token, with `app-id`, `private-key`,
+  `permission-contents: write` and `permission-pull-requests: write` as its inputs and no
+  other; the checkout, with `fetch-depth: 0` and `persist-credentials: false` and no
+  other; the toolchain `rust-toolchain.toml` names; the install the audit needs;
+  `cargo xtask dev`; then `cargo xtask release --channel ${{ github.ref_name }} --publish`,
+  handed `GH_TOKEN` alone. Each line is held at its depth, so an input moved out of
+  `with:` or a value continued on the next line is a line that differs; a step's `name:`
+  is its label and is not held. A script, a composite action, a second command on
+  a line, another repository or ref checked out, a token asked for more, and a key such as
+  `env:`, `shell:` or `working-directory:` on a step are each refused, and a step on a
+  condition is too. `cargo xtask dev` comes right before the release, so the tool the
+  release step runs is built before the token is in any process's environment, and no
+  build script runs with it.
+- **It evaluates six expressions and no other, each on a line of its own where
+  `THE_EXPRESSIONS` puts it**: the branch in the concurrency group, the environment and
+  the channel; the App's id and key in the step that mints the token; and
+  `GH_TOKEN: ${{ steps.app.outputs.token }}` in the release step. Any other line holding
+  `${{` is refused, so the token reaches no other step however an expression names it —
+  `steps['app'].outputs.token`, `toJSON(steps)`, `github['token']`, `toJSON(github)` —
+  and the file is read the way the other files are: each line on its own and joined to the
+  lines a backslash continues, escapes resolved, comments included. The token is minted
+  with contents and pull requests to write and nothing more, so it stays that narrow if the
+  App is ever granted more, and the action that mints it revokes it when the job ends.
+- **It restores no cache.** A cache holds what an earlier run saved — `dev`'s are restored
+  on every branch — and the release is built from its branch and nothing an earlier run,
+  or a pull request, left behind.
+- **Both workflows open with `permissions: {}`, and a job asks for `contents: read`** and
+  nothing more, in a block, a flow mapping or a word: the release writes with the App's
+  token and never with the workflow's, and the gate writes nothing on GitHub. Every
+  `permissions` key is read wherever YAML opens one — quoted, behind an escape, after an
+  anchor or a tag (a verbatim tag such as `!<tag:yaml.org,2002:str>` runs to its `>`), on
+  the line after a backslash that continues nothing, or in a job written whole as a flow
+  mapping — and a grant other than `contents: read`, its quotes taken off, is refused.
+- **Every action is pinned to a full commit, with its release in a comment** — in either
+  workflow, and in a composite action a step reaches — so a tag its owner moves changes
+  nothing that runs here. Moving a pin is the commit and the comment, together. Every
+  `uses` key of a line is judged wherever YAML opens one: first or after another key of a
+  flow mapping, quoted or escaped, after an anchor or a tag, a verbatim tag among them, and
+  inside a flow sequence.
+  A `uses` whose action is not written plainly on its own line — a value on the line
+  below, a block scalar, a value carrying an anchor or a tag, an alias, a collection, or a
+  key a backslash carries across a line break — is refused, and the allow-list counts it
+  as an action off the list.
+
+### The history says what each change is, credits no agent, and stays small
+
+The `history` step of `cargo xtask check` (`xtask/src/history.rs`) judges every commit
+reachable from `HEAD`, merges included, and every blob ever reachable — not the tree at
+`HEAD`, because a file added and then removed is still in what every clone downloads
+(`NOCTUA.md §22.5`, §17.8):
+
+- **A conventional subject**: one of the ten types, an optional lower-case scope, an
+  optional `!`, one space after the colon, and a description that ends neither with a
+  period nor in whitespace, on one line with a blank line after it. GitHub's ` (#N)` on a
+  merge commit's title is read off first. No character `nc_schema::unseen` answers for,
+  because the changelog and the release notes print subjects (`NOCTUA.md §22.4`).
+- **No agent credit** in a subject or a body: a `<Key>-by:` or `<Key>-with:` trailer
+  naming an agent or a `[bot]`, by a name, by an address under an agent's own site, or by
+  an address at the domain of a vendor whose business is agents (`AGENT_VENDORS`: any name
+  there, `noreply@` among them, so a person signing from such a domain is refused too; a
+  link to one is no credit, since a plugin names the interface it reaches), read as git
+  reads a trailer — spaces or a tab before its colon, and its value folded onto the lines
+  below it that open with whitespace; a line saying the change was generated, written or
+  made with an agent, named right after those words, past an article and a maker's name
+  ("generated by GitHub …"); a link to an agent's own site, in any line; or the robot
+  emoji. In such a line `cursor` is read only written as a name, `Cursor`, because this
+  tree's prose means the word as the terminal's. Naming `AGENTS.md` is not a credit.
+- **No blob above `LIMIT`**, one mebibyte, unless `ABOVE_THE_LIMIT` lists its path, with
+  a ceiling of its own and its reason. The paths are read from the commits
+  (`git diff-tree -z`) and not from the blob, so every path a blob sits at is judged, and
+  a listed path is its own bytes: a space at either end, or a carriage return or a
+  newline after it, makes another path, held to the limit.
+- **Under a pull request, what its event names**: the history of `pull_request.head.sha`
+  and `pull_request.base.sha` in `GITHUB_EVENT_PATH`, the title held to both rules and
+  the body to the second — never the merge commit the checkout is at, which GitHub makes
+  for the run and no branch carries.
+
+**Fail closed.** A shallow clone, a grafted one, a partial one missing an object, an
+event that names no head, base, title or body, a blob above the limit that no commit puts
+at a path, and an answer from git that is not the one asked for are refusals, because
+each would judge less history than there is. A tree with no `.git` — a
+tarball — is the one shape that stands aside, with a `skipped:` line, asked before git is
+started.
+
+**What git reads is this repository's own.** Every `GIT_` variable this process holds is
+removed from the child, in any case, since git on Windows reads `git_dir` as `GIT_DIR`.
+`GIT_DIR` is then this tree's `.git`, so git searches for no repository: a `.git` that
+holds none is a refusal and never the repository around it judged in its place. A list of
+directories to stop a search at would not hold, since git splits one at the path separator
+a directory's name may carry and drops what is not absolute. `--no-replace-objects` keeps
+a replacement ref from showing it another commit, and a graft file, which that flag does
+not reach and which git does not call shallow, is refused. `GIT_NO_LAZY_FETCH` keeps it on
+this machine, so `--offline` changes nothing here. A test holds each: the child's
+environment is read back from the command git is started with; a `GIT_DIR` and a
+`GIT_OBJECT_DIRECTORY` naming another repository, handed in as inherited and exported to
+the test binary run again, leave this repository the one judged through the entry the gate
+calls; and a `.git` that holds no repository is refused under a directory whose name
+carries the separator. Messages are read raw through `git cat-file`, never through
+`git log`, whose output follows the configuration. What a finding quotes from a commit or
+a pull request — a message, a title, a body, or the path a blob sits at, all of it text a
+fork's author wrote — has every unseen character written as its escape and is cut short,
+and the finding's line opens with the commit's or the blob's hash, so the quotation cannot
+move the terminal or become a command the runner obeys. Git's own refusals are escaped the
+same way, since git names in them what it could not read.
+
+**The tests write no credit into this history.** The must-fail cases are commits made at
+run time in a scratch repository, where `-c commit.gpgsign=false` is set and nowhere
+else, and the words they are built from are assembled from parts. A comment that shows
+what a credit line looks like leaves the product's name out ("generated by GitHub …"), and
+a test runs the step's own reading of credits over `xtask/src/history.rs`,
+`xtask/mutants.py` and this file and finds none.
 
 ### What is deliberately not claimed
 
@@ -1914,12 +2255,170 @@ rather than anything decided for the project, and each is a maintainer's to reop
   until it runs is what a run supplies — the runner's image, the toolchain it fetches, and
   whether `cargo xtask dev` comes up there. It carries no `services:` on purpose ("CI runs
   the stack, not a copy of it").
+- **A pinned action is the code at its commit, not code anyone here has read**: the pin
+  keeps a moved tag from changing what runs, and nothing reads what the action does or
+  fetches when it runs. The release written beside a pin is a comment no gate checks
+  against the action's own tags, which would take the network.
+- **The release's rules read the workflow, not GitHub**: the environments' branch
+  policies, their variable and their secret, the rulesets and the App's permissions are
+  GitHub's settings, read with `gh api` and held by nothing in this tree.
+- **What a step before the release leaves running is not stopped**: the token is in no
+  process's environment before the release step, and the gate the release runs is a child
+  cleared of it, but a process an earlier step started and left behind runs as the same
+  user, and on Linux a process of the same user can read another's environment. What
+  keeps such a process out is that what runs is what `staging` or `main` holds, after
+  review and every check.
+- **The release's `concurrency` is held only where it evaluates an expression, and
+  `persist-credentials: false` only in `release.yml`**: `cancel-in-progress: false`, and
+  the group's name around its expression, are in the file and held by no rule, and so is
+  every checkout's `persist-credentials: false` in `ci.yml`. Two releases racing on one
+  branch are stopped by `createCommitOnBranch`'s expected head and by a tag that exists,
+  and a credential a checkout of `ci.yml` left behind reads the tree and nothing more.
+- **A cargo command, and a name for one, is read from the words a line writes, not from
+  the word a shell builds or reads as it runs**: `"car""go"`, `car"go"`, `$'cargo'`, a
+  parameter expansion such as `${C:-cargo}` or `${C:=cargo}`, a brace expansion such as
+  `{cargo,}`, a format's parts, as `printf -v C %s%s car go` joins them, a word split
+  from a longer one at `IFS`, as `IFS=, read -r A C <<< "x,cargo"` does, and a value read
+  from a file, as `read -r C < tool.txt` and `C=$(cat tool.txt)` read one, each run cargo,
+  and no reader here joins the parts or opens the file, so a second gate spelled that way
+  in a file CI reaches is read by review and by no rule. A reader that did would be a
+  shell. A name a command assigns from a word the line writes whole is read: `printf -v
+  C cargo`, `read C <<< cargo`, `for C in cargo`, `set -- cargo` and a step's `env:`
+  holding `C: cargo` each name `cargo` as a word, which is read as a cargo command.
+- **What only the release may hold is refused elsewhere by the words it is written with**:
+  a shell that builds `--publish` from parts a reader of words cannot join, such as a
+  variable or a command substitution, passes it — and a publish with no token of the
+  App's has nothing to write with, because the App's key is in an environment, the
+  workflows' own tokens may read the tree and nothing more, and the key, the environment
+  and the token's action are what the rule refuses. The workflow's own token, by
+  `github.token` or `toJSON(github)`, is not refused outside the release: it reads the
+  tree, which every job that checks out already does.
+- **The release's top-level `name:` holds what it likes**: it is a label, and an expression
+  in it is refused like any other.
+- **The token action is handed the App's id as `app-id`**, an input its pinned release
+  marks as replaced by `client-id`, so each release run prints that warning: the
+  environments hold the App's id and not its client id.
+- **The toolchain is whatever `stable` is on the day**, installed by the runner image's
+  rustup, which reads `rust-toolchain.toml` because no toolchain is named; a rustup that
+  needs one named fails that step.
+- **The readers of keys read YAML as lines, not as a parsed document**: a key is a word,
+  plain or quoted, where YAML may open one on a line, after any anchor or tag of its own,
+  with its colon on that line. Each way YAML has of putting a key's text elsewhere is
+  refused rather than parsed: `?`, an alias, `<<`, a flow collection or a quoted scalar
+  left open past its line, a `#` the readers end a line at where YAML reads on, a line
+  ended at a carriage return, NEL, LS or PS, and a line spaced with any whitespace but a
+  space and a tab. A spelling outside those, if YAML has
+  one, is read by none of the rules that read keys; the word `secrets`, which is refused
+  wherever it stands in a file GitHub runs, is then what keeps the App's key out of a job
+  whatever environment it enters. A double-quoted scalar a backslash continues is
+  refused, though YAML reads it as one line, because its second line read on its own is
+  text read as keys; and a `{` or `[` outside a quote is counted wherever it stands, a
+  plain scalar's own among them, so `run: echo {` is refused as a collection left open.
+  Both refuse more than YAML holds, never less. A line inside a block scalar is text to
+  YAML and is not read for braces, quotes or comments, and is read as a command, its
+  `name:` among them. A block scalar is recognised wherever YAML 1.2 lets its header
+  stand: after its key's colon or a sequence entry's `-`, or on a line of its own below
+  either, a comment line between them or not, with an anchor or a tag before it or not.
+  It ends at the first line indented no further than that key's own column, measured
+  past every `-` before the key and all the whitespace after each, or than the `-`
+  itself. A line indented further than a key or a `-` whose value is already written
+  runs that value on, as a plain scalar's next line does, and opens nothing, whatever it
+  holds: `run: echo` with `- |`, `cargo xtask check` and `--offline` below it is the one
+  command `echo - | cargo xtask check --offline`, and is said to run the gate where it
+  is not the gate. **A header this reader did not know would refuse less, not more**:
+  its text would be read as YAML, where a `name:` is a label, and a line of YAML read as a
+  block's text has its quotes and brackets unread. Each shape is measured with `yq 3.4.3`
+  or the PyYAML it wraps; this reader is not a YAML parser, and a shape outside them, if
+  YAML has one, is one it reads wrong.
+- **A directory a command runs in is read from `working-directory`, `cd` and `pushd`
+  alone**: a script named relative to a directory entered another way, such as `env -C`,
+  `make -C`, `git -C` or a variable, is not looked for there, and is read only if a word
+  names it from the root or from one of those directories. And the walk refuses more than
+  a shell runs in four places: `x=cargo` inside a quoted word is read as a name for
+  cargo; a word naming a workflow or a composite action's file where a step finds a
+  script is refused though the command only reads it, as `cat` does; on a line GitHub
+  reads as YAML, a `#` glued to a double-quoted scalar's closing quote is read as a shell
+  reads it, though a YAML parser ends the line there; and an anchor on such a line, as in
+  `run: &a |`, is read as a command sent to the background with `&`.
 - **The comparison gate's subject is public fields and accessors, not everything the
   compiler writes**: `pub const` arrays (`AREAS`, `KEYS`, `COMMANDS`, `TABLES`, `STORES`,
   `RATE_LIMITS`, `EVENTS`, each `ALL`), enum variants, functions taking an argument, and
   other `pub const`s (`ARGON2ID_PASSWORD`, `ARGON2ID_DEVICE_PIN`) are outside it — each
   compared somewhere today, by no rule. The blind spot is the **shape** — not a `pub`
   field, not a `pub fn(self)` — which `emitted()` writes down; the names illustrate it.
+- **The history step reads what a message says, never who wrote it.** A commit authored
+  under an agent's own name passes when its message credits nobody: GitHub authors the
+  merge commits and the release App its own, and a rule over identities would have to
+  name the App's account exactly — a wrong name there is a permanent failure over a
+  history that is never rewritten.
+- **A credit in a shape the history step's lists do not hold passes**: a product missing
+  from `AGENT_NAMES` or `AGENT_SITES` in `xtask/src/history.rs`, signing from a vendor
+  `AGENT_VENDORS` does not hold — one that makes more than agents, such as GitHub, Google
+  or Microsoft, is left out on purpose, so a person's `users.noreply.github.com` address
+  passes and an agent signing from such a domain is read by its name or its `[bot]` alone;
+  a product that shares a person's first name, which is left out of the names on purpose
+  and is read only by its site; a sentence that names the agent past more than an article
+  and a maker's name, or past a maker `MAKERS` does not hold ("made with the help of …",
+  "generated by GitHub's …"); `cursor` in lower case in a sentence, which this tree's
+  prose means as the terminal's; a trailer under a separator other than the colon, which
+  git reads only where it is configured to; or prose that credits an agent in other words.
+  The lists are the shapes tools write ("A needle list cannot enumerate a language").
+- **A commit the history step refuses on a shared branch stays refused**: the history is
+  never rewritten, so every run after it fails until the step changes. What keeps one from
+  landing is that the step runs on the pull request, whose checks the rulesets require
+  before a merge — but it judges the title and the body as the event carried them at the
+  pull request's last run, and a re-run reads that same event. `ci.yml` runs on the
+  event's default types, which an edit is not, so a title or a body edited after the last
+  run, and a merge message edited in GitHub's merge dialog, is judged first on the push
+  to the branch: after the merge has landed.
+- **The size limit is the one rule about binaries**: a small binary passes the history
+  step, and `NOCTUA.md §17.8` is held there by review. A blob above the limit is judged at
+  every path a commit puts it at; one below it is measured once, whatever its paths — one
+  object in every clone either way.
+- **A release commit is known by its subject and its one parent**, never by who made it:
+  on `staging` and `main` every commit a person brings is a merge, and only the release App
+  may push to either directly, so a commit there titled `chore(release): v…` with one
+  parent is the App's. The release does not ask GitHub who authored it.
+- **CHANGELOG.md on `dev` and on a feature branch is the last release's**: only the
+  release writes it, and no step holds it to the history in between.
+- **CHANGELOG.md is read by the citation gates as any document is**: a path or a `§` a
+  commit's subject cites is held to the tree there for as long as that release is listed,
+  so a subject citing a file later renamed fails the citation step on every branch the
+  changelog has reached, and the history is never rewritten. Review of the subject is what
+  keeps one from landing; the counts gate alone stands aside, since a number in a subject
+  is the tree as it was.
+- **A breaking change with no `BREAKING CHANGE:` footer is listed with nothing to do**:
+  the history step does not require the footer, and the changelog says what the commit
+  says.
+- **GitHub's limits on a release's assets are the ones read on the date
+  `xtask/src/release.rs` gives**: nothing fetches the page, so a limit GitHub moves is
+  moved by a person who reads it again.
+- **The pull request carrying a release back is looked for among the newest hundred**
+  whose head branch has the released branch's name, forks' among them. A hundred forks'
+  opened after it hide it, and the release then asks GitHub for a second, which GitHub
+  refuses while the first is open: the release stops, by name, until they are closed. No
+  page past the first is read.
+- **Whether that pull request is merged now or queued is GitHub's answer when the release
+  asked**, on a run carried on from the release commit: checks that finish between the
+  question and the request make GitHub refuse auto-merge, and that run fails; the next run
+  reads them passed and merges. A run that made the release commit never merges now.
+- **Whether the branch below holds the release commit is GitHub's answer when the release
+  asked**, the same way: an earlier release's pull request that merges between that
+  question and the one the release opens makes GitHub refuse the second, and that run
+  fails; the next run finds the branch below holding it and ends `already released`.
+- **A release stopped between a write and its put-back leaves what it wrote**: a kill or a
+  power cut there runs no put-back, and one that fails is named and not tried again. The
+  release begins on a clean tree, so `git status` names what is left, and the relock's
+  window is the one it warns about as that window opens. A listed file that cannot be read
+  back right after it was written is put back by the same path as one that cannot be
+  written, and no test can make that read fail.
+- **The release's own process holds the App's token for its whole run**, in the
+  environment CI's step gives it, and so does the `cargo run` the alias starts it with:
+  every child but `gh` is started without it, and a dependency of this tool's own running
+  code inside this process could still read it. That cargo builds nothing there only
+  because `cargo xtask dev`, the step before, built this tool without the token; a step
+  between them that left the tool stale would have cargo build it with the token in every
+  build script's environment.
 - **`cargo xtask dev` from a clean machine** — Stage 10's criterion 10 — has been watched
   with one of the two images removed and the data volumes kept, never on a host with an
   empty image store; a run on a host sharing nothing with this one would close it.
@@ -2063,9 +2562,12 @@ order.
 
 `ci.yml` runs the gate, an install and two builds, and no second gate: every cargo
 invocation CI can reach must be `cargo xtask <verb>` or the `cargo install` the gate
-needs, however it is spelled — through a script a step runs, up to `HOPS` scripts deep in
-`xtask/src/workflow.rs` and a finding past that; through a `working-directory`, an alias,
-a composite action or an action whose job is to run cargo; and in the justfile.
+needs, however a line writes it — through a script a step runs, up to `HOPS` scripts deep
+in `xtask/src/workflow.rs` and a finding past that; through a `working-directory`, an
+alias, a composite action or an action whose job is to run cargo; and in the justfile. It
+reads the words a line writes: a word a shell builds from parts or splits from a longer
+one, and a value a command reads from a file as it runs, are not read ("What is
+deliberately not claimed").
 
 - **A file a developer or CI can run is read because it is there**, not because something
   names it: a `just` module (`mod extra` loads `extra.just`), a committed `Makefile`, and
@@ -2073,14 +2575,56 @@ a composite action or an action whose job is to run cargo; and in the justfile.
 - **A word in a workflow is not always a path**: `$GITHUB_WORKSPACE` is expanded, a glob
   such as `ci/*.sh` is matched against the tree, and the tools that judge this tree are
   needles whatever binary they are — `rustfmt --check` as well as `cargo fmt`.
+- **A step's local action and its directory are read wherever they are written.** A local
+  action is walked wherever the pins read its `uses` key: after a `-` with any whitespace
+  after it, quoted, escaped, or in a flow mapping. A script is looked for in the value of
+  every `working-directory` key, wherever YAML opens one or on the line below it, and in
+  the word after every `cd` and `pushd`, wherever on a line it stands. Read where a line
+  opened on them, each of those spellings left a second gate in the action or the script
+  unread.
+- **A name for `cargo` is read at every `=` whose name is a word of its own**, whatever
+  the line opens with and whatever follows the value: after a wide `-`, in a quoted or a
+  flow-mapping `run`, behind another assignment, or before a comment. An append (`C+=`),
+  an element (`C[0]=`) and every element of an array (`C=(x cargo)`, `([a]=cargo)`) are
+  read as `=` is, and `<<<cargo` as `<<< cargo` is. Where GitHub reads a line as YAML, a double-quoted value of one line is read
+  with its escapes resolved, which is the text a shell is handed, so `\x63argo` is
+  `cargo`, and with what follows its closing quote kept, which the shell's own reading of
+  a comment then judges. A script's line, and a block scalar's, is read as it is written,
+  because a shell resolves none of those escapes: resolved, `echo :"\x20#"#; cargo clippy
+  --workspace` held a ` #` that ended the line before the command a shell runs after it.
+- **A `name:` is a label only where GitHub reads it as YAML**: on a line of a workflow or
+  of a composite action's file that is no block scalar's text, wherever the scalar's
+  header stands: on its key's line or below it, behind an anchor or a tag or not. In a
+  block scalar, a script, the justfile or a Makefile, a line opening on `name:` is a
+  command, which a shell runs with what follows it once `name:` is a function or a
+  hashed path: `name:() { "$@"; }` or `hash -p /usr/bin/env name:`, then `name: cargo
+  clippy --workspace`, ran a second lints gate there while a label holding no separator
+  was skipped. What a job must run still passes over every label.
+- **And no step runs a file GitHub reads as YAML**: a word that names a workflow or a
+  composite action's file where a step finds a script, through the checkout root or an
+  escape as well, is refused, because a shell running it reads every line as a command,
+  and its labels with them: `bash ci/tools/action.yml` ran `name: cargo clippy
+  --workspace` past every reader here.
+- **`.github/` holds `ci.yml` and `release.yml` alone**, every action either
+  uses is pinned to a commit, every job that builds installs the toolchain with
+  `rustup toolchain install` and no toolchain named, so what it installs is what
+  `rust-toolchain.toml` says, no file GitHub runs but `release.yml` mints the release
+  App's token, enters an environment, or reads a secret or a step's output, and no file
+  CI reaches but `release.yml` publishes ("The release job is what `release.yml` says,
+  and the App's token reaches its last step alone").
 - **Actions are an allowlist, not a needle**: an action judging anything of ours is a
   second gate whatever it is called — a linting action such as
   `giraffate/clippy-action@v1` <!-- allow-reference: names `giraffate/clippy-action@v1` — an action this repository does not use -->
   is one — so only the steps that set the run up and decide nothing are allowed, each with
-  its reason.
+  its reason. Every `uses` key of a line is read, wherever YAML opens one, and an action
+  the reader cannot read on its line is one off the list.
 - The gate refuses a workflow that fires on nothing and a step whose verdict does not
   count, and checks that each job still runs what its name says: the determinism job
-  builds **twice**, in the order that makes the second generation a second process.
+  builds **twice**, in the order that makes the second generation a second process. A
+  condition in either workflow, and a step's own `shell` and `continue-on-error` in any
+  file GitHub runs, are read as keys wherever YAML opens one — quoted, escaped, after an
+  anchor or a tag, in a flow mapping, and a condition written on the lines below its key —
+  as well as by the words a line spells.
 
 ### A compile-fail fixture proves what rustc refused, not what it wrote
 

@@ -62,9 +62,10 @@ dev:
 docs:
     cargo xtask docs
 
-# Write a version everywhere it appears. It prints the git commands; it runs none.
-release version:
-    cargo xtask release {{version}}
+# A flag after the channel is handed on: `just release staging --dry-run`.
+# Release a channel: its version and changelog, computed from the history.
+release channel *flags:
+    cargo xtask release --channel {{channel}} {{flags}}
 
 # The suite's own fixtures can leave directories in `/tmp` — 9,250 in one
 # month, measured, with nothing counting them — and `xtask/src/check.rs` says why

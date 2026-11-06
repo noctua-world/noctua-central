@@ -55,6 +55,7 @@ mod determinism;
 mod dev;
 mod docs;
 mod gates;
+mod history;
 mod limits;
 mod local;
 mod members;
@@ -80,7 +81,7 @@ pub(crate) mod ui;
                            the `cargo install` for `cargo deny`, and `build` twice\n\
                   dev      bring up PostgreSQL and the central log store\n\
                   docs     regenerate the self-documentation surfaces under docs/\n\
-                  release  write a version everywhere it appears"
+                  release  compute a channel's version and changelog, and publish them"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -124,13 +125,23 @@ enum Command {
     },
     /// Regenerate the self-documentation surfaces under docs/.
     Docs,
-    /// Write a version everywhere it appears. Prints the git commands; runs none.
+    /// Release a channel: its version and changelog, computed from the history.
+    ///
+    /// Runs the gate, writes the version, the changelog and the lockfile, and
+    /// reads each back. `--publish`, which CI's release job passes, then makes
+    /// the release on GitHub: the release commit, the tag, the release and the
+    /// pull request that carries it back to the branch below.
     Release {
-        /// The new version, as three numbers.
-        version: String,
-        /// Say what would change and change nothing.
-        #[arg(long)]
+        /// The branch the release is made from: `staging` for a release
+        /// candidate, `main` for production.
+        #[arg(long, value_enum)]
+        channel: release::Channel,
+        /// Say what the release would be and change nothing. The gate is not run.
+        #[arg(long, conflicts_with = "publish")]
         dry_run: bool,
+        /// Make the release on GitHub too, through `gh`. CI's release job passes it.
+        #[arg(long)]
+        publish: bool,
     },
 }
 
@@ -144,7 +155,11 @@ fn main() -> ExitCode {
         Command::Check { offline } => check::run(&root, offline),
         Command::Dev { down } => dev::run(&root, down),
         Command::Docs => docs::run(&root),
-        Command::Release { version, dry_run } => release::run(&root, &version, dry_run),
+        Command::Release {
+            channel,
+            dry_run,
+            publish,
+        } => release::run(&root, channel, dry_run, publish),
     };
 
     match outcome {

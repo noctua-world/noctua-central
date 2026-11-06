@@ -15,12 +15,33 @@
 #
 # The rule is not a limit on how many cargo commands this file carries: it
 # carries several, and every one of them is the gate or what the gate needs.
+#
+# Beside it, `release.yml` makes a release on a push to `staging` or `main`, and
+# nothing else sits under `.github/`. Both files open with no permission, and
+# every action either runs is pinned to a commit, with its release in a comment.
+# This file, and every file it reaches, mints no token, enters no environment,
+# reads no secret and no step's output, and publishes nothing: those are
+# `release.yml`'s alone, because this workflow runs on a push to `staging` and
+# `main` as well. The gate refuses the first four in every other file GitHub
+# runs, this one and a composite action, and a publish in every other file CI
+# reaches, scripts and the justfile among them. It reads both files a line at a
+# time, so each line ends at a line feed and is spaced with spaces and tabs
+# alone, each key is a word before its colon, and each quote and bracket closes
+# on the line that opens it. It reads a step's `name:` as a label and a shell
+# reads it as a command, so no step runs either file, or a composite action's,
+# as a script.
 
 name: check
 
 on:
   push:
   pull_request:
+
+# **No permission for this workflow's own token, unless a job asks.** Each job
+# below asks for reading the tree and nothing more, so a step that runs
+# something it should not holds a token that changes nothing. A job added
+# without asking holds none.
+permissions: {}
 
 # One in flight per branch. A queue of identical gate runs tells nobody anything
 # the newest one does not.
@@ -113,27 +134,29 @@ jobs:
       # `localhost` would agree with `127.0.0.1` only by resolving to the
       # runner's own loopback.
       DATABASE_URL: postgres://noctua:noctua@127.0.0.1:5432/noctua
+    # Reading the tree, which the checkout needs, and nothing else.
+    permissions:
+      contents: read
     steps:
       # The whole history, because a gate that reads it needs more than the
-      # tip. Every job checks out the same way.
-      - uses: actions/checkout@v4
+      # tip, and no credential left in the checkout's git configuration, where
+      # every build script and test the gate runs could read it. Every job
+      # checks out the same way.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
-      # **This does not read `rust-toolchain.toml`**: the action below resolves
-      # `stable` itself, and no rustup runs here. `@stable` is the
-      # version this names, and the only reason it agrees with the repository is
-      # that `rust-toolchain.toml` names the same moving channel.
-      #
-      # **And the plugins' target, for the same reason as the components.** The
-      # gate builds every plugin for `wasm32-unknown-unknown` before the tests,
-      # and a toolchain the action installed without it fails that step.
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-          targets: wasm32-unknown-unknown
+      # **The toolchain `rust-toolchain.toml` names, read from that file.** With
+      # no toolchain named, rustup installs the one the file pins, with its
+      # components and the plugins' target, so the channel, `rustfmt`, `clippy`
+      # and `wasm32-unknown-unknown` are written down once and CI installs what
+      # a developer's rustup installs. `--no-self-update` leaves the runner's
+      # rustup as its image ships it.
+      - name: the toolchain rust-toolchain.toml names
+        run: rustup toolchain install --no-self-update
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: cargo deny
         run: cargo install --locked cargo-deny
 
@@ -162,17 +185,17 @@ jobs:
   # `cargo xtask dev` here, and an image named anywhere in this file.
   macos:
     runs-on: macos-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      # The same toolchain, components and plugin target as the `linux` job,
-      # for the same reasons.
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-          targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
+          persist-credentials: false
+      # The same toolchain, from the same file, as the `linux` job.
+      - name: the toolchain rust-toolchain.toml names
+        run: rustup toolchain install --no-self-update
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: cargo deny
         run: cargo install --locked cargo-deny
       - name: cargo xtask check
@@ -181,20 +204,21 @@ jobs:
   # **The gate on Windows, with no stack**, as the `macos` job above.
   windows:
     runs-on: windows-latest
+    permissions:
+      contents: read
     steps:
       # **Before the checkout**, because git on Windows refuses a path longer
       # than the system's old limit unless told otherwise, and the checkout is
       # what writes the paths.
       - name: long paths
         run: git config --global core.longpaths true
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-          targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
+          persist-credentials: false
+      - name: the toolchain rust-toolchain.toml names
+        run: rustup toolchain install --no-self-update
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: cargo deny
         run: cargo install --locked cargo-deny
       - name: cargo xtask check
@@ -209,21 +233,23 @@ jobs:
   # `counts.rs` exists to catch, one file over.
   deterministic:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      # **With the components, because this job runs the emitter.**
+          persist-credentials: false
+      # **From the same file, because this job runs the emitter.**
       # `cargo xtask build` pipes every generated file through `rustfmt` from
-      # `PATH`, and this job's only step runs it twice. A toolchain asked for
-      # without rustfmt, while the `linux` job beside it asks for it, is a
-      # difference invisible until the first push. Measured with rustfmt off
-      # `PATH`: `error rustfmt is what turns the emitted source into the bytes
-      # that reach disk, and it is not here`.
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
+      # `PATH`, and this job's only step runs it twice; `rust-toolchain.toml`
+      # names `rustfmt` as a component, so this job has the formatter the
+      # `linux` job has. With rustfmt off `PATH` the build refuses: `error
+      # rustfmt is what turns the emitted source into the bytes that reach
+      # disk, and it is not here`.
+      - name: the toolchain rust-toolchain.toml names
+        run: rustup toolchain install --no-self-update
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       # **Everything the build writes, not one directory of it.** A diff of
       # `crates/nc-catalog/src` alone leaves the `docs/` pages and the generated
       # log-event structs — a third of what `cargo xtask build` emits — outside

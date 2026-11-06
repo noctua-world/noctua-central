@@ -27,8 +27,8 @@ of the plan, and has none until then on purpose (see the last section).
 - **Rust**, via rustup. `rust-toolchain.toml` pins the channel, the components
   and the `wasm32-unknown-unknown` target the plugins are built for, so `rustup
   show` installs exactly what this repository wants and no *version* is written
-  down twice. CI names the same components and target again on the line that
-  installs the toolchain, which is what a GitHub action needs to be told.
+  down twice. CI installs from the same file, with `rustup toolchain install` and
+  no toolchain named, so no workflow names a toolchain of its own.
 - **Docker**, for the local stack — PostgreSQL and the central log store.
 - **cargo-deny**, for the dependency audit the gate runs:
   `cargo install --locked cargo-deny`.
@@ -44,8 +44,8 @@ cargo xtask check    # the whole gate. CI runs this, `cargo xtask dev` for the
                      # job that builds twice and diffs — the only
                      # cross-process determinism check there is
 cargo xtask docs     # regenerate docs/ from the registries
-cargo xtask release <version>            # rewrite it everywhere, print the commands
-cargo xtask release <version> --dry-run   # say what would change and change nothing
+cargo xtask release --channel staging --dry-run   # what a channel would release
+cargo xtask release --channel staging   # gate, then write its version and changelog
 ```
 
 `cargo xtask dev --down` removes the stack and its data, which makes the next `dev`
@@ -79,6 +79,26 @@ package the lockfile names before any step asks cargo for the graph. Under `--of
 fetch does not run and every cargo the gate starts is told to stay off the network, so a
 package missing from the machine fails instead of being downloaded, and is named with that
 command.
+
+`cargo xtask check` judges the history as well: every commit reachable from `HEAD` has a
+conventional subject and credits no agent, and no blob ever reachable is above the size
+limit unless its path is listed (`NOCTUA.md §22.5`). It needs the whole history, so a
+shallow clone is refused, and a tree with no `.git` says it was not judged.
+
+A push to `staging` or `main` releases that channel: `.github/workflows/release.yml`
+brings the stack up and runs `cargo xtask release --channel <branch> --publish` with the
+release App's token, in an environment only that branch can enter. The gate holds that
+workflow to its steps, its keys and its expressions; refuses the token, an environment, a
+secret and a step's output in every other file GitHub runs (the workflows under `.github/`
+and a composite action's own file), and a publish in every other file CI reaches, the
+justfile and the scripts a step runs among them; and pins every action a workflow here
+uses to a commit. Those rules read a file a line at a time, so the gate also refuses a
+line ended anywhere but at a line feed, or spaced with anything but a space or a tab, in
+a file CI reaches, and, in a file GitHub runs, a key not written out before its colon, a
+quote or a bracket not closed on the line that opens it, and a `#` those rules would take
+for a comment where YAML reads on. They read a file GitHub runs as GitHub does, a step's
+`name:` as a label, so the gate refuses a word that names one where a step finds a script
+to run.
 
 `cargo xtask check --offline` skips **nine** things — the advisory database, which is
 fetched (the audit's licence, ban and source checks read only the lockfile and still

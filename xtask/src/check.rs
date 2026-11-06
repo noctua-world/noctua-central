@@ -266,6 +266,14 @@ pub(crate) fn run(root: &Path, offline: bool) -> Result<(), String> {
     ci(root, &mut failures);
 
     ui::gap();
+    history(
+        root,
+        std::env::var_os("GITHUB_EVENT_NAME").as_deref(),
+        std::env::var_os("GITHUB_EVENT_PATH").as_deref(),
+        &mut failures,
+    );
+
+    ui::gap();
     ui::heading("references");
     citations(root, &mut failures);
 
@@ -3856,7 +3864,7 @@ fn the_excused_lines_are_counted(
 /// off for nothing, and it tells a reader the line was thought about.
 #[cfg(test)]
 const EXCUSED: [(&str, usize); 6] = [
-    ("allow-reference:", 74),
+    ("allow-reference:", 73),
     ("allow-logging:", 79),
     ("allow-nondeterminism:", 20),
     ("allow-count:", 12),
@@ -3882,7 +3890,7 @@ const EXCUSED: [(&str, usize); 6] = [
 /// summed out of it rather than kept beside it — so a hatch added is one row
 /// here and two numbers the test then tells you to move.
 #[cfg(test)]
-const EXCUSED_WHERE: [(&str, &str, usize); 73] = [
+const EXCUSED_WHERE: [(&str, &str, usize); 72] = [
     (".gitignore", "allow-reference:", 5),
     ("AGENTS.md", "allow-reference:", 5),
     (
@@ -3957,7 +3965,6 @@ const EXCUSED_WHERE: [(&str, &str, usize); 73] = [
     ("policy/core/no_self_escalation.cedar", "nc:narrows:", 1),
     ("policy/core/quorum.cedar", "nc:narrows:", 2),
     ("policy/packs/family/permissions.cedar", "nc:narrows:", 1),
-    ("rust-toolchain.toml", "allow-reference:", 1),
     ("xtask/canaries/README.md", "allow-reference:", 1),
     ("xtask/mutants.py", "allow-reference:", 1),
     ("xtask/mutants.py", "nc:bounded:", 1),
@@ -4023,7 +4030,7 @@ const EXCUSED_WHERE: [(&str, &str, usize); 73] = [
 /// a string literal. That is why this is a written-down list rather than a rule
 /// — it says where the hatches are, and never that any of them is earned.
 #[cfg(test)]
-const EXCUSED_IN: [(&str, usize); 48] = [
+const EXCUSED_IN: [(&str, usize); 47] = [
     (".gitignore", 5),
     ("AGENTS.md", 5),
     ("crates/nc-catalog-compiler/src/ledger.rs", 2),
@@ -4056,7 +4063,6 @@ const EXCUSED_IN: [(&str, usize); 48] = [
     ("policy/core/no_self_escalation.cedar", 1),
     ("policy/core/quorum.cedar", 2),
     ("policy/packs/family/permissions.cedar", 1),
-    ("rust-toolchain.toml", 1),
     ("xtask/canaries/README.md", 1),
     ("xtask/mutants.py", 2),
     ("xtask/src/build.rs", 7),
@@ -5224,7 +5230,7 @@ fn ci(root: &Path, failures: &mut Vec<String>) {
                     &findings,
                     &format!(
                         "{seen} cargo command(s) in CI's files and the justfile, each one \
-                         the gate, a build, or the install the gate needs"
+                         `cargo xtask <verb>` or the install the gate needs"
                     ),
                     "the CI workflow",
                     failures,
@@ -5234,6 +5240,92 @@ fn ci(root: &Path, failures: &mut Vec<String>) {
         Err(problem) => {
             ui::failure(&problem);
             failures.push("the workflow gate".to_owned());
+        }
+    }
+    // **And what CI may hold and reach**, which a reading of its commands does
+    // not answer: the workflows `.github/` holds, the authority each starts from,
+    // which code each action is, and how the release is made.
+    let (findings, pinned) = crate::workflow::every_workflow_is_bounded(root);
+    if let Err(problem) = inspected_something(pinned, PINS) {
+        ui::failure(&problem);
+        failures.push("the workflows' bounds read no action".to_owned());
+    } else {
+        report(
+            &findings,
+            &format!(
+                "{pinned} action(s) in CI's files, each pinned to a commit, in workflows that \
+                 open with no permission; a release fires on a push to `staging` or `main` alone"
+            ),
+            "the workflows' bounds",
+            failures,
+        );
+    }
+}
+
+/// Every commit reachable is conventional and credits no agent, and no blob
+/// ever reachable is above the size limit unless its path is listed
+/// (`NOCTUA.md §22.5`, `NOCTUA.md §17.8`).
+///
+/// Under a pull request, what the event names is judged instead of `HEAD`,
+/// with the title and the body — `crate::history`'s header says why. `event`
+/// and `path` are `GITHUB_EVENT_NAME` and `GITHUB_EVENT_PATH`, which [`run`]
+/// reads and a test hands in, so a test run under CI's own event judges the
+/// tree it built and not that event. Git reads this machine's repository and
+/// nothing else, so `--offline` changes nothing here. A tree with no `.git`, a
+/// tarball, has no history, and the step says so by name.
+fn history(
+    root: &Path,
+    event: Option<&std::ffi::OsStr>,
+    path: Option<&std::ffi::OsStr>,
+    failures: &mut Vec<String>,
+) {
+    ui::heading("history");
+    let judged = crate::history::the_pull_request(event, path)
+        .and_then(|pull_request| crate::history::judged(root, pull_request.as_ref()));
+    match judged {
+        Ok(crate::history::History::NoRepository) => {
+            ui::warn("skipped: this tree has no .git of its own, so it has no history to judge");
+            ui::detail(
+                "a tarball carries none; a clone does, and CI checks out every commit of it",
+            );
+        }
+        Ok(crate::history::History::Judged(judged)) => {
+            if let Err(problem) = inspected_something(judged.commits, COMMITS) {
+                ui::failure(&problem);
+                failures.push("the history step read no commit".to_owned());
+            } else if let Err(problem) = inspected_something(judged.blobs, BLOBS) {
+                ui::failure(&problem);
+                failures.push("the history step measured no blob".to_owned());
+            } else {
+                report(
+                    &judged.findings,
+                    &format!(
+                        "{} commit(s) reachable from {}, each with a conventional subject and \
+                         no agent credit{}; {} blob(s), none above {} byte(s) but the {} at a \
+                         path listed for it",
+                        judged.commits,
+                        if judged.pull_request {
+                            "the pull request's head and base"
+                        } else {
+                            "HEAD"
+                        },
+                        if judged.pull_request {
+                            ", and so are the pull request's title and body"
+                        } else {
+                            ""
+                        },
+                        judged.blobs,
+                        crate::history::LIMIT,
+                        judged.listed
+                    ),
+                    "the history",
+                    failures,
+                );
+            }
+        }
+        Err(problem) => {
+            ui::failure(&problem);
+            failures.push("the history could not be read".to_owned());
         }
     }
 }
@@ -6593,9 +6685,21 @@ fn reserved_lines(text: &str) -> std::collections::BTreeSet<&str> {
 /// test that would have to fake the compiler to reach it.
 const DRIFT: &str = "the catalog produced no file, so the drift check compared nothing";
 
+/// What the history step reads.
+const COMMITS: &str =
+    "no commit was read from the history, so nothing checked that a subject is conventional";
+
+/// What the history step measures.
+const BLOBS: &str =
+    "no blob was measured in the history, so nothing checked that one is below the size limit";
+
 /// What the workflow gate inspects.
 const WORKFLOW: &str =
     "no cargo command was read from the workflow, so nothing checked that CI runs the gate";
+
+/// What the workflows' bounds judge, said when they judged no action.
+const PINS: &str =
+    "no action was read from CI's files, so nothing checked that each is pinned to a commit";
 
 /// What the unbounded-table gate inspects.
 const TABLES: &str = "no CREATE TABLE was read, so nothing checked that a table declares its bound";
@@ -7622,8 +7726,143 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// This does not say a guard is *right*; `xtask/src/corpus.rs` and
 /// `xtask/mutants.py` are where a predicate's verdict is decided. It says the
 /// guard is still there, which is the question a deletion asks.
+///
+/// **A `static`, because this list is past what clippy will inline as a
+/// constant**, as `OPERATORS` is: one copy rather than one per use, and nothing
+/// reads it at compile time.
 #[cfg(test)]
-const WHAT_THE_GATE_CAN_SAY: [&str; 849] = [
+static WHAT_THE_GATE_CAN_SAY: [&str; 1028] = [
+    // The workflows' bounds (`xtask/src/workflow.rs`): what `.github/` may hold,
+    // the authority each workflow opens with, the pins, and how the release is
+    // made; and the `CI` step's two verdicts about them.
+    "`uses: {used}` is not pinned to a full commit",
+    "`uses: {used}` is pinned with no release beside it",
+    "`{RELEASE_WORKFLOW}` is missing",
+    "`{WORKFLOWS}/` could not be walked: {error}",
+    "`{file}` could not be read: {error}",
+    "`{file}` does not open with `permissions: {{}}`",
+    "`{file}` opens with `permissions: {value}`",
+    "`{file}` runs on `{event}`",
+    "`{file}` sits under `{WORKFLOWS}/`, which holds `{WORKFLOW}` and `{RELEASE_WORKFLOW}` and nothing else",
+    "`{relative}` ends a line at {named}, which no reader here does",
+    "`{relative}` holds U+{:04X}, a space to every reader here and a letter to YAML and to a shell",
+    "`{relative}` holds a `#` every reader here ends the line at, and YAML reads on past it",
+    "`{relative}` leaves {what} open past its line",
+    "`{relative}` names `{yaml}`, a file GitHub reads as YAML, where a step finds a script to run",
+    "`{relative}` uses an action this gate cannot read on its line",
+    "`{relative}` writes a key {how}",
+    "`{relative}` {what}, which the release workflow alone does",
+    "a job in `{file}` asks for `{grant}`, and a job here asks for `{THE_ONE_PERMISSION}` alone",
+    "after `?`, YAML's explicit form",
+    "as `<<`, which merges a mapping anchored elsewhere",
+    "as an alias of a word anchored elsewhere",
+    "enters an environment",
+    "mints the release App's token",
+    "no action was read from CI's files, so nothing checked that each is pinned to a commit",
+    "publishes a release",
+    "reads a secret",
+    "reads a step's output",
+    "the release does not fire on a push",
+    "the release fires on `{}`",
+    "the release fires on a push to {named:?}, and a release is made from {RELEASED_FROM:?} alone",
+    "the release job enters {}, and it enters `{THE_RELEASES_ENVIRONMENT}` alone",
+    "the release job runs on `{runner}`, which is not a Linux runner",
+    "the release job",
+    "the release job's step {} holds {}, where it holds {}",
+    "the release job's step {} is {}, where it is {}",
+    "the release restores a cache, through `{name}`",
+    "the release workflow does not say, as a block of its own, what it fires on",
+    "the release workflow evaluates `{written}`, which is not one of `THE_EXPRESSIONS` where it stands",
+    "the release workflow has no `release` job",
+    "the release workflow holds the job `{job}` beside `release`",
+    "the release workflow",
+    "the release's push is filtered by `{filter}`",
+    "the workflows' bounds read no action",
+    "the workflows' bounds",
+    "what CI reaches could not be walked: {error}",
+    "{whose} holds `{key}:`, and it holds {allowed:?} alone, each once",
+    // The release (`xtask/src/release.rs`).
+    "--publish publishes to the repository GITHUB_REPOSITORY names, and it is not set. CI's release job sets it; a release is published from there and nowhere else",
+    "--publish publishes with the token in GH_TOKEN, and it is not set. CI's release job sets it to the release App's installation token; the workflow's own token is never used, because a pull request it opens starts no checks",
+    ". And these could not be put back as they were, so each holds what this run left in it: {}",
+    ". Every file this run touched has been put back as it was",
+    ". Nothing was released, and these could not be put back as they were: {}. The release began on a clean tree, so `git status` names what it left",
+    "Cargo.lock does not read back as TOML: {error}",
+    "Cargo.lock reads back with {} package(s) of this workspace, and these not at {target}: {behind:?}",
+    "Cargo.lock",
+    "GITHUB_REPOSITORY is `{}`, and a repository is its owner and its name with a slash between",
+    "GitHub answered a pull request with no number",
+    "GitHub answered no list of pull requests",
+    "GitHub answered no repository {} for the token the release holds",
+    "GitHub answered pull request #{number} as one of this repository's own with its head in {}, and this repository is {repository}",
+    "GitHub answered pull request #{number} as {}, which is not open, merged or closed",
+    "GitHub answered pull request #{number} with no node",
+    "GitHub answered pull request #{number} without saying whether its head is in a fork, and a fork's never carries a release",
+    "GitHub answered pull request #{} with no merge state, and whether it is merged now or queued rests on it",
+    "GitHub answered the pull request that carries {} back with another one",
+    "GitHub answered the release commit with no commit",
+    "GitHub answered the release of {tag} with another release",
+    "GitHub answered the tag {} with another tag, or another commit",
+    "GitHub did not answer pull request #{} as merged",
+    "GitHub did not answer pull request #{} with auto-merge on, by merge commit",
+    "GitHub did not say whether {} holds {}: it answered {}, and a comparison is ahead, behind, diverged or identical",
+    "GitHub named the tag {} with no commit",
+    "HEAD is a release commit and {CHANGELOG} could not be read: {error}",
+    "HEAD is titled as the release commit of {} and Cargo.toml carries {manifest}. A release commit carries its own version, so this one was not written by this verb",
+    "HEAD is titled as the release commit of {} and its {CHANGELOG} is not the changelog the history gives, so it was not written by this verb, or the history under it changed. Nothing was published",
+    "`gh api {endpoint}` answered something that is not JSON: {error}",
+    "`gh api {endpoint}` answered with GitHub's errors: {}",
+    "`gh api {endpoint}` refused: {}",
+    "commit {} declares its message in another encoding than UTF-8, so the release cannot read it",
+    "commit {}'s message is not UTF-8, so the release cannot read it",
+    "commit {}'s subject is not a conventional one, so the release cannot say what it is: {why}. The history step refuses it too; `cargo xtask check` names it",
+    "gh could not be started, and a release is published through it: {error}",
+    "gh stopped before it answered: {error}",
+    "gh's input could not be written: {error}",
+    "git described a tag as `{}`, which is not one tag",
+    "git listed the commits in something that is not UTF-8",
+    "git named HEAD as `{}`, which is not a commit's hash",
+    "git named the commit of `{}` as `{}`, which is not a hash",
+    "graphql",
+    "graphql",
+    "graphql",
+    "graphql",
+    "nothing was written; {} is carried on from HEAD",
+    "nothing was written; {} is what it would be",
+    "the asset `{}` is {size} byte(s), and GitHub takes each under {LARGEST_ASSET} ({GITHUBS_LIMITS}). Split it into chunk packs (`NOCTUA.md §17.8`)",
+    "the gate could not be started: {error}. Nothing was written",
+    "the gate refused, as its lines above say, so nothing was written",
+    "the history between releases is asked for by hashes, and was handed {asked:?}",
+    "the pull request that carried {tag} back to {}, #{}, was closed without merging. Reopen it, or carry the release back by hand: the release makes it once",
+    "the release carries {} asset(s), and GitHub takes {MOST_ASSETS} at most ({GITHUBS_LIMITS}). Split them into fewer, larger chunk packs (`NOCTUA.md §17.8`)",
+    "the request for {endpoint} is not JSON: {error}",
+    "the tag `{}` names a {} rather than a commit",
+    "the tag `{}` opens as a release tag does, and {why}",
+    "the thread writing gh's input panicked",
+    "the tree holds changes no commit has ({}), and a release is made from HEAD and the files it writes. Commit them, or put them aside, and run the release again",
+    "this tool could not find itself to run the gate: {error}. Nothing was written",
+    "this tree has no .git of its own, and a release is computed from the history: the tags and the commits between them. Release from a clone",
+    "this tree is at `{}`, and {why}. A version is written by the release; set it back by hand to the last one it wrote",
+    "whether this tree has a .git could not be read: {error}",
+    "without --publish nothing leaves this machine. CI's release job publishes: the release commit, the tag, the GitHub release and the pull request that carries it back",
+    "{CHANGELOG} could not be read back: {error}",
+    "{CHANGELOG} could not be read, and a release rewrites it: {error}. Nothing was written",
+    "{CHANGELOG} could not be written: {error}",
+    "{CHANGELOG} reads back as other bytes than were written",
+    "{name} could not be read back: {error}",
+    "{name} does not read back as TOML: {error}",
+    "{name} reads back as carrying {carries:?}, and the release wrote {target}",
+    "{name} was rewritten and still names {}, not {version}. The reader and the writer are one rule — the version is rewritten on the line `version_of` found it on — so this is a file whose version sits somewhere that reader does not look: a table other than `[workspace.package]` or `[package]`, or a spelling it cannot parse",
+    "{name}: {size} byte(s)",
+    "{problem}{put_back}",
+    "{tag} is tagged at {} on GitHub, and this release is at {}. A tag is never moved: look at both before releasing again",
+    "{} has no section of its own in the changelog, which is a release no reader of it would see",
+    "{} is already tagged or released on GitHub, and HEAD is not its release commit. A version is released once: the tags this clone holds are behind GitHub's, so fetch them and run the release again",
+    "{} is already tagged, and a version is released once. The commits since the last production release this branch reaches give it again, so that release is not merged here",
+    "{} is behind the {manifest} Cargo.toml carries. A version is written by the release and never by hand; set it back to the last one the release wrote",
+    "{} is not ahead of {}, which HEAD already reaches. A release goes forwards only: a tag is not taken back once it is published",
+    "{} is the latest production release and staging does not reach it: the pull request that carries it back from main has not landed. Staging releases once it has, so its version is computed from everything main shipped",
+    "{} names no version, and it is the file the others are checked against",
     "`{named}` was passed to `docker compose` among its arguments. The project is this checkout's and is set above; docker resolves the flag to the later of two, so the stack would come up under a name `--down` does not address",
     "what CI reaches is more than {HOPS} hops deep",
     "Cedar denies by default, so a core rule that permits widens what is allowed rather than restricting it — move it to a pack, or make it a `forbid`",
@@ -7638,14 +7877,7 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 849] = [
     "`nc_policy::load` returns a realm as held only when its pin is the one its pack's version builds, so a pin no declared version builds is the loader and this step disagreeing about what a pin is. Read `nc_policy::manifest` first",
     "a realm held to a pack pins no version a pack declares",
     "  `{line}` — the reader answered {answered:?}, and it assigns {expected:?}. A variable holding `cargo` is a second gate the walk counts, and one holding a path is a location that cannot stand in command position",
-    ", and Cargo.lock could not be put back either",
-    ", with Cargo.lock back as it was",
-    ". And putting {from} back failed too: {second} — this tree names {version} in {}{}, and there is no git here to undo it",
     ". Nothing was released and the version is back at {from}",
-    ". The version is back at {from} in {}, and Cargo.lock could not be put back: {second}. Run `cargo update --workspace` when the registry is reachable",
-    "    git commit -S -am \"release: {version}\"",
-    "    git push --follow-tags",
-    "    git tag -s v{version} -m \"v{version}\"",
     "--dry-run: the gate is not run and nothing is written",
     "--offline",
     "--reserve: a ledger with no checksum will be accepted and rewritten",
@@ -7750,7 +7982,6 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 849] = [
     "`{table}` is not in this database at all",
     "`{table}` is not the shape it was made",
     "`{tag}` is not pulled here, so its digest was not compared",
-    "`{version}` is not a version. Expected three numbers, such as 0.2.0 — each written as cargo writes it, so `01` is not `1`",
     "`{name}` acts as `{action}` on a `{named}`, and the schema lets that action apply \
      to {allowed:?}",
     "`{}` acts as `{}`, and the schema declares {declared:?}",
@@ -7958,7 +8189,6 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 849] = [
     "not run: {skip}",
     "nothing is listening for PostgreSQL at {}. The journal's chain is proven against the store that runs, not only in memory — so this gate needs one.\nRun `cargo xtask dev` to bring the stack up, or `cargo xtask check --offline` to skip the tests that need it. CI never passes --offline",
     "nothing was read for hand-written codes",
-    "nothing was written; {version} is what it would be",
     "nothing — so the shortfall is a filter between the walk and the read, not a file",
     "number {after} follows {before}, so {} is missing",
     "only {} code variant(s) were found in `crates/`, which is fewer than this repository raises: the walk did not read the sources",
@@ -8330,19 +8560,15 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 849] = [
     "this migration runs no statement",
     "this pulls `{named}` into a compiled crate, and no gate reads it",
     "this reaches into a `canaries/` directory, so cargo compiles what is in it",
-    "this repository has no git (§5.3), so there is nothing to commit or tag.",
     "this run opened {printed:?} and the steps written down are {expected:?}: a step that returns without printing its heading says nothing at all, and every other guard here counts what a step said rather than whether it ran",
     "this service is built here rather than pulled, so no digest pins what it runs",
     "this states a count: {} {noun}",
     "this step or job runs only when `{condition}`",
     "this test is hidden from the run by {by}",
-    "this tree is at `{from}`, which is not three numbers. `cargo xtask release` writes three-number versions and orders them as numbers; ordering anything else is semver's job, and semver is a dependency this repository has not taken. Set the version by hand to the release you mean",
-    "this tree is at {from} and {version} is not ahead of it. A release that goes backwards, or that repeats a version, prints `git tag -s v{version}` for a tag that already names something else",
     "this workflow exports `{}`, and the gate refuses to run with it set",
     "this writes `search_path = {written}`, which is not one real schema followed by `pg_temp`",
     "two generations of the same catalog differ. Something in the emitter depends on iteration order — a hash of non-canonical output is a hash of formatting (NOCTUA.md §16.4)",
     "unbounded tables",
-    "when it has one, the release ends with:",
     "where `pg_temp` sits in a migrated function's path is a property of the database and of no file here — `cargo xtask dev` applies the migrations",
     "written counts",
     "{FIXTURES} could not be read, so the wall's compile-fail proof did not run. Acceptance criterion 2 asks for it by name",
@@ -8370,8 +8596,6 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 849] = [
     "{name} is listed as carrying the version and holds none. Either it stopped carrying one — take it out of CARRIES_THE_VERSION — or the line was lost, and a release now would ship a tree that disagrees with itself",
     "{name} is not there",
     "{name} is there and `CORE_POLICIES` in xtask/src/policy.rs does not name it, so this step walked past it",
-    "{name} was rewritten and still names {}, not {version}. The reader and the writer are one rule — the version is rewritten on the line `version_of` found it on — so this is a file whose version sits somewhere that reader does not look: a table other than `[workspace.package]` or `[package]`, or a spelling it cannot parse. Every file this run touched has been put back as it was, so fixing the file and running this again is all there is to do",
-    "{name}: {from} → {version}",
     "{package} tests/{file}",
     "{pinned} image(s) carry a digest and {accounted} of them were answered for — {compared} compared, {wrong} wrong, {} not pulled here. A pin in none of those three was walked past, so the tag it names was never resolved and nothing said so",
     "{printed} error line(s) were printed and no step recorded one, so a step's verdict did not reach the run. Every step reports by pushing to the `failures` list `run` hands it; a step given a list the verdict never reads prints its findings and the run ends `check passed`",
@@ -8487,6 +8711,74 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 849] = [
     "{migrations}/ is missing, so the unbounded-table gate read nothing there. It is what makes NOCTUA.md §15.8 a policy rather than a habit",
     "{} could not be read: {error}",
     "{} is written here",
+    // The history step (`xtask/src/history.rs`).
+    "GITHUB_EVENT_NAME is `pull_request` and GITHUB_EVENT_PATH is not set, so the pull request's commits, title and body could not be read. Unset GITHUB_EVENT_NAME to judge what HEAD reaches",
+    "`git {}` refused: {}",
+    "a blob of {size} byte(s) at {at}, above the limit of {LIMIT} — and every clone downloads it, even where a later commit removed it",
+    "a blob of {size} byte(s) at {at}, above the {ceiling} its line in `ABOVE_THE_LIMIT` allows",
+    "a tarball carries none; a clone does, and CI checks out every commit of it",
+    "base",
+    "base",
+    "commit",
+    "git answered more than the {} object(s) it was asked for",
+    "git answered {} for {}, which is not an object it holds",
+    "git answered {} when asked for the {kind} {}",
+    "git answered {} when asked whether this clone is shallow",
+    "git could not be started, and the history is read through it: {error}",
+    "git described a change as {}, which is not one path added, removed or changed",
+    "git gave a blob the size {}",
+    "git gave {} a size of {}",
+    "git listed the commits in something that is not UTF-8",
+    "git measured an object as {}",
+    "git measured more than the {} object(s) the history names",
+    "git measured {answered} object(s) of the {} the history names, so a blob it did not measure is one this step did not judge",
+    "git measured {} when asked for {}",
+    "git named its graft file in something that is not UTF-8",
+    "git stopped before it answered: {error}",
+    "git's answer for {} is cut short",
+    "git's answer stopped before {}",
+    "git's input could not be written: {error}",
+    "git's list of changes stops part way through a path",
+    "head",
+    "head",
+    "it ends in whitespace",
+    "it ends with a period",
+    "it has no `:`, so no type opens it. A subject opens with one of {}",
+    "it holds a character a reader cannot see: a control, a bidirectional mark or a zero-width one",
+    "its message is declared as {}, and every message here is UTF-8",
+    "its message is not UTF-8, so nothing in it could be read",
+    "its scope holds {}, and a scope is lower-case letters, digits, `-`, `_`, `.` and `/`",
+    "its scope is empty: name what the change is about, or leave the parentheses out",
+    "its scope is not closed by `)` just before the `:`, or the `!` after it",
+    "no blob was measured in the history, so nothing checked that one is below the size limit",
+    "no commit was read from the history, so nothing checked that a subject is conventional",
+    "nothing follows the colon: a subject says what the change does",
+    "one space follows the colon",
+    "one space follows the colon, and only one",
+    "skipped: this tree has no .git of its own, so it has no history to judge",
+    "the event at GITHUB_EVENT_PATH could not be read, so the pull request was not judged: {error}",
+    "the event at GITHUB_EVENT_PATH holds no `pull_request`, and GITHUB_EVENT_NAME says it is one",
+    "the event at GITHUB_EVENT_PATH is not JSON, so the pull request was not judged: {error}",
+    "the history",
+    "the history could not be read",
+    "the history holds the blob {} of {size} byte(s), and no commit puts it at a path, so the path it sits at was not judged",
+    "the history names {}, and this clone does not hold it — a partial clone. The step measures every blob ever reachable, so it needs a clone that holds all of them",
+    "the history step measured no blob",
+    "the history step read no commit",
+    "the line after the subject is not blank, so the subject runs on into it",
+    "the pull request in the event has no body, not even `null`",
+    "the pull request in the event has no title",
+    "the pull request in the event names no `{side}.sha`",
+    "the pull request's `{side}.sha` is {}, which is not a commit's hash",
+    "the subject {} is not a conventional one: {why}",
+    "the thread writing git's input panicked",
+    "the title {} is not a conventional subject: {why}",
+    "this clone grafts its history: its graft file shows git a commit with other parents than it holds, so the history a graft cuts away is not here to judge. Turn the grafts into replacement refs, which this step reads past: `git replace --convert-graft-file`",
+    "this clone is shallow, so the history below where it was cut is not here to judge. Fetch all of it: `git fetch --unshallow`, or a checkout with `fetch-depth: 0`",
+    "this line credits an agent: {how}",
+    "whether this clone grafts its history could not be read: {error}",
+    "whether this tree has a .git could not be read: {error}",
+    "{} is not a type. A subject opens with one of {}, in lower case",
 ];
 
 /// The verdicts the source is able to push, read out of `xtask/src/`.
@@ -10672,7 +10964,100 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 607] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 712] = [
+    // The workflows' bounds: their remedies, the release job's steps as
+    // `THE_RELEASE_STEPS` writes them, the environment and the line that hands
+    // the token on, a step's words when it is missing, and the clean line.
+    "  GH_TOKEN: ${{ steps.app.outputs.token }}",
+    "  app-id: ${{ vars.RELEASE_APP_ID }}",
+    "  permission-contents: write",
+    "  permission-pull-requests: write",
+    "  persist-credentials: false",
+    "  private-key: ${{ secrets.RELEASE_APP_KEY }}",
+    "(indented less than the step) {code}",
+    "GH_TOKEN: ${{ steps.app.outputs.token }}",
+    "GitHub evaluates an expression before anything runs, and `toJSON(steps)` or `steps['app'].outputs.token` hands the App's token to whatever reads the line as surely as `steps.app.outputs.token` does. The release evaluates six, each on a line of its own where `THE_EXPRESSIONS` in `xtask/src/workflow.rs` puts it: the branch in the concurrency group, the environment and the channel, the App's id and key in the step that mints the token, and the token in the release step's `GH_TOKEN`. Anywhere else the key or the token is in the environment of what runs there, this tree's build scripts and tests among them, and the App may push to `staging` and `main` past their rules",
+    "YAML opens a quoted scalar only where a node starts and reads a `#` inside one as text, and the readers here end a line at a `#` outside any quote, the way a shell does: in `{ ke\"y: \"a # b\", permissions: write-all }` YAML reads a grant none of them reads. Write no quote inside a key or a plain value of that line, or no `#` inside its quoted value",
+    "a cache holds what an earlier run built and saved — `dev`'s are restored on every branch, and the run that saved one decided what it holds — and the release is built from the branch it releases and nothing else. The release job builds from cold",
+    "a carriage return",
+    "a flow collection",
+    "a push to `staging` or `main` is what releases that channel (NOCTUA.md §22.6), and the workflow is what makes the release, and the one place the release App's token is minted",
+    "a quoted scalar",
+    "a release is made by a push to a channel's branch and by nothing else (NOCTUA.md §22.6): another event, another branch, a tag or a path filter releases from something that is not a channel, or does not release where one is. Write `on:`, then `push:` under it, then `branches: [staging, main]` under that",
+    "a tag or a branch is a name its owner can move, so the code a step runs could change under a workflow nobody edited — in the job that holds the release App's token as in any other — and a full 40-character commit cannot. Pin it by the commit, with its release in a comment after it",
+    "a workflow there is one GitHub runs on its own events, with its own token and its own way into the environments that hold the release App's key, and a script or an action there is code a step runs. A file belongs there with a rule that reads it: name it in `THE_WORKFLOWS` and say what holds it",
+    "a workflow this gate cannot read is one GitHub still runs, so every rule here would pass over it unjudged. Make it a readable UTF-8 file",
+    "a workflow with nothing at its top hands each job the token the repository's settings give, which may write. Write `permissions: {}` above `jobs:`, and let each job ask for reading the tree",
+    "an input is part of what an action does, and a key part of how a step runs: `repository:` or `ref:` beside the checkout's inputs builds another tree with the App's token, a `permission-` input asks the App for more than a release writes, and `env:`, `shell:` or `working-directory:` on a step change what its command is. Each step holds the lines `THE_RELEASE_STEPS` in `xtask/src/workflow.rs` writes for it, and a line to add is a line there",
+    "app-id: ${{ vars.RELEASE_APP_ID }}",
+    "environment: release-${{ github.ref_name }}",
+    "every action a step uses is judged from the files CI reaches, and a walk that stopped judges none of them",
+    "every job in it runs on the push that releases a channel, and the rules here read the `release` job alone; a second is a job nothing holds to the steps, the environment or the token. What it would do belongs in the gate",
+    "every job without a `permissions:` of its own holds what the top of the file grants, and here that is to be nothing: write `permissions: {}` there, and let each job ask for reading the tree",
+    "every key there is one a rule here reads, and the others change what runs beside the App's token: `env:` and `defaults:` reach every step, `container:` runs each inside an image this tree does not build, `services:` starts one beside them, and `strategy:` runs the job more than once. A key written twice is one YAML reads one way and a reader another. A key to add is a line in `THE_RELEASE_WORKFLOWS_KEYS` or `THE_RELEASE_JOBS_KEYS`, with the rule that reads it",
+    "every rule on CI's files reads a line up to its line feed, and a YAML parser ends one at a carriage return too, and some at NEL, LS and PS, so what follows one on a comment or a step's name is a key or a step GitHub reads and no rule here does. End each line with a line feed alone",
+    "every rule on CI's files trims and splits a line at whitespace as Rust reads it, and YAML indents with a space alone, so a line indented with another space is deeper to a rule here than to GitHub, and a key or a step GitHub reads is passed over as a block scalar's text. Write a space, U+0020, or a tab",
+    "every rule on a workflow reads a key by the word written before its colon on the line it opens, and a key written after `?`, as an alias or merged in with `<<` is one none of them reads: the environment, the permissions, the actions and the conditions would all pass it unjudged. Write the key out where it stands, as `name: value`",
+    "group: release-${{ github.ref }}",
+    "inside `{` or `[` YAML lets an entry, its colon among it, run on to a later line, and inside a quote it reads the lines that follow as text; every rule on a workflow reads a key with its colon on the line the key stands on, so `{ permissions` with `: write-all }` below it is a grant none of them reads, and a key inside an open quote is one they read and GitHub does not. Close each `{`, `[` and quote on the line that opens it, or write the mapping as a block",
+    "it runs with this repository's secrets and a token that may write, on behalf of a change made in a fork, and a build script of that change holds what the run holds. A pull request is judged on `pull_request`, which a fork's runs with no secret and a token that can only read",
+    "nothing at all",
+    "private-key: ${{ secrets.RELEASE_APP_KEY }}",
+    "release-${{ github.ref_name }}",
+    "run: cargo install --locked cargo-deny",
+    "run: cargo xtask dev",
+    "run: cargo xtask release --channel ${{ github.ref_name }} --publish",
+    "run: rustup toolchain install --no-self-update",
+    "the commit says what runs and not what it is: the release in a comment after it, such as `# v1.2.3`, is what a reader checks against the action's own tags, and what an update moves",
+    "the environment holds the App's id and its key, and GitHub lets a job enter `release-staging` from `staging` alone and `release-main` from `main` alone; a job that enters another mints the token from a branch that is not the channel it releases, and one that enters none cannot mint it",
+    "the gate writes nothing on GitHub, and the release writes with the App's token and never with this one; a token that may write is one every build script and test the job runs could use. Ask for `contents: read`, which the checkout needs, and nothing more",
+    "the job holds the App's token, so what runs beside it is `THE_RELEASE_STEPS` in `xtask/src/workflow.rs` and nothing else: the token, the checkout, the toolchain, the audit's install, the stack, then the release. A step to add is a line there, which is a line in a diff",
+    "the job is what makes the release, and every rule about its steps, its environment and the App's token reads it by that name",
+    "the pins and the actions CI may use are read from the line a `uses` key stands on, plain or quoted, wherever YAML opens a key. A value on the lines below it, a block scalar, an anchor, a tag, an alias or a collection, or a key a backslash carries across a line break, is an action both would pass over. Write `uses: owner/name@<commit> # <release>` on one line",
+    "the readers here read a file GitHub runs as GitHub reads it, a `name:` there as a label, and a shell that runs it reads every line of it as a command: once `name:` is a function, `name: cargo clippy --workspace` runs clippy. Name no workflow or composite action's file on a command line, and run what it should run as a script of its own",
+    "the release runs the gate first, and only Linux's runner brings up the stack the gate's steps read (NOCTUA.md §22.2); elsewhere those steps are not applicable, and the release is judged by less than the gate every pull request passed. Run it on `ubuntu-latest`",
+    "the rules that hold the release read `release.yml` alone, and a workflow runs on a push to `staging` and `main` like any other: an environment admits a job by its branch, so a job elsewhere that entered `release-main`, minted the App's token and published would make a release past every one of them. The token's action, the environment, a secret, a step's output, which is how the token is handed on, and `--publish` are the parts of that, and each is the release workflow's alone. Make the release there",
+    "uses: <an action this walk cannot read>",
+    "what sits there is what GitHub runs, and a walk that stopped cannot say what that is",
+    "{pinned} action(s) in CI's files, each pinned to a commit, in workflows that open with no permission; a release fires on a push to `staging` or `main` alone",
+    // The release: what it prints that is not a verdict, the requests it
+    // hands GitHub, and the changelog's own prose.
+    "  What to do: {note}\n",
+    "# Changelog\n\nWhat each release of this repository adds, changes, fixes, speeds up, secures and removes, newest first (`NOCTUA.md §22.4`). `cargo xtask release` writes this file whole from the conventional commits between the release tags every time it makes a release, so an edit by hand is gone at the next one.\n",
+    "#{} is merged, by merge commit: its checks had passed already",
+    "Cargo.lock rebuilt, and every file read back as written",
+    "Five verbs, and the surface does not grow (NOCTUA.md §10.2).\n\nbuild    compile catalog/ into its generated crate and pages\ncheck    THE gate. CI runs it, `dev` for the stack it needs,\nthe `cargo install` for `cargo deny`, and `build` twice\ndev      bring up PostgreSQL and the central log store\ndocs     regenerate the self-documentation surfaces under docs/\nrelease  compute a channel's version and changelog, and publish them",
+    "HEAD is the release commit of {}, so the release is carried on and not made again",
+    "Nothing in this release changes what a person or a developer sees: every change in it is of a type the changelog leaves out.",
+    "The release commit of {} writes its version and {CHANGELOG}. This carries it back to {}, so the branch below holds what was released.",
+    "`{}` is not a version this release can order. It writes `X.Y.Z` and `X.Y.Z-rc.N` and orders nothing else, each number written as cargo writes it, so `01` is not `1`",
+    "a breaking change, which is a major",
+    "a breaking change, which is a minor while the version is 0.x",
+    "a feat, which is a minor",
+    "a fix or a perf, which is a patch",
+    "already released: {tag} is tagged, released, and carried back to {}",
+    "auto-merge is on for #{}, by merge commit",
+    "chore(release): carry {} back to {}",
+    "its notes, which are its section of the changelog:",
+    "mutation AutoMerge($id: ID!) { enablePullRequestAutoMerge(input: {pullRequestId: $id, mergeMethod: MERGE}) { pullRequest { number autoMergeRequest { mergeMethod } } } }",
+    "mutation MergedNow($id: ID!) { mergePullRequest(input: {pullRequestId: $id, mergeMethod: MERGE}) { pullRequest { number merged } } }",
+    "mutation ReleaseCommit($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }",
+    "no production release yet, so the first is the version Cargo.toml carries",
+    "nothing that moves it",
+    "nothing to release: none of the {} commit(s) since {} is a feat, a fix, a perf or a breaking change",
+    "nothing to write: HEAD already carries the release",
+    "pull request #{} carries {} back to {}",
+    "query HeldBelow($owner: String!, $name: String!, $below: String!, $at: String!) { repository(owner: $owner, name: $name) { ref(qualifiedName: $below) { compare(headRef: $at) { status } } } }",
+    "query WhatGitHubHolds($owner: String!, $name: String!, $tag: String!, $ref: String!, $head: String!, $base: String!) { repository(owner: $owner, name: $name) { ref(qualifiedName: $ref) { target { oid } } release(tagName: $tag) { tagName } pullRequests(headRefName: $head, baseRefName: $base, first: 100, orderBy: {field: CREATED_AT, direction: DESC}) { nodes { number id title state isCrossRepository headRepository { nameWithOwner } mergeStateStatus autoMergeRequest { mergeMethod } } } } }",
+    "released {tag} on GitHub",
+    "the CLI the release publishes through; its output is read, not printed",
+    "the gate is this same tool, and every line it prints goes through its own `ui`",
+    "the release commit {} is on {}, over {}",
+    "{tag} is released, and pull request #{} carries it back to {}",
+    "{tag} is released, and {} holds it already",
+    "{} asset(s), within GitHub's limits for one release: {MOST_ASSETS} at most, each under {} GiB ({GITHUBS_LIMITS})",
+    "{} commit(s) since {}, and the furthest-reaching of them is {reason}",
+    "{} file(s) carry {target}, and {CHANGELOG} is written whole",
     // The prefix every finding about this gate's own arithmetic carries, so the
     // three attack helpers can refuse such an answer without naming a sentence.
     "this gate's own accounting — ",
@@ -10709,8 +11094,6 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 607] = [
     ", and {} excused by a marker: {}",
     ", and {} of them {} no bound here: {}",
     "CI",
-    "Cargo.lock rebuilt",
-    "Five verbs, and the surface does not grow (NOCTUA.md §10.2).\n\nbuild    compile catalog/ into its generated crate and pages\ncheck    THE gate. CI runs it, `dev` for the stack it needs,\nthe `cargo install` for `cargo deny`, and `build` twice\ndev      bring up PostgreSQL and the central log store\ndocs     regenerate the self-documentation surfaces under docs/\nrelease  write a version everywhere it appears",
     "GET /flags HTTP/1.1r\nHost: 127.0.0.1r\nConnection: closer\nr\n",
     "GET /health HTTP/1.1r\nHost: 127.0.0.1r\nConnection: closer\nr\n",
     "GitHub runs `run:` under `bash -e` so that any failing command fails the step, and `shell: bash {0}` — the documented way to change it — drops the `-e`, after which only the *last* command's status is read. Every entry in this list assumes the default. If a step needs another shell, it needs a reason next to it and a rule here",
@@ -11216,7 +11599,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 607] = [
     "{read} source line(s) put no lint down without a written reason, and each of {doors} test door(s) says it is one",
     "{realms} realm(s) pin the version of the pack their profile selects, held to {packs} pack manifest(s)",
     "{reserved} error code(s) reserved, and every code this catalog declares is one of them",
-    "{seen} cargo command(s) in CI's files and the justfile, each one the gate, a build, or the install the gate needs",
+    "{seen} cargo command(s) in CI's files and the justfile, each one `cargo xtask <verb>` or the install the gate needs",
     "{seen} service(s) healthy",
     "{seen} table(s) created in the migrations were checked{}{}",
     "{total} line(s) carry a gate's escape hatch, each with a reason — the gates' own fixtures among them",
@@ -11225,7 +11608,6 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 607] = [
     "{{.Service}} {{.State}} {{.Health}}",
     "{} code(s) are declared as what the tree does with them, and {} of them name a number nothing raises yet",
     "{} core policy file(s) are on disk and decide something, by name, and the family pack is not empty",
-    "{} file(s) carry {version}",
     "{} generated file(s) match the catalog",
     "{files} generated file(s), {written} rewritten",
     "{} manifest(s), each one this workspace's",
@@ -11285,6 +11667,29 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 607] = [
     "`sqlx` writes the key as it is into `PRAGMA {key} = {value}`, so a key built by a macro, read from the build's environment or a file, or holding a statement of its own, sets what no reader of this source can see; write the pragma's name as one literal",
     "`CREATE VIRTUAL TABLE` is in a migration",
     "its rows live in shadow tables SQLite creates and names itself, so no `CREATE` for them is in this file and no `[tables.*]` entry can bound them (§15.8), and the pruner refuses a virtual table outright. Keep the data in an ordinary table, which an entry can bound and the pruner can delete from",
+    // The history step: its remedies, its clean line, the places a finding
+    // names, the step's heading, the reason a path is listed above the size
+    // limit, and what git is asked.
+    ", and so are the pull request's title and body",
+    "--batch-check=%(objectname) %(objecttype) %(objectsize)",
+    "A binary or a build output is a release asset and never a commit (`NOCTUA.md §17.8`): take it out of the commits before they reach a branch others share. Source that has to be this large gets a line in `ABOVE_THE_LIMIT` in `xtask/src/history.rs`, with its reason",
+    "A file that outgrew its line is split, or its line is raised with the reason it needs the room. Either way, a blob already in a shared branch's history stays there: history is never rewritten",
+    "Edit the pull request: what it says becomes the merge commit's message",
+    "Reword the commit before it reaches a branch others share",
+    "Reword the commit before it reaches a branch others share (`git commit --amend`, or `git rebase -i` and `reword`); a shared branch's history is never rewritten",
+    "Write the message again in UTF-8, before the commit reaches a branch others share; a shared branch's history is never rewritten",
+    "a `{key}:` trailer naming an agent or a bot",
+    "a line saying it was {made} {by} an agent",
+    "a link to {site}, an agent's site",
+    "hand-written source, and neither a binary nor a build output: the gate's steps and the tests that hold each of them. A pack stores each version of it as a delta of another, so a clone pays for what a commit changed in it rather than for its size",
+    "history",
+    "the pull request's body",
+    "the pull request's head and base",
+    "the pull request's title",
+    "the robot emoji",
+    "{EDIT}, and its title is the subject the history keeps",
+    "{fix}. Nothing written here credits an agent (`NOCTUA.md §2.6`): the author of a change is the person who asked for it",
+    "{} commit(s) reachable from {}, each with a conventional subject and no agent credit{}; {} blob(s), none above {} byte(s) but the {} at a path listed for it",
 ];
 
 /// Every string literal in `code`, with the byte offset of its contents.
@@ -12441,13 +12846,14 @@ fn the_hatches(root: &Path, failures: &mut Vec<String>) {
 /// steps and are not here; `finish` filters to this list rather than comparing
 /// everything printed, so a heading added *outside* `run` does not fail the
 /// gate for existing.
-const STEPS: [&str; 10] = [
+const STEPS: [&str; 11] = [
     "wiring",
     "generated output",
     "policy",
     "record limits",
     "the log's type wall",
     "CI",
+    "history",
     "references",
     "plugins",
     "database",
@@ -14437,7 +14843,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
             "Command::Check { offline } => check::run(&root, offline),",
             "Command::Dev { down } => dev::run(&root, down),",
             "Command::Docs => docs::run(&root),",
-            "Command::Release { version, dry_run } => release::run(&root, &version, dry_run),",
+            "Command::Release { channel, dry_run, publish, } => release::run(&root, channel, dry_run, publish),",
         ];
         let source = std::fs::read_to_string(root().join("xtask/src/main.rs"))
             .expect("this file is readable");
@@ -14451,12 +14857,20 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
             .split_once("\n    };")
             .expect("the dispatch ends")
             .0;
-        let arms: Vec<String> = dispatch
-            .lines()
-            .map(str::trim)
-            .filter(|line| line.starts_with("Command::"))
-            .map(str::to_owned)
-            .collect();
+        // **An arm the formatter wrapped is one arm**, read from its
+        // `Command::` to the `),` that ends it, so a verb whose fields do not
+        // fit on one line is pinned as whole as one that does.
+        let mut arms: Vec<String> = Vec::new();
+        for line in dispatch.lines().map(str::trim) {
+            match arms.last_mut() {
+                Some(arm) if !arm.ends_with("),") => {
+                    arm.push(' ');
+                    arm.push_str(line);
+                }
+                _ if line.starts_with("Command::") => arms.push(line.to_owned()),
+                _ => {}
+            }
+        }
         // **And the declarations those arms read, because the same outcome is
         // one token away there.** Pinning the five arms as text and not the
         // flags feeding them leaves `#[arg(long, default_value_t = true)]` on
@@ -15714,7 +16128,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     fn no_floor_is_handed_a_count_that_cannot_be_zero() {
         // **The floors this file ships, through all three helpers.** A floor
         // added or removed moves this number in the same change.
-        const FLOORS: usize = 27;
+        const FLOORS: usize = 30;
         // **All three helpers.** Reading `inspected_something(` alone lets a
         // floor reached through either of the other two be handed a count
         // arithmetic keeps above zero with the whole suite green. Measured, one
@@ -15858,7 +16272,11 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     /// The two reasons under the image floors are held by `failures.push(` among the console
     /// needles; the subjects below travel by name, which that needle does not
     /// reach. Paired here, so exchanging two moves two rows.
-    const WHAT_A_FLOOR_SAYS: [(&str, &str); 20] = [
+    const WHAT_A_FLOOR_SAYS: [(&str, &str); 23] = [
+        (
+            "BLOBS",
+            "no blob was measured in the history, so nothing checked that one is below the size limit",
+        ),
         (
             "CITATIONS",
             "no citation was read at all, so the reference gate proved nothing about this tree",
@@ -15866,6 +16284,10 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         (
             "COLOURS",
             "manifest(s) the colour gate reached a verdict on",
+        ),
+        (
+            "COMMITS",
+            "no commit was read from the history, so nothing checked that a subject is conventional",
         ),
         (
             "DOCUMENTS",
@@ -15903,6 +16325,10 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         ),
         ("MEMBERS", "the workspace members"),
         ("MIGRATIONS", "the migrations directory"),
+        (
+            "PINS",
+            "no action was read from CI's files, so nothing checked that each is pinned to a commit",
+        ),
         (
             "SECTIONS",
             "no section citation was read at all, so nothing checked that a `§` names a real section",
@@ -18324,7 +18750,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 147] = [
+    const DOCUMENTED: [(&str, usize, usize); 148] = [
         ("nc-authz/directory.rs", 28, 13),
         ("nc-authz/embedded.rs", 12, 4),
         ("nc-authz/lib.rs", 30, 19),
@@ -18451,23 +18877,24 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 642, 56),
+        ("xtask/check.rs", 650, 56),
         ("xtask/corpus.rs", 44, 25),
-        ("xtask/counts.rs", 44, 29),
+        ("xtask/counts.rs", 45, 29),
         ("xtask/database.rs", 29, 6),
         ("xtask/determinism.rs", 29, 11),
         ("xtask/dev.rs", 60, 8),
         ("xtask/docs.rs", 8, 1),
         ("xtask/every_generated_value_is_compared.rs", 30, 8),
         ("xtask/gates.rs", 219, 33),
+        ("xtask/history.rs", 109, 3),
         ("xtask/limits.rs", 176, 59),
         ("xtask/local.rs", 79, 8),
-        ("xtask/main.rs", 3, 24),
+        ("xtask/main.rs", 3, 25),
         ("xtask/members.rs", 35, 7),
         ("xtask/plugins.rs", 25, 5),
         ("xtask/policy.rs", 57, 5),
         ("xtask/references.rs", 54, 26),
-        ("xtask/release.rs", 41, 12),
+        ("xtask/release.rs", 218, 14),
         ("xtask/sections.rs", 38, 10),
         ("xtask/store.rs", 29, 4),
         ("xtask/the_pages_reach_the_catalog.rs", 37, 20),
@@ -18475,7 +18902,7 @@ mod the_frozen_path_rule {
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 30, 6),
         ("xtask/ui.rs", 52, 12),
         ("xtask/wall.rs", 129, 28),
-        ("xtask/workflow.rs", 133, 23),
+        ("xtask/workflow.rs", 264, 23),
     ];
 
     /// The name an item declaration introduces, for the message below.
@@ -21249,8 +21676,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 537 scratches this tree
-    /// builds, 447 of the 537 are removed however the test leaves and 90 are
+    /// directories accumulated in an afternoon. Of the 547 scratches this tree
+    /// builds, 459 of the 547 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -21297,13 +21724,13 @@ mod the_frozen_path_rule {
     /// **`crates/nc-catalog-compiler/src/ledger.rs`'s `scratch` leaks on the
     /// failing path only.** It removes only at the top — but all fourteen of
     /// its callers remove at their own foot, so it leaks on the failing path
-    /// like the other eighty-nine and not on every run. Measured: its whole
+    /// like the other eighty-seven and not on every run. Measured: its whole
     /// suite passing creates nothing; one flipped assertion creates exactly one
     /// directory. Judging it from the helper's shape without reading its
     /// callers is the same mistake as reading a count without reading what it
     /// counts.
     ///
-    /// It is the one of the ninety that cannot be converted in place:
+    /// It is the one of the eighty-eight that cannot be converted in place:
     /// `LeavesNothingBehind` lives in `xtask`, which the compiler crate does
     /// not depend on and must not, and this file argues against a fifth
     /// hand-written copy of the same four lines. What closes it is one guard
@@ -21311,12 +21738,12 @@ mod the_frozen_path_rule {
     /// the tests that want it.
     ///
     /// The count and not the list, for the reason [`OPENS_AN_ITEM`] gives:
-    /// naming all 90 is a list nobody reads, and 90 tests would have to grow a
+    /// naming all 88 is a list nobody reads, and 88 tests would have to grow a
     /// guard for the gap to close. Two numbers per file is what makes a swap
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 33] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 34] = [
         ("nc-catalog-compiler/ledger.rs", 1, 0),
         ("nc-catalog-compiler/the_gates_fire.rs", 149, 149),
         (
@@ -21344,16 +21771,17 @@ mod the_frozen_path_rule {
         ("xtask/docs.rs", 2, 2),
         ("xtask/every_generated_value_is_compared.rs", 1, 0),
         ("xtask/gates.rs", 17, 9),
+        ("xtask/history.rs", 1, 1),
         ("xtask/limits.rs", 26, 13),
         ("xtask/local.rs", 4, 4),
         ("xtask/members.rs", 1, 0),
         ("xtask/policy.rs", 5, 2),
         ("xtask/references.rs", 4, 1),
-        ("xtask/release.rs", 6, 0),
+        ("xtask/release.rs", 8, 4),
         ("xtask/sections.rs", 9, 1),
         ("xtask/ui.rs", 1, 0),
         ("xtask/wall.rs", 3, 2),
-        ("xtask/workflow.rs", 24, 6),
+        ("xtask/workflow.rs", 31, 13),
     ];
 
     /// Where every function in a blanked file begins and ends, in char offsets.
@@ -21927,7 +22355,7 @@ mod the_frozen_path_rule {
     /// is the one thing it exists for, which is point at the site. Measured by
     /// renaming the leaking test and watching such a list stand still.
     #[cfg(test)]
-    const THE_SCRATCHES_WITH_NO_GUARD: [(&str, &str); 90] = [
+    const THE_SCRATCHES_WITH_NO_GUARD: [(&str, &str); 88] = [
         ("nc-catalog-compiler/ledger.rs", "scratch"),
         (
             "xtask/check.rs",
@@ -22122,8 +22550,6 @@ mod the_frozen_path_rule {
             "xtask/references.rs",
             "excusing_a_citation_does_not_lower_the_number_that_proves_coverage",
         ),
-        ("xtask/release.rs", "a_dry_run_writes_nothing"),
-        ("xtask/release.rs", "a_failed_relock_puts_the_version_back"),
         (
             "xtask/release.rs",
             "a_listed_file_that_lost_its_version_stops_the_release",
@@ -24218,7 +24644,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14194;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15034;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24237,7 +24663,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2720;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3047;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -24254,7 +24680,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 885;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1000;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -24288,7 +24714,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 19895;
+    const THE_REARRANGEMENTS_JUDGED: usize = 21153;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24306,7 +24732,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 424;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 442;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -24342,7 +24768,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **424 of 19,895 are accepted by the first-line
+    /// rules the gates apply: **442 of 21,153 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -24375,7 +24801,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **885 of
+    /// this tree offers, **1000 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -26565,7 +26991,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 607;
+    const THE_REST_IT_SAYS: usize = 712;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -26713,7 +27139,7 @@ mod the_frozen_path_rule {
     /// verdicts that agree for that long are one row, and — because a prefix
     /// matches nothing the two censuses hold — every row is a shipped literal
     /// accounted for nowhere. Written out, each row is its own accounting.
-    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 465] = [
+    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 484] = [
         ("—", "compiled catalog/"),
         (
             "—",
@@ -27437,6 +27863,28 @@ mod the_frozen_path_rule {
         ),
         ("Err(problem) =>", "the workflow gate"),
         (
+            "if let Err(problem) = inspected_something(pinned, PINS)",
+            "the workflows' bounds read no action",
+        ),
+        ("—", "history"),
+        (
+            "Ok(crate::history::History::NoRepository) =>",
+            "skipped: this tree has no .git of its own, so it has no history to judge",
+        ),
+        (
+            "Ok(crate::history::History::NoRepository) =>",
+            "a tarball carries none; a clone does, and CI checks out every commit of it",
+        ),
+        (
+            "if let Err(problem) = inspected_something(judged.commits, COMMITS)",
+            "the history step read no commit",
+        ),
+        (
+            "if let Err(problem) = inspected_something(judged.blobs, BLOBS)",
+            "the history step measured no blob",
+        ),
+        ("Err(problem) =>", "the history could not be read"),
+        (
             "if let Err(problem) = inspected_something(read, SECTIONS)",
             "the section gate found nothing",
         ),
@@ -28057,24 +28505,63 @@ mod the_frozen_path_rule {
             "--dry-run: the gate is not run and nothing is written",
         ),
         ("else", "running the gate before anything is written"),
-        ("—", "{name}: {from} → {version}"),
         (
-            "if dry_run",
-            "nothing was written; {version} is what it would be",
+            "let Some(numbers) = the_next_numbers(last.map(|tag| tag.version), manifest, &since) else",
+            "nothing to release: none of the {} commit(s) since {} is a feat, a fix, a perf or a breaking change",
         ),
+        ("—", "{} releases {}: {}"),
+        (
+            "(Mode::DryRun, _) =>",
+            "nothing was written; {} is what it would be",
+        ),
+        (
+            "(Mode::Write | Mode::Publish, _) =>",
+            "without --publish nothing leaves this machine. CI's release job publishes: the release commit, the tag, the GitHub release and the pull request that carries it back",
+        ),
+        (
+            "—",
+            "HEAD is the release commit of {}, so the release is carried on and not made again",
+        ),
+        (
+            "(Mode::DryRun, _) =>",
+            "nothing was written; {} is carried on from HEAD",
+        ),
+        (
+            "(Mode::Write | Mode::Publish, _) =>",
+            "nothing to write: HEAD already carries the release",
+        ),
+        ("—", "its notes, which are its section of the changelog:"),
+        (
+            "—",
+            "{} asset(s), within GitHub's limits for one release: {MOST_ASSETS} at most, each under {} GiB ({GITHUBS_LIMITS})",
+        ),
+        ("—", "{name}: {size} byte(s)"),
         (
             "—",
             "rewriting Cargo.lock. If this is interrupted, the manifest and the lockfile disagree and every `cargo xtask` verb refuses — the alias passes `--locked`. `cargo update --workspace` puts the lockfile back",
         ),
-        ("—", "Cargo.lock rebuilt"),
         (
             "—",
-            "this repository has no git (§5.3), so there is nothing to commit or tag.",
+            "Cargo.lock rebuilt, and every file read back as written",
         ),
-        ("—", "when it has one, the release ends with:"),
-        ("—", "    git commit -S -am \"release: {version}\""),
-        ("—", "    git tag -s v{version} -m \"v{version}\""),
-        ("—", "    git push --follow-tags"),
+        (
+            "if made == 0",
+            "already released: {tag} is tagged, released, and carried back to {}",
+        ),
+        (
+            "if let Some(carried) = &carried",
+            "{tag} is released, and pull request #{} carries it back to {}",
+        ),
+        ("else", "{tag} is released, and {} holds it already"),
+        ("—", "the release commit {} is on {}, over {}"),
+        ("—", "tagged {} at {}"),
+        ("—", "released {tag} on GitHub"),
+        ("—", "pull request #{} carries {} back to {}"),
+        ("—", "auto-merge is on for #{}, by merge commit"),
+        (
+            "—",
+            "#{} is merged, by merge commit: its checks had passed already",
+        ),
     ];
 
     /// A quote inside a char literal does not open a string.
@@ -28138,7 +28625,7 @@ mod the_frozen_path_rule {
     /// record byte-identical — the same swap the census beside this one is
     /// written in pairs to catch, one level in. The condition is computed for
     /// every site either way, so it is kept.
-    const THE_CONSOLE_SITES_THIS_CANNOT_READ: [(&str, &str); 110] = [
+    const THE_CONSOLE_SITES_THIS_CANNOT_READ: [(&str, &str); 115] = [
         ("—", "&what_a_run_wrote(compiled.files.len("),
         (
             "if let Some(reserved) = reserved",
@@ -28280,6 +28767,19 @@ mod the_frozen_path_rule {
         ),
         ("Err(problem) =>", "&problem"),
         (
+            "if let Err(problem) = inspected_something(pinned, PINS)",
+            "&problem",
+        ),
+        (
+            "if let Err(problem) = inspected_something(judged.commits, COMMITS)",
+            "&problem",
+        ),
+        (
+            "if let Err(problem) = inspected_something(judged.blobs, BLOBS)",
+            "&problem",
+        ),
+        ("Err(problem) =>", "&problem"),
+        (
             "if let Err(problem) = inspected_something(read, SECTIONS)",
             "&problem",
         ),
@@ -28342,6 +28842,7 @@ mod the_frozen_path_rule {
         ("—", "problem"),
         ("—", "&problem.fix"),
         ("—", "line"),
+        ("else", "line"),
         (
             "—",
             "// **What was written, not what was listed.** This printed",
@@ -28411,7 +28912,7 @@ mod the_frozen_path_rule {
             "not_applicable",
         ];
         /// The sources under `xtask/src`, so a walk that reached none fails.
-        const THE_SOURCES: usize = 22;
+        const THE_SOURCES: usize = 23;
 
         let here = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
         let mut imported: Vec<String> = Vec::new();
@@ -28762,7 +29263,7 @@ mod the_frozen_path_rule {
     /// Seven words of each remedy, because a remedy is long and its opening is
     /// what tells one from another; the rule beside the list is that those
     /// seven are unique.
-    const WHAT_A_REMEDY_ANSWERS: [(&str, &str, &str); 105] = [
+    const WHAT_A_REMEDY_ANSWERS: [(&str, &str, &str); 147] = [
         (
             "counts.rs",
             "this document has an odd number of",
@@ -28949,6 +29450,46 @@ mod the_frozen_path_rule {
             "a filter between the counter at the",
         ),
         (
+            "history.rs",
+            "the title {} is not a conventional",
+            "{EDIT}, and its title is the subject",
+        ),
+        (
+            "history.rs",
+            "this line credits an agent: {how}",
+            "{fix}. Nothing written here credits an agent",
+        ),
+        (
+            "history.rs",
+            "its message is declared as {}, and",
+            "Write the message again in UTF-8, before",
+        ),
+        (
+            "history.rs",
+            "its message is not UTF-8, so nothing",
+            "Write the message again in UTF-8, before",
+        ),
+        (
+            "history.rs",
+            "the subject {} is not a conventional",
+            "— handed in, not written at this site",
+        ),
+        (
+            "history.rs",
+            "the line after the subject is not",
+            "— handed in, not written at this site",
+        ),
+        (
+            "history.rs",
+            "a blob of {size} byte(s) at {at},",
+            "A file that outgrew its line is",
+        ),
+        (
+            "history.rs",
+            "a blob of {size} byte(s) at {at},",
+            "A binary or a build output is",
+        ),
+        (
             "limits.rs",
             "— handed in, not written at this site",
             "— handed in, not written at this site",
@@ -29130,6 +29671,166 @@ mod the_frozen_path_rule {
         ),
         (
             "workflow.rs",
+            "`{file}` could not be read: {error}",
+            "a workflow this gate cannot read is",
+        ),
+        (
+            "workflow.rs",
+            "`{relative}` ends a line at {named}, which",
+            "every rule on CI's files reads a",
+        ),
+        (
+            "workflow.rs",
+            "`{relative}` holds U+{:04X}, a space to every",
+            "every rule on CI's files trims and",
+        ),
+        (
+            "workflow.rs",
+            "`{WORKFLOWS}/` could not be walked: {error}",
+            "what sits there is what GitHub runs,",
+        ),
+        (
+            "workflow.rs",
+            "`{file}` sits under `{WORKFLOWS}/`, which holds `{WORKFLOW}`",
+            "a workflow there is one GitHub runs",
+        ),
+        (
+            "workflow.rs",
+            "`{RELEASE_WORKFLOW}` is missing",
+            "a push to `staging` or `main` is",
+        ),
+        (
+            "workflow.rs",
+            "`{file}` opens with `permissions: {value}`",
+            "every job without a `permissions:` of its",
+        ),
+        (
+            "workflow.rs",
+            "a job in `{file}` asks for `{grant}`,",
+            "the gate writes nothing on GitHub, and",
+        ),
+        (
+            "workflow.rs",
+            "`{file}` does not open with `permissions: {{}}`",
+            "a workflow with nothing at its top",
+        ),
+        (
+            "workflow.rs",
+            "`{file}` runs on `{event}`",
+            "it runs with this repository's secrets and",
+        ),
+        (
+            "workflow.rs",
+            "what CI reaches could not be walked:",
+            "every action a step uses is judged",
+        ),
+        (
+            "workflow.rs",
+            "`{relative}` uses an action this gate cannot",
+            "the pins and the actions CI may",
+        ),
+        (
+            "workflow.rs",
+            "`uses: {used}` is not pinned to a",
+            "a tag or a branch is a",
+        ),
+        (
+            "workflow.rs",
+            "`uses: {used}` is pinned with no release",
+            "the commit says what runs and not",
+        ),
+        (
+            "workflow.rs",
+            "`{relative}` {what}, which the release workflow alone",
+            "the rules that hold the release read",
+        ),
+        (
+            "workflow.rs",
+            "`{relative}` writes a key {how}",
+            "every rule on a workflow reads a",
+        ),
+        (
+            "workflow.rs",
+            "`{relative}` leaves {what} open past its line",
+            "inside `{` or `[` YAML lets an",
+        ),
+        (
+            "workflow.rs",
+            "`{relative}` holds a `#` every reader here",
+            "YAML opens a quoted scalar only where",
+        ),
+        (
+            "workflow.rs",
+            "{whose} holds `{key}:`, and it holds {allowed:?}",
+            "every key there is one a rule",
+        ),
+        (
+            "workflow.rs",
+            "the release workflow does not say, as",
+            "— handed in, not written at this site",
+        ),
+        (
+            "workflow.rs",
+            "the release fires on `{}`",
+            "— handed in, not written at this site",
+        ),
+        (
+            "workflow.rs",
+            "the release does not fire on a",
+            "— handed in, not written at this site",
+        ),
+        (
+            "workflow.rs",
+            "the release's push is filtered by `{filter}`",
+            "— handed in, not written at this site",
+        ),
+        (
+            "workflow.rs",
+            "the release fires on a push to",
+            "— handed in, not written at this site",
+        ),
+        (
+            "workflow.rs",
+            "the release workflow holds the job `{job}`",
+            "every job in it runs on the",
+        ),
+        (
+            "workflow.rs",
+            "the release workflow has no `release` job",
+            "the job is what makes the release,",
+        ),
+        (
+            "workflow.rs",
+            "the release job enters {}, and it",
+            "the environment holds the App's id and",
+        ),
+        (
+            "workflow.rs",
+            "the release job runs on `{runner}`, which",
+            "the release runs the gate first, and",
+        ),
+        (
+            "workflow.rs",
+            "the release restores a cache, through `{name}`",
+            "a cache holds what an earlier run",
+        ),
+        (
+            "workflow.rs",
+            "the release job's step {} is {},",
+            "the job holds the App's token, so",
+        ),
+        (
+            "workflow.rs",
+            "the release job's step {} holds {},",
+            "an input is part of what an",
+        ),
+        (
+            "workflow.rs",
+            "the release workflow evaluates `{written}`, which is",
+            "GitHub evaluates an expression before anything runs,",
+        ),
+        (
+            "workflow.rs",
             "a cargo configuration above this repository decides",
             "cargo merges every `.cargo/config.toml` from the working",
         ),
@@ -29195,6 +29896,11 @@ mod the_frozen_path_rule {
         ),
         (
             "workflow.rs",
+            "`{relative}` names `{yaml}`, a file GitHub reads",
+            "the readers here read a file GitHub",
+        ),
+        (
+            "workflow.rs",
             "the stack declares {} image(s), and this",
             "the comparison below is between what `docker-compose.yml`",
         ),
@@ -29252,6 +29958,11 @@ mod the_frozen_path_rule {
             "workflow.rs",
             "a step's commands are inside `{word}`, so",
             "a check CI runs has to run.",
+        ),
+        (
+            "workflow.rs",
+            "— handed in, not written at this site",
+            "— handed in, not written at this site",
         ),
         (
             "workflow.rs",
@@ -30882,6 +31593,17 @@ mod the_frozen_path_rule {
         "rustfmt.toml",
     ];
 
+    /// What may sit at the top of the repository because the release writes
+    /// it, and is there only once a release has: the changelog.
+    ///
+    /// **Its own list, because the rule below holds each name in
+    /// [`WHAT_MAY_SIT_AT_THE_ROOT`] to a file that is there**, and the
+    /// changelog is not until the first release commit writes it — on a
+    /// feature branch cut before one, it is absent with nothing wrong. Named
+    /// through the release's own constant, so the file admitted is the file
+    /// written.
+    const WRITTEN_BY_THE_RELEASE: [&str; 1] = [crate::release::CHANGELOG];
+
     /// What may sit directly in `catalog/`, by name.
     ///
     /// **The seventh stray of the seven measured beside
@@ -30962,13 +31684,15 @@ mod the_frozen_path_rule {
     /// The both-directions assertions below keep each row honest: a kind pinned
     /// to a name must be a kind its tree is allowed to hold at all, and the name
     /// must be a file of that kind.
-    const ONLY_UNDER_THIS_NAME: [(&str, &str, &str); 12] = [
+    const ONLY_UNDER_THIS_NAME: [(&str, &str, &str); 13] = [
         // The `cargo xtask` alias, and nothing else. The file cargo reads a
         // registry token from is a `.toml` in this very directory, which is
         // what makes the extension's allowance here an allowance for one name.
         (".cargo", "toml", "config.toml"),
-        // The one workflow. A second `.yml` here is a job CI runs.
-        (".github", "yml", "ci.yml"),
+        // The two workflows, the gate's and the release's, each by its path. A
+        // third `.yml` here is a workflow GitHub runs.
+        (".github", "yml", ".github/workflows/ci.yml"),
+        (".github", "yml", ".github/workflows/release.yml"),
         // Every `.toml` under `crates/` is a member's own manifest, at the
         // member's own root.
         ("crates", "toml", "Cargo.toml"),
@@ -31279,7 +32003,8 @@ mod the_frozen_path_rule {
                 continue;
             }
             assert!(
-                WHAT_MAY_SIT_AT_THE_ROOT.contains(&name.as_str()),
+                WHAT_MAY_SIT_AT_THE_ROOT.contains(&name.as_str())
+                    || WRITTEN_BY_THE_RELEASE.contains(&name.as_str()),
                 "`{name}` sits at the top of this repository and is named by nothing. \
                  The root is where a file with no extension is invisible to every kind \
                  rule above: a scratch note, an editor backup and a private key all \
@@ -31389,7 +32114,7 @@ mod every_report_wire {
     /// Some are held outside this module, by the tests named against them: the
     /// unbounded-table wire by the shape this one is written after, and the
     /// rest by steps that already build a tree of their own.
-    const EVERY_WIRE: [(&str, &str); 20] = [
+    const EVERY_WIRE: [(&str, &str); 22] = [
         ("image pins", "the_image_pin_finding_reaches_its_call_site"),
         (
             ".env files",
@@ -31445,6 +32170,11 @@ mod every_report_wire {
             "the CI workflow",
             "the_ci_workflow_finding_reaches_its_call_site",
         ),
+        (
+            "the workflows' bounds",
+            "the_workflow_bounds_finding_reaches_its_call_site",
+        ),
+        ("the history", "the_history_finding_reaches_its_call_site"),
         (
             "section citations",
             "the_section_citation_finding_reaches_its_call_site",
@@ -31934,6 +32664,56 @@ mod every_report_wire {
         let mut failures = Vec::new();
         super::ci(&held.root, &mut failures);
         reported(&failures, "the CI workflow");
+    }
+
+    /// An action named by a tag, which its owner can move under the workflow.
+    #[test]
+    fn the_workflow_bounds_finding_reaches_its_call_site() {
+        let held = a_tree(
+            "bounds",
+            &[(
+                ".github/workflows/ci.yml",
+                "permissions: {}\njobs:\n  linux:\n    steps:\n      - uses: actions/checkout@v4 # v4\n",
+            )],
+        );
+        let mut failures = Vec::new();
+        super::ci(&held.root, &mut failures);
+        reported(&failures, "the workflows' bounds");
+    }
+
+    /// A commit whose subject is not a conventional one, in a repository the
+    /// test makes.
+    #[test]
+    fn the_history_finding_reaches_its_call_site() {
+        let repository = crate::history::ARepository::new("wire");
+        repository.commit("Not a conventional subject", &[("a.txt", &b"a\n"[..])]);
+        let mut failures = Vec::new();
+        super::history(&repository.root(), None, None, &mut failures);
+        reported(&failures, "the history");
+    }
+
+    /// A tree with no `.git`, as a tarball is: the step announces a skip by
+    /// name and fails nothing.
+    #[test]
+    fn a_tree_with_no_history_is_a_skip_and_not_a_failure() {
+        let held = a_tree("history-tarball", &[("a.txt", "a\n")]);
+        let _printing = crate::ui::printing();
+        let reason = "this tree has no .git";
+        let before = crate::ui::skips_because(reason);
+        let mut failures = Vec::new();
+        super::history(&held.root, None, None, &mut failures);
+        assert!(
+            failures.is_empty(),
+            "a tree with no history failed the step: {failures:?}"
+        );
+        assert_eq!(
+            crate::ui::skips_because(reason),
+            before + 1,
+            "a tree with no history was not announced as a skip"
+        );
+        // Left behind, the skip is one more than any later test asks
+        // `finish` for.
+        crate::ui::forget_counts();
     }
 
     /// A member that does not take the workspace lints, and a file that puts
@@ -34852,7 +35632,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 161,
+            walked, 162,
             "{walked} Rust source(s) were walked, and this tree holds 119. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -34892,7 +35672,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1422] = [
+    static OPERATORS: [(&str, &str, &str); 1664] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -35071,6 +35851,414 @@ Options:
             "written_as_the_reader_reads_it",
             "the rewrite keeps the file's own quotes",
         ),
+        ("release", "bump_of", "a perf is a patch"),
+        (
+            "release",
+            "bumped",
+            "a major is a minor while the major is 0",
+        ),
+        (
+            "release",
+            "on_the_channel",
+            "a candidate is one past the highest that exists",
+        ),
+        (
+            "release",
+            "the_channel_above_is_merged",
+            "staging waits for main's latest release",
+        ),
+        (
+            "release",
+            "goes_forward",
+            "a release behind the manifest's numbers is refused",
+        ),
+        (
+            "release",
+            "the_points",
+            "a candidate below the last release folds into it",
+        ),
+        (
+            "release",
+            "the_part_of",
+            "a breaking change is listed as changed",
+        ),
+        (
+            "release",
+            "the_breaking_note",
+            "the footer is read with a hyphen too",
+        ),
+        (
+            "release",
+            "a_release_commit_of",
+            "a merge is not a release commit",
+        ),
+        (
+            "release",
+            "carried_on",
+            "a release commit's changelog is the history's",
+        ),
+        (
+            "release",
+            "what_github_holds_is_this_releases",
+            "a tag is never moved",
+        ),
+        (
+            "release",
+            "what_github_holds",
+            "an open pull request carries the release whatever its title",
+        ),
+        (
+            "release",
+            "of",
+            "gh is handed none of its own variables but the token",
+        ),
+        (
+            "release",
+            "carried_on",
+            "a release commit carries its own version",
+        ),
+        (
+            "release",
+            "the_tree_is_clean",
+            "a tree holding what no commit has is not released",
+        ),
+        (
+            "release",
+            "from_this_repository",
+            "a fork's pull request never carries a release",
+        ),
+        (
+            "release",
+            "from_this_repository",
+            "this repository's own pull request has its head here",
+        ),
+        (
+            "release",
+            "published",
+            "a pull request whose checks have passed is merged, not queued",
+        ),
+        (
+            "release",
+            "released",
+            "what GitHub holds is judged before the release is written",
+        ),
+        (
+            "release",
+            "what_github_holds_is_this_releases",
+            "a version GitHub holds is not made again",
+        ),
+        (
+            "release",
+            "what_github_holds_is_this_releases",
+            "a pull request closed without merging stops the release",
+        ),
+        (
+            "release",
+            "once_the_branch_moved",
+            "a pull request whose head this run moved is queued, never merged now",
+        ),
+        (
+            "release",
+            "once_the_branch_moved",
+            "a pull request merged before the release commit does not carry it",
+        ),
+        (
+            "release",
+            "a_carried_back",
+            "a pull request passing with hooks or beside checks no rule requires is merged now",
+        ),
+        (
+            "release",
+            "auto_merged",
+            "auto-merge is on by merge commit, or refused",
+        ),
+        (
+            "release",
+            "merged_now",
+            "a merge GitHub does not say happened is refused",
+        ),
+        ("release", "run_at", "the gate runs in a child of its own"),
+        (
+            "release",
+            "the_gate",
+            "a gate that refused stops the release",
+        ),
+        ("release", "run_at", "the verb hands back a gate's refusal"),
+        (
+            "release",
+            "run",
+            "the verb hands back what the release refused",
+        ),
+        (
+            "release",
+            "without_ghs_own",
+            "no child but gh is handed gh's variables",
+        ),
+        (
+            "release",
+            "a_gate",
+            "the gate is handed nothing this process holds that its list leaves out",
+        ),
+        (
+            "release",
+            "relock",
+            "the relock is handed none of gh's variables",
+        ),
+        (
+            "release",
+            "carried_on",
+            "the branch below is asked about a release no pull request carries",
+        ),
+        (
+            "release",
+            "published",
+            "a release the branch below holds is not carried back again",
+        ),
+        (
+            "release",
+            "held_below",
+            "a branch below gone on past the release commit holds it",
+        ),
+        (
+            "release",
+            "held_below",
+            "a branch below that moved on since does not hold the release",
+        ),
+        (
+            "release",
+            "a_carried_back",
+            "a pull request's node is its node_id where its id is a number",
+        ),
+        (
+            "release",
+            "the_github_release",
+            "a production release is not a pre-release",
+        ),
+        (
+            "release",
+            "the_github_release",
+            "a production release is the latest",
+        ),
+        (
+            "release",
+            "below",
+            "a production release is carried back to staging",
+        ),
+        (
+            "release",
+            "rewrite_listed",
+            "a refused rewrite puts back every file it read",
+        ),
+        (
+            "release",
+            "rewrite_each",
+            "every file a rewrite reads is one its refusal puts back",
+        ),
+        (
+            "release",
+            "written",
+            "a changelog that cannot be read is not taken as absent",
+        ),
+        (
+            "release",
+            "written",
+            "a release refused after the version is written puts back what it wrote",
+        ),
+        (
+            "release",
+            "put_back",
+            "a refused release puts the listed manifests back",
+        ),
+        (
+            "release",
+            "put_back",
+            "a refused release puts the lockfile back",
+        ),
+        (
+            "release",
+            "put_back",
+            "a refused release puts the changelog back",
+        ),
+        (
+            "release",
+            "put_the_changelog_back",
+            "a changelog the release found is put back as it was",
+        ),
+        (
+            "release",
+            "put_the_changelog_back",
+            "a changelog the tree had none of is removed",
+        ),
+        (
+            "release",
+            "put_the_changelog_back",
+            "a changelog never created is no failure to put it back",
+        ),
+        (
+            "history",
+            "subject",
+            "a subject opens with one of the types",
+        ),
+        (
+            "history",
+            "subject",
+            "a description does not end with a period",
+        ),
+        (
+            "history",
+            "subject",
+            "a character nobody sees is refused, not only a control",
+        ),
+        ("history", "in_a_scope", "a scope holds no space"),
+        (
+            "history",
+            "without_the_pull_request",
+            "only digits are GitHub's number",
+        ),
+        (
+            "history",
+            "without_the_pull_request",
+            "and an empty one is not",
+        ),
+        ("history", "names_an_agent", "a bot is named by its bracket"),
+        ("history", "a_trailer", "a trailer ending `-with` is one"),
+        (
+            "history",
+            "a_linked_site",
+            "a link written without its scheme is read",
+        ),
+        (
+            "history",
+            "judge_a_commit",
+            "the line after the subject is blank",
+        ),
+        ("history", "not_shallow", "a shallow clone is refused"),
+        (
+            "history",
+            "the_objects",
+            "an answer longer than the question is refused",
+        ),
+        ("history", "the_blobs", "a blob above the limit is judged"),
+        (
+            "history",
+            "judge_the_places",
+            "a listed path is held to its ceiling",
+        ),
+        ("history", "the_blobs", "every object named is measured"),
+        (
+            "history",
+            "names_an_agent",
+            "an address under an agent's site names it",
+        ),
+        (
+            "history",
+            "names_an_agent",
+            "an address at an agent vendor's domain names it",
+        ),
+        (
+            "history",
+            "an_agent_opens",
+            "an article may stand before the agent's name",
+        ),
+        (
+            "history",
+            "an_agent_opens",
+            "the agent is named right after the words, not later",
+        ),
+        (
+            "history",
+            "an_agent_opens",
+            "a maker's name may stand before its agent's",
+        ),
+        (
+            "history",
+            "an_agent",
+            "a name that is an ordinary word is not read in prose in lower case",
+        ),
+        (
+            "history",
+            "an_agent",
+            "a name that is an ordinary word is read in prose written as a name",
+        ),
+        (
+            "history",
+            "a_trailer",
+            "spaces and a tab before a trailer's colon are its key's",
+        ),
+        (
+            "history",
+            "a_credit",
+            "a trailer's value folded onto the lines below is read",
+        ),
+        (
+            "history",
+            "judge_a_commit",
+            "a message declared in another encoding is refused",
+        ),
+        (
+            "history",
+            "judge_a_commit",
+            "a message that is not UTF-8 is refused",
+        ),
+        ("history", "measure_the_blobs", "a partial clone is refused"),
+        (
+            "history",
+            "measure_the_blobs",
+            "a root commit's paths are read",
+        ),
+        (
+            "history",
+            "measure_the_blobs",
+            "a merge's own paths are read",
+        ),
+        ("history", "placed", "a blob no commit places is refused"),
+        (
+            "history",
+            "judge_the_places",
+            "a listed path is matched byte for byte",
+        ),
+        (
+            "history",
+            "judge_the_places",
+            "every path a blob sits at is judged",
+        ),
+        (
+            "history",
+            "judge_the_places",
+            "the path a finding names is quoted",
+        ),
+        (
+            "history",
+            "a_git",
+            "a replacement ref shows git no other commit",
+        ),
+        (
+            "history",
+            "a_git",
+            "git is handed the tree's own repository and searches for none",
+        ),
+        ("history", "a_git", "a missing object is never fetched"),
+        (
+            "history",
+            "inheriting",
+            "no variable of git's own reaches it",
+        ),
+        (
+            "history",
+            "inheriting",
+            "a variable of git's own is removed in any case",
+        ),
+        (
+            "history",
+            "inheriting",
+            "no variable of gh's own reaches git",
+        ),
+        (
+            "history",
+            "judged_against",
+            "git's variables are removed from this process's own environment",
+        ),
+        ("history", "not_grafted", "a grafted clone is refused"),
         ("ui", "warn", "a skip is declared at the start of its line"),
         ("ui", "warn", "and the colon is what declares it"),
         ("docs", "already_there", "a page that differs is written"),
@@ -35873,6 +37061,720 @@ Options:
             "workflow",
             "reaches_rustc",
             "a wrapper does not reach the compiler",
+        ),
+        (
+            "workflow",
+            "github_holds_the_workflows",
+            "a file of no workflow may sit under .github",
+        ),
+        (
+            "workflow",
+            "github_holds_the_workflows",
+            "the release workflow may be missing",
+        ),
+        (
+            "workflow",
+            "no_authority_but_reading",
+            "a workflow need not open with no permission",
+        ),
+        (
+            "workflow",
+            "no_authority_but_reading",
+            "a job may ask its token for anything",
+        ),
+        ("workflow", "the_grants", "a flow mapping grants nothing"),
+        (
+            "workflow",
+            "nothing_made_elsewhere_starts_it",
+            "a fork's change may start a workflow",
+        ),
+        (
+            "workflow",
+            "every_action_is_a_commit",
+            "an action named by a tag is pinned",
+        ),
+        (
+            "workflow",
+            "every_action_is_a_commit",
+            "a pin needs no release beside it",
+        ),
+        ("workflow", "is_a_commit", "a short revision is a commit"),
+        ("workflow", "is_a_commit", "any letter is a hex digit"),
+        (
+            "workflow",
+            "the_release_fires_on_a_channel",
+            "any event fires the release",
+        ),
+        (
+            "workflow",
+            "the_release_fires_on_a_channel",
+            "a filter beside the branches is allowed",
+        ),
+        (
+            "workflow",
+            "the_release_fires_on_a_channel",
+            "any branches release",
+        ),
+        (
+            "workflow",
+            "the_release_is_one_job",
+            "a second job may sit beside the release",
+        ),
+        (
+            "workflow",
+            "the_release_is_one_job",
+            "the release may enter any environment",
+        ),
+        (
+            "workflow",
+            "the_release_is_one_job",
+            "the release may run on any system",
+        ),
+        (
+            "workflow",
+            "no_cache_reaches_the_release",
+            "the half that only restores is no cache",
+        ),
+        (
+            "workflow",
+            "the_release_runs_its_steps",
+            "a step more than the list is no difference",
+        ),
+        (
+            "workflow",
+            "the_release_runs_its_steps",
+            "a step's lines are not held",
+        ),
+        (
+            "workflow",
+            "the_release_runs_its_steps",
+            "a line more than a step's is no difference",
+        ),
+        (
+            "workflow",
+            "every_expression_is_where_the_release_needs_it",
+            "an escape hides an expression",
+        ),
+        (
+            "workflow",
+            "every_expression_is_where_the_release_needs_it",
+            "an expression may stand anywhere it is written",
+        ),
+        (
+            "workflow",
+            "the_release_runs_as_written",
+            "the release may evaluate any expression",
+        ),
+        (
+            "workflow",
+            "the_release_runs_as_written",
+            "the release workflow's top may hold any key",
+        ),
+        (
+            "workflow",
+            "the_release_is_one_job",
+            "the release job may hold any key",
+        ),
+        ("workflow", "holds_these_keys_alone", "any key may be held"),
+        (
+            "workflow",
+            "holds_these_keys_alone",
+            "a key may be held twice",
+        ),
+        (
+            "workflow",
+            "every_workflow_is_bounded",
+            "no other file is held to the release's authority",
+        ),
+        (
+            "workflow",
+            "nothing_else_holds_the_releases_authority",
+            "every file is passed over as the release's own",
+        ),
+        (
+            "workflow",
+            "github_runs_it",
+            "a composite action is not GitHub's",
+        ),
+        (
+            "workflow",
+            "github_runs_it",
+            "a file under .github is not GitHub's",
+        ),
+        (
+            "workflow",
+            "the_releases_authority_in",
+            "the token's action may be used anywhere",
+        ),
+        (
+            "workflow",
+            "the_releases_authority_in",
+            "an environment may be entered anywhere",
+        ),
+        (
+            "workflow",
+            "the_releases_authority_in",
+            "a secret is read only in an expression",
+        ),
+        (
+            "workflow",
+            "the_releases_authority_in",
+            "a secret in a comment is no secret",
+        ),
+        (
+            "workflow",
+            "the_releases_authority_in",
+            "a step's output may be read anywhere",
+        ),
+        (
+            "workflow",
+            "the_releases_authority_in",
+            "an expression in a comment is not read",
+        ),
+        (
+            "workflow",
+            "the_releases_authority_in",
+            "a publish spelled in parts is no publish",
+        ),
+        (
+            "workflow",
+            "the_releases_authority_in",
+            "a publish may be written anywhere",
+        ),
+        (
+            "workflow",
+            "the_lines_a_backslash_joins",
+            "a line a backslash continues is two lines",
+        ),
+        (
+            "workflow",
+            "as_yaml_reads_them",
+            "an escape is read as written",
+        ),
+        (
+            "workflow",
+            "the_release_runs_as_written",
+            "a step of the release may run on a condition",
+        ),
+        (
+            "workflow",
+            "every_workflow_is_bounded",
+            "the release workflow is held to nothing",
+        ),
+        (
+            "workflow",
+            "no_authority_but_reading",
+            "an escaped key grants nothing",
+        ),
+        (
+            "workflow",
+            "the_grants",
+            "a quoted grant is not the grant it names",
+        ),
+        (
+            "workflow",
+            "every_action_is_a_commit",
+            "an action it cannot read is passed over",
+        ),
+        (
+            "workflow",
+            "every_action_is_a_commit",
+            "a key across a line break is passed over",
+        ),
+        (
+            "workflow",
+            "the_releases_authority_in",
+            "an explicit key enters no environment",
+        ),
+        (
+            "workflow",
+            "every_workflow_is_bounded",
+            "a key may be written any way YAML allows",
+        ),
+        (
+            "workflow",
+            "a_key_may_open_at",
+            "a key opens only where a line does",
+        ),
+        (
+            "workflow",
+            "a_key_may_open_at",
+            "an anchor or a tag hides the key after it",
+        ),
+        (
+            "workflow",
+            "a_key_may_open_at",
+            "a marker needs no space after it",
+        ),
+        ("workflow", "the_keys_named", "a quoted key is no key"),
+        (
+            "workflow",
+            "the_keys_named",
+            "a key may open anywhere on a line",
+        ),
+        (
+            "workflow",
+            "the_keys_named",
+            "a word glued to its colon is a key",
+        ),
+        (
+            "workflow",
+            "the_entry",
+            "a flow collection runs to the first comma",
+        ),
+        (
+            "workflow",
+            "the_entry",
+            "a value in a flow collection runs to the end of the line",
+        ),
+        (
+            "workflow",
+            "the_keys_not_written_out",
+            "a key may be written anywhere on a line",
+        ),
+        (
+            "workflow",
+            "the_keys_not_written_out",
+            "a key after a question mark is written out",
+        ),
+        ("workflow", "the_keys_not_written_out", "an alias is no key"),
+        ("workflow", "the_keys_not_written_out", "a merge is no key"),
+        (
+            "workflow",
+            "the_lines_left_open",
+            "a flow collection may run over lines",
+        ),
+        (
+            "workflow",
+            "the_block_scalars",
+            "a block scalar's braces are a flow collection",
+        ),
+        (
+            "workflow",
+            "runs_cargo_as_an_action",
+            "an action it cannot read is on the list",
+        ),
+        ("workflow", "the_actions_used", "an escape hides an action"),
+        (
+            "workflow",
+            "the_actions_used",
+            "a value off its line is an action",
+        ),
+        (
+            "workflow",
+            "the_actions_used",
+            "a quoted action keeps its quotes",
+        ),
+        (
+            "workflow",
+            "every_workflow_is_bounded",
+            "a line may end wherever YAML ends one",
+        ),
+        (
+            "workflow",
+            "every_line_ends_at_a_line_feed",
+            "a line holding another break is one line",
+        ),
+        (
+            "workflow",
+            "every_line_ends_at_a_line_feed",
+            "only a file GitHub runs ends its lines",
+        ),
+        (
+            "workflow",
+            "as_yaml_reads_them",
+            "the line after a backslash is read joined alone",
+        ),
+        (
+            "workflow",
+            "the_lines_a_backslash_joins",
+            "a run of backslashes is joined from its first line alone",
+        ),
+        (
+            "workflow",
+            "nothing_made_elsewhere_starts_it",
+            "an escaped event is read as written",
+        ),
+        (
+            "workflow",
+            "nothing_made_elsewhere_starts_it",
+            "an event in capitals is another event",
+        ),
+        (
+            "workflow",
+            "the_property_ending",
+            "a verbatim tag is read as words",
+        ),
+        (
+            "workflow",
+            "the_property_ending",
+            "a verbatim tag may hold a space",
+        ),
+        (
+            "workflow",
+            "the_property_ending",
+            "a verbatim tag may follow any letter",
+        ),
+        (
+            "workflow",
+            "the_lines_left_open",
+            "a quoted scalar may run over lines",
+        ),
+        (
+            "workflow",
+            "the_line_read_as_yaml",
+            "a quote is always a letter",
+        ),
+        (
+            "workflow",
+            "the_line_read_as_yaml",
+            "a quote anywhere opens a scalar",
+        ),
+        (
+            "workflow",
+            "the_line_read_as_yaml",
+            "a doubled single quote closes the scalar",
+        ),
+        (
+            "workflow",
+            "the_line_read_as_yaml",
+            "a backslash's quote closes the scalar",
+        ),
+        (
+            "workflow",
+            "the_line_read_as_yaml",
+            "a # inside a quote opens a comment",
+        ),
+        (
+            "workflow",
+            "a_node_may_open_after",
+            "a value's quote is a letter",
+        ),
+        (
+            "workflow",
+            "a_node_may_open_after",
+            "a value's colon needs no space",
+        ),
+        (
+            "workflow",
+            "a_node_may_open_after",
+            "a property hides the quote after it",
+        ),
+        (
+            "workflow",
+            "no_step_runs_on_a_condition",
+            "an escaped condition is read as written",
+        ),
+        (
+            "workflow",
+            "no_step_runs_on_a_condition",
+            "a condition below its key is none",
+        ),
+        (
+            "workflow",
+            "no_step_runs_on_a_condition",
+            "a condition is read where a line opens on it alone",
+        ),
+        (
+            "workflow",
+            "every_key_is_written_out",
+            "a comment cut too soon is passed",
+        ),
+        (
+            "workflow",
+            "the_comments_cut_too_soon",
+            "a comment cut later is cut too soon",
+        ),
+        (
+            "workflow",
+            "the_comments_cut_too_soon",
+            "no comment is cut too soon",
+        ),
+        (
+            "workflow",
+            "the_line_read_as_yaml",
+            "a comment ends no code",
+        ),
+        (
+            "workflow",
+            "with_the_letters_its_escapes_spell",
+            "an escape that spells a # or a space is resolved",
+        ),
+        (
+            "workflow",
+            "with_the_letters_its_escapes_spell",
+            "no escape is resolved",
+        ),
+        (
+            "workflow",
+            "no_verdict_is_discarded",
+            "a key that neuters a step is read as a needle alone",
+        ),
+        (
+            "workflow",
+            "the_block_scalars",
+            "a block scalar's key stands two columns past its dash",
+        ),
+        (
+            "workflow",
+            "the_lines_of_yaml",
+            "a block's text is read as YAML",
+        ),
+        (
+            "workflow",
+            "the_block_scalars",
+            "a header on a line of its own opens no block",
+        ),
+        (
+            "workflow",
+            "the_block_scalars",
+            "a header on a line of its own opens at its own column",
+        ),
+        (
+            "workflow",
+            "the_block_scalars",
+            "a header alone always opens a block",
+        ),
+        (
+            "workflow",
+            "the_block_scalars",
+            "a property hides the header after it",
+        ),
+        (
+            "workflow",
+            "the_block_scalars",
+            "a dash's node stands where its entry does",
+        ),
+        (
+            "workflow",
+            "the_block_scalars",
+            "a dash that ends its line opens no entry",
+        ),
+        (
+            "workflow",
+            "the_block_scalars",
+            "a comment forgets the node above it",
+        ),
+        (
+            "workflow",
+            "the_block_scalars",
+            "properties alone forget the node above them",
+        ),
+        (
+            "workflow",
+            "the_block_scalars",
+            "a written value's next line is read for its header",
+        ),
+        (
+            "workflow",
+            "the_block_scalars",
+            "a value below its key runs on nowhere",
+        ),
+        (
+            "workflow",
+            "the_value_of_its_key",
+            "a key ends at its first colon",
+        ),
+        (
+            "workflow",
+            "the_value_of_its_key",
+            "a colon in a quoted key ends it",
+        ),
+        (
+            "workflow",
+            "the_value_of_its_key",
+            "a colon in a flow collection ends a key",
+        ),
+        (
+            "workflow",
+            "past_its_properties",
+            "a verbatim tag before a header is read as words",
+        ),
+        (
+            "workflow",
+            "past_its_properties",
+            "one property hides a header behind a second",
+        ),
+        (
+            "workflow",
+            "joined_continuations",
+            "a literal block's lines are a plain scalar's",
+        ),
+        ("workflow", "past_its_dashes", "one space follows a dash"),
+        (
+            "workflow",
+            "past_its_dashes",
+            "a dash under a dash is a letter",
+        ),
+        (
+            "workflow",
+            "is_label",
+            "a label opens two columns past its dash",
+        ),
+        (
+            "workflow",
+            "only_runs_the_gate",
+            "the walk skips a label wherever it stands",
+        ),
+        (
+            "workflow",
+            "a_second_count_of",
+            "the second count skips a label wherever it stands",
+        ),
+        (
+            "workflow",
+            "a_second_count_of",
+            "the second count reads every line as YAML",
+        ),
+        (
+            "workflow",
+            "no_verdict_is_discarded",
+            "a label discards no verdict wherever it stands",
+        ),
+        (
+            "workflow",
+            "joined_continuations",
+            "the walk reads every line as YAML",
+        ),
+        (
+            "workflow",
+            "the_lines_github_reads_as_yaml",
+            "every file is one GitHub runs",
+        ),
+        (
+            "workflow",
+            "the_lines_github_reads_as_yaml",
+            "a block scalar's text is YAML",
+        ),
+        (
+            "workflow",
+            "every_workflow_is_bounded",
+            "a step may run a file GitHub reads",
+        ),
+        (
+            "workflow",
+            "nothing_runs_what_github_reads",
+            "a file is the one its spelling names",
+        ),
+        (
+            "workflow",
+            "nothing_runs_what_github_reads",
+            "a comment runs what it names",
+        ),
+        (
+            "workflow",
+            "the_readings_of",
+            "a line is read as it is written alone",
+        ),
+        (
+            "workflow",
+            "reached_from",
+            "a script is named as a line is written alone",
+        ),
+        (
+            "workflow",
+            "the_variable_one_statement_assigns",
+            "an append assigns nothing",
+        ),
+        (
+            "workflow",
+            "the_variable_one_statement_assigns",
+            "an element assigns nothing",
+        ),
+        (
+            "workflow",
+            "the_variable_one_statement_assigns",
+            "an array holds no value",
+        ),
+        (
+            "workflow",
+            "the_variable_one_statement_assigns",
+            "an element's key is its value",
+        ),
+        (
+            "workflow",
+            "cargo_commands",
+            "a here-string's word is glued to its marker",
+        ),
+        (
+            "workflow",
+            "assigns_cargo",
+            "only the first `=` of a line assigns",
+        ),
+        (
+            "workflow",
+            "the_variable_one_statement_assigns",
+            "a name for cargo opens its line",
+        ),
+        (
+            "workflow",
+            "the_variable_one_statement_assigns",
+            "a value runs to the end of its statement",
+        ),
+        (
+            "workflow",
+            "the_variable_one_statement_assigns",
+            "a quoted value runs to the end of its statement",
+        ),
+        (
+            "workflow",
+            "the_variable_one_statement_assigns",
+            "a substitution ends at its first space",
+        ),
+        (
+            "workflow",
+            "reached_from",
+            "a local action is walked where a line opens on it",
+        ),
+        (
+            "workflow",
+            "the_directories_a_file_names",
+            "a working-directory names no directory",
+        ),
+        (
+            "workflow",
+            "the_directories_a_file_names",
+            "a directory below its key is no directory",
+        ),
+        (
+            "workflow",
+            "the_directories_a_file_names",
+            "a cd is read where a line opens on it",
+        ),
+        (
+            "workflow",
+            "the_directories_a_file_names",
+            "the checkout's root is a word of a directory",
+        ),
+        (
+            "workflow",
+            "every_workflow_is_bounded",
+            "a space may be any whitespace",
+        ),
+        (
+            "workflow",
+            "a_space_to_the_readers_alone",
+            "only an ASCII space is a space to the readers",
+        ),
+        (
+            "workflow",
+            "the_lines_behind_the_escapes",
+            "a double-quoted scalar of one line is read as written",
+        ),
+        (
+            "workflow",
+            "the_lines_behind_the_escapes",
+            "what follows a closing quote is a comment",
+        ),
+        (
+            "workflow",
+            "the_lines_behind_the_escapes",
+            "what follows a closing quote on a later line is a comment",
+        ),
+        (
+            "workflow",
+            "the_branches",
+            "every dash before a branch opens its entry",
         ),
         (
             "determinism",

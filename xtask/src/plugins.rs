@@ -45,8 +45,9 @@ use crate::ui;
 
 /// The one target a plugin is built for.
 ///
-/// `rust-toolchain.toml` and every job in `ci.yml` that runs the gate ask for
-/// it, and a test in `workflow.rs` holds each of them to that.
+/// `rust-toolchain.toml` asks for it, every job that builds in `ci.yml` and
+/// in `release.yml` installs the toolchain from that file, and a test in the
+/// workflow reader, `workflow.rs`, holds both.
 pub(crate) const TARGET: &str = "wasm32-unknown-unknown";
 
 /// Where plugin builds go, relative to the repository.
