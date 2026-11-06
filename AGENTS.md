@@ -1795,16 +1795,28 @@ gate's `CI` step refuses the tree otherwise, before any run of the release can.
   the stack runs.
 - **No other workflow can mint it either.** An environment admits a job by its branch and
   not by its workflow, and `ci.yml` runs on a push to `staging` and `main` too. So every
-  file CI reaches but `release.yml` — `ci.yml`, a composite action, a script a step runs,
-  the justfile — is refused if it names the token's action, enters an environment (a key
-  `environment`, quoted or in a flow mapping), reads a secret (the word `secrets` anywhere
-  in its code, a condition and `secrets: inherit` among it), reads a step's output (`steps`
-  in any expression), or holds `--publish`. Each line is read as written, with a
-  double-quoted scalar's escapes resolved and a line a backslash continues joined to the
-  next, and an expression is read in a comment too, because inside a block scalar a `#`
-  line is text GitHub evaluates. The token's action is not on the actions every file
-  shares (`SETS_UP_AND_JUDGES_NOTHING`): the release job runs it as its first step, and
-  no other step anywhere runs it at all.
+  file GitHub runs but `release.yml` — `ci.yml`, and the file of a composite action a
+  step reaches — is refused if it names the token's action, enters an environment (a key
+  `environment`, quoted, in a flow mapping or after `?`), reads a secret (the word
+  `secrets` anywhere in its code, a condition and `secrets: inherit` among it), or reads
+  a step's output (`steps` in any expression). Every file CI reaches but `release.yml`,
+  the justfile and a script a step runs among them, is refused if it holds `--publish`. A
+  justfile or a script holds no expression GitHub evaluates and no key a runner reads, so
+  the first four are not read there, and `docker-compose.yml`, which CI reaches, holds an
+  `environment:` of the stack's own. Each line is read as written, with a double-quoted
+  scalar's escapes resolved and a line a backslash continues joined to the next, and an
+  expression is read in a comment too, because inside a block scalar a `#` line is text
+  GitHub evaluates. The token's action is not on the actions every file shares
+  (`SETS_UP_AND_JUDGES_NOTHING`): the release job runs it as its first step, and no other
+  step anywhere runs it at all.
+- **Every key of a file GitHub runs is written out, as a word before its colon on one
+  line**, because every rule here reads a key that way. A key after `?` (YAML's explicit
+  form, its value after a `:` on the line below), an alias standing for a key, `<<`
+  merging a mapping anchored elsewhere, and a `{` or `[` left open past its line, inside
+  which a key's colon may stand on a later line, are each refused in both workflows and in
+  a composite action. Written any of those ways, `? environment` with `: release-main`
+  below it, or `{ permissions` with `: write-all }` below it, would pass the rule that
+  reads that key. A block scalar's lines are a command's text and are not read for braces.
 - **The file and its job hold their own keys and no other**: `name`, `on`, `permissions`,
   `concurrency` and `jobs` at the top, and `runs-on`, `environment`, `permissions` and
   `steps` in the job, each once. `env:` or `defaults:` would reach every step, the
@@ -1840,10 +1852,19 @@ gate's `CI` step refuses the tree otherwise, before any run of the release can.
   or a pull request, left behind.
 - **Both workflows open with `permissions: {}`, and a job asks for `contents: read`** and
   nothing more, in a block, a flow mapping or a word: the release writes with the App's
-  token and never with the workflow's, and the gate writes nothing on GitHub.
+  token and never with the workflow's, and the gate writes nothing on GitHub. Every
+  `permissions` key is read wherever YAML opens one — quoted, behind an escape, after an
+  anchor or a tag, or in a job written whole as a flow mapping — and a grant other than
+  `contents: read`, its quotes taken off, is refused.
 - **Every action is pinned to a full commit, with its release in a comment** — in either
   workflow, and in a composite action a step reaches — so a tag its owner moves changes
-  nothing that runs here. Moving a pin is the commit and the comment, together.
+  nothing that runs here. Moving a pin is the commit and the comment, together. Every
+  `uses` key of a line is judged wherever YAML opens one: first or after another key of a
+  flow mapping, quoted or escaped, after an anchor or a tag, and inside a flow sequence.
+  A `uses` whose action is not written plainly on its own line — a value on the line
+  below, a block scalar, a value carrying an anchor or a tag, an alias, a collection, or a
+  key a backslash carries across a line break — is refused, and the allow-list counts it
+  as an action off the list.
 
 ### The history says what each change is, credits no agent, and stays small
 
@@ -2231,11 +2252,16 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **The toolchain is whatever `stable` is on the day**, installed by the runner image's
   rustup, which reads `rust-toolchain.toml` because no toolchain is named; a rustup that
   needs one named fails that step.
-- **A `uses:` the line reader cannot see is judged by nothing but the release's rules**: an
-  action written inside a flow sequence on one line is read neither by the allow-list nor
-  by the pins, and the floor under the pins asks only that some action was read. In
-  `release.yml` such a line is a step that is not one of its own, and anywhere else the
-  token's action is refused by its name wherever it is written.
+- **The readers of keys read YAML as lines, not as a parsed document**: a key is a word,
+  plain or quoted, where YAML may open one on a line, with its colon on that line, and
+  each way YAML has of writing a key elsewhere is refused rather than parsed (`?`, an
+  alias, `<<`, a flow collection left open past its line). A spelling outside those, if
+  YAML has one, is read by none of the rules that read keys; the word `secrets`, which is
+  refused wherever it stands in a file GitHub runs, is then what keeps the App's key out
+  of a job whatever environment it enters. A line inside a block scalar is not read for
+  braces, and a block scalar is recognised by its header on the line of its key, so a
+  header this reader does not know leaves its lines read as YAML, which refuses more and
+  never less.
 - **The comparison gate's subject is public fields and accessors, not everything the
   compiler writes**: `pub const` arrays (`AREAS`, `KEYS`, `COMMANDS`, `TABLES`, `STORES`,
   `RATE_LIMITS`, `EVENTS`, each `ALL`), enum variants, functions taking an argument, and
@@ -2471,15 +2497,16 @@ a composite action or an action whose job is to run cargo; and in the justfile.
 - **`.github/` holds `ci.yml` and `release.yml` alone**, every action either
   uses is pinned to a commit, every job that builds installs the toolchain with
   `rustup toolchain install` and no toolchain named, so what it installs is what
-  `rust-toolchain.toml` says, and no file CI reaches but `release.yml` mints the release
-  App's token, enters an environment, reads a secret or a step's output, or publishes
-  ("The release job is what `release.yml` says, and the App's token reaches its last step
-  alone").
+  `rust-toolchain.toml` says, no file GitHub runs but `release.yml` mints the release
+  App's token, enters an environment, or reads a secret or a step's output, and no file
+  CI reaches but `release.yml` publishes ("The release job is what `release.yml` says,
+  and the App's token reaches its last step alone").
 - **Actions are an allowlist, not a needle**: an action judging anything of ours is a
   second gate whatever it is called — a linting action such as
   `giraffate/clippy-action@v1` <!-- allow-reference: names `giraffate/clippy-action@v1` — an action this repository does not use -->
   is one — so only the steps that set the run up and decide nothing are allowed, each with
-  its reason.
+  its reason. Every `uses` key of a line is read, wherever YAML opens one, and an action
+  the reader cannot read on its line is one off the list.
 - The gate refuses a workflow that fires on nothing and a step whose verdict does not
   count, and checks that each job still runs what its name says: the determinism job
   builds **twice**, in the order that makes the second generation a second process.

@@ -15,8 +15,9 @@
 # and hands the App's token to the release step alone. The file and its job
 # hold no key but the ones written here, and no expression is evaluated but the
 # six written here, each where it stands. Every action is pinned to a commit,
-# with its release in a comment. No other file CI reaches may mint the App's
-# token, enter an environment, read a secret or a step's output, or publish.
+# with its release in a comment. No other file GitHub runs may mint the App's
+# token, enter an environment, or read a secret or a step's output, and no
+# other file CI reaches may publish.
 
 name: release
 
@@ -46,8 +47,8 @@ jobs:
     # from that branch alone: `release-staging` from `staging`, `release-main`
     # from `main`. It holds the App's id and its private key, so no other
     # branch and no pull request can mint the App's token; and the gate refuses
-    # an environment, a secret or the token's action in every other file CI
-    # reaches, so no other workflow can either.
+    # an environment, a secret or the token's action in every other file GitHub
+    # runs, so no other workflow can either.
     environment: release-${{ github.ref_name }}
     permissions:
       contents: read
