@@ -3864,7 +3864,7 @@ fn the_excused_lines_are_counted(
 /// off for nothing, and it tells a reader the line was thought about.
 #[cfg(test)]
 const EXCUSED: [(&str, usize); 6] = [
-    ("allow-reference:", 74),
+    ("allow-reference:", 73),
     ("allow-logging:", 79),
     ("allow-nondeterminism:", 20),
     ("allow-count:", 12),
@@ -3890,7 +3890,7 @@ const EXCUSED: [(&str, usize); 6] = [
 /// summed out of it rather than kept beside it — so a hatch added is one row
 /// here and two numbers the test then tells you to move.
 #[cfg(test)]
-const EXCUSED_WHERE: [(&str, &str, usize); 73] = [
+const EXCUSED_WHERE: [(&str, &str, usize); 72] = [
     (".gitignore", "allow-reference:", 5),
     ("AGENTS.md", "allow-reference:", 5),
     (
@@ -3965,7 +3965,6 @@ const EXCUSED_WHERE: [(&str, &str, usize); 73] = [
     ("policy/core/no_self_escalation.cedar", "nc:narrows:", 1),
     ("policy/core/quorum.cedar", "nc:narrows:", 2),
     ("policy/packs/family/permissions.cedar", "nc:narrows:", 1),
-    ("rust-toolchain.toml", "allow-reference:", 1),
     ("xtask/canaries/README.md", "allow-reference:", 1),
     ("xtask/mutants.py", "allow-reference:", 1),
     ("xtask/mutants.py", "nc:bounded:", 1),
@@ -4031,7 +4030,7 @@ const EXCUSED_WHERE: [(&str, &str, usize); 73] = [
 /// a string literal. That is why this is a written-down list rather than a rule
 /// — it says where the hatches are, and never that any of them is earned.
 #[cfg(test)]
-const EXCUSED_IN: [(&str, usize); 48] = [
+const EXCUSED_IN: [(&str, usize); 47] = [
     (".gitignore", 5),
     ("AGENTS.md", 5),
     ("crates/nc-catalog-compiler/src/ledger.rs", 2),
@@ -4064,7 +4063,6 @@ const EXCUSED_IN: [(&str, usize); 48] = [
     ("policy/core/no_self_escalation.cedar", 1),
     ("policy/core/quorum.cedar", 2),
     ("policy/packs/family/permissions.cedar", 1),
-    ("rust-toolchain.toml", 1),
     ("xtask/canaries/README.md", 1),
     ("xtask/mutants.py", 2),
     ("xtask/src/build.rs", 7),
@@ -5243,6 +5241,24 @@ fn ci(root: &Path, failures: &mut Vec<String>) {
             ui::failure(&problem);
             failures.push("the workflow gate".to_owned());
         }
+    }
+    // **And what CI may hold and reach**, which a reading of its commands does
+    // not answer: the workflows `.github/` holds, the authority each starts from,
+    // which code each action is, and how the release is made.
+    let (findings, pinned) = crate::workflow::every_workflow_is_bounded(root);
+    if let Err(problem) = inspected_something(pinned, PINS) {
+        ui::failure(&problem);
+        failures.push("the workflows' bounds read no action".to_owned());
+    } else {
+        report(
+            &findings,
+            &format!(
+                "{pinned} action(s) in CI's files, each pinned to a commit, in workflows that \
+                 open with no permission; a release fires on a push to `staging` or `main` alone"
+            ),
+            "the workflows' bounds",
+            failures,
+        );
     }
 }
 
@@ -6681,6 +6697,10 @@ const BLOBS: &str =
 const WORKFLOW: &str =
     "no cargo command was read from the workflow, so nothing checked that CI runs the gate";
 
+/// What the workflows' bounds judge, said when they judged no action.
+const PINS: &str =
+    "no action was read from CI's files, so nothing checked that each is pinned to a commit";
+
 /// What the unbounded-table gate inspects.
 const TABLES: &str = "no CREATE TABLE was read, so nothing checked that a table declares its bound";
 
@@ -7707,7 +7727,36 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// `xtask/mutants.py` are where a predicate's verdict is decided. It says the
 /// guard is still there, which is the question a deletion asks.
 #[cfg(test)]
-const WHAT_THE_GATE_CAN_SAY: [&str; 982] = [
+const WHAT_THE_GATE_CAN_SAY: [&str; 1008] = [
+    // The workflows' bounds (`xtask/src/workflow.rs`): what `.github/` may hold,
+    // the authority each workflow opens with, the pins, and how the release is
+    // made; and the `CI` step's two verdicts about them.
+    "`uses: {used}` is not pinned to a full commit",
+    "`uses: {used}` is pinned with no release beside it",
+    "`{RELEASE_WORKFLOW}` is missing",
+    "`{WORKFLOWS}/` could not be walked: {error}",
+    "`{file}` could not be read: {error}",
+    "`{file}` does not open with `permissions: {{}}`",
+    "`{file}` opens with `permissions: {value}`",
+    "`{file}` runs on `{event}`",
+    "`{file}` sits under `{WORKFLOWS}/`, which holds `{WORKFLOW}` and `{RELEASE_WORKFLOW}` and nothing else",
+    "a job in `{file}` asks for `{grant}`, and a job here asks for `{THE_ONE_PERMISSION}` alone",
+    "no action was read from CI's files, so nothing checked that each is pinned to a commit",
+    "the release does not fire on a push",
+    "the release fires on `{}`",
+    "the release fires on a push to {named:?}, and a release is made from {RELEASED_FROM:?} alone",
+    "the release job enters {}, and it enters `{THE_RELEASES_ENVIRONMENT}` alone",
+    "the release job runs on `{runner}`, which is not a Linux runner",
+    "the release job's step {} is {}, where it is {}",
+    "the release names `{named}` outside the step it belongs to",
+    "the release restores a cache, through `{name}`",
+    "the release workflow does not say, as a block of its own, what it fires on",
+    "the release workflow has no `release` job",
+    "the release workflow holds the job `{job}` beside `release`",
+    "the release's push is filtered by `{filter}`",
+    "the workflows' bounds read no action",
+    "the workflows' bounds",
+    "what CI reaches could not be walked: {error}",
     // The release (`xtask/src/release.rs`).
     "--publish publishes to the repository GITHUB_REPOSITORY names, and it is not set. CI's release job sets it; a release is published from there and nowhere else",
     "--publish publishes with the token in GH_TOKEN, and it is not set. CI's release job sets it to the release App's installation token; the workflow's own token is never used, because a pull request it opens starts no checks",
@@ -10891,7 +10940,37 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 660] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 687] = [
+    // The workflows' bounds: their remedies, the release job's steps as
+    // `THE_RELEASE_STEPS` writes them, the environment and the line that hands
+    // the token on, a step's words when it is missing, and the clean line.
+    "GH_TOKEN: ${{ steps.app.outputs.token }}",
+    "a cache holds what an earlier run built and saved — `dev`'s are restored on every branch, and the run that saved one decided what it holds — and the release is built from the branch it releases and nothing else. The release job builds from cold",
+    "a push to `staging` or `main` is what releases that channel (NOCTUA.md §22.6), and the workflow is what makes the release, and the one place the release App's token is minted",
+    "a release is made by a push to a channel's branch and by nothing else (NOCTUA.md §22.6): another event, another branch, a tag or a path filter releases from something that is not a channel, or does not release where one is. Write `on:`, then `push:` under it, then `branches: [staging, main]` under that",
+    "a tag or a branch is a name its owner can move, so the code a step runs could change under a workflow nobody edited — in the job that holds the release App's token as in any other — and a full 40-character commit cannot. Pin it by the commit, with its release in a comment after it",
+    "a workflow there is one GitHub runs on its own events, with its own token and its own way into the environments that hold the release App's key, and a script or an action there is code a step runs. A file belongs there with a rule that reads it: name it in `THE_WORKFLOWS` and say what holds it",
+    "a workflow this gate cannot read is one GitHub still runs, so every rule here would pass over it unjudged. Make it a readable UTF-8 file",
+    "a workflow with nothing at its top hands each job the token the repository's settings give, which may write. Write `permissions: {}` above `jobs:`, and let each job ask for reading the tree",
+    "every action a step uses is judged from the files CI reaches, and a walk that stopped judges none of them",
+    "every job in it runs on the push that releases a channel, and the rules here read the `release` job alone; a second is a job nothing holds to the steps, the environment or the token. What it would do belongs in the gate",
+    "every job without a `permissions:` of its own holds what the top of the file grants, and here that is to be nothing: write `permissions: {}` there, and let each job ask for reading the tree",
+    "it runs with this repository's secrets and a token that may write, on behalf of a change made in a fork, and a build script of that change holds what the run holds. A pull request is judged on `pull_request`, which a fork's runs with no secret and a token that can only read",
+    "nothing at all",
+    "release-${{ github.ref_name }}",
+    "run: cargo install --locked cargo-deny",
+    "run: cargo xtask dev",
+    "run: cargo xtask release --channel ${{ github.ref_name }} --publish",
+    "run: rustup toolchain install --no-self-update",
+    "the App's key reaches the step that mints the token and nothing else, and the token reaches the release step alone, as `GH_TOKEN: ${{ steps.app.outputs.token }}`. Anywhere else it is in the environment of what runs there, this tree's build scripts and tests among them, and the App may push to `staging` and `main` past their rules. The workflow's own token is not used at all",
+    "the commit says what runs and not what it is: the release in a comment after it, such as `# v1.2.3`, is what a reader checks against the action's own tags, and what an update moves",
+    "the environment holds the App's id and its key, and GitHub lets a job enter `release-staging` from `staging` alone and `release-main` from `main` alone; a job that enters another mints the token from a branch that is not the channel it releases, and one that enters none cannot mint it",
+    "the gate writes nothing on GitHub, and the release writes with the App's token and never with this one; a token that may write is one every build script and test the job runs could use. Ask for `contents: read`, which the checkout needs, and nothing more",
+    "the job holds the App's token, so what runs beside it is `THE_RELEASE_STEPS` in `xtask/src/workflow.rs` and nothing else: the token, the checkout, the toolchain, the audit's install, the stack, then the release. A step to add is a line there, which is a line in a diff",
+    "the job is what makes the release, and every rule about its steps, its environment and the App's token reads it by that name",
+    "the release runs the gate first, and only Linux's runner brings up the stack the gate's steps read (NOCTUA.md §22.2); elsewhere those steps are not applicable, and the release is judged by less than the gate every pull request passed. Run it on `ubuntu-latest`",
+    "what sits there is what GitHub runs, and a walk that stopped cannot say what that is",
+    "{pinned} action(s) in CI's files, each pinned to a commit, in workflows that open with no permission; a release fires on a push to `staging` or `main` alone",
     // The release: what it prints that is not a verdict, the requests it
     // hands GitHub, and the changelog's own prose.
     "  What to do: {note}\n",
@@ -16000,7 +16079,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     fn no_floor_is_handed_a_count_that_cannot_be_zero() {
         // **The floors this file ships, through all three helpers.** A floor
         // added or removed moves this number in the same change.
-        const FLOORS: usize = 29;
+        const FLOORS: usize = 30;
         // **All three helpers.** Reading `inspected_something(` alone lets a
         // floor reached through either of the other two be handed a count
         // arithmetic keeps above zero with the whole suite green. Measured, one
@@ -16144,7 +16223,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     /// The two reasons under the image floors are held by `failures.push(` among the console
     /// needles; the subjects below travel by name, which that needle does not
     /// reach. Paired here, so exchanging two moves two rows.
-    const WHAT_A_FLOOR_SAYS: [(&str, &str); 22] = [
+    const WHAT_A_FLOOR_SAYS: [(&str, &str); 23] = [
         (
             "BLOBS",
             "no blob was measured in the history, so nothing checked that one is below the size limit",
@@ -16197,6 +16276,10 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         ),
         ("MEMBERS", "the workspace members"),
         ("MIGRATIONS", "the migrations directory"),
+        (
+            "PINS",
+            "no action was read from CI's files, so nothing checked that each is pinned to a commit",
+        ),
         (
             "SECTIONS",
             "no section citation was read at all, so nothing checked that a `§` names a real section",
@@ -18745,7 +18828,7 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 648, 56),
+        ("xtask/check.rs", 650, 56),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 45, 29),
         ("xtask/database.rs", 29, 6),
@@ -18770,7 +18853,7 @@ mod the_frozen_path_rule {
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 30, 6),
         ("xtask/ui.rs", 52, 12),
         ("xtask/wall.rs", 129, 28),
-        ("xtask/workflow.rs", 133, 23),
+        ("xtask/workflow.rs", 183, 23),
     ];
 
     /// The name an item declaration introduces, for the message below.
@@ -21544,8 +21627,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 540 scratches this tree
-    /// builds, 452 of the 540 are removed however the test leaves and 88 are
+    /// directories accumulated in an afternoon. Of the 543 scratches this tree
+    /// builds, 455 of the 543 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -21649,7 +21732,7 @@ mod the_frozen_path_rule {
         ("xtask/sections.rs", 9, 1),
         ("xtask/ui.rs", 1, 0),
         ("xtask/wall.rs", 3, 2),
-        ("xtask/workflow.rs", 24, 6),
+        ("xtask/workflow.rs", 27, 9),
     ];
 
     /// Where every function in a blanked file begins and ends, in char offsets.
@@ -24512,7 +24595,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14787;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14865;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24531,7 +24614,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2968;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3019;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -24548,7 +24631,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 972;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 989;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -24582,7 +24665,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 20685;
+    const THE_REARRANGEMENTS_JUDGED: usize = 20807;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24636,7 +24719,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **442 of 20,685 are accepted by the first-line
+    /// rules the gates apply: **442 of 20,807 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -24669,7 +24752,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **972 of
+    /// this tree offers, **989 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -26859,7 +26942,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 660;
+    const THE_REST_IT_SAYS: usize = 687;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -27007,7 +27090,7 @@ mod the_frozen_path_rule {
     /// verdicts that agree for that long are one row, and — because a prefix
     /// matches nothing the two censuses hold — every row is a shipped literal
     /// accounted for nowhere. Written out, each row is its own accounting.
-    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 483] = [
+    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 484] = [
         ("—", "compiled catalog/"),
         (
             "—",
@@ -27730,6 +27813,10 @@ mod the_frozen_path_rule {
             "the workflow gate read nothing",
         ),
         ("Err(problem) =>", "the workflow gate"),
+        (
+            "if let Err(problem) = inspected_something(pinned, PINS)",
+            "the workflows' bounds read no action",
+        ),
         ("—", "history"),
         (
             "Ok(crate::history::History::NoRepository) =>",
@@ -28489,7 +28576,7 @@ mod the_frozen_path_rule {
     /// record byte-identical — the same swap the census beside this one is
     /// written in pairs to catch, one level in. The condition is computed for
     /// every site either way, so it is kept.
-    const THE_CONSOLE_SITES_THIS_CANNOT_READ: [(&str, &str); 114] = [
+    const THE_CONSOLE_SITES_THIS_CANNOT_READ: [(&str, &str); 115] = [
         ("—", "&what_a_run_wrote(compiled.files.len("),
         (
             "if let Some(reserved) = reserved",
@@ -28630,6 +28717,10 @@ mod the_frozen_path_rule {
             "&problem",
         ),
         ("Err(problem) =>", "&problem"),
+        (
+            "if let Err(problem) = inspected_something(pinned, PINS)",
+            "&problem",
+        ),
         (
             "if let Err(problem) = inspected_something(judged.commits, COMMITS)",
             "&problem",
@@ -29123,7 +29214,7 @@ mod the_frozen_path_rule {
     /// Seven words of each remedy, because a remedy is long and its opening is
     /// what tells one from another; the rule beside the list is that those
     /// seven are unique.
-    const WHAT_A_REMEDY_ANSWERS: [(&str, &str, &str); 113] = [
+    const WHAT_A_REMEDY_ANSWERS: [(&str, &str, &str); 136] = [
         (
             "counts.rs",
             "this document has an odd number of",
@@ -29528,6 +29619,121 @@ mod the_frozen_path_rule {
             "workflow.rs",
             "what CI reaches is more than {HOPS}",
             "the walk that follows what a step",
+        ),
+        (
+            "workflow.rs",
+            "`{file}` could not be read: {error}",
+            "a workflow this gate cannot read is",
+        ),
+        (
+            "workflow.rs",
+            "`{WORKFLOWS}/` could not be walked: {error}",
+            "what sits there is what GitHub runs,",
+        ),
+        (
+            "workflow.rs",
+            "`{file}` sits under `{WORKFLOWS}/`, which holds `{WORKFLOW}`",
+            "a workflow there is one GitHub runs",
+        ),
+        (
+            "workflow.rs",
+            "`{RELEASE_WORKFLOW}` is missing",
+            "a push to `staging` or `main` is",
+        ),
+        (
+            "workflow.rs",
+            "`{file}` opens with `permissions: {value}`",
+            "every job without a `permissions:` of its",
+        ),
+        (
+            "workflow.rs",
+            "a job in `{file}` asks for `{grant}`,",
+            "the gate writes nothing on GitHub, and",
+        ),
+        (
+            "workflow.rs",
+            "`{file}` does not open with `permissions: {{}}`",
+            "a workflow with nothing at its top",
+        ),
+        (
+            "workflow.rs",
+            "`{file}` runs on `{event}`",
+            "it runs with this repository's secrets and",
+        ),
+        (
+            "workflow.rs",
+            "what CI reaches could not be walked:",
+            "every action a step uses is judged",
+        ),
+        (
+            "workflow.rs",
+            "`uses: {used}` is not pinned to a",
+            "a tag or a branch is a",
+        ),
+        (
+            "workflow.rs",
+            "`uses: {used}` is pinned with no release",
+            "the commit says what runs and not",
+        ),
+        (
+            "workflow.rs",
+            "the release workflow does not say, as",
+            "— handed in, not written at this site",
+        ),
+        (
+            "workflow.rs",
+            "the release fires on `{}`",
+            "— handed in, not written at this site",
+        ),
+        (
+            "workflow.rs",
+            "the release does not fire on a",
+            "— handed in, not written at this site",
+        ),
+        (
+            "workflow.rs",
+            "the release's push is filtered by `{filter}`",
+            "— handed in, not written at this site",
+        ),
+        (
+            "workflow.rs",
+            "the release fires on a push to",
+            "— handed in, not written at this site",
+        ),
+        (
+            "workflow.rs",
+            "the release workflow holds the job `{job}`",
+            "every job in it runs on the",
+        ),
+        (
+            "workflow.rs",
+            "the release workflow has no `release` job",
+            "the job is what makes the release,",
+        ),
+        (
+            "workflow.rs",
+            "the release job enters {}, and it",
+            "the environment holds the App's id and",
+        ),
+        (
+            "workflow.rs",
+            "the release job runs on `{runner}`, which",
+            "the release runs the gate first, and",
+        ),
+        (
+            "workflow.rs",
+            "the release restores a cache, through `{name}`",
+            "a cache holds what an earlier run",
+        ),
+        (
+            "workflow.rs",
+            "the release job's step {} is {},",
+            "the job holds the App's token, so",
+        ),
+        (
+            "workflow.rs",
+            "the release names `{named}` outside the step",
+            "the App's key reaches the step that",
         ),
         (
             "workflow.rs",
@@ -31374,13 +31580,15 @@ mod the_frozen_path_rule {
     /// The both-directions assertions below keep each row honest: a kind pinned
     /// to a name must be a kind its tree is allowed to hold at all, and the name
     /// must be a file of that kind.
-    const ONLY_UNDER_THIS_NAME: [(&str, &str, &str); 12] = [
+    const ONLY_UNDER_THIS_NAME: [(&str, &str, &str); 13] = [
         // The `cargo xtask` alias, and nothing else. The file cargo reads a
         // registry token from is a `.toml` in this very directory, which is
         // what makes the extension's allowance here an allowance for one name.
         (".cargo", "toml", "config.toml"),
-        // The one workflow. A second `.yml` here is a job CI runs.
-        (".github", "yml", "ci.yml"),
+        // The two workflows, the gate's and the release's, each by its path. A
+        // third `.yml` here is a workflow GitHub runs.
+        (".github", "yml", ".github/workflows/ci.yml"),
+        (".github", "yml", ".github/workflows/release.yml"),
         // Every `.toml` under `crates/` is a member's own manifest, at the
         // member's own root.
         ("crates", "toml", "Cargo.toml"),
@@ -31802,7 +32010,7 @@ mod every_report_wire {
     /// Some are held outside this module, by the tests named against them: the
     /// unbounded-table wire by the shape this one is written after, and the
     /// rest by steps that already build a tree of their own.
-    const EVERY_WIRE: [(&str, &str); 21] = [
+    const EVERY_WIRE: [(&str, &str); 22] = [
         ("image pins", "the_image_pin_finding_reaches_its_call_site"),
         (
             ".env files",
@@ -31857,6 +32065,10 @@ mod every_report_wire {
         (
             "the CI workflow",
             "the_ci_workflow_finding_reaches_its_call_site",
+        ),
+        (
+            "the workflows' bounds",
+            "the_workflow_bounds_finding_reaches_its_call_site",
         ),
         ("the history", "the_history_finding_reaches_its_call_site"),
         (
@@ -32348,6 +32560,21 @@ mod every_report_wire {
         let mut failures = Vec::new();
         super::ci(&held.root, &mut failures);
         reported(&failures, "the CI workflow");
+    }
+
+    /// An action named by a tag, which its owner can move under the workflow.
+    #[test]
+    fn the_workflow_bounds_finding_reaches_its_call_site() {
+        let held = a_tree(
+            "bounds",
+            &[(
+                ".github/workflows/ci.yml",
+                "permissions: {}\njobs:\n  linux:\n    steps:\n      - uses: actions/checkout@v4 # v4\n",
+            )],
+        );
+        let mut failures = Vec::new();
+        super::ci(&held.root, &mut failures);
+        reported(&failures, "the workflows' bounds");
     }
 
     /// A commit whose subject is not a conventional one, in a repository the
@@ -35341,7 +35568,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1514] = [
+    static OPERATORS: [(&str, &str, &str); 1536] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -36730,6 +36957,104 @@ Options:
             "workflow",
             "reaches_rustc",
             "a wrapper does not reach the compiler",
+        ),
+        (
+            "workflow",
+            "github_holds_the_workflows",
+            "a file of no workflow may sit under .github",
+        ),
+        (
+            "workflow",
+            "github_holds_the_workflows",
+            "the release workflow may be missing",
+        ),
+        (
+            "workflow",
+            "no_authority_but_reading",
+            "a workflow need not open with no permission",
+        ),
+        (
+            "workflow",
+            "no_authority_but_reading",
+            "a job may ask its token for anything",
+        ),
+        ("workflow", "the_grants", "a flow mapping grants nothing"),
+        (
+            "workflow",
+            "nothing_made_elsewhere_starts_it",
+            "a fork's change may start a workflow",
+        ),
+        (
+            "workflow",
+            "every_action_is_a_commit",
+            "an action named by a tag is pinned",
+        ),
+        (
+            "workflow",
+            "every_action_is_a_commit",
+            "a pin needs no release beside it",
+        ),
+        ("workflow", "is_a_commit", "a short revision is a commit"),
+        ("workflow", "is_a_commit", "any letter is a hex digit"),
+        (
+            "workflow",
+            "the_release_fires_on_a_channel",
+            "any event fires the release",
+        ),
+        (
+            "workflow",
+            "the_release_fires_on_a_channel",
+            "a filter beside the branches is allowed",
+        ),
+        (
+            "workflow",
+            "the_release_fires_on_a_channel",
+            "any branches release",
+        ),
+        (
+            "workflow",
+            "the_release_is_one_job",
+            "a second job may sit beside the release",
+        ),
+        (
+            "workflow",
+            "the_release_is_one_job",
+            "the release may enter any environment",
+        ),
+        (
+            "workflow",
+            "the_release_is_one_job",
+            "the release may run on any system",
+        ),
+        (
+            "workflow",
+            "no_cache_reaches_the_release",
+            "the half that only restores is no cache",
+        ),
+        (
+            "workflow",
+            "the_release_runs_its_steps",
+            "a step more than the list is no difference",
+        ),
+        (
+            "workflow",
+            "the_token_reaches_the_release_alone",
+            "any line of the release step may name the token",
+        ),
+        (
+            "workflow",
+            "the_token_reaches_the_release_alone",
+            "the key may be named anywhere",
+        ),
+        (
+            "workflow",
+            "the_release_runs_as_written",
+            "a step of the release may run on a condition",
+        ),
+        (
+            "workflow",
+            "every_workflow_is_bounded",
+            "the release workflow is held to nothing",
         ),
         (
             "determinism",

@@ -191,6 +191,7 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 ├── .env.example                    what the stack reads. NEVER copied to .env
 ├── .gitattributes                  every text file checked out with LF, on every system
 ├── .github/workflows/ci.yml        HAS NEVER RUN — there is no repository yet
+├── .github/workflows/release.yml   the release, on a push to staging or main
 ├── catalog/                        HAND-WRITTEN — THE shared-core registries (§15.2)
 │   ├── errors.toml                 every error this platform can produce (§15.1)
 │   ├── errors.reserved.toml        APPEND-ONLY — which error codes have been used
@@ -1776,6 +1777,45 @@ leaves every file of the workspace as it was given, and the one whose gate passe
 the version, the changelog and the lockfile. A refusal of the release itself is held
 through `run`, so what the release refuses is what the verb hands back.
 
+### The release job is what `release.yml` says, and the App's token reaches its last step alone
+
+`.github/workflows/release.yml` makes a channel's release on a push to its branch, and
+`every_workflow_is_bounded` in `xtask/src/workflow.rs` holds the file to this shape: the
+gate's `CI` step refuses the tree otherwise, before any run of the release can.
+
+- **It fires on a push to `staging` or `main` and on nothing else** — no pull request, no
+  tag, no path filter, no other event. Those branches are the channels `--channel`
+  accepts, and a test holds the two lists to one set. Neither workflow runs on
+  `pull_request_target` or `workflow_run`, each of which runs with this repository's
+  secrets on behalf of a change made in a fork.
+- **Its one job enters `release-${{ github.ref_name }}`**, the environment of the branch
+  pushed to, which GitHub lets a job enter from that branch alone and which holds the
+  App's id and its key: no other branch, no pull request and no other workflow can mint
+  the App's token. It runs on Linux, because the gate the release runs first is the whole
+  gate only where the stack runs.
+- **It runs `THE_RELEASE_STEPS`, in that order, and no other step**: the App's token, the
+  checkout, the toolchain `rust-toolchain.toml` names, the install the audit needs,
+  `cargo xtask dev`, then `cargo xtask release --channel ${{ github.ref_name }} --publish`.
+  A script, a composite action or a second command on a line is a step that is not on the
+  list, and a step on a condition is refused. `cargo xtask dev` comes right before the
+  release, so the tool the release step runs is built before the token is in any
+  process's environment, and no build script runs with it.
+- **The App's key reaches the step that mints the token, and the token reaches the release
+  step alone**, as `GH_TOKEN: ${{ steps.app.outputs.token }}`: any other line naming a
+  secret, a step's output, `github.token`, `GH_TOKEN` or `GITHUB_TOKEN` is refused, a job's
+  `env:` among them. The token is minted with contents and pull requests to write and
+  nothing more, so it stays that narrow if the App is ever granted more, and the action
+  that mints it revokes it when the job ends.
+- **It restores no cache.** A cache holds what an earlier run saved — `dev`'s are restored
+  on every branch — and the release is built from its branch and nothing an earlier run,
+  or a pull request, left behind.
+- **Both workflows open with `permissions: {}`, and a job asks for `contents: read`** and
+  nothing more, in a block, a flow mapping or a word: the release writes with the App's
+  token and never with the workflow's, and the gate writes nothing on GitHub.
+- **Every action is pinned to a full commit, with its release in a comment** — in either
+  workflow, and in a composite action a step reaches — so a tag its owner moves changes
+  nothing that runs here. Moving a pin is the commit and the comment, together.
+
 ### The history says what each change is, credits no agent, and stays small
 
 The `history` step of `cargo xtask check` (`xtask/src/history.rs`) judges every commit
@@ -2127,6 +2167,32 @@ rather than anything decided for the project, and each is a maintainer's to reop
   until it runs is what a run supplies — the runner's image, the toolchain it fetches, and
   whether `cargo xtask dev` comes up there. It carries no `services:` on purpose ("CI runs
   the stack, not a copy of it").
+- **A pinned action is the code at its commit, not code anyone here has read**: the pin
+  keeps a moved tag from changing what runs, and nothing reads what the action does or
+  fetches when it runs. The release written beside a pin is a comment no gate checks
+  against the action's own tags, which would take the network.
+- **The release's rules read the workflow, not GitHub**: the environments' branch
+  policies, their variable and their secret, the rulesets and the App's permissions are
+  GitHub's settings, read with `gh api` and held by nothing in this tree.
+- **What a step before the release leaves running is not stopped**: the token is in no
+  process's environment before the release step, and the gate the release runs is a child
+  cleared of it, but a process an earlier step started and left behind runs as the same
+  user, and on Linux a process of the same user can read another's environment. What
+  keeps such a process out is that what runs is what `staging` or `main` holds, after
+  review and every check.
+- **`concurrency`, `cancel-in-progress: false` and `persist-credentials: false` are in the
+  workflows and held by no rule**: two releases racing on one branch are stopped by
+  `createCommitOnBranch`'s expected head and by a tag that exists, and a credential a
+  checkout left behind would read the tree and nothing more.
+- **The token action is handed the App's id as `app-id`**, an input its pinned release
+  marks as replaced by `client-id`, so each release run prints that warning: the
+  environments hold the App's id and not its client id.
+- **The toolchain is whatever `stable` is on the day**, installed by the runner image's
+  rustup, which reads `rust-toolchain.toml` because no toolchain is named; a rustup that
+  needs one named fails that step.
+- **A `uses:` the line reader cannot see is judged by nothing**: an action written inside a
+  flow sequence on one line is read neither by the allow-list nor by the pins, and the
+  floor under the pins asks only that some action was read.
 - **The comparison gate's subject is public fields and accessors, not everything the
   compiler writes**: `pub const` arrays (`AREAS`, `KEYS`, `COMMANDS`, `TABLES`, `STORES`,
   `RATE_LIMITS`, `EVENTS`, each `ALL`), enum variants, functions taking an argument, and
@@ -2359,6 +2425,11 @@ a composite action or an action whose job is to run cargo; and in the justfile.
 - **A word in a workflow is not always a path**: `$GITHUB_WORKSPACE` is expanded, a glob
   such as `ci/*.sh` is matched against the tree, and the tools that judge this tree are
   needles whatever binary they are — `rustfmt --check` as well as `cargo fmt`.
+- **`.github/` holds `ci.yml` and `release.yml` alone**, every action either
+  uses is pinned to a commit, and every job that builds installs the toolchain with
+  `rustup toolchain install` and no toolchain named, so what it installs is what
+  `rust-toolchain.toml` says ("The release job is what `release.yml` says, and the App's
+  token reaches its last step alone").
 - **Actions are an allowlist, not a needle**: an action judging anything of ours is a
   second gate whatever it is called — a linting action such as
   `giraffate/clippy-action@v1` <!-- allow-reference: names `giraffate/clippy-action@v1` — an action this repository does not use -->

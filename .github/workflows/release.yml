@@ -1,0 +1,89 @@
+# The release, on a push to `staging` or `main` (`NOCTUA.md §22.6`).
+#
+# A push to either branch is a merge its rules let through, and this job turns
+# it into that channel's release: `cargo xtask release --channel <branch>
+# --publish` runs the gate, computes the version and the changelog from the
+# history, writes them, and makes the release commit, the tag, the GitHub
+# release and the pull request that carries it back, as `xtask/src/release.rs`
+# says. The push the release commit causes runs this again, and that run ends
+# `already released`.
+#
+# `xtask/src/workflow.rs` holds this file to what is written here: it fires on a
+# push to those branches and on nothing else, its one job enters the
+# environment of the branch it runs for, restores no cache, runs exactly the
+# steps below in this order, and hands the App's token to the release step
+# alone. Every action is pinned to a commit, with its release in a comment.
+
+name: release
+
+on:
+  push:
+    branches: [staging, main]
+
+# **No permission for this workflow's own token.** The job below asks for
+# reading the tree and nothing else; what the release writes on GitHub, it
+# writes with the App's token.
+permissions: {}
+
+# **One release per branch at a time, and none stopped part way.** A second
+# push waits for the run before it instead of racing it to the same version.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # **Linux, because the gate the release runs first is the whole gate.**
+    # Only Linux's runner brings the stack up (`NOCTUA.md §22.2`); elsewhere the
+    # steps that need it are not applicable, and the release would be judged by
+    # less than the gate every pull request passed.
+    runs-on: ubuntu-latest
+    # **The environment of the branch pushed to**, which GitHub lets a job enter
+    # from that branch alone: `release-staging` from `staging`, `release-main`
+    # from `main`. It holds the App's id and its private key, so no other
+    # branch, no pull request and no other workflow can mint the App's token.
+    environment: release-${{ github.ref_name }}
+    permissions:
+      contents: read
+    steps:
+      # **The App's token, narrowed to what a release writes**: the release
+      # commit, the tag and the GitHub release are contents, and the pull
+      # request back is a pull request. Named here, the token stays this narrow
+      # if the App is ever granted more. The action revokes it when the job ends.
+      - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        id: app
+        with:
+          app-id: ${{ vars.RELEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_APP_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+      # **The whole history, and no credential left in it.** The version and the
+      # changelog are computed from every commit and tag, and the release
+      # refuses a shallow clone. The workflow's token is not written into the
+      # checkout's git configuration, where every build script and test the
+      # gate runs could read it.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # The toolchain `rust-toolchain.toml` names, installed as `ci.yml` installs
+      # it.
+      - name: the toolchain rust-toolchain.toml names
+        run: rustup toolchain install --no-self-update
+      # **No cache, in this step or any other.** A cache holds what an earlier
+      # run built and saved, and the release is built from the branch it
+      # releases and nothing an earlier run, or a pull request, left behind.
+      - name: cargo deny
+        run: cargo install --locked cargo-deny
+      # **The stack, before the gate the release runs first**, as the `linux`
+      # job in `ci.yml` brings it up before its own.
+      - name: cargo xtask dev
+        run: cargo xtask dev
+      # **The token reaches this step alone**, as `GH_TOKEN`, and the verb hands
+      # it to `gh` alone: the gate runs in a child cleared of it. The channel is
+      # the branch pushed to, which the trigger above makes `staging` or `main`,
+      # and the verb refuses any other.
+      - name: cargo xtask release
+        run: cargo xtask release --channel ${{ github.ref_name }} --publish
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}

@@ -63,6 +63,86 @@ const MAKEFILE: [&str; 3] = ["GNUmakefile", "makefile", "Makefile"];
 /// The file the repository's own gate is written in.
 pub(crate) const WORKFLOW: &str = ".github/workflows/ci.yml";
 
+/// The file a release is made from (`NOCTUA.md §22.6`).
+pub(crate) const RELEASE_WORKFLOW: &str = ".github/workflows/release.yml";
+
+/// Everything [`WORKFLOWS`] holds: the gate's workflow and the release's.
+///
+/// **A list, because every file there is one GitHub runs or one a step can
+/// reach.** A third workflow is a second gate, or a second way into the
+/// environments that hold the release App's key, and a script or a composite
+/// action there is code a step runs. One more is a line here, which is a line
+/// in a diff.
+const THE_WORKFLOWS: [&str; 2] = [WORKFLOW, RELEASE_WORKFLOW];
+
+/// The branches a push to which makes a release: each is a channel
+/// (`NOCTUA.md §22.1`), and the release is made on the one pushed to.
+const RELEASED_FROM: [&str; 2] = ["staging", "main"];
+
+/// The events that run a workflow with this repository's authority on behalf
+/// of a change made somewhere else.
+///
+/// `pull_request_target` runs on a pull request from a fork with this
+/// repository's secrets and a token that may write, and `workflow_run` runs
+/// after another workflow has, a fork's pull request's among them, with the
+/// same. No workflow here is started either way.
+const WITH_THIS_REPOSITORYS_AUTHORITY: [&str; 2] = ["pull_request_target", "workflow_run"];
+
+/// What a job may ask its workflow's token for: reading the tree it checks out.
+///
+/// **And nothing else, in either workflow.** The gate writes nothing on GitHub,
+/// and the release writes with the App's token, never this one; a token that may
+/// write is one every build script and test a job runs could use.
+const THE_ONE_PERMISSION: &str = "contents: read";
+
+/// The actions that restore a cache, which the release never runs.
+///
+/// **Read by the start of the name**, so the half of the cache action that only
+/// restores is one of them.
+const RESTORES_A_CACHE: [&str; 2] = ["actions/cache", "Swatinem/rust-cache"];
+
+/// What the release job runs, step by step and in this order: an action by its
+/// name, a command as it is written.
+///
+/// **Every step, not the cargo commands among them.** The job holds the App's
+/// token, which may push to `staging` and `main` past their rules and move a
+/// `v*` tag, so what may run beside it is this list and nothing else: a script
+/// a step runs, a composite action, or a second command on a line is a step
+/// that is not here. The stack comes up before the release, whose gate reads
+/// it, and the release's command names the channel as the branch pushed to.
+const THE_RELEASE_STEPS: [&str; 6] = [
+    "uses: actions/create-github-app-token",
+    "uses: actions/checkout",
+    "run: rustup toolchain install --no-self-update",
+    "run: cargo install --locked cargo-deny",
+    "run: cargo xtask dev",
+    "run: cargo xtask release --channel ${{ github.ref_name }} --publish",
+];
+
+/// The environment the release job enters: the branch's own, which holds
+/// the App's key and which GitHub lets a job enter from that branch alone.
+const THE_RELEASES_ENVIRONMENT: &str = "release-${{ github.ref_name }}";
+
+/// The one line that hands the App's token on: to the release step, as the
+/// variable `gh` reads.
+const THE_TOKEN_HANDED: &str = "GH_TOKEN: ${{ steps.app.outputs.token }}";
+
+/// What names the App's key or a token in the release workflow, wherever it is
+/// written.
+///
+/// **Any secret, any step's output, and either token's name.** The key is a
+/// secret of the environment and the token is the output of the step that mints
+/// it; `github.token` and `GITHUB_TOKEN` are the workflow's own, which the
+/// release never uses. Each may appear where [`the_token_reaches_the_release_alone`]
+/// allows it and nowhere else.
+const NAMES_A_KEY_OR_A_TOKEN: [&str; 5] = [
+    "secrets",
+    "steps.",
+    "github.token",
+    "GH_TOKEN",
+    "GITHUB_TOKEN",
+];
+
 /// What each job must actually run, beside its name.
 ///
 /// **A name is not a job.** `JOBS` alone checks that a line `deterministic:`
@@ -195,15 +275,15 @@ const IN_THIS_ORDER: [&str; 5] = [
 const SETS_UP_AND_JUDGES_NOTHING: [&str; 5] = [
     // Fetches the tree.
     "actions/checkout",
-    // Installs the channel the workflow names, which `rust-toolchain.toml`'s own
-    // header records is not the same as reading that file: this action resolves
-    // `stable` itself and CI runs no rustup.
-    "dtolnay/rust-toolchain",
-    // The cache, which changes what a build costs and not what it decides.
+    // The cache, which changes what a build costs and not what it decides. The
+    // release restores none (`RESTORES_A_CACHE`).
     "Swatinem/rust-cache",
     "actions/cache",
     // Uploads what a failing run leaves behind.
     "actions/upload-artifact",
+    // Mints the release App's installation token from the key its environment
+    // holds, in the release job; it runs nothing of this tree's.
+    "actions/create-github-app-token",
 ];
 
 /// The directory CI copies the tree into for its second build.
@@ -1005,6 +1085,708 @@ pub(crate) fn only_runs_the_gate(root: &Path) -> Result<(Vec<Finding>, usize), S
     the_identity(seen, judged, &mut findings);
     the_walk_is_not_short(seen, expected, &mut findings);
     Ok((findings, seen))
+}
+
+/// Every workflow `.github/` holds, bounded, and how many actions were judged.
+///
+/// **Apart from [`only_runs_the_gate`], which reads what CI runs**: this reads
+/// what CI may hold, the authority each workflow starts from, which code each
+/// action is, and how the release is made. The `CI` step reports both.
+///
+/// **What it holds them to:** `.github/` holds [`THE_WORKFLOWS`] and nothing
+/// else; each opens with `permissions: {}` and no job asks for more than
+/// [`THE_ONE_PERMISSION`]; neither runs on an event of
+/// [`WITH_THIS_REPOSITORYS_AUTHORITY`]; every action any file CI reaches uses
+/// is pinned to a full commit, with its release in a comment; and the release
+/// is made as [`the_release_runs_as_written`] says.
+///
+/// The count is of the actions [`every_action_is_a_commit`] judged, for the
+/// floor the step puts under it: every other rule here requires something that
+/// a reader which read nothing cannot find, and that one only refuses.
+pub(crate) fn every_workflow_is_bounded(root: &Path) -> (Vec<Finding>, usize) {
+    let mut findings = Vec::new();
+    github_holds_the_workflows(root, &mut findings);
+    for file in THE_WORKFLOWS {
+        let path = root.join(file);
+        // **A missing workflow is said once**: the gate's by `only_runs_the_gate`,
+        // which cannot judge anything without it, and the release's by
+        // `github_holds_the_workflows` above.
+        if !path.is_file() {
+            continue;
+        }
+        match std::fs::read_to_string(&path) {
+            Ok(text) => {
+                no_authority_but_reading(file, &text, &mut findings);
+                nothing_made_elsewhere_starts_it(file, &text, &mut findings);
+                if file == RELEASE_WORKFLOW {
+                    the_release_runs_as_written(&text, &mut findings);
+                }
+            }
+            Err(error) => findings.push(Finding {
+                file: file.to_owned(),
+                line: 1,
+                what: format!("`{file}` could not be read: {error}"),
+                fix: "a workflow this gate cannot read is one GitHub still runs, so every \
+                      rule here would pass over it unjudged. Make it a readable UTF-8 file"
+                    .to_owned(),
+            }),
+        }
+    }
+    let judged = every_action_is_a_commit(root, &mut findings);
+    (findings, judged)
+}
+
+/// `.github/` holds every one of [`THE_WORKFLOWS`], and nothing else.
+fn github_holds_the_workflows(root: &Path, findings: &mut Vec<Finding>) {
+    let mut held = Vec::new();
+    if let Err(error) = walk(&root.join(WORKFLOWS), &mut |path| {
+        held.push(relative_to(root, path));
+    }) {
+        findings.push(Finding {
+            file: WORKFLOWS.to_owned(),
+            line: 1,
+            what: format!("`{WORKFLOWS}/` could not be walked: {error}"),
+            fix: "what sits there is what GitHub runs, and a walk that stopped cannot say \
+                  what that is"
+                .to_owned(),
+        });
+        return;
+    }
+    for file in &held {
+        if !THE_WORKFLOWS.contains(&file.as_str()) {
+            findings.push(Finding {
+                file: file.clone(),
+                line: 1,
+                what: format!(
+                    "`{file}` sits under `{WORKFLOWS}/`, which holds `{WORKFLOW}` and \
+                     `{RELEASE_WORKFLOW}` and nothing else"
+                ),
+                fix: "a workflow there is one GitHub runs on its own events, with its own \
+                      token and its own way into the environments that hold the release \
+                      App's key, and a script or an action there is code a step runs. A \
+                      file belongs there with a rule that reads it: name it in \
+                      `THE_WORKFLOWS` and say what holds it"
+                    .to_owned(),
+            });
+        }
+    }
+    if !held.iter().any(|file| file == RELEASE_WORKFLOW) {
+        findings.push(Finding {
+            file: RELEASE_WORKFLOW.to_owned(),
+            line: 1,
+            what: format!("`{RELEASE_WORKFLOW}` is missing"),
+            fix: "a push to `staging` or `main` is what releases that channel (NOCTUA.md \
+                  §22.6), and the workflow is what makes the release, and the one place the \
+                  release App's token is minted"
+                .to_owned(),
+        });
+    }
+}
+
+/// A workflow opens with `permissions: {}`, and a job in it asks for
+/// [`THE_ONE_PERMISSION`] at most.
+///
+/// **A workflow with no `permissions:` at its top hands every job the token the
+/// repository's settings give**, and so does every build script and test that
+/// job runs. Opened with none, a job holds only what it asks for.
+fn no_authority_but_reading(file: &str, text: &str, findings: &mut Vec<Finding>) {
+    let lines: Vec<&str> = text.lines().collect();
+    let mut opened = false;
+    for (at, line) in lines.iter().enumerate() {
+        let (key, value) = key_and_value(line);
+        if key != "permissions" {
+            continue;
+        }
+        if indent_of(line) == 0 {
+            opened = true;
+            if value != "{}" {
+                findings.push(Finding {
+                    file: file.to_owned(),
+                    line: at + 1,
+                    what: format!("`{file}` opens with `permissions: {value}`"),
+                    fix: "every job without a `permissions:` of its own holds what the top \
+                          of the file grants, and here that is to be nothing: write \
+                          `permissions: {}` there, and let each job ask for reading the \
+                          tree"
+                        .to_owned(),
+                });
+            }
+            continue;
+        }
+        for grant in the_grants(&lines, at, &value) {
+            if grant != THE_ONE_PERMISSION {
+                findings.push(Finding {
+                    file: file.to_owned(),
+                    line: at + 1,
+                    what: format!(
+                        "a job in `{file}` asks for `{grant}`, and a job here asks for \
+                         `{THE_ONE_PERMISSION}` alone"
+                    ),
+                    fix: "the gate writes nothing on GitHub, and the release writes with the \
+                          App's token and never with this one; a token that may write is one \
+                          every build script and test the job runs could use. Ask for \
+                          `contents: read`, which the checkout needs, and nothing more"
+                        .to_owned(),
+                });
+            }
+        }
+    }
+    if !opened {
+        findings.push(Finding {
+            file: file.to_owned(),
+            line: 1,
+            what: format!("`{file}` does not open with `permissions: {{}}`"),
+            fix: "a workflow with nothing at its top hands each job the token the \
+                  repository's settings give, which may write. Write `permissions: {}` \
+                  above `jobs:`, and let each job ask for reading the tree"
+                .to_owned(),
+        });
+    }
+}
+
+/// What one `permissions:` key grants: each `name: level` it holds, written
+/// one way whatever spacing the file gives it.
+///
+/// **Its value on its own line, a flow mapping, or the lines under it**, which
+/// are the three ways YAML writes one; a word such as `write-all` is a grant
+/// of its own.
+fn the_grants(lines: &[&str], at: usize, value: &str) -> Vec<String> {
+    let held: Vec<String> = if value.is_empty() {
+        the_lines_under(lines, at)
+            .into_iter()
+            .map(|index| the_code_before_a_comment(lines[index]))
+            .collect()
+    } else if let Some(inside) = value
+        .strip_prefix('{')
+        .and_then(|rest| rest.strip_suffix('}'))
+    {
+        inside.split(',').map(str::to_owned).collect()
+    } else {
+        vec![value.to_owned()]
+    };
+    held.iter()
+        .map(|grant| match grant.split_once(':') {
+            Some((name, level)) => format!("{}: {}", name.trim(), level.trim()),
+            None => grant.trim().to_owned(),
+        })
+        .filter(|grant| !grant.is_empty())
+        .collect()
+}
+
+/// No workflow runs on an event that lends a change made elsewhere this
+/// repository's authority ([`WITH_THIS_REPOSITORYS_AUTHORITY`]).
+fn nothing_made_elsewhere_starts_it(file: &str, text: &str, findings: &mut Vec<Finding>) {
+    for (at, line) in text.lines().enumerate() {
+        let code = the_code_before_a_comment(line);
+        for event in WITH_THIS_REPOSITORYS_AUTHORITY {
+            if code.contains(event) {
+                findings.push(Finding {
+                    file: file.to_owned(),
+                    line: at + 1,
+                    what: format!("`{file}` runs on `{event}`"),
+                    fix: "it runs with this repository's secrets and a token that may write, \
+                          on behalf of a change made in a fork, and a build script of that \
+                          change holds what the run holds. A pull request is judged on \
+                          `pull_request`, which a fork's runs with no secret and a token that \
+                          can only read"
+                        .to_owned(),
+                });
+            }
+        }
+    }
+}
+
+/// Every action a file CI reaches uses is pinned to a full commit, with its
+/// release in a comment beside it; and how many were judged.
+///
+/// **A local action is a file of this commit**, walked and judged as one, so
+/// it needs no pin of its own.
+fn every_action_is_a_commit(root: &Path, findings: &mut Vec<Finding>) -> usize {
+    let files = match everything_ci_reaches(root) {
+        Ok((files, _)) => files,
+        Err(error) => {
+            findings.push(Finding {
+                file: WORKFLOWS.to_owned(),
+                line: 1,
+                what: format!("what CI reaches could not be walked: {error}"),
+                fix: "every action a step uses is judged from the files CI reaches, and \
+                      a walk that stopped judges none of them"
+                    .to_owned(),
+            });
+            return 0;
+        }
+    };
+    let mut judged = 0_usize;
+    for path in files {
+        if !path
+            .extension()
+            .is_some_and(|kind| kind == "yml" || kind == "yaml")
+        {
+            continue;
+        }
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let relative = relative_to(root, &path);
+        for (at, line) in text.lines().enumerate() {
+            let code = the_command_without_its_comment(line);
+            let Some(used) = the_action_used(&code) else {
+                continue;
+            };
+            if used.starts_with('.') {
+                continue;
+            }
+            judged += 1;
+            let reference = used.split_once('@').map_or("", |(_, reference)| reference);
+            let release = line[code.len()..].trim().trim_start_matches('#').trim();
+            if !is_a_commit(reference.trim()) {
+                findings.push(Finding {
+                    file: relative.clone(),
+                    line: at + 1,
+                    what: format!("`uses: {used}` is not pinned to a full commit"),
+                    fix: "a tag or a branch is a name its owner can move, so the code a step \
+                          runs could change under a workflow nobody edited — in the job that \
+                          holds the release App's token as in any other — and a full \
+                          40-character commit cannot. Pin it by the commit, with its release \
+                          in a comment after it"
+                        .to_owned(),
+                });
+            } else if release.is_empty() {
+                findings.push(Finding {
+                    file: relative.clone(),
+                    line: at + 1,
+                    what: format!("`uses: {used}` is pinned with no release beside it"),
+                    fix: "the commit says what runs and not what it is: the release in a \
+                          comment after it, such as `# v1.2.3`, is what a reader checks \
+                          against the action's own tags, and what an update moves"
+                        .to_owned(),
+                });
+            }
+        }
+    }
+    judged
+}
+
+/// Whether a revision is a full commit SHA, as GitHub writes one.
+fn is_a_commit(reference: &str) -> bool {
+    reference.len() == 40
+        && reference
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
+/// The release workflow makes the release as [`THE_RELEASE_STEPS`] say, from
+/// a channel's branch, and nowhere else.
+///
+/// It fires on a push to the branches of [`RELEASED_FROM`] and on nothing else;
+/// it holds one job, which runs on Linux and enters
+/// [`THE_RELEASES_ENVIRONMENT`]; it restores no cache; no step of it runs on a
+/// condition; the job runs its steps and no others; and the App's key and
+/// token reach the steps that need them alone.
+fn the_release_runs_as_written(text: &str, findings: &mut Vec<Finding>) {
+    let lines: Vec<&str> = text.lines().collect();
+    the_release_fires_on_a_channel(&lines, findings);
+    the_release_is_one_job(&lines, findings);
+    no_cache_reaches_the_release(&lines, findings);
+    no_step_runs_on_a_condition(RELEASE_WORKFLOW, text, findings);
+    let steps = the_steps_of(&lines, "release");
+    the_release_runs_its_steps(&steps, findings);
+    the_token_reaches_the_release_alone(&lines, &steps, findings);
+}
+
+/// The release fires on a push to a channel's branch, and on nothing else.
+///
+/// **Read as the three keys it is written with**, `on:`, then `push:`, then
+/// `branches:` with the channels, so a shape this cannot read is a finding and
+/// not a pass: another event, a filter beside the branches, a tag, or a branch
+/// list that is not [`RELEASED_FROM`] is each said by name.
+fn the_release_fires_on_a_channel(lines: &[&str], findings: &mut Vec<Finding>) {
+    /// What every finding about the trigger says to do: one rule, whichever
+    /// part of the trigger broke it.
+    const FIX: &str = "a release is made by a push to a channel's branch and by nothing \
+                       else (NOCTUA.md §22.6): another event, another branch, a tag or a path \
+                       filter releases from something that is not a channel, or does not \
+                       release where one is. Write `on:`, then `push:` under it, then \
+                       `branches: [staging, main]` under that";
+    let Some(on) = top_level(lines, "on").filter(|&at| key_and_value(lines[at]).1.is_empty())
+    else {
+        findings.push(Finding {
+            file: RELEASE_WORKFLOW.to_owned(),
+            line: 1,
+            what: "the release workflow does not say, as a block of its own, what it fires on"
+                .to_owned(),
+            fix: FIX.to_owned(),
+        });
+        return;
+    };
+    let events = the_keys_under(lines, on);
+    for &at in &events {
+        let (event, value) = key_and_value(lines[at]);
+        if event != "push" || !value.is_empty() {
+            findings.push(Finding {
+                file: RELEASE_WORKFLOW.to_owned(),
+                line: at + 1,
+                what: format!(
+                    "the release fires on `{}`",
+                    the_code_before_a_comment(lines[at])
+                ),
+                fix: FIX.to_owned(),
+            });
+        }
+    }
+    let Some(&push) = events
+        .iter()
+        .find(|&&at| key_and_value(lines[at]).0 == "push")
+    else {
+        findings.push(Finding {
+            file: RELEASE_WORKFLOW.to_owned(),
+            line: on + 1,
+            what: "the release does not fire on a push".to_owned(),
+            fix: FIX.to_owned(),
+        });
+        return;
+    };
+    let filters = the_keys_under(lines, push);
+    for &at in &filters {
+        let (filter, _) = key_and_value(lines[at]);
+        if filter != "branches" {
+            findings.push(Finding {
+                file: RELEASE_WORKFLOW.to_owned(),
+                line: at + 1,
+                what: format!("the release's push is filtered by `{filter}`"),
+                fix: FIX.to_owned(),
+            });
+        }
+    }
+    let branches: Vec<String> = filters
+        .iter()
+        .find(|&&at| key_and_value(lines[at]).0 == "branches")
+        .map(|&at| the_branches(lines, at))
+        .unwrap_or_default();
+    let mut named: Vec<&str> = branches.iter().map(String::as_str).collect();
+    named.sort_unstable();
+    let mut channels = RELEASED_FROM;
+    channels.sort_unstable();
+    if named != channels {
+        findings.push(Finding {
+            file: RELEASE_WORKFLOW.to_owned(),
+            line: push + 1,
+            what: format!(
+                "the release fires on a push to {named:?}, and a release is made from \
+                 {RELEASED_FROM:?} alone"
+            ),
+            fix: FIX.to_owned(),
+        });
+    }
+}
+
+/// The branches a `branches:` key names: a flow list on its own line, or the
+/// items under it.
+fn the_branches(lines: &[&str], at: usize) -> Vec<String> {
+    let (_, value) = key_and_value(lines[at]);
+    let named: Vec<String> = match value
+        .strip_prefix('[')
+        .and_then(|rest| rest.strip_suffix(']'))
+    {
+        Some(inside) => inside.split(',').map(str::to_owned).collect(),
+        None if value.is_empty() => the_lines_under(lines, at)
+            .into_iter()
+            .map(|index| {
+                the_code_before_a_comment(lines[index])
+                    .trim_start_matches('-')
+                    .to_owned()
+            })
+            .collect(),
+        None => vec![value],
+    };
+    named
+        .iter()
+        .map(|branch| branch.trim().trim_matches(['"', '\'']).to_owned())
+        .filter(|branch| !branch.is_empty())
+        .collect()
+}
+
+/// The release workflow holds the `release` job and no other, on Linux, in
+/// the environment of the branch it releases.
+fn the_release_is_one_job(lines: &[&str], findings: &mut Vec<Finding>) {
+    let jobs: Vec<(usize, String)> = top_level(lines, "jobs")
+        .map(|at| the_keys_under(lines, at))
+        .unwrap_or_default()
+        .into_iter()
+        .map(|at| (at, key_and_value(lines[at]).0))
+        .collect();
+    for (at, job) in &jobs {
+        if job != "release" {
+            findings.push(Finding {
+                file: RELEASE_WORKFLOW.to_owned(),
+                line: at + 1,
+                what: format!("the release workflow holds the job `{job}` beside `release`"),
+                fix: "every job in it runs on the push that releases a channel, and the rules \
+                      here read the `release` job alone; a second is a job nothing holds to \
+                      the steps, the environment or the token. What it would do belongs in \
+                      the gate"
+                    .to_owned(),
+            });
+        }
+    }
+    let Some(&(job, _)) = jobs.iter().find(|(_, job)| job == "release") else {
+        findings.push(Finding {
+            file: RELEASE_WORKFLOW.to_owned(),
+            line: 1,
+            what: "the release workflow has no `release` job".to_owned(),
+            fix: "the job is what makes the release, and every rule about its steps, its \
+                  environment and the App's token reads it by that name"
+                .to_owned(),
+        });
+        return;
+    };
+    let held: Vec<(String, String)> = the_keys_under(lines, job)
+        .into_iter()
+        .map(|at| key_and_value(lines[at]))
+        .collect();
+    let named = |key: &str| {
+        held.iter()
+            .find(|(held, _)| held == key)
+            .map(|(_, value)| value.trim_matches(['"', '\'']).to_owned())
+    };
+    let entered = named("environment");
+    if entered.as_deref() != Some(THE_RELEASES_ENVIRONMENT) {
+        findings.push(Finding {
+            file: RELEASE_WORKFLOW.to_owned(),
+            line: job + 1,
+            what: format!(
+                "the release job enters {}, and it enters `{THE_RELEASES_ENVIRONMENT}` \
+                 alone",
+                entered.map_or_else(|| "no environment".to_owned(), |name| format!("`{name}`"))
+            ),
+            fix: "the environment holds the App's id and its key, and GitHub lets a job \
+                  enter `release-staging` from `staging` alone and `release-main` from `main` \
+                  alone; a job that enters another mints the token from a branch that is not \
+                  the channel it releases, and one that enters none cannot mint it"
+                .to_owned(),
+        });
+    }
+    let runner = named("runs-on").unwrap_or_default();
+    if !runner.starts_with("ubuntu-") {
+        findings.push(Finding {
+            file: RELEASE_WORKFLOW.to_owned(),
+            line: job + 1,
+            what: format!("the release job runs on `{runner}`, which is not a Linux runner"),
+            fix: "the release runs the gate first, and only Linux's runner brings up the \
+                  stack the gate's steps read (NOCTUA.md §22.2); elsewhere those steps are \
+                  not applicable, and the release is judged by less than the gate every \
+                  pull request passed. Run it on `ubuntu-latest`"
+                .to_owned(),
+        });
+    }
+}
+
+/// The release restores no cache.
+fn no_cache_reaches_the_release(lines: &[&str], findings: &mut Vec<Finding>) {
+    for (at, line) in lines.iter().enumerate() {
+        let code = the_code_before_a_comment(line);
+        let Some(used) = the_action_used(&code) else {
+            continue;
+        };
+        let name = used.split('@').next().unwrap_or(used).trim();
+        let lowered = name.to_ascii_lowercase();
+        let restores = RESTORES_A_CACHE.iter().any(|cache| {
+            let cache = cache.to_ascii_lowercase();
+            lowered == cache || lowered.starts_with(&format!("{cache}/"))
+        });
+        if restores {
+            findings.push(Finding {
+                file: RELEASE_WORKFLOW.to_owned(),
+                line: at + 1,
+                what: format!("the release restores a cache, through `{name}`"),
+                fix: "a cache holds what an earlier run built and saved — `dev`'s are \
+                      restored on every branch, and the run that saved one decided what it \
+                      holds — and the release is built from the branch it releases and \
+                      nothing else. The release job builds from cold"
+                    .to_owned(),
+            });
+        }
+    }
+}
+
+/// One step of a job: the line it opens on, what it runs, and every line of it.
+struct Step {
+    /// The index of the line its `- ` opens.
+    opens: usize,
+    /// What it runs, written as [`THE_RELEASE_STEPS`] writes a step: an
+    /// action by its name, a command as it is written, or nothing.
+    runs: String,
+    /// The indices of every line it holds, its first among them.
+    lines: Vec<usize>,
+}
+
+/// The steps of the job `job`, in order.
+fn the_steps_of(lines: &[&str], job: &str) -> Vec<Step> {
+    let Some(job) = top_level(lines, "jobs").and_then(|jobs| {
+        the_keys_under(lines, jobs)
+            .into_iter()
+            .find(|&at| key_and_value(lines[at]).0 == job)
+    }) else {
+        return Vec::new();
+    };
+    let Some(steps) = the_keys_under(lines, job)
+        .into_iter()
+        .find(|&at| key_and_value(lines[at]).0 == "steps")
+    else {
+        return Vec::new();
+    };
+    the_keys_under(lines, steps)
+        .into_iter()
+        .map(|opens| {
+            let runs = std::iter::once(opens)
+                .chain(the_keys_under(lines, opens))
+                .find_map(|at| {
+                    let (key, value) = key_and_value(lines[at]);
+                    match key.as_str() {
+                        "uses" => Some(format!(
+                            "uses: {}",
+                            value.split('@').next().unwrap_or_default().trim()
+                        )),
+                        "run" => Some(format!("run: {value}")),
+                        _ => None,
+                    }
+                })
+                .unwrap_or_default();
+            let lines = std::iter::once(opens)
+                .chain(the_lines_under(lines, opens))
+                .collect();
+            Step { opens, runs, lines }
+        })
+        .collect()
+}
+
+/// The release job runs [`THE_RELEASE_STEPS`], in order, and nothing else.
+fn the_release_runs_its_steps(steps: &[Step], findings: &mut Vec<Finding>) {
+    let ran: Vec<&str> = steps.iter().map(|step| step.runs.as_str()).collect();
+    let Some(at) = (0..ran.len().max(THE_RELEASE_STEPS.len()))
+        .find(|&at| ran.get(at) != THE_RELEASE_STEPS.get(at))
+    else {
+        return;
+    };
+    let quoted = |step: Option<&&str>, otherwise: &str| {
+        step.filter(|step| !step.is_empty())
+            .map_or_else(|| otherwise.to_owned(), |step| format!("`{step}`"))
+    };
+    findings.push(Finding {
+        file: RELEASE_WORKFLOW.to_owned(),
+        line: steps.get(at).map_or(1, |step| step.opens + 1),
+        what: format!(
+            "the release job's step {} is {}, where it is {}",
+            at + 1,
+            quoted(ran.get(at), "missing"),
+            quoted(THE_RELEASE_STEPS.get(at), "nothing at all")
+        ),
+        fix: "the job holds the App's token, so what runs beside it is `THE_RELEASE_STEPS` \
+              in `xtask/src/workflow.rs` and nothing else: the token, the checkout, the \
+              toolchain, the audit's install, the stack, then the release. A step to add is \
+              a line there, which is a line in a diff"
+            .to_owned(),
+    });
+}
+
+/// The App's key reaches the step that mints the token, and the token the
+/// release step alone, as `GH_TOKEN`; nothing in the workflow names either
+/// anywhere else ([`NAMES_A_KEY_OR_A_TOKEN`]).
+///
+/// **Written anywhere else, it is in the environment of everything that runs
+/// there**: a job's `env:` hands it to every step, the stack's among them,
+/// which builds and runs this tree's code. The release verb hands the token on
+/// to `gh` alone (`crate::release::ghs_own`), and that is only worth anything
+/// if the workflow hands it to the verb alone.
+fn the_token_reaches_the_release_alone(
+    lines: &[&str],
+    steps: &[Step],
+    findings: &mut Vec<Finding>,
+) {
+    let the_step = |runs: &str| steps.iter().find(|step| step.runs == runs);
+    let minting = the_step(THE_RELEASE_STEPS[0]);
+    let releasing = the_step(THE_RELEASE_STEPS[THE_RELEASE_STEPS.len() - 1]);
+    let inside = |step: Option<&Step>, at: usize| step.is_some_and(|step| step.lines.contains(&at));
+    for (at, line) in lines.iter().enumerate() {
+        let code = the_code_before_a_comment(line);
+        let Some(named) = NAMES_A_KEY_OR_A_TOKEN
+            .iter()
+            .find(|named| code.contains(**named))
+        else {
+            continue;
+        };
+        let allowed = if *named == "secrets" {
+            inside(minting, at)
+        } else {
+            inside(releasing, at) && code == THE_TOKEN_HANDED
+        };
+        if !allowed {
+            findings.push(Finding {
+                file: RELEASE_WORKFLOW.to_owned(),
+                line: at + 1,
+                what: format!("the release names `{named}` outside the step it belongs to"),
+                fix: "the App's key reaches the step that mints the token and nothing else, \
+                      and the token reaches the release step alone, as `GH_TOKEN: ${{ \
+                      steps.app.outputs.token }}`. Anywhere else it is in the environment of \
+                      what runs there, this tree's build scripts and tests among them, and \
+                      the App may push to `staging` and `main` past their rules. The \
+                      workflow's own token is not used at all"
+                    .to_owned(),
+            });
+        }
+    }
+}
+
+/// How far a line is indented.
+fn indent_of(line: &str) -> usize {
+    line.len() - line.trim_start().len()
+}
+
+/// The lines a key at `at` holds: every line below it indented further, up to
+/// the first that is not, with blank lines and comments passed over.
+fn the_lines_under(lines: &[&str], at: usize) -> Vec<usize> {
+    let indent = indent_of(lines[at]);
+    let mut under = Vec::new();
+    for (index, line) in lines.iter().enumerate().skip(at + 1) {
+        if the_code_before_a_comment(line).is_empty() {
+            continue;
+        }
+        if indent_of(line) <= indent {
+            break;
+        }
+        under.push(index);
+    }
+    under
+}
+
+/// The keys directly under the key at `at`: the lines it holds at the
+/// shallowest indentation among them.
+fn the_keys_under(lines: &[&str], at: usize) -> Vec<usize> {
+    let under = the_lines_under(lines, at);
+    let Some(shallowest) = under.iter().map(|&index| indent_of(lines[index])).min() else {
+        return Vec::new();
+    };
+    under
+        .into_iter()
+        .filter(|&index| indent_of(lines[index]) == shallowest)
+        .collect()
+}
+
+/// A line's key and the value on its own line, comment and list marker off.
+fn key_and_value(line: &str) -> (String, String) {
+    let code = the_code_before_a_comment(line);
+    let code = code.trim_start_matches("- ");
+    match code.split_once(':') {
+        Some((key, value)) => (key.trim().to_owned(), value.trim().to_owned()),
+        None => (code.trim().to_owned(), String::new()),
+    }
+}
+
+/// The line the top-level key `key` opens on.
+fn top_level(lines: &[&str], key: &str) -> Option<usize> {
+    lines
+        .iter()
+        .position(|line| indent_of(line) == 0 && key_and_value(line).0 == key)
 }
 
 /// The alias that decides what `cargo xtask` means.
@@ -2479,12 +3261,22 @@ fn the_workflow_actually_runs(ci: &str, findings: &mut Vec<Finding>) {
         }
     }
 
+    no_step_runs_on_a_condition(WORKFLOW, ci, findings);
+}
+
+/// No step or job of `file` runs on a condition: whatever `if:` says, the
+/// step may not run, and every rule here reads what it runs.
+///
+/// **Of each workflow**, the gate's and the release's: a condition on the
+/// release's steps would let one of them stand aside on a run that
+/// releases, as surely as one on the gate's.
+fn no_step_runs_on_a_condition(file: &str, text: &str, findings: &mut Vec<Finding>) {
     // **Any condition, not only the literal false.**
     // `if: github.event_name == 'never-happens'` never holds either, and a gate
     // cannot evaluate an expression — so what it can say is that a job carrying
     // a condition is a job that might not run, which is the thing this file
     // exists to prevent.
-    for (index, line) in ci.lines().enumerate() {
+    for (index, line) in text.lines().enumerate() {
         // **The list marker first, the way every other reader in this file does
         // it.** `is_label`, `commands_in`, `reached_from` and
         // `runs_cargo_as_an_action` all strip `- ` before matching, and without
@@ -2521,7 +3313,7 @@ fn the_workflow_actually_runs(ci: &str, findings: &mut Vec<Finding>) {
             continue;
         }
         findings.push(Finding {
-            file: WORKFLOW.to_owned(),
+            file: file.to_owned(),
             line: index + 1,
             what: format!("this step or job runs only when `{condition}`"),
             fix: "a required job that runs conditionally is a required job that may not \
@@ -3648,24 +4440,7 @@ fn cargo_commands(line: &str) -> Vec<String> {
 /// subcommand in a `with:` block rather than in a `run:` line — so a gate that
 /// reads what a step *runs* never sees it.
 fn runs_cargo_as_an_action(line: &str) -> Option<String> {
-    // **Flow style opens a mapping too.** Unless the braces are stripped,
-    // `- { uses: X }` never reaches this reader, so any third-party action is
-    // invisible to the allow-list — measured with `giraffate/clippy-action@v1`, a clippy action <!-- allow-reference: names `giraffate/clippy-action@v1` — a GitHub Action, not a path in this tree -->
-    // like the one that list's own doc names: one pair of braces walks past
-    // it, the count does not move, and nothing is reported. `gates.rs`'s
-    // `is_a_build_key` carries a mutation operator for the same class.
-    let line = line.trim_start_matches("- ").trim();
-    let line = line
-        .strip_prefix('{')
-        .map_or(line, |inside| inside.trim_end_matches('}').trim());
-    // A flow mapping may hold more than one key — `{ uses: X, with: … }` — and
-    // the action is the first, up to the comma.
-    let uses = line
-        .strip_prefix("uses:")?
-        .split(',')
-        .next()
-        .unwrap_or_default()
-        .trim();
+    let uses = the_action_used(line)?;
     let name = uses.split('@').next().unwrap_or(uses).trim();
     // A local composite action is walked as a file of its own.
     if name.starts_with('.') {
@@ -3678,6 +4453,33 @@ fn runs_cargo_as_an_action(line: &str) -> Option<String> {
         return None;
     }
     Some(format!("uses: {name}"))
+}
+
+/// What a line's `uses:` names, up to the end of its entry, or `None` when the
+/// line uses no action.
+///
+/// **One reader of `uses:`**, for the allow-list, the pins and the release's
+/// steps, so the three cannot disagree about which lines use an action.
+fn the_action_used(line: &str) -> Option<&str> {
+    // **Flow style opens a mapping too.** Unless the braces are stripped,
+    // `- { uses: X }` never reaches this reader, so any third-party action is
+    // invisible to the allow-list — measured with `giraffate/clippy-action@v1`, a clippy action <!-- allow-reference: names `giraffate/clippy-action@v1` — a GitHub Action, not a path in this tree -->
+    // like the one that list's own doc names: one pair of braces walks past
+    // it, the count does not move, and nothing is reported. `gates.rs`'s
+    // `is_a_build_key` carries a mutation operator for the same class.
+    let line = line.trim().trim_start_matches("- ").trim();
+    let line = line
+        .strip_prefix('{')
+        .map_or(line, |inside| inside.trim_end_matches('}').trim());
+    // A flow mapping may hold more than one key — `{ uses: X, with: … }` — and
+    // the action is the first, up to the comma.
+    Some(
+        line.strip_prefix("uses:")?
+            .split(',')
+            .next()
+            .unwrap_or_default()
+            .trim(),
+    )
 }
 
 /// The variable a line assigns `cargo` to, if it assigns one.
@@ -5837,10 +6639,10 @@ mod tests {
             super::SETS_UP_AND_JUDGES_NOTHING,
             [
                 "actions/checkout",
-                "dtolnay/rust-toolchain",
                 "Swatinem/rust-cache",
                 "actions/cache",
                 "actions/upload-artifact",
+                "actions/create-github-app-token",
             ],
             "the actions CI may use moved: one that judges something is a second gate"
         );
@@ -6138,6 +6940,18 @@ mod tests {
         }
     }
 
+    /// The shipped workflow with `step` written after its first cache step.
+    ///
+    /// **Found by the action's name**, so the pin beside it can move without
+    /// moving this.
+    fn after_the_cache(workflow: &str, step: &str) -> String {
+        let at = workflow
+            .find("      - uses: Swatinem/rust-cache@")
+            .expect("the shipped workflow restores a cache");
+        let end = at + workflow[at..].find('\n').expect("the step ends its line") + 1;
+        format!("{}{step}{}", &workflow[..end], &workflow[end..])
+    }
+
     /// More ways past a narrower gate, each measured green against it.
     ///
     /// ```text
@@ -6287,11 +7101,7 @@ mod tests {
                 std::fs::write(scratch.join("ci/lint.sh"), recipes).expect("writable");
             }
             let workflow = std::fs::read_to_string(root().join(super::WORKFLOW)).expect("readable");
-            let planted = workflow.replacen(
-                "      - uses: Swatinem/rust-cache@v2\n",
-                &format!("      - uses: Swatinem/rust-cache@v2\n{step}"),
-                1,
-            );
+            let planted = after_the_cache(&workflow, step);
             assert_ne!(planted, workflow, "{label}: the step was not planted");
             std::fs::write(scratch.join(super::WORKFLOW), planted).expect("writable");
 
@@ -6323,7 +7133,7 @@ mod tests {
             ),
             (
                 "a `with:` block naming one component",
-                "      - uses: dtolnay/rust-toolchain@stable\n        with:\n          components: rustfmt\n",
+                "      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n        with:\n          components: rustfmt\n",
             ),
             (
                 "a step described by what it is for",
@@ -6341,11 +7151,7 @@ mod tests {
                 }
             }
             let workflow = std::fs::read_to_string(root().join(super::WORKFLOW)).expect("readable");
-            let planted = workflow.replacen(
-                "      - uses: Swatinem/rust-cache@v2\n",
-                &format!("      - uses: Swatinem/rust-cache@v2\n{step}"),
-                1,
-            );
+            let planted = after_the_cache(&workflow, step);
             assert_ne!(planted, workflow, "{label}: the step was not planted");
             std::fs::write(scratch.join(super::WORKFLOW), planted).expect("writable");
             let (findings, _) = super::only_runs_the_gate(&scratch).expect("the tree reads");
@@ -8308,17 +9114,20 @@ mod tests {
         assert!(!super::opens_a_key("--offline"));
     }
 
-    /// The plugins' target is asked for by both places a toolchain comes from.
+    /// The plugins' target is asked for by the toolchain file, and every job
+    /// that builds installs from that file.
     ///
     /// **`cargo xtask check` builds every plugin for that target before the
-    /// tests, and neither source of a toolchain installs a target it is not asked
-    /// for.** rustup reads `[toolchain].targets` in `rust-toolchain.toml`; each
-    /// job that runs the gate (`linux`, `macos`, `windows`) installs through an
-    /// action that does not read that file and takes its own `targets:`. A
-    /// machine that already has the target stays green with either line
-    /// deleted, and a fresh clone or the runner then fails its first gate at
-    /// the `plugins` step — which is why the two are read here rather than left
-    /// to that failure.
+    /// tests, and rustup installs no target it is not asked for.** It reads
+    /// `[toolchain].targets` in `rust-toolchain.toml`, and every job that
+    /// builds — the three that run the gate, the determinism job, and the
+    /// release job, whose verb runs the gate — runs `rustup toolchain install`
+    /// with no toolchain named, which installs what the file asks for. A
+    /// toolchain named on that line, or installed by an action, is installed
+    /// as it was told and not as the file says. A machine that already has the
+    /// target stays green with the file's line deleted, and a fresh clone or a
+    /// runner then fails its first gate at the `plugins` step — which is why
+    /// both are read here rather than left to that failure.
     #[test]
     fn the_plugins_target_is_asked_for_by_the_toolchain_file_and_by_ci() {
         let target = crate::plugins::TARGET;
@@ -8345,24 +9154,577 @@ mod tests {
              `profile = \"minimal\"` a fresh clone that does not ask for it does not have it"
         );
 
+        // **Every job that builds**, because each builds on its own runner.
         let ci = std::fs::read_to_string(root().join(WORKFLOW)).expect("the workflow is readable");
-        // **Every job that runs the gate**, because each builds the plugins on
-        // its own runner.
-        for system in ["linux", "macos", "windows"] {
-            let job = job_body(&ci, system)
-                .unwrap_or_else(|| panic!("the workflow has a `{system}` job"));
-            let installed: Vec<String> = job
-                .lines()
-                .filter_map(|line| line.trim().strip_prefix("targets:"))
-                .flat_map(|value| value.split(','))
-                .map(|name| name.trim().trim_matches(['"', '\'', '[', ']']).to_owned())
+        let release = std::fs::read_to_string(root().join(super::RELEASE_WORKFLOW))
+            .expect("the release workflow is readable");
+        for (file, text, job) in [
+            (WORKFLOW, &ci, "linux"),
+            (WORKFLOW, &ci, "macos"),
+            (WORKFLOW, &ci, "windows"),
+            (WORKFLOW, &ci, "deterministic"),
+            (super::RELEASE_WORKFLOW, &release, "release"),
+        ] {
+            let body = job_body(text, job).unwrap_or_else(|| panic!("`{file}` has a `{job}` job"));
+            let installs: Vec<String> = super::commands_in(&body)
+                .into_iter()
+                .filter(|command| command.starts_with("rustup"))
                 .collect();
-            assert!(
-                installed.iter().any(|name| name == target),
-                "the `{system}` job's toolchain step installs the targets {installed:?} and \
-                 not `{target}`. The action it uses does not read `rust-toolchain.toml`, so \
-                 the target is asked for there as well, as `targets:` beside `components:`"
+            assert_eq!(
+                installs,
+                ["rustup toolchain install --no-self-update"],
+                "the `{job}` job in `{file}` installs its toolchain with {installs:?}. With no \
+                 toolchain named, rustup installs what `rust-toolchain.toml` asks for, \
+                 `{target}` among it; a toolchain named there is installed as it was told"
             );
         }
+    }
+
+    /// A scratch tree holding this repository's workflows as they ship, with a
+    /// change made to the text of `file`, and what the bounds say of it.
+    ///
+    /// **The shipped files, not a fragment**, so each case is the one change it
+    /// names made to what this repository runs, and
+    /// [`the_shipped_workflows_are_bounded`] is what says the files without the
+    /// change are clean.
+    fn bounded_after(
+        about: &str,
+        file: &str,
+        change: impl FnOnce(&str) -> String,
+    ) -> Vec<crate::gates::Finding> {
+        let held = crate::check::LeavesNothingBehind::new(&format!("bounded-{about}"));
+        let scratch = held.root.clone();
+        std::fs::create_dir_all(scratch.join(".github/workflows")).expect("writable");
+        for shipped in super::THE_WORKFLOWS {
+            std::fs::copy(root().join(shipped), scratch.join(shipped)).expect("a shipped workflow");
+        }
+        let text = std::fs::read_to_string(scratch.join(file)).expect("copied above");
+        std::fs::write(scratch.join(file), change(&text)).expect("writable");
+        super::every_workflow_is_bounded(&scratch).0
+    }
+
+    /// `text` with its first `from` replaced by `to`, refused when `from` is not
+    /// there, so a case cannot pass by changing nothing.
+    fn once(text: &str, from: &str, to: &str) -> String {
+        assert!(
+            text.contains(from),
+            "`{from}` is not in the shipped workflow, so this case changes nothing"
+        );
+        text.replacen(from, to, 1)
+    }
+
+    /// Each case: what it is, the file, the text it replaces and with what,
+    /// and what a finding then says.
+    type Case<'a> = (&'a str, &'a str, &'a str, &'a str, &'a str);
+
+    /// Runs every case through [`bounded_after`] and asserts each is said.
+    #[track_caller]
+    fn each_is_said(cases: &[Case<'_>]) {
+        for (about, file, from, to, said) in cases {
+            let findings = bounded_after(about, file, |text| once(text, from, to));
+            assert!(
+                findings.iter().any(|finding| finding.what.contains(said)),
+                "{about}: nothing said `{said}`: {findings:#?}"
+            );
+        }
+    }
+
+    /// The workflows as they ship are bounded, and every action in them was
+    /// judged.
+    ///
+    /// **Every `uses:` line, counted a second way**, because the pins are the
+    /// one rule here that only refuses: a reader that judged none of them
+    /// would say nothing, and so would a reader that judged half.
+    #[test]
+    fn the_shipped_workflows_are_bounded() {
+        let (findings, judged) = super::every_workflow_is_bounded(root());
+        assert!(findings.is_empty(), "{findings:#?}");
+        let written: usize = super::THE_WORKFLOWS
+            .iter()
+            .map(|file| {
+                std::fs::read_to_string(root().join(file))
+                    .expect("a shipped workflow")
+                    .lines()
+                    .filter(|line| {
+                        line.trim_start()
+                            .trim_start_matches("- ")
+                            .starts_with("uses:")
+                    })
+                    .count()
+            })
+            .sum();
+        assert_eq!(
+            judged, written,
+            "the workflows hold {written} `uses:` line(s) and {judged} action(s) were judged"
+        );
+        let unchanged = bounded_after("unchanged", super::RELEASE_WORKFLOW, str::to_owned);
+        assert!(unchanged.is_empty(), "{unchanged:#?}");
+    }
+
+    /// `.github/` holds the two workflows, both of them, and nothing else, and
+    /// a workflow that cannot be read is said to be so.
+    #[test]
+    fn github_holds_the_workflows_and_nothing_else() {
+        let held = crate::check::LeavesNothingBehind::new("bounded-held");
+        let scratch = held.root.clone();
+        std::fs::create_dir_all(scratch.join(".github/workflows")).expect("writable");
+        std::fs::copy(root().join(WORKFLOW), scratch.join(WORKFLOW)).expect("readable");
+        let (findings, _) = super::every_workflow_is_bounded(&scratch);
+        assert!(
+            findings
+                .iter()
+                .any(|finding| finding.what == format!("`{}` is missing", super::RELEASE_WORKFLOW)),
+            "a tree with no release workflow: {findings:#?}"
+        );
+
+        std::fs::copy(
+            root().join(super::RELEASE_WORKFLOW),
+            scratch.join(super::RELEASE_WORKFLOW),
+        )
+        .expect("readable");
+        let strays = [".github/workflows/nightly.yml", ".github/dependabot.yml"];
+        for stray in strays {
+            std::fs::write(scratch.join(stray), "version: 2\n").expect("writable");
+        }
+        let (findings, _) = super::every_workflow_is_bounded(&scratch);
+        for stray in strays {
+            assert!(
+                findings
+                    .iter()
+                    .any(|finding| finding.file == stray && finding.what.contains("sits under")),
+                "`{stray}` was not said: {findings:#?}"
+            );
+        }
+        for stray in strays {
+            std::fs::remove_file(scratch.join(stray)).expect("written above");
+        }
+
+        std::fs::write(scratch.join(super::RELEASE_WORKFLOW), [0xff, 0xfe, b'\n'])
+            .expect("writable");
+        let (findings, _) = super::every_workflow_is_bounded(&scratch);
+        assert!(
+            findings
+                .iter()
+                .any(|finding| finding.what.contains("could not be read")),
+            "a workflow that is not UTF-8: {findings:#?}"
+        );
+    }
+
+    /// Each workflow opens with no permission, and a job asks for reading the
+    /// tree and nothing more — in a block, a flow mapping or a word.
+    #[test]
+    fn a_workflow_opens_with_no_permission_and_a_job_asks_to_read_alone() {
+        let release = super::RELEASE_WORKFLOW;
+        each_is_said(&[
+            (
+                "unopened",
+                WORKFLOW,
+                "permissions: {}\n",
+                "",
+                "does not open with `permissions: {}`",
+            ),
+            (
+                "opened-wide",
+                release,
+                "permissions: {}\n",
+                "permissions: write-all\n",
+                "opens with `permissions: write-all`",
+            ),
+            (
+                "a-job-that-writes",
+                WORKFLOW,
+                "      contents: read\n",
+                "      contents: write\n",
+                "asks for `contents: write`",
+            ),
+            (
+                "a-job-that-merges",
+                release,
+                "      contents: read\n",
+                "      contents: read\n      pull-requests: write\n",
+                "asks for `pull-requests: write`",
+            ),
+            (
+                "a-flow-grant",
+                WORKFLOW,
+                "    permissions:\n      contents: read\n",
+                "    permissions: { contents: read, actions: write }\n",
+                "asks for `actions: write`",
+            ),
+            (
+                "a-word-grant",
+                release,
+                "    permissions:\n      contents: read\n",
+                "    permissions: write-all\n",
+                "asks for `write-all`",
+            ),
+        ]);
+    }
+
+    /// No workflow runs on an event that lends a fork's change this
+    /// repository's authority.
+    #[test]
+    fn no_workflow_runs_for_a_fork_with_this_repositorys_authority() {
+        let fires = "on:\n  push:\n  pull_request:\n";
+        each_is_said(&[
+            (
+                "pull-request-target",
+                WORKFLOW,
+                fires,
+                "on:\n  push:\n  pull_request:\n  pull_request_target:\n",
+                "runs on `pull_request_target`",
+            ),
+            (
+                "workflow-run",
+                WORKFLOW,
+                fires,
+                "on:\n  push:\n  pull_request:\n  workflow_run:\n    workflows: [check]\n",
+                "runs on `workflow_run`",
+            ),
+        ]);
+    }
+
+    /// Every action is pinned to a full commit with its release beside it.
+    ///
+    /// **In a workflow, and in a composite action** that a step reaches
+    /// outside the `.github/` directory.
+    #[test]
+    fn every_action_is_pinned_to_a_commit_with_its_release() {
+        let release = super::RELEASE_WORKFLOW;
+        let checkout = "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1";
+        each_is_said(&[
+            (
+                "a-tag",
+                WORKFLOW,
+                checkout,
+                "actions/checkout@v7",
+                "`uses: actions/checkout@v7` is not pinned to a full commit",
+            ),
+            (
+                "a-short-commit",
+                release,
+                checkout,
+                "actions/checkout@3d3c42e",
+                "is not pinned to a full commit",
+            ),
+            (
+                "as-long-as-a-commit",
+                release,
+                checkout,
+                "actions/checkout@gggggggggggggggggggggggggggggggggggggggg",
+                "is not pinned to a full commit",
+            ),
+            (
+                "a-branch",
+                release,
+                "actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510",
+                "actions/create-github-app-token@main",
+                "is not pinned to a full commit",
+            ),
+            (
+                "no-revision",
+                WORKFLOW,
+                "Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6",
+                "Swatinem/rust-cache",
+                "is not pinned to a full commit",
+            ),
+            (
+                "no-release",
+                WORKFLOW,
+                "6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2",
+                "6323deb102c322ba6fcbdcafc7e3dddab59af2b6",
+                "is pinned with no release beside it",
+            ),
+        ]);
+
+        let held = crate::check::LeavesNothingBehind::new("bounded-composite");
+        let scratch = held.root.clone();
+        std::fs::create_dir_all(scratch.join(".github/workflows")).expect("writable");
+        std::fs::create_dir_all(scratch.join("ci/actions/extra")).expect("writable");
+        for shipped in super::THE_WORKFLOWS {
+            std::fs::copy(root().join(shipped), scratch.join(shipped)).expect("readable");
+        }
+        let ci = std::fs::read_to_string(scratch.join(WORKFLOW)).expect("copied");
+        let ci = once(
+            &ci,
+            "    steps:\n",
+            "    steps:\n      - uses: ./ci/actions/extra\n",
+        );
+        std::fs::write(scratch.join(WORKFLOW), ci).expect("writable");
+        std::fs::write(
+            scratch.join("ci/actions/extra/action.yml"),
+            "runs:\n  using: composite\n  steps:\n    - uses: actions/checkout@v4\n",
+        )
+        .expect("writable");
+        let (findings, _) = super::every_workflow_is_bounded(&scratch);
+        assert!(
+            findings
+                .iter()
+                .any(|finding| finding.file == "ci/actions/extra/action.yml"
+                    && finding.what.contains("is not pinned")),
+            "an action a composite action uses: {findings:#?}"
+        );
+    }
+
+    /// The release fires on a push to a channel's branch and on nothing else.
+    #[test]
+    fn the_release_fires_on_a_push_to_a_channel_and_on_nothing_else() {
+        let release = super::RELEASE_WORKFLOW;
+        let on = "on:\n  push:\n    branches: [staging, main]\n";
+        each_is_said(&[
+            (
+                "a-pull-request",
+                release,
+                on,
+                "on:\n  push:\n    branches: [staging, main]\n  pull_request:\n",
+                "the release fires on `pull_request:`",
+            ),
+            (
+                "a-dispatch",
+                release,
+                on,
+                "on:\n  workflow_dispatch:\n  push:\n    branches: [staging, main]\n",
+                "the release fires on `workflow_dispatch:`",
+            ),
+            (
+                "a-tag",
+                release,
+                "    branches: [staging, main]\n",
+                "    branches: [staging, main]\n    tags: ['v*']\n",
+                "the release's push is filtered by `tags`",
+            ),
+            (
+                "a-third-branch",
+                release,
+                "[staging, main]",
+                "[staging, main, dev]",
+                "fires on a push to [\"dev\", \"main\", \"staging\"]",
+            ),
+            (
+                "every-branch",
+                release,
+                on,
+                "on:\n  push:\n",
+                "fires on a push to []",
+            ),
+            (
+                "written-inline",
+                release,
+                on,
+                "on: push\n",
+                "does not say, as a block of its own, what it fires on",
+            ),
+        ]);
+        // **And the block list, which is the same two branches.**
+        let listed = bounded_after("listed", release, |text| {
+            once(
+                text,
+                "    branches: [staging, main]\n",
+                "    branches:\n      - main\n      - staging\n",
+            )
+        });
+        assert!(listed.is_empty(), "{listed:#?}");
+    }
+
+    /// The release workflow holds one job, on Linux, in its branch's
+    /// environment.
+    #[test]
+    fn the_release_is_one_job_on_linux_in_its_branchs_environment() {
+        let release = super::RELEASE_WORKFLOW;
+        let environment = "    environment: release-${{ github.ref_name }}\n";
+        each_is_said(&[
+            (
+                "a-fixed-environment",
+                release,
+                environment,
+                "    environment: release-main\n",
+                "the release job enters `release-main`",
+            ),
+            (
+                "no-environment",
+                release,
+                environment,
+                "",
+                "the release job enters no environment",
+            ),
+            (
+                "on-macos",
+                release,
+                "    runs-on: ubuntu-latest\n",
+                "    runs-on: macos-latest\n",
+                "runs on `macos-latest`, which is not a Linux runner",
+            ),
+            (
+                "a-second-job",
+                release,
+                "jobs:\n",
+                "jobs:\n  notes:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo notes\n",
+                "holds the job `notes` beside `release`",
+            ),
+            (
+                "renamed",
+                release,
+                "  release:\n",
+                "  publish:\n",
+                "the release workflow has no `release` job",
+            ),
+        ]);
+    }
+
+    /// The release restores no cache, through either action or the half that
+    /// only restores.
+    ///
+    /// **Each sentence built from the action's name**, because a name with a
+    /// slash written between backticks is a citation of a path to the reference
+    /// gate, on any line of a Rust file.
+    #[test]
+    fn the_release_restores_no_cache() {
+        let checked_out = "          persist-credentials: false\n";
+        for (about, action) in [
+            ("rust-cache", "Swatinem/rust-cache"),
+            ("restore-only", "actions/cache/restore"),
+        ] {
+            let findings = bounded_after(about, super::RELEASE_WORKFLOW, |text| {
+                once(
+                    text,
+                    checked_out,
+                    &format!(
+                        "{checked_out}      - uses: {action}@0123456789abcdef0123456789abcdef01234567 # v1\n"
+                    ),
+                )
+            });
+            let said = format!("the release restores a cache, through `{action}`");
+            assert!(
+                findings.iter().any(|finding| finding.what == said),
+                "{about}: nothing said `{said}`: {findings:#?}"
+            );
+        }
+    }
+
+    /// The release job runs its steps, in order, and nothing else.
+    #[test]
+    fn the_release_job_runs_its_steps_and_nothing_else() {
+        let release = super::RELEASE_WORKFLOW;
+        let the_release =
+            "        run: cargo xtask release --channel ${{ github.ref_name }} --publish\n";
+        each_is_said(&[
+            (
+                "a-second-command",
+                release,
+                "        run: cargo xtask dev\n",
+                "        run: cargo xtask dev && cargo xtask check\n",
+                "step 5 is `run: cargo xtask dev && cargo xtask check`, where it is \
+                 `run: cargo xtask dev`",
+            ),
+            (
+                "a-script",
+                release,
+                "      - name: cargo xtask release\n",
+                "      - run: bash ci/release.sh\n      - name: cargo xtask release\n",
+                "step 6 is `run: bash ci/release.sh`",
+            ),
+            (
+                "no-stack",
+                release,
+                "      - name: cargo xtask dev\n        run: cargo xtask dev\n",
+                "",
+                "step 5 is `run: cargo xtask release --channel ${{ github.ref_name }} \
+                 --publish`, where it is `run: cargo xtask dev`",
+            ),
+            (
+                "a-dry-run",
+                release,
+                the_release,
+                "        run: cargo xtask release --channel ${{ github.ref_name }} --dry-run\n",
+                "step 6 is `run: cargo xtask release --channel ${{ github.ref_name }} \
+                 --dry-run`",
+            ),
+            (
+                "a-fixed-channel",
+                release,
+                the_release,
+                "        run: cargo xtask release --channel main --publish\n",
+                "step 6 is `run: cargo xtask release --channel main --publish`",
+            ),
+            (
+                "one-step-more",
+                release,
+                "          GH_TOKEN: ${{ steps.app.outputs.token }}\n",
+                "          GH_TOKEN: ${{ steps.app.outputs.token }}\n      - run: echo done\n",
+                "step 7 is `run: echo done`, where it is nothing at all",
+            ),
+            (
+                "a-condition",
+                release,
+                the_release,
+                "        if: always()\n        run: cargo xtask release --channel ${{ github.ref_name }} --publish\n",
+                "this step or job runs only when `always()`",
+            ),
+        ]);
+    }
+
+    /// The App's key reaches the step that mints the token, and the token the
+    /// release step alone.
+    #[test]
+    fn the_token_reaches_the_release_step_alone() {
+        let release = super::RELEASE_WORKFLOW;
+        let handed = "        env:\n          GH_TOKEN: ${{ steps.app.outputs.token }}\n";
+        let the_stack = "        run: cargo xtask dev\n";
+        each_is_said(&[
+            (
+                "at-the-job",
+                release,
+                "    permissions:\n",
+                "    env:\n      GH_TOKEN: ${{ steps.app.outputs.token }}\n    permissions:\n",
+                "the release names `steps.` outside the step it belongs to",
+            ),
+            (
+                "to-the-stack",
+                release,
+                the_stack,
+                "        run: cargo xtask dev\n        env:\n          GH_TOKEN: ${{ steps.app.outputs.token }}\n",
+                "the release names `steps.` outside the step it belongs to",
+            ),
+            (
+                "the-key-elsewhere",
+                release,
+                the_stack,
+                "        run: cargo xtask dev\n        env:\n          KEY: ${{ secrets.RELEASE_APP_KEY }}\n",
+                "the release names `secrets` outside the step it belongs to",
+            ),
+            (
+                "the-workflows-own",
+                release,
+                handed,
+                "        env:\n          GH_TOKEN: ${{ github.token }}\n",
+                "the release names `github.token` outside the step it belongs to",
+            ),
+            (
+                "a-second-name",
+                release,
+                handed,
+                "        env:\n          GH_TOKEN: ${{ steps.app.outputs.token }}\n          GITHUB_TOKEN: ${{ steps.app.outputs.token }}\n",
+                "the release names `steps.` outside the step it belongs to",
+            ),
+        ]);
+    }
+
+    /// The branches a release fires on are the channels the verb releases.
+    ///
+    /// **Two lists of one set**: the trigger's branches here, and the values
+    /// `--channel` accepts in `crate::release`. A channel added to one is a
+    /// branch that releases nothing, or a channel nothing releases.
+    #[test]
+    fn the_release_fires_on_every_channel_and_on_no_other_branch() {
+        let mut channels: Vec<String> =
+            <crate::release::Channel as clap::ValueEnum>::value_variants()
+                .iter()
+                .filter_map(clap::ValueEnum::to_possible_value)
+                .map(|value| value.get_name().to_owned())
+                .collect();
+        channels.sort();
+        let mut fired: Vec<String> = super::RELEASED_FROM.map(str::to_owned).to_vec();
+        fired.sort();
+        assert_eq!(fired, channels);
     }
 }

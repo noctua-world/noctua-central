@@ -2009,7 +2009,7 @@ mod tests {
                 "dad58095d0c1d74ab22b70fe921af3ad",
             ),
             ("AGENTS.md", &mapped, "281a4d27ce27d73c403d726137dfa78b"),
-            ("README.md", &bullet, "ad1b185d1d9c5d30f273f948170a331b"),
+            ("README.md", &bullet, "acd6a185e587fa606a76ddc98972c43e"),
         ] {
             // The floor under the digest: a locator that matched an empty line
             // would pin the digest of nothing, and every rewrite would pass.
@@ -2024,7 +2024,7 @@ mod tests {
                 "{named} no longer says what it said about `rust-toolchain.toml`. What \
                  that file pins is the *component list*; the channel it names is `stable`, \
                  which moves under this repository every six weeks, and CI installs the \
-                 toolchain through an action pointed at the same moving name. Read the new \
+                 toolchain from that same file, so it follows the same moving name. Read the new \
                  sentence against the file, then put its digest here in the same edit — \
                  it is `{measured}`. The sentence read was: {sentence}"
             );

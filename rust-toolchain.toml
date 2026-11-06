@@ -1,10 +1,10 @@
 # The toolchain, pinned here and nowhere else.
 #
-# **CI does not read this file.** No rustup runs in `.github/workflows/ci.yml`,
-# so nothing there installs exactly this: CI uses `dtolnay/rust-toolchain@stable` with # allow-reference: `dtolnay/rust-toolchain@stable` is an action on GitHub, not a path in this repository
-# `rustfmt` and `clippy` named as components, as `README.md` describes. A
-# developer reading here must not conclude the pin reaches CI, because it does
-# not.
+# **CI reads this file.** Every job in `.github/workflows/ci.yml` and the release
+# job in `.github/workflows/release.yml` run `rustup toolchain install` with no
+# toolchain named, which installs exactly what is written below — the channel,
+# the components and the target — so what CI builds with is what a developer's
+# rustup installs, and nothing is named a second time in a workflow.
 #
 # **`stable` is a moving channel, and that is a decision with a cost.** A new
 # stable Rust lands about every six weeks, so this line names a different
