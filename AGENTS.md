@@ -2268,6 +2268,11 @@ rather than anything decided for the project, and each is a maintainer's to reop
   every checkout's `persist-credentials: false` in `ci.yml`. Two releases racing on one
   branch are stopped by `createCommitOnBranch`'s expected head and by a tag that exists,
   and a credential a checkout of `ci.yml` left behind reads the tree and nothing more.
+- **A cargo command, and a name for one, is read from the words a line writes, not from
+  the word a shell builds**: `"car""go"`, `car"go"`, `$'cargo'`, and a parameter
+  expansion such as `${C:-cargo}` or `${C:=cargo}` each run cargo, and no reader here
+  joins the parts, so a second gate spelled that way in a file CI reaches is read by
+  review and by no rule. A reader that did would be a shell.
 - **What only the release may hold is refused elsewhere by the words it is written with**:
   a shell that builds `--publish` from parts a reader of words cannot join, such as a
   variable or a command substitution, passes it — and a publish with no token of the
@@ -2534,9 +2539,11 @@ order.
 
 `ci.yml` runs the gate, an install and two builds, and no second gate: every cargo
 invocation CI can reach must be `cargo xtask <verb>` or the `cargo install` the gate
-needs, however it is spelled — through a script a step runs, up to `HOPS` scripts deep in
-`xtask/src/workflow.rs` and a finding past that; through a `working-directory`, an alias,
-a composite action or an action whose job is to run cargo; and in the justfile.
+needs, however a line writes it — through a script a step runs, up to `HOPS` scripts deep
+in `xtask/src/workflow.rs` and a finding past that; through a `working-directory`, an
+alias, a composite action or an action whose job is to run cargo; and in the justfile. A
+word a shell builds from parts is the one spelling it does not read ("What is
+deliberately not claimed").
 
 - **A file a developer or CI can run is read because it is there**, not because something
   names it: a `just` module (`mod extra` loads `extra.just`), a committed `Makefile`, and
