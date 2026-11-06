@@ -7707,14 +7707,13 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// `xtask/mutants.py` are where a predicate's verdict is decided. It says the
 /// guard is still there, which is the question a deletion asks.
 #[cfg(test)]
-const WHAT_THE_GATE_CAN_SAY: [&str; 984] = [
+const WHAT_THE_GATE_CAN_SAY: [&str; 982] = [
     // The release (`xtask/src/release.rs`).
     "--publish publishes to the repository GITHUB_REPOSITORY names, and it is not set. CI's release job sets it; a release is published from there and nowhere else",
     "--publish publishes with the token in GH_TOKEN, and it is not set. CI's release job sets it to the release App's installation token; the workflow's own token is never used, because a pull request it opens starts no checks",
-    ". And putting {from} back failed too: {second} — this tree names {target} in {}{}",
-    ". And putting {from} back failed too: {second}",
-    ". Nothing was released and the version is back at {from}",
-    ". The version is back at {from} and Cargo.lock as it was, and {CHANGELOG} could not be put back: {second}",
+    ". And these could not be put back as they were, so each holds what this run left in it: {}",
+    ". Every file this run touched has been put back as it was",
+    ". Nothing was released, and these could not be put back as they were: {}. The release began on a clean tree, so `git status` names what it left",
     "Cargo.lock does not read back as TOML: {error}",
     "Cargo.lock reads back with {} package(s) of this workspace, and these not at {target}: {behind:?}",
     "Cargo.lock",
@@ -7774,12 +7773,15 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 984] = [
     "whether this tree has a .git could not be read: {error}",
     "without --publish nothing leaves this machine. CI's release job publishes: the release commit, the tag, the GitHub release and the pull request that carries it back",
     "{CHANGELOG} could not be read back: {error}",
-    "{CHANGELOG} could not be written: {error}{put_back}",
+    "{CHANGELOG} could not be read, and a release rewrites it: {error}. Nothing was written",
+    "{CHANGELOG} could not be written: {error}",
     "{CHANGELOG} reads back as other bytes than were written",
     "{name} could not be read back: {error}",
     "{name} does not read back as TOML: {error}",
     "{name} reads back as carrying {carries:?}, and the release wrote {target}",
+    "{name} was rewritten and still names {}, not {version}. The reader and the writer are one rule — the version is rewritten on the line `version_of` found it on — so this is a file whose version sits somewhere that reader does not look: a table other than `[workspace.package]` or `[package]`, or a spelling it cannot parse",
     "{name}: {size} byte(s)",
+    "{problem}{put_back}",
     "{tag} is tagged at {} on GitHub, and this release is at {}. A tag is never moved: look at both before releasing again",
     "{} has no section of its own in the changelog, which is a release no reader of it would see",
     "{} is already tagged or released on GitHub, and HEAD is not its release commit. A version is released once: the tags this clone holds are behind GitHub's, so fetch them and run the release again",
@@ -7802,10 +7804,7 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 984] = [
     "`nc_policy::load` returns a realm as held only when its pin is the one its pack's version builds, so a pin no declared version builds is the loader and this step disagreeing about what a pin is. Read `nc_policy::manifest` first",
     "a realm held to a pack pins no version a pack declares",
     "  `{line}` — the reader answered {answered:?}, and it assigns {expected:?}. A variable holding `cargo` is a second gate the walk counts, and one holding a path is a location that cannot stand in command position",
-    ", and Cargo.lock could not be put back either",
-    ", with Cargo.lock back as it was",
     ". Nothing was released and the version is back at {from}",
-    ". The version is back at {from} in {}, and Cargo.lock could not be put back: {second}. Run `cargo update --workspace` when the registry is reachable",
     "--dry-run: the gate is not run and nothing is written",
     "--offline",
     "--reserve: a ledger with no checksum will be accepted and rewritten",
@@ -8524,7 +8523,6 @@ const WHAT_THE_GATE_CAN_SAY: [&str; 984] = [
     "{name} is listed as carrying the version and holds none. Either it stopped carrying one — take it out of CARRIES_THE_VERSION — or the line was lost, and a release now would ship a tree that disagrees with itself",
     "{name} is not there",
     "{name} is there and `CORE_POLICIES` in xtask/src/policy.rs does not name it, so this step walked past it",
-    "{name} was rewritten and still names {}, not {version}. The reader and the writer are one rule — the version is rewritten on the line `version_of` found it on — so this is a file whose version sits somewhere that reader does not look: a table other than `[workspace.package]` or `[package]`, or a spelling it cannot parse. Every file this run touched has been put back as it was, so fixing the file and running this again is all there is to do",
     "{package} tests/{file}",
     "{pinned} image(s) carry a digest and {accounted} of them were answered for — {compared} compared, {wrong} wrong, {} not pulled here. A pin in none of those three was walked past, so the tag it names was never resolved and nothing said so",
     "{printed} error line(s) were printed and no step recorded one, so a step's verdict did not reach the run. Every step reports by pushing to the `failures` list `run` hands it; a step given a list the verdict never reads prints its findings and the run ends `check passed`",
@@ -18764,7 +18762,7 @@ mod the_frozen_path_rule {
         ("xtask/plugins.rs", 25, 5),
         ("xtask/policy.rs", 57, 5),
         ("xtask/references.rs", 54, 26),
-        ("xtask/release.rs", 205, 14),
+        ("xtask/release.rs", 218, 14),
         ("xtask/sections.rs", 38, 10),
         ("xtask/store.rs", 29, 4),
         ("xtask/the_pages_reach_the_catalog.rs", 37, 20),
@@ -21546,8 +21544,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 538 scratches this tree
-    /// builds, 449 of the 538 are removed however the test leaves and 89 are
+    /// directories accumulated in an afternoon. Of the 540 scratches this tree
+    /// builds, 452 of the 540 are removed however the test leaves and 88 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -21594,13 +21592,13 @@ mod the_frozen_path_rule {
     /// **`crates/nc-catalog-compiler/src/ledger.rs`'s `scratch` leaks on the
     /// failing path only.** It removes only at the top — but all fourteen of
     /// its callers remove at their own foot, so it leaks on the failing path
-    /// like the other eighty-eight and not on every run. Measured: its whole
+    /// like the other eighty-seven and not on every run. Measured: its whole
     /// suite passing creates nothing; one flipped assertion creates exactly one
     /// directory. Judging it from the helper's shape without reading its
     /// callers is the same mistake as reading a count without reading what it
     /// counts.
     ///
-    /// It is the one of the eighty-nine that cannot be converted in place:
+    /// It is the one of the eighty-eight that cannot be converted in place:
     /// `LeavesNothingBehind` lives in `xtask`, which the compiler crate does
     /// not depend on and must not, and this file argues against a fifth
     /// hand-written copy of the same four lines. What closes it is one guard
@@ -21608,7 +21606,7 @@ mod the_frozen_path_rule {
     /// the tests that want it.
     ///
     /// The count and not the list, for the reason [`OPENS_AN_ITEM`] gives:
-    /// naming all 89 is a list nobody reads, and 89 tests would have to grow a
+    /// naming all 88 is a list nobody reads, and 88 tests would have to grow a
     /// guard for the gap to close. Two numbers per file is what makes a swap
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
@@ -21647,7 +21645,7 @@ mod the_frozen_path_rule {
         ("xtask/members.rs", 1, 0),
         ("xtask/policy.rs", 5, 2),
         ("xtask/references.rs", 4, 1),
-        ("xtask/release.rs", 6, 1),
+        ("xtask/release.rs", 8, 4),
         ("xtask/sections.rs", 9, 1),
         ("xtask/ui.rs", 1, 0),
         ("xtask/wall.rs", 3, 2),
@@ -22225,7 +22223,7 @@ mod the_frozen_path_rule {
     /// is the one thing it exists for, which is point at the site. Measured by
     /// renaming the leaking test and watching such a list stand still.
     #[cfg(test)]
-    const THE_SCRATCHES_WITH_NO_GUARD: [(&str, &str); 89] = [
+    const THE_SCRATCHES_WITH_NO_GUARD: [(&str, &str); 88] = [
         ("nc-catalog-compiler/ledger.rs", "scratch"),
         (
             "xtask/check.rs",
@@ -22420,7 +22418,6 @@ mod the_frozen_path_rule {
             "xtask/references.rs",
             "excusing_a_citation_does_not_lower_the_number_that_proves_coverage",
         ),
-        ("xtask/release.rs", "a_failed_relock_puts_the_version_back"),
         (
             "xtask/release.rs",
             "a_listed_file_that_lost_its_version_stops_the_release",
@@ -24515,7 +24512,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14757;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 14787;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24534,7 +24531,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2956;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 2968;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -24551,7 +24548,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 968;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 972;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -24585,7 +24582,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 20636;
+    const THE_REARRANGEMENTS_JUDGED: usize = 20685;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24639,7 +24636,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **442 of 20,636 are accepted by the first-line
+    /// rules the gates apply: **442 of 20,685 are accepted by the first-line
     /// rule alone, and 221 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -24672,7 +24669,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **968 of
+    /// this tree offers, **972 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -35344,7 +35341,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1504] = [
+    static OPERATORS: [(&str, &str, &str); 1514] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -35715,6 +35712,56 @@ Options:
             "release",
             "below",
             "a production release is carried back to staging",
+        ),
+        (
+            "release",
+            "rewrite_listed",
+            "a refused rewrite puts back every file it read",
+        ),
+        (
+            "release",
+            "rewrite_each",
+            "every file a rewrite reads is one its refusal puts back",
+        ),
+        (
+            "release",
+            "written",
+            "a changelog that cannot be read is not taken as absent",
+        ),
+        (
+            "release",
+            "written",
+            "a release refused after the version is written puts back what it wrote",
+        ),
+        (
+            "release",
+            "put_back",
+            "a refused release puts the listed manifests back",
+        ),
+        (
+            "release",
+            "put_back",
+            "a refused release puts the lockfile back",
+        ),
+        (
+            "release",
+            "put_back",
+            "a refused release puts the changelog back",
+        ),
+        (
+            "release",
+            "put_the_changelog_back",
+            "a changelog the release found is put back as it was",
+        ),
+        (
+            "release",
+            "put_the_changelog_back",
+            "a changelog the tree had none of is removed",
+        ),
+        (
+            "release",
+            "put_the_changelog_back",
+            "a changelog never created is no failure to put it back",
         ),
         (
             "history",

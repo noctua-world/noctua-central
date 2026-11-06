@@ -826,6 +826,44 @@ WEAKENINGS = [
     ("release", "below", "a production release is carried back to staging",
      "            Self::Main => \"staging\",",
      "            Self::Main => \"dev\","),
+    # **What a release that failed part way puts back.** A listed file whose
+    # read or write refused, a changelog that could not be written, and a relock
+    # or a read-back that refused each leave the tree as the release found it,
+    # or the refusal says nothing was released over a tree it changed — a
+    # manifest ahead of its lockfile, which cargo refuses for every verb, or a
+    # changelog truncated, partial or new. A changelog that is there and cannot
+    # be read, taken as absent, is one a failure removes. Only the test written
+    # for each says so.
+    ("release", "rewrite_listed", "a refused rewrite puts back every file it read",
+     "            let not_back = put_back_listed(root, &before);",
+     "            let not_back: Vec<String> = Vec::new();"),
+    ("release", "rewrite_each", "every file a rewrite reads is one its refusal puts back",
+     "        before.push((name, text.clone()));",
+     "        // nothing recorded"),
+    ("release", "written", "a changelog that cannot be read is not taken as absent",
+     "        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,",
+     "        Err(_) => None,"),
+    ("release", "written", "a release refused after the version is written puts back what it wrote",
+     "            let not_back = put_back(root, &found);",
+     "            let not_back: Vec<String> = Vec::new();"),
+    ("release", "put_back", "a refused release puts the listed manifests back",
+     "    put_back_listed(root, &found.manifests)\n        .into_iter()",
+     "    Vec::<String>::new()\n        .into_iter()"),
+    ("release", "put_back", "a refused release puts the lockfile back",
+     "    let lockfile = put_the_lockfile_back(&root.join(\"Cargo.lock\"), &found.locked)",
+     "    let lockfile = std::io::Result::<()>::Ok(())"),
+    ("release", "put_back", "a refused release puts the changelog back",
+     "    let changelog = put_the_changelog_back(&root.join(CHANGELOG), found.changelog.as_deref())",
+     "    let changelog = std::io::Result::<()>::Ok(())"),
+    ("release", "put_the_changelog_back", "a changelog the release found is put back as it was",
+     "        Some(bytes) => put_back_as(changelog, bytes),",
+     "        Some(_) => Ok(()),"),
+    ("release", "put_the_changelog_back", "a changelog the tree had none of is removed",
+     "        None => match std::fs::remove_file(changelog) {\n            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),\n            removed => removed,\n        },",
+     "        None => Ok(()),"),
+    ("release", "put_the_changelog_back", "a changelog never created is no failure to put it back",
+     "            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),",
+     "            Err(error) if error.kind() == std::io::ErrorKind::Other => Ok(()),"),
     # -- history: what a commit and a pull request may say -------------------
     ("history", "subject", "a subject opens with one of the types",
      "    if !TYPES.contains(&kind) {",

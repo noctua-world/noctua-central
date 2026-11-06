@@ -651,7 +651,55 @@ fn a_gate(itself: &Path, root: &Path, inherited: &[(OsString, OsString)]) -> std
 /// A named function so the bytes can be asked about directly, which is
 /// what `the_lockfile_comes_back_byte_for_byte` does.
 fn put_the_lockfile_back(lockfile: &Path, locked: &[u8]) -> std::io::Result<()> {
-    std::fs::write(lockfile, locked)
+    put_back_as(lockfile, locked)
+}
+
+/// Puts the changelog back as the release found it: the bytes it held, or
+/// no file at all when the tree had none.
+///
+/// **Every failure of [`written`] after the version is written reaches it**,
+/// through [`put_back`] in one arm, so no failure puts back less than another.
+/// `std::fs::write` creates or truncates the file before it writes, so a write
+/// that failed part way leaves it new, empty or partial, and a refusal that
+/// puts the manifest back and not this says nothing was released over a
+/// changelog the release changed.
+///
+/// A changelog the tree had none of, and the failed write never created, is
+/// no file to remove, and is not a failure to put it back.
+fn put_the_changelog_back(changelog: &Path, before: Option<&[u8]>) -> std::io::Result<()> {
+    match before {
+        Some(bytes) => put_back_as(changelog, bytes),
+        None => match std::fs::remove_file(changelog) {
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            removed => removed,
+        },
+    }
+}
+
+/// Writes `bytes` into `path`, unless it already holds them.
+///
+/// **A file already holding what it held is left alone**, so one a refused
+/// release never wrote — refused before its write, or by a write that never
+/// opened it, as a read-only file's is — is not written, and is not named as
+/// a file that did not go back.
+fn put_back_as(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    if std::fs::read(path).is_ok_and(|held| held == bytes) {
+        return Ok(());
+    }
+    std::fs::write(path, bytes)
+}
+
+/// Puts each file of `before` back as it held, and answers each that could
+/// not be, with why.
+fn put_back_listed(root: &Path, before: &[(&str, String)]) -> Vec<String> {
+    before
+        .iter()
+        .filter_map(|(name, text)| {
+            put_back_as(&root.join(name), text.as_bytes())
+                .err()
+                .map(|error| format!("{name} ({error})"))
+        })
+        .collect()
 }
 
 /// The release [`run`] makes, with the gate started from `itself` and the
@@ -1623,19 +1671,36 @@ fn the_tree_is_clean(history: &Own) -> Result<(), String> {
     ))
 }
 
+/// What each file a release writes held before it wrote any of them, so a
+/// release that fails part way can put each one back.
+struct Found {
+    /// Each manifest [`CARRIES_THE_VERSION`] names, by name, as it was.
+    manifests: Vec<(&'static str, String)>,
+    /// The lockfile's bytes.
+    locked: Vec<u8>,
+    /// The changelog's bytes, or `None` when the tree had none.
+    changelog: Option<Vec<u8>>,
+}
+
 /// Writes the release into the tree — the version, then the changelog, then
 /// the lockfile — reads every one back, and answers each file a release
 /// commit carries, with its bytes as read back.
 ///
-/// **The lockfile is read before anything is written**, so a failure has
-/// something to put back; **and every failure puts back what it wrote**, the
-/// manifest, the changelog and the lockfile, so a refusal leaves the tree it
-/// was given.
+/// **Every file it writes is read before the first write**, so a failure has
+/// something to put back: each listed manifest, the lockfile, and the
+/// changelog or its absence.
+///
+/// **And every failure after the first write puts back what it wrote.** A
+/// listed file that cannot be read, written or read back is put back by
+/// [`rewrite_listed`]; whatever [`written_after_the_version`] refuses — the
+/// changelog's write, the relock, the read-back, a file the commit carries
+/// that cannot be read — is put back by one arm of this function, through
+/// [`put_back`]. Each refusal names any file that did not go back.
 ///
 /// # Errors
 ///
-/// Returns why a file could not be written, why the lockfile could not be
-/// rebuilt, or why a file read back is not what was written.
+/// Returns why a file could not be read, written or rebuilt, or why one
+/// read back is not what was written, with what did not go back.
 fn written(
     setting: &Releasing,
     version: Version,
@@ -1643,7 +1708,11 @@ fn written(
 ) -> Result<Vec<(String, Vec<u8>)>, String> {
     let root = setting.root;
     let target = version.to_string();
-    let from = version_in(&read(root, CARRIES_THE_VERSION[0])?).ok_or_else(|| {
+    let manifests: Vec<(&'static str, String)> = CARRIES_THE_VERSION
+        .into_iter()
+        .map(|name| read(root, name).map(|text| (name, text)))
+        .collect::<Result<_, _>>()?;
+    let from = version_in(&manifests[0].1).ok_or_else(|| {
         format!(
             "{} names no version, and it is the file the others are checked against",
             CARRIES_THE_VERSION[0]
@@ -1655,18 +1724,68 @@ fn written(
              written"
         )
     })?;
-    let before = std::fs::read(root.join(CHANGELOG)).ok();
+    // **Absent, or read: never taken as absent.** A changelog that is there
+    // and cannot be read, read as none, is one a failure below removes, and
+    // the release would delete a file it never read.
+    let before = match std::fs::read(root.join(CHANGELOG)) {
+        Ok(bytes) => Some(bytes),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => {
+            return Err(format!(
+                "{CHANGELOG} could not be read, and a release rewrites it: {error}. Nothing \
+                 was written"
+            ));
+        }
+    };
+    let found = Found {
+        manifests,
+        locked,
+        changelog: before,
+    };
 
     let rewritten = rewrite_listed(root, &CARRIES_THE_VERSION, &target)?;
-    if let Err(error) = std::fs::write(root.join(CHANGELOG), changelog) {
-        let put_back = match rewrite_listed(root, &CARRIES_THE_VERSION, &from) {
-            Ok(_) => format!(". Nothing was released and the version is back at {from}"),
-            Err(second) => format!(". And putting {from} back failed too: {second}"),
-        };
-        return Err(format!(
-            "{CHANGELOG} could not be written: {error}{put_back}"
-        ));
+    match written_after_the_version(setting, version, changelog, &rewritten) {
+        Ok(carried) => Ok(carried),
+        // **Everything this wrote goes back, and the refusal says what did
+        // not.** The manifest alone put back leaves `Cargo.lock` at the new
+        // version — `cargo update` has already written it before failing — and
+        // a message saying nothing was released over a lockfile that says
+        // otherwise is a lie the next `clippy --locked` finds. One arm for every
+        // refusal after the version is written, so what each puts back cannot
+        // drift apart.
+        Err(problem) => {
+            let not_back = put_back(root, &found);
+            let put_back = if not_back.is_empty() {
+                format!(". Nothing was released and the version is back at {from}")
+            } else {
+                format!(
+                    ". Nothing was released, and these could not be put back as they were: \
+                     {}. The release began on a clean tree, so `git status` names what it left",
+                    not_back.join("; ")
+                )
+            };
+            Err(format!("{problem}{put_back}"))
+        }
     }
+}
+
+/// Writes the changelog and the lockfile once the version is written, reads
+/// every file back, and answers each file a release commit carries.
+///
+/// # Errors
+///
+/// Returns why the changelog could not be written, why the lockfile could not
+/// be rebuilt, or why a file read back is not what was written.
+fn written_after_the_version(
+    setting: &Releasing,
+    version: Version,
+    changelog: &str,
+    rewritten: &[&str],
+) -> Result<Vec<(String, Vec<u8>)>, String> {
+    let root = setting.root;
+    let target = version.to_string();
+    std::fs::write(root.join(CHANGELOG), changelog)
+        .map_err(|error| format!("{CHANGELOG} could not be written: {error}"))?;
     ui::ok(&format!(
         // **What was written, not what was listed.** This printed
         // count is `rewritten.len()`, so a write that does nothing cannot
@@ -1674,7 +1793,7 @@ fn written(
         "{} file(s) carry {target}, and {CHANGELOG} is written whole",
         rewritten.len()
     ));
-    for name in &rewritten {
+    for name in rewritten {
         ui::detail(name);
     }
 
@@ -1690,50 +1809,8 @@ fn written(
          disagree and every `cargo xtask` verb refuses — the alias passes `--locked`. \
          `cargo update --workspace` puts the lockfile back",
     );
-    let relocked =
-        relock(root, setting.inherited).and_then(|()| read_back(root, version, changelog));
-    if let Err(problem) = relocked {
-        // **Everything this wrote goes back, and the message says which half
-        // did not.** The manifest alone put back leaves `Cargo.lock` at the new
-        // version — `cargo update` has already written it before failing — and
-        // a message saying nothing was released over a lockfile that says
-        // otherwise is a lie the next `clippy --locked` finds.
-        let lockfile = root.join("Cargo.lock");
-        let changelog_back = match &before {
-            Some(bytes) => std::fs::write(root.join(CHANGELOG), bytes),
-            None => std::fs::remove_file(root.join(CHANGELOG)),
-        };
-        let put_back = match (
-            rewrite_listed(root, &CARRIES_THE_VERSION, &from),
-            put_the_lockfile_back(&lockfile, &locked),
-            changelog_back,
-        ) {
-            (Ok(_), Ok(()), Ok(())) => {
-                format!(". Nothing was released and the version is back at {from}")
-            }
-            (Err(second), lock, _) => format!(
-                ". And putting {from} back failed too: {second} — this tree names {target} in \
-                 {}{}",
-                CARRIES_THE_VERSION.join(", "),
-                if lock.is_ok() {
-                    ", with Cargo.lock back as it was"
-                } else {
-                    ", and Cargo.lock could not be put back either"
-                }
-            ),
-            (Ok(_), Err(second), _) => format!(
-                ". The version is back at {from} in {}, and Cargo.lock could not be put \
-                 back: {second}. Run `cargo update --workspace` when the registry is \
-                 reachable",
-                CARRIES_THE_VERSION.join(", ")
-            ),
-            (Ok(_), Ok(()), Err(second)) => format!(
-                ". The version is back at {from} and Cargo.lock as it was, and {CHANGELOG} \
-                 could not be put back: {second}"
-            ),
-        };
-        return Err(format!("{problem}{put_back}"));
-    }
+    relock(root, setting.inherited)?;
+    read_back(root, version, changelog)?;
     ui::ok("Cargo.lock rebuilt, and every file read back as written");
 
     // **Every file the release wrote, each listed one among them**: a file
@@ -1751,6 +1828,28 @@ fn written(
     }
     carried.sort_by(|one, other| one.0.cmp(&other.0));
     Ok(carried)
+}
+
+/// Puts every file [`written`] writes back as it found them — each listed
+/// manifest, the lockfile and the changelog — and answers each that could
+/// not be, with why.
+///
+/// **What it found, whatever the failure was.** A failure before the relock
+/// finds the lockfile as it was and leaves it alone; one after it finds the
+/// lockfile `cargo update` wrote, and puts back the bytes read before the
+/// first write.
+fn put_back(root: &Path, found: &Found) -> Vec<String> {
+    let lockfile = put_the_lockfile_back(&root.join("Cargo.lock"), &found.locked)
+        .err()
+        .map(|error| format!("Cargo.lock ({error})"));
+    let changelog = put_the_changelog_back(&root.join(CHANGELOG), found.changelog.as_deref())
+        .err()
+        .map(|error| format!("{CHANGELOG} ({error})"));
+    put_back_listed(root, &found.manifests)
+        .into_iter()
+        .chain(lockfile)
+        .chain(changelog)
+        .collect()
 }
 
 /// Reads the release back through readers that share nothing with the
@@ -2750,11 +2849,15 @@ fn version_of(text: &str) -> Option<(usize, String)> {
 /// the refusal when the files already disagree are unreachable while
 /// [`CARRIES_THE_VERSION`] has one entry.
 ///
+/// **Every refusal of [`rewrite_each`] puts back each file it had read**, in
+/// one arm of this function, and ends saying so or naming the file that did
+/// not go back.
+///
 /// # Errors
 ///
-/// Returns why a listed file names no version, why the files already disagree,
-/// why one could not be written, or why a file does not name the new version
-/// after being rewritten.
+/// Returns why a listed file could not be read or names no version, why the
+/// files already disagree, why one could not be written, or why a file does
+/// not name the new version after being rewritten, with what did not go back.
 fn rewrite_listed<'a>(
     root: &Path,
     files: &[&'a str],
@@ -2774,17 +2877,46 @@ fn rewrite_listed<'a>(
     // rewrite while the read-back sees the real version unchanged, and the
     // release stops after the gate passed with the comment already edited,
     // under a message that says to fix the file and never says the file has
-    // already been changed. So every refusal here puts back what this wrote,
-    // and the tree a refused release leaves is the tree it was given. With
-    // more than one entry in `CARRIES_THE_VERSION` the same path
-    // leaves file one rewritten when file two refuses. The relock-failure path
-    // in `written` restores every file, and so does this one.
+    // already been changed. So whatever `rewrite_each` refuses — a file that
+    // cannot be read, holds no version, disagrees, cannot be written or does
+    // not read back — puts back each file it had read. The file whose write
+    // refused is put back with the rest, because `std::fs::write` truncates
+    // before it writes.
     let mut before: Vec<(&str, String)> = Vec::new();
-    let restore = |before: &[(&str, String)]| {
-        for (name, text) in before {
-            let _ = std::fs::write(root.join(name), text);
+    match rewrite_each(root, files, &from, version, &mut before) {
+        Ok(rewritten) => Ok(rewritten),
+        Err(problem) => {
+            let not_back = put_back_listed(root, &before);
+            let put_back = if not_back.is_empty() {
+                ". Every file this run touched has been put back as it was".to_owned()
+            } else {
+                format!(
+                    ". And these could not be put back as they were, so each holds what this \
+                     run left in it: {}",
+                    not_back.join("; ")
+                )
+            };
+            Err(format!("{problem}{put_back}"))
         }
-    };
+    }
+}
+
+/// Rewrites the version in each of `files`, from `from` to `version`, reads
+/// each one back, and records in `before` what each held before it was
+/// touched.
+///
+/// # Errors
+///
+/// Returns why a listed file could not be read or names no version, why the
+/// files already disagree, why one could not be written, or why a file does
+/// not name the new version after being rewritten.
+fn rewrite_each<'a>(
+    root: &Path,
+    files: &[&'a str],
+    from: &str,
+    version: &str,
+    before: &mut Vec<(&'a str, String)>,
+) -> Result<Vec<&'a str>, String> {
     let mut rewritten = Vec::new();
     for name in files {
         let text = read(root, name)?;
@@ -2793,7 +2925,6 @@ fn rewrite_listed<'a>(
         // holding the version is either a list that has gone stale or a file
         // that lost its version, and both are things to look at now.
         if version_in(&text).is_none() {
-            restore(&before);
             return Err(format!(
                 "{name} is listed as carrying the version and holds none. Either it \
                  stopped carrying one — take it out of CARRIES_THE_VERSION — or the \
@@ -2806,9 +2937,8 @@ fn rewrite_listed<'a>(
         // so a `replacen` over `KEY` would never match, and the release would
         // refuse a manifest it had just read, naming the version it holds. The reader and
         // the writer have to agree about what a version line looks like.
-        let updated = written_as_the_reader_reads_it(&text, &from, version);
+        let updated = written_as_the_reader_reads_it(&text, from, version);
         if updated == text && from != version {
-            restore(&before);
             return Err(format!(
                 "{name} holds a version and not `{from}`, so the files already disagree"
             ));
@@ -2830,15 +2960,12 @@ fn rewrite_listed<'a>(
         }
         let after = read(root, name)?;
         if version_in(&after).as_deref() != Some(version) {
-            restore(&before);
             return Err(format!(
                 "{name} was rewritten and still names {}, not {version}. The reader \
                  and the writer are one rule — the version is rewritten on the line \
                  `version_of` found it on — so this is a file whose version sits \
                  somewhere that reader does not look: a table other than \
-                 `[workspace.package]` or `[package]`, or a spelling it cannot parse. \
-                 Every file this run touched has been put back as it was, so fixing \
-                 the file and running this again is all there is to do",
+                 `[workspace.package]` or `[package]`, or a spelling it cannot parse",
                 version_in(&after).unwrap_or_else(|| "no version".to_owned())
             ));
         }
@@ -3258,6 +3385,75 @@ mod tests {
         );
 
         let _ = std::fs::remove_dir_all(&scratch);
+    }
+
+    /// A listed file that cannot be read, or cannot be written, stops the
+    /// rewrite with every file before it put back.
+    ///
+    /// **Each refusal reached through the file's own state.** The second
+    /// file a directory first, which no system reads as a file; then a file
+    /// whose read-only bit refuses the write — on every system, to anyone
+    /// but root, so the test asks first, and fails by name rather than
+    /// passing when that bit refuses nothing.
+    #[test]
+    fn a_file_that_cannot_be_read_or_written_puts_back_the_files_before_it() {
+        let scratch = LeavesNothingBehind::new("release-unwritable");
+        let first = scratch.root.join("first.toml");
+        let second = scratch.root.join("second.toml");
+        let held = "[workspace.package]\nversion = \"0.1.0\"\n";
+        let listed = ["first.toml", "second.toml"];
+        std::fs::write(&first, held).expect("a writable scratch");
+
+        std::fs::create_dir(&second).expect("a writable scratch");
+        let refused = super::rewrite_listed(&scratch.root, &listed, "0.2.0")
+            .expect_err("a listed file that cannot be read stops the rewrite");
+        assert!(
+            refused.contains("could not read second.toml")
+                && refused.contains("Every file this run touched has been put back as it was"),
+            "{refused}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&first).expect("readable"),
+            held,
+            "the first file was left rewritten when the second could not be read"
+        );
+        std::fs::remove_dir(&second).expect("a writable scratch");
+
+        std::fs::write(&second, held).expect("a writable scratch");
+        let was = std::fs::metadata(&second)
+            .expect("the file is there")
+            .permissions();
+        let mut read_only = was.clone();
+        read_only.set_readonly(true);
+        std::fs::set_permissions(&second, read_only).expect("the bit is set");
+        // The bytes it holds, so a write the bit lets through changes nothing.
+        let the_bit_holds = std::fs::write(&second, held).is_err();
+        let ran = the_bit_holds.then(|| super::rewrite_listed(&scratch.root, &listed, "0.2.0"));
+        // Off again before anything can panic, so the scratch can be removed.
+        std::fs::set_permissions(&second, was).expect("the bit comes off");
+        assert!(
+            the_bit_holds,
+            "a read-only file took a write, so this run is root's, which writes past the bit: \
+             the write half is held only when the tests run as an ordinary user"
+        );
+        let refused = ran
+            .expect("asked above")
+            .expect_err("a listed file that cannot be written stops the rewrite");
+        assert!(
+            refused.contains("could not write second.toml")
+                && refused.contains("Every file this run touched has been put back as it was"),
+            "{refused}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&first).expect("readable"),
+            held,
+            "the first file was left rewritten when the second could not be written"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&second).expect("readable"),
+            held,
+            "the file whose write was refused does not hold what it held"
+        );
     }
 
     /// A line with any leading visibility taken off it.
@@ -3950,14 +4146,13 @@ mod tests {
 
     /// The restore puts the lockfile's own bytes back, and not some of them.
     ///
-    /// **A count and a string literal do not hold it.** One test asserts how
-    /// many `fs::write(` sites this module ships; another asserts the failure
-    /// message contains a sentence. Neither reads what is written, and the test
-    /// named for the restore never enters this path — it drives `rewrite_listed`
-    /// twice by hand against a scratch tree with no `Cargo.lock` in it. So the
-    /// restore could write anything: measured in wave 16 as `&locked[..0]`,
-    /// which leaves all 627 tests green and truncates the lockfile to nothing
-    /// after a failed `cargo update`.
+    /// **A count and a string literal do not hold it.** A count of the sites
+    /// that call `fs::write(` in what this module ships, and a failure message
+    /// holding a sentence, are both true of a restore that writes anything:
+    /// measured in wave 16 as `&locked[..0]`, which left all 627 tests green
+    /// and truncated the lockfile to nothing after a failed `cargo update`. So
+    /// this asks the function for the bytes, and the test of a failed relock
+    /// asks `written` for them after the read-back refused what it wrote.
     #[test]
     fn the_lockfile_comes_back_byte_for_byte() {
         // **A file, not a directory.** A scratch *tree* is a thing this
@@ -3976,6 +4171,38 @@ mod tests {
             "the restore is the only thing that puts `Cargo.lock` back, and it put \
              back something else"
         );
+    }
+
+    /// The changelog comes back as the release found it: its bytes, or no
+    /// file at all.
+    ///
+    /// **Both halves, because `std::fs::write` creates as well as truncates.**
+    /// A changelog the tree had is put back byte for byte over what a failed
+    /// write left in it; one the tree had none of is removed, whatever the
+    /// write left there; and one never created is no file to remove and no
+    /// failure to put it back.
+    #[test]
+    fn the_changelog_comes_back_byte_for_byte_or_not_at_all() {
+        let scratch = LeavesNothingBehind::new("release-changelog-back");
+        let changelog = scratch.root.join("CHANGELOG.md");
+        // Bytes a truncation, a trim and a re-encoding each change.
+        let held: &[u8] = b"# Changelog\n\n## v0.1.0\n\n\t \r\n";
+        std::fs::write(&changelog, b"# Chan").expect("a writable scratch");
+        super::put_the_changelog_back(&changelog, Some(held)).expect("the restore writes");
+        assert_eq!(
+            std::fs::read(&changelog).expect("readable"),
+            held,
+            "a changelog the release found came back as something else"
+        );
+
+        std::fs::write(&changelog, b"").expect("a writable scratch");
+        super::put_the_changelog_back(&changelog, None).expect("the restore removes");
+        assert!(
+            !changelog.exists(),
+            "a changelog the tree had none of is still there after the release put it back"
+        );
+        super::put_the_changelog_back(&changelog, None)
+            .expect("a changelog never created is no failure to put it back");
     }
 
     #[test]
@@ -4274,7 +4501,7 @@ mod tests {
             "`Cargo.lock` is read after the first write, so a release that cannot read it \
              prints `Nothing was written` over a manifest already at the new version"
         );
-        the_warning_prints_before_the_window(written);
+        the_warning_prints_before_the_window(the_body_of(&source, "written_after_the_version"));
         let released = the_body_of(&source, "released");
         let the_files = released
             .find(&["writ", "ten(setting, version, &changelog)"].join(""))
@@ -4371,16 +4598,20 @@ mod tests {
             "writeln!(",
             "symlink(",
         ];
-        // Each write, and where it is: the version and its restore in
-        // `rewrite_listed`; the lockfile's restore; the changelog, and its
-        // restore — a write of what it held, or its removal when it held
-        // nothing — in `written`; and the request handed to `gh` on its
-        // standard input, which is a pipe and not a file.
-        let written_down: [(&str, &str, usize); 6] = [
-            ("rewrite_listed", "fs::write(", 2),
-            ("put_the_lockfile_back", "fs::write(", 1),
-            ("written", "fs::write(", 2),
-            ("written", "fs::remove_file(", 1),
+        // Each write, and where it is: the version in `rewrite_each`; the
+        // changelog in `written_after_the_version`; every put-back of what a
+        // file held in `put_back_as`, which the lockfile's, the changelog's and
+        // each listed file's all go through; the changelog's removal when the
+        // tree held none in `put_the_changelog_back`; and the request handed to
+        // `gh` on its standard input, which is a pipe and not a file.
+        let written_down: [(&str, &str, usize); 9] = [
+            ("rewrite_each", "fs::write(", 1),
+            ("rewrite_listed", "fs::write(", 0),
+            ("written_after_the_version", "fs::write(", 1),
+            ("written", "fs::write(", 0),
+            ("put_back_as", "fs::write(", 1),
+            ("put_the_lockfile_back", "fs::write(", 0),
+            ("put_the_changelog_back", "fs::remove_file(", 1),
             ("gh", "write_all(", 1),
             ("gh", "fs::write(", 0),
         ];
@@ -5221,6 +5452,94 @@ mod tests {
             changed_between(&before, &every_file_under(&repository.root())),
             Vec::<String>::new(),
             "`--dry-run` said nothing was written and the tree is not the tree it was given"
+        );
+    }
+
+    /// A changelog that cannot be written leaves the tree the release was
+    /// given.
+    ///
+    /// **Through `written` itself**, over a workspace whose changelog is
+    /// read-only: the manifest is rewritten before the changelog is, and the
+    /// refusal puts it back with the rest. The read-only bit refuses a write
+    /// to anyone but root, so the test asks first, and fails by name rather
+    /// than passing when the bit refuses nothing.
+    #[test]
+    fn a_changelog_that_cannot_be_written_leaves_the_tree_it_was_given() {
+        let repository = a_workspace("unwritable", &[]);
+        let root = repository.root();
+        let changelog = root.join("CHANGELOG.md");
+        let held = "# Changelog\n\nas the tree holds it\n";
+        std::fs::write(&changelog, held).expect("a writable scratch");
+        let before = every_file_under(&root);
+        let inherited = this_environment();
+        let was = std::fs::metadata(&changelog)
+            .expect("the file is there")
+            .permissions();
+        let mut read_only = was.clone();
+        read_only.set_readonly(true);
+        std::fs::set_permissions(&changelog, read_only).expect("the bit is set");
+        // The bytes it holds, so a write the bit lets through changes nothing.
+        let the_bit_holds = std::fs::write(&changelog, held).is_err();
+        let ran = the_bit_holds.then(|| {
+            super::written(
+                &a_setting(&root, Channel::Staging, Mode::Write, &inherited, None),
+                v("0.2.0"),
+                "# Changelog\n\nas the release writes it\n",
+            )
+        });
+        // Off again before anything can panic, so the scratch can be removed.
+        std::fs::set_permissions(&changelog, was).expect("the bit comes off");
+        assert!(
+            the_bit_holds,
+            "a read-only file took a write, so this run is root's, which writes past the bit: \
+             the changelog's refusal is held only when the tests run as an ordinary user"
+        );
+        let refused = ran
+            .expect("asked above")
+            .expect_err("a changelog that cannot be written stops the release");
+        assert!(
+            refused.contains("CHANGELOG.md could not be written")
+                && refused.contains("Nothing was released and the version is back at 0.1.0"),
+            "{refused}"
+        );
+        assert_eq!(
+            changed_between(&before, &every_file_under(&root)),
+            Vec::<String>::new(),
+            "a release refused at the changelog said nothing was released over a tree it changed"
+        );
+    }
+
+    /// A changelog that is there and cannot be read stops the release before
+    /// anything is written.
+    ///
+    /// **Read as no changelog, it is one a failure removes**, so the release
+    /// would delete a file it never read. A directory stands in for it,
+    /// because no system reads one as a file, as root or otherwise.
+    #[test]
+    fn a_changelog_that_cannot_be_read_stops_the_release_before_it_writes() {
+        let repository = a_workspace("unreadable", &[]);
+        let root = repository.root();
+        let inside = root.join("CHANGELOG.md").join("kept");
+        std::fs::create_dir_all(inside.parent().expect("a file sits in a directory"))
+            .expect("a writable scratch");
+        std::fs::write(&inside, "what is under it\n").expect("a writable scratch");
+        let before = every_file_under(&root);
+        let inherited = this_environment();
+        let refused = super::written(
+            &a_setting(&root, Channel::Staging, Mode::Write, &inherited, None),
+            v("0.2.0"),
+            "# Changelog\n",
+        )
+        .expect_err("a changelog that cannot be read stops the release");
+        assert!(
+            refused.contains("CHANGELOG.md could not be read, and a release rewrites it")
+                && refused.contains("Nothing was written"),
+            "{refused}"
+        );
+        assert_eq!(
+            changed_between(&before, &every_file_under(&root)),
+            Vec::<String>::new(),
+            "a release refused before it wrote changed the tree"
         );
     }
 
@@ -6999,7 +7318,38 @@ fn main() {
 
 #[cfg(test)]
 mod relock_tests {
-    /// A failed relock leaves the version where it was.
+    use crate::check::LeavesNothingBehind;
+    use std::ffi::OsString;
+    use std::path::Path;
+
+    /// The files a release writes, each with its bytes, or `None` for one the
+    /// tree does not have.
+    fn the_files_written(root: &Path) -> Vec<(&'static str, Option<Vec<u8>>)> {
+        ["CHANGELOG.md", "Cargo.lock", "Cargo.toml"]
+            .into_iter()
+            .map(|name| (name, std::fs::read(root.join(name)).ok()))
+            .collect()
+    }
+
+    /// The release of `root` at 0.2.0 through `written`, with the cargo
+    /// that `inherited` names.
+    fn a_release_of(root: &Path, inherited: &[(OsString, OsString)]) -> Result<(), String> {
+        super::written(
+            &super::Releasing {
+                root,
+                channel: super::Channel::Staging,
+                mode: super::Mode::Write,
+                inherited,
+                github: None,
+            },
+            super::Version::parse("0.2.0").expect("a version"),
+            "# Changelog\n\nas the release writes it\n",
+        )
+        .map(|_| ())
+    }
+
+    /// A failed relock leaves the version where it was, and every other file
+    /// the release wrote.
     ///
     /// **The window between the write and the lockfile.** `relock` runs
     /// `cargo update --workspace`, which is one registry away from the network,
@@ -7011,54 +7361,79 @@ mod relock_tests {
     /// `cargo xtask` verb before it starts — the alias passes `--locked` — and
     /// the release run again refuses a tree holding changes no commit has.
     ///
-    /// Driven over a scratch manifest through the write and the restore, because
-    /// running the real verb means running the whole gate twice.
+    /// **Through `written` itself, twice.** Once with a cargo that cannot be
+    /// started, so the relock refuses before it writes, over a tree with no
+    /// changelog; and once with the cargo running this test, over a member
+    /// whose own version the release does not write and a lockfile cargo
+    /// rewrites whole, so the read-back refuses what the relock wrote. Each
+    /// file the release wrote comes back byte for byte, and a changelog the
+    /// tree had none of is removed.
     #[test]
     fn a_failed_relock_puts_the_version_back() {
-        let scratch = std::env::temp_dir().join(format!("nc-relock-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&scratch);
-        std::fs::create_dir_all(&scratch).expect("writable");
-        let manifest = scratch.join("Cargo.toml");
-        std::fs::write(
-            &manifest,
-            "[workspace.package]\nversion = \"0.1.0\"\nedition = \"2024\"\n",
-        )
-        .expect("writable");
+        let scratch = LeavesNothingBehind::new("release-relock");
+        let root = &scratch.root;
+        for (path, text) in [
+            (
+                "Cargo.toml",
+                "[workspace]\nmembers = [\"probe\"]\nresolver = \"3\"\n\n[workspace.package]\n\
+                 version = \"0.1.0\"\nedition = \"2024\"\n",
+            ),
+            (
+                "probe/Cargo.toml",
+                "[package]\nname = \"probe\"\nversion = \"9.9.9\"\nedition.workspace = true\n\
+                 publish = false\n",
+            ),
+            ("probe/src/lib.rs", "//! A probe.\n"),
+            // Not the bytes cargo writes, so a relock that ran rewrote them.
+            (
+                "Cargo.lock",
+                "# The lockfile as the tree holds it.\nversion = 4\n\n[[package]]\nname = \
+                 \"probe\"\nversion = \"0.1.0\"\n",
+            ),
+        ] {
+            let path = root.join(path);
+            std::fs::create_dir_all(path.parent().expect("a file sits in a directory"))
+                .expect("a writable scratch");
+            std::fs::write(path, text).expect("a writable scratch");
+        }
 
-        let listed = ["Cargo.toml"];
-        super::rewrite_listed(&scratch, &listed, "0.2.0").expect("the write lands");
+        let before = the_files_written(root);
+        let no_cargo: Vec<(OsString, OsString)> =
+            vec![("CARGO".into(), root.join("no-cargo-here").into_os_string())];
+        let refused =
+            a_release_of(root, &no_cargo).expect_err("a cargo that cannot start relocks nothing");
         assert!(
-            std::fs::read_to_string(&manifest)
-                .expect("readable")
-                .contains("version = \"0.2.0\""),
-            "the write did not happen, so the restore below proves nothing"
+            refused.contains("could not run cargo update")
+                && refused.contains("Nothing was released and the version is back at 0.1.0"),
+            "{refused}"
         );
-
-        // What `run` does when `relock` fails.
-        super::rewrite_listed(&scratch, &listed, "0.1.0").expect("the restore lands");
-        assert!(
-            std::fs::read_to_string(&manifest)
-                .expect("readable")
-                .contains("version = \"0.1.0\""),
+        assert_eq!(
+            the_files_written(root),
+            before,
             "the version was not put back, and a refused release leaves the tree it was given"
         );
 
-        // And the source carries the restore, because the two calls above are a
-        // model of `run` and not `run` itself.
-        let source =
-            std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/release.rs"))
-                .expect("this file is readable");
-        // **Neither the first `#[cfg(test)]` nor the last.** A cut at `rfind`
-        // finds the string literal on the assertion's own line, so the half it
-        // calls production includes every test module above that line.
-        // `gates::without_test_modules` blanks every test module and keeps
-        // everything else, and `check.rs` records the measurements behind it.
-        let body = crate::gates::without_test_modules(&source);
+        std::fs::write(
+            root.join("CHANGELOG.md"),
+            "# Changelog\n\nas the tree holds it\n",
+        )
+        .expect("a writable scratch");
+        let before = the_files_written(root);
+        let mut inherited: Vec<(OsString, OsString)> = std::env::vars_os()
+            .filter(|(name, _)| name != "CARGO_NET_OFFLINE")
+            .collect();
+        inherited.push(("CARGO_NET_OFFLINE".into(), "true".into()));
+        let refused = a_release_of(root, &inherited)
+            .expect_err("a member whose version the release does not write fails the read-back");
         assert!(
-            body.contains("Nothing was released and the version is back at"),
-            "`run` no longer restores the version when the relock fails"
+            refused.contains("Cargo.lock reads back with")
+                && refused.contains("Nothing was released and the version is back at 0.1.0"),
+            "{refused}"
         );
-
-        let _ = std::fs::remove_dir_all(&scratch);
+        assert_eq!(
+            the_files_written(root),
+            before,
+            "a lockfile the relock rewrote, or another file the release wrote, was not put back"
+        );
     }
 }

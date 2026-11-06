@@ -1638,8 +1638,17 @@ CHANGELOG.md, relocks, and reads every one back.
 - **A version it cannot order is refused**: it orders `X.Y.Z` and `X.Y.Z-rc.N`, a
   candidate below the release it is a candidate for, and nothing else — ordering more is
   semver's, a dependency this repository has not taken.
-- **A failure puts back what it wrote** — the manifest, the lockfile and the changelog —
-  and says which of them did not go back.
+- **A failure puts back what it wrote, and names what did not go back.** Every file the
+  release writes is read before the first write: each manifest `CARRIES_THE_VERSION`
+  names, the lockfile, and the changelog or its absence. A changelog that is there and
+  cannot be read is refused then, with nothing written, because one taken as absent is
+  one a failure would remove. After the first write, a listed file that cannot be read,
+  written or read back puts every listed file back; a changelog that cannot be written, a
+  relock or a read-back that refused, and a file the release commit carries that cannot be
+  read put back each manifest, the lockfile and the changelog — the bytes each held, a
+  changelog the tree had none of removed, and a file still holding what it held left
+  alone. A file that cannot be put back is named in the refusal with why, and is not tried
+  again.
 
 A document illustrating a version's *spelling* never uses the version this tree is at: the
 release walks every file for it, and the illustration would read as a file left behind.
@@ -2184,6 +2193,12 @@ rather than anything decided for the project, and each is a maintainer's to reop
   asked**, the same way: an earlier release's pull request that merges between that
   question and the one the release opens makes GitHub refuse the second, and that run
   fails; the next run finds the branch below holding it and ends `already released`.
+- **A release stopped between a write and its put-back leaves what it wrote**: a kill or a
+  power cut there runs no put-back, and one that fails is named and not tried again. The
+  release begins on a clean tree, so `git status` names what is left, and the relock's
+  window is the one it warns about as that window opens. A listed file that cannot be read
+  back right after it was written is put back by the same path as one that cannot be
+  written, and no test can make that read fail.
 - **The release's own process holds the App's token for its whole run**, in the
   environment CI's step gives it, and so does the `cargo run` the alias starts it with:
   every child but `gh` is started without it, and a dependency of this tool's own running
