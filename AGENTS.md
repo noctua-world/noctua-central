@@ -1829,13 +1829,24 @@ gate's `CI` step refuses the tree otherwise, before any run of the release can.
   does, with any quote opening a span, so in `{ ke"y: "a # b", permissions: write-all }`
   they stop at the `#`, and YAML reads a string and then a grant. A line YAML ends sooner
   than the readers do is read for more than it holds, and passes. A block scalar's lines
-  are a command's text and are not read for braces, quotes or comments.
+  are a command's text and are not read for braces, quotes or comments; they run to the
+  first line indented no further than the key's own column, measured past every `-`
+  before the key and all the whitespace after each. Measured past `- ` alone, the keys of
+  a step written `-   run: |` were read as the scalar's text, and a quoted scalar left
+  open on one of them hid the `macos` job's gate step from every rule.
 - **Every file CI reaches ends each line at a line feed, and nowhere else**, the justfile
   and a script a step runs among them, because every reader here splits a file there. A
   carriage return with no line feed after it ends a line to YAML, and NEL, LS and PS end
   one to a YAML 1.1 parser, so a key or a step after one on a comment or a step's `name:`
   is read by GitHub and by no rule: each is refused, by name and line. A carriage return
   before a line feed is part of it.
+- **And it spaces a line with a space or a tab alone.** Every reader here trims and splits
+  a line at whitespace as Rust's `char::is_whitespace` reads it, and YAML indents with a
+  space and separates with a space or a tab, so a no-break space, U+3000, or any other
+  such character is a letter to YAML and to a shell and a space to every rule. A key
+  indented with U+3000 below a block scalar was read as the scalar's text, and the quote
+  it left open swallowed the `macos` job's gate step. Each is refused, by code point and
+  line.
 - **The file and its job hold their own keys and no other**: `name`, `on`, `permissions`,
   `concurrency` and `jobs` at the top, and `runs-on`, `environment`, `permissions` and
   `steps` in the job, each once. `env:` or `defaults:` would reach every step, the
@@ -2277,8 +2288,9 @@ rather than anything decided for the project, and each is a maintainer's to reop
   plain or quoted, where YAML may open one on a line, after any anchor or tag of its own,
   with its colon on that line. Each way YAML has of putting a key's text elsewhere is
   refused rather than parsed: `?`, an alias, `<<`, a flow collection or a quoted scalar
-  left open past its line, a `#` the readers end a line at where YAML reads on, and a
-  line ended at a carriage return, NEL, LS or PS. A spelling outside those, if YAML has
+  left open past its line, a `#` the readers end a line at where YAML reads on, a line
+  ended at a carriage return, NEL, LS or PS, and a line spaced with any whitespace but a
+  space and a tab. A spelling outside those, if YAML has
   one, is read by none of the rules that read keys; the word `secrets`, which is refused
   wherever it stands in a file GitHub runs, is then what keeps the App's key out of a job
   whatever environment it enters. A double-quoted scalar a backslash continues is
@@ -2288,7 +2300,18 @@ rather than anything decided for the project, and each is a maintainer's to reop
   Both refuse more than YAML holds, never less. A line inside a block scalar is text to
   YAML and is not read for braces, quotes or comments, and a block scalar is recognised by
   its header on the line of its key, so a header this reader does not know leaves its
-  lines read as YAML, which refuses more and never less.
+  lines read as YAML, which refuses more and never less. It ends at the first line
+  indented no further than its key's own column, measured past every `-` before the key
+  and all the whitespace after each; a header on a line of its own, or as a sequence
+  entry's own node, puts that column further right than YAML does, which reads more lines
+  as YAML and refuses more.
+- **A directory a command runs in is read from `working-directory`, `cd` and `pushd`
+  alone**: a script named relative to a directory entered another way, such as `env -C`,
+  `make -C`, `git -C` or a variable, is not looked for there, and is read only if a word
+  names it from the root or from one of those directories. And the walk refuses more than
+  a shell runs in two places: a step's `name:` holding a separator, a pipe, a `$`, a
+  backtick, a subshell's bracket, a redirection or a backslash is read as the commands it
+  may be, and `x=cargo` inside a quoted word is read as a name for cargo.
 - **The comparison gate's subject is public fields and accessors, not everything the
   compiler writes**: `pub const` arrays (`AREAS`, `KEYS`, `COMMANDS`, `TABLES`, `STORES`,
   `RATE_LIMITS`, `EVENTS`, each `ALL`), enum variants, functions taking an argument, and
@@ -2521,6 +2544,23 @@ a composite action or an action whose job is to run cargo; and in the justfile.
 - **A word in a workflow is not always a path**: `$GITHUB_WORKSPACE` is expanded, a glob
   such as `ci/*.sh` is matched against the tree, and the tools that judge this tree are
   needles whatever binary they are — `rustfmt --check` as well as `cargo fmt`.
+- **A step's local action and its directory are read wherever they are written.** A local
+  action is walked wherever the pins read its `uses` key: after a `-` with any whitespace
+  after it, quoted, escaped, or in a flow mapping. A script is looked for in the value of
+  every `working-directory` key, wherever YAML opens one or on the line below it, and in
+  the word after every `cd` and `pushd`, wherever on a line it stands. Read where a line
+  opened on them, each of those spellings left a second gate in the action or the script
+  unread.
+- **A name for `cargo` is read at every `=` whose name is a word of its own**, whatever
+  the line opens with and whatever follows the value: after a wide `-`, in a quoted or a
+  flow-mapping `run`, behind another assignment, or before a comment. A double-quoted
+  value of one line is read with its escapes resolved, which is the text a shell is
+  handed, so `\x63argo` is `cargo`.
+- **A `name:` is a label only when a shell would run nothing past its first word.** In a
+  block scalar, a script or the justfile, `name: ; cargo clippy --workspace` is a
+  command, so a line opening on `name:` that holds a separator, a pipe, a `$`, a
+  backtick, a subshell's bracket, a redirection or a backslash is read as the commands it
+  may be; what a job must run still passes over every label.
 - **`.github/` holds `ci.yml` and `release.yml` alone**, every action either
   uses is pinned to a commit, every job that builds installs the toolchain with
   `rustup toolchain install` and no toolchain named, so what it installs is what

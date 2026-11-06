@@ -93,9 +93,10 @@ secret and a step's output in every other file GitHub runs (the workflows under 
 and a composite action's own file), and a publish in every other file CI reaches, the
 justfile and the scripts a step runs among them; and pins every action a workflow here
 uses to a commit. Those rules read a file a line at a time, so the gate also refuses a
-line ended anywhere but at a line feed in a file CI reaches, and, in a file GitHub runs,
-a key not written out before its colon, a quote or a bracket not closed on the line that
-opens it, and a `#` those rules would take for a comment where YAML reads on.
+line ended anywhere but at a line feed, or spaced with anything but a space or a tab, in
+a file CI reaches, and, in a file GitHub runs, a key not written out before its colon, a
+quote or a bracket not closed on the line that opens it, and a `#` those rules would take
+for a comment where YAML reads on.
 
 `cargo xtask check --offline` skips **nine** things — the advisory database, which is
 fetched (the audit's licence, ban and source checks read only the lockfile and still

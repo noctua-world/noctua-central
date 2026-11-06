@@ -25,8 +25,9 @@
 # `main` as well. The gate refuses the first four in every other file GitHub
 # runs, this one and a composite action, and a publish in every other file CI
 # reaches, scripts and the justfile among them. It reads both files a line at a
-# time, so each line ends at a line feed, each key is a word before its colon,
-# and each quote and bracket closes on the line that opens it.
+# time, so each line ends at a line feed and is spaced with spaces and tabs
+# alone, each key is a word before its colon, and each quote and bracket closes
+# on the line that opens it.
 
 name: check
 
