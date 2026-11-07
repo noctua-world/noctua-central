@@ -402,10 +402,15 @@ retryable = false
 [[error]]
 # The directory or a file in it is reachable by another user, is a link,
 # belongs to another user, or lacks a bit its owner needs — a `0500` folder, a
-# `0400` file — or this process may not write where it has to. Nothing is
-# opened, created or repaired — chmod-ing it would decide on the user's behalf
-# that whatever made it was harmless. **Not another application's file**, which
-# is NC-DB-0007: nothing about a foreign header is how the folder was set up.
+# `0400` file — or this process may not write where it has to. The refused path
+# is left as it was: not opened by SQLite, not chmod-ed and not repaired —
+# chmod-ing it would decide on the user's behalf that whatever made it was
+# harmless. What the open made before it judged that path stays: on every
+# system the database file, when it was missing and a companion is then
+# refused, and on Windows the profile's lock file (`nc_local::LOCK_NAME`),
+# which the open makes before it judges the database file and its companions.
+# **Not another application's file**, which is NC-DB-0007: nothing about a
+# foreign header is how the folder was set up.
 # Nor a path the filesystem cannot answer for — a missing parent, a full disk,
 # a read-only mount — which is NC-DB-0001.
 #

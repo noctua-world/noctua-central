@@ -40,7 +40,9 @@ nc-canon.workspace = true
 blake3.workspace = true
 # What makes the directory and its files this user's alone, on each system:
 # the owner, the mode or the access list, the link, the lock — the one crate
-# that asks which system it runs on (`NOCTUA.md §2.7`).
+# whose code decides what to do by the system it runs on, beside `xtask`'s
+# `check::RUNS_THE_STACK`, which decides which gate steps apply
+# (`NOCTUA.md §2.7`).
 nc-platform.workspace = true
 # The runtime `sqlx` already drives this crate on, for one thing of its own:
 # an open waits for the profile's lock on the blocking pool, never on a thread

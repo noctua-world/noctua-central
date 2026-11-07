@@ -96,8 +96,6 @@ fn rate_limits(catalog: &Catalog) -> String {
         " of these do — and a curve ending at zero would say \
          the same, though none here does. Lockout is a later number than the budget on \
          purpose: a lockout below it would mean the curve never runs.\n\n\
-         The prose here used to say *the first column of numbers*, which is `Window \
-         (s)`: a reader following it read `login` as answering 900 attempts at once.\n\n\
          **None of this is enforced yet.** There is no rate limiter and no Argon2 \
          dependency in this tree; these rows are the declaration the surfaces of a later \
          stage read.\n\n",
@@ -666,6 +664,9 @@ const fn what_a_limit_counts(max_rows: Option<u64>, per: Option<Owner>) -> &'sta
 /// What the limits page opens with, ahead of its tables.
 ///
 /// Its own constant because `limits` crossed clippy's line limit with it inline.
+///
+/// **Where each table's bound comes from is named, not counted**: a number in
+/// emitted prose is a number nothing recomputes when a table is added.
 const LIMITS_OPENING: &str = "Every bound this catalog declares. A table that can grow \
      without bound and has no \
      entry here **fails the build** — that gate is what makes this a policy rather than \
@@ -697,12 +698,7 @@ const LIMITS_OPENING: &str = "Every bound this catalog declares. A table that ca
      each unit's rows that many for every unit the \
      store holds, so its own size is the number times its owners, not the number.\n\n\
      Each table below says where its own bound comes from, in its own last column \
-     or in the prose above it. This paragraph used to point at *the last column of \
-     each table*, which is true of **Stores outside PostgreSQL** alone — the others \
-     end `Why it has no number`, `Salt`, `Cumulative` and `What it bounds`. Named \
-     rather than counted: \
-     a number in emitted prose is a number nothing recomputes when a table is \
-     added.";
+     or in the prose above it.";
 
 fn limits(catalog: &Catalog) -> String {
     let mut out = header("Limits", "catalog/limits.toml", LIMITS_OPENING);
@@ -1056,9 +1052,7 @@ fn log_events(catalog: &Catalog) -> String {
          registry does allow — `Snowflake` is written as its Crockford base32 text, and \
          twelve of its characters are the caller’s. The source gate refuses the \
          conversion at a logging call site, which is where it is visible; \
-         `crates/nc-log/src/value.rs` states the residual, and `NOCTUA.md §5.1` owns it. \
-         This paragraph used to say the log *holds no user data, because there is no type \
-         that could* — two rows below its own table listing that one.\n\n\
+         `crates/nc-log/src/value.rs` states the residual, and `NOCTUA.md §5.1` owns it.\n\n\
          **`nc-kernel` is the one crate outside `nc-log` that logs.** It emits every \
          `kernel.*` event below, `net.refused`, `journal.verified` and `journal.broken`; \
          every other event \

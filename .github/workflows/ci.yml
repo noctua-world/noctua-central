@@ -20,10 +20,11 @@
 # nothing else sits under `.github/`. Both files open with no permission, and
 # every action either runs is pinned to a commit, with its release in a comment.
 # This file, and every file it reaches, mints no token, enters no environment,
-# reads no secret and no step's output, and publishes nothing: those are
-# `release.yml`'s alone, because this workflow runs on a push to `staging` and
-# `main` as well. The gate refuses the first four in every other file GitHub
-# runs, this one and a composite action, and a publish in every other file CI
+# reads no secret and no step's output, publishes nothing and turns no
+# release's gate off: those are `release.yml`'s alone, because this workflow
+# runs on a push to `staging` and `main` as well. The gate refuses the first
+# four in every other file GitHub runs, this one and a composite action, and a
+# publish and the flag that turns the release's gate off in every other file CI
 # reaches, scripts and the justfile among them. It reads both files a line at a
 # time, so each line ends at a line feed and is spaced with spaces and tabs
 # alone, each key is a word before its colon, and each quote and bracket closes
@@ -33,9 +34,16 @@
 
 name: check
 
+# **Every push, and every pull request as it is opened, pushed to, reopened or
+# edited.** The `types:` list widens the events, never narrows them: it is
+# GitHub's default types and `edited`. Without `edited`, a title or a body
+# changed after the last run starts no run, and the merge commit takes a title
+# and a body the history step never judged. `workflow.rs` refuses any other
+# line under either event, a filter that would narrow them among them.
 on:
   push:
   pull_request:
+    types: [opened, synchronize, reopened, edited]
 
 # **No permission for this workflow's own token, unless a job asks.** Each job
 # below asks for reading the tree and nothing more, so a step that runs
@@ -138,6 +146,20 @@ jobs:
     permissions:
       contents: read
     steps:
+      # **Room on the runner's disk, before anything is written to it.** This
+      # job holds the restored cache, every build and test the gate makes, and
+      # the stack's images on one disk, and a Linux runner ran out of it with a
+      # cache of 1416 MB restored. Trimming the cache would only move the limit,
+      # and every run rebuilt from cold would cost its time on every push, so
+      # the job deletes toolchains its image ships and nothing here uses —
+      # Android's SDK, .NET, Swift, Haskell's and CodeQL's — and prints what is
+      # left. A directory an image no longer ships is no error to `rm -f`.
+      - name: room on the disk
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /usr/share/swift \
+            /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
+
       # The whole history, because a gate that reads it needs more than the
       # tip, and no credential left in the checkout's git configuration, where
       # every build script and test the gate runs could read it. Every job
@@ -157,8 +179,16 @@ jobs:
         run: rustup toolchain install --no-self-update
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      # **The auditor at one exact version**, the same in every job and in
+      # `release.yml`'s gate: a crate named with no version installs whatever
+      # crates.io holds on the day, and that code runs in the job. The gate
+      # refuses a `cargo install` that is not one crate, `--locked`, at an exact
+      # `@X.Y.Z`. Moving the version is one commit that moves the three lines
+      # here, the one in `release.yml`'s gate, `THE_RELEASE_STEPS` in
+      # `xtask/src/workflow.rs` and that line's row in `WHAT_ELSE_THIS_TOOL_SAYS`
+      # in `xtask/src/check.rs`.
       - name: cargo deny
-        run: cargo install --locked cargo-deny
+        run: cargo install --locked cargo-deny@0.20.2
 
       # **The stack, before the gate that needs it.** Everything the gate asks a
       # running database and a running log store — the journal's forty-four
@@ -197,7 +227,7 @@ jobs:
         run: rustup toolchain install --no-self-update
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: cargo deny
-        run: cargo install --locked cargo-deny
+        run: cargo install --locked cargo-deny@0.20.2
       - name: cargo xtask check
         run: cargo xtask check
 
@@ -220,7 +250,7 @@ jobs:
         run: rustup toolchain install --no-self-update
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: cargo deny
-        run: cargo install --locked cargo-deny
+        run: cargo install --locked cargo-deny@0.20.2
       - name: cargo xtask check
         run: cargo xtask check
 

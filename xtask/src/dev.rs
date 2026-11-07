@@ -3,17 +3,17 @@
 //! One command to a working PostgreSQL and a working central log store —
 //! Stage 10's local development stack, and the tenth of its acceptance criteria.
 //!
-//! **Not *from a clean machine*.** That is the criterion's own wording and it is
-//! the half that has never been watched: what has been seen is `dev --down` →
-//! `dev` → `check` on a machine that already held both images, and `down -v`
-//! takes volumes rather than images. `NOCTUA-PLAN.md` records it as unmet for
-//! that reason, and the test module below says the same. This header is the half
-//! rustdoc publishes, which is why it is written here: a claim made only in a
-//! body comment is one the published documentation can still contradict.
+//! **From a clean machine, which is what CI's Linux runner is.** That is the
+//! criterion's own wording, and it runs in the `linux` job on every push and
+//! pull request, and in `release.yml`'s gate job, each on a fresh runner that
+//! pulls both pinned images layer by layer before the stack comes up healthy
+//! and migrated — measured, with no layer already there. This header is the
+//! half rustdoc publishes, which is why it is written here: a claim made only
+//! in a body comment is one the published documentation can still contradict.
 //!
 //! **The two words mean the same thing everywhere in this file.** What `--down`
-//! empties is the database; the image store is untouched, which is the whole
-//! reason the criterion's own wording is unmet — and the comment beside
+//! empties is the database, and the image store is untouched — so a local
+//! `dev --down` → `dev` is not the clean-machine run, and the comment beside
 //! `--down` in [`run`] says *an empty database*, not a clean machine.
 //!
 //! **It passes no `.env`.** Docker Compose would read one from beside the
@@ -1218,13 +1218,11 @@ mod tests {
     /// A stack that did not come up says what to look at.
     ///
     /// **Acceptance criterion 10's failure half, which is the half that can be
-    /// measured here.** The pass half — `docker compose down -v` then
-    /// `cargo xtask dev` on a machine that has never had the images — was
-    /// watched once on a machine that already had them, and a genuinely cold
-    /// pull has never been seen; `NOCTUA-PLAN.md` records that and this does not
-    /// close it. What this closes is the sentence a reader meets when it goes
-    /// wrong, which has to say more than the command with the word *failed*
-    /// after it.
+    /// measured here.** The pass half — `cargo xtask dev` on a machine that has
+    /// never had the images — is CI's: the `linux` job and `release.yml`'s gate
+    /// job run it on a fresh runner that pulls both. What this closes is the
+    /// sentence a reader meets when it goes wrong, which has to say more than
+    /// the command with the word *failed* after it.
     ///
     /// Written against the message rather than against docker, because
     /// producing the real failure means pointing a service at a reference that

@@ -161,9 +161,12 @@ This repository is `github.com/noctua-world/noctua-central`, public (`NOCTUA.md 
    and is reached by a pull request from `staging`. A feature branch is deleted when it
    merges. Nothing is pushed to the three directly but the release commit, which the
    release App makes on `staging` and `main` (item 6).
-2. **Merge commits only.** Squash and rebase are disabled, and a merge commit's title and
-   body are the pull request's, so **a pull request's title is a commit subject**:
-   conventional, and judged as one. Auto-merge is allowed.
+2. **Merge commits only, with the message GitHub fills in.** Squash and rebase are
+   disabled. Whoever merges leaves a merge commit's title and body as GitHub fills them
+   from the pull request's, and never edits them in the merge dialog or by `gh pr merge
+   --subject/--body`, so **a pull request's title is a commit subject**: conventional.
+   The history step judges the pull request's title and body at every run — an edit
+   starts one — and every commit on every push. Auto-merge is allowed.
 3. **Every commit is signed** — a commit by the developer who makes it, and a merge
    commit and the release commit by GitHub — and a failed signature is a stop, never a
    bypass (`NOCTUA.md §2.6`). **History is never rewritten** on a pushed branch: a
@@ -174,22 +177,29 @@ This repository is `github.com/noctua-world/noctua-central`, public (`NOCTUA.md 
    `deterministic` of `.github/workflows/ci.yml` passed before a merge. On the tags `v*`,
    creation, update and deletion are blocked. The release App is the one actor that
    bypasses any of them — on `staging`, `main` and the tags; `dev` has no bypass, and
-   administrators do not bypass. These are GitHub's settings, read with `gh api` and held
-   by nothing in this tree.
+   administrators do not bypass. **A fourth ruleset, "staging and main are never deleted
+   or rewritten", holds deletion and force-push on `staging` and `main` with no bypass at
+   all.** GitHub enforces every ruleset that applies, so the App bypasses the rules on
+   those two branches except deletion and force-push, which nobody bypasses: GitHub's
+   delete-branch-on-merge cannot remove `staging` or `main` after the App merges a pull
+   request whose head each is (item 6). These are GitHub's settings, read with `gh api`
+   and held by nothing in this tree.
 5. **The release App**, `noctua-central-release`, belongs to the `noctua-world`
    organization and is installed on this repository alone. It writes contents and pull
    requests and reads metadata, and nothing more: with no workflows permission, GitHub
    refuses any commit of its that changes a workflow, and it receives no webhook events.
-   Its id is the variable `RELEASE_APP_ID` and its key the secret `RELEASE_APP_KEY`, held
-   only in the environments `release-staging` and `release-main`, each of which admits a
-   job from its own branch alone — so only a push `staging` or `main` already took can
-   mint its token.
+   Its client id is the variable `RELEASE_APP_CLIENT_ID` and its key the secret
+   `RELEASE_APP_KEY`, held only in the environments `release-staging` and `release-main`,
+   each of which admits a job from its own branch alone — so only a push `staging` or
+   `main` already took can mint its token.
 6. **A merge into `staging` or `main` is that channel's release**, and nothing else makes
-   one: `.github/workflows/release.yml` mints the release App's token, and
-   `cargo xtask release --channel <branch> --publish` runs the gate, computes the version
-   and the changelog from the history, and makes the release commit, the tag, the GitHub
-   release and the pull request that carries it back to the branch below — `staging` to
-   `dev`, `main` to `staging` — with auto-merge ("A release is computed from the history,
+   one: `.github/workflows/release.yml` runs the gate on the pushed commit in a job that
+   holds no secret and no token, then, in a job that waits for it, mints the release
+   App's token, and `cargo xtask release --channel <branch> --publish
+   --after-the-gate-job` computes the version and the changelog from the history, and
+   makes the release commit, the tag, the GitHub release and the pull request that
+   carries it back to the branch below — `staging` to `dev`, `main` to `staging` — with
+   auto-merge ("A release is computed from the history,
    and made on GitHub once"; "The release job is what `release.yml` says, and the App's
    token reaches its last step alone"). No tag and no release is made by hand.
    `cargo xtask release --channel staging --dry-run` says what a channel would release.
@@ -453,8 +463,8 @@ effect; 22 is gated over the statements written today and by nothing over the ne
    and fails without licence statistics, and a step that checks one fact has nothing to
    count. **The migration count leans on the database**: `migrations/` is compared with
    `_sqlx_migrations`, the only thing outside this tree that remembers what was applied
-   — the gate reads no history in its place — since deleting the highest-numbered
-   migration leaves no gap in the numbering.
+   — no step compares the tree with what it held before — since deleting the
+   highest-numbered migration leaves no gap in the numbering.
 
 6. **No query is checked against a live database while compiling.** `sqlx`'s `query!`
    family needs a database at build time, so `cargo xtask check --offline` could not
@@ -1650,8 +1660,18 @@ package and no code the lockfile and the audit have not already been asked about
 ### A release reads back what it wrote
 
 `cargo xtask release --channel staging|main` runs the whole gate before anything is
-written, then writes the version in every file `CARRIES_THE_VERSION` names and
-CHANGELOG.md, relocks, and reads every one back.
+written — in CI's release job, the job before it ran that gate on the same commit — then
+writes the version in every file `CARRIES_THE_VERSION` names and CHANGELOG.md, relocks,
+and reads every one back.
+
+- **It writes only regular files of this tree's.** Before the first write, each manifest
+  `CARRIES_THE_VERSION` names, `Cargo.lock` and CHANGELOG.md is judged by what it is, not
+  by what it points to (`symlink_metadata`): a link, to a file or to nothing, a
+  directory, or anything else but a regular file stops the release with nothing written.
+  A write follows a link to wherever it points and creates the file a link to nothing
+  names, the changelog's put-back removes a link the tree held in its place, and the
+  release commit would carry the bytes read through a link as a file of its own. A
+  changelog that is not there is allowed: the release creates it.
 
 - **It reads the version from its own table, and reads it back through another reader.**
   The version is `[workspace.package]`'s or `[package]`'s as TOML writes it — never the
@@ -1680,7 +1700,10 @@ CHANGELOG.md, relocks, and reads every one back.
   read put back each manifest, the lockfile and the changelog — the bytes each held, a
   changelog the tree had none of removed, and a file still holding what it held left
   alone. A file that cannot be put back is named in the refusal with why, and is not tried
-  again.
+  again. **So does a refusal at the release commit or after it**, under `--publish`: the
+  release commit, the tag, the GitHub release or the pull request back refused puts every
+  file the run wrote back as `HEAD` holds it, and the refusal says so, whatever GitHub was
+  left holding — a release commit made is carried on by the run its push starts.
 
 A document illustrating a version's *spelling* never uses the version this tree is at: the
 release walks every file for it, and the illustration would read as a file left behind.
@@ -1714,16 +1737,46 @@ branch the release is made from.
   the page `GITHUBS_LIMITS` in `xtask/src/release.rs` names, and where they are read
   again.
 
-**Published by CI's release job and nowhere else.** `--publish` asks GitHub first what
+**Published by CI's release job and nowhere else**, which runs no gate of its own: the job
+before it ran the gate on the same commit, and the release job passes
+`--after-the-gate-job`, which the verb refuses without `--publish` and anywhere but that
+job of `release.yml` on the channel's branch ("The release job is what `release.yml` says,
+and the App's token reaches its last step alone"). `--publish` asks GitHub first what
 exists and judges the answer before anything is written, then makes the release commit
-through `createCommitOnBranch` with the commit the job checked out as the branch's expected
-head — so a branch that moved meanwhile fails the release — then the tag, the GitHub
-release (a pre-release on `staging`, the latest on `main`), and the pull request that
-carries it back (`main` to `staging`, `staging` to `dev`) with auto-merge by merge commit.
-A run on a release commit — the push that commit causes, or a job run again after one
-died — carries that release on, makes only what is missing, and ends `already released`
-when nothing is; there, a pull request back whose checks have passed already is merged by
-merge commit, because GitHub refuses auto-merge on one it would merge now.
+through `createCommitOnBranch` with the commit the job checked out as the branch's
+expected head — so a branch that moved meanwhile fails the release — then the tag, the
+GitHub release (a pre-release on `staging`, the latest on `main`), and the pull request
+that carries it back (`main` to `staging`, `staging` to `dev`) with auto-merge by merge
+commit. A run on a release commit — the push that commit causes, or a job run again after
+one died — carries that release on, makes only what is missing, and ends `already
+released` when nothing is; there, a pull request back whose checks have passed already is
+merged by merge commit, because GitHub refuses auto-merge on one it would merge now.
+
+**A release that died part way is finished by the run of its release commit's push.**
+`release.yml`'s concurrency keeps every run that waits for a branch, first in first out
+(`queue: max`), so a merge into the branch while a release runs waits behind the run its
+release commit started, and replaces nothing. If that run was cancelled all the same — by
+hand, or past the hundred runs GitHub keeps waiting in a group — re-running it is the
+repair: it is a run on the release commit, and makes only what is missing. Re-running the
+run that died computes the release again from a head the branch has moved past, and
+`createCommitOnBranch` refuses it.
+
+**A pull request back that cannot merge on GitHub is carried back by hand.** Its head is
+the released branch, which takes nothing but pull requests and the release App, so a
+conflict with the branch below — a member's version line in the lockfile, or a version
+and a changelog the branch below changed since — cannot be resolved on it, and GitHub's
+conflict editor cannot commit there. When GitHub says it conflicts (`mergeable: false`
+where it answers through REST, the merge state `DIRTY` through GraphQL), or refuses to
+turn auto-merge on for it, the release stops after the tag and the GitHub release and
+says how: make a branch from the branch below, merge the released branch into it, keep
+the released branch's version and CHANGELOG.md wherever the two disagree, run
+`cargo update --workspace`, commit it signed under a conventional subject such as
+`chore(release): carry v0.1.0 back to staging by hand`, and open a pull request into the
+branch below titled the same. Git's own subject for the merge (`Merge branch …`) is
+refused: the history step judges every commit the pull request's head reaches, merges
+included, and its title, and that subject opens with no type. Once that merges, GitHub
+marks the App's pull request merged, because its head is reachable from its base, and a
+run on the release commit ends `already released`.
 
 **A release the branch below holds already is not carried back again.** A release made
 while an earlier one's pull request back is still open is carried by that one, and once it
@@ -1777,36 +1830,49 @@ is `GITHUB_TOKEN`, so `gh` cannot fall back to the workflow's own token, whose p
 requests start no checks; the host is set to GitHub's. **No other child is handed it.**
 CI's release step puts the token in the environment of `cargo xtask release`, where every
 child it starts would find it, and that App may push to `staging` and `main` past their
-rules and move a `v*` tag. So the gate runs in a child of its own — this tool's `check`,
-cleared and started with every variable but `gh`'s — and no build script, procedural macro
-or test it runs, and no cargo, docker or git it starts, holds the token; the cargo that
-relocks and the git the history is read through are started without `gh`'s variables too.
-Nothing takes the token out of the release's own environment, which in this edition is
+rules and move a `v*` tag; the cargo that relocks and the git the history is read through
+are started without `gh`'s variables. **And no gate runs beside it.** A child cleared of
+the token does not keep it from a descendant that reads its ancestors' starting
+environment, which on Linux a process of the same user may; so CI's release job runs no
+gate at all. `release.yml` runs the gate in a job of its own, which enters no environment
+and holds no secret and no token, and the release job waits for it and passes
+`--after-the-gate-job`. A gate this verb does run — a release made without that flag — is
+a child of its own, cleared and started with every variable but `gh`'s, and that is all it
+is. Nothing takes the token out of the release's own environment, which in this edition is
 `unsafe`, and this workspace forbids it. **What the token merges is this repository's own
 pull request, never another**: auto-merge and the merge are asked only of a pull request
 whose head is a branch here, never of a fork's that shares the branch's name. What `gh`
 answers is read and never printed, and a refusal quoting it has every character a reader
 cannot see written as its escape, a newline among them, so no line of GitHub's can open a
-line of CI's log. Git is never started here: the history is read through the history
-step's own reader. A test drives the whole sequence through a fake `gh` first on `PATH`,
-compiled for the system it runs on, which records each call — its arguments, the variables
-of `gh`'s own it was handed, and the request — and answers from fixtures, a run carried on
+line of CI's log. The release starts git only through the history step's reader
+(`crate::history::Own`), which removes every `GIT_*` variable and every one of `gh`'s from
+what it inherits, and sets `GIT_DIR` and `GIT_NO_LAZY_FETCH` itself. A test drives the
+whole sequence through a fake `gh` first on `PATH`, compiled for the system it runs on,
+which records each call — its arguments, the variables of `gh`'s own it was handed, and the
+request — and answers from fixtures, a run carried on
 after each step among them, a fork's pull request beside the release's own, one whose
 checks have passed in each state GitHub merges at once, an earlier release's pull request
 merged before the release commit, with the branch below stopped there or moved on since,
 and merged since it, a release commit made with such a pull request open, a pull request
-answered in REST's shape, its `id` a number, and each step answered with success in
-another shape. A second publishes on `main` a release whose candidate was tagged and
-merged, and holds the release commit to `main`, the GitHub release to the latest and not a
-pre-release, and the pull request back, and the branch a run carried on asks about, to
-`staging`. Another runs its own test binary again with `gh`'s variables exported, and
-holds the gate and the relock, each started at the fake, to being handed none of them.
-And the gate's refusal is held through the verb itself: one test runs `run_at`, which `run`
-hands this tool and this process's environment, over a scratch workspace with the fake as
-its gate, exiting 1 and then 0 — the run whose gate refused hands that refusal back and
-leaves every file of the workspace as it was given, and the one whose gate passed writes
-the version, the changelog and the lockfile. A refusal of the release itself is held
-through `run`, so what the release refuses is what the verb hands back.
+answered in REST's shape, its `id` a number, each step answered with success in another
+shape, and a pull request back GitHub says conflicts, queued or not, or will not queue,
+each refused with the carry-back by hand and nothing asked after it. A second publishes on
+`main` a release whose candidate was tagged and merged, and holds the release commit to
+`main`, the GitHub release to the latest and not a pre-release, and the pull request back,
+and the branch a run carried on asks about, to `staging`. Another runs its own test binary
+again with `gh`'s variables exported, and holds the gate and the relock, each started at
+the fake, to being handed none of them. And the gate's refusal is held through the verb
+itself: one test runs `run_at`, which `run` hands this tool and this process's
+environment, over a scratch workspace with the fake as its gate, exiting 1 and then 0 —
+the run whose gate refused hands that refusal back and leaves every file of the workspace
+as it was given, and the one whose gate passed writes the version, the changelog and the
+lockfile. A refusal of the release itself is held through `run`, so what the release
+refuses is what the verb hands back. Another makes a release fresh and is refused at the
+release commit, at the tag, at a pull request back in conflict and at auto-merge, each
+leaving the workspace as it was given. And the gate standing aside is driven through
+`run_at` with an environment of its own, never this process's: refused without `--publish`
+and outside the release job, with nothing written and nothing started, and accepted in it,
+with no gate started.
 
 ### The release job is what `release.yml` says, and the App's token reaches its last step alone
 
@@ -1821,11 +1887,16 @@ gate's `CI` step refuses the tree otherwise, before any run of the release can.
   secrets on behalf of a change made in a fork: the name is refused wherever it stands
   outside a comment, however it is written — a key or an entry of a flow sequence, quoted,
   behind a `\x` or `\u` escape, across a backslash's line break, or in capitals.
-- **Its one job enters `release-${{ github.ref_name }}`**, the environment of the branch
-  pushed to, which GitHub lets a job enter from that branch alone and which holds the
-  App's id and its key: no other branch and no pull request can mint the App's token.
-  It runs on Linux, because the gate the release runs first is the whole gate only where
-  the stack runs.
+- **Two jobs, and the second alone enters `release-${{ github.ref_name }}`**, the
+  environment of the branch pushed to, which GitHub lets a job enter from that branch
+  alone and which holds the App's client id and its key: no other branch and no pull
+  request can mint the App's token. `gate` runs the whole gate on the pushed commit; it
+  enters no environment, reads no secret, no variable and no step's output, mints no
+  token, and neither publishes nor stands the release's gate aside, each refused by name
+  wherever it stands from the job's line to the next job's, comments among it. `release`
+  waits for it, `needs: gate` and no other value, which no other job holds, and runs no
+  gate of its own. Both run on Linux: the gate is the whole gate only where the stack
+  runs, and the release builds its tool on the system the gate judged.
 - **No other workflow can mint it either.** An environment admits a job by its branch and
   not by its workflow, and `ci.yml` runs on a push to `staging` and `main` too. So every
   file GitHub runs but `release.yml` — `ci.yml`, and the file of a composite action a
@@ -1833,7 +1904,8 @@ gate's `CI` step refuses the tree otherwise, before any run of the release can.
   `environment`, quoted, in a flow mapping or after `?`), reads a secret (the word
   `secrets` anywhere in its code, a condition and `secrets: inherit` among it), or reads
   a step's output (`steps` in any expression). Every file CI reaches but `release.yml`,
-  the justfile and a script a step runs among them, is refused if it holds `--publish`. A
+  the justfile and a script a step runs among them, is refused if it holds `--publish` or
+  `--after-the-gate-job`, which stands the release's own gate aside. A
   justfile or a script holds no expression GitHub evaluates and no key a runner reads, so
   the first four are not read there, and `docker-compose.yml`, which CI reaches, holds an
   `environment:` of the stack's own. Each line is read on its own, as written and with a
@@ -1884,36 +1956,49 @@ gate's `CI` step refuses the tree otherwise, before any run of the release can.
   indented with U+3000 below a block scalar was read as the scalar's text, and the quote
   it left open swallowed the `macos` job's gate step. Each is refused, by code point and
   line.
-- **The file and its job hold their own keys and no other**: `name`, `on`, `permissions`,
-  `concurrency` and `jobs` at the top, and `runs-on`, `environment`, `permissions` and
-  `steps` in the job, each once. `env:` or `defaults:` would reach every step, the
-  token's among them; `container:` would run each inside an image this tree does not
-  build, `services:` would start one beside them, and `strategy:` would run the job more
-  than once.
-- **It runs `THE_RELEASE_STEPS`, in that order, and no other step, and each step holds
-  exactly the lines written there for it**: the App's token, with `app-id`, `private-key`,
-  `permission-contents: write` and `permission-pull-requests: write` as its inputs and no
-  other; the checkout, with `fetch-depth: 0` and `persist-credentials: false` and no
-  other; the toolchain `rust-toolchain.toml` names; the install the audit needs;
-  `cargo xtask dev`; then `cargo xtask release --channel ${{ github.ref_name }} --publish`,
+- **The file and its jobs hold their own keys and no other**: `name`, `on`,
+  `permissions`, `concurrency` and `jobs` at the top, the jobs `gate` and `release` and
+  no other, `runs-on`, `permissions` and `steps` in the gate, and those with `needs` and
+  `environment` in the release (`THE_RELEASE_JOBS`), each once. `env:` or `defaults:`
+  would reach every step, the token's among them; `container:` would run each inside an
+  image this tree does not build, `services:` would start one beside them, and
+  `strategy:` would run the job more than once.
+- **Its `concurrency` holds three lines, in order, at one depth**:
+  `group: release-${{ github.ref }}`, `cancel-in-progress: false` and `queue: max`
+  (`THE_RELEASES_CONCURRENCY`). A run cancelled in progress stops a release part way, and
+  under GitHub's default queue a newer run replaces the one waiting, so the next merge
+  would cancel the run of a release commit's own push, which is what finishes a release
+  that died part way.
+- **Each job runs its steps in `THE_RELEASE_STEPS`, in that order, and no other step, and
+  each step holds exactly the lines written there for it**: the gate checks out, with
+  `fetch-depth: 0` and `persist-credentials: false` and no other input, installs the
+  toolchain `rust-toolchain.toml` names and `cargo-deny` at its exact version, and runs
+  `cargo xtask dev` and then `cargo xtask check`; the release checks out the same way,
+  installs the toolchain, builds the release tool with `cargo xtask release --help`, mints
+  the App's token, with `client-id`, `private-key`, `permission-contents: write` and
+  `permission-pull-requests: write` as its inputs and no other, and runs
+  `cargo xtask release --channel ${{ github.ref_name }} --publish --after-the-gate-job`,
   handed `GH_TOKEN` alone. Each line is held at its depth, so an input moved out of
   `with:` or a value continued on the next line is a line that differs; a step's `name:`
   is its label and is not held. A script, a composite action, a second command on
   a line, another repository or ref checked out, a token asked for more, and a key such as
   `env:`, `shell:` or `working-directory:` on a step are each refused, and a step on a
-  condition is too. `cargo xtask dev` comes right before the release, so the tool the
-  release step runs is built before the token is in any process's environment, and no
-  build script runs with it.
+  condition is too. **The release tool is built in the step before the token is
+  minted**, so the build scripts and procedural macros of its dependencies run before any
+  step holds the token, and the release step finds it built; and the token, which lives
+  an hour, is minted seconds before its first use rather than before a gate.
 - **It evaluates six expressions and no other, each on a line of its own where
   `THE_EXPRESSIONS` puts it**: the branch in the concurrency group, the environment and
-  the channel; the App's id and key in the step that mints the token; and
+  the channel; the App's client id and key in the step that mints the token; and
   `GH_TOKEN: ${{ steps.app.outputs.token }}` in the release step. Any other line holding
   `${{` is refused, so the token reaches no other step however an expression names it —
   `steps['app'].outputs.token`, `toJSON(steps)`, `github['token']`, `toJSON(github)` —
   and the file is read the way the other files are: each line on its own and joined to the
   lines a backslash continues, escapes resolved, comments included. The token is minted
-  with contents and pull requests to write and nothing more, so it stays that narrow if the
-  App is ever granted more, and the action that mints it revokes it when the job ends.
+  with contents and pull requests to write and nothing more — the two `permission-`
+  inputs are what narrow it, and with none the action asks for whatever the App is
+  granted — so it stays that narrow if the App is ever granted more, and the action that
+  mints it revokes it when the job ends.
 - **It restores no cache.** A cache holds what an earlier run saved — `dev`'s are restored
   on every branch — and the release is built from its branch and nothing an earlier run,
   or a pull request, left behind.
@@ -1965,8 +2050,13 @@ reachable from `HEAD`, merges included, and every blob ever reachable — not th
   newline after it, makes another path, held to the limit.
 - **Under a pull request, what its event names**: the history of `pull_request.head.sha`
   and `pull_request.base.sha` in `GITHUB_EVENT_PATH`, the title held to both rules and
-  the body to the second — never the merge commit the checkout is at, which GitHub makes
-  for the run and no branch carries.
+  the body to the second — never the message of the merge commit the checkout is at,
+  which GitHub makes for the run and no branch carries. **That merge's blobs are measured
+  with theirs**, and the paths of every commit it reaches read: a three-way merge writes a
+  blob neither side holds, so a file under the limit on the head and on the base can be
+  above it merged, and nothing makes the base the event names the merge's first parent, so
+  the merge can reach commits the base branch gained after it. Those commits' messages are
+  judged by the run of the push that brought them, not here.
 
 **Fail closed.** A shallow clone, a grafted one, a partial one missing an object, an
 event that names no head, base, title or body, a blob above the limit that no commit puts
@@ -2090,8 +2180,11 @@ rather than anything decided for the project, and each is a maintainer's to reop
   here runs SQL this repository did not write — the premise the bundled SQLite's floor
   (3.50.2, CVE-2025-6965) and the later FTS5 advisories rest on. The blobs' directory
   stops the same people and no more. An open leaves a `-shm` it gave a `-wal` that had
-  none (an index holding no data) beside a file it then refuses, and waits without bound
-  for another open of the profile, so a process stopped mid-open holds every other.
+  none (an index holding no data) beside a file it then refuses, and leaves what it made
+  before it judged the path it refuses: the database file, when it was missing and a
+  companion is then refused, and on Windows the profile's lock file
+  (`nc_local::LOCK_NAME`), made before the database file is judged. It waits without
+  bound for another open of the profile, so a process stopped mid-open holds every other.
 - **On Windows, the system's own can read or take anything** — the Administrators group,
   `SYSTEM`, and any process holding the backup or the take-ownership privilege —
   whatever the access list says: Windows' counterpart of root, which no access list
@@ -2101,9 +2194,12 @@ rather than anything decided for the project, and each is a maintainer's to reop
   user's: SQLite creates them with the token's default owner, and that group's members
   are the ones who can take any file already. The directory, the database file, the lock
   file and the blobs' directory are this crate's, created owned by the user, and one owned
-  by anybody else is refused. A deny entry is read as this user's
-  whoever it names — which groups a user is in is the token's to say, and reading every
-  deny as this user's refuses more, never less. A path past Windows' 260-character limit
+  by anybody else is refused — the group above included, at each call that judges one:
+  `what_this_crate_made_owned_as_the_system_owns_what_it_creates_is_refused` and
+  `a_lock_file_that_is_not_its_own_is_refused_where_a_file_holds_the_directory` stage that
+  owner where the process is elevated, and say there is nothing to stage where it is the
+  user. A deny entry is read as this user's whoever it names — which groups a user is in
+  is the token's to say, and reading every deny as this user's refuses more, never less. A path past Windows' 260-character limit
   is refused by the system, since nothing here writes the `\\?\` form for it.
 - **A journal entry's authorization fields are the kernel's to fill, and one stays
   empty**: `actor_chain`, until agents act (Stage 15); an entry another writer makes
@@ -2263,12 +2359,19 @@ rather than anything decided for the project, and each is a maintainer's to reop
   refusal on every system — on Windows by the system's own answer, elsewhere through a
   `uname` planted on the path, with nothing removed or copied either way — and the failing
   `uname` on Linux and macOS; the drives of the guards themselves stand aside on Windows,
-  saying so, while the Linux and macOS jobs run them. A layer over Windows that names
-  itself some other way to `uname` is not refused, and runs guards no test holds.
+  named by the gate there as not applicable, while the Linux and macOS jobs run them. A
+  layer over Windows that names itself some other way to `uname` is not refused, and runs
+  guards no test holds.
 - **That the catalog's output does not follow a directory's order is measured on Linux
   alone**: macOS lists a directory by a hash of each name and Windows by the name, so two
   layouts of the locale files come back in one order there and the suite holding the
-  output to both stands aside. The sort it holds is the same code on every system.
+  output to both stands aside, named by the gate as not applicable. The sort it holds is
+  the same code on every system.
+- **Which suites stand aside off Linux is the system's answer, not what the run saw**: the
+  gate names a suite as not applicable from `nc_platform::system`'s constants, the ones its
+  guard asks, and the census of guards holds each guard to deciding on that alone. A test
+  that returns early by any other path is counted by cargo as passed and named by
+  nothing.
 - **An answer a reset overtakes is lost on Windows**: a store that closes the connection
   with the request unread resets it, and Windows discards what of the answer the shipper
   had not read yet. What the shipper had read decides the rest. Part of the status line,
@@ -2292,18 +2395,31 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **The release's rules read the workflow, not GitHub**: the environments' branch
   policies, their variable and their secret, the rulesets and the App's permissions are
   GitHub's settings, read with `gh api` and held by nothing in this tree.
-- **What a step before the release leaves running is not stopped**: the token is in no
-  process's environment before the release step, and the gate the release runs is a child
-  cleared of it, but a process an earlier step started and left behind runs as the same
-  user, and on Linux a process of the same user can read another's environment. What
-  keeps such a process out is that what runs is what `staging` or `main` holds, after
-  review and every check.
-- **The release's `concurrency` is held only where it evaluates an expression, and
-  `persist-credentials: false` only in `release.yml`**: `cancel-in-progress: false`, and
-  the group's name around its expression, are in the file and held by no rule, and so is
-  every checkout's `persist-credentials: false` in `ci.yml`. Two releases racing on one
-  branch are stopped by `createCommitOnBranch`'s expected head and by a tag that exists,
-  and a credential a checkout of `ci.yml` left behind reads the tree and nothing more.
+- **The release tool's own dependencies are the boundary of the release job.** That job
+  holds the App's key from its start — a runner is handed a job's secrets when it starts
+  the job — and the token from the step that mints it, and it runs the release tool,
+  built from this tree and its locked dependencies in the step before the mint, and `gh`.
+  A build script, a procedural macro or the library code of one of those dependencies, or
+  a process an earlier step of the job left running, runs as the same user on a runner
+  where that user has passwordless sudo, and could read the key from the runner's memory
+  or the token from the release's environment. What keeps such code out is the lockfile,
+  the audit and review: what runs is what `staging` or `main` holds, after every check.
+  The gate's own build scripts, procedural macros and tests, of the tree and of every
+  dependency, and the auditor it installs, run in the gate job, which holds neither.
+- **`--after-the-gate-job` is held to its job by what that job's environment says**:
+  `GITHUB_ACTIONS`, `GITHUB_JOB`, `GITHUB_WORKFLOW_REF` and `GITHUB_REPOSITORY`, which
+  anyone running the verb can set. It stops the flag passed by mistake, or copied where
+  no gate runs first; on a person's own machine whether their own gate runs is theirs to
+  decide, and with no token of the App's `--publish` has nothing to publish with. That the
+  release job's gate ran is held by `needs: gate`, which the reader holds `release.yml`
+  to, and by GitHub, which never starts a job whose `needs` did not succeed.
+- **`persist-credentials: false` is held only in `release.yml`**: every checkout's
+  `persist-credentials: false` in `ci.yml` is in the file and held by no rule, and a
+  credential a checkout of `ci.yml` left behind reads the tree and nothing more.
+- **GitHub keeps up to a hundred runs waiting in a concurrency group**: a run past that
+  is not kept waiting, and when it is the run of a release commit's own push, re-running
+  it is the repair. Two releases racing on one branch are stopped by the group, by
+  `createCommitOnBranch`'s expected head and by a tag that exists.
 - **A cargo command, and a name for one, is read from the words a line writes, not from
   the word a shell builds or reads as it runs**: `"car""go"`, `car"go"`, `$'cargo'`, a
   parameter expansion such as `${C:-cargo}` or `${C:=cargo}`, a brace expansion such as
@@ -2325,9 +2441,10 @@ rather than anything decided for the project, and each is a maintainer's to reop
   tree, which every job that checks out already does.
 - **The release's top-level `name:` holds what it likes**: it is a label, and an expression
   in it is refused like any other.
-- **The token action is handed the App's id as `app-id`**, an input its pinned release
-  marks as replaced by `client-id`, so each release run prints that warning: the
-  environments hold the App's id and not its client id.
+- **The token action is handed the App's client id from an environment's variable**,
+  `RELEASE_APP_CLIENT_ID`, whose value is GitHub's setting: the reader holds the line that
+  names it, never what it holds. The App's numeric id, `RELEASE_APP_ID`, is read by
+  nothing here.
 - **The toolchain is whatever `stable` is on the day**, installed by the runner image's
   rustup, which reads `rust-toolchain.toml` because no toolchain is named; a rustup that
   needs one named fails that step.
@@ -2387,20 +2504,33 @@ rather than anything decided for the project, and each is a maintainer's to reop
   or Microsoft, is left out on purpose, so a person's `users.noreply.github.com` address
   passes and an agent signing from such a domain is read by its name or its `[bot]` alone;
   a product that shares a person's first name, which is left out of the names on purpose
-  and is read only by its site; a sentence that names the agent past more than an article
-  and a maker's name, or past a maker `MAKERS` does not hold ("made with the help of …",
-  "generated by GitHub's …"); `cursor` in lower case in a sentence, which this tree's
-  prose means as the terminal's; a trailer under a separator other than the colon, which
-  git reads only where it is configured to; or prose that credits an agent in other words.
+  and is read only by its site, `claude` being the one first name kept (below); a sentence
+  that names the agent past more than an article and a maker's name, or past a maker
+  `MAKERS` does not hold ("made with the help of …", "generated by GitHub's …"); `cursor`
+  in lower case in a sentence, which this tree's prose means as the terminal's; a trailer
+  under a separator other than the colon, which git reads only where it is configured to;
+  or prose that credits an agent in other words.
   The lists are the shapes tools write ("A needle list cannot enumerate a language").
 - **A commit the history step refuses on a shared branch stays refused**: the history is
   never rewritten, so every run after it fails until the step changes. What keeps one from
   landing is that the step runs on the pull request, whose checks the rulesets require
   before a merge — but it judges the title and the body as the event carried them at the
-  pull request's last run, and a re-run reads that same event. `ci.yml` runs on the
-  event's default types, which an edit is not, so a title or a body edited after the last
-  run, and a merge message edited in GitHub's merge dialog, is judged first on the push
-  to the branch: after the merge has landed.
+  pull request's last run, and a re-run reads that same event. `ci.yml` runs on
+  `edited` as well as on GitHub's default types, so an edited title or body starts a run
+  that judges it; a merge message edited in GitHub's merge dialog, or by `gh pr merge
+  --subject/--body`, is judged first on the push to the branch: after the merge has
+  landed.
+- **A trailer naming a person called Claude is refused**: `claude` is the one person's
+  first name `AGENT_NAMES` keeps, because tools sign with it with no address under an
+  agent's site, so an honest co-author or reviewer of that first name is refused as a
+  credit, and so is a Jean-Claude, since a hyphen ends a word. Such a trailer is written
+  with the person's other names and an address that does not hold that first name as a
+  word, since the address is read word by word too. A test holds the refusal and the way
+  out, so a change to either changes this sentence too.
+- **A base that moved after the pull request's last run is not covered**: the rulesets
+  require the checks with strict status checks off, so a pull request merges on a run
+  made against its base as the base was then, and a blob the real merge writes, from a
+  base that gained a commit since, is judged first on the push to the branch.
 - **The size limit is the one rule about binaries**: a small binary passes the history
   step, and `NOCTUA.md §17.8` is held there by review. A blob above the limit is judged at
   every path a commit puts it at; one below it is measured once, whatever its paths — one
@@ -2446,12 +2576,22 @@ rather than anything decided for the project, and each is a maintainer's to reop
   environment CI's step gives it, and so does the `cargo run` the alias starts it with:
   every child but `gh` is started without it, and a dependency of this tool's own running
   code inside this process could still read it. That cargo builds nothing there only
-  because `cargo xtask dev`, the step before, built this tool without the token; a step
-  between them that left the tool stale would have cargo build it with the token in every
-  build script's environment.
-- **`cargo xtask dev` from a clean machine** — Stage 10's criterion 10 — has been watched
-  with one of the two images removed and the data volumes kept, never on a host with an
-  empty image store; a run on a host sharing nothing with this one would close it.
+  because the step before the mint, `cargo xtask release --help`, built this tool through
+  the same alias; anything that made cargo build it again in the release step would run
+  every build script of its dependencies with the token in its environment.
+- **A file the release writes is judged before the first write, not held while it
+  writes**: a process that replaced one with a link between the judgement and the write
+  is not stopped. The runner is the job's alone.
+- **A pull request back GitHub has not yet judged is queued**: GitHub works out whether a
+  pull request conflicts after it is opened, so the one the release opens reads as no
+  conflict, and auto-merge refused is what says otherwise then. One GitHub finds in
+  conflict after auto-merge is on waits until a run on the release commit asks again —
+  the run its push starts is one — or a person carries the release back.
+- **`cargo xtask dev` from a clean machine, anywhere but CI's Linux runner** — Stage 10's
+  criterion 10 runs in the `linux` job on every push and pull request and in
+  `release.yml`'s gate job, each on a fresh Ubuntu runner that pulls both pinned images;
+  macOS and Windows run no stack (`NOCTUA.md §22.2`), and a local `dev --down` empties the
+  database and leaves the image store, so it is not that run.
 
 ## How the gates are built
 
@@ -2640,14 +2780,35 @@ deliberately not claimed").
   `rustup toolchain install` and no toolchain named, so what it installs is what
   `rust-toolchain.toml` says, no file GitHub runs but `release.yml` mints the release
   App's token, enters an environment, or reads a secret or a step's output, and no file
-  CI reaches but `release.yml` publishes ("The release job is what `release.yml` says,
-  and the App's token reaches its last step alone").
+  CI reaches but `release.yml` publishes or stands the release's gate aside ("The release
+  job is what `release.yml` says, and the App's token reaches its last step alone").
+- **Every `cargo install` is one crate, locked, at an exact version**,
+  `cargo install --locked name@X.Y.Z` and no other word, in every file CI reaches, read
+  as a command is however its line is written: a crate named with no version, or with a
+  range such as `@0.20`, is whatever crates.io holds on the day, and its code runs in the
+  job that installs it, the release's gate among them; a second crate on the line is one
+  no version names, and `--git`, `--path`, `--registry` or `--index` takes the code from
+  where no version on crates.io describes it. `cargo-deny`'s version is written in six
+  places and moved in one commit: the three installs of `ci.yml`, the gate job of
+  `release.yml`, `THE_RELEASE_STEPS` in `xtask/src/workflow.rs`, which holds that line
+  for line, and that line's row in `WHAT_ELSE_THIS_TOOL_SAYS` in `xtask/src/check.rs`,
+  the census of the sentences the tool ships. The rule's test takes its install from
+  `THE_RELEASE_STEPS` and fails when `ci.yml` holds no such line, as the release's own rule
+  fails when `release.yml`'s gate does not; the three lines of `ci.yml` are not held to one
+  another. `deny.toml`'s comment on `unsound` names the version whose default it read, and
+  is read again against the new one.
 - **Actions are an allowlist, not a needle**: an action judging anything of ours is a
   second gate whatever it is called — a linting action such as
   `giraffate/clippy-action@v1` <!-- allow-reference: names `giraffate/clippy-action@v1` — an action this repository does not use -->
   is one — so only the steps that set the run up and decide nothing are allowed, each with
   its reason. Every `uses` key of a line is read, wherever YAML opens one, and an action
   the reader cannot read on its line is one off the list.
+- **`ci.yml` fires on every push, and on every pull request as it is opened, pushed to,
+  reopened or edited**: `types: [opened, synchronize, reopened, edited]` is the one line
+  under `pull_request:`, and it is required. That list widens the events, never narrows
+  them: without `edited`, a title or a body changed after the last run starts no run, and
+  the merge commit takes what the history step never judged. Any other line under either
+  event is a filter, and is refused.
 - The gate refuses a workflow that fires on nothing and a step whose verdict does not
   count, and checks that each job still runs what its name says: the determinism job
   builds **twice**, in the order that makes the second generation a second process. A
@@ -2780,7 +2941,9 @@ under `--offline` and on a system that runs no stack, and its value is the reaso
 ### Not applicable is a property of the system, never of the machine
 
 `RUNS_THE_STACK` in `xtask/src/check.rs` asks the target `xtask` was compiled for, and
-nothing else in this tool asks which system it is on (`NOCTUA.md §2.7`). That is the
+nothing else in this tool decides by which system it is on (`NOCTUA.md §2.7`): `ui::SYSTEM`
+names the system in what the gate prints, and which suites stand aside is
+`nc_platform::system`'s answer. That is the
 security answer for this kind of line: a probe for docker would make a Linux machine with
 its stack down read as a system the stack does not apply to, and every step that needs it
 would stand aside there quietly — so the answer is fixed when the tool is built, a flag
@@ -2789,17 +2952,28 @@ any list but `THE_STACKS_PARTS`, in order. A part added to the stack's steps is 
 there and a sentence at its call site, which `every_part_of_the_stack_says_why_it_stands_aside`
 holds to each other.
 
-**A suite that needs what a system lacks asks `nc_platform::testing`, and says so.** The
-system's answer is a constant of that crate, fixed per system as `RUNS_THE_STACK` is —
-`LISTED_AS_MADE`, a directory listed in the order its entries were made, and
-`A_POSIX_SHELL` — never a probe of the machine, so a Linux machine cannot stand a suite
-aside, and `linux_lacks_nothing_a_suite_stands_aside_for` holds every answer on every
-system. Each guard prints `skipped, not applicable on <system>:` and why, in its own output,
-and `ANNOUNCES_WHAT_THE_SYSTEM_LACKS` in `xtask/src/check.rs` counts the guards into the
-same line as the database suites, read by the same rule, with
+**A suite that needs what a system lacks asks `nc_platform::system`, and the gate names
+it.** The system's answer is a constant of that crate, fixed per system as
+`RUNS_THE_STACK` is — `LISTED_AS_MADE`, a directory listed in the order its entries were
+made, and `A_POSIX_SHELL` — never a probe of the machine, so a Linux machine cannot stand a
+suite aside, and `linux_lacks_nothing_a_suite_stands_aside_for` holds every answer on every
+system. That module is compiled in every build, not behind `test-support`, because the
+gate reads it too. Each guard prints `skipped, not applicable on <system>:` and why — and
+cargo counts the test as passed and captures that line with the rest of a passing test's
+output, which the gate prints none of. So the gate's test step says it instead, from the
+same constants: before the tests, a `not applicable` line for each suite this system stands
+aside (`THE_SUITES_A_SYSTEM_STANDS_ASIDE`); after them, `the ones that need what this
+system lacks` on the count line; and beside the verdict, `not applicable here: <suite>`.
+`finish` holds those lines to the list as it holds the stack's parts, so on macOS (the
+order on disk) and on Windows (that and the checkout script's guards) a suite that stopped
+saying so is a refusal, and
+`the_suites_a_system_stands_aside_are_the_ones_written_down_for_it` holds the list per
+system, empty on Linux. `ANNOUNCES_WHAT_THE_SYSTEM_LACKS` in `xtask/src/check.rs` counts
+the guards into the same line as the database suites, read by the same rule — a count of
+the guards in the sources, the same on every system — with
 `every_source_that_asks_what_the_system_lacks_is_one_the_census_names` naming every source
 outside `nc-platform` whose code names a door. It looks for the door by its own name, as a
-whole word, so a suite that reaches it through `use nc_platform::testing;`, or under
+whole word, so a suite that reaches it through `use nc_platform::system;`, or under
 another name, is found as one writing the whole path is, and
 `a_door_is_asked_however_it_was_brought_into_scope` hands that reader the spellings the
 tree does not hold.

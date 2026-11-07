@@ -84,13 +84,16 @@ limit unless its path is listed (`NOCTUA.md §22.5`). It needs the whole history
 shallow clone is refused, and a tree with no `.git` says it was not judged.
 
 A push to `staging` or `main` releases that channel: `.github/workflows/release.yml`
-brings the stack up and runs `cargo xtask release --channel <branch> --publish` with the
-release App's token, in an environment only that branch can enter. The gate holds that
-workflow to its steps, its keys and its expressions; refuses the token, an environment, a
-secret and a step's output in every other file GitHub runs (the workflows under `.github/`
-and a composite action's own file), and a publish in every other file CI reaches, the
+runs the gate on the pushed commit, the stack brought up, in a job that holds no secret
+and no token; then, in a job that waits for it and enters an environment only that branch
+can enter, it builds the release tool, mints the release App's token and runs
+`cargo xtask release --channel <branch> --publish --after-the-gate-job`, which runs no
+gate of its own. The gate holds that workflow to its two jobs, its steps, its keys and its
+expressions; refuses the token, an environment, a secret and a step's output in every
+other file GitHub runs (the workflows under `.github/` and a composite action's own file),
+and a publish or the release's gate stood aside in every other file CI reaches, the
 justfile and the scripts a step runs among them; and pins every action a workflow here
-uses to a commit. Those rules read a file a line at a time, so the gate also refuses a
+uses to a commit, and every install to one crate, locked, at an exact version. Those rules read a file a line at a time, so the gate also refuses a
 line ended anywhere but at a line feed, or spaced with anything but a space or a tab, in
 a file CI reaches, and, in a file GitHub runs, a key not written out before its colon, a
 quote or a bracket not closed on the line that opens it, and a `#` those rules would take
@@ -149,5 +152,6 @@ included — those it also applies to a scratch SQLite file and holds to the lis
 branch below it, and a merge into either publishes that channel's release on GitHub:
 the version and the changelog are computed from the conventional commits, and nothing
 else chooses them (`NOCTUA.md §22`). Merges are merge commits, whose title and body are
-the pull request's; every commit is signed; and no branch's history is rewritten.
+left as GitHub fills them from the pull request and never edited when merging; every
+commit is signed; and no branch's history is rewritten.
 `AGENTS.md` says how each of those is held.

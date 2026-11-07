@@ -128,7 +128,7 @@ fn two_directory_orders_produce_the_same_bytes() {
     // lists by a hash of the name and Windows' NTFS by the name, so there both
     // layouts below come back in one order and there is nothing to compare: the
     // suite says so, by the system's name, and the Linux job runs it.
-    if nc_platform::testing::LISTED_AS_MADE.is_none() {
+    if nc_platform::system::LISTED_AS_MADE.is_none() {
         println!(
             "skipped, not applicable on {}: no directory here lists its entries in the \
              order they were made, and the Linux job runs it",
@@ -140,7 +140,7 @@ fn two_directory_orders_produce_the_same_bytes() {
     // layouts below actually differ. A filesystem that sorts or hashes would
     // make this test vacuous, so the orders are compared before they are relied
     // on and a run that cannot produce two of them fails rather than passes.
-    let base = Path::new(nc_platform::testing::LISTED_AS_MADE.expect("asked above"))
+    let base = Path::new(nc_platform::system::LISTED_AS_MADE.expect("asked above"))
         .join(format!("nc-order-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&base);
     let en_first = base.join("en-first");

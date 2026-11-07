@@ -129,16 +129,18 @@ pub(crate) fn warn(text: &str) {
 /// have run here and did not, because the caller asked or because what it
 /// reads is absent; this is a step that never runs on this system at all —
 /// the ones that need the container stack, which only the Linux job brings up
-/// (`NOCTUA.md §22.2`). Printed as a `warn`, every macOS and Windows run would
-/// end `with N warn line(s)` over steps nobody could have run there, and the
-/// number a reader uses to see that something was skipped would mean two
+/// (`NOCTUA.md §22.2`), and the suites that need what this system lacks,
+/// which the Linux job runs. Printed as a `warn`, every macOS and Windows run
+/// would end `with N warn line(s)` over steps nobody could have run there, and
+/// the number a reader uses to see that something was skipped would mean two
 /// things.
 ///
 /// **Counted, and by what it says.** `check::finish` holds the parts this run
 /// printed against the list written for the system, exactly: none on Linux,
-/// where every step runs, and every part that needs the stack elsewhere — so a
-/// part cannot start standing aside on Linux, or stop saying so elsewhere,
-/// with the verdict unchanged.
+/// where every step runs, and elsewhere every part that needs the stack, then
+/// every suite the system lacks what it needs for — so a part cannot start
+/// standing aside on Linux, or stop saying so elsewhere, with the verdict
+/// unchanged.
 pub(crate) fn not_applicable(what: &str) {
     let _printing = while_printing();
     if let Ok(mut said) = NOT_APPLICABLE.lock() {
@@ -933,7 +935,7 @@ mod tests {
         /// failure spells out: source added is ordinary work and the number goes
         /// up with it, but source *deleted* and a class *exempted* look
         /// identical from here, and only one of them is something to accept.
-        const THE_GROUND_THIS_READS: usize = 71_710;
+        const THE_GROUND_THIS_READS: usize = 72_276;
 
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let mut directories = vec![root.join("xtask/src")];

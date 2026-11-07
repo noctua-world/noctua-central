@@ -960,9 +960,9 @@ The same five lines, the same test count, the same last line. Every one of those
 guards answers a measured incident, and a guard with no test of its own leaves
 the mechanism this repository leans on hardest — a floor under a walk — the one
 thing none of the five mechanisms above watches. One of them, the edited-migration report, is
-the only reader of `_sqlx_migrations` for that case, and the gate reads no history
-in its place: with it gone, a migration edited after it was applied passed the
-gate.
+the only reader of `_sqlx_migrations` for that case, and no step compares the tree
+with what it held before: with it gone, a migration edited after it was applied
+passed the gate.
 
 **What answers it is not another counter or another fixture.** It is a list of
 every sentence the gate is able to say — `WHAT_THE_GATE_CAN_SAY` in

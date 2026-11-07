@@ -29,9 +29,13 @@
 //! Under `pull_request`, CI checks out a merge commit GitHub makes for the run
 //! and puts on no branch, titled `Merge <sha> into <sha>`. So there the step
 //! judges what the event names — the history of the pull request's head and of
-//! its base, and the pull request's title and body — and never the commit the
-//! checkout is at ([`the_pull_request`]). Anywhere else, a push or a run on a
-//! developer's machine, it judges everything reachable from `HEAD`.
+//! its base, and the pull request's title and body — and never the message of
+//! the commit the checkout is at ([`the_pull_request`]). That commit's blobs
+//! are measured with theirs, because a three-way merge writes a blob neither
+//! side holds, and the paths of every commit it reaches are read, because the
+//! base it was made from can be newer than the one the event names. Anywhere
+//! else, a push or a run on a developer's machine, it judges everything
+//! reachable from `HEAD`.
 //!
 //! # Git is asked, and nothing it inherits chooses what it reads
 //!
@@ -75,9 +79,16 @@ pub(crate) const TYPES: [&str; 10] = [
 ///
 /// **Words, compared whole**, so `gpt` is read in `GPT-4o` and `cursor` in
 /// `cursoragent@cursor.com`, and neither is read inside a longer word. A name
-/// that is also a person's first name is not here: a trailer naming a person of
-/// that name would be refused. Such a product is read instead by its site in
-/// [`AGENT_SITES`]: in a link, and in a trailer's address.
+/// that is also a person's first name is left out, because a trailer naming a
+/// person of that name would be refused, and such a product is read instead by
+/// its site in [`AGENT_SITES`]: in a link, and in a trailer's address.
+///
+/// **One first name is kept: `claude`**, because tools sign with it with no
+/// address under an agent's site — the name alone, or an address of nobody's
+/// site at all — and left out, those trailers would pass. The price is an
+/// over-refusal: a trailer naming a person called Claude is refused, and so is
+/// one naming a Jean-Claude, since a hyphen ends a word. `AGENTS.md` states it
+/// under "What is deliberately not claimed", and a test holds it.
 const AGENT_NAMES: [&str; 22] = [
     "aider",
     "anthropic",
@@ -647,17 +658,41 @@ fn a_commit_of(pull_request: &serde_json::Value, side: &str) -> Result<String, S
         .and_then(|named| named.get("sha"))
         .and_then(serde_json::Value::as_str)
         .ok_or_else(|| format!("the pull request in the event names no `{side}.sha`"))?;
-    if !matches!(sha.len(), 40 | 64)
-        || !sha
-            .chars()
-            .all(|character| matches!(character, '0'..='9' | 'a'..='f'))
-    {
+    if !a_hash(sha) {
         return Err(format!(
             "the pull request's `{side}.sha` is {}, which is not a commit's hash",
             quoted(sha)
         ));
     }
     Ok(sha.to_owned())
+}
+
+/// Whether `text` has the shape of an object's hash: forty or sixty-four
+/// lower-case hexadecimal digits, as git writes a SHA-1 or a SHA-256 name.
+fn a_hash(text: &str) -> bool {
+    matches!(text.len(), 40 | 64)
+        && text
+            .chars()
+            .all(|character| matches!(character, '0'..='9' | 'a'..='f'))
+}
+
+/// The hash of the commit `HEAD` names, which under a pull request is the
+/// merge GitHub made for the run.
+///
+/// **Held to the shape of a hash**, as every answer from git here is held to
+/// the one asked for: it is handed to `diff-tree` as a commit to read paths
+/// from.
+fn the_commit_checked_out(reading: &Reading) -> Result<String, String> {
+    let named = git(reading, &["rev-parse", "--verify", "HEAD^{commit}"], None)?;
+    let named = String::from_utf8_lossy(&named);
+    let hash = named.trim_end_matches(['\n', '\r']);
+    if !a_hash(hash) {
+        return Err(format!(
+            "git answered {} when asked which commit `HEAD` is",
+            quoted(hash)
+        ));
+    }
+    Ok(hash.to_owned())
 }
 
 /// The history of `root`, judged: against `pull_request` when one is given,
@@ -724,7 +759,28 @@ fn judged_inheriting(
     };
     let mut findings = Vec::new();
     let commits = judge_the_commits(&reading, &starts, &mut findings)?;
-    let (blobs, above) = measure_the_blobs(&reading, &starts, &commits, listed, &mut findings)?;
+    // **And under a pull request, the merge made for the run is measured, and
+    // its message is not judged.** A three-way merge writes a blob that neither
+    // side holds — a file under the limit on the head and on the base can be
+    // above it merged — and that tree is what the merge lands. So its blobs are
+    // measured with the head's and the base's, and its own paths are read, or a
+    // blob only it holds would be one no commit places. Its message is GitHub's
+    // `Merge <sha> into <sha>`, which no branch carries, so the commits judged
+    // stay the head's and the base's.
+    //
+    // **The paths are read from every commit the measured starts reach**, and
+    // not from the judged ones and the merge alone: nothing makes the base the
+    // event names the merge's first parent. The base branch can have gained
+    // commits since the event recorded its base, and a merge made from the
+    // newer one reaches their blobs. Those blobs are measured, so their paths
+    // are read too, since a blob measured at no path read is a refusal.
+    let merge = match pull_request {
+        Some(_) => Some(the_commit_checked_out(&reading)?),
+        None => None,
+    };
+    let measured: Vec<&str> = starts.iter().copied().chain(merge.as_deref()).collect();
+    let placing = the_commits_reached(&reading, &measured)?;
+    let (blobs, above) = measure_the_blobs(&reading, &measured, &placing, listed, &mut findings)?;
     if let Some(pull_request) = pull_request {
         judge_the_pull_request(pull_request, &mut findings);
     }
@@ -795,9 +851,8 @@ fn judge_the_commits(
     starts: &[&str],
     findings: &mut Vec<Finding>,
 ) -> Result<Vec<String>, String> {
-    let listed = String::from_utf8(git(reading, &[&["rev-list"][..], starts].concat(), None)?)
-        .map_err(|_| "git listed the commits in something that is not UTF-8".to_owned())?;
-    let hashes: Vec<&str> = listed.lines().collect();
+    let reached = the_commits_reached(reading, starts)?;
+    let hashes: Vec<&str> = reached.iter().map(String::as_str).collect();
     let mut asked = hashes.join("\n").into_bytes();
     asked.push(b'\n');
     let answer = git(reading, &["cat-file", "--batch"], Some(asked))?;
@@ -806,6 +861,29 @@ fn judge_the_commits(
         judge_a_commit(hash, raw, findings);
     }
     Ok(commits.into_iter().map(|(hash, _)| hash).collect())
+}
+
+/// Every commit reachable from `starts`, in the order `rev-list` lists them.
+///
+/// **Each held to the shape of a hash**, as every answer from git here is held
+/// to the one asked for: the list is handed to `cat-file` as the commits to
+/// judge and to `diff-tree` as the commits to read paths from.
+fn the_commits_reached(reading: &Reading, starts: &[&str]) -> Result<Vec<String>, String> {
+    let listed = String::from_utf8(git(reading, &[&["rev-list"][..], starts].concat(), None)?)
+        .map_err(|_| "git listed the commits in something that is not UTF-8".to_owned())?;
+    listed
+        .lines()
+        .map(|line| {
+            if a_hash(line) {
+                Ok(line.to_owned())
+            } else {
+                Err(format!(
+                    "git listed {} when asked for the commits",
+                    quoted(line)
+                ))
+            }
+        })
+        .collect()
 }
 
 /// Measures every blob reachable from `starts` into `findings`.
@@ -1843,6 +1921,52 @@ mod tests {
         }
     }
 
+    /// A trailer naming a person who shares the one first name `AGENT_NAMES`
+    /// keeps is refused, whatever its address and its other names, and passes
+    /// once neither its names nor its address hold that first name as a word.
+    ///
+    /// **The over-refusal the list pays for, held so it is not lost
+    /// quietly**: the name stays because tools sign with it with no address
+    /// under an agent's site, and `AGENTS.md` states the price under "What is
+    /// deliberately not claimed", with the way out held here too: the
+    /// person's other names, and an address that does not hold the name,
+    /// since the address is read word by word like the rest of the value. A
+    /// change that lets the refusals through, or refuses the way out, has to
+    /// change that sentence too.
+    #[test]
+    fn a_trailer_naming_a_person_who_shares_the_first_name_kept_is_refused() {
+        let key = the_coauthor_key();
+        let name = an_agent();
+        let lower = name.to_lowercase();
+        assert!(
+            super::AGENT_NAMES.contains(&lower.as_str()),
+            "the first name kept is no longer in the list"
+        );
+        for text in [
+            format!("{key}: {name} Martin <{lower}.martin@example.org>"),
+            format!("Reviewed-by: {name} Dupont <cd@example.org>"),
+            format!("{key}: Jean-{name} Dubois <jc@example.org>"),
+            // The name dropped and the address kept: still a word of the
+            // value.
+            format!("{key}: Martin <{lower}.martin@example.org>"),
+            format!("{key}: Jean Dubois <jean-{lower}@example.org>"),
+        ] {
+            found_once_as(&text, "trailer");
+        }
+        // The way out: the other names, and an address without the name.
+        for text in [
+            format!("{key}: Martin <martin@example.org>"),
+            String::from("Reviewed-by: Dupont <cd@example.org>"),
+            format!("{key}: Jean Dubois <jd@example.org>"),
+        ] {
+            assert_eq!(
+                super::credits(&format!("fix: a subject\n\n{text}\n")),
+                Vec::new(),
+                "`{text}` was read as a credit"
+            );
+        }
+    }
+
     /// A product is read by the address it signs from, at its site or its
     /// maker's, and by the link a trailer of another key holds.
     ///
@@ -2365,6 +2489,23 @@ mod tests {
         assert_eq!(judged.findings.len(), 1, "{:?}", said(&judged));
         assert_eq!(judged.findings[0].file, "the pull request's title");
 
+        // **A credit in the title, which is a conventional subject**, so only
+        // the reading of credits can find it: the title becomes the merge
+        // commit's subject.
+        let credited_in_the_title = event(
+            &format!("fix: repair a thing {}", super::ROBOT),
+            "It says why.",
+        );
+        let judged = repository.judged(Some(&credited_in_the_title), &[]);
+        assert_eq!(judged.findings.len(), 1, "{:?}", said(&judged));
+        assert_eq!(judged.findings[0].file, "the pull request's title");
+        assert_eq!(judged.findings[0].line, 1);
+        assert!(
+            judged.findings[0].what.contains("credits an agent"),
+            "{:?}",
+            said(&judged)
+        );
+
         let credited = event(
             "fix: repair a thing",
             &format!(
@@ -2377,6 +2518,157 @@ mod tests {
         assert_eq!(judged.findings.len(), 1, "{:?}", said(&judged));
         assert_eq!(judged.findings[0].file, "the pull request's body");
         assert_eq!(judged.findings[0].line, 3);
+    }
+
+    /// Under a pull request, the merge made for the run is measured: a
+    /// three-way merge writes a blob neither side holds, and a file at the
+    /// limit on the head and on the base is above it merged.
+    ///
+    /// **Its message is still not judged**, so GitHub's `Merge <sha> into
+    /// <sha>` is no finding, and the commits counted stay the head's and the
+    /// base's.
+    #[test]
+    fn a_blob_only_the_merge_made_for_the_run_holds_is_measured() {
+        let at = usize::try_from(super::LIMIT).expect("the limit fits");
+        // Numbered lines of sixty-four bytes, so each is its own and the
+        // merge places the two added lines where each side put its own.
+        let line = |number: usize| format!("{number:063}\n");
+        let lines = at / 64 - 1;
+        let common: String = (0..lines).map(line).collect();
+        let head_text = format!("{}{common}", line(lines + 1));
+        let base_text = format!("{common}{}", line(lines + 2));
+        let repository = ARepository::new("merge-for-the-run");
+        repository.commit("feat: add the notes", &[("notes.txt", common.as_bytes())]);
+        repository.git(&["checkout", "-q", "-b", "proposed"]);
+        let head = repository.commit(
+            "docs: open the notes with a line",
+            &[("notes.txt", head_text.as_bytes())],
+        );
+        repository.git(&["checkout", "-q", "dev"]);
+        let base = repository.commit(
+            "docs: close the notes with a line",
+            &[("notes.txt", base_text.as_bytes())],
+        );
+        repository.merge("proposed", &format!("Merge {head} into {base}\n"));
+        let size = |at: &str| -> usize {
+            repository
+                .git(&["cat-file", "-s", &format!("{at}:notes.txt")])
+                .trim()
+                .parse()
+                .expect("a size")
+        };
+        assert_eq!(
+            (size(&head), size(&base)),
+            (at, at),
+            "each side is at the limit"
+        );
+        assert_eq!(size("HEAD"), at + 64, "the merge is above it");
+
+        let path = repository.event(
+            &serde_json::json!({
+                "pull_request": {
+                    "title": "docs: frame the notes",
+                    "body": "It says why.",
+                    "head": { "sha": head },
+                    "base": { "sha": base },
+                }
+            })
+            .to_string(),
+        );
+        let pull_request =
+            super::the_pull_request(Some("pull_request".as_ref()), Some(path.as_os_str()))
+                .expect("the event is read")
+                .expect("the event is a pull request");
+        let judged = repository.judged(Some(&pull_request), &[]);
+        let merged = repository.git(&["rev-parse", "HEAD:notes.txt"]);
+        assert_eq!(
+            said(&judged),
+            vec![format!(
+                "blob {}:1 — a blob of {} byte(s) at `notes.txt`, above the limit of {} — and \
+                 every clone downloads it, even where a later commit removed it",
+                &merged[..12],
+                at + 64,
+                super::LIMIT
+            )]
+        );
+        assert_eq!(
+            judged.commits, 3,
+            "the head and the base reach three commits, and the merge is not one of them"
+        );
+    }
+
+    /// Under a pull request, every commit the merge made for the run reaches
+    /// is read for its paths, and not only the head's, the base's and the
+    /// merge itself.
+    ///
+    /// **The event's base need not be the merge's first parent.** Here the
+    /// event names an older base; the base branch then gains a commit that
+    /// grows a listed path past the limit, and the merge is made from it. The
+    /// head never touches that path. The merge reaches the grown blob, so it is
+    /// measured, and a step that read the paths of the head's, the base's and
+    /// the merge's commits alone would refuse it as a blob no commit puts at a
+    /// path.
+    #[test]
+    fn a_blob_a_newer_base_holds_is_placed_by_the_commit_that_wrote_it() {
+        let at = usize::try_from(super::LIMIT).expect("the limit fits");
+        let listed = [("big.bin", super::LIMIT * 2, "a reason")];
+        let repository = ARepository::new("newer-base");
+        let base = repository.commit(
+            "feat: add a data file",
+            &[("big.bin", b"small\n".as_slice())],
+        );
+        repository.git(&["checkout", "-q", "-b", "proposed"]);
+        let head = repository.commit(
+            "docs: add the notes",
+            &[("notes.txt", b"a note\n".as_slice())],
+        );
+        repository.git(&["checkout", "-q", "dev"]);
+        let newer = repository.commit(
+            "feat: grow the data file",
+            &[("big.bin", &vec![b'x'; at + 1][..])],
+        );
+        repository.merge("proposed", &format!("Merge {head} into {newer}\n"));
+        let grown = repository.git(&["rev-parse", "HEAD:big.bin"]);
+
+        let path = repository.event(
+            &serde_json::json!({
+                "pull_request": {
+                    "title": "docs: add the notes",
+                    "body": "It says why.",
+                    "head": { "sha": head },
+                    "base": { "sha": base },
+                }
+            })
+            .to_string(),
+        );
+        let pull_request =
+            super::the_pull_request(Some("pull_request".as_ref()), Some(path.as_os_str()))
+                .expect("the event is read")
+                .expect("the event is a pull request");
+        let judged = repository.judged(Some(&pull_request), &listed);
+        assert_eq!(said(&judged), Vec::<String>::new());
+        assert_eq!(
+            judged.listed, 1,
+            "the blob the newer base holds was not counted at its listed path"
+        );
+        assert_eq!(
+            judged.commits, 2,
+            "the head and the base the event names reach two commits"
+        );
+
+        // And at a path nobody listed, it is refused at the limit by that
+        // path, never as a blob no commit places.
+        let judged = repository.judged(Some(&pull_request), &[]);
+        assert_eq!(
+            said(&judged),
+            vec![format!(
+                "blob {}:1 — a blob of {} byte(s) at `big.bin`, above the limit of {} — and \
+                 every clone downloads it, even where a later commit removed it",
+                &grown[..12],
+                at + 1,
+                super::LIMIT
+            )]
+        );
     }
 
     /// An event that cannot say what to judge is a refusal, and any other
