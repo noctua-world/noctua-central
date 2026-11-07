@@ -2050,8 +2050,11 @@ reachable from `HEAD`, merges included, and every blob ever reachable — not th
   and `pull_request.base.sha` in `GITHUB_EVENT_PATH`, the title held to both rules and
   the body to the second — never the message of the merge commit the checkout is at,
   which GitHub makes for the run and no branch carries. **That merge's blobs are measured
-  with theirs**, and its own paths read: a three-way merge writes a blob neither side
-  holds, so a file under the limit on the head and on the base can be above it merged.
+  with theirs**, and the paths of every commit it reaches read: a three-way merge writes a
+  blob neither side holds, so a file under the limit on the head and on the base can be
+  above it merged, and nothing makes the base the event names the merge's first parent, so
+  the merge can reach commits the base branch gained after it. Those commits' messages are
+  judged by the run of the push that brought them, not here.
 
 **Fail closed.** A shallow clone, a grafted one, a partial one missing an object, an
 event that names no head, base, title or body, a blob above the limit that no commit puts

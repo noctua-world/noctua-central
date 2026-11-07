@@ -32,8 +32,10 @@
 //! its base, and the pull request's title and body — and never the message of
 //! the commit the checkout is at ([`the_pull_request`]). That commit's blobs
 //! are measured with theirs, because a three-way merge writes a blob neither
-//! side holds. Anywhere else, a push or a run on a developer's machine, it
-//! judges everything reachable from `HEAD`.
+//! side holds, and the paths of every commit it reaches are read, because the
+//! base it was made from can be newer than the one the event names. Anywhere
+//! else, a push or a run on a developer's machine, it judges everything
+//! reachable from `HEAD`.
 //!
 //! # Git is asked, and nothing it inherits chooses what it reads
 //!
@@ -765,15 +767,19 @@ fn judged_inheriting(
     // blob only it holds would be one no commit places. Its message is GitHub's
     // `Merge <sha> into <sha>`, which no branch carries, so the commits judged
     // stay the head's and the base's.
+    //
+    // **The paths are read from every commit the measured starts reach**, and
+    // not from the judged ones and the merge alone: nothing makes the base the
+    // event names the merge's first parent. The base branch can have gained
+    // commits since the event recorded its base, and a merge made from the
+    // newer one reaches their blobs. Those blobs are measured, so their paths
+    // are read too, since a blob measured at no path read is a refusal.
     let merge = match pull_request {
         Some(_) => Some(the_commit_checked_out(&reading)?),
         None => None,
     };
     let measured: Vec<&str> = starts.iter().copied().chain(merge.as_deref()).collect();
-    let mut placing = commits.clone();
-    if let Some(merge) = merge.as_ref().filter(|merge| !commits.contains(merge)) {
-        placing.push(merge.clone());
-    }
+    let placing = the_commits_reached(&reading, &measured)?;
     let (blobs, above) = measure_the_blobs(&reading, &measured, &placing, listed, &mut findings)?;
     if let Some(pull_request) = pull_request {
         judge_the_pull_request(pull_request, &mut findings);
@@ -845,9 +851,8 @@ fn judge_the_commits(
     starts: &[&str],
     findings: &mut Vec<Finding>,
 ) -> Result<Vec<String>, String> {
-    let listed = String::from_utf8(git(reading, &[&["rev-list"][..], starts].concat(), None)?)
-        .map_err(|_| "git listed the commits in something that is not UTF-8".to_owned())?;
-    let hashes: Vec<&str> = listed.lines().collect();
+    let reached = the_commits_reached(reading, starts)?;
+    let hashes: Vec<&str> = reached.iter().map(String::as_str).collect();
     let mut asked = hashes.join("\n").into_bytes();
     asked.push(b'\n');
     let answer = git(reading, &["cat-file", "--batch"], Some(asked))?;
@@ -856,6 +861,29 @@ fn judge_the_commits(
         judge_a_commit(hash, raw, findings);
     }
     Ok(commits.into_iter().map(|(hash, _)| hash).collect())
+}
+
+/// Every commit reachable from `starts`, in the order `rev-list` lists them.
+///
+/// **Each held to the shape of a hash**, as every answer from git here is held
+/// to the one asked for: the list is handed to `cat-file` as the commits to
+/// judge and to `diff-tree` as the commits to read paths from.
+fn the_commits_reached(reading: &Reading, starts: &[&str]) -> Result<Vec<String>, String> {
+    let listed = String::from_utf8(git(reading, &[&["rev-list"][..], starts].concat(), None)?)
+        .map_err(|_| "git listed the commits in something that is not UTF-8".to_owned())?;
+    listed
+        .lines()
+        .map(|line| {
+            if a_hash(line) {
+                Ok(line.to_owned())
+            } else {
+                Err(format!(
+                    "git listed {} when asked for the commits",
+                    quoted(line)
+                ))
+            }
+        })
+        .collect()
 }
 
 /// Measures every blob reachable from `starts` into `findings`.
@@ -2566,6 +2594,80 @@ mod tests {
         assert_eq!(
             judged.commits, 3,
             "the head and the base reach three commits, and the merge is not one of them"
+        );
+    }
+
+    /// Under a pull request, every commit the merge made for the run reaches
+    /// is read for its paths, and not only the head's, the base's and the
+    /// merge itself.
+    ///
+    /// **The event's base need not be the merge's first parent.** Here the
+    /// event names an older base; the base branch then gains a commit that
+    /// grows a listed path past the limit, and the merge is made from it. The
+    /// head never touches that path. The merge reaches the grown blob, so it is
+    /// measured, and a step that read the paths of the head's, the base's and
+    /// the merge's commits alone would refuse it as a blob no commit puts at a
+    /// path.
+    #[test]
+    fn a_blob_a_newer_base_holds_is_placed_by_the_commit_that_wrote_it() {
+        let at = usize::try_from(super::LIMIT).expect("the limit fits");
+        let listed = [("big.bin", super::LIMIT * 2, "a reason")];
+        let repository = ARepository::new("newer-base");
+        let base = repository.commit(
+            "feat: add a data file",
+            &[("big.bin", b"small\n".as_slice())],
+        );
+        repository.git(&["checkout", "-q", "-b", "proposed"]);
+        let head = repository.commit(
+            "docs: add the notes",
+            &[("notes.txt", b"a note\n".as_slice())],
+        );
+        repository.git(&["checkout", "-q", "dev"]);
+        let newer = repository.commit(
+            "feat: grow the data file",
+            &[("big.bin", &vec![b'x'; at + 1][..])],
+        );
+        repository.merge("proposed", &format!("Merge {head} into {newer}\n"));
+        let grown = repository.git(&["rev-parse", "HEAD:big.bin"]);
+
+        let path = repository.event(
+            &serde_json::json!({
+                "pull_request": {
+                    "title": "docs: add the notes",
+                    "body": "It says why.",
+                    "head": { "sha": head },
+                    "base": { "sha": base },
+                }
+            })
+            .to_string(),
+        );
+        let pull_request =
+            super::the_pull_request(Some("pull_request".as_ref()), Some(path.as_os_str()))
+                .expect("the event is read")
+                .expect("the event is a pull request");
+        let judged = repository.judged(Some(&pull_request), &listed);
+        assert_eq!(said(&judged), Vec::<String>::new());
+        assert_eq!(
+            judged.listed, 1,
+            "the blob the newer base holds was not counted at its listed path"
+        );
+        assert_eq!(
+            judged.commits, 2,
+            "the head and the base the event names reach two commits"
+        );
+
+        // And at a path nobody listed, it is refused at the limit by that
+        // path, never as a blob no commit places.
+        let judged = repository.judged(Some(&pull_request), &[]);
+        assert_eq!(
+            said(&judged),
+            vec![format!(
+                "blob {}:1 — a blob of {} byte(s) at `big.bin`, above the limit of {} — and \
+                 every clone downloads it, even where a later commit removed it",
+                &grown[..12],
+                at + 1,
+                super::LIMIT
+            )]
         );
     }
 

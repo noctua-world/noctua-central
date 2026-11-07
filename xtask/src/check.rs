@@ -7733,7 +7733,7 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// constant**, as `OPERATORS` is: one copy rather than one per use, and nothing
 /// reads it at compile time.
 #[cfg(test)]
-static WHAT_THE_GATE_CAN_SAY: [&str; 1043] = [
+static WHAT_THE_GATE_CAN_SAY: [&str; 1044] = [
     // The workflows' bounds (`xtask/src/workflow.rs`): what `.github/` may hold,
     // the authority each workflow opens with, the pins, and how the release is
     // made; and the `CI` step's two verdicts about them.
@@ -8746,6 +8746,7 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1043] = [
     "git gave a blob the size {}",
     "git gave {} a size of {}",
     "git listed the commits in something that is not UTF-8",
+    "git listed {} when asked for the commits",
     "git measured an object as {}",
     "git measured more than the {} object(s) the history names",
     "git measured {answered} object(s) of the {} the history names, so a blob it did not measure is one this step did not judge",
@@ -18917,7 +18918,7 @@ mod the_frozen_path_rule {
         ("xtask/docs.rs", 8, 1),
         ("xtask/every_generated_value_is_compared.rs", 30, 8),
         ("xtask/gates.rs", 219, 33),
-        ("xtask/history.rs", 113, 3),
+        ("xtask/history.rs", 115, 3),
         ("xtask/limits.rs", 176, 59),
         ("xtask/local.rs", 79, 8),
         ("xtask/main.rs", 3, 25),
@@ -24672,7 +24673,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15111;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15115;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24742,7 +24743,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 21316;
+    const THE_REARRANGEMENTS_JUDGED: usize = 21326;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24796,7 +24797,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **461 of 21,316 are accepted by the first-line
+    /// rules the gates apply: **461 of 21,326 are accepted by the first-line
     /// rule alone, and 237 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -35729,7 +35730,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1698] = [
+    static OPERATORS: [(&str, &str, &str); 1699] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -36405,6 +36406,11 @@ Options:
             "history",
             "judged_inheriting",
             "the merge made for the run is read for its paths",
+        ),
+        (
+            "history",
+            "judged_inheriting",
+            "every commit the merge made for the run reaches is read for its paths",
         ),
         ("ui", "warn", "a skip is declared at the start of its line"),
         ("ui", "warn", "and the colon is what declares it"),

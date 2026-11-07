@@ -1051,8 +1051,11 @@ WEAKENINGS = [
      "starts.iter().copied().chain(merge.as_deref()).collect();",
      "starts.iter().copied().chain(None).collect();"),
     ("history", "judged_inheriting", "the merge made for the run is read for its paths",
-     ".filter(|merge| !commits.contains(merge))",
-     ".filter(|merge| commits.contains(merge))"),
+     "the_commits_reached(&reading, &measured)?;",
+     "the_commits_reached(&reading, &starts)?;"),
+    ("history", "judged_inheriting", "every commit the merge made for the run reaches is read for its paths",
+     "let placing = the_commits_reached(&reading, &measured)?;",
+     "let placing = [commits.clone(), merge.clone().into_iter().collect()].concat();"),
     # -- ui: what counts as an announced skip --------------------------------
     ("ui", "warn", "a skip is declared at the start of its line",
      '    if text.starts_with("skipped:") {',
