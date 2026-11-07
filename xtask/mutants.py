@@ -90,8 +90,9 @@ SOURCES = {
     # **It judges the thing that judges everything.**
     # `workflow.rs` decides whether CI runs the gate at all and whether the gate,
     # once run, can fail — a `rustflags` entry in the cargo config was measured
-    # turning eight real clippy violations into `ok lints`. CI has never run, so
-    # nothing but this file's own suite has ever exercised it.
+    # turning eight real clippy violations into `ok lints`. A reader that passes
+    # every workflow looks, from CI, exactly like one that works, so its own
+    # suite is what decides its clauses.
     "workflow": os.path.join(ROOT, "xtask/src/workflow.rs"),
     # **Here in the order this script prescribes.**
     # A corpus case first — `the_absolute_path_predicate_decides_every_clause`
@@ -251,8 +252,8 @@ SOURCES = {
     # `check.rs`'s `each_verb_is_handed_what_its_flags_say` pins as text.
     # Measured without that pin:
     # discarding `--reserve` there left `check passed` and a byte-identical
-    # transcript, and `--reserve` is the one irreversible write in a tree with
-    # no git.
+    # transcript, and `--reserve` is the one irreversible write: a code it
+    # reserves is permanent.
     "main": os.path.join(ROOT, "xtask/src/main.rs"),
     # **The generator's own writer, whose live clauses need an operator.**
     # `build.rs` performs this tree's only irreversible write — reserving an
@@ -1805,7 +1806,7 @@ WEAKENINGS = [
      "let line = line.trim_start_matches(['*', '_', ' ', '>']);",
      "let line = line;"),
 
-    # -- the CI reader, which CI has never run --------------------------------
+    # -- the CI reader --------------------------------------------------------
     ("workflow", "opens_a_key", "a key may be followed by anything",
      "&& (rest.is_empty() || rest.starts_with(' '))",
      '&& true'),
@@ -6665,8 +6666,8 @@ SENTINEL = os.path.join(ROOT, "target/.mutants-in-flight")
 **A `SIGKILL` cannot be caught, and the handlers below are not the whole
 answer.** Measured: killing a run with `-9` leaves a weakening on disk, and the
 *next* run reads it as `original`, hands it to every later mutation, and writes
-it back as the restored baseline — permanently, in a tree with no git to diff
-against. Even the `SIGTERM` handler that does exist restored the mutant, because
+it back as the restored baseline, which only a `git diff` read by hand would then
+show. Even the `SIGTERM` handler that does exist restored the mutant, because
 by then the mutant was what `original` held.
 
 The backups already survive a kill: the `finally:` that unlinks them never runs.
@@ -6677,11 +6678,11 @@ refusal below reads it.
 `tempfile.NamedTemporaryFile(delete=False)`, which is a path with no owner: a
 reboot, or anything that sweeps that directory, takes the pristine copies while
 leaving this file naming them — so the one instruction the refusal gives points
-at a file that is gone, in a tree with no git to recover from. Both live under
-`target/` now, so `cargo clean` forgets the whole incident at once instead of
-half of it. That coupling is the cost of the only safe location there is: a
-sentinel anywhere else is a file under a walked tree, and the extensionless one
-tried at the repository root took `check::` down for every run that saw it.
+at a file that is gone. Both live under `target/` now, so `cargo clean` forgets
+the whole incident at once instead of half of it. That coupling is the cost of
+the only safe location there is: a sentinel anywhere else is a file under a
+walked tree, and the extensionless one tried at the repository root took
+`check::` down for every run that saw it.
 """
 
 BACKUPS = os.path.join(ROOT, "target/.mutants-backups")

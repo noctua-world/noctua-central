@@ -960,8 +960,8 @@ The same five lines, the same test count, the same last line. Every one of those
 guards answers a measured incident, and a guard with no test of its own leaves
 the mechanism this repository leans on hardest — a floor under a walk — the one
 thing none of the five mechanisms above watches. One of them, the edited-migration report, is
-the only reader of `_sqlx_migrations` for that case and there is no git here to
-ask instead: with it gone, a migration edited after it was applied passed the
+the only reader of `_sqlx_migrations` for that case, and the gate reads no history
+in its place: with it gone, a migration edited after it was applied passed the
 gate.
 
 **What answers it is not another counter or another fixture.** It is a list of
@@ -1299,9 +1299,8 @@ language's spelling was used for another's, and only the round trip can tell.
 `build`'s ledger counter incremented once per *write of the ledger file* and its
 sentence announced `1 appended … which is permanent`. Editing a comment in
 `ledger.rs` and rebuilding therefore announced a permanent reservation, twice,
-with the reservation set unchanged at 28 both times. In a tree with no history to
-check it against, a developer told a number was burned goes and tries to take it
-back.
+with the reservation set unchanged at 28 both times. A developer told a number
+was burned goes and tries to take it back.
 
 The count comes from `newly_reserved`, the same list the lines above it are
 printed from, so the count and the names cannot disagree — and a rewrite that
@@ -1602,8 +1601,8 @@ the write loop. Measured with one generated file made read-only: the line printe
 the build failed, and `grep -c NC-VAL-0002 catalog/errors.reserved.toml` answered
 `0`. `AGENTS.md` states the contract in as many words — "announces each code it
 reserves, **on the line it reserves it**" — and a developer told a number was
-burned, in a tree with no history to check against, goes looking for the undo,
-whose first step is blanking the ledger's checksum.
+burned goes looking for the undo, whose first step is blanking the ledger's
+checksum.
 
 The same failure said only which file it could not write. It says how many were
 already rewritten now, because a tree part-way through a build is a state the
@@ -1852,8 +1851,8 @@ Write,
 That is `crates/nc-catalog/src/commands.rs`, generated. The page generated from
 the same enum says *"not automatically — it changes state and nothing here
 reverses it"*, and `docs.rs`'s own comment calls the first sentence "a safety
-claim nothing supports". `AGENTS.md` says it plainly: a destructive command in
-this tree has no undo. The guard written for exactly this read **the page**, and
+claim nothing supports": `limits.prune` carries `write` and deletes with no
+tombstone and no copy. The guard written for exactly this read **the page**, and
 its needle did not match the crate's wording anyway.
 
 The second: `render` was the one public item the crate root did not re-export,

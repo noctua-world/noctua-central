@@ -254,8 +254,8 @@ pub(crate) fn on_disk_checksums_in(
 /// constraint that has gone. A count cannot say which one went, and which one
 /// went is the whole question.
 ///
-/// **The one thing outside the tree that remembers.** There is no git in this
-/// repository (`NOCTUA.md §5.3`), so nothing *in* it recalls what was there
+/// **The one thing outside the tree that remembers.** The gate reads the tree
+/// and not its history, so nothing it reads *in* the tree recalls what was there
 /// yesterday — both sides of a tree-derived comparison shrink together.
 /// `_sqlx_migrations` holds a row per migration this database has run.
 ///

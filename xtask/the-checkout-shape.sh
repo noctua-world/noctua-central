@@ -1,11 +1,10 @@
 #!/bin/sh
 # What `cargo xtask check` does in a checkout, measured rather than reasoned.
 #
-# **CI has never run**, by the decision in `NOCTUA.md §5.3`: there is no
-# repository to push this tree to. What a reader is owed instead is the *shape* a
-# checkout produces, as a command rather than a paragraph: a measurement nobody
-# can reproduce decays into prose, and a number pasted into a document rots
-# between being pasted and being read.
+# **The shape a checkout produces, on this machine.** CI runs the gate in a
+# checkout on every push; this reproduces that shape here, as a command rather
+# than a paragraph: a measurement nobody can reproduce decays into prose, and a
+# number pasted into a document rots between being pasted and being read.
 #
 # This script is that measurement. It reproduces the two things a checkout is
 # and a developer's tree is not:
@@ -338,8 +337,8 @@ esac
 # `.noctua-workspace`, so everything above it is unmarked. Measured by driving
 # this from a scratch repository without the cases below: the repository and
 # an unrelated sibling are gone, and `checkout` sits where they
-# had been. **There is no git in this tree** (`NOCTUA.md §5.3`), so what that
-# spends is not recoverable.
+# had been. **An `rm -rf` takes the `.git` with the tree**, so what that spends
+# is not recoverable past what was pushed.
 #
 # The caller names what is destroyed; that is the contract, and naming `/tmp/x`
 # destroys `/tmp/x`. What this refuses is a name that destroys something the

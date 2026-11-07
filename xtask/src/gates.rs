@@ -10486,11 +10486,12 @@ mod tests {
                 // a directory this list leaves out is a directory no fixture
                 // ever plants in. Three names spelled out here would not be the
                 // same thing as the predicate: `super::is_skipped`
-                // unskips a `target` with no workspace manifest beside it, and
-                // unskips `.git` and `node_modules` outright, because a module
-                // directory may be called anything and this repository has
-                // neither a git directory (`§5.3`) nor a node package. The
-                // walk descends into all three, so a list that leaves them out
+                // unskips a `target` or a `.git` with no workspace manifest
+                // beside it — this repository's own `.git` sits beside the root's
+                // and is skipped — and `node_modules` outright, because a module
+                // directory may be called anything and this repository has no
+                // node package. The walk descends into each it unskips, so a
+                // list that leaves them out
                 // keeps the fixture that exists because a filter can name a
                 // real subtree from planting in any of them.
                 if super::is_skipped(&at, &name) {

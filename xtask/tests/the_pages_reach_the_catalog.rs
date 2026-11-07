@@ -433,9 +433,8 @@ const fn reversibility_word(reversibility: Reversibility, the_history: bool) -> 
     // **And the answer has to be true**, which a mirror cannot say. A
     // byte-for-byte copy of the emitter's own match, when that says *"yes,
     // the kernel can reverse it"* of `limits.prune` — a `DELETE … ; COMMIT`
-    // with no tombstone and no copy, in a repository whose `AGENTS.md` says a
-    // destructive command here has no undo — asserts the false sentence and
-    // stays green. `no_mutating_command_claims_more_undo_than_the_kernel_has`
+    // with no tombstone and no copy, which nothing reverses — asserts the false
+    // sentence and stays green. `no_mutating_command_claims_more_undo_than_the_kernel_has`
     // is the assertion that is not a mirror.
     match reversibility {
         Reversibility::Read => "nothing to undo — it changes nothing",
@@ -1189,7 +1188,7 @@ fn no_mutating_command_claims_more_undo_than_the_kernel_has() {
             assert!(
                 !published.contains(claim),
                 "`{source}` documents `{claim}`, and that is what a kernel author reads — \
-                 `AGENTS.md` says a destructive command in this tree has no undo"
+                 undo stops at a destructive command rather than reversing it"
             );
         }
     }
@@ -2736,8 +2735,8 @@ fn every_variant_is_published_as_the_word_it_names() {
     assert!(
         REFUSALS.contains(&published),
         "an irreversible command would be published as `{published}`, which is not one \
-         of the answers this repository is allowed to give — `AGENTS.md` says a \
-         destructive command here has no undo"
+         of the answers this repository is allowed to give — undo stops at such a \
+         command rather than reversing it"
     );
 }
 

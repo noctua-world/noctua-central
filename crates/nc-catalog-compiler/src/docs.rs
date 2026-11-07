@@ -1002,9 +1002,8 @@ fn commands(catalog: &Catalog) -> String {
             // word, `read` or `write`, is a permission and not an answer; and
             // *"yes, the kernel can reverse it"* is a safety claim nothing
             // supports. `limits.prune` carries `write` and issues
-            // `DELETE … ; COMMIT` with no tombstone and no copy, and this
-            // repository's own `AGENTS.md` says a destructive command here has
-            // no undo. What `write` actually distinguishes is stated in
+            // `DELETE … ; COMMIT` with no tombstone and no copy, so nothing
+            // reverses it. What `write` actually distinguishes is stated in
             // `catalog/commands.toml` beside that entry: an `irreversible`
             // command is one a human must confirm **each time**, and a
             // scheduled pruner cannot ask. That is a rule about confirmation,
@@ -1252,8 +1251,8 @@ mod tests {
         ] {
             assert!(
                 !published.contains("yes"),
-                "a command undo stops at is published as `{published}`, and `AGENTS.md` \
-                 says a destructive command in this repository has no undo"
+                "a command undo stops at is published as `{published}`, and undo stops \
+                 at such a command rather than taking it back"
             );
             assert!(
                 published.starts_with("**no**") || published.starts_with("no "),

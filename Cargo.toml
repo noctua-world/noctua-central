@@ -33,8 +33,8 @@ edition = "2024"
 # compiler nothing here can use; one written higher than the toolchain in
 # `rust-toolchain.toml` resolves makes every build refuse to start.
 rust-version = "1.96"
-# No `license` key and no LICENSE file: this repository has none, by the
-# developer's decision (`NOCTUA.md §5.10`).
+# No `license` key and no LICENSE file: this repository has none, decided on
+# 2026-11-01 (`NOCTUA.md §10.12`).
 
 [workspace.dependencies]
 # Every entry here is one a member takes, or one that exists so a member *can*
@@ -62,8 +62,8 @@ rust-version = "1.96"
 # (`NOCTUA.md §8.8`, invariant 1); `cargo xtask check` fails if any manifest here names it.
 noctua-design = { path = "../noctua-design/crates/noctua-design" }
 
-# Internal. Path only: nothing here is published, and there is no repository to
-# publish it from.
+# Internal. Path only: nothing here is published to a registry
+# (`NOCTUA.md §10.11`).
 nc-canon = { path = "crates/nc-canon" }
 # PostgreSQL: the driver, the pool and the migrations in one, chosen so that
 # there is one mechanism rather than three. Runtime queries only — no `query!`

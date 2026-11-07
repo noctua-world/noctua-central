@@ -4613,9 +4613,9 @@ const MINTED_FROM_TEXT: [&str; 3] = ["from_crockford(", "::new(", "::parse("];
 /// **two-place edit**, one of them here, where a reader of the diff meets
 /// the claim that the door was reopened on purpose. It cannot stop somebody
 /// making both edits: a constant in the file the walk's author is editing does
-/// not come "from somewhere the walk cannot reach". There is no git here (`§5.3`), so nothing
-/// outside the tree remembers; the failure this replaces was silent, which is
-/// the whole of the improvement.
+/// not come "from somewhere the walk cannot reach". The gate reads no history, so nothing
+/// it reads remembers; the failure this replaces was silent, which is the whole
+/// of the improvement.
 ///
 /// **The second column is the door and the third is the subject**, because a
 /// fixture can pass every rule and still be about nothing. The whole of one, measured green:

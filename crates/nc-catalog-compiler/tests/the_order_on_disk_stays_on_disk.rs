@@ -5,8 +5,7 @@
 //! same order twice and the comparison is blind to a dependency on it. The
 //! drift check compares against a disk written by a build on this machine, so it
 //! agrees for the same reason. The `deterministic` job in CI builds twice in one
-//! checkout on one runner, so it shares the directory order too — and by that
-//! file's own opening comment, it has never run.
+//! checkout on one runner, so it shares the directory order too.
 //!
 //! What sits behind all three: `catalog/i18n/` is read with `read_dir`, and
 //! locale *order* is load-bearing output. `Locale::ALL`, the enum's variant

@@ -5489,7 +5489,7 @@ fn jobs_are_what_they_are_named(ci: &str, findings: &mut Vec<Finding>) {
 /// copy against the tree it was copied from, equal by construction, and
 /// the whole gate said `check passed`. Three of the four artefacts the
 /// emitter writes lost the only cross-process determinism check this
-/// repository has, and one of them is a ledger with no git behind it.
+/// repository has, and one of them is the append-only ledger.
 /// //
 /// The rule is about every comparison rather than a longer list: a
 /// `diff` before the second build compares something with itself

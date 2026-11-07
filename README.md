@@ -11,6 +11,7 @@ noctua-workspace/repos/:
 
 ```sh
 cd path/to/noctua-workspace/repos
+git clone https://github.com/noctua-world/noctua-central.git
 ```
 
 **Start your agents at the workspace root, not here.** From inside this repository
@@ -18,9 +19,6 @@ the others are invisible, so an agent cannot read the shared colour contract, ed
 design-system component, or consult the master technical reference — it will guess
 instead, and the guesses will be wrong. Every repository here carries a probe that
 detects it and says so.
-
-There is nothing to clone yet: this repository gets its git repository in Stage 12
-of the plan, and has none until then on purpose (see the last section).
 
 ## Requirements
 
@@ -144,9 +142,12 @@ included — those it also applies to a scratch SQLite file and holds to the lis
 
 `AGENTS.md` is the operating manual for working here.
 
-## History
+## Branches and releases
 
-This repository has no git history yet, on purpose (`NOCTUA.md §5.3`): it takes its
-initial commit in Stage 12 of the plan. Until then there is no history to read a
-change against and nothing to restore from, so anything reusable belongs in one of
-the other Noctua repositories rather than here.
+`dev` is the default branch, and every feature branch's pull request targets it.
+`staging` and `main` are the release channels, each reached by a pull request from the
+branch below it, and a merge into either publishes that channel's release on GitHub:
+the version and the changelog are computed from the conventional commits, and nothing
+else chooses them (`NOCTUA.md §22`). Merges are merge commits, whose title and body are
+the pull request's; every commit is signed; and no branch's history is rewritten.
+`AGENTS.md` says how each of those is held.

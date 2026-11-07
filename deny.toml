@@ -41,7 +41,7 @@ ignore = []
 # **No copyleft, not even file-level.** MPL-2.0 is deliberately absent: modifying
 # a covered file obliges publishing that file's source, which is not satisfied by
 # shipping a notice — and this repository carries no licence of its own
-# (`NOCTUA.md §5.10`), so inheriting an obligation in passing is exactly
+# (`NOCTUA.md §10.12`), so inheriting an obligation in passing is exactly
 # what not to do. If something genuinely needs it, that is a conversation, not a
 # line added here.
 #
@@ -93,11 +93,11 @@ confidence-threshold = 0.9
 # crates checked without it, 272 with. None of the twenty violates the list *today*, so an audit without it is
 # clean by luck rather than by check, and this file's own reason for excluding
 # MPL-2.0 — not inheriting a copyleft obligation in passing, in a repository
-# with no licence of its own (`NOCTUA.md §5.10`) — applies to a test dependency exactly as it does to a
+# with no licence of its own (`NOCTUA.md §10.12`) — applies to a test dependency exactly as it does to a
 # runtime one. Test sources ship from this repository like any other file.
 include-dev = true
 # This repository's own crates carry no `license` key: `noctua-central` has no
-# licence (`NOCTUA.md §5.10`). Every crate here is `publish = false`, so this exempts exactly those.
+# licence (`NOCTUA.md §10.12`). Every crate here is `publish = false`, so this exempts exactly those.
 private = { ignore = true }
 
 [bans]

@@ -1,11 +1,11 @@
 //! The append-only ledger that makes "never reuse or renumber a code" a build
 //! failure rather than a sentence in a document (`NOCTUA.md §15.1`).
 //!
-//! **Why a file and not `git log`.** This repository has no git history
-//! (`NOCTUA.md §5.3`) and will not have one for a long time, so there is nothing
-//! to diff a registry against. A committed ledger is the history: it records
-//! what each code was reserved to mean, and the compiler refuses to repoint a
-//! line it already contains.
+//! **Why a file and not `git log`.** A build reads the tree, not its history: a
+//! tarball has none, and a code a build reserves is in no commit until one is
+//! made. So the registry is held to a committed ledger rather than to a diff: it
+//! records what each code was reserved to mean, and the compiler refuses to
+//! repoint a line it already contains.
 //!
 //! **What a recorded meaning is, exactly.** The message key *and* the developer
 //! description: `error.db.unreachable — The database is unreachable`. The key is
@@ -35,10 +35,9 @@
 //!
 //! # The holes, and what closes them
 //!
-//! The first version of this treated an absent ledger as an empty one, so
-//! `rm catalog/errors.reserved.toml` freed every code in the repository and the
-//! next build blessed the renumbering — with `§5.3` saying, in the same breath,
-//! that there is nothing to restore from. **An absent ledger is a failure.**
+//! An absent ledger read as an empty one would free every code in the
+//! repository on `rm catalog/errors.reserved.toml`, and the next build would
+//! bless the renumbering. **An absent ledger is a failure.**
 //!
 //! An empty `checksum` accepted as the bootstrap of a hand-created ledger would
 //! be a smaller door in the same wall: two lines of editing — clear the
@@ -72,13 +71,13 @@
 //! appends the other twenty-eight, the ledger records the new meaning,
 //! `docs/errors.md` publishes it and `cargo xtask check` prints
 //! `check passed`. Criterion 7 switched off by the edit-build-check loop a
-//! developer runs every day, and `§5.3` says there is no git to be the second
-//! reader.
+//! developer runs every day.
 //!
-//! Two things close it, because a file with no history behind it has to carry
-//! the check itself. The ledger states **how many codes it has reserved**,
-//! inside the checksummed region, so one holding a different number of lines
-//! from the number it states is refused ([`read`]'s `ledger-count`). And
+//! Two things close it, because a build reads this file and not its history, so
+//! the file has to carry the check itself. The ledger states **how many codes it
+//! has reserved**, inside the checksummed region, so one holding a different
+//! number of lines from the number it states is refused ([`read`]'s
+//! `ledger-count`). And
 //! [`Reservations`] is opaque: nothing outside this module can build one, take a
 //! line out of one, or hand [`render`] a smaller set than [`read`] returned. The
 //! renderer is the only thing in the repository that computes a checksum on
@@ -90,8 +89,10 @@
 //! half-applied edit — and the append-only reconciliation defends against a
 //! renumbering done the ordinary way. Neither defends against somebody who edits
 //! the ledger and recomputes its checksum on purpose; nothing in one file can.
-//! What covers that is the repository's history, once it has one, and saying so
-//! here is better than a comment implying otherwise.
+//! What covers that is the repository's history — the edit is a diff of the pull
+//! request that brings it, on branches whose history is never rewritten
+//! (`NOCTUA.md §22.1`) — and saying so here is better than a comment implying
+//! otherwise.
 //!
 //! The count has the same limit, and it is worth being exact about where it
 //! falls. It refuses a ledger that lost lines while its `[meta]` survived, and
@@ -100,7 +101,7 @@
 //! reservation and be perfectly self-consistent. No number a file states about
 //! itself closes that. The reader that would is one *outside* both files: a
 //! committed count of the reservations that a person has to raise by hand, or
-//! the history `§5.3` says this repository does not have yet.
+//! the history, where the lines a ledger lost are a diff.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -191,9 +192,9 @@ fn states_a_count(text: &str) -> bool {
 ///
 /// * `ledger-missing` — there is no file, or it cannot be read. **An absent
 ///   ledger is a failure, and it is not the same failure as an empty one**:
-///   absent means the record of which codes have been used is gone and
-///   `NOCTUA.md §5.3` says there is nothing to restore it from, while empty
-///   means a file that verifies and says no code was ever reserved.
+///   absent means the record of which codes have been used is gone — git
+///   holds what was committed, and a build's reservations since are lost —
+///   while empty means a file that verifies and says no code was ever reserved.
 /// * `ledger-malformed` — it is not TOML, or it holds anything other than
 ///   `[meta] checksum`, `[meta] count` and a `[reserved]` table.
 /// * `ledger-unvouched` — its `checksum` is empty and the caller did not pass
@@ -216,11 +217,12 @@ pub fn read(root: &std::path::Path, bootstrap: Bootstrap) -> Result<Reservations
         return Err(Problem::in_file(
             PATH,
             "is missing",
-            "this file is the whole history of which error codes have been used, and \
-             `NOCTUA.md §5.3` says there is nothing else to restore it from. If a code \
-             was ever declared, restore the file. If this is a genuinely new catalog, \
-             create it by hand with a `[meta]` table holding `checksum = \"\"` and an \
-             empty `[reserved]` table, and the next build will fill both in",
+            "this file is the record of which error codes have been used, and a build \
+             reads it rather than the history. If a code was ever declared, restore the \
+             file from git (`git restore catalog/errors.reserved.toml`). If this is a \
+             genuinely new catalog, create it by hand with a `[meta]` table holding \
+             `checksum = \"\"` and an empty `[reserved]` table, and the next build will \
+             fill both in",
             "ledger-missing",
         ));
     };
@@ -360,8 +362,8 @@ pub fn read(root: &std::path::Path, bootstrap: Bootstrap) -> Result<Reservations
     // `29 code(s) appended to catalog/errors.reserved.toml, which is permanent`,
     // after which `cargo xtask check` passes and the ledger records the new
     // meaning as though it always had. That is acceptance criterion 7 turned off
-    // by the edit-build-check loop, and `§5.3` says there is no git to be the
-    // second reader.
+    // by the edit-build-check loop, before any commit or pull request exists to
+    // be the second reader.
     //
     // A test that uses a *wrong* checksum stops one branch earlier and does not
     // cover this.
@@ -614,9 +616,9 @@ pub fn as_toml_for_tests(text: &str) -> String {
 ///   cargo xtask check  ->  catalog/errors.reserved.toml is not a ledger
 /// ```
 ///
-/// Every subsequent build and check then refuses, on a file `NOCTUA.md §5.3`
-/// says there is nothing to restore from — and the fix is a hand edit of the
-/// one file the whole append-only rule rests on.
+/// Every subsequent build and check then refuses, on a file whose last commit
+/// lacks every code reserved since — and the fix is a hand edit of the one file
+/// the whole append-only rule rests on.
 ///
 /// Control characters are escaped rather than refused, for the reason
 /// `crate::quoted` gives: the input is prose somebody writes freely. The
@@ -911,8 +913,8 @@ mod tests {
         let text = render(&entries);
         // The size it states is the size it has. A rendered ledger that said
         // anything else would be one this module's own `read` refuses, and
-        // `render` writing a file that cannot be read back is the write
-        // `NOCTUA.md §5.3` says there is nothing to restore from.
+        // `render` writing a file that cannot be read back is a write that
+        // takes the build down with it.
         assert!(text.contains("\ncount = 2\n"), "{text}");
         let root = scratch("round-trip", &text);
         assert_eq!(read_refusing(&root), Ok(entries));
@@ -1102,8 +1104,8 @@ mod tests {
     /// an escaped control character `\u{7}`; TOML wants `\u0007` — four hex
     /// digits and no braces. So a BEL in an error's description — prose a
     /// developer writes freely, refused by nothing on the way in — rendered a
-    /// ledger that TOML cannot parse, and rendering it is the write `NOCTUA.md
-    /// §5.3` says there is nothing to restore from. Measured through that escaper:
+    /// ledger that TOML cannot parse, and rendering it is a write that takes every
+    /// later build down with it. Measured through that escaper:
     ///
     /// ```text
     /// "NC-DB-0001" = "... a bell\u{7}"
@@ -1133,9 +1135,8 @@ mod tests {
         let read_back = read_refusing(&root).expect("a rendered ledger is a readable one");
         assert_eq!(
             read_back, reserved,
-            "the ledger did not survive its own rendering. Every code in it is permanent \
-             and there is no history to restore the file from, so a reservation that \
-             cannot be read back is a repository that cannot build"
+            "the ledger did not survive its own rendering. Every code in it is permanent, \
+             so a reservation that cannot be read back is a repository that cannot build"
         );
         let _ = std::fs::remove_dir_all(&root);
     }

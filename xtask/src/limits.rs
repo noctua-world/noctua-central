@@ -9035,7 +9035,7 @@ mod tests {
         // `DROP TABLE journal_entries CASCADE` on disk. `sqlx` names a reversal
         // for the migration it undoes, so a file named this way is one whether
         // or not anybody meant it — and it is a one-command undo of an
-        // append-only audit log, in a tree with no git.
+        // append-only audit log.
         let (findings, files) = write(&["0001_a.sql", "0002_b.sql", "0002_b.down.sql"]);
         assert!(
             findings
