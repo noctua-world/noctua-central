@@ -131,6 +131,8 @@ enum Command {
     /// reads each back. `--publish`, which CI's release job passes, then makes
     /// the release on GitHub: the release commit, the tag, the release and the
     /// pull request that carries it back to the branch below.
+    /// `--after-the-gate-job`, which that job passes too, stands the gate aside,
+    /// because the job before it ran the gate on the same commit.
     Release {
         /// The branch the release is made from: `staging` for a release
         /// candidate, `main` for production.
@@ -142,6 +144,11 @@ enum Command {
         /// Make the release on GitHub too, through `gh`. CI's release job passes it.
         #[arg(long)]
         publish: bool,
+        /// Run no gate here, because the job before this one ran it on this
+        /// commit. Refused but with `--publish`, in the release job of
+        /// `.github/workflows/release.yml` on the channel's branch.
+        #[arg(long)]
+        after_the_gate_job: bool,
     },
 }
 
@@ -159,7 +166,8 @@ fn main() -> ExitCode {
             channel,
             dry_run,
             publish,
-        } => release::run(&root, channel, dry_run, publish),
+            after_the_gate_job,
+        } => release::run(&root, channel, dry_run, publish, after_the_gate_job),
     };
 
     match outcome {

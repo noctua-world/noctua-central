@@ -7731,7 +7731,7 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// constant**, as `OPERATORS` is: one copy rather than one per use, and nothing
 /// reads it at compile time.
 #[cfg(test)]
-static WHAT_THE_GATE_CAN_SAY: [&str; 1028] = [
+static WHAT_THE_GATE_CAN_SAY: [&str; 1041] = [
     // The workflows' bounds (`xtask/src/workflow.rs`): what `.github/` may hold,
     // the authority each workflow opens with, the pins, and how the release is
     // made; and the `CI` step's two verdicts about them.
@@ -7766,21 +7766,26 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1028] = [
     "the release fires on `{}`",
     "the release fires on a push to {named:?}, and a release is made from {RELEASED_FROM:?} alone",
     "the release job enters {}, and it enters `{THE_RELEASES_ENVIRONMENT}` alone",
-    "the release job runs on `{runner}`, which is not a Linux runner",
-    "the release job",
-    "the release job's step {} holds {}, where it holds {}",
-    "the release job's step {} is {}, where it is {}",
     "the release restores a cache, through `{name}`",
     "the release workflow does not say, as a block of its own, what it fires on",
     "the release workflow evaluates `{written}`, which is not one of `THE_EXPRESSIONS` where it stands",
-    "the release workflow has no `release` job",
-    "the release workflow holds the job `{job}` beside `release`",
     "the release workflow",
     "the release's push is filtered by `{filter}`",
     "the workflows' bounds read no action",
     "the workflows' bounds",
     "what CI reaches could not be walked: {error}",
     "{whose} holds `{key}:`, and it holds {allowed:?} alone, each once",
+    "the gate job {what}, and it holds nothing of the release's",
+    "the release job waits for {}, and it waits for `{THE_RELEASE_WAITS_FOR}` alone",
+    "the release workflow has no `{job}` job",
+    "the release workflow holds the job `{job}` beside {named:?}, and it holds each of those once and no other",
+    "the release's `concurrency` holds {held:?}, and it holds {THE_RELEASES_CONCURRENCY:?} alone, in that order",
+    "the {job} job runs on `{runner}`, which is not a Linux runner",
+    "the {job} job's step {} holds {}, where it holds {}",
+    "the {job} job's step {} is {}, where it is {}",
+    "turns the release's gate off",
+    "reads a variable",
+    "`{}` names no crate at an exact version",
     // The release (`xtask/src/release.rs`).
     "--publish publishes to the repository GITHUB_REPOSITORY names, and it is not set. CI's release job sets it; a release is published from there and nowhere else",
     "--publish publishes with the token in GH_TOKEN, and it is not set. CI's release job sets it to the release App's installation token; the workflow's own token is never used, because a pull request it opens starts no checks",
@@ -7854,6 +7859,14 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1028] = [
     "{name} reads back as carrying {carries:?}, and the release wrote {target}",
     "{name} was rewritten and still names {}, not {version}. The reader and the writer are one rule — the version is rewritten on the line `version_of` found it on — so this is a file whose version sits somewhere that reader does not look: a table other than `[workspace.package]` or `[package]`, or a spelling it cannot parse",
     "{name}: {size} byte(s)",
+    "a directory",
+    "a link",
+    "neither a file nor a directory",
+    "the gate ran in the job before this one, on this commit, and this job runs none of its own",
+    "{AFTER_THE_GATE_JOB} is passed by the release job of {THE_RELEASE_WORKFLOW} on {} alone, where the gate ran in the job before it, and this run is not that job: GITHUB_ACTIONS is {}, GITHUB_JOB is {}, and GITHUB_WORKFLOW_REF is {}. Nothing was written",
+    "{AFTER_THE_GATE_JOB} stands the gate aside because the job before ran it, and it is passed with --publish alone, by the release job of {THE_RELEASE_WORKFLOW}. Nothing was written",
+    "{name} could not be read, and a release rewrites it: {error}. Nothing was written",
+    "{name} is {what}, and a release writes it only as a regular file of this tree's: a write follows a link to wherever it points, and creates the file a link to nothing names. Nothing was written",
     "{problem}{put_back}",
     "{tag} is tagged at {} on GitHub, and this release is at {}. A tag is never moved: look at both before releasing again",
     "{} has no section of its own in the changelog, which is a release no reader of it would see",
@@ -10964,17 +10977,34 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 712] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 723] = [
     // The workflows' bounds: their remedies, the release job's steps as
     // `THE_RELEASE_STEPS` writes them, the environment and the line that hands
     // the token on, a step's words when it is missing, and the clean line.
     "  GH_TOKEN: ${{ steps.app.outputs.token }}",
-    "  app-id: ${{ vars.RELEASE_APP_ID }}",
     "  permission-contents: write",
     "  permission-pull-requests: write",
     "  persist-credentials: false",
     "  private-key: ${{ secrets.RELEASE_APP_KEY }}",
     "(indented less than the step) {code}",
+    "  client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}",
+    "(at another depth) {code}",
+    "a crate named with no version, or with a range, is whatever crates.io holds on the day, and its code runs in the job that installs it — in the release's gate as in every other. Name it as `name@X.Y.Z`, which cargo installs exactly, and move the version in every install of it at once",
+    "client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}",
+    "each job of the release runs what `THE_RELEASE_STEPS` in `xtask/src/workflow.rs` writes for it and nothing else: the gate checks out, installs the toolchain and the auditor, brings the stack up and runs the gate; the release checks out, installs the toolchain, builds the release tool, then mints the App's token and releases. The release job holds the App's key and its token, so the tool is built before the token exists, and the gate is what judges the commit it releases. A step to add is a line there, which is a line in a diff",
+    "every job in it runs on the push that releases a channel, and the rules here read `gate` and `release` alone; another is a job nothing holds to the steps, the environment or the token, and a name written twice is one YAML reads one way and a reader another. What it would do belongs in the gate",
+    "every key there is one a rule here reads, and the others change what runs beside the App's token or before it: `env:` and `defaults:` reach every step, `container:` runs each inside an image this tree does not build, `services:` starts one beside them, `strategy:` runs the job more than once, and `needs:` and `environment:` belong to the release job alone. A key written twice is one YAML reads one way and a reader another. A key to add is a line in `THE_RELEASE_WORKFLOWS_KEYS` or `THE_RELEASE_JOBS`, with the rule that reads it",
+    "one release per branch runs at a time, none is stopped part way, and none is dropped while it waits: `cancel-in-progress: true` stops a release between its commit and its tag, and under GitHub's default queue a newer run replaces the one waiting, so the next merge cancels the run of a release commit's own push, which is what finishes a release that died part way. Write the three lines `THE_RELEASES_CONCURRENCY` in `xtask/src/workflow.rs` holds, as a block under `concurrency:`",
+    "run: cargo install --locked cargo-deny@0.20.2",
+    "run: cargo xtask check",
+    "run: cargo xtask release --channel ${{ github.ref_name }} --publish --after-the-gate-job",
+    "run: cargo xtask release --help",
+    "the environment holds the App's client id and its key, and GitHub lets a job enter `release-staging` from `staging` alone and `release-main` from `main` alone; a job that enters another mints the token from a branch that is not the channel it releases, and one that enters none cannot mint it",
+    "the gate brings up the stack its steps read, which only Linux's runner does (NOCTUA.md §22.2): elsewhere those steps are not applicable, and the release is judged by less than the gate every pull request passed. And the release builds its tool on the system the gate judged. Run both on `ubuntu-latest`",
+    "the gate job judges the commit the release is made from, and the release job makes the release; every rule about their steps, the environment and the App's token reads each by its name",
+    "the gate runs every build script, procedural macro and test of this tree and of every locked dependency, and the auditor it installs, and what keeps the App's key and its token from all of them is that this job holds neither: no environment, no secret, no variable, no token's action and no step's output. The release job waits for it and holds them, and runs none of those again",
+    "the release job runs no gate of its own: `--after-the-gate-job` stands the verb's gate aside because the gate job passed on the same commit in the same run. A release job that does not wait for it runs beside it, or after it failed, and publishes a tree no gate judged. Write `needs: gate`",
+    "the rules that hold the release read `release.yml` alone, and a workflow runs on a push to `staging` and `main` like any other: an environment admits a job by its branch, so a job elsewhere that entered `release-main`, minted the App's token and published would make a release past every one of them. The token's action, the environment, a secret, a step's output, which is how the token is handed on, `--publish`, and `--after-the-gate-job`, which stands the release's own gate aside, are the parts of that, and each is the release workflow's alone. Make the release there",
     "GH_TOKEN: ${{ steps.app.outputs.token }}",
     "GitHub evaluates an expression before anything runs, and `toJSON(steps)` or `steps['app'].outputs.token` hands the App's token to whatever reads the line as surely as `steps.app.outputs.token` does. The release evaluates six, each on a line of its own where `THE_EXPRESSIONS` in `xtask/src/workflow.rs` puts it: the branch in the concurrency group, the environment and the channel, the App's id and key in the step that mints the token, and the token in the release step's `GH_TOKEN`. Anywhere else the key or the token is in the environment of what runs there, this tree's build scripts and tests among them, and the App may push to `staging` and `main` past their rules",
     "YAML opens a quoted scalar only where a node starts and reads a `#` inside one as text, and the readers here end a line at a `#` outside any quote, the way a shell does: in `{ ke\"y: \"a # b\", permissions: write-all }` YAML reads a grant none of them reads. Write no quote inside a key or a plain value of that line, or no `#` inside its quoted value",
@@ -10989,12 +11019,9 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 712] = [
     "a workflow this gate cannot read is one GitHub still runs, so every rule here would pass over it unjudged. Make it a readable UTF-8 file",
     "a workflow with nothing at its top hands each job the token the repository's settings give, which may write. Write `permissions: {}` above `jobs:`, and let each job ask for reading the tree",
     "an input is part of what an action does, and a key part of how a step runs: `repository:` or `ref:` beside the checkout's inputs builds another tree with the App's token, a `permission-` input asks the App for more than a release writes, and `env:`, `shell:` or `working-directory:` on a step change what its command is. Each step holds the lines `THE_RELEASE_STEPS` in `xtask/src/workflow.rs` writes for it, and a line to add is a line there",
-    "app-id: ${{ vars.RELEASE_APP_ID }}",
     "environment: release-${{ github.ref_name }}",
     "every action a step uses is judged from the files CI reaches, and a walk that stopped judges none of them",
-    "every job in it runs on the push that releases a channel, and the rules here read the `release` job alone; a second is a job nothing holds to the steps, the environment or the token. What it would do belongs in the gate",
     "every job without a `permissions:` of its own holds what the top of the file grants, and here that is to be nothing: write `permissions: {}` there, and let each job ask for reading the tree",
-    "every key there is one a rule here reads, and the others change what runs beside the App's token: `env:` and `defaults:` reach every step, `container:` runs each inside an image this tree does not build, `services:` starts one beside them, and `strategy:` runs the job more than once. A key written twice is one YAML reads one way and a reader another. A key to add is a line in `THE_RELEASE_WORKFLOWS_KEYS` or `THE_RELEASE_JOBS_KEYS`, with the rule that reads it",
     "every rule on CI's files reads a line up to its line feed, and a YAML parser ends one at a carriage return too, and some at NEL, LS and PS, so what follows one on a comment or a step's name is a key or a step GitHub reads and no rule here does. End each line with a line feed alone",
     "every rule on CI's files trims and splits a line at whitespace as Rust reads it, and YAML indents with a space alone, so a line indented with another space is deeper to a rule here than to GitHub, and a key or a step GitHub reads is passed over as a block scalar's text. Write a space, U+0020, or a tab",
     "every rule on a workflow reads a key by the word written before its colon on the line it opens, and a key written after `?`, as an alias or merged in with `<<` is one none of them reads: the environment, the permissions, the actions and the conditions would all pass it unjudged. Write the key out where it stands, as `name: value`",
@@ -11004,19 +11031,12 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 712] = [
     "nothing at all",
     "private-key: ${{ secrets.RELEASE_APP_KEY }}",
     "release-${{ github.ref_name }}",
-    "run: cargo install --locked cargo-deny",
     "run: cargo xtask dev",
-    "run: cargo xtask release --channel ${{ github.ref_name }} --publish",
     "run: rustup toolchain install --no-self-update",
     "the commit says what runs and not what it is: the release in a comment after it, such as `# v1.2.3`, is what a reader checks against the action's own tags, and what an update moves",
-    "the environment holds the App's id and its key, and GitHub lets a job enter `release-staging` from `staging` alone and `release-main` from `main` alone; a job that enters another mints the token from a branch that is not the channel it releases, and one that enters none cannot mint it",
     "the gate writes nothing on GitHub, and the release writes with the App's token and never with this one; a token that may write is one every build script and test the job runs could use. Ask for `contents: read`, which the checkout needs, and nothing more",
-    "the job holds the App's token, so what runs beside it is `THE_RELEASE_STEPS` in `xtask/src/workflow.rs` and nothing else: the token, the checkout, the toolchain, the audit's install, the stack, then the release. A step to add is a line there, which is a line in a diff",
-    "the job is what makes the release, and every rule about its steps, its environment and the App's token reads it by that name",
     "the pins and the actions CI may use are read from the line a `uses` key stands on, plain or quoted, wherever YAML opens a key. A value on the lines below it, a block scalar, an anchor, a tag, an alias or a collection, or a key a backslash carries across a line break, is an action both would pass over. Write `uses: owner/name@<commit> # <release>` on one line",
     "the readers here read a file GitHub runs as GitHub reads it, a `name:` there as a label, and a shell that runs it reads every line of it as a command: once `name:` is a function, `name: cargo clippy --workspace` runs clippy. Name no workflow or composite action's file on a command line, and run what it should run as a script of its own",
-    "the release runs the gate first, and only Linux's runner brings up the stack the gate's steps read (NOCTUA.md §22.2); elsewhere those steps are not applicable, and the release is judged by less than the gate every pull request passed. Run it on `ubuntu-latest`",
-    "the rules that hold the release read `release.yml` alone, and a workflow runs on a push to `staging` and `main` like any other: an environment admits a job by its branch, so a job elsewhere that entered `release-main`, minted the App's token and published would make a release past every one of them. The token's action, the environment, a secret, a step's output, which is how the token is handed on, and `--publish` are the parts of that, and each is the release workflow's alone. Make the release there",
     "uses: <an action this walk cannot read>",
     "what sits there is what GitHub runs, and a walk that stopped cannot say what that is",
     "{pinned} action(s) in CI's files, each pinned to a commit, in workflows that open with no permission; a release fires on a push to `staging` or `main` alone",
@@ -11038,6 +11058,10 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 712] = [
     "already released: {tag} is tagged, released, and carried back to {}",
     "auto-merge is on for #{}, by merge commit",
     "chore(release): carry {} back to {}",
+    "GitHub says it conflicts with that branch",
+    "pull request #{number}, which carries {} back to {below}, cannot be merged on GitHub: {why}. {} is tagged and released. Carry it back by hand: make a branch from {below}, merge {branch} into it, keep {branch}'s version and {CHANGELOG} wherever the two disagree, run `cargo update --workspace`, commit it signed, and open a pull request into {below}. Once that merges, GitHub marks #{number} merged, because its head is reachable from {below}",
+    "{problem}. And these could not be put back as HEAD holds them, so each holds what this run wrote: {}. The release began on a clean tree, so `git status` names what it left",
+    "{problem}. Every file this run wrote is put back as HEAD holds it",
     "its notes, which are its section of the changelog:",
     "mutation AutoMerge($id: ID!) { enablePullRequestAutoMerge(input: {pullRequestId: $id, mergeMethod: MERGE}) { pullRequest { number autoMergeRequest { mergeMethod } } } }",
     "mutation MergedNow($id: ID!) { mergePullRequest(input: {pullRequestId: $id, mergeMethod: MERGE}) { pullRequest { number merged } } }",
@@ -14844,7 +14868,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
             "Command::Check { offline } => check::run(&root, offline),",
             "Command::Dev { down } => dev::run(&root, down),",
             "Command::Docs => docs::run(&root),",
-            "Command::Release { channel, dry_run, publish, } => release::run(&root, channel, dry_run, publish),",
+            "Command::Release { channel, dry_run, publish, after_the_gate_job, } => release::run(&root, channel, dry_run, publish, after_the_gate_job),",
         ];
         let source = std::fs::read_to_string(root().join("xtask/src/main.rs"))
             .expect("this file is readable");
@@ -18895,7 +18919,7 @@ mod the_frozen_path_rule {
         ("xtask/plugins.rs", 25, 5),
         ("xtask/policy.rs", 57, 5),
         ("xtask/references.rs", 54, 26),
-        ("xtask/release.rs", 218, 14),
+        ("xtask/release.rs", 234, 13),
         ("xtask/sections.rs", 38, 10),
         ("xtask/store.rs", 29, 4),
         ("xtask/the_pages_reach_the_catalog.rs", 37, 20),
@@ -18903,7 +18927,7 @@ mod the_frozen_path_rule {
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 30, 6),
         ("xtask/ui.rs", 52, 12),
         ("xtask/wall.rs", 129, 28),
-        ("xtask/workflow.rs", 264, 23),
+        ("xtask/workflow.rs", 276, 23),
     ];
 
     /// The name an item declaration introduces, for the message below.
@@ -21678,7 +21702,7 @@ mod the_frozen_path_rule {
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
     /// directories accumulated in an afternoon. Of the 547 scratches this tree
-    /// builds, 459 of the 547 are removed however the test leaves and 88 are
+    /// builds, 460 of the 547 are removed however the test leaves and 87 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -21725,13 +21749,13 @@ mod the_frozen_path_rule {
     /// **`crates/nc-catalog-compiler/src/ledger.rs`'s `scratch` leaks on the
     /// failing path only.** It removes only at the top — but all fourteen of
     /// its callers remove at their own foot, so it leaks on the failing path
-    /// like the other eighty-seven and not on every run. Measured: its whole
+    /// like the other eighty-six and not on every run. Measured: its whole
     /// suite passing creates nothing; one flipped assertion creates exactly one
     /// directory. Judging it from the helper's shape without reading its
     /// callers is the same mistake as reading a count without reading what it
     /// counts.
     ///
-    /// It is the one of the eighty-eight that cannot be converted in place:
+    /// It is the one of the eighty-seven that cannot be converted in place:
     /// `LeavesNothingBehind` lives in `xtask`, which the compiler crate does
     /// not depend on and must not, and this file argues against a fifth
     /// hand-written copy of the same four lines. What closes it is one guard
@@ -21739,7 +21763,7 @@ mod the_frozen_path_rule {
     /// the tests that want it.
     ///
     /// The count and not the list, for the reason [`OPENS_AN_ITEM`] gives:
-    /// naming all 88 is a list nobody reads, and 88 tests would have to grow a
+    /// naming all 87 is a list nobody reads, and 87 tests would have to grow a
     /// guard for the gap to close. Two numbers per file is what makes a swap
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
@@ -21778,7 +21802,7 @@ mod the_frozen_path_rule {
         ("xtask/members.rs", 1, 0),
         ("xtask/policy.rs", 5, 2),
         ("xtask/references.rs", 4, 1),
-        ("xtask/release.rs", 8, 4),
+        ("xtask/release.rs", 8, 5),
         ("xtask/sections.rs", 9, 1),
         ("xtask/ui.rs", 1, 0),
         ("xtask/wall.rs", 3, 2),
@@ -22356,7 +22380,7 @@ mod the_frozen_path_rule {
     /// is the one thing it exists for, which is point at the site. Measured by
     /// renaming the leaking test and watching such a list stand still.
     #[cfg(test)]
-    const THE_SCRATCHES_WITH_NO_GUARD: [(&str, &str); 88] = [
+    const THE_SCRATCHES_WITH_NO_GUARD: [(&str, &str); 87] = [
         ("nc-catalog-compiler/ledger.rs", "scratch"),
         (
             "xtask/check.rs",
@@ -22550,10 +22574,6 @@ mod the_frozen_path_rule {
         (
             "xtask/references.rs",
             "excusing_a_citation_does_not_lower_the_number_that_proves_coverage",
-        ),
-        (
-            "xtask/release.rs",
-            "a_listed_file_that_lost_its_version_stops_the_release",
         ),
         (
             "xtask/release.rs",
@@ -24645,7 +24665,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15034;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15093;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24664,7 +24684,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3047;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3069;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -24681,7 +24701,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1000;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1007;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -24698,7 +24718,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [66, 15, 27, 28, 85];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [72, 16, 30, 31, 88];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -24715,7 +24735,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 21153;
+    const THE_REARRANGEMENTS_JUDGED: usize = 21279;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24733,7 +24753,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 442;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 460;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -24769,8 +24789,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **442 of 21,153 are accepted by the first-line
-    /// rule alone, and 221 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **460 of 21,279 are accepted by the first-line
+    /// rule alone, and 237 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -24791,8 +24811,8 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **66 ascending sorts, 15 descending, 27
-    /// swaps, 28 rotations and 85 reversals** — so the reversal is the largest
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **72 ascending sorts, 16 descending, 30
+    /// swaps, 31 rotations and 88 reversals** — so the reversal is the largest
     /// part of it, not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
@@ -24802,7 +24822,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1000 of
+    /// this tree offers, **1007 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -26992,7 +27012,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 712;
+    const THE_REST_IT_SAYS: usize = 723;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -27140,7 +27160,7 @@ mod the_frozen_path_rule {
     /// verdicts that agree for that long are one row, and — because a prefix
     /// matches nothing the two censuses hold — every row is a shipped literal
     /// accounted for nowhere. Written out, each row is its own accounting.
-    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 484] = [
+    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 485] = [
         ("—", "compiled catalog/"),
         (
             "—",
@@ -28505,6 +28525,10 @@ mod the_frozen_path_rule {
             "if dry_run",
             "--dry-run: the gate is not run and nothing is written",
         ),
+        (
+            "if after_the_gate_job",
+            "the gate ran in the job before this one, on this commit, and this job runs none of its own",
+        ),
         ("else", "running the gate before anything is written"),
         (
             "let Some(numbers) = the_next_numbers(last.map(|tag| tag.version), manifest, &since) else",
@@ -29264,7 +29288,7 @@ mod the_frozen_path_rule {
     /// Seven words of each remedy, because a remedy is long and its opening is
     /// what tells one from another; the rule beside the list is that those
     /// seven are unique.
-    const WHAT_A_REMEDY_ANSWERS: [(&str, &str, &str); 147] = [
+    const WHAT_A_REMEDY_ANSWERS: [(&str, &str, &str); 151] = [
         (
             "counts.rs",
             "this document has an odd number of",
@@ -29742,6 +29766,11 @@ mod the_frozen_path_rule {
         ),
         (
             "workflow.rs",
+            "`{}` names no crate at an exact",
+            "a crate named with no version, or",
+        ),
+        (
+            "workflow.rs",
             "`{relative}` {what}, which the release workflow alone",
             "the rules that hold the release read",
         ),
@@ -29759,6 +29788,11 @@ mod the_frozen_path_rule {
             "workflow.rs",
             "`{relative}` holds a `#` every reader here",
             "YAML opens a quoted scalar only where",
+        ),
+        (
+            "workflow.rs",
+            "the release's `concurrency` holds {held:?}, and it",
+            "one release per branch runs at a",
         ),
         (
             "workflow.rs",
@@ -29797,18 +29831,23 @@ mod the_frozen_path_rule {
         ),
         (
             "workflow.rs",
-            "the release workflow has no `release` job",
-            "the job is what makes the release,",
+            "the release workflow has no `{job}` job",
+            "the gate job judges the commit the",
         ),
         (
             "workflow.rs",
             "the release job enters {}, and it",
-            "the environment holds the App's id and",
+            "the environment holds the App's client id",
         ),
         (
             "workflow.rs",
-            "the release job runs on `{runner}`, which",
-            "the release runs the gate first, and",
+            "the release job waits for {}, and",
+            "the release job runs no gate of",
+        ),
+        (
+            "workflow.rs",
+            "the {job} job runs on `{runner}`, which",
+            "the gate brings up the stack its",
         ),
         (
             "workflow.rs",
@@ -29817,13 +29856,18 @@ mod the_frozen_path_rule {
         ),
         (
             "workflow.rs",
-            "the release job's step {} is {},",
-            "the job holds the App's token, so",
+            "the {job} job's step {} is {},",
+            "each job of the release runs what",
         ),
         (
             "workflow.rs",
-            "the release job's step {} holds {},",
+            "the {job} job's step {} holds {},",
             "an input is part of what an",
+        ),
+        (
+            "workflow.rs",
+            "the gate job {what}, and it holds",
+            "the gate runs every build script, procedural",
         ),
         (
             "workflow.rs",
@@ -35673,7 +35717,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1664] = [
+    static OPERATORS: [(&str, &str, &str); 1688] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -36094,6 +36138,76 @@ Options:
             "release",
             "put_the_changelog_back",
             "a changelog never created is no failure to put it back",
+        ),
+        (
+            "release",
+            "the_gate_ran_in_the_job_before",
+            "the gate stands aside without --publish",
+        ),
+        (
+            "release",
+            "the_gate_ran_in_the_job_before",
+            "the gate stands aside outside GitHub Actions",
+        ),
+        (
+            "release",
+            "the_gate_ran_in_the_job_before",
+            "the gate stands aside in any job",
+        ),
+        (
+            "release",
+            "the_gate_ran_in_the_job_before",
+            "the gate stands aside in any workflow on any branch",
+        ),
+        (
+            "release",
+            "the_gate_ran_in_the_job_before",
+            "the gate stands aside in another repository's release job",
+        ),
+        (
+            "release",
+            "run_at",
+            "the gate stands aside wherever the flag is passed",
+        ),
+        (
+            "release",
+            "written",
+            "the files a release writes are not judged before the first write",
+        ),
+        (
+            "release",
+            "each_is_a_file_of_this_trees",
+            "a link is a file of this tree's",
+        ),
+        (
+            "release",
+            "released",
+            "a refusal on GitHub leaves the tree it wrote",
+        ),
+        (
+            "release",
+            "with_the_tree_put_back",
+            "a refusal on GitHub puts nothing back",
+        ),
+        (
+            "release",
+            "published",
+            "a pull request back in conflict is queued",
+        ),
+        (
+            "release",
+            "published",
+            "auto-merge refused says nothing of carrying the release back",
+        ),
+        (
+            "release",
+            "a_carried_back",
+            "a pull request REST says conflicts is not in conflict",
+        ),
+        (
+            "release",
+            "a_carried_back",
+            "a pull request GraphQL says is dirty is not in conflict",
         ),
         (
             "history",
@@ -37118,18 +37232,23 @@ Options:
         ),
         (
             "workflow",
-            "the_release_is_one_job",
-            "a second job may sit beside the release",
+            "the_release_is_two_jobs",
+            "a third job may sit beside the gate and the release",
         ),
         (
             "workflow",
-            "the_release_is_one_job",
+            "a_jobs_keys_are_its_own",
             "the release may enter any environment",
         ),
         (
             "workflow",
-            "the_release_is_one_job",
+            "a_jobs_keys_are_its_own",
             "the release may run on any system",
+        ),
+        (
+            "workflow",
+            "a_jobs_keys_are_its_own",
+            "the release may run without the gate",
         ),
         (
             "workflow",
@@ -37138,17 +37257,17 @@ Options:
         ),
         (
             "workflow",
-            "the_release_runs_its_steps",
+            "the_job_runs_its_steps",
             "a step more than the list is no difference",
         ),
         (
             "workflow",
-            "the_release_runs_its_steps",
+            "the_job_runs_its_steps",
             "a step's lines are not held",
         ),
         (
             "workflow",
-            "the_release_runs_its_steps",
+            "the_job_runs_its_steps",
             "a line more than a step's is no difference",
         ),
         (
@@ -37173,7 +37292,7 @@ Options:
         ),
         (
             "workflow",
-            "the_release_is_one_job",
+            "a_jobs_keys_are_its_own",
             "the release job may hold any key",
         ),
         ("workflow", "holds_these_keys_alone", "any key may be held"),
@@ -37241,6 +37360,51 @@ Options:
             "workflow",
             "the_releases_authority_in",
             "a publish may be written anywhere",
+        ),
+        (
+            "workflow",
+            "the_releases_authority_in",
+            "the release's gate may be turned off anywhere",
+        ),
+        (
+            "workflow",
+            "the_gate_holds_none_of_the_releases_authority",
+            "the gate may hold the release's authority",
+        ),
+        (
+            "workflow",
+            "the_gate_holds_none_of_the_releases_authority",
+            "the gate may read a variable",
+        ),
+        (
+            "workflow",
+            "the_releases_concurrency_is_a_queue",
+            "the release's concurrency may hold anything",
+        ),
+        (
+            "workflow",
+            "the_releases_concurrency_is_a_queue",
+            "a line of the concurrency at another depth is the same line",
+        ),
+        (
+            "workflow",
+            "every_workflow_is_bounded",
+            "an install is held to no version",
+        ),
+        (
+            "workflow",
+            "every_install_names_its_version",
+            "an install may name no version",
+        ),
+        (
+            "workflow",
+            "names_an_exact_version",
+            "two numbers are an exact version",
+        ),
+        (
+            "workflow",
+            "names_an_exact_version",
+            "a range is an exact version",
         ),
         (
             "workflow",

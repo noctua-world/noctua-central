@@ -20,10 +20,11 @@
 # nothing else sits under `.github/`. Both files open with no permission, and
 # every action either runs is pinned to a commit, with its release in a comment.
 # This file, and every file it reaches, mints no token, enters no environment,
-# reads no secret and no step's output, and publishes nothing: those are
-# `release.yml`'s alone, because this workflow runs on a push to `staging` and
-# `main` as well. The gate refuses the first four in every other file GitHub
-# runs, this one and a composite action, and a publish in every other file CI
+# reads no secret and no step's output, publishes nothing and turns no
+# release's gate off: those are `release.yml`'s alone, because this workflow
+# runs on a push to `staging` and `main` as well. The gate refuses the first
+# four in every other file GitHub runs, this one and a composite action, and a
+# publish and the flag that turns the release's gate off in every other file CI
 # reaches, scripts and the justfile among them. It reads both files a line at a
 # time, so each line ends at a line feed and is spaced with spaces and tabs
 # alone, each key is a word before its colon, and each quote and bracket closes
@@ -157,8 +158,13 @@ jobs:
         run: rustup toolchain install --no-self-update
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      # **The auditor at one exact version**, the same in every job and in
+      # `release.yml`'s gate: a crate named with no version installs whatever
+      # crates.io holds on the day, and that code runs in the job. The gate
+      # refuses a `cargo install` with no exact `@X.Y.Z`, and moving it is one
+      # commit that moves all four lines and `THE_RELEASE_STEPS`.
       - name: cargo deny
-        run: cargo install --locked cargo-deny
+        run: cargo install --locked cargo-deny@0.20.2
 
       # **The stack, before the gate that needs it.** Everything the gate asks a
       # running database and a running log store — the journal's forty-four
@@ -197,7 +203,7 @@ jobs:
         run: rustup toolchain install --no-self-update
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: cargo deny
-        run: cargo install --locked cargo-deny
+        run: cargo install --locked cargo-deny@0.20.2
       - name: cargo xtask check
         run: cargo xtask check
 
@@ -220,7 +226,7 @@ jobs:
         run: rustup toolchain install --no-self-update
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       - name: cargo deny
-        run: cargo install --locked cargo-deny
+        run: cargo install --locked cargo-deny@0.20.2
       - name: cargo xtask check
         run: cargo xtask check
 

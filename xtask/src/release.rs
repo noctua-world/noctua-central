@@ -10,8 +10,11 @@
 //! writer's. With `--publish`, which only CI's release job passes, it then
 //! makes the release on GitHub through the `gh` CLI the runner carries: the
 //! release commit, the tag, the GitHub release with its notes, and the pull
-//! request that carries it back to the branch below. `--dry-run` runs no gate,
-//! writes nothing, and says what the release would be.
+//! request that carries it back to the branch below. That job passes
+//! `--after-the-gate-job` too: the gate ran in the job before it, on the same
+//! commit, where neither the App's key nor its token is, and the verb refuses
+//! the flag anywhere else ([`the_gate_ran_in_the_job_before`]). `--dry-run`
+//! runs no gate, writes nothing, and says what the release would be.
 //!
 //! # A version is computed, never handed in
 //!
@@ -41,7 +44,17 @@
 //! died part way runs again on the push its own release commit causes, and
 //! there `HEAD` is that commit: the verb asks GitHub what exists — the tag, the
 //! release, the pull request — and makes only what is missing, in order, so a
-//! run on a release already made ends with `already released`.
+//! run on a release already made ends with `already released`. A refusal at
+//! the release commit or after it puts back every file the run wrote, as any
+//! refusal after the first write does.
+//!
+//! # What a release that cannot be carried back says
+//!
+//! The pull request back has the released branch as its head, and that branch
+//! takes nothing but pull requests and the release App: a conflict on it is
+//! resolved on another branch. When GitHub says the pull request conflicts
+//! with the branch below, or refuses to turn auto-merge on for it, the release
+//! stops and says how a person carries it back ([`carried_back_by_hand`]).
 
 use std::ffi::{OsStr, OsString};
 use std::path::Path;
@@ -57,6 +70,21 @@ const CARRIES_THE_VERSION: [&str; 1] = ["Cargo.toml"];
 
 /// Where the changelog is written, at the root of the repository.
 pub(crate) const CHANGELOG: &str = "CHANGELOG.md";
+
+/// The flag that stands the verb's own gate aside, because the job before
+/// ran it ([`the_gate_ran_in_the_job_before`]).
+///
+/// **Refused in every file CI reaches but the release workflow**, by
+/// `crate::workflow`, which reads it from here.
+pub(crate) const AFTER_THE_GATE_JOB: &str = "--after-the-gate-job";
+
+/// The workflow the release job runs in, as GitHub names it in
+/// `GITHUB_WORKFLOW_REF`: from the root of the repository.
+const THE_RELEASE_WORKFLOW: &str = ".github/workflows/release.yml";
+
+/// The job of [`THE_RELEASE_WORKFLOW`] that releases, after the job that ran
+/// the gate, as GitHub names it in `GITHUB_JOB`.
+const THE_RELEASE_JOB: &str = "release";
 
 /// The page where GitHub publishes its limits on a release's assets.
 ///
@@ -454,6 +482,10 @@ struct CarriedBack {
     /// Whether GitHub would merge it now: its checks have passed and nothing
     /// blocks it, which is when GitHub refuses to turn auto-merge on.
     mergeable: bool,
+    /// Whether GitHub says it conflicts with the branch below, which no merge
+    /// on GitHub resolves: its head is the released branch, which takes nothing
+    /// but pull requests and the release App ([`carried_back_by_hand`]).
+    conflicting: bool,
 }
 
 /// Where a pull request that carries a release back stands.
@@ -545,7 +577,9 @@ impl GitHub {
 ///
 /// **No child but `gh` is handed one** — the gate, the cargo that relocks,
 /// and the git the history is read through (`crate::history`) — so the App's
-/// token `--publish` holds reaches `gh` alone.
+/// token `--publish` holds is handed to `gh` alone. Handed is not reached: a
+/// process of the same user may read this one's starting environment, which is
+/// why CI's release job runs no gate ([`the_gate_ran_in_the_job_before`]).
 pub(crate) fn ghs_own(name: &OsStr) -> bool {
     let name = name.to_string_lossy().to_ascii_uppercase();
     name.starts_with("GH_") || name == "GITHUB_TOKEN" || name == "GITHUB_ENTERPRISE_TOKEN"
@@ -567,7 +601,8 @@ fn without_ghs_own(
 /// this process's environment as the one the release was handed.
 ///
 /// **The one place that asks where this tool is**, so a test can drive
-/// [`run_at`] whole with a program of its own as the gate.
+/// [`run_at`] whole with a program of its own as the gate, and with an
+/// environment of its own for [`the_gate_ran_in_the_job_before`] to read.
 ///
 /// # Errors
 ///
@@ -577,28 +612,118 @@ pub(crate) fn run(
     channel: Channel,
     dry_run: bool,
     publish: bool,
+    after_the_gate_job: bool,
 ) -> Result<(), String> {
     let itself = std::env::current_exe().map_err(|error| {
         format!("this tool could not find itself to run the gate: {error}. Nothing was written")
     })?;
     let inherited: Vec<(OsString, OsString)> = std::env::vars_os().collect();
-    run_at(&itself, root, channel, dry_run, publish, &inherited)
+    run_at(
+        &itself,
+        root,
+        channel,
+        dry_run,
+        publish,
+        after_the_gate_job,
+        &inherited,
+    )
+}
+
+/// Refuses [`AFTER_THE_GATE_JOB`] unless this run publishes, as the release
+/// job of [`THE_RELEASE_WORKFLOW`] on `channel`'s branch, in GitHub Actions.
+///
+/// **The gate stands aside where the job before ran it, and nowhere else.**
+/// `release.yml` runs the gate in a job of its own, which enters no
+/// environment and holds no secret and no token, and the release job waits
+/// for it (`needs: gate`), so a gate run there again would run every build
+/// script, procedural macro and test of the tree beside the App's key, for
+/// nothing. Anywhere else the flag releases a tree no gate judged: a
+/// developer's machine, another workflow, another job, another branch. So it
+/// is refused without `--publish`, and refused unless `inherited` says this is
+/// that job: `GITHUB_ACTIONS` is `true`, `GITHUB_JOB` is [`THE_RELEASE_JOB`],
+/// and `GITHUB_WORKFLOW_REF` names [`THE_RELEASE_WORKFLOW`] of the repository
+/// `GITHUB_REPOSITORY` names, at the channel's branch.
+///
+/// **What it is not** is a boundary against a person who sets those variables
+/// by hand: on their own machine they decide whether their own gate runs, and
+/// with no token of the App's `--publish` has nothing to publish with. It stops
+/// the flag passed by mistake, or copied somewhere no gate runs first; the
+/// gate refuses it in every file CI reaches but `release.yml`, and holds that
+/// file to the two jobs.
+///
+/// # Errors
+///
+/// Returns why this run is not the release job of `release.yml` on the
+/// channel's branch, under `--publish`.
+fn the_gate_ran_in_the_job_before(
+    channel: Channel,
+    publish: bool,
+    inherited: &[(OsString, OsString)],
+) -> Result<(), String> {
+    if !publish {
+        return Err(format!(
+            "{AFTER_THE_GATE_JOB} stands the gate aside because the job before ran it, and it \
+             is passed with --publish alone, by the release job of {THE_RELEASE_WORKFLOW}. \
+             Nothing was written"
+        ));
+    }
+    let named = |name: &str| {
+        inherited
+            .iter()
+            .find(|(key, _)| key == name)
+            .map(|(_, value)| value.to_string_lossy().into_owned())
+    };
+    let repository = named("GITHUB_REPOSITORY").unwrap_or_default();
+    let workflow = named("GITHUB_WORKFLOW_REF").unwrap_or_default();
+    let in_this_workflow = workflow
+        .strip_suffix(&format!(
+            "/{THE_RELEASE_WORKFLOW}@refs/heads/{}",
+            channel.branch()
+        ))
+        .is_some_and(|named| !named.is_empty() && named.eq_ignore_ascii_case(&repository));
+    let actions = named("GITHUB_ACTIONS");
+    let job = named("GITHUB_JOB");
+    if actions.as_deref() == Some("true")
+        && job.as_deref() == Some(THE_RELEASE_JOB)
+        && in_this_workflow
+    {
+        return Ok(());
+    }
+    let said = |value: Option<String>| {
+        value.map_or_else(
+            || "unset".to_owned(),
+            |value| format!("`{}`", escaped(&value)),
+        )
+    };
+    Err(format!(
+        "{AFTER_THE_GATE_JOB} is passed by the release job of {THE_RELEASE_WORKFLOW} on {} \
+         alone, where the gate ran in the job before it, and this run is not that job: \
+         GITHUB_ACTIONS is {}, GITHUB_JOB is {}, and GITHUB_WORKFLOW_REF is {}. Nothing was \
+         written",
+        channel.branch(),
+        said(actions),
+        said(job),
+        said((!workflow.is_empty()).then_some(workflow))
+    ))
 }
 
 /// Runs the gate, this tool's `check`, in a child of its own started
 /// from `itself` with every variable of `inherited` but `gh`'s, and refuses
 /// unless it passed.
 ///
-/// **A child, so the App's token reaches nothing the gate starts.** Under
-/// `--publish` this process holds `GH_TOKEN` in its environment, where every
-/// child it starts finds it unless told otherwise, and nothing here can take
-/// a variable out of this process's own: that is `unsafe` in this edition,
-/// which this workspace forbids. The gate starts cargo, which runs every
-/// build script, procedural macro and test of the workspace and of every
-/// dependency, and docker and git besides. Run here, each would be handed a
-/// token that may push to `staging` and `main` past their rules and move a
-/// `v*` tag; run in a child whose environment holds none of `gh`'s
-/// variables, none of them is.
+/// **A child cleared of `gh`'s variables, and that is all it is.** A run with
+/// `--publish` that runs its own gate holds `GH_TOKEN` in this process's
+/// environment, where every child it starts finds it unless told otherwise,
+/// and nothing here can take a variable out of this process's own: that is
+/// `unsafe` in this edition, which this workspace forbids. The gate starts
+/// cargo, which runs every build script, procedural macro and test of the
+/// workspace and of every dependency, and docker and git besides; none of them
+/// is handed the token in its own environment. **But each can still read it**:
+/// on Linux a process reads the starting environment of another of the same
+/// user, this one's among them. So CI's release job runs no gate here: the
+/// gate runs in a job of its own that holds no secret and no token, and the
+/// release job passes [`AFTER_THE_GATE_JOB`]
+/// ([`the_gate_ran_in_the_job_before`]).
 ///
 /// **Its exit status is all the release reads of it**, so a status other
 /// than success stops the release before anything is written: read as
@@ -708,18 +833,21 @@ fn put_back_listed(root: &Path, before: &[(&str, String)]) -> Vec<String> {
 /// **A function of its own so a test can drive the verb whole**, with a
 /// program that exits as the test says standing in for this tool: a gate
 /// that refused stops the release before anything is written, and one that
-/// passed lets it on to the write.
+/// passed lets it on to the write. **And with an environment of its own**, so
+/// a test drives [`the_gate_ran_in_the_job_before`] as CI's release job and as
+/// anything else, never through this process's.
 ///
 /// # Errors
 ///
-/// Returns why the publishing setting is incomplete, why the gate refused, or
-/// what [`released`] refused.
+/// Returns why the gate may not stand aside, why the publishing setting is
+/// incomplete, why the gate refused, or what [`released`] refused.
 fn run_at(
     itself: &Path,
     root: &Path,
     channel: Channel,
     dry_run: bool,
     publish: bool,
+    after_the_gate_job: bool,
     inherited: &[(OsString, OsString)],
 ) -> Result<(), String> {
     let mode = if dry_run {
@@ -729,6 +857,11 @@ fn run_at(
     } else {
         Mode::Write
     };
+    // Asked before anything else, so a gate stood aside where none ran is
+    // refused before a line of the release is printed.
+    if after_the_gate_job {
+        the_gate_ran_in_the_job_before(channel, publish, inherited)?;
+    }
     // Asked before the gate, so a job that cannot publish says so in its first
     // second and not after the whole gate has run.
     let github = match mode {
@@ -739,9 +872,15 @@ fn run_at(
 
     // **The gate first, before anything is written.** A release that rewrote a
     // version and then discovered the tests were red would leave a tree, and a
-    // release commit, nobody asked for.
+    // release commit, nobody asked for. In CI's release job it ran first in a
+    // job of its own, on this commit, which this one waits for.
     if dry_run {
         ui::warn("--dry-run: the gate is not run and nothing is written");
+    } else if after_the_gate_job {
+        ui::detail(
+            "the gate ran in the job before this one, on this commit, and this job runs none \
+             of its own",
+        );
     } else {
         ui::detail("running the gate before anything is written");
         the_gate(itself, root, inherited)?;
@@ -831,16 +970,23 @@ fn released(setting: &Releasing) -> Result<(), String> {
             the_tree_is_clean(&history)?;
             let holds = what_github_holds(github, setting.channel, version)?;
             what_github_holds_is_this_releases(&holds, setting.channel, version, None)?;
-            let files = written(setting, version, &changelog)?;
-            let at = the_release_commit(github, setting.channel, version, &head.hash, &files)?;
-            published(
-                github,
-                setting.channel,
-                version,
-                &at,
-                &notes,
-                &once_the_branch_moved(&holds),
-            )
+            let written = written(setting, version, &changelog)?;
+            let files = &written.carried;
+            // **A refusal from here on puts back what the run wrote**, as one
+            // after the first write and before this does: the tree holds what
+            // its `HEAD` holds again, whatever GitHub was left holding.
+            the_release_commit(github, setting.channel, version, &head.hash, files)
+                .and_then(|at| {
+                    published(
+                        github,
+                        setting.channel,
+                        version,
+                        &at,
+                        &notes,
+                        &once_the_branch_moved(&holds),
+                    )
+                })
+                .map_err(|problem| with_the_tree_put_back(setting.root, &written.found, &problem))
         }
         (Mode::Write | Mode::Publish, _) => {
             the_tree_is_clean(&history)?;
@@ -1673,6 +1819,7 @@ fn the_tree_is_clean(history: &Own) -> Result<(), String> {
 
 /// What each file a release writes held before it wrote any of them, so a
 /// release that fails part way can put each one back.
+#[derive(Debug)]
 struct Found {
     /// Each manifest [`CARRIES_THE_VERSION`] names, by name, as it was.
     manifests: Vec<(&'static str, String)>,
@@ -1680,6 +1827,17 @@ struct Found {
     locked: Vec<u8>,
     /// The changelog's bytes, or `None` when the tree had none.
     changelog: Option<Vec<u8>>,
+}
+
+/// What [`written`] answers: each file a release commit carries, and what
+/// every file it wrote held before the first write.
+#[derive(Debug)]
+struct Written {
+    /// Each file the release commit carries, by name, with its bytes as read
+    /// back.
+    carried: Vec<(String, Vec<u8>)>,
+    /// What each file it wrote held before it wrote any of them.
+    found: Found,
 }
 
 /// Writes the release into the tree — the version, then the changelog, then
@@ -1697,17 +1855,21 @@ struct Found {
 /// that cannot be read — is put back by one arm of this function, through
 /// [`put_back`]. Each refusal names any file that did not go back.
 ///
+/// **And every one is a file of this tree's**, checked before any is read
+/// ([`each_is_a_file_of_this_trees`]).
+///
+/// It answers what it found too, so a refusal after it returns can put the
+/// files back ([`with_the_tree_put_back`]).
+///
 /// # Errors
 ///
-/// Returns why a file could not be read, written or rebuilt, or why one
-/// read back is not what was written, with what did not go back.
-fn written(
-    setting: &Releasing,
-    version: Version,
-    changelog: &str,
-) -> Result<Vec<(String, Vec<u8>)>, String> {
+/// Returns why a file is not one of this tree's, why one could not be read,
+/// written or rebuilt, or why one read back is not what was written, with what
+/// did not go back.
+fn written(setting: &Releasing, version: Version, changelog: &str) -> Result<Written, String> {
     let root = setting.root;
     let target = version.to_string();
+    each_is_a_file_of_this_trees(root)?;
     let manifests: Vec<(&'static str, String)> = CARRIES_THE_VERSION
         .into_iter()
         .map(|name| read(root, name).map(|text| (name, text)))
@@ -1745,7 +1907,7 @@ fn written(
 
     let rewritten = rewrite_listed(root, &CARRIES_THE_VERSION, &target)?;
     match written_after_the_version(setting, version, changelog, &rewritten) {
-        Ok(carried) => Ok(carried),
+        Ok(carried) => Ok(Written { carried, found }),
         // **Everything this wrote goes back, and the refusal says what did
         // not.** The manifest alone put back leaves `Cargo.lock` at the new
         // version — `cargo update` has already written it before failing — and
@@ -1828,6 +1990,82 @@ fn written_after_the_version(
     }
     carried.sort_by(|one, other| one.0.cmp(&other.0));
     Ok(carried)
+}
+
+/// Refuses, before the first write, a file the release writes that is not a
+/// regular file of this tree's: each manifest [`CARRIES_THE_VERSION`] names,
+/// the lockfile, and the changelog, which may be missing and is then created.
+///
+/// **A link is followed by every write and removed by a put-back.**
+/// `std::fs::write` writes through a link to wherever it points, and creates
+/// the file a link to nothing names; the changelog's put-back, when the tree
+/// had none, removes the link itself; and under `--publish` the release commit
+/// carries the bytes read through it as a file of its own. A directory, a pipe
+/// or a device is no file a release can read and put back either. So each is
+/// judged by what it is, not by what it points to (`symlink_metadata`), and
+/// anything but a regular file stops the release with nothing written.
+///
+/// # Errors
+///
+/// Returns which file is not a regular file, and what it is; or why one could
+/// not be judged.
+fn each_is_a_file_of_this_trees(root: &Path) -> Result<(), String> {
+    for name in CARRIES_THE_VERSION
+        .into_iter()
+        .chain(["Cargo.lock", CHANGELOG])
+    {
+        let found = match std::fs::symlink_metadata(root.join(name)) {
+            Ok(found) => found.file_type(),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound && name == CHANGELOG => {
+                continue;
+            }
+            Err(error) => {
+                return Err(format!(
+                    "{name} could not be read, and a release rewrites it: {error}. Nothing was \
+                     written"
+                ));
+            }
+        };
+        if found.is_file() {
+            continue;
+        }
+        // A link is told by the link it reads as, which no other kind of file
+        // answers.
+        let what = if std::fs::read_link(root.join(name)).is_ok() {
+            "a link"
+        } else if found.is_dir() {
+            "a directory"
+        } else {
+            "neither a file nor a directory"
+        };
+        return Err(format!(
+            "{name} is {what}, and a release writes it only as a regular file of this tree's: \
+             a write follows a link to wherever it points, and creates the file a link to \
+             nothing names. Nothing was written"
+        ));
+    }
+    Ok(())
+}
+
+/// `problem`, a refusal at the release commit or after it, once every file
+/// [`written`] wrote is put back as it `found` them: and what could not be.
+///
+/// **The same put-back as a refusal before the release commit**, so every
+/// refusal of the verb after its first write leaves the tree as `HEAD` holds
+/// it, whatever GitHub was left holding: a release commit made is carried on
+/// by the run its push starts, and one refused leaves nothing on GitHub.
+fn with_the_tree_put_back(root: &Path, found: &Found, problem: &str) -> String {
+    let not_back = put_back(root, found);
+    if not_back.is_empty() {
+        format!("{problem}. Every file this run wrote is put back as HEAD holds it")
+    } else {
+        format!(
+            "{problem}. And these could not be put back as HEAD holds them, so each holds what \
+             this run wrote: {}. The release began on a clean tree, so `git status` names what \
+             it left",
+            not_back.join("; ")
+        )
+    }
 }
 
 /// Puts every file [`written`] writes back as it found them — each listed
@@ -1982,9 +2220,11 @@ fn what_github_holds_is_this_releases(
 /// **An open pull request is queued, never merged now**: the merge state
 /// GitHub gave was of the head before, and the checks of the commit just made
 /// have not run. Into `staging`, whose rules the App alone may pass, a merge
-/// asked now would land the release before any check of it ran. **A merged
-/// one carried what the branch held before**, never the commit just made, so
-/// the release opens its own. And no branch below holds a commit just made.
+/// asked now would land the release before any check of it ran, and whether it
+/// conflicts is GitHub's to say again: auto-merge refused is what says it then.
+/// **A merged one carried what the branch held before**, never the commit just
+/// made, so the release opens its own. And no branch below holds a commit just
+/// made.
 fn once_the_branch_moved(holds: &OnGitHub) -> OnGitHub {
     let carried = holds
         .carried
@@ -1992,6 +2232,7 @@ fn once_the_branch_moved(holds: &OnGitHub) -> OnGitHub {
         .filter(|carried| carried.state != Carried::Merged)
         .map(|carried| CarriedBack {
             mergeable: false,
+            conflicting: false,
             ..carried.clone()
         });
     OnGitHub {
@@ -2057,14 +2298,26 @@ fn published(
     };
     if let Some(carried) = carried
         .as_ref()
-        .filter(|carried| carried.state == Carried::Open && !carried.auto_merge)
+        .filter(|carried| carried.state == Carried::Open)
     {
-        if carried.mergeable {
-            merged_now(github, carried)?;
-        } else {
-            auto_merged(github, carried)?;
+        if carried.conflicting {
+            return Err(carried_back_by_hand(
+                channel,
+                version,
+                carried.number,
+                "GitHub says it conflicts with that branch",
+            ));
         }
-        made += 1;
+        if !carried.auto_merge {
+            if carried.mergeable {
+                merged_now(github, carried)?;
+            } else {
+                auto_merged(github, carried).map_err(|problem| {
+                    carried_back_by_hand(channel, version, carried.number, &problem)
+                })?;
+            }
+            made += 1;
+        }
     }
     if made == 0 {
         ui::ok(&format!(
@@ -2240,12 +2493,21 @@ fn a_carried_back(node: &serde_json::Value) -> Result<CarriedBack, String> {
             .and_then(serde_json::Value::as_str),
         Some("CLEAN" | "HAS_HOOKS" | "UNSTABLE")
     );
+    // **A conflict, in either shape GitHub says one**: `mergeable` false where
+    // it answers through REST, as it does the pull request the release opens,
+    // and the merge state `DIRTY` where it answers through GraphQL.
+    let conflicting = node.get("mergeable") == Some(&serde_json::Value::Bool(false))
+        || node
+            .get("mergeStateStatus")
+            .and_then(serde_json::Value::as_str)
+            == Some("DIRTY");
     Ok(CarriedBack {
         number,
         id,
         state,
         auto_merge,
         mergeable,
+        conflicting,
     })
 }
 
@@ -2461,6 +2723,33 @@ fn carried_back_as(channel: Channel, version: Version) -> String {
         "chore(release): carry {} back to {}",
         version.tag(),
         channel.below()
+    )
+}
+
+/// What a release says when the pull request `number`, which carries
+/// `version` back from `channel`'s branch, cannot be merged on GitHub, and
+/// why: how a person carries it back.
+///
+/// **The released branch stays the pull request's head**, and it takes
+/// nothing but pull requests and the release App, so a conflict cannot be
+/// resolved on it, and GitHub's conflict editor cannot commit there. A branch
+/// made from the one below can: it takes the released branch by a merge, keeps
+/// the released version and changelog where the two disagree, and has its
+/// lockfile rebuilt for that version; its own pull request then lands the
+/// release, and GitHub marks this one merged once its head is reachable from
+/// the branch below. The tag and the GitHub release are made already, because
+/// they come before the pull request back.
+fn carried_back_by_hand(channel: Channel, version: Version, number: u64, why: &str) -> String {
+    let (branch, below) = (channel.branch(), channel.below());
+    format!(
+        "pull request #{number}, which carries {} back to {below}, cannot be merged on GitHub: \
+         {why}. {} is tagged and released. Carry it back by hand: make a branch from {below}, \
+         merge {branch} into it, keep {branch}'s version and {CHANGELOG} wherever the two \
+         disagree, run `cargo update --workspace`, commit it signed, and open a pull request \
+         into {below}. Once that merges, GitHub marks #{number} merged, because its head is \
+         reachable from {below}",
+        version.tag(),
+        version.tag()
     )
 }
 
@@ -3342,49 +3631,54 @@ mod tests {
         let _ = std::fs::remove_dir_all(&scratch);
     }
 
+    /// A listed file that lost its version, or holds another, stops the
+    /// release, and the files before it go back.
+    ///
+    /// **Driven with a second file**, because the branch is unreachable while
+    /// `CARRIES_THE_VERSION` has one entry — `from` is read from the same file
+    /// the loop re-reads — and undriven it is documentation rather than a gate.
+    /// A list that has gone stale, or a file that lost its line, is a tree that
+    /// would ship disagreeing with itself. **The manifest is not written back
+    /// between the two calls**: each refusal puts it back itself, and each is
+    /// asked to.
     #[test]
     fn a_listed_file_that_lost_its_version_stops_the_release() {
-        // The branch is unreachable while `CARRIES_THE_VERSION` has one entry —
-        // `from` is read from the same file the loop re-reads — so undriven it
-        // is documentation rather than a gate. Driven here with a second file, it
-        // is the rule the header describes: a list that has gone stale, or a
-        // file that lost its line, is a tree that would ship disagreeing with
-        // itself.
-        let scratch = std::env::temp_dir().join(format!("nc-release-two-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&scratch);
-        std::fs::create_dir_all(&scratch).expect("writable");
-        std::fs::write(
-            scratch.join("Cargo.toml"),
-            "[workspace.package]\nversion = \"0.1.0\"\n",
-        )
-        .expect("writable");
-        std::fs::write(scratch.join("second.toml"), "edition = \"2024\"\n").expect("writable");
+        let scratch = LeavesNothingBehind::new("release-two");
+        let manifest = scratch.root.join("Cargo.toml");
+        let held = "[workspace.package]\nversion = \"0.1.0\"\n";
+        let put_back = "Every file this run touched has been put back as it was";
+        std::fs::write(&manifest, held).expect("writable");
+        std::fs::write(scratch.root.join("second.toml"), "edition = \"2024\"\n").expect("writable");
 
-        let refused = super::rewrite_listed(&scratch, &["Cargo.toml", "second.toml"], "0.2.0")
+        let refused = super::rewrite_listed(&scratch.root, &["Cargo.toml", "second.toml"], "0.2.0")
             .expect_err("a listed file with no version stops the release");
         assert!(
             refused.contains("second.toml") && refused.contains("holds none"),
             "the refusal does not name the file that lost its version: {refused}"
         );
+        assert!(refused.ends_with(put_back), "{refused}");
+        assert_eq!(
+            std::fs::read_to_string(&manifest).expect("readable"),
+            held,
+            "the manifest was left at the new version when the file after it held none"
+        );
 
         // And a second file that holds a *different* version is the other half:
-        // the tree already disagrees, and a release would paper over it. The
-        // manifest goes back to where it started, because the call above left
-        // it at the version this one is moving to.
-        std::fs::write(
-            scratch.join("Cargo.toml"),
-            "[workspace.package]\nversion = \"0.1.0\"\n",
-        )
-        .expect("writable");
-        std::fs::write(scratch.join("second.toml"), "version = \"9.9.9\"\n").expect("writable");
-        let refused = super::rewrite_listed(&scratch, &["Cargo.toml", "second.toml"], "0.2.0")
+        // the tree already disagrees, and a release would paper over it.
+        std::fs::write(scratch.root.join("second.toml"), "version = \"9.9.9\"\n")
+            .expect("writable");
+        let refused = super::rewrite_listed(&scratch.root, &["Cargo.toml", "second.toml"], "0.2.0")
             .expect_err("a tree that already disagrees stops the release");
         assert!(
             refused.contains("already disagree"),
             "the refusal does not say the files disagree: {refused}"
         );
-
-        let _ = std::fs::remove_dir_all(&scratch);
+        assert!(refused.ends_with(put_back), "{refused}");
+        assert_eq!(
+            std::fs::read_to_string(&manifest).expect("readable"),
+            held,
+            "the manifest was left at the new version when the file after it disagreed"
+        );
     }
 
     /// A listed file that cannot be read, or cannot be written, stops the
@@ -5444,9 +5738,9 @@ mod tests {
     fn a_dry_run_writes_nothing() {
         let repository = a_workspace("dry", &["feat(xtask): something to release"]);
         let before = every_file_under(&repository.root());
-        super::run(&repository.root(), Channel::Staging, true, false)
+        super::run(&repository.root(), Channel::Staging, true, false, false)
             .expect("a dry run of a release that exists");
-        super::run(&repository.root(), Channel::Main, true, false)
+        super::run(&repository.root(), Channel::Main, true, false, false)
             .expect("a dry run of a release that exists");
         assert_eq!(
             changed_between(&before, &every_file_under(&repository.root())),
@@ -5509,28 +5803,44 @@ mod tests {
         );
     }
 
-    /// A changelog that is there and cannot be read stops the release before
-    /// anything is written.
+    /// A changelog that is there and cannot be read, or is not a file, stops
+    /// the release before anything is written.
     ///
     /// **Read as no changelog, it is one a failure removes**, so the release
-    /// would delete a file it never read. A directory stands in for it,
-    /// because no system reads one as a file, as root or otherwise.
+    /// would delete a file it never read. A file its owner may not read is
+    /// the first, which the read refuses; the test asks first whether the
+    /// mark refuses this user anything, and fails by name rather than passing
+    /// when it does not. A directory is the second, which no system reads as
+    /// a file, as root or otherwise, and which is refused before any read.
     #[test]
     fn a_changelog_that_cannot_be_read_stops_the_release_before_it_writes() {
         let repository = a_workspace("unreadable", &[]);
         let root = repository.root();
-        let inside = root.join("CHANGELOG.md").join("kept");
-        std::fs::create_dir_all(inside.parent().expect("a file sits in a directory"))
-            .expect("a writable scratch");
-        std::fs::write(&inside, "what is under it\n").expect("a writable scratch");
-        let before = every_file_under(&root);
+        let changelog = root.join("CHANGELOG.md");
         let inherited = this_environment();
-        let refused = super::written(
-            &a_setting(&root, Channel::Staging, Mode::Write, &inherited, None),
-            v("0.2.0"),
-            "# Changelog\n",
-        )
-        .expect_err("a changelog that cannot be read stops the release");
+        let a_release = || {
+            super::written(
+                &a_setting(&root, Channel::Staging, Mode::Write, &inherited, None),
+                v("0.2.0"),
+                "# Changelog\n",
+            )
+        };
+        std::fs::write(&changelog, "# Changelog\n\nas the tree holds it\n")
+            .expect("a writable scratch");
+        let before = every_file_under(&root);
+        nc_platform::testing::make_unreadable(&changelog).expect("the mark is set");
+        let the_mark_holds = std::fs::read(&changelog).is_err();
+        let ran = the_mark_holds.then(a_release);
+        // Readable again before anything can panic, so the scratch can be removed.
+        nc_platform::testing::make_private(&changelog).expect("the mark comes off");
+        assert!(
+            the_mark_holds,
+            "a file its owner may not read was read, so this run is root's, which reads past \
+             the mark: the changelog's read is held only when the tests run as an ordinary user"
+        );
+        let refused = ran
+            .expect("asked above")
+            .expect_err("a changelog that cannot be read stops the release");
         assert!(
             refused.contains("CHANGELOG.md could not be read, and a release rewrites it")
                 && refused.contains("Nothing was written"),
@@ -5541,6 +5851,82 @@ mod tests {
             Vec::<String>::new(),
             "a release refused before it wrote changed the tree"
         );
+
+        std::fs::remove_file(&changelog).expect("a writable scratch");
+        std::fs::create_dir_all(changelog.join("kept")).expect("a writable scratch");
+        std::fs::write(changelog.join("kept").join("under"), "what is under it\n")
+            .expect("a writable scratch");
+        let before = every_file_under(&root);
+        let refused = a_release().expect_err("a changelog that is a directory stops the release");
+        assert!(
+            refused.contains("CHANGELOG.md is a directory")
+                && refused.ends_with("Nothing was written"),
+            "{refused}"
+        );
+        assert_eq!(
+            changed_between(&before, &every_file_under(&root)),
+            Vec::<String>::new(),
+            "a release refused before it wrote changed the tree"
+        );
+    }
+
+    /// A file the release writes that is a link — to a file, or to nothing —
+    /// stops the release before anything is written.
+    ///
+    /// **Each file it writes, each kind of link**: every manifest
+    /// `CARRIES_THE_VERSION` names, the lockfile and the changelog, each made
+    /// a link to a file of the tree and then a link to nothing. A write would
+    /// follow the first to its target and create the second's, and a put-back
+    /// would remove the link itself; refused, the target holds what it held and
+    /// the file a link to nothing names is not made.
+    #[test]
+    fn a_file_the_release_writes_that_is_a_link_stops_it_before_it_writes() {
+        let repository = a_workspace("linked", &[]);
+        let root = repository.root();
+        let inherited = this_environment();
+        std::fs::create_dir_all(root.join("elsewhere")).expect("a writable scratch");
+        for name in CARRIES_THE_VERSION
+            .into_iter()
+            .chain(["Cargo.lock", super::CHANGELOG])
+        {
+            let file = root.join(name);
+            let kept = std::fs::read(&file).ok();
+            let target = root.join("elsewhere").join(name);
+            let nowhere = root.join("elsewhere").join(format!("no-{name}"));
+            for (kind, points_to) in [("to a file", &target), ("to nothing", &nowhere)] {
+                if kind == "to a file" {
+                    std::fs::write(&target, kept.as_deref().unwrap_or(b"# Changelog\n"))
+                        .expect("a writable scratch");
+                }
+                let _ = std::fs::remove_file(&file);
+                nc_platform::testing::link_file(points_to, &file).expect("a link");
+                let before = every_file_under(&root);
+                let refused = super::written(
+                    &a_setting(&root, Channel::Staging, Mode::Write, &inherited, None),
+                    v("0.2.0"),
+                    "# Changelog\n",
+                )
+                .expect_err(kind);
+                assert!(
+                    refused.starts_with(&format!("{name} is a link"))
+                        && refused.ends_with("Nothing was written"),
+                    "{name}, a link {kind}: {refused}"
+                );
+                assert_eq!(
+                    changed_between(&before, &every_file_under(&root)),
+                    Vec::<String>::new(),
+                    "{name}, a link {kind}: a release refused before it wrote changed the tree"
+                );
+                assert!(
+                    std::fs::symlink_metadata(&nowhere).is_err(),
+                    "{name}, a link {kind}: the file a link to nothing names was made"
+                );
+                std::fs::remove_file(&file).expect("a writable scratch");
+            }
+            if let Some(kept) = kept {
+                std::fs::write(&file, kept).expect("a writable scratch");
+            }
+        }
     }
 
     /// The verb refuses a release that would repeat one, and one that would
@@ -5568,8 +5954,8 @@ mod tests {
         let elsewhere = repository.head();
         repository.git(&["tag", "v0.2.0", &elsewhere]);
         repository.git(&["checkout", "-q", "dev"]);
-        let refused =
-            super::run(&root, Channel::Staging, true, false).expect_err("v0.2.0 is not merged");
+        let refused = super::run(&root, Channel::Staging, true, false, false)
+            .expect_err("v0.2.0 is not merged");
         assert!(refused.contains("staging does not reach it"), "{refused}");
         // And a tag at the version main would release is a refusal.
         repository.git(&["tag", "v0.1.1", &elsewhere]);
@@ -5912,6 +6298,12 @@ fn main() {
         each_merge_answer_is_held_to_the_shape_asked(&root, &repository.head(), &bin, &fixtures);
         the_branch_below_is_held_to_the_shape_asked(&root, &repository.head(), &bin, &fixtures);
         the_answer_to_the_question_is_held_to_the_shape_asked(&root, &bin, &fixtures);
+        a_pull_request_back_that_cannot_merge_says_how_to_by_hand(
+            &root,
+            &repository.head(),
+            &bin,
+            &fixtures,
+        );
         a_release_commit_not_as_written_is_not_carried_on(&repository, &bin, &fixtures);
     }
 
@@ -6642,7 +7034,8 @@ fn main() {
     /// auto-merge there, so the pull request is merged — passed clean, with
     /// hooks, or with the required checks passed beside others that failed.
     /// **And one GitHub would not merge now is queued**: behind the branch
-    /// below, or in conflict with it.
+    /// below. One in conflict with it is refused, saying how to carry the
+    /// release back by hand (`a_release_that_cannot_be_carried_back_says_how_to_by_hand`).
     fn the_runs_by_merge_state(
         release_commit: &str,
     ) -> Vec<(String, String, Vec<String>, Vec<String>)> {
@@ -6682,13 +7075,7 @@ fn main() {
             (
                 "the pull request, behind the branch below",
                 holding_these(at, true, &[standing("BEHIND")]),
-                vec![queued.clone()],
-                vec!["AutoMerge"],
-            ),
-            (
-                "the pull request, in conflict with the branch below",
-                holding_these(at, true, &[standing("DIRTY")]),
-                vec![queued.clone()],
+                vec![queued],
                 vec!["AutoMerge"],
             ),
         ])
@@ -7180,8 +7567,16 @@ fn main() {
         let mut inherited = this_environment();
         inherited.push(("NC_FAKE_GH".into(), fixtures.as_os_str().to_owned()));
         let before = every_file_under(&root);
-        let refused = super::run_at(&fake, &root, Channel::Staging, false, false, &inherited)
-            .expect_err("a gate that exits 1 refused");
+        let refused = super::run_at(
+            &fake,
+            &root,
+            Channel::Staging,
+            false,
+            false,
+            false,
+            &inherited,
+        )
+        .expect_err("a gate that exits 1 refused");
         assert!(
             refused.contains("the gate refused, as its lines above say, so nothing was written"),
             "{refused}"
@@ -7191,8 +7586,16 @@ fn main() {
             Vec::<String>::new(),
             "a release whose gate refused changed the tree"
         );
-        super::run_at(&fake, &root, Channel::Staging, false, false, &inherited)
-            .expect("a gate that exits 0 passed, and the release goes on");
+        super::run_at(
+            &fake,
+            &root,
+            Channel::Staging,
+            false,
+            false,
+            false,
+            &inherited,
+        )
+        .expect("a gate that exits 0 passed, and the release goes on");
         assert_eq!(
             changed_between(&before, &every_file_under(&root)),
             [
@@ -7210,6 +7613,370 @@ fn main() {
             ["check", "check"],
             "the gate was not the child started"
         );
+    }
+
+    /// A run carried on from the release commit at `release_commit`, whose pull
+    /// request back GitHub says conflicts with the branch below or refuses to
+    /// queue, stops, and says how a person carries the release back.
+    ///
+    /// **Its head is the released branch, which takes nothing but pull requests
+    /// and the release App**, so the conflict is resolved on a branch made from
+    /// the one below; nothing is asked after GitHub refuses, and a conflict is
+    /// refused with auto-merge on as well as off.
+    fn a_pull_request_back_that_cannot_merge_says_how_to_by_hand(
+        root: &Path,
+        release_commit: &str,
+        bin: &Path,
+        fixtures: &Path,
+    ) {
+        let standing = |status: &str, auto: bool| {
+            let mut node = a_pull_request(
+                "chore(release): carry v0.1.0-rc.1 back to dev",
+                "OPEN",
+                auto,
+            );
+            node["mergeStateStatus"] = status.into();
+            holding_these(Some(release_commit), true, &[node])
+        };
+        for (what, answers, expected, why) in [
+            (
+                "in conflict",
+                vec![standing("DIRTY", false)],
+                vec!["WhatGitHubHolds"],
+                "GitHub says it conflicts with that branch",
+            ),
+            (
+                "in conflict, queued",
+                vec![standing("DIRTY", true)],
+                vec!["WhatGitHubHolds"],
+                "GitHub says it conflicts with that branch",
+            ),
+            (
+                "not queued",
+                vec![standing("BLOCKED", false), "1\n".to_owned()],
+                vec!["WhatGitHubHolds", "AutoMerge"],
+                "",
+            ),
+        ] {
+            let refused =
+                published_on_staging(root, &a_github(bin, fixtures, &answers)).expect_err(what);
+            assert!(
+                refused.starts_with(
+                    "pull request #7, which carries v0.1.0-rc.1 back to dev, cannot be merged on \
+                     GitHub: "
+                ) && refused.contains(why)
+                    && refused.contains(
+                        "v0.1.0-rc.1 is tagged and released. Carry it back by hand: make a \
+                         branch from dev, merge staging into it, keep staging's version and \
+                         CHANGELOG.md wherever the two disagree, run `cargo update --workspace`, \
+                         commit it signed, and open a pull request into dev. Once that merges, \
+                         GitHub marks #7 merged",
+                    ),
+                "{what}: {refused}"
+            );
+            assert_eq!(
+                asked(&the_calls(fixtures)),
+                expected,
+                "{what}: the release went on past a pull request back that cannot merge"
+            );
+        }
+    }
+
+    /// The environment CI's release job runs in: GitHub Actions, the job
+    /// `release` of `release.yml` on `staging`, in the repository the fake
+    /// publishes to.
+    fn the_release_jobs_environment() -> Vec<(OsString, OsString)> {
+        vec![
+            ("GITHUB_ACTIONS".into(), "true".into()),
+            ("GITHUB_JOB".into(), "release".into()),
+            ("GITHUB_REPOSITORY".into(), "noctua-world/probe".into()),
+            (
+                "GITHUB_WORKFLOW_REF".into(),
+                "noctua-world/probe/.github/workflows/release.yml@refs/heads/staging".into(),
+            ),
+        ]
+    }
+
+    /// The gate stands aside under `--publish`, as the release job of
+    /// `release.yml` on the channel's branch, and nowhere else.
+    ///
+    /// **Driven with an environment of its own, never this process's**, which
+    /// in CI is a job of `ci.yml`: each variable the job is known by is taken
+    /// away or named otherwise, one at a time.
+    #[test]
+    fn the_gate_stands_aside_in_the_release_job_alone() {
+        let job = the_release_jobs_environment();
+        super::the_gate_ran_in_the_job_before(Channel::Staging, true, &job)
+            .expect("CI's release job, on staging");
+        let refused = super::the_gate_ran_in_the_job_before(Channel::Staging, false, &job)
+            .expect_err("without --publish");
+        assert!(
+            refused.contains("is passed with --publish alone")
+                && refused.ends_with("Nothing was written"),
+            "{refused}"
+        );
+        let with = |name: &str, value: Option<&str>| -> Vec<(OsString, OsString)> {
+            let mut changed: Vec<(OsString, OsString)> =
+                job.iter().filter(|(key, _)| key != name).cloned().collect();
+            if let Some(value) = value {
+                changed.push((name.into(), value.into()));
+            }
+            changed
+        };
+        let at = |workflow: &str, branch: &str| {
+            format!("noctua-world/probe/.github/workflows/{workflow}@refs/heads/{branch}")
+        };
+        super::the_gate_ran_in_the_job_before(
+            Channel::Main,
+            true,
+            &with("GITHUB_WORKFLOW_REF", Some(&at("release.yml", "main"))),
+        )
+        .expect("CI's release job, on main");
+        for (what, inherited, channel) in [
+            (
+                "outside GitHub Actions",
+                with("GITHUB_ACTIONS", None),
+                Channel::Staging,
+            ),
+            (
+                "GitHub Actions said otherwise",
+                with("GITHUB_ACTIONS", Some("false")),
+                Channel::Staging,
+            ),
+            ("no job", with("GITHUB_JOB", None), Channel::Staging),
+            (
+                "the gate's job",
+                with("GITHUB_JOB", Some("gate")),
+                Channel::Staging,
+            ),
+            (
+                "the gate's workflow",
+                with("GITHUB_WORKFLOW_REF", Some(&at("ci.yml", "staging"))),
+                Channel::Staging,
+            ),
+            (
+                "another branch",
+                with("GITHUB_WORKFLOW_REF", Some(&at("release.yml", "dev"))),
+                Channel::Staging,
+            ),
+            ("another channel", job.clone(), Channel::Main),
+            (
+                "a pull request",
+                with(
+                    "GITHUB_WORKFLOW_REF",
+                    Some("noctua-world/probe/.github/workflows/release.yml@refs/pull/7/merge"),
+                ),
+                Channel::Staging,
+            ),
+            (
+                "another repository",
+                with(
+                    "GITHUB_WORKFLOW_REF",
+                    Some("someone/else/.github/workflows/release.yml@refs/heads/staging"),
+                ),
+                Channel::Staging,
+            ),
+            (
+                "no repository",
+                with("GITHUB_REPOSITORY", None),
+                Channel::Staging,
+            ),
+            (
+                "no workflow",
+                with("GITHUB_WORKFLOW_REF", None),
+                Channel::Staging,
+            ),
+            ("nothing at all", Vec::new(), Channel::Staging),
+        ] {
+            let refused =
+                super::the_gate_ran_in_the_job_before(channel, true, &inherited).expect_err(what);
+            assert!(
+                refused.contains("and this run is not that job")
+                    && refused.ends_with("Nothing was written"),
+                "{what}: {refused}"
+            );
+        }
+    }
+
+    /// The names the gate is stood aside by are the ones the workflow reader
+    /// holds `release.yml` to: the flag the verb declares, the workflow and the
+    /// job.
+    #[test]
+    fn the_gate_is_stood_aside_by_the_names_the_workflow_is_held_to() {
+        use clap::CommandFactory as _;
+        let cli = crate::Cli::command();
+        let release = cli.find_subcommand("release").expect("the release verb");
+        assert!(
+            release.get_arguments().any(|argument| argument
+                .get_long()
+                .map(|long| format!("--{long}"))
+                .as_deref()
+                == Some(super::AFTER_THE_GATE_JOB)),
+            "the release verb declares no `{}`",
+            super::AFTER_THE_GATE_JOB
+        );
+        assert_eq!(
+            super::THE_RELEASE_WORKFLOW,
+            crate::workflow::RELEASE_WORKFLOW
+        );
+        assert_eq!(super::THE_RELEASE_JOB, crate::workflow::THE_RELEASE_JOB);
+    }
+
+    /// The verb stands its gate aside after the gate job and nowhere else,
+    /// through `run_at` itself: refused, nothing is written and no gate and no
+    /// `gh` is started; accepted, the release is made with no gate started.
+    #[test]
+    fn the_verb_stands_its_gate_aside_after_the_gate_job_and_nowhere_else() {
+        let (held, bin) = a_fake_gh();
+        let fixtures = held.root.join("fixtures");
+        let fake = bin.join(format!("gh{}", std::env::consts::EXE_SUFFIX));
+        let repository = a_workspace("after-the-gate", &["fix: something to release"]);
+        let root = repository.root();
+        let before = every_file_under(&root);
+        let made = "1".repeat(40);
+        let mut answers = vec![
+            holding(None, false, None),
+            answered(
+                &serde_json::json!({ "data": { "createCommitOnBranch": { "commit": { "oid": made } } } }),
+            ),
+        ];
+        answers.extend(the_steps_answered(&made));
+        let (_, mut inherited) = a_github(&bin, &fixtures, &answers);
+        inherited.retain(|(name, _)| !name.to_string_lossy().starts_with("GITHUB_"));
+        let refused = super::run_at(
+            &fake,
+            &root,
+            Channel::Staging,
+            false,
+            false,
+            true,
+            &inherited,
+        )
+        .expect_err("without --publish");
+        assert!(
+            refused.contains("is passed with --publish alone"),
+            "{refused}"
+        );
+        let refused = super::run_at(
+            &fake,
+            &root,
+            Channel::Staging,
+            false,
+            true,
+            true,
+            &inherited,
+        )
+        .expect_err("outside the release job");
+        assert!(
+            refused.contains("and this run is not that job"),
+            "{refused}"
+        );
+        assert_eq!(
+            changed_between(&before, &every_file_under(&root)),
+            Vec::<String>::new(),
+            "a gate stood aside where none ran changed the tree"
+        );
+        assert!(
+            the_calls(&fixtures).is_empty(),
+            "a gate stood aside where none ran started the gate or `gh`"
+        );
+        inherited.extend(the_release_jobs_environment());
+        super::run_at(
+            &fake,
+            &root,
+            Channel::Staging,
+            false,
+            true,
+            true,
+            &inherited,
+        )
+        .expect("the release job, after the gate job");
+        assert_eq!(
+            asked(&the_calls(&fixtures)),
+            [
+                "WhatGitHubHolds",
+                "ReleaseCommit",
+                "repos/noctua-world/probe/git/refs",
+                "repos/noctua-world/probe/releases",
+                "repos/noctua-world/probe/pulls",
+                "AutoMerge",
+            ],
+            "the release job started the gate, which ran in the job before it"
+        );
+    }
+
+    /// A refusal at the release commit or after it puts back every file the
+    /// run wrote, and says so; and a pull request back that GitHub says
+    /// conflicts, or will not queue, says how to carry the release back.
+    ///
+    /// **Through a release made fresh**, over one workspace, which each refusal
+    /// leaves as it was given: the release commit refused, the tag refused, a
+    /// pull request REST answers as conflicting, and auto-merge refused.
+    #[test]
+    fn a_refusal_after_the_first_write_on_github_puts_the_tree_back() {
+        let (fake, bin) = a_fake_gh();
+        let repository = a_workspace("put-back", &["fix(xtask): something to release"]);
+        let root = repository.root();
+        let fixtures = fake.root.join("fixtures");
+        let made = "1".repeat(40);
+        let before = every_file_under(&root);
+        let committed = answered(
+            &serde_json::json!({ "data": { "createCommitOnBranch": { "commit": { "oid": made } } } }),
+        );
+        let [tag, release, opened, _] = the_steps_answered(&made);
+        let conflicting = answered(
+            &serde_json::json!({ "number": 7, "id": 5_147_253_185_u64, "node_id": "PR_seven", "title": "chore(release): carry v0.1.0-rc.1 back to dev", "state": "open", "mergeable": false }),
+        );
+        let refused_by_gh = "1\n".to_owned();
+        let (refs, releases, pulls) = (
+            "repos/noctua-world/probe/git/refs",
+            "repos/noctua-world/probe/releases",
+            "repos/noctua-world/probe/pulls",
+        );
+        for (what, answers, expected, said) in [
+            (
+                "the release commit refused",
+                vec![refused_by_gh.clone()],
+                vec![],
+                "",
+            ),
+            (
+                "the tag refused",
+                vec![committed.clone(), refused_by_gh.clone()],
+                vec![refs],
+                "",
+            ),
+            (
+                "a pull request back in conflict",
+                vec![committed.clone(), tag.clone(), release.clone(), conflicting],
+                vec![refs, releases, pulls],
+                "Carry it back by hand",
+            ),
+            (
+                "auto-merge refused",
+                vec![committed.clone(), tag, release, opened, refused_by_gh],
+                vec![refs, releases, pulls, "AutoMerge"],
+                "Carry it back by hand",
+            ),
+        ] {
+            let mut all = vec![holding(None, false, None)];
+            all.extend(answers);
+            let refused =
+                published_on_staging(&root, &a_github(&bin, &fixtures, &all)).expect_err(what);
+            assert!(
+                refused.contains(said)
+                    && refused.ends_with("Every file this run wrote is put back as HEAD holds it"),
+                "{what}: {refused}"
+            );
+            let mut asked_for = vec!["WhatGitHubHolds", "ReleaseCommit"];
+            asked_for.extend(expected);
+            assert_eq!(asked(&the_calls(&fixtures)), asked_for, "{what}");
+            assert_eq!(
+                changed_between(&before, &every_file_under(&root)),
+                Vec::<String>::new(),
+                "{what}: a release refused on GitHub left the tree it wrote"
+            );
+        }
     }
 
     /// What tells this test binary, run again, that it is the child of

@@ -101,16 +101,25 @@ const THE_ONE_PERMISSION: &str = "contents: read";
 /// restores is one of them.
 const RESTORES_A_CACHE: [&str; 2] = ["actions/cache", "Swatinem/rust-cache"];
 
-/// What the release job runs, step by step and in this order, and every line
-/// each step holds: an action by its name, then its inputs; a command as it is
-/// written, then what it is handed.
+/// What each job of the release workflow runs, step by step and in this
+/// order, and every line each step holds: an action by its name, then its
+/// inputs; a command as it is written, then what it is handed.
 ///
-/// **Every step, not the cargo commands among them.** The job holds the App's
-/// token, which may push to `staging` and `main` past their rules and move a
-/// `v*` tag, so what may run beside it is this list and nothing else: a script
-/// a step runs, a composite action, or a second command on a line is a step
-/// that is not here. The stack comes up before the release, whose gate reads
-/// it, and the release's command names the channel as the branch pushed to.
+/// **Two jobs, and the App's token in the second alone.** `gate` runs the
+/// whole gate on the pushed commit and enters no environment, so every build
+/// script, procedural macro and test the gate runs, of this tree and of every
+/// locked dependency, and the auditor it installs, run in a job that holds
+/// neither the App's key nor its token. `release` waits for it, enters the
+/// branch's environment, builds the release tool before the token exists,
+/// mints the token, and runs the release with the verb's own gate turned off,
+/// because the job before ran it on the same commit. The token may push to
+/// `staging` and `main` past their rules and move a `v*` tag, so what runs in
+/// the job that holds it is this list and nothing else: a script a step runs,
+/// a composite action, or a second command on a line is a step that is not
+/// here. What that job still runs beside the App's key is the release tool,
+/// built from this tree and its locked dependencies before the token is
+/// minted, and `gh`: the tool's own dependencies are the boundary, which
+/// `AGENTS.md` names under what is deliberately not claimed.
 ///
 /// **And every line of each, not the line that says what it runs.** An input
 /// is part of what an action does: `repository:` beside the checkout's inputs
@@ -121,30 +130,49 @@ const RESTORES_A_CACHE: [&str; 2] = ["actions/cache", "Swatinem/rust-cache"];
 /// more, or one fewer, is a step that is not this one. A step's `name:` is its
 /// label and is not held; the commit an action is pinned to is held by
 /// [`every_action_is_a_commit`].
-const THE_RELEASE_STEPS: [&[&str]; 6] = [
-    &[
-        "uses: actions/create-github-app-token",
-        "id: app",
-        "with:",
-        "  app-id: ${{ vars.RELEASE_APP_ID }}",
-        "  private-key: ${{ secrets.RELEASE_APP_KEY }}",
-        "  permission-contents: write",
-        "  permission-pull-requests: write",
-    ],
-    &[
-        "uses: actions/checkout",
-        "with:",
-        "  fetch-depth: 0",
-        "  persist-credentials: false",
-    ],
-    &["run: rustup toolchain install --no-self-update"],
-    &["run: cargo install --locked cargo-deny"],
-    &["run: cargo xtask dev"],
-    &[
-        "run: cargo xtask release --channel ${{ github.ref_name }} --publish",
-        "env:",
-        "  GH_TOKEN: ${{ steps.app.outputs.token }}",
-    ],
+const THE_RELEASE_STEPS: [(&str, &[&[&str]]); 2] = [
+    (
+        "gate",
+        &[
+            &[
+                "uses: actions/checkout",
+                "with:",
+                "  fetch-depth: 0",
+                "  persist-credentials: false",
+            ],
+            &["run: rustup toolchain install --no-self-update"],
+            &["run: cargo install --locked cargo-deny@0.20.2"],
+            &["run: cargo xtask dev"],
+            &["run: cargo xtask check"],
+        ],
+    ),
+    (
+        "release",
+        &[
+            &[
+                "uses: actions/checkout",
+                "with:",
+                "  fetch-depth: 0",
+                "  persist-credentials: false",
+            ],
+            &["run: rustup toolchain install --no-self-update"],
+            &["run: cargo xtask release --help"],
+            &[
+                "uses: actions/create-github-app-token",
+                "id: app",
+                "with:",
+                "  client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}",
+                "  private-key: ${{ secrets.RELEASE_APP_KEY }}",
+                "  permission-contents: write",
+                "  permission-pull-requests: write",
+            ],
+            &[
+                "run: cargo xtask release --channel ${{ github.ref_name }} --publish --after-the-gate-job",
+                "env:",
+                "  GH_TOKEN: ${{ steps.app.outputs.token }}",
+            ],
+        ],
+    ),
 ];
 
 /// The keys the release workflow holds at its top, each once.
@@ -154,18 +182,55 @@ const THE_RELEASE_STEPS: [&[&str]; 6] = [
 /// here reads.
 const THE_RELEASE_WORKFLOWS_KEYS: [&str; 5] = ["name", "on", "permissions", "concurrency", "jobs"];
 
-/// The keys the release job holds, each once.
+/// The jobs the release workflow holds, each once, and the keys each holds,
+/// each once.
 ///
 /// **And no other.** `container:` runs every step, the one handed the token
 /// among them, inside an image this tree does not build; `services:` starts
 /// one beside them; `env:` and `defaults:` reach every step; `strategy:` runs
-/// the job more than once; and `if:`, `needs:` or `outputs:` tie it to what
-/// another job decides.
-const THE_RELEASE_JOBS_KEYS: [&str; 4] = ["runs-on", "environment", "permissions", "steps"];
+/// the job more than once; and `if:` or `outputs:` tie it to what another job
+/// decides. **`needs:` on the release alone, naming the gate**
+/// ([`THE_RELEASE_WAITS_FOR`]): the release runs no gate of its own, so it runs
+/// only once the gate passed on the same commit, and the gate waits for
+/// nothing. **And `environment:` on the release alone**: the gate holds
+/// nothing of the release's.
+const THE_RELEASE_JOBS: [(&str, &[&str]); 2] = [
+    ("gate", &["runs-on", "permissions", "steps"]),
+    (
+        "release",
+        &["needs", "runs-on", "environment", "permissions", "steps"],
+    ),
+];
+
+/// The job the release job waits for, as its `needs:` names it: the gate,
+/// which holds none of the release's authority
+/// ([`the_gate_holds_none_of_the_releases_authority`]).
+const THE_RELEASE_WAITS_FOR: &str = "gate";
+
+/// The job that makes the release, and the one place the App's token is
+/// minted and handed on.
+///
+/// **The name the release verb asks `GITHUB_JOB` for** before it stands its
+/// own gate aside (`crate::release`), which a test holds to this.
+pub(crate) const THE_RELEASE_JOB: &str = "release";
 
 /// The environment the release job enters: the branch's own, which holds
 /// the App's key and which GitHub lets a job enter from that branch alone.
 const THE_RELEASES_ENVIRONMENT: &str = "release-${{ github.ref_name }}";
+
+/// The lines the release workflow's `concurrency:` holds, in this order.
+///
+/// **And `queue: max` among them.** Under GitHub's default, `queue: single`,
+/// one run waits in a group and a newer one replaces it; the run of a release
+/// commit's own push is what finishes a release that died part way, and the
+/// next merge into the branch would cancel it while it waits. `max` keeps
+/// every run that waits, first in first out, and GitHub refuses it beside
+/// `cancel-in-progress: true`, which would stop a release part way.
+const THE_RELEASES_CONCURRENCY: [&str; 3] = [
+    "group: release-${{ github.ref }}",
+    "cancel-in-progress: false",
+    "queue: max",
+];
 
 /// The one line that hands the App's token on: to the release step, as the
 /// variable `gh` reads.
@@ -193,19 +258,22 @@ enum Place {
 /// index, `toJSON(steps)` is every step's output at once, and `toJSON(github)`
 /// holds the workflow's own token. A list of names to refuse is a list of
 /// spellings; a list of the lines the release needs is closed. The branch names
-/// the concurrency group, the environment and the channel; the App's id and its
-/// key reach the step that mints the token; and the token reaches the release
-/// step, as the variable `gh` reads.
+/// the concurrency group, the environment and the channel; the App's client id
+/// and its key reach the step that mints the token; and the token reaches the
+/// release step, as the variable `gh` reads. None stands in the gate job.
 const THE_EXPRESSIONS: [(&str, Place); 6] = [
     ("group: release-${{ github.ref }}", Place::ConcurrencyGroup),
     ("environment: release-${{ github.ref_name }}", Place::Job),
-    ("app-id: ${{ vars.RELEASE_APP_ID }}", Place::MintingStep),
+    (
+        "client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}",
+        Place::MintingStep,
+    ),
     (
         "private-key: ${{ secrets.RELEASE_APP_KEY }}",
         Place::MintingStep,
     ),
     (
-        "run: cargo xtask release --channel ${{ github.ref_name }} --publish",
+        "run: cargo xtask release --channel ${{ github.ref_name }} --publish --after-the-gate-job",
         Place::ReleaseStep,
     ),
     (THE_TOKEN_HANDED, Place::ReleaseStep),
@@ -217,8 +285,9 @@ const THE_EXPRESSIONS: [(&str, Place); 6] = [
 /// **Not one of [`SETS_UP_AND_JUDGES_NOTHING`]**, which every file CI reaches
 /// shares. It runs nothing of this tree's, so it is no cargo command, but what
 /// it mints may push to `staging` and `main` past their rules: the release job
-/// runs it as the first of [`THE_RELEASE_STEPS`], and anywhere else
-/// [`nothing_else_holds_the_releases_authority`] refuses it.
+/// runs it as one of [`THE_RELEASE_STEPS`], after the step that builds the
+/// release tool, and anywhere else [`nothing_else_holds_the_releases_authority`]
+/// refuses it.
 const MINTS_THE_RELEASE_TOKEN: &str = "actions/create-github-app-token";
 
 /// What each job must actually run, beside its name.
@@ -1222,9 +1291,10 @@ pub(crate) fn only_runs_the_gate(root: &Path) -> Result<(Vec<Finding>, usize), S
 /// else; each opens with `permissions: {}` and no job asks for more than
 /// [`THE_ONE_PERMISSION`]; neither runs on an event of
 /// [`WITH_THIS_REPOSITORYS_AUTHORITY`]; every action any file CI reaches uses
-/// is pinned to a full commit, with its release in a comment; the release is
-/// made as [`the_release_runs_as_written`] says; no other file CI reaches
-/// holds what makes one ([`nothing_else_holds_the_releases_authority`]);
+/// is pinned to a full commit, with its release in a comment, and every crate
+/// one installs to an exact version ([`every_install_names_its_version`]); the
+/// release is made as [`the_release_runs_as_written`] says; no other file CI
+/// reaches holds what makes one ([`nothing_else_holds_the_releases_authority`]);
 /// every key of a file GitHub runs is written out where a rule reads it
 /// ([`every_key_is_written_out`]), and no step runs such a file as a script
 /// ([`nothing_runs_what_github_reads`]); and every file CI reaches ends its
@@ -1267,6 +1337,7 @@ pub(crate) fn every_workflow_is_bounded(root: &Path) -> (Vec<Finding>, usize) {
     nothing_else_holds_the_releases_authority(root, &mut findings);
     every_key_is_written_out(root, &mut findings);
     nothing_runs_what_github_reads(root, &mut findings);
+    every_install_names_its_version(root, &mut findings);
     let judged = every_action_is_a_commit(root, &mut findings);
     (findings, judged)
 }
@@ -1694,9 +1765,77 @@ fn is_a_commit(reference: &str) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
+/// Every `cargo install` a file CI reaches runs names the crate at an exact
+/// version, `name@X.Y.Z`.
+///
+/// **A crate named with no version is whatever crates.io holds on the day**,
+/// and its code runs in the job that installs it, in `release.yml`'s gate as in
+/// every job of `ci.yml`: a release of it published between two runs changes
+/// what CI runs with no line here changing, as a moved tag would change an
+/// action ([`every_action_is_a_commit`]). Cargo installs exactly the version an
+/// `@X.Y.Z` names, and a requirement such as `@0.20` or `@^0.20.2` is a range.
+///
+/// **Read as the cargo walk reads a command** ([`cargo_commands`]), each line
+/// joined to the lines a backslash continues and a step's `name:` passed over as
+/// the label it is, so an install is judged however its line is written.
+fn every_install_names_its_version(root: &Path, findings: &mut Vec<Finding>) {
+    // A walk that stopped is said by `every_action_is_a_commit`, which walks
+    // the same files.
+    let Ok((files, _)) = everything_ci_reaches(root) else {
+        return;
+    };
+    for path in files {
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let relative = relative_to(root, &path);
+        let yaml = the_lines_github_reads_as_yaml(&relative, &text);
+        for (index, line) in joined_continuations(&text, &yaml) {
+            if line.starts_with('#') || (yaml.binary_search(&index).is_ok() && is_label(&line)) {
+                continue;
+            }
+            for command in cargo_commands(&line) {
+                let mut words = command.split_whitespace().skip(1);
+                if words.next() != Some(INSTALL) || words.any(names_an_exact_version) {
+                    continue;
+                }
+                findings.push(Finding {
+                    file: relative.clone(),
+                    line: index + 1,
+                    what: format!(
+                        "`{}` names no crate at an exact version",
+                        command.split_whitespace().collect::<Vec<_>>().join(" ")
+                    ),
+                    fix: "a crate named with no version, or with a range, is whatever crates.io \
+                          holds on the day, and its code runs in the job that installs it — in \
+                          the release's gate as in every other. Name it as `name@X.Y.Z`, which \
+                          cargo installs exactly, and move the version in every install of it \
+                          at once"
+                        .to_owned(),
+                });
+            }
+        }
+    }
+}
+
+/// Whether `word` names a crate at an exact version, `name@X.Y.Z`: a name that
+/// is not a flag, then three numbers and nothing else, its quotes taken off.
+fn names_an_exact_version(word: &str) -> bool {
+    let Some((name, version)) = word.trim_matches(['"', '\'']).split_once('@') else {
+        return false;
+    };
+    let numbers: Vec<&str> = version.split('.').collect();
+    !name.is_empty()
+        && !name.starts_with('-')
+        && numbers.len() == 3
+        && numbers
+            .iter()
+            .all(|number| !number.is_empty() && number.bytes().all(|byte| byte.is_ascii_digit()))
+}
+
 /// No file CI reaches but the release workflow holds what makes a release:
 /// the App's token, the environment that holds its key, a secret, a step's
-/// output, or `--publish`.
+/// output, `--publish`, or the flag that turns the release's own gate off.
 ///
 /// **Every rule on the release reads `release.yml`**, and `ci.yml` runs on
 /// every push, to `staging` and `main` among them. GitHub admits a job to an
@@ -1707,8 +1846,10 @@ fn is_a_commit(reference: &str) -> bool {
 /// that is refused wherever else GitHub reads it: the token's action, an
 /// environment, a secret and a step's output in a file GitHub runs
 /// ([`github_runs_it`]), the workflows and a composite action's file; and
-/// `--publish` in every file CI reaches, the justfile and a script a step runs
-/// among them. A justfile or a script holds no expression GitHub evaluates and
+/// `--publish` and `--after-the-gate-job` in every file CI reaches, the
+/// justfile and a script a step runs among them: the second stands the
+/// release's own gate aside, which is right only in the job that waits for the
+/// gate's. A justfile or a script holds no expression GitHub evaluates and
 /// no key a runner reads, and `docker-compose.yml`'s own `environment:` is the
 /// stack's.
 ///
@@ -1742,7 +1883,8 @@ fn nothing_else_holds_the_releases_authority(root: &Path, findings: &mut Vec<Fin
                           entered `release-main`, minted the App's token and published would \
                           make a release past every one of them. The token's action, the \
                           environment, a secret, a step's output, which is how the token is \
-                          handed on, and `--publish` are the parts of that, and each is the \
+                          handed on, `--publish`, and `--after-the-gate-job`, which stands the \
+                          release's own gate aside, are the parts of that, and each is the \
                           release workflow's alone. Make the release there"
                         .to_owned(),
                 });
@@ -1864,8 +2006,8 @@ fn github_runs_it(relative: &str) -> bool {
 /// `steps.app.outputs.token`, `steps['app']` and `toJSON(steps)` and leaves the
 /// key `steps:` alone. An expression is read in a comment too, because inside a
 /// block scalar a `#` line is text GitHub evaluates. **In any file**,
-/// `--publish`, with the quotes and backslashes a shell spends taken out
-/// first.
+/// `--publish` and `--after-the-gate-job`, with the quotes and backslashes a
+/// shell spends taken out first.
 fn the_releases_authority_in(read: &[String; 2], github: bool) -> Vec<String> {
     let mut held = Vec::new();
     for version in read {
@@ -1904,8 +2046,12 @@ fn the_releases_authority_in(read: &[String; 2], github: bool) -> Vec<String> {
         if github && in_an_expression("steps") {
             held.push("reads a step's output".to_owned());
         }
-        if code.replace(['"', '\'', '\\'], "").contains("--publish") {
+        let spent = code.replace(['"', '\'', '\\'], "");
+        if spent.contains("--publish") {
             held.push("publishes a release".to_owned());
+        }
+        if spent.contains(crate::release::AFTER_THE_GATE_JOB) {
+            held.push("turns the release's gate off".to_owned());
         }
     }
     held.sort_unstable();
@@ -2545,13 +2691,15 @@ fn the_lines_a_backslash_joins(text: &str) -> Vec<(usize, String)> {
 /// a channel's branch, and nowhere else.
 ///
 /// It holds [`THE_RELEASE_WORKFLOWS_KEYS`] at its top and no other key; it
-/// fires on a push to the branches of [`RELEASED_FROM`] and on nothing else; it
-/// holds one job, which holds [`THE_RELEASE_JOBS_KEYS`] and no other, runs on
-/// Linux and enters [`THE_RELEASES_ENVIRONMENT`]; it restores no cache; no step
-/// of it runs on a condition; the job runs its steps, each holding its own
-/// lines, and no others; and it evaluates [`THE_EXPRESSIONS`], each where that
-/// list puts it, and no other, so the App's key and token reach the steps that
-/// need them alone.
+/// fires on a push to the branches of [`RELEASED_FROM`] and on nothing else;
+/// its `concurrency:` holds [`THE_RELEASES_CONCURRENCY`]; it holds the jobs of
+/// [`THE_RELEASE_JOBS`], each holding its keys and no other, on Linux, the
+/// release waiting for the gate and alone entering
+/// [`THE_RELEASES_ENVIRONMENT`]; the gate holds none of the release's
+/// authority; it restores no cache; no step of it runs on a condition; each
+/// job runs its steps, each holding its own lines, and no others; and it
+/// evaluates [`THE_EXPRESSIONS`], each where that list puts it, and no other,
+/// so the App's key and token reach the steps that need them alone.
 fn the_release_runs_as_written(text: &str, findings: &mut Vec<Finding>) {
     let lines: Vec<&str> = text.lines().collect();
     let tops: Vec<usize> = (0..lines.len())
@@ -2565,12 +2713,64 @@ fn the_release_runs_as_written(text: &str, findings: &mut Vec<Finding>) {
         findings,
     );
     the_release_fires_on_a_channel(&lines, findings);
-    the_release_is_one_job(&lines, findings);
+    the_releases_concurrency_is_a_queue(&lines, findings);
+    the_release_is_two_jobs(&lines, findings);
+    the_gate_holds_none_of_the_releases_authority(&lines, text, findings);
     no_cache_reaches_the_release(&lines, findings);
     no_step_runs_on_a_condition(RELEASE_WORKFLOW, text, findings);
-    let steps = the_steps_of(&lines, "release");
-    the_release_runs_its_steps(&steps, findings);
+    for (job, written) in THE_RELEASE_STEPS {
+        the_job_runs_its_steps(job, &the_steps_of(&lines, job), written, findings);
+    }
+    let steps = the_steps_of(&lines, THE_RELEASE_JOB);
     every_expression_is_where_the_release_needs_it(&lines, text, &steps, findings);
+}
+
+/// The release workflow's `concurrency:` holds [`THE_RELEASES_CONCURRENCY`],
+/// line for line and at one depth, and nothing else.
+///
+/// **Every line, not the one that evaluates an expression.** The group alone
+/// was held, as [`THE_EXPRESSIONS`] places it, and `cancel-in-progress: true`
+/// or the default queue beside it would each lose a release: the first stops
+/// one part way, and the second lets the next merge cancel the run that
+/// finishes one that died.
+fn the_releases_concurrency_is_a_queue(lines: &[&str], findings: &mut Vec<Finding>) {
+    let opens = top_level(lines, "concurrency");
+    let held: Vec<String> = opens
+        .filter(|&at| key_and_value(lines[at]).1.is_empty())
+        .map(|at| {
+            let under = the_lines_under(lines, at);
+            let depth = under.first().map_or(0, |&first| indent_of(lines[first]));
+            under
+                .into_iter()
+                .map(|index| {
+                    let code = the_code_before_a_comment(lines[index]).trim().to_owned();
+                    if indent_of(lines[index]) == depth {
+                        code
+                    } else {
+                        format!("(at another depth) {code}")
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    if held != THE_RELEASES_CONCURRENCY {
+        findings.push(Finding {
+            file: RELEASE_WORKFLOW.to_owned(),
+            line: opens.map_or(1, |at| at + 1),
+            what: format!(
+                "the release's `concurrency` holds {held:?}, and it holds \
+                 {THE_RELEASES_CONCURRENCY:?} alone, in that order"
+            ),
+            fix: "one release per branch runs at a time, none is stopped part way, and none \
+                  is dropped while it waits: `cancel-in-progress: true` stops a release between \
+                  its commit and its tag, and under GitHub's default queue a newer run replaces \
+                  the one waiting, so the next merge cancels the run of a release commit's own \
+                  push, which is what finishes a release that died part way. Write the three \
+                  lines `THE_RELEASES_CONCURRENCY` in `xtask/src/workflow.rs` holds, as a \
+                  block under `concurrency:`"
+                .to_owned(),
+        });
+    }
 }
 
 /// The keys at `keys` are among `allowed`, each written once.
@@ -2593,12 +2793,13 @@ fn holds_these_keys_alone(
                 line: at + 1,
                 what: format!("{whose} holds `{key}:`, and it holds {allowed:?} alone, each once"),
                 fix: "every key there is one a rule here reads, and the others change what \
-                      runs beside the App's token: `env:` and `defaults:` reach every step, \
-                      `container:` runs each inside an image this tree does not build, \
-                      `services:` starts one beside them, and `strategy:` runs the job more \
-                      than once. A key written twice is one YAML reads one way and a reader \
+                      runs beside the App's token or before it: `env:` and `defaults:` reach \
+                      every step, `container:` runs each inside an image this tree does not \
+                      build, `services:` starts one beside them, `strategy:` runs the job more \
+                      than once, and `needs:` and `environment:` belong to the release job \
+                      alone. A key written twice is one YAML reads one way and a reader \
                       another. A key to add is a line in `THE_RELEASE_WORKFLOWS_KEYS` or \
-                      `THE_RELEASE_JOBS_KEYS`, with the rule that reads it"
+                      `THE_RELEASE_JOBS`, with the rule that reads it"
                     .to_owned(),
             });
         }
@@ -2718,50 +2919,68 @@ fn the_branches(lines: &[&str], at: usize) -> Vec<String> {
         .collect()
 }
 
-/// The release workflow holds the `release` job and no other, on Linux, in
-/// the environment of the branch it releases.
+/// The release workflow holds the jobs of [`THE_RELEASE_JOBS`], each once,
+/// and no other.
 ///
-/// **And no key but [`THE_RELEASE_JOBS_KEYS`]**, each once.
-fn the_release_is_one_job(lines: &[&str], findings: &mut Vec<Finding>) {
+/// **And each holds its own keys and no other**, each once
+/// ([`a_jobs_keys_are_its_own`]).
+fn the_release_is_two_jobs(lines: &[&str], findings: &mut Vec<Finding>) {
     let jobs: Vec<(usize, String)> = top_level(lines, "jobs")
         .map(|at| the_keys_under(lines, at))
         .unwrap_or_default()
         .into_iter()
         .map(|at| (at, key_and_value(lines[at]).0))
         .collect();
+    let named: Vec<&str> = THE_RELEASE_JOBS.iter().map(|(job, _)| *job).collect();
+    let mut seen: Vec<&str> = Vec::new();
     for (at, job) in &jobs {
-        if job != "release" {
+        if !named.contains(&job.as_str()) || seen.contains(&job.as_str()) {
             findings.push(Finding {
                 file: RELEASE_WORKFLOW.to_owned(),
                 line: at + 1,
-                what: format!("the release workflow holds the job `{job}` beside `release`"),
+                what: format!(
+                    "the release workflow holds the job `{job}` beside {named:?}, and it holds \
+                     each of those once and no other"
+                ),
                 fix: "every job in it runs on the push that releases a channel, and the rules \
-                      here read the `release` job alone; a second is a job nothing holds to \
-                      the steps, the environment or the token. What it would do belongs in \
-                      the gate"
+                      here read `gate` and `release` alone; another is a job nothing holds to \
+                      the steps, the environment or the token, and a name written twice is \
+                      one YAML reads one way and a reader another. What it would do belongs \
+                      in the gate"
                     .to_owned(),
             });
         }
+        seen.push(job);
     }
-    let Some(&(job, _)) = jobs.iter().find(|(_, job)| job == "release") else {
-        findings.push(Finding {
-            file: RELEASE_WORKFLOW.to_owned(),
-            line: 1,
-            what: "the release workflow has no `release` job".to_owned(),
-            fix: "the job is what makes the release, and every rule about its steps, its \
-                  environment and the App's token reads it by that name"
-                .to_owned(),
-        });
-        return;
-    };
-    let keys = the_keys_under(lines, job);
-    holds_these_keys_alone(
-        lines,
-        &keys,
-        &THE_RELEASE_JOBS_KEYS,
-        "the release job",
-        findings,
-    );
+    for (job, keys) in THE_RELEASE_JOBS {
+        let Some(&(opens, _)) = jobs.iter().find(|(_, held)| held == job) else {
+            findings.push(Finding {
+                file: RELEASE_WORKFLOW.to_owned(),
+                line: 1,
+                what: format!("the release workflow has no `{job}` job"),
+                fix: "the gate job judges the commit the release is made from, and the release \
+                      job makes the release; every rule about their steps, the environment and \
+                      the App's token reads each by its name"
+                    .to_owned(),
+            });
+            continue;
+        };
+        a_jobs_keys_are_its_own(lines, job, opens, keys, findings);
+    }
+}
+
+/// The job `job`, opened at `opens`, holds `allowed` and no other key, each
+/// once, and runs on Linux; the release job enters
+/// [`THE_RELEASES_ENVIRONMENT`] and waits for [`THE_RELEASE_WAITS_FOR`].
+fn a_jobs_keys_are_its_own(
+    lines: &[&str],
+    job: &str,
+    opens: usize,
+    allowed: &[&str],
+    findings: &mut Vec<Finding>,
+) {
+    let keys = the_keys_under(lines, opens);
+    holds_these_keys_alone(lines, &keys, allowed, &format!("the {job} job"), findings);
     let held: Vec<(String, String)> = keys
         .into_iter()
         .map(|at| key_and_value(lines[at]))
@@ -2771,33 +2990,57 @@ fn the_release_is_one_job(lines: &[&str], findings: &mut Vec<Finding>) {
             .find(|(held, _)| held == key)
             .map(|(_, value)| value.trim_matches(['"', '\'']).to_owned())
     };
-    let entered = named("environment");
-    if entered.as_deref() != Some(THE_RELEASES_ENVIRONMENT) {
-        findings.push(Finding {
-            file: RELEASE_WORKFLOW.to_owned(),
-            line: job + 1,
-            what: format!(
-                "the release job enters {}, and it enters `{THE_RELEASES_ENVIRONMENT}` \
-                 alone",
-                entered.map_or_else(|| "no environment".to_owned(), |name| format!("`{name}`"))
-            ),
-            fix: "the environment holds the App's id and its key, and GitHub lets a job \
-                  enter `release-staging` from `staging` alone and `release-main` from `main` \
-                  alone; a job that enters another mints the token from a branch that is not \
-                  the channel it releases, and one that enters none cannot mint it"
-                .to_owned(),
-        });
+    let what_it_is = |value: Option<String>, none: &str| {
+        value.map_or_else(|| none.to_owned(), |value| format!("`{value}`"))
+    };
+    if job == THE_RELEASE_JOB {
+        let entered = named("environment");
+        if entered.as_deref() != Some(THE_RELEASES_ENVIRONMENT) {
+            findings.push(Finding {
+                file: RELEASE_WORKFLOW.to_owned(),
+                line: opens + 1,
+                what: format!(
+                    "the release job enters {}, and it enters `{THE_RELEASES_ENVIRONMENT}` \
+                     alone",
+                    what_it_is(entered, "no environment")
+                ),
+                fix: "the environment holds the App's client id and its key, and GitHub lets a \
+                      job enter `release-staging` from `staging` alone and `release-main` from \
+                      `main` alone; a job that enters another mints the token from a branch \
+                      that is not the channel it releases, and one that enters none cannot \
+                      mint it"
+                    .to_owned(),
+            });
+        }
+        let waits = named("needs");
+        if waits.as_deref() != Some(THE_RELEASE_WAITS_FOR) {
+            findings.push(Finding {
+                file: RELEASE_WORKFLOW.to_owned(),
+                line: opens + 1,
+                what: format!(
+                    "the release job waits for {}, and it waits for `{THE_RELEASE_WAITS_FOR}` \
+                     alone",
+                    what_it_is(waits, "nothing")
+                ),
+                fix: "the release job runs no gate of its own: `--after-the-gate-job` stands \
+                      the verb's gate aside because the gate job passed on the same commit in \
+                      the same run. A release job that does not wait for it runs beside it, or \
+                      after it failed, and publishes a tree no gate judged. Write \
+                      `needs: gate`"
+                    .to_owned(),
+            });
+        }
     }
     let runner = named("runs-on").unwrap_or_default();
     if !runner.starts_with("ubuntu-") {
         findings.push(Finding {
             file: RELEASE_WORKFLOW.to_owned(),
-            line: job + 1,
-            what: format!("the release job runs on `{runner}`, which is not a Linux runner"),
-            fix: "the release runs the gate first, and only Linux's runner brings up the \
-                  stack the gate's steps read (NOCTUA.md §22.2); elsewhere those steps are \
-                  not applicable, and the release is judged by less than the gate every \
-                  pull request passed. Run it on `ubuntu-latest`"
+            line: opens + 1,
+            what: format!("the {job} job runs on `{runner}`, which is not a Linux runner"),
+            fix: "the gate brings up the stack its steps read, which only Linux's runner does \
+                  (NOCTUA.md §22.2): elsewhere those steps are not applicable, and the release \
+                  is judged by less than the gate every pull request passed. And the release \
+                  builds its tool on the system the gate judged. Run both on `ubuntu-latest`"
                 .to_owned(),
         });
     }
@@ -2939,11 +3182,16 @@ fn as_the_steps_are_written(lines: &[&str], opens: usize) -> Vec<(usize, String)
         .collect()
 }
 
-/// The release job runs [`THE_RELEASE_STEPS`], in order, and nothing else;
-/// and each step holds its own lines and no other.
-fn the_release_runs_its_steps(steps: &[Step], findings: &mut Vec<Finding>) {
+/// The job `job` runs `written`, its steps in [`THE_RELEASE_STEPS`], in order,
+/// and nothing else; and each step holds its own lines and no other.
+fn the_job_runs_its_steps(
+    job: &str,
+    steps: &[Step],
+    written: &[&[&str]],
+    findings: &mut Vec<Finding>,
+) {
     let ran: Vec<&str> = steps.iter().map(|step| step.runs.as_str()).collect();
-    let listed: Vec<&str> = THE_RELEASE_STEPS.iter().map(|step| step[0]).collect();
+    let listed: Vec<&str> = written.iter().map(|step| step[0]).collect();
     let quoted = |step: Option<&&str>, otherwise: &str| {
         step.filter(|step| !step.is_empty())
             .map_or_else(|| otherwise.to_owned(), |step| format!("`{}`", step.trim()))
@@ -2953,19 +3201,23 @@ fn the_release_runs_its_steps(steps: &[Step], findings: &mut Vec<Finding>) {
             file: RELEASE_WORKFLOW.to_owned(),
             line: steps.get(at).map_or(1, |step| step.opens + 1),
             what: format!(
-                "the release job's step {} is {}, where it is {}",
+                "the {job} job's step {} is {}, where it is {}",
                 at + 1,
                 quoted(ran.get(at), "missing"),
                 quoted(listed.get(at), "nothing at all")
             ),
-            fix: "the job holds the App's token, so what runs beside it is \
-                  `THE_RELEASE_STEPS` in `xtask/src/workflow.rs` and nothing else: the \
-                  token, the checkout, the toolchain, the audit's install, the stack, then \
-                  the release. A step to add is a line there, which is a line in a diff"
+            fix: "each job of the release runs what `THE_RELEASE_STEPS` in \
+                  `xtask/src/workflow.rs` writes for it and nothing else: the gate checks out, \
+                  installs the toolchain and the auditor, brings the stack up and runs the \
+                  gate; the release checks out, installs the toolchain, builds the release \
+                  tool, then mints the App's token and releases. The release job holds the \
+                  App's key and its token, so the tool is built before the token exists, and \
+                  the gate is what judges the commit it releases. A step to add is a line \
+                  there, which is a line in a diff"
                 .to_owned(),
         });
     }
-    for (number, (step, written)) in steps.iter().zip(THE_RELEASE_STEPS).enumerate() {
+    for (number, (step, written)) in steps.iter().zip(written).enumerate() {
         if step.runs != written[0] {
             continue;
         }
@@ -2983,7 +3235,7 @@ fn the_release_runs_its_steps(steps: &[Step], findings: &mut Vec<Finding>) {
                 .get(differs)
                 .map_or(step.opens + 1, |(at, _)| at + 1),
             what: format!(
-                "the release job's step {} holds {}, where it holds {}",
+                "the {job} job's step {} holds {}, where it holds {}",
                 number + 1,
                 as_said(&held, differs).unwrap_or_else(nothing_more),
                 as_said(written, differs).unwrap_or_else(nothing_more)
@@ -2997,6 +3249,65 @@ fn the_release_runs_its_steps(steps: &[Step], findings: &mut Vec<Finding>) {
                   to add is a line there"
                 .to_owned(),
         });
+    }
+}
+
+/// The gate job holds nothing of the release's: it mints no token, enters no
+/// environment, reads no secret, no step's output and no variable, and
+/// neither publishes nor turns the release's gate off.
+///
+/// **Every line from the job's own to the next key as shallow, comments
+/// among them**, read both ways [`as_yaml_reads_them`] gives each
+/// ([`the_releases_authority_in`]), and a variable read as `vars` in any
+/// expression. The gate runs every build script, procedural macro and test of
+/// this tree and of every locked dependency, and the auditor it installs; what
+/// keeps the App's key and its token from all of them is that this job holds
+/// neither, and that the job that holds both waits for this one and runs none
+/// of them again.
+fn the_gate_holds_none_of_the_releases_authority(
+    lines: &[&str],
+    text: &str,
+    findings: &mut Vec<Finding>,
+) {
+    let Some(opens) = the_job(lines, THE_RELEASE_WAITS_FOR) else {
+        return;
+    };
+    // **Up to the next key as shallow as the job's**, comments and blank
+    // lines among them: a comment after the job's last key is read as the
+    // lines above it are.
+    let depth = indent_of(lines[opens]);
+    let ends = (opens + 1..lines.len())
+        .find(|&at| {
+            !the_code_before_a_comment(lines[at]).is_empty() && indent_of(lines[at]) <= depth
+        })
+        .unwrap_or(lines.len());
+    for (at, read) in as_yaml_reads_them(text) {
+        if !(opens..ends).contains(&at) {
+            continue;
+        }
+        let mut held = the_releases_authority_in(&read, true);
+        let reads_a_variable = read.iter().any(|version| {
+            the_expressions_in(&version.to_ascii_lowercase())
+                .iter()
+                .any(|expression| !the_ends_of_the_word(expression, "vars").is_empty())
+        });
+        if reads_a_variable {
+            held.push("reads a variable".to_owned());
+        }
+        for what in held {
+            findings.push(Finding {
+                file: RELEASE_WORKFLOW.to_owned(),
+                line: at + 1,
+                what: format!("the gate job {what}, and it holds nothing of the release's"),
+                fix: "the gate runs every build script, procedural macro and test of this \
+                      tree and of every locked dependency, and the auditor it installs, and \
+                      what keeps the App's key and its token from all of them is that this job \
+                      holds neither: no environment, no secret, no variable, no token's action \
+                      and no step's output. The release job waits for it and holds them, and \
+                      runs none of those again"
+                    .to_owned(),
+            });
+        }
     }
 }
 
@@ -3076,22 +3387,29 @@ fn every_expression_is_where_the_release_needs_it(
 
 /// The indices of the lines `place` names in the release workflow.
 fn the_lines_of(lines: &[&str], steps: &[Step], place: Place) -> Vec<usize> {
-    let the_step = |step: &[&str]| {
+    let the_step = |runs: &str| {
         steps
             .iter()
-            .find(|held| held.runs == step[0])
+            .find(|held| held.runs == runs)
             .map(|held| held.lines.clone())
             .unwrap_or_default()
     };
+    let written: &[&[&str]] = THE_RELEASE_STEPS
+        .iter()
+        .find(|(job, _)| *job == THE_RELEASE_JOB)
+        .map_or(&[], |(_, written)| *written);
     match place {
         Place::ConcurrencyGroup => top_level(lines, "concurrency")
             .map(|at| the_lines_under(lines, at))
             .unwrap_or_default(),
-        Place::Job => the_job(lines, "release")
+        Place::Job => the_job(lines, THE_RELEASE_JOB)
             .map(|at| the_keys_under(lines, at))
             .unwrap_or_default(),
-        Place::MintingStep => the_step(THE_RELEASE_STEPS[0]),
-        Place::ReleaseStep => the_step(THE_RELEASE_STEPS[THE_RELEASE_STEPS.len() - 1]),
+        Place::MintingStep => the_step(&format!("uses: {MINTS_THE_RELEASE_TOKEN}")),
+        Place::ReleaseStep => written
+            .last()
+            .map(|step| the_step(step[0]))
+            .unwrap_or_default(),
     }
 }
 
@@ -10891,6 +11209,7 @@ mod tests {
             (WORKFLOW, &ci, "macos"),
             (WORKFLOW, &ci, "windows"),
             (WORKFLOW, &ci, "deterministic"),
+            (super::RELEASE_WORKFLOW, &release, "gate"),
             (super::RELEASE_WORKFLOW, &release, "release"),
         ] {
             let body = job_body(text, job).unwrap_or_else(|| panic!("`{file}` has a `{job}` job"));
@@ -11423,12 +11742,13 @@ mod tests {
         assert!(listed.is_empty(), "{listed:#?}");
     }
 
-    /// The release workflow holds one job, on Linux, in its branch's
-    /// environment.
+    /// The release workflow holds its two jobs, on Linux, the release waiting
+    /// for the gate and alone entering its branch's environment.
     #[test]
-    fn the_release_is_one_job_on_linux_in_its_branchs_environment() {
+    fn the_release_is_two_jobs_on_linux_and_waits_for_the_gate() {
         let release = super::RELEASE_WORKFLOW;
         let environment = "    environment: release-${{ github.ref_name }}\n";
+        let gate_runs_on = "  gate:\n    runs-on: ubuntu-latest\n";
         each_is_said(&[
             (
                 "a-fixed-environment",
@@ -11445,27 +11765,261 @@ mod tests {
                 "the release job enters no environment",
             ),
             (
-                "on-macos",
+                "the-gate-on-macos",
                 release,
-                "    runs-on: ubuntu-latest\n",
-                "    runs-on: macos-latest\n",
-                "runs on `macos-latest`, which is not a Linux runner",
+                gate_runs_on,
+                "  gate:\n    runs-on: macos-latest\n",
+                "the gate job runs on `macos-latest`, which is not a Linux runner",
             ),
             (
-                "a-second-job",
+                "the-release-on-windows",
+                release,
+                "    runs-on: ubuntu-latest\n    # **The environment",
+                "    runs-on: windows-latest\n    # **The environment",
+                "the release job runs on `windows-latest`, which is not a Linux runner",
+            ),
+            (
+                "a-third-job",
                 release,
                 "jobs:\n",
                 "jobs:\n  notes:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo notes\n",
-                "holds the job `notes` beside `release`",
+                "holds the job `notes` beside [\"gate\", \"release\"]",
             ),
             (
-                "renamed",
+                "the-release-renamed",
                 release,
                 "  release:\n",
                 "  publish:\n",
                 "the release workflow has no `release` job",
             ),
+            (
+                "the-gate-renamed",
+                release,
+                "  gate:\n",
+                "  check:\n",
+                "the release workflow has no `gate` job",
+            ),
+            (
+                "the-release-without-the-gate",
+                release,
+                "    needs: gate\n",
+                "",
+                "the release job waits for nothing, and it waits for `gate` alone",
+            ),
+            (
+                "the-release-after-another-job",
+                release,
+                "    needs: gate\n",
+                "    needs: build\n",
+                "the release job waits for `build`, and it waits for `gate` alone",
+            ),
+            (
+                "the-gate-waits",
+                release,
+                gate_runs_on,
+                "  gate:\n    needs: release\n    runs-on: ubuntu-latest\n",
+                "the gate job holds `needs:`",
+            ),
+            (
+                "an-environment-in-the-gate",
+                release,
+                gate_runs_on,
+                "  gate:\n    runs-on: ubuntu-latest\n    environment: release-main\n",
+                "the gate job holds `environment:`",
+            ),
         ]);
+    }
+
+    /// The gate job holds nothing of the release's: no secret, no variable, no
+    /// environment, no token, no step's output, no publish and no gate turned
+    /// off, however each is written.
+    #[test]
+    fn the_gate_job_holds_none_of_the_releases_authority() {
+        let release = super::RELEASE_WORKFLOW;
+        let the_gate = "        run: cargo xtask check\n";
+        let gate_runs_on = "  gate:\n    runs-on: ubuntu-latest\n";
+        let beside = |line: &str| format!("{the_gate}        env:\n          {line}\n");
+        let said =
+            |what: &str| format!("the gate job {what}, and it holds nothing of the release's");
+        let cases: Vec<(&str, &str, String, String)> = vec![
+            (
+                "a-secret",
+                the_gate,
+                beside("KEY: ${{ secrets.RELEASE_APP_KEY }}"),
+                said("reads a secret"),
+            ),
+            (
+                "every-secret",
+                the_gate,
+                beside("ALL: ${{ toJSON(secrets) }}"),
+                said("reads a secret"),
+            ),
+            (
+                "a-variable",
+                the_gate,
+                beside("ID: ${{ vars.RELEASE_APP_CLIENT_ID }}"),
+                said("reads a variable"),
+            ),
+            (
+                "a-variable-in-a-comment",
+                the_gate,
+                format!("{the_gate}        # ${{{{ vars.RELEASE_APP_CLIENT_ID }}}}\n"),
+                said("reads a variable"),
+            ),
+            (
+                "a-steps-output",
+                the_gate,
+                beside("T: ${{ steps.app.outputs.token }}"),
+                said("reads a step's output"),
+            ),
+            (
+                "an-environment",
+                gate_runs_on,
+                format!("{gate_runs_on}    environment: release-main\n"),
+                said("enters an environment"),
+            ),
+            (
+                "the-token",
+                the_gate,
+                format!(
+                    "{the_gate}      - uses: {}@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0\n",
+                    super::MINTS_THE_RELEASE_TOKEN
+                ),
+                said("mints the release App's token"),
+            ),
+            (
+                "a-publish",
+                the_gate,
+                "        run: cargo xtask release --channel main --publish\n".to_owned(),
+                said("publishes a release"),
+            ),
+            (
+                "the-gate-turned-off",
+                the_gate,
+                "        run: cargo xtask check --after-the-''gate-job\n".to_owned(),
+                said("turns the release's gate off"),
+            ),
+        ];
+        for (about, from, to, said) in &cases {
+            let findings = bounded_after(about, release, |text| once(text, from, to));
+            assert!(
+                findings.iter().any(|finding| &finding.what == said),
+                "{about}: nothing said `{said}`: {findings:#?}"
+            );
+        }
+    }
+
+    /// The release's `concurrency` holds its three lines, in order, and no
+    /// other.
+    ///
+    /// **Each line, not the one that evaluates an expression**: the default
+    /// queue, a run cancelled in progress, a fourth line and a line moved
+    /// deeper are each refused, and the lines as shipped are not.
+    #[test]
+    fn the_releases_concurrency_is_held_line_for_line() {
+        let release = super::RELEASE_WORKFLOW;
+        let queued = "  cancel-in-progress: false\n  queue: max\n";
+        let said = "the release's `concurrency` holds";
+        each_is_said(&[
+            (
+                "the-default-queue",
+                release,
+                queued,
+                "  cancel-in-progress: false\n",
+                said,
+            ),
+            (
+                "a-single-queue",
+                release,
+                queued,
+                "  cancel-in-progress: false\n  queue: single\n",
+                said,
+            ),
+            (
+                "cancelled-in-progress",
+                release,
+                queued,
+                "  cancel-in-progress: true\n  queue: max\n",
+                said,
+            ),
+            (
+                "a-fourth-line",
+                release,
+                queued,
+                "  cancel-in-progress: false\n  queue: max\n  timeout: 1\n",
+                said,
+            ),
+            (
+                "a-line-deeper",
+                release,
+                queued,
+                "  cancel-in-progress: false\n    queue: max\n",
+                "\"(at another depth) queue: max\"",
+            ),
+            (
+                "written-inline",
+                release,
+                "concurrency:\n  group: release-${{ github.ref }}\n  cancel-in-progress: false\n  queue: max\n",
+                "concurrency: release\n",
+                "the release's `concurrency` holds [], and it holds",
+            ),
+        ]);
+    }
+
+    /// Every `cargo install` a file CI reaches runs names its crate at an exact
+    /// version, in both workflows; and the version as shipped passes.
+    #[test]
+    fn every_install_names_its_crate_at_an_exact_version() {
+        let pinned = "cargo install --locked cargo-deny@0.20.2";
+        let cases: Vec<(&str, &str, &str)> = vec![
+            ("no-version", WORKFLOW, "cargo install --locked cargo-deny"),
+            (
+                "two-numbers",
+                WORKFLOW,
+                "cargo install --locked cargo-deny@0.20",
+            ),
+            (
+                "a-range",
+                WORKFLOW,
+                "cargo install --locked cargo-deny@^0.20.2",
+            ),
+            (
+                "a-version-flag",
+                WORKFLOW,
+                "cargo install --locked cargo-deny --version 0.20.2",
+            ),
+            (
+                "in-the-releases-gate",
+                super::RELEASE_WORKFLOW,
+                "cargo install --locked cargo-deny",
+            ),
+        ];
+        for (about, file, to) in &cases {
+            let said = format!("`{to}` names no crate at an exact version");
+            let findings = bounded_after(about, file, |text| once(text, pinned, to));
+            assert!(
+                findings.iter().any(|finding| finding.what == said),
+                "{about}: nothing said `{said}`: {findings:#?}"
+            );
+        }
+        let quoted = bounded_after("quoted", WORKFLOW, |text| {
+            once(text, pinned, "cargo install --locked \"cargo-deny@0.20.2\"")
+        });
+        assert!(quoted.is_empty(), "{quoted:#?}");
+        for word in ["cargo-deny@0.20.2", "'cargo-deny@10.0.0'"] {
+            assert!(super::names_an_exact_version(word), "{word}");
+        }
+        for word in [
+            "cargo-deny",
+            "@0.20.2",
+            "--locked@0.20.2",
+            "cargo-deny@0.20.x",
+            "cargo-deny@0..2",
+            "cargo-deny@=0.20.2",
+            "cargo-deny@0.20.2.1",
+        ] {
+            assert!(!super::names_an_exact_version(word), "{word}");
+        }
     }
 
     /// The release restores no cache, through either action or the half that
@@ -11498,70 +12052,122 @@ mod tests {
         }
     }
 
-    /// The release job runs its steps, in order, and nothing else.
+    /// Each job of the release runs its steps, in order, and nothing else.
     #[test]
-    fn the_release_job_runs_its_steps_and_nothing_else() {
+    fn each_job_of_the_release_runs_its_steps_and_nothing_else() {
         let release = super::RELEASE_WORKFLOW;
-        let the_release =
-            "        run: cargo xtask release --channel ${{ github.ref_name }} --publish\n";
+        let the_release = "        run: cargo xtask release --channel ${{ github.ref_name }} --publish \
+                           --after-the-gate-job\n";
+        let built = "      - name: the release tool, built before the token is minted\n        \
+                     run: cargo xtask release --help\n";
         each_is_said(&[
             (
                 "a-second-command",
                 release,
                 "        run: cargo xtask dev\n",
                 "        run: cargo xtask dev && cargo xtask check\n",
-                "step 5 is `run: cargo xtask dev && cargo xtask check`, where it is \
-                 `run: cargo xtask dev`",
+                "the gate job's step 4 is `run: cargo xtask dev && cargo xtask check`, where it \
+                 is `run: cargo xtask dev`",
             ),
             (
                 "a-script",
                 release,
                 "      - name: cargo xtask release\n",
                 "      - run: bash ci/release.sh\n      - name: cargo xtask release\n",
-                "step 6 is `run: bash ci/release.sh`",
+                "the release job's step 5 is `run: bash ci/release.sh`",
             ),
             (
                 "no-stack",
                 release,
                 "      - name: cargo xtask dev\n        run: cargo xtask dev\n",
                 "",
-                "step 5 is `run: cargo xtask release --channel ${{ github.ref_name }} \
-                 --publish`, where it is `run: cargo xtask dev`",
+                "the gate job's step 4 is `run: cargo xtask check`, where it is \
+                 `run: cargo xtask dev`",
+            ),
+            (
+                "the-stack-in-the-release",
+                release,
+                built,
+                &format!("      - run: cargo xtask dev\n{built}"),
+                "the release job's step 3 is `run: cargo xtask dev`, where it is \
+                 `run: cargo xtask release --help`",
+            ),
+            (
+                "the-gate-in-the-release",
+                release,
+                built,
+                &format!("      - run: cargo xtask check\n{built}"),
+                "the release job's step 3 is `run: cargo xtask check`, where it is \
+                 `run: cargo xtask release --help`",
             ),
             (
                 "a-dry-run",
                 release,
                 the_release,
                 "        run: cargo xtask release --channel ${{ github.ref_name }} --dry-run\n",
-                "step 6 is `run: cargo xtask release --channel ${{ github.ref_name }} \
-                 --dry-run`",
+                "the release job's step 5 is `run: cargo xtask release --channel \
+                 ${{ github.ref_name }} --dry-run`",
+            ),
+            (
+                "its-own-gate",
+                release,
+                the_release,
+                "        run: cargo xtask release --channel ${{ github.ref_name }} --publish\n",
+                "the release job's step 5 is `run: cargo xtask release --channel \
+                 ${{ github.ref_name }} --publish`",
             ),
             (
                 "a-fixed-channel",
                 release,
                 the_release,
-                "        run: cargo xtask release --channel main --publish\n",
-                "step 6 is `run: cargo xtask release --channel main --publish`",
+                "        run: cargo xtask release --channel main --publish --after-the-gate-job\n",
+                "the release job's step 5 is `run: cargo xtask release --channel main --publish \
+                 --after-the-gate-job`",
             ),
             (
                 "one-step-more",
                 release,
                 "          GH_TOKEN: ${{ steps.app.outputs.token }}\n",
                 "          GH_TOKEN: ${{ steps.app.outputs.token }}\n      - run: echo done\n",
-                "step 7 is `run: echo done`, where it is nothing at all",
+                "the release job's step 6 is `run: echo done`, where it is nothing at all",
             ),
             (
                 "a-condition",
                 release,
                 the_release,
-                "        if: always()\n        run: cargo xtask release --channel ${{ github.ref_name }} --publish\n",
+                "        if: always()\n        run: cargo xtask release --channel ${{ github.ref_name }} --publish --after-the-gate-job\n",
                 "this step or job runs only when `always()`",
             ),
         ]);
     }
 
-    /// Each step of the release job holds the lines `THE_RELEASE_STEPS` writes
-    /// for it, and no other.
+    /// The release job mints the App's token after it builds the release tool,
+    /// and never before: built with the token in its steps' reach, every build
+    /// script and procedural macro of the tool's dependencies would run beside
+    /// it.
+    #[test]
+    fn the_token_is_minted_after_the_release_tool_is_built() {
+        let release = super::RELEASE_WORKFLOW;
+        let built = "      - name: the release tool, built before the token is minted\n        \
+                     run: cargo xtask release --help\n";
+        let minted_first = bounded_after("minted-first", release, |text| {
+            let without = once(text, built, "");
+            once(
+                &without,
+                "          permission-pull-requests: write\n",
+                &format!("          permission-pull-requests: write\n{built}"),
+            )
+        });
+        let said = "the release job's step 3 is `uses: actions/create-github-app-token`, where it \
+                    is `run: cargo xtask release --help`";
+        assert!(
+            minted_first.iter().any(|finding| finding.what == said),
+            "the token minted before the build: nothing said `{said}`: {minted_first:#?}"
+        );
+    }
+
+    /// Each step of the release's jobs holds the lines `THE_RELEASE_STEPS`
+    /// writes for it, and no other.
     ///
     /// **An input is part of what an action does**: another repository checked
     /// out, a token asked for more, a credential left in the checkout, and a key
@@ -11580,7 +12186,7 @@ mod tests {
                 release,
                 checked_out,
                 "          persist-credentials: false\n          repository: someone-else/noctua-central\n",
-                "the release job's step 2 holds `repository: someone-else/noctua-central` \
+                "the gate job's step 1 holds `repository: someone-else/noctua-central` \
                  under `with:`, where it holds nothing more",
             ),
             (
@@ -11588,7 +12194,7 @@ mod tests {
                 release,
                 "          fetch-depth: 0\n",
                 "          ref: main\n          fetch-depth: 0\n",
-                "the release job's step 2 holds `ref: main` under `with:`, where it holds \
+                "the gate job's step 1 holds `ref: main` under `with:`, where it holds \
                  `fetch-depth: 0` under `with:`",
             ),
             (
@@ -11596,7 +12202,7 @@ mod tests {
                 release,
                 checked_out,
                 "",
-                "the release job's step 2 holds nothing more, where it holds \
+                "the gate job's step 1 holds nothing more, where it holds \
                  `persist-credentials: false` under `with:`",
             ),
             (
@@ -11604,15 +12210,24 @@ mod tests {
                 release,
                 narrowed,
                 "          permission-administration: write\n",
-                "the release job's step 1 holds `permission-administration: write` under \
+                "the release job's step 4 holds `permission-administration: write` under \
                  `with:`, where it holds `permission-contents: write` under `with:`",
+            ),
+            (
+                "the-apps-id",
+                release,
+                "          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}\n",
+                "          app-id: ${{ vars.RELEASE_APP_ID }}\n",
+                "the release job's step 4 holds `app-id: ${{ vars.RELEASE_APP_ID }}` under \
+                 `with:`, where it holds `client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}` under \
+                 `with:`",
             ),
             (
                 "an-input-moved-out",
                 release,
                 "          fetch-depth: 0\n",
                 "        fetch-depth: 0\n",
-                "the release job's step 2 holds `fetch-depth: 0`, where it holds \
+                "the gate job's step 1 holds `fetch-depth: 0`, where it holds \
                  `fetch-depth: 0` under `with:`",
             ),
             (
@@ -11620,7 +12235,7 @@ mod tests {
                 release,
                 the_stack,
                 "        run: cargo xtask dev\n        working-directory: plugins\n",
-                "the release job's step 5 holds `working-directory: plugins`, where it holds \
+                "the gate job's step 4 holds `working-directory: plugins`, where it holds \
                  nothing more",
             ),
             (
@@ -11628,7 +12243,7 @@ mod tests {
                 release,
                 the_stack,
                 "        run: cargo xtask dev\n          && cargo xtask check\n",
-                "the release job's step 5 holds `&& cargo xtask check` under \
+                "the gate job's step 4 holds `&& cargo xtask check` under \
                  `run: cargo xtask dev`, where it holds nothing more",
             ),
             (
@@ -11636,7 +12251,7 @@ mod tests {
                 release,
                 the_stack,
                 "       run: cargo xtask dev\n",
-                "the release job's step 5 holds `(indented less than the step) run: cargo xtask \
+                "the gate job's step 4 holds `(indented less than the step) run: cargo xtask \
                  dev`, where it holds `run: cargo xtask dev`",
             ),
         ]);
@@ -11782,6 +12397,7 @@ mod tests {
             "reads a secret",
             "reads a step's output",
             "publishes a release",
+            "turns the release's gate off",
         ] {
             assert!(
                 whole.iter().any(|finding| finding.what == said(what)),
@@ -11970,9 +12586,10 @@ mod tests {
         ]);
     }
 
-    /// A step's output and a publish are refused outside the release workflow,
-    /// however they are spelled: by an index, as a whole context, in a comment
-    /// inside a block scalar, and in a word a shell joins.
+    /// A step's output, a publish and the release's gate turned off are refused
+    /// outside the release workflow, however they are spelled: by an index, as a
+    /// whole context, in a comment inside a block scalar, and in a word a shell
+    /// joins.
     #[test]
     fn a_steps_output_and_a_publish_are_refused_however_they_are_spelled() {
         let gate = THE_GATE;
@@ -12008,6 +12625,17 @@ mod tests {
                 "published-in-parts",
                 "        run: just release main --pub''lish\n".to_owned(),
                 "publishes a release",
+            ),
+            (
+                "the-gate-turned-off",
+                "        run: cargo xtask release --channel main --after-the-gate-job\n".to_owned(),
+                "turns the release's gate off",
+            ),
+            (
+                "the-gate-turned-off-in-parts",
+                "        run: cargo xtask release --channel main --after-\"the-gate\"-job\n"
+                    .to_owned(),
+                "turns the release's gate off",
             ),
         ]);
     }
@@ -12062,8 +12690,11 @@ mod tests {
         }
     }
 
-    /// The release workflow and its job hold the keys their lists name, each
+    /// The release workflow and its jobs hold the keys their lists name, each
     /// once, and no other.
+    ///
+    /// **Each case in the job written first**, the gate, whose line opening on
+    /// `runs-on:` is the first of the file.
     #[test]
     fn the_release_holds_its_keys_and_no_other() {
         let release = super::RELEASE_WORKFLOW;
@@ -12075,8 +12706,8 @@ mod tests {
         };
         let in_the_job = |key: &str| {
             format!(
-                "the release job holds `{key}:`, and it holds {:?} alone, each once",
-                super::THE_RELEASE_JOBS_KEYS
+                "the gate job holds `{key}:`, and it holds {:?} alone, each once",
+                super::THE_RELEASE_JOBS[0].1
             )
         };
         let runs_on = "    runs-on: ubuntu-latest\n";
@@ -12311,8 +12942,8 @@ mod tests {
             (
                 "a-step-after-a-comment",
                 release,
-                "brings it up before its own.\n",
-                "brings it up before its own.\r      - run: echo /tmp/evil >> \"$GITHUB_PATH\"\n",
+                "it up before its own.\n",
+                "it up before its own.\r      - run: echo /tmp/evil >> \"$GITHUB_PATH\"\n",
                 return_,
             ),
             (
