@@ -76,19 +76,18 @@ when { resource is Content && resource.owner == principal };
 // express — `Content` carries `sensitivity` in `§4`'s own schema, so this needs
 // nothing invented.
 //
-// Measured before it existed: `User::"ana"` sharing `Content::"vault"`
-// (`sensitivity: "restricted"`) with `quorum_met = false` was permitted, and so
-// was granting over the same resource. Invariant 5's core rule is
+// Measured without it: `User::"ana"` sharing `Content::"vault"`
+// (`sensitivity: "restricted"`) with `quorum_met = false` is permitted, and so
+// is granting over the same resource. Invariant 5's core rule is
 // `action == Action::"Delete"`, and `../../core/README.md` records why widening
 // *that* needs a `reversibility` context key the reference does not carry.
 //
-// **Both verbs, and both labels, because the first version had neither.** It
-// covered `Share` alone — while the paragraph above it, in this file, recorded
-// that granting over the same resource had been measured permitted too — and
-// `restricted` alone, while §6 names the pair in one breath ("private or
-// restricted content: encrypted with a random per-content key") and the read
-// permit twenty lines up stops at `realm` for exactly that reason. Measured
-// again, before this widening, with `quorum_met = false` throughout:
+// **Both verbs, and both labels.** `Share` alone leaves `Grant` open, and
+// `restricted` alone leaves `private`, while §6 names the pair in one breath
+// ("private or restricted content: encrypted with a random per-content key")
+// and the read permit twenty lines up stops at `realm` for exactly that reason.
+// Measured with a rule covering `Share` and `restricted` alone, and
+// `quorum_met = false` throughout:
 //
 //   ana Share Content::"vault"   -> Deny  by family.sharing_restricted_…
 //   ana Grant Content::"vault"   -> Allow by family.a_guardian_administers_the_realm
@@ -101,7 +100,7 @@ when { resource is Content && resource.owner == principal };
 // key to content the guardian herself is refused, with no quorum and no rule
 // naming it. `Grant` is the verb that distributes the key.
 //
-// **Here rather than in the core, and that is the rule this taught.** A core
+// **Here rather than in the core, and that is a rule.** A core
 // invariant holds for every principal, every action and every resource the
 // schema declares; this one is about `Content` and says so, which the narrowing
 // gate correctly refuses in a core file. A pack is where a rule about one kind

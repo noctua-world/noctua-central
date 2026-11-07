@@ -17,7 +17,7 @@
 //! the shape is reported, not the first, each with `[NC-PLUG-0010]`; one that
 //! does not — TOML that does not parse, a field the kernel does not know, a
 //! value of the wrong kind — is the one problem the parser stopped at, since
-//! nothing past it was read. This said *every problem is reported* of both.
+//! nothing past it was read.
 //!
 //! **A domain is a name and nothing else.** Lower-case DNS labels of letters,
 //! digits and inner hyphens — punycode's `xn--` included — at least two of
@@ -606,10 +606,10 @@ mod tests {
                 "{namespace}"
             );
         }
-        // **And the namespace's bound itself**, which nothing accepted: a review
-        // planted `<` for `<=` in the length clause and every test passed,
-        // since the refused list holds one byte past the bound and no row held
-        // the bound.
+        // **And the namespace's bound itself, accepted**: the refused list
+        // holds one byte past the bound, so with `<` planted for `<=` in the
+        // length clause the rows above would still pass and this one would
+        // fail.
         assert!(
             PluginManifest::parse(&format!(
                 "id = \"noctua:a\"\nnamespace = \"{}\"\ncapabilities = []\n",
@@ -644,16 +644,16 @@ mod tests {
     fn a_domain_that_is_not_a_name_is_refused() {
         // **`localhost` under a name too**, which only the `localhost` clause
         // refuses: the bare word and its wildcard are one label, and the
-        // two-label rule refuses those first. Found by its mutation operator,
-        // which survived the list without this row.
+        // two-label rule refuses those first. Without this row, its mutation
+        // operator would survive the list.
         //
-        // **And an address spelt in hexadecimal.** A review found the grammar
-        // accepting `0x7f.0x1`, which the system resolver and the WHATWG URL
-        // parser both read as `127.0.0.1` without asking DNS — as they read
-        // `10.0x1` as `10.0.0.1` and `169.254.169.0xfe` as the cloud metadata
-        // address — because the last label was refused only when it was all
-        // digits. A bare `0x` is the number zero to the URL parser, which then
-        // refuses the host whole, so `a.0x` names nothing a fetch could reach.
+        // **And an address spelt in hexadecimal.** A grammar that refuses the
+        // last label only when it is all digits accepts `0x7f.0x1`, which the
+        // system resolver and the WHATWG URL parser both read as `127.0.0.1`
+        // without asking DNS — as they read `10.0x1` as `10.0.0.1` and
+        // `169.254.169.0xfe` as the cloud metadata address. A bare `0x` is the
+        // number zero to the URL parser, which then refuses the host whole, so
+        // `a.0x` names nothing a fetch could reach.
         for domain in [
             "localhost",
             "*.localhost",
@@ -714,9 +714,9 @@ mod tests {
     /// A name of `bytes` bytes, every label but the last as long as a label
     /// may be: three labels of 63 and one of what is left.
     ///
-    /// **The 253-byte bound, held on both sides.** A review planted `<= 252`
-    /// for `<= 253` and every test passed: the longest name refused was 259
-    /// bytes, and no name accepted was longer than 67.
+    /// **The 253-byte bound, held on both sides.** A name of exactly the bound
+    /// and one a byte past it tell `<= 252` planted for `<= 253` apart, which
+    /// names far from the bound cannot.
     fn longest_name(bytes: usize) -> String {
         let name = format!(
             "{}.{}",
@@ -767,8 +767,8 @@ mod tests {
             [ManifestProblem::SubscribingWithoutTopics]
         );
         // **An empty list is no topic either**, the twin of `net`'s
-        // `domains = []`: a review planted the guard away and every test of
-        // this crate passed, accepting a grant that subscribes to nothing.
+        // `domains = []`: with the guard taken away, a grant that subscribes to
+        // nothing would be accepted, and this fails.
         assert_eq!(
             refused(
                 "id = \"noctua:a\"\nnamespace = \"a\"\ncapabilities = [\"events.subscribe\"]\n[events]\nsubscribe = []\n"
@@ -814,8 +814,7 @@ mod tests {
     }
 
     /// A manifest without the shape is the one problem the parser stopped at,
-    /// however many others it holds past it: what the module's header says,
-    /// which said every problem was reported of this one too.
+    /// however many others it holds past it: what the module's header says.
     #[test]
     fn a_manifest_without_the_shape_is_the_one_problem_the_parser_stopped_at() {
         let text = "id = \"Not An Id\"\nnamespace = \"A\"\ncapabilites = []\n";
@@ -828,9 +827,9 @@ mod tests {
 
     /// Every limit a manifest raises is a problem of its own.
     ///
-    /// **A review raised two in one manifest and was told of the first:**
-    /// `Limits::lowered` returned on it, while this module says every problem
-    /// is reported.
+    /// **Two raised in one manifest are two problems:** a `Limits::lowered`
+    /// that returns on the first tells of one, while this module says every
+    /// problem is reported.
     #[test]
     fn every_limit_a_manifest_raises_is_reported_not_the_first() {
         let text = format!(

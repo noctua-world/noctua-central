@@ -132,13 +132,13 @@ mod tests {
 
     /// A table with a sibling key is a record, not an entity reference.
     ///
-    /// **The clause that says so decided nothing.** Weakened from
-    /// `table.len() == 1` to `!table.is_empty()`, every test in this crate and
-    /// the whole of `cargo xtask check` stayed green — measured by a reviewer on
-    /// 2026-09-13 — while `{ entity = "Grant::\"g\"", note = "…" }` would have
-    /// become a bare entity reference with the sibling silently dropped. A
-    /// context this pack decides against is a record, so dropping a key changes
-    /// the request without changing the file it came from.
+    /// **The clause that says so is held here.** Weakened
+    /// from `table.len() == 1` to `!table.is_empty()`, it turns
+    /// `{ entity = "Grant::\"g\"", note = "…" }` into a bare entity reference
+    /// with the sibling silently dropped, and every other test in this crate
+    /// stays green — measured. A context
+    /// this pack decides against is a record, so dropping a key changes the
+    /// request without changing the file it came from.
     #[test]
     fn a_table_with_a_sibling_key_is_a_record_and_keeps_both() {
         let value: toml::Value =

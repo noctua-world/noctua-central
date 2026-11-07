@@ -16,8 +16,8 @@
 //! any of it is taken back out** — a name that resolved to no public address,
 //! a URL or a header its HTTP cannot write (`TransportError::sent_nothing`) —
 //! and every other answer keeps it, one that did not come included, since the
-//! request may have reached its host. A reviewer found a request never dialled
-//! kept as having left, which made its step a barrier no undo reached past.
+//! request may have reached its host. Kept as having left, a request never
+//! dialled would make its step a barrier no undo reaches past.
 //!
 //! **The transport is called on the blocking pool, under the host call's
 //! deadline**: a transport that does not answer within `host_call_deadline_ms`
@@ -318,8 +318,8 @@ mod tests {
     /// **What keeps a unit that only read the web one undoing can reach**: a
     /// note of a request that left the machine is what undoing is told it
     /// cannot reach, so a read noted as one would stop undoing at a unit that
-    /// changed nothing elsewhere. Found by a reviewer, who noted every request
-    /// sent from a change and left every suite green.
+    /// changed nothing elsewhere. With every request sent from a change noted,
+    /// reads included, this test fails.
     #[tokio::test]
     async fn a_read_sent_from_a_change_leaves_no_note() {
         let unit = nc_ids::Minter::new(
@@ -475,10 +475,10 @@ mod tests {
     /// Of two requests a unit noted alike, the one the transport refused
     /// unwritten is taken back and the one that left the machine is kept.
     ///
-    /// **Written by a reviewer (wave 5, net)**: `Ambient::not_sent` taking
-    /// back every note equal to the refused one left the whole gate green —
-    /// notes of one method to one host are equal strings — and the step of a
-    /// `POST` that reached its host became one undo reaches past.
+    /// **One note taken back, not every note equal to it**: `Ambient::not_sent`
+    /// taking back every note equal to the refused one would fail this test —
+    /// notes of one method to one host are equal strings — and would make the
+    /// step of a `POST` that reached its host one undo reaches past.
     #[tokio::test]
     async fn of_two_requests_noted_alike_only_the_one_refused_unwritten_is_taken_back() {
         let unit = nc_ids::Minter::new(

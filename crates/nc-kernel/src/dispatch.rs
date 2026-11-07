@@ -204,14 +204,14 @@ pub(crate) enum Token {
 /// What one confirmation or approval was issued for.
 ///
 /// **The whole principal, its kind with its identifier**: Cedar holds a user
-/// and a device of one identifier for two principals, and a reviewer found a
-/// confirmation issued to the one redeemed by the other when only the
-/// identifier was bound.
+/// and a device of one identifier for two principals, and with only the
+/// identifier bound a confirmation issued to the one would be redeemed by the
+/// other.
 ///
 /// **And the command by who holds it, not only by its name**: a namespace an
 /// unloaded plugin left is any identity's to take, and a command declared
-/// there under the same name is that plugin's code. A reviewer found a
-/// person's confirmation of one plugin's command that cannot be undone
+/// there under the same name is that plugin's code. Bound by the name alone, a
+/// person's confirmation of one plugin's command that cannot be undone would be
 /// redeemed, after an unload and a load, running another's — the bound a
 /// compensation is held to (`[NC-KERN-0023]`, `crate::history`).
 #[derive(Debug)]
@@ -322,12 +322,12 @@ impl Issued {
 /// on the monotonic one, is past its time at `now_ms`.
 ///
 /// **On both clocks, and a wall clock behind the issue is past it.** The
-/// kernel's clock is the wall clock, which steps back, and a reviewer found a
-/// confirmation measured on it alone, with a saturating difference, living an
-/// hour longer for every hour the clock stepped back: every reading before
-/// the issue counted as no time at all. The monotonic clock bounds its life
-/// whatever the wall clock does, and a reading before the issue is one the
-/// kernel cannot place, so it is refused rather than taken as fresh.
+/// kernel's clock is the wall clock, which steps back, and a confirmation
+/// measured on it alone, with a saturating difference, would live an hour
+/// longer for every hour the clock stepped back: every reading before the issue
+/// would count as no time at all. The monotonic clock bounds its life whatever
+/// the wall clock does, and a reading before the issue is one the kernel cannot
+/// place, so it is refused rather than taken as fresh.
 fn expired(at_ms: u64, issued: Instant, now_ms: u64) -> bool {
     let ttl = KERNEL.confirmation_ttl_ms;
     now_ms < at_ms || now_ms - at_ms > ttl || issued.elapsed() > Duration::from_millis(ttl)
@@ -655,14 +655,14 @@ impl CallTree {
     ///
     /// **Told first, because the count is the tree's and not the requester's.**
     /// Every plugin of a tree spends it, so the dispatch that happens to cross
-    /// it is no measure of who spent it: a reviewer found a peer dispatching
-    /// once for each of a relay's calls killed at the count the relay spent,
-    /// and quarantined after `restart_budget` such trees, while the relay,
-    /// which stopped at the refusal it read, was never killed. Told once, the
-    /// peer answers its caller and harms nothing; the plugin that asks on is
-    /// the one stopped. So the journal holds at most two refusals past the
-    /// count for each plugin of the tree: the one it was told, and the one it
-    /// was trapped for.
+    /// it is no measure of who spent it: trapped at once, a peer dispatching
+    /// once for each of a relay's calls would be killed at the count the relay
+    /// spent, and quarantined after `restart_budget` such trees, while the
+    /// relay, which stops at the refusal it reads, would never be killed. Told
+    /// once, the peer answers its caller and harms nothing; the plugin that
+    /// asks on is the one stopped. So the journal holds at most two refusals
+    /// past the count for each plugin of the tree: the one it was told, and the
+    /// one it was trapped for.
     ///
     /// # Errors
     ///
@@ -910,9 +910,9 @@ impl<E: Environment> Frame<E> {
     /// **On the runtime, not on the calling plugin's stack.** A host function
     /// runs on the fiber wasmtime gives the plugin's call, and Cedar measures
     /// the stack it has left with `stacker`, which reads the thread's bounds
-    /// and not the fiber's: measured, every decision made there was refused as
-    /// `kernel.request_invalid`, Cedar's own check having found no room. So the
-    /// nested dispatch is a task of its own, which the frame waits on.
+    /// and not the fiber's: measured, every decision made there would be
+    /// refused as `kernel.request_invalid`, Cedar's own check finding no room.
+    /// So the nested dispatch is a task of its own, which the frame waits on.
     ///
     /// # Errors
     ///
@@ -1292,8 +1292,8 @@ async fn asked<E: Environment>(
         let mut turned = Turned::early(refusal, reason, resource);
         // **Logged as the command it would have been**, when the registry
         // holds one by that name: a refused write is the one a person may be
-        // waiting on, which is what the log's `mutating` says. A reviewer
-        // found every write refused for its tree's depth, deadline or count
+        // waiting on, which is what the log's `mutating` says. Without this,
+        // every write refused for its tree's depth, deadline or count would be
         // logged as a read.
         turned.mutating = nc_schema::descriptor::command_name_is_well_formed(name)
             && shared
@@ -1492,12 +1492,13 @@ pub(crate) fn understood<E: Environment>(
 /// held to `host_call_deadline_ms`, or to what the tree has left when that is
 /// nearer, as [`within`] holds the directory, and one that runs out is the
 /// journal not answering: the dispatch is refused, and nothing it changed is
-/// kept. A reviewer found a timer's callback whose dispatch opened its unit on
-/// a journal that stalled waiting past its tree's deadline, the plugin never
+/// kept. Unbounded, a timer's callback whose dispatch opened its unit on a
+/// journal that stalled would wait past its tree's deadline, the plugin never
 /// killed for it, and the pump and the bus held for as long as the journal
-/// stalled. **The top of a tree waits as long as the journal takes**: its
-/// waiter is the kernel's caller, which may stop waiting without stopping it,
-/// and its entry is the record that the tree ran.
+/// stalled.
+/// **The top of a tree waits as long as the journal takes**: its waiter is the
+/// kernel's caller, which may stop waiting without stopping it, and its entry
+/// is the record that the tree ran.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Waits {
     /// When the tree began, for a dispatch nested in it: none at its top.
@@ -1636,14 +1637,15 @@ struct Denial {
 /// within what the call tree that began at `began` has left — and with the
 /// facts the kernel vouches for, `held` among them: asked once every question
 /// of the directory is answered, so a confirmation is never spent on a
-/// dispatch the kernel could not decide. **A reviewer found one spent**: the
-/// entities were asked for after it was redeemed, so a directory that failed
-/// there took a person's single-use confirmation with the undecided dispatch.
-/// **And another, once that was closed**: Cedar builds its request after
-/// `held` is asked, and a request it refuses — an epoch past what its schema
-/// holds — is a decision that could not be evaluated (`[NC-POL-0005]`). So
-/// `held` answers the serials it found bound beside what they vouch for, and
-/// those are spent only once the decision was evaluated, allowed or denied.
+/// dispatch the kernel could not decide. **Not before the directory has
+/// answered**: with the entities asked for after it is redeemed, a directory
+/// that failed there would take a person's single-use confirmation with the
+/// undecided dispatch. **Nor before Cedar's request is built**: Cedar builds
+/// its request after `held` is asked, and a request it refuses — an epoch past
+/// what its schema holds — is a decision that could not be evaluated
+/// (`[NC-POL-0005]`). So `held` answers the serials it found bound beside what
+/// they vouch for, and those are spent only once the decision is evaluated,
+/// allowed or denied.
 ///
 /// # Errors
 ///
@@ -1781,10 +1783,9 @@ pub(crate) async fn reauthorized<E: Environment>(
             format!("`{command}` was denied, {again}: {}", denied.why),
         ),
         reason: Reason::Denied,
-        // **As the command it names declares**, which a reviewer found written
-        // `true` for every one: a timer a read set, refused when it fired, was
-        // logged as a refused write. A command no longer registered is told
-        // by its action.
+        // **As the command it names declares**, not `true` for every one, which
+        // would log a timer a read set, refused when it fires, as a refused
+        // write. A command no longer registered is told by its action.
         mutating: shared
             .command(command)
             .map_or(action != "Read", |admitted| admitted.listed().mutating),
@@ -2610,8 +2611,8 @@ mod tests {
     /// A question the decision point asks the directory is held to what the
     /// call tree has left when that is nearer than a host call's deadline.
     ///
-    /// A reviewer found the directory held, as every host call was, to its own
-    /// deadline alone, which a tree near its end outlasts.
+    /// Held to a host call's deadline alone, the directory would outlast a tree
+    /// near its end.
     #[tokio::test(start_paused = true)]
     async fn a_question_of_the_directory_is_held_to_what_its_tree_has_left() {
         let left = std::time::Duration::from_secs(1);
@@ -2640,10 +2641,10 @@ mod tests {
     /// A token's life is held on the monotonic clock as well as the kernel's,
     /// and a kernel's clock that reads before its issue reads it as expired.
     ///
-    /// **A reviewer found a real bug with it**: measured on the wall clock
-    /// alone, with a saturating difference, a confirmation issued before the
-    /// clock stepped back an hour was redeemed `confirmation_ttl_ms` and more
-    /// after it, every reading before the issue counting as no time at all.
+    /// **Not on the wall clock alone**: measured on it alone, with a saturating
+    /// difference, a confirmation issued before the clock steps back an hour
+    /// would be redeemed `confirmation_ttl_ms` and more after it, every reading
+    /// before the issue counting as no time at all.
     #[test]
     fn a_token_lives_no_longer_than_its_time_whatever_the_wall_clock_does() {
         let ttl = KERNEL.confirmation_ttl_ms;

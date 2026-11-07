@@ -521,8 +521,9 @@ impl StoreBackend for MemoryBackend {
             let marked = unit.marks.iter().map(|(marked, _)| *marked);
             for at in core::iter::once(unit.unit).chain(marked) {
                 // **One hold per unit and holder**, as the file's primary key
-                // refuses a second, the whole commit with it. A property test
-                // found a unit marking itself held twice here and refused there.
+                // refuses a second, the whole commit with it. Without it, a
+                // unit marking itself held twice would be accepted here and
+                // refused there, which the property test would find.
                 if !next.holds.insert((at, unit.unit)) {
                     return Err(CommitError::Store(LocalError::Unexpected(
                         "holding a unit from the pruner: UNIQUE constraint failed: \
@@ -633,9 +634,9 @@ impl StoreBackend for MemoryBackend {
             .skip(usize::try_from(keep).unwrap_or(usize::MAX))
             .map(|detail| detail.row.unit)
             .collect();
-        // **A unit still held refuses the whole delete**, nothing forgotten,
-        // as the file's `ON DELETE RESTRICT` does. A reviewer found this store
-        // forgetting it, leaving a hold on a unit it no longer had.
+        // **A unit still held refuses the whole delete**, nothing forgotten, as
+        // the file's `ON DELETE RESTRICT` does. Forgotten anyway, it would
+        // leave a hold on a unit this store no longer has.
         if held.holds.iter().any(|(unit, _)| beyond.contains(unit)) {
             return core::future::ready(Err(LocalError::Unexpected(format!(
                 "forgetting units: {} — {}",

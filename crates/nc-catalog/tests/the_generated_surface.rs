@@ -1,9 +1,8 @@
 //! The generated crate answers, and its lookups find what they claim to.
 //!
-//! It had **no tests at all**, and `catalog/notifications.toml` said otherwise —
-//! "`nc-catalog`'s tests use it to prove the handle resolves in both locales" was
-//! simply false. Nothing anywhere called `message`, `ErrorCode::from_code`,
-//! `command` or `Locale::from_tag`.
+//! `catalog/notifications.toml` says "`nc-catalog`'s tests use it to prove the
+//! handle resolves in both locales", and these are those tests: they
+//! call `message`, `ErrorCode::from_code`, `command` and `Locale::from_tag`.
 //!
 //! That matters most for `message`, which is a binary search over a table whose
 //! sortedness is an **unasserted consequence** of the compiler happening to hold
@@ -18,9 +17,9 @@ use nc_catalog::{
 
 /// A level orders the way a consumer's filter needs it to.
 ///
-/// **`Level` had no ordering at all** — `level >= Level::Warn` did not compile —
-/// while `Severity` has one and its own doc calls it the scale. A minimum-level
-/// filter is the first thing anybody reading a log writes.
+/// **`Level` orders** — `level >= Level::Warn` compiles — as `Severity` does,
+/// whose own doc calls its order the scale. A minimum-level filter is the first
+/// thing anybody reading a log writes.
 #[test]
 fn a_level_orders_from_least_noisy_to_most() {
     use nc_catalog::Level;
@@ -39,7 +38,7 @@ fn a_level_orders_from_least_noisy_to_most() {
 
 /// A BCP 47 tag names its locale whatever case it is written in.
 ///
-/// **BCP 47 defines tags case-insensitively**, and the comparison was exact:
+/// **BCP 47 defines tags case-insensitively**, and an exact comparison gives:
 ///
 /// ```text
 /// pt-BR -> Some(PtBR)     pt-br -> None     PT-BR -> None
@@ -47,7 +46,7 @@ fn a_level_orders_from_least_noisy_to_most() {
 /// ```
 ///
 /// A gateway reading `Accept-Language: pt-br` — the spelling browsers actually
-/// send — got `None` and served the source locale with nothing said. The
+/// send — would get `None` and serve the source locale with nothing said. The
 /// prefix question (`en-GB` naming `en`) is a different one and is deliberately
 /// still exact; this is only about case.
 #[test]
@@ -68,10 +67,10 @@ fn a_tag_names_its_locale_in_any_case() {
 
 /// The crate root offers everything a consumer needs to show a sentence.
 ///
-/// **`render` was the one public item the root did not re-export**, and it is
-/// the one that stops `{field}` reaching a reader. A consumer writing
-/// `use nc_catalog::*;` got `message` — which returns the sentence with its
-/// placeholders still in it — and `render` did not resolve:
+/// **`render` is re-exported at the root**, because it is the one that
+/// stops `{field}` reaching a reader. Without it, a consumer
+/// writing `use nc_catalog::*;` gets `message` — which returns the sentence
+/// with its placeholders still in it — and `render` does not resolve:
 ///
 /// ```text
 /// error[E0425]: cannot find function `render` in this scope
@@ -80,8 +79,8 @@ fn a_tag_names_its_locale_in_any_case() {
 /// i18n::render(en) = Ok("flake must be between 0 and 1023.")
 /// ```
 ///
-/// Written through the root path on purpose: `i18n::render` always worked, and
-/// what was missing was the one line in the emitter that says so.
+/// Written through the root path on purpose: `i18n::render` works either way,
+/// and what this holds is the one line in the emitter that says so.
 #[test]
 fn the_root_offers_the_renderer_and_not_only_the_raw_sentence() {
     let key = "error.validation.out-of-range";
@@ -105,10 +104,10 @@ fn the_root_offers_the_renderer_and_not_only_the_raw_sentence() {
 
 #[test]
 fn every_key_resolves_which_is_what_proves_the_table_is_searchable() {
-    // `message` bisects a table this test cannot see, and an earlier version
-    // asserted that `KEYS` was sorted instead — a different array, which stayed
-    // green with the searched one reversed. What proves the search works is the
-    // search: an unsorted table fails to find most of its own keys.
+    // `message` bisects a table this test cannot see, and asserting that `KEYS`
+    // is sorted instead checks a different array, which stays green with the
+    // searched one reversed. What proves the search works is the search: an
+    // unsorted table fails to find most of its own keys.
     //
     // The completeness guarantee is the other half, and it is the same loop:
     // every key resolves in every locale, or the build should not have passed.
@@ -177,10 +176,9 @@ fn every_error_code_round_trips_through_its_text() {
             "{} points at a sentence that is not there",
             code.code()
         );
-        // **A prefix, not a substring.** `contains` was the assertion here, and
+        // **A prefix, not a substring.** With `contains`,
         // `"NC-DB-0001".contains("")` is true — so an emitter writing `""` for
-        // every area passed, and this was the only assertion anywhere about
-        // `area()`.
+        // every area would pass. Both halves are asserted for every code.
         assert!(!code.area().is_empty(), "{} has no area", code.code());
         assert!(
             code.code().starts_with(&format!("NC-{}-", code.area())),
@@ -194,7 +192,7 @@ fn every_error_code_round_trips_through_its_text() {
 
 #[test]
 fn every_notification_and_email_resolves_both_of_its_keys() {
-    // What `notifications.toml` claimed was already tested.
+    // What `notifications.toml` says is tested.
     assert_ne!(Notification::ALL, []);
     for entry in Notification::ALL {
         for key in [entry.title_key(), entry.body_key()] {
@@ -234,11 +232,11 @@ fn a_command_is_found_by_name_and_carries_what_a_dispatcher_needs() {
             "{}'s schema is not an object schema",
             entry.name
         );
-        // **Its two sentences resolve, in both locales.** Errors, notifications
-        // and emails were checked for this and commands were not — so filtering
-        // every `command.*` key out of the message table dropped four of the
-        // twenty-seven keys and the whole suite stayed green, with every command
-        // losing the name and the description a palette shows.
+        // **Its two sentences resolve, in both locales.** With errors,
+        // notifications and emails checked and commands not, filtering every
+        // `command.*` key out of the message table would leave the whole suite
+        // green, with every command losing the name and the description a
+        // palette shows.
         for (label, key) in [
             ("title", entry.title_key),
             ("description", entry.description_key),
@@ -357,15 +355,16 @@ fn every_authentication_surface_carries_both_budgets_and_both_escalate() {
                 "{}'s {which} curve is not escalating",
                 limit.surface
             );
-            // **And it rises, which "does not fall" is not.** This test is named
-            // for escalation and asserted only that the curve never drops, so a
-            // flat one satisfied it — measured on 2026-09-08 with
+            // **And it rises, which "does not fall" is not.** This test is
+            // named for escalation, and asserting only that the curve never
+            // drops lets a flat one satisfy it — measured with
             // `email_confirmation`'s per-identifier curve replaced by
-            // `[1_000, 1_000, 1_000, 1_000, 1_000]`: `ok 15 generated file(s), 2
-            // rewritten`, `check passed` with no warn line, and `docs/limits.md`
-            // republished the flat curve under its own sentence saying the curve
-            // escalates. `login` carries no lockout by decision, so a flat one
-            // second there is 86 400 attempts a day for ever.
+            // `[1_000, 1_000, 1_000, 1_000, 1_000]`:
+            // `ok 15 generated file(s), 2 rewritten`, `check passed` with no
+            // warn line, and `docs/limits.md` republishing the flat curve under
+            // its own sentence saying the curve escalates. `login` carries no
+            // lockout by decision, so a flat one second there is 86 400
+            // attempts a day for ever.
             assert!(
                 budget.delay_ms.last() > budget.delay_ms.first(),
                 "{}'s {which} curve ends where it began, and the last value repeats for \
@@ -387,9 +386,9 @@ fn every_authentication_surface_carries_both_budgets_and_both_escalate() {
 
 #[test]
 fn every_event_the_registry_declares_reaches_the_generated_descriptors() {
-    // An earlier test here matched every `FieldKind` variant, so no data could
-    // fail it — including rewriting every field to the one kind the module names
-    // as a hole. What is falsifiable is coverage: an emitter that dropped an
+    // A test that matches every `FieldKind` variant cannot fail on any data —
+    // not even every field rewritten to the one kind the module names as a
+    // hole. What is falsifiable is coverage: an emitter that dropped an
     // event, or a registry entry that never arrived, shows up as a name in one
     // list and not the other.
     let registry = std::fs::read_to_string(concat!(
@@ -429,10 +428,10 @@ fn every_event_the_registry_declares_reaches_the_generated_descriptors() {
 
 #[test]
 fn the_registry_uses_more_than_one_kind_of_field() {
-    // What used to be here matched every `FieldKind` variant to a string literal
-    // and asserted the set did not contain `"text"` — which no arm could produce,
-    // so it could not fail. `text` is not a kind the registry has at all: the
-    // compiler refuses one, with a line, when the catalog is read.
+    // Matching every `FieldKind` variant to a string literal and asserting the
+    // set does not contain `"text"` cannot fail: no arm can produce it. `text`
+    // is not a kind the registry has at all: the compiler refuses one, with a
+    // line, when the catalog is read.
     //
     // What is falsifiable, and what the type wall actually needs, is that the
     // registry exercises more than one kind. Flattening every field to `U64`
@@ -446,13 +445,12 @@ fn the_registry_uses_more_than_one_kind_of_field() {
         .map(|field| format!("{:?}", field.kind))
         .collect();
     assert!(kinds.len() >= 3, "the registry uses only {kinds:?}");
-    // **An identifier kind, not `Id` specifically.** `work_unit` was the one
-    // `Id` field, and it was the wrong kind: `Record::work_unit` is a
-    // `Snowflake`, so logging one meant converting it through `OpaqueId::new`,
-    // the single constructor in this crate that accepts arbitrary text. Moving
-    // it to `snowflake` left no `Id` field at all — which this caught, and which
-    // is the honest state rather than a defect. What the wall needs exercised is
-    // the *identifier path*, and a Snowflake is on it.
+    // **An identifier kind, not `Id` specifically.** `Record::work_unit` is a
+    // `Snowflake`, so a `work_unit` field of kind `Id` would mean converting
+    // one through `OpaqueId::new`, the single constructor in this crate that
+    // accepts arbitrary text. With `work_unit` a `snowflake`, no `Id` field is
+    // left at all — the honest state rather than a defect. What the wall needs
+    // exercised is the *identifier path*, and a Snowflake is on it.
     assert!(
         kinds.contains("Id") || kinds.contains("Snowflake"),
         "no field carries an identifier, and an identifier is what the log holds \
@@ -462,12 +460,13 @@ fn the_registry_uses_more_than_one_kind_of_field() {
 
 #[test]
 fn the_source_locale_is_first() {
-    // **The rule the emitter's own doc comment states and nothing checked.**
+    // **The rule the emitter's own doc comment states, checked.**
     // `catalog/i18n/` is read with `read_dir`, and one `sort_by` in
     // `locale_files` is what makes the order of `Locale::ALL` independent of the
     // filesystem — tmpfs returns creation order, ZFS returns hash order. Every
     // locale assertion in the suite looks a locale up by tag, which is
-    // order-blind, so deleting that sort left the whole gate green with:
+    // order-blind, so without this, deleting that sort would leave the whole
+    // gate green with:
     //
     // ```text
     // /// Every locale, source locale first.
@@ -500,12 +499,13 @@ fn the_source_locale_is_first() {
 
 /// Every sentence in every locale renders with the params its registry declares.
 ///
-/// **The declaration had no consumer.** `ErrorCode::params`, `Notification::params`
-/// and `Email::params` publish the placeholders a sentence interpolates, and
-/// `messages.rs` refuses a declaration that disagrees with either locale — three
-/// mechanisms agreeing about a set that nothing turned into a sentence. What a
-/// person hitting `NC-VAL-0001` would have been shown is
-/// `{field} must be between {min} and {max}.`, braces included.
+/// **So the declaration has a
+/// consumer.** `ErrorCode::params`, `Notification::params` and `Email::params`
+/// publish the placeholders a sentence interpolates, and `messages.rs` refuses
+/// a declaration that disagrees with either locale — three mechanisms agreeing
+/// about a set that, without this, nothing turns into a sentence. What a person
+/// hitting `NC-VAL-0001` would be shown
+/// is `{field} must be between {min} and {max}.`, braces included.
 ///
 /// This is the loop that makes the agreement mean something: it renders every key
 /// through the declaration alone, in both locales, and refuses a leftover brace.
@@ -516,8 +516,8 @@ fn every_declared_key_renders_with_nothing_left_in_braces() {
     // **An entry, not a key.** One declaration governs every sentence the entry
     // has, and the compiler's own rule is that a declared param is used
     // *somewhere* among them — a notification whose body interpolates `{name}`
-    // and whose title does not is ordinary. Asserting it per sentence contradicts
-    // the compiler, and this test said so on its first run.
+    // and whose title does not is ordinary. Asserting it per sentence
+    // contradicts the compiler, which a run of this test shows.
     let mut entries: Vec<(Vec<&str>, &[&str])> = ErrorCode::ALL
         .iter()
         .map(|code| (vec![code.message_key()], code.params()))
@@ -528,11 +528,11 @@ fn every_declared_key_renders_with_nothing_left_in_braces() {
     for one in Email::ALL {
         entries.push((vec![one.subject_key(), one.body_key()], one.params()));
     }
-    // **`COMMANDS` was left out, and that was the whole difference.** Four of the
-    // catalog's keys are a command's title and description, and no test passed
-    // one through `render`. Measured, the same prose-brace sentence in two
-    // places: on `error.canon.unparsable` this test caught it, and on
-    // `command.limits.prune.description` `cargo xtask check` printed
+    // **`COMMANDS` included, and that is the whole difference.** A command's
+    // title and description are catalog keys too, and without them no test
+    // passes one through `render`. Measured, the same prose-brace sentence
+    // in two places: on `error.canon.unparsable` this test catches it, and on
+    // `command.limits.prune.description`, left out, `cargo xtask check` prints
     // `check passed`. A gate whose subject is "every declared key" has to mean
     // every one.
     for one in COMMANDS {
@@ -589,9 +589,9 @@ fn every_declared_key_renders_with_nothing_left_in_braces() {
 
 /// A rendered sentence is the one the locale asked for.
 ///
-/// **Nothing held `render` to its `locale` argument.** Every other assertion
-/// about it is locale-agnostic — a brace check, a substitution check — so the
-/// whole parameter could be discarded:
+/// **This is what holds `render` to its `locale` argument.** Every other
+/// assertion about it is locale-agnostic — a brace check, a substitution check
+/// — so without this the whole parameter can be discarded:
 ///
 /// ```rust,ignore
 /// pub fn render(key: &str, locale: Locale, values: &[(&str, &str)])
@@ -601,8 +601,8 @@ fn every_declared_key_renders_with_nothing_left_in_braces() {
 /// }
 /// ```
 ///
-/// `cargo xtask check` → `check passed`, 783 tests. Every rendered sentence on
-/// the platform in English, for every reader, with the gate green:
+/// `cargo xtask check` → `check passed`. Every rendered sentence on the
+/// platform in English, for every reader, with the gate green:
 ///
 /// ```text
 /// render(pt-BR) = flake must be between 0 and 1023.
@@ -661,9 +661,9 @@ fn a_rendered_sentence_is_the_one_its_own_locale_holds() {
 /// A placeholder with no value is refused, and the refusal names it.
 ///
 /// The failure this exists to stop is silent: without it `render` would write
-/// `{min}` into a sentence and return `Ok`, which is exactly what the tree did
-/// before `render` existed. The withheld param is the *last* one, because
-/// stopping at the first placeholder would pass a test that withheld the first.
+/// `{min}` into a sentence and return `Ok`. The withheld param is the *last*
+/// one, because stopping at the first placeholder would pass a test that
+/// withheld the first.
 #[test]
 fn a_placeholder_with_no_value_is_refused_rather_than_written() {
     let code = ErrorCode::ValidationOutOfRange;
@@ -692,8 +692,8 @@ fn rendering_an_unknown_key_answers_nothing_rather_than_an_empty_sentence() {
 
 /// A registry entry cannot be built from outside the crate.
 ///
-/// **Every field was `pub` and the types are `Copy`**, so a consumer could take
-/// a real command and hand a dispatcher something else:
+/// **The types are `Copy` and their fields `pub`**, so without the seal a
+/// consumer could take a real command and hand a dispatcher something else:
 ///
 /// ```text
 /// catalog  : action=Delete mutating=true  rev=Write      -> checked against action
@@ -706,12 +706,12 @@ fn rendering_an_unknown_key_answers_nothing_rather_than_an_empty_sentence() {
 /// source: `#[non_exhaustive]` is what makes the struct literal above stop
 /// compiling outside `nc-catalog`.
 ///
-/// **The literal, and not the `forged` row.** The fields are still `pub` on a
-/// `Copy` type, so a copy of a real entry can be edited into that row from any
-/// crate — measured for `KERNEL` and for a `CapabilitySpec` from `nc-kernel` —
-/// and what keeps an edited copy from deciding anything is a consumer that
-/// reads the registry itself rather than taking an entry from its caller,
-/// which the kernel's own sources are read for.
+/// **The literal, and not the `forged` row.** The fields are `pub` on a `Copy`
+/// type, so a copy of a real entry can be edited into that row from any crate —
+/// measured for `KERNEL` and for a `CapabilitySpec` from `nc-kernel` — and what
+/// keeps an edited copy from deciding anything is a consumer that reads the
+/// registry itself rather than taking an entry from its caller, which the
+/// kernel's own sources are read for.
 #[test]
 fn a_registry_entry_is_sealed_against_construction() {
     // The ten, at the top of the body: clippy refuses an item after a
@@ -725,8 +725,8 @@ fn a_registry_entry_is_sealed_against_construction() {
         "RateLimit",
         "Budget",
         "StoreLimit",
-        // And the key-derivation parameters, which arrived after the hand list
-        // this replaced was written and were named by no assertion here.
+        // And the key-derivation parameters, which a hand list written before
+        // them would miss.
         "Argon2Id",
         // The kernel's bounds on a plugin, and what a capability grants. Sealed
         // against a literal only: an edited copy of `KERNEL` or of a spec
@@ -739,13 +739,12 @@ fn a_registry_entry_is_sealed_against_construction() {
     ];
 
     let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR")));
-    // **Read out of the emitter, not written down here.** The list was five
-    // names and the emitter writes seven: `StoreLimit` and `Argon2Id` were
-    // named by no assertion in this repository, so the seal on a store's bound
-    // and on the key-derivation parameters was whatever `emit.rs` last
-    // happened to write. A hand list agrees with the emitter about anything
-    // neither of them knows, which is exactly the two that arrived after it was
-    // written.
+    // **Read out of the emitter, not written down here.** A hand list of five
+    // names against an emitter that writes seven — `StoreLimit` and `Argon2Id`
+    // named by no assertion — leaves the seal on a store's bound and on the
+    // key-derivation parameters as whatever `emit.rs` last happened to write. A
+    // hand list agrees with the emitter about anything neither of them knows,
+    // which is exactly what arrives after it is written.
     let emitter = std::fs::read_to_string(root.join("../nc-catalog-compiler/src/emit.rs"))
         .expect("the emitter is the crate beside this one");
     // Assembled, so this line is not itself one of the emissions it counts.
@@ -761,9 +760,9 @@ fn a_registry_entry_is_sealed_against_construction() {
         .collect();
 
     // **The set, compared for equality, and the loop below walks the written
-    // half of it.** A count cannot carry a set, and this one was
-    // `sealed.len() >= 7` over a `Vec` derived from a raw-text scan of the
-    // emitter with no comment stripping. Two ways past it, both measured:
+    // half of it.** A count cannot carry a set: `sealed.len() >= 7` over a
+    // `Vec` derived from a raw-text scan of the emitter with no comment
+    // stripping has two ways past it, both measured:
     //
     //   `Argon2Id` unsealed in `emit.rs` and in the committed output
     //     -> it leaves the *derived* set, so the loop simply stops checking it
@@ -826,33 +825,34 @@ fn a_registry_entry_is_sealed_against_construction() {
             holding.len()
         );
     }
-    // **And no tally of the loop's own iterations.** There was one —
-    // `assert_eq!(checked, sealed.len())` over a `checked += 1` that was the
-    // unconditional last statement of the body — which is a count of how many
-    // times a `for` loop went round, compared against the length of what it
-    // went round. It cannot fail.
+    // **And no tally of the loop's own iterations.**
+    // `assert_eq!(checked, sealed.len())` over a `checked += 1` that is the
+    // unconditional last statement of the body is a count of how many times a
+    // `for` loop went round, compared against the length of what it went round.
+    // It cannot fail.
 }
 
 /// Every generated enum stays open, which is the catalog's whole promise.
 ///
-/// **The exact complement of the test above, and nothing held it.** `emit.rs`
-/// carries the paragraph — *"Deliberately NOT `#[non_exhaustive]`… A new error
-/// code becoming a compile error at every site that handles them is the
-/// catalog's whole promise (§15.2), and that attribute is what would break
-/// it"* — and a paragraph is not a check. Measured: the attribute written onto
-/// `ErrorCode` alone, then onto eight of the ten, left `cargo xtask build`
-/// rewriting the generated files and `cargo xtask check` at `check passed`, 0
-/// warn lines, in both runs. Two of the ten are held by accident, by a
-/// `match` in this crate's own suite and one in `xtask`'s pages test that
-/// happen to be exhaustive; the other eight were held by nobody.
+/// **The exact complement of the test above.** `emit.rs` carries the paragraph
+/// — *"Deliberately NOT `#[non_exhaustive]`… A new error code becoming a
+/// compile error at every site that handles them is the catalog's whole promise
+/// (§15.2), and that attribute is what would break it"* — and a paragraph is
+/// not a check. Written into the emitter, the attribute is invisible to
+/// `cargo xtask build`, which rewrites the generated files to match, and to
+/// every `match` inside this crate; what it breaks is an exhaustive `match`
+/// outside the crate. Such a `match` covers some generated enums by accident,
+/// in this crate's own suite and in `xtask`'s pages test, and others not at
+/// all, so without this test an enum no such `match` covers could be sealed
+/// with `cargo xtask check` passing.
 ///
 /// Asked in both places for the reason the struct test is: the emitter, so the
 /// attribute cannot be introduced, and the sources that ship, so it cannot
 /// arrive any other way.
 #[test]
 fn a_generated_enum_stays_open_so_a_new_variant_is_a_compile_error() {
-    // The ten, at the top of the body for the reason `SEALED` is at the top of
-    // its own: clippy refuses an item after a statement.
+    // Every generated enum, at the top of the body for the reason `SEALED` is
+    // at the top of its own: clippy refuses an item after a statement.
     const OPEN: [&str; 12] = [
         // A host function names the one it asks for, so a capability added is a
         // compile error at every `match` over them rather than one arm short.
@@ -873,14 +873,14 @@ fn a_generated_enum_stays_open_so_a_new_variant_is_a_compile_error() {
     let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR")));
     let emitter = std::fs::read_to_string(root.join("../nc-catalog-compiler/src/emit.rs"))
         .expect("the emitter is the crate beside this one");
-    // **Every attribute the emitter writes, not the one line before `pub enum`.**
-    // This asked for `#[non_exhaustive]` immediately above the declaration, and
-    // every generated type carries a `#[derive(…)]` on that line — so writing
-    // the attribute *above the derive*, which is the ordinary placement and what
-    // rustc itself accepts, sealed an enum with this rule green. Measured:
+    // **Every attribute the emitter writes, not the one line before
+    // `pub enum`.** Every generated type carries a `#[derive(…)]` on that line,
+    // so asking for `#[non_exhaustive]` immediately above the declaration lets
+    // the attribute written *above the derive* — the ordinary placement, and
+    // what rustc itself accepts — seal an enum with this rule green. Measured:
     // `Notification` sealed that way in the emitter and in the shipped source
-    // left `23 passed` here and `check passed`, while a compile probe from
-    // outside the crate answered `E0004: non-exhaustive patterns`.
+    // leaves such a rule passing and `check passed`, while a compile probe from
+    // outside the crate answers `E0004: non-exhaustive patterns`.
     //
     // So the question is about the *count* rather than about the position: every
     // `#[non_exhaustive]` this emitter writes must be the one that seals a
@@ -888,14 +888,15 @@ fn a_generated_enum_stays_open_so_a_new_variant_is_a_compile_error() {
     // lines are not themselves emissions this counts.
     //
     // **Every occurrence of it, not every one with a newline in the literal.**
-    // The count anchored on the attribute *followed by* `\n`, which is the shape
-    // `out.push_str` writes — and `writeln!`, the other spelling this file uses,
-    // puts the newline in the macro rather than in the literal. Measured: one
-    // `writeln!(out, …)` of the attribute above the notification enum shipped
-    // `Notification` sealed with this test green, `check passed`, 1281 test(s),
-    // `cargo fmt` clean and the drift gate quiet, and an exhaustive `match` from
-    // outside the crate then failed `E0004`. So the attribute is counted however
-    // it is spelled, and the pair below is the only thing that excuses one.
+    // Anchored on the attribute *followed by* `\n`, which is the shape
+    // `out.push_str` writes, the count misses `writeln!`, the other spelling
+    // this file uses, which puts the newline in the macro rather than in the
+    // literal. Measured: one `writeln!(out, …)` of the attribute above the
+    // notification enum ships `Notification` sealed with such a count green,
+    // `check passed`, `cargo fmt` clean and the drift gate quiet, and an
+    // exhaustive `match` from outside the crate then fails `E0004`. So the
+    // attribute is counted however it is spelled, and the pair below is the
+    // only thing that excuses one.
     //
     // Comments come out first: this file argues four times, in prose, about the
     // types that are deliberately *not* sealed, and a sentence is not an
@@ -938,15 +939,15 @@ fn a_generated_enum_stays_open_so_a_new_variant_is_a_compile_error() {
                 .unwrap_or_default()
                 .to_owned();
             // The attributes above it, innermost last — not the single line
-            // before it, which is always the `#[derive(…)]` every generated type
-            // carries.
-            // **And a comment is part of the block, not the end of it.** This
-            // walked back while the line was an attribute, so the `///` every
-            // generated type carries stopped it — and the attribute written
-            // *above* the doc comment, which is ordinary placement and what
-            // rustc accepts, was never looked at. That is the same defect this
-            // rule's own paragraph above records one position earlier: the walk
-            // was widened past the `#[derive(…)]` and stopped at the doc.
+            // before it, which is always the `#[derive(…)]` every generated
+            // type carries. **And a comment is part of the block, not the end
+            // of it.** A walk back that stops when the line is no longer an
+            // attribute is stopped by the `///` every generated type carries —
+            // and the attribute written *above* the doc comment, which is
+            // ordinary placement and what rustc accepts, is never looked at.
+            // That is the same shape this rule's own paragraph above records
+            // one position earlier: past the `#[derive(…)]`, and stopped at the
+            // doc.
             let sealed = source[..at]
                 .lines()
                 .rev()
@@ -978,11 +979,12 @@ fn a_generated_enum_stays_open_so_a_new_variant_is_a_compile_error() {
 
 /// `as_str` answers the word the registry itself writes.
 ///
-/// **No enum here had a text form**, so every consumer that needed one wrote
-/// its own: `nc-log` had a `level_name`, the pages test has a `severity_word`,
-/// and `{:?}` gives `Critical` where the ledger and both pages write `critical`.
-/// `Severity`'s own doc names the hazard — "two vocabularies for one judgement
-/// is how they drift apart" — and there were three.
+/// **Every enum here has a text form**, so no consumer that needs one writes
+/// its own: without it, `nc-log` needs a `level_name`, the pages test has
+/// a `severity_word`, and `{:?}` gives `Critical` where the ledger and both
+/// pages write `critical`. `Severity`'s own doc names the hazard — "two
+/// vocabularies for one judgement is how they drift apart" — and that would be
+/// three.
 ///
 /// Compared against the registry text on disk, not against a list written here:
 /// the ledger records each code's severity word, and `catalog/log-events.toml`
@@ -1020,20 +1022,20 @@ fn every_word_an_enum_answers_is_the_word_the_registry_writes() {
     let mut levels = 0_usize;
     for event in nc_catalog::EVENTS {
         // **The entry, not everything after its name.** TOML fixes no order on
-        // the keys of a table, so an entry writing `level` above `name` sent
-        // this scan past its own block and into the *next* `[[event]]`.
-        // Measured: `level` moved above `name` for `journal.appended` — a
-        // reordering the generated output is byte-identical under, both drift
-        // tests still passing — turned `check` red with
-        // `` `journal.appended` answers a level the registry does not declare ``
-        // and `right: "info"`, which is the neighbouring event's level. A gate
-        // wrong in that direction sends a reader to look for a defect that is
-        // not there.
+        // the keys of a table, so an entry writing `level` above `name` would
+        // send a scan of everything after the name past its own block and into
+        // the *next* `[[event]]`. Measured: `level` moved above `name` for
+        // `journal.appended` — a reordering the generated output is
+        // byte-identical under, both drift tests still passing — turns such a
+        // `check` red with `` `journal.appended` answers a level the registry
+        // does not declare `` and `right: "info"`, which is the neighbouring
+        // event's level. A gate wrong in that direction sends a reader to look
+        // for a defect that is not there.
         //
         // It is vacuous in the other direction too, on the same reading:
-        // `log.dropped` and `log.store_unreachable` are both `warn`, so for that
-        // pair a wrong generated level of `warn` was compared against the
-        // neighbour's `warn` and passed.
+        // `log.dropped` and `log.store_unreachable` are both `warn`, so for
+        // that pair a wrong generated level of `warn` would be compared against
+        // the neighbour's `warn` and pass.
         let block = events
             .split("\n[[event]]")
             .find(|block| block.contains(&format!("name = \"{}\"", event.name)))

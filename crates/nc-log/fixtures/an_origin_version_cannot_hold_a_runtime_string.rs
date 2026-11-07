@@ -1,15 +1,15 @@
 //! This must NOT compile. See `an_origin_cannot_hold_a_runtime_string.rs`.
 //!
-//! **`version` by name**, which is what that fixture's own header says no
-//! fixture here covers. `Origin` declares both fields as `Literal` and the
-//! fixture beside this one proves the refusal on `service` only — so
-//! `pub version: Literal` could go back to `&'static str` with criterion 2's
-//! own test at `1 passed`, and `version` is on every line the log emits.
+//! **`version` by name.** `Origin` declares both fields as `Literal`, and the
+//! fixture beside this one proves the refusal on `service` only: were
+//! `pub version: Literal` demoted to `&'static str`, that fixture's sentence
+//! would still come back, for `service`. `version` is on every line the log
+//! emits, so it has a fixture of its own.
 //!
 //! The run-time string goes in `version` and `service` keeps its `literal!`,
-//! so the refusal still needs `nc-log`: the empty-crate control rebuilds this
-//! against a hollow `Origin` whose fields carry no type at all, where it
-//! compiles.
+//! so the refusal needs `nc-log`: the empty-crate control rebuilds this
+//! against a hollow `Origin` that keeps `service: Literal` and gives `version`
+//! no type at all, where it compiles.
 //!
 //! EXPECT: expected `Literal`, found `&str`
 

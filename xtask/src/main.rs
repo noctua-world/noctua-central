@@ -13,23 +13,25 @@
 //!
 //! **Every line this tool prints goes through `ui`, and the compiler holds it.**
 //!
-//! This was a test scanning for `println!`, `stdout()` and four more spellings.
-//! A needle list cannot win: `let handle = std::io::stdout;` then `handle()`
-//! contains none of them, and it put a fifth `warn` line on the terminal under
-//! a verdict saying four, with exit 0 — the exact failure the scan existed to
-//! prevent. `dbg!` and a `printf` child process walked past it too.
+//! A test scanning for `println!`, `stdout()` and four more spellings cannot
+//! hold it. A needle list cannot win: `let handle = std::io::stdout;` then
+//! `handle()` contains none of them, and past such a list it would put a fifth
+//! `warn` line on the terminal under a verdict saying four, with exit 0 — the
+//! exact failure the scan exists to prevent. `dbg!` and a `printf` child
+//! process walk past such a list too.
 //!
 //! Name resolution is not a substring problem, so it is given to the thing that
 //! resolves names. `ui.rs` carries the one `expect` that earns it.
 //!
 //! **And the same deny is written at every other crate's root.** A lint level
 //! does not cross a crate boundary, and `print_stdout` is `restriction`, which
-//! neither `all` nor `pedantic` turns on — so this attribute bound `xtask` and
-//! nothing else. Measured: one `println!` in `crates/nc-catalog-compiler`,
-//! inside a function the gate calls twice, put two `warn` lines on the terminal
-//! under `check passed, with 8 warn line(s) above` — ten lines under a verdict
-//! saying eight, exit 0, clippy silent. The verdict's warn count and its skipped
-//! list are true only if every line goes through `ui`.
+//! neither `all` nor `pedantic` turns on — so this attribute binds `xtask` and
+//! nothing else. Without the same deny at that crate's own root, one `println!`
+//! in `crates/nc-catalog-compiler`, inside a function the gate calls twice,
+//! would put two `warn` lines on the terminal that the verdict's
+//! `with N warn line(s) above` does not count, with exit 0 and clippy silent.
+//! The verdict's warn count and its skipped list are true only if every line
+//! goes through `ui`.
 #![cfg_attr(
     not(test),
     deny(
@@ -53,6 +55,7 @@ mod determinism;
 mod dev;
 mod docs;
 mod gates;
+mod history;
 mod limits;
 mod local;
 mod members;
@@ -78,7 +81,7 @@ pub(crate) mod ui;
                            the `cargo install` for `cargo deny`, and `build` twice\n\
                   dev      bring up PostgreSQL and the central log store\n\
                   docs     regenerate the self-documentation surfaces under docs/\n\
-                  release  write a version everywhere it appears"
+                  release  compute a channel's version and changelog, and publish them"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -108,7 +111,8 @@ enum Command {
     /// diffs two builds. `crate::check::WHAT_CI_RUNS` is that set, held against
     /// the workflow and against every sentence stating it.
     Check {
-        /// Skip the nine steps that need the local stack or the network. CI
+        /// Skip the nine steps that need the local stack or the network, and
+        /// fetch nothing: every cargo this starts is told to stay offline. CI
         /// never passes this.
         #[arg(long)]
         offline: bool,
@@ -121,13 +125,30 @@ enum Command {
     },
     /// Regenerate the self-documentation surfaces under docs/.
     Docs,
-    /// Write a version everywhere it appears. Prints the git commands; runs none.
+    /// Release a channel: its version and changelog, computed from the history.
+    ///
+    /// Runs the gate, writes the version, the changelog and the lockfile, and
+    /// reads each back. `--publish`, which CI's release job passes, then makes
+    /// the release on GitHub: the release commit, the tag, the release and the
+    /// pull request that carries it back to the branch below.
+    /// `--after-the-gate-job`, which that job passes too, stands the gate aside,
+    /// because the job before it ran the gate on the same commit.
     Release {
-        /// The new version, as three numbers.
-        version: String,
-        /// Say what would change and change nothing.
-        #[arg(long)]
+        /// The branch the release is made from: `staging` for a release
+        /// candidate, `main` for production.
+        #[arg(long, value_enum)]
+        channel: release::Channel,
+        /// Say what the release would be and change nothing. The gate is not run.
+        #[arg(long, conflicts_with = "publish")]
         dry_run: bool,
+        /// Make the release on GitHub too, through `gh`. CI's release job passes it.
+        #[arg(long)]
+        publish: bool,
+        /// Run no gate here, because the job before this one ran it on this
+        /// commit. Refused but with `--publish`, in the release job of
+        /// `.github/workflows/release.yml` on the channel's branch.
+        #[arg(long)]
+        after_the_gate_job: bool,
     },
 }
 
@@ -141,7 +162,12 @@ fn main() -> ExitCode {
         Command::Check { offline } => check::run(&root, offline),
         Command::Dev { down } => dev::run(&root, down),
         Command::Docs => docs::run(&root),
-        Command::Release { version, dry_run } => release::run(&root, &version, dry_run),
+        Command::Release {
+            channel,
+            dry_run,
+            publish,
+            after_the_gate_job,
+        } => release::run(&root, channel, dry_run, publish, after_the_gate_job),
     };
 
     match outcome {
@@ -173,4 +199,22 @@ pub(crate) fn relative_to(root: &Path, path: &Path) -> String {
         .unwrap_or(path)
         .to_string_lossy()
         .replace('\\', "/")
+}
+
+/// Whether a path a tool wrote is in Windows' spelling, where `\` separates.
+///
+/// **Read from the spelling, not from the system**, so a test can hand
+/// Windows' answer to a reader on every system. It is asked of the paths cargo
+/// writes for the workspace itself: its root, and the manifest and source
+/// paths under that root. On Windows those are written with `\` alone, so one
+/// of them that holds a `/` is Unix's, where `\` is a character a name may
+/// hold. A path cargo joins onto a spelling someone chose, such as a target
+/// directory, can hold both separators on Windows, and its reader decides from
+/// the part cargo wrote, as `check::tests_verdict` does. Measured with `cargo
+/// metadata` on Linux, a path dependency on a sibling directory named
+/// `w\vendored` beside a root `w` is written as that sibling under that root's
+/// own spelling, and a reader that turns every `\` into `/` takes the sibling
+/// for a directory inside the root.
+pub(crate) fn in_windows_spelling(path: &str) -> bool {
+    path.contains('\\') && !path.contains('/')
 }

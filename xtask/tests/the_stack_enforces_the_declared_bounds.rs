@@ -24,7 +24,7 @@ fn root() -> PathBuf {
 /// the same reason its neighbours are functions.
 ///
 /// Read from the projection docker prints, for the same reason the ports are:
-/// two spellings got past the file rule, which counts the `test:` key.
+/// two spellings get past the file rule, which counts the `test:` key.
 fn every_healthcheck_asks_something(resolved: &str) {
     //
     // * `test: ["NONE"]` — docker's other way of saying *no healthcheck*. The
@@ -229,8 +229,8 @@ fn the_healthchecks_are_the_shapes_this_stack_declares(declared: &str) -> Result
 
 /// Whether this run asked docker anything at all.
 ///
-/// **`--offline` promises a run that needs no stack, and this file drove docker
-/// anyway.** Measured with the binary off `PATH`: three tests here panic on
+/// **`--offline` promises a run that needs no stack, and without this the file
+/// drives docker anyway.** Measured with the binary off `PATH`: three tests here panic on
 /// `Os { code: 2, kind: NotFound }`, so `cargo xtask check --offline` exits 1 —
 /// while the `justfile` beside it calls `--offline` *the same gate without the
 /// steps that need the stack* and `AGENTS.md` says its whole point is to run
@@ -239,16 +239,18 @@ fn the_healthchecks_are_the_shapes_this_stack_declares(declared: &str) -> Result
 ///
 /// A test that could not ask its question has not answered it either, so the
 /// gate announces this as a skip of its own and the verdict names it — the
-/// number is `OFFLINE_SKIPS` and it moved with this.
+/// number is `OFFLINE_SKIPS`.
 ///
-/// **Asked for, never inferred.** `NC_OFFLINE` is what
-/// `cargo xtask check --offline` hands the child, the shape
-/// `crates/nc-journal/tests/in_postgres.rs` already uses. A developer running
+/// **Asked for, never inferred.** `NC_NO_STACK` is what `cargo xtask check`
+/// hands the child under `--offline`, and on a system that runs no stack, with
+/// the reason as its value — the shape `crates/nc-journal/tests/in_postgres.rs`
+/// already uses. A developer running
 /// `cargo test` on a machine with no docker still gets the panic above, which is
 /// the right answer to *"the stack is not here and nobody said so"*.
 fn the_stack_was_asked() -> bool {
-    if std::env::var_os("NC_OFFLINE").is_some() {
-        println!("the stack: skipped, docker was not asked (NC_OFFLINE)");
+    if std::env::var_os("NC_NO_STACK").is_some() {
+        let why = std::env::var("NC_NO_STACK").unwrap_or_default();
+        println!("the stack: skipped, docker was not asked: {why}");
         return false;
     }
     true
@@ -366,10 +368,10 @@ fn a_healthcheck_that_is_not_a_declared_shape_is_refused() {
 /// the flags are one per line, and a dependency to read six lines is a
 /// dependency `AGENTS.md` would ask about.
 ///
-/// **All of them, not the first.** This was `find_map`, and a command line can
-/// name a flag twice — the store applies the **last** one, so repeating a line
-/// left this test reading `30d` from the line above while the container ran
-/// with `1d`. Measured against `victoria-logs:v1.52.0` with both lines present:
+/// **All of them, not the first.** A command line can name a flag twice and the
+/// store applies the **last** one, so a reader that takes the first — a
+/// `find_map` — reads `30d` from the line above while the container runs with
+/// `1d`. Measured against `victoria-logs:v1.52.0` with both lines present:
 ///
 /// ```text
 /// -retentionPeriod="1d"
@@ -416,12 +418,12 @@ fn bytes(value: &str) -> Option<u64> {
     ] {
         if let Some(number) = value.strip_suffix(suffix) {
             // **`checked_mul`, like its twin.** `xtask/src/store.rs`'s `bytes`
-            // was repaired for this and its doc says these are "the same
-            // scales"; this copy kept the plain multiply. A bound congruent to
-            // the declared one modulo 2^64 — `17179869192GiB` against 8 GiB —
-            // then wraps to exactly the right number. It panics today only
-            // because the test profile inherits `dev`'s overflow checks, and
-            // `Cargo.toml`'s `[profile.release]` sets none.
+            // does the same, and its doc says these are "the same scales". With
+            // a plain multiply, a bound congruent to the declared one modulo
+            // 2^64 — `17179869192GiB` against 8 GiB — wraps to exactly the
+            // right number; it would panic only because the test profile
+            // inherits `dev`'s overflow checks, and `Cargo.toml`'s
+            // `[profile.release]` sets none.
             return number
                 .trim()
                 .parse::<u64>()
@@ -457,13 +459,14 @@ fn the_log_store_is_started_with_the_bounds_the_catalog_declares() {
     );
 
     // **And where it writes them**, because a retention is a promise about a
-    // directory. Measured, `--storageDataPath` alone among the three flags was
-    // read by nothing in this file: pointed at `/tmp/planted-outside-the-volume`
-    // it left every test here green, `check` green and `cargo xtask dev`
-    // printing `the stack is up`, with every log line going to storage that dies
-    // with the container. `check`'s `where_the_store_writes` does compare the
-    // two, but it asks the *running* store, so it is green against any container
-    // started before the edit — the file was only refused after a restart.
+    // directory. Without this, `--storageDataPath` alone among the three flags
+    // is read by nothing in this file: measured, pointed at
+    // `/tmp/planted-outside-the-volume` it leaves every test here green, `check`
+    // green and `cargo xtask dev` printing `the stack is up`, with every log
+    // line going to storage that dies with the container. `check`'s
+    // `where_the_store_writes` does compare the two, but it asks the *running*
+    // store, so it is green against any container started before the edit —
+    // the file is refused only after a restart.
     let writes = only(&compose, "--storageDataPath").expect("one data path");
     let mounted = mount_target(&compose, "logs-data")
         .unwrap_or_else(|| panic!("`logs-data` is mounted into the log store"));
@@ -502,11 +505,11 @@ fn mount_target(compose: &str, named: &str) -> Option<String> {
 
 /// Every published port is bound to loopback.
 ///
-/// **The one line the file calls load-bearing, and nothing read it.** The
-/// compose file's own header says `127.0.0.1:` in front of every port is what
-/// keeps the database and the log store off the network, and "this is the one
-/// line that prevents it". Rewriting both entries to publish on every
-/// interface left `cargo xtask check` green:
+/// **The one line the file calls load-bearing.** The compose file's own header
+/// says `127.0.0.1:` in front of every port is what keeps the database and the
+/// log store off the network, and "this is the one line that prevents it".
+/// Without this test, rewriting both entries to publish on every interface
+/// leaves `cargo xtask check` green:
 ///
 /// ```yaml
 /// - "0.0.0.0:${POSTGRES_PORT:-5432}:5432"
@@ -521,9 +524,9 @@ fn mount_target(compose: &str, named: &str) -> Option<String> {
 /// The bare `port:port` form is the trap: it looks narrower than the explicit
 /// one and is the widest of the three.
 ///
-/// **And it read one file, which is not what docker runs.** This was a text
-/// scan of `docker-compose.yml`, exactly the bypass `gates.rs` documents fixing
-/// for the image gate in the same tree. Measured with an override file named
+/// **And it reads what docker runs, not one file.** A text scan of
+/// `docker-compose.yml` is exactly the bypass `gates.rs` documents closing for
+/// the image gate in the same tree. Measured, against such a scan, with an override file named
 /// `docker-compose.override.yml` <!-- allow-reference: `docker-compose.override.yml` is what that measurement created and then removed; this stack ships no override, which is the point --> adding `ports: ["0.0.0.0:5432:5432"]`
 /// and a service on `network_mode: host`:
 ///
@@ -568,23 +571,24 @@ fn every_published_port_is_bound_to_loopback() {
     let resolved = String::from_utf8_lossy(&resolved.stdout);
     let mut published = 0_usize;
     // **How many ports the stack publishes**, counted apart from how many name
-    // an address. The rule below is a predicate on `host_ip:` lines and its
-    // floor counted those same lines — so a port written in the long syntax
-    // with no host address produces `target:`/`published:` and **no `host_ip:`
-    // line at all**, and both the rule and its floor step over it. Measured
-    // live: `0.0.0.0:5433->5432/tcp`, reachable from another machine on the
-    // network, with this test green.
+    // an address. The rule below is a predicate on `host_ip:` lines, and a
+    // floor counting those same lines misses what it misses — so a port written
+    // in the long syntax with no host address produces `target:`/`published:`
+    // and **no `host_ip:` line at all**, and both the rule and such a floor
+    // step over it. Measured live against those two alone:
+    // `0.0.0.0:5433->5432/tcp`, reachable from another machine on the network,
+    // with this test green.
     // **Counted as entries, not as `published:` lines.** The compose short form
     // `- "5432"` produces `target:` and `protocol:` and *neither* a
-    // `published:` nor a `host_ip:` — so the rule and its floor both stepped
-    // over it, and `docker ps` showed `0.0.0.0:32768->5432/tcp` with an
+    // `published:` nor a `host_ip:` — so the rule and a floor over `published:`
+    // both step over it, and `docker ps` shows `0.0.0.0:32768->5432/tcp` with an
     // authenticated session reachable over the LAN using the password in
     // `.env.example`, under `check passed` and `both bind to loopback only`.
     // **Every entry of the `ports:` list, whatever key compose writes first.**
-    // This counted lines opening `- mode:` on the ground that "every entry in
-    // the projection opens with" it — and an entry that carries a `name:` does
-    // not: compose emits `name` before `mode`. Measured, a second long-form
-    // entry on postgres whose first key is `name`:
+    // Counting lines that open `- mode:`, on the ground that "every entry in the
+    // projection opens with" it, misses an entry that carries a `name:`:
+    // compose emits `name` before `mode`. Measured, against that count, a second
+    // long-form entry on postgres whose first key is `name`:
     //
     // ```text
     //   - mode: ingress
@@ -596,11 +600,11 @@ fn every_published_port_is_bound_to_loopback() {
     //     published: "15432"
     // ```
     //
-    // `published == ports == 2` held, the file half skipped it because `- name:`
+    // `published == ports == 2` holds, the file half skips it because `- name:`
     // opens with none of the characters it looks for, and `cargo xtask check`
-    // passed with PostgreSQL reachable from the network under the password in
-    // `.env.example`. The rule above closed the case and not the class; a list
-    // item is a list item, so that is what is counted.
+    // passes with PostgreSQL reachable from the network under the password in
+    // `.env.example`. Counting `- mode:` closes the case and not the class; a
+    // list item is a list item, so that is what is counted.
     let mut ports = 0_usize;
     let mut inside_ports = false;
     let mut opened_at = 0_usize;
@@ -673,9 +677,9 @@ fn every_published_port_is_bound_to_loopback() {
             continue;
         };
         let entry = entry.trim().trim_matches(['"', '\'']);
-        // **A published port is any entry under `ports:`, colon or not.** This
-        // required one, so the short form `- "5432"` — which publishes on every
-        // interface — was not read as a port at all.
+        // **A published port is any entry under `ports:`, colon or not.**
+        // Requiring one would not read the short form `- "5432"` — which
+        // publishes on every interface — as a port at all.
         if !entry
             .chars()
             .next()
@@ -699,11 +703,11 @@ fn every_published_port_is_bound_to_loopback() {
 
 /// The example environment says what the stack reads, and it is checked.
 ///
-/// **Its values were read by nothing at all.** The gate refuses a committed
+/// **Its values, and not only its names.** The gate refuses a committed
 /// `.env`, and `no_unread_variable` refuses a variable in `.env.example` that
-/// no file reads — both about *names*. The numbers and words beside them were
-/// judged by nobody, and this file makes two claims about them in its own
-/// prose: that "every variable `docker-compose.yml` reads is defaulted there to
+/// no file reads — both about *names*. The numbers and words beside them are
+/// what this test judges, and `.env.example` makes two claims about them in its
+/// own prose: that "every variable `docker-compose.yml` reads is defaulted there to
 /// the value below", and that `DATABASE_URL` is "derived from the four above".
 /// Neither survives an edit to one side. Change `POSTGRES_PORT` to `5433` and
 /// the file ships a `DATABASE_URL` pointing at a port nothing listens on, with
@@ -781,13 +785,13 @@ fn the_example_environment_agrees_with_the_compose_defaults() {
 
 /// Every load-bearing line of `docker-compose.yml` that nothing else reads.
 ///
-/// **Two flags and the port bindings were checked, and the rest of the file was
-/// not.** `restart:`, `POSTGRES_INITDB_ARGS`, the volume's mount point and both
-/// healthchecks are each written with a comment recording the incident that put
-/// them there — a restart loop that took an afternoon, a healthcheck that
-/// reported green while every application connection failed, a sort order that
-/// differed between two developers. Every one of them could be deleted and the
-/// whole gate stayed green.
+/// **Not only two flags and the port bindings.** `restart:`,
+/// `POSTGRES_INITDB_ARGS`, the volume's mount point and both healthchecks are
+/// each written with a comment recording the incident that put them there — a
+/// restart loop that took an afternoon, a healthcheck that reported green while
+/// every application connection failed, a sort order that differed between two
+/// developers. Without this list, every one of them can be deleted with the
+/// whole gate green.
 ///
 /// A written list, in the shape of `check.rs`'s `SUITES` and `wall.rs`'s
 /// `SHAPES`: removing one is then a two-place edit, and the second place is
@@ -810,7 +814,7 @@ fn the_compose_file_still_holds_what_it_was_fixed_to_hold() {
         });
     // The floor is on what is left, not on a ratio: two thirds of this file is
     // prose recording the incidents behind it, so "most of it survived" is the
-    // wrong shape and was measured saying 47 of 153 was too few. A stripper
+    // wrong shape — measured, it calls 47 of 153 too few. A stripper
     // that returned nothing would fail every count below on its own; what needs
     // saying here is that the *negative* checks still have something to look at.
     assert!(
@@ -851,15 +855,15 @@ fn the_compose_file_still_holds_what_it_was_fixed_to_hold() {
             "`cargo xtask dev` waits on these, and a service with none reports healthy \
              the instant it starts",
         ),
-        // **And that each one asks something.** The key was counted and its
-        // block was read by nothing: `what_a_service_is_handed`'s `under()`
-        // fires only for `environment`, `volumes` and `command`, and the
-        // vocabulary walk has arms for depths 0, 1 and 2 while a healthcheck's
-        // body is at depth 3 — so `disable: true`, which is docker's own
-        // spelling for *no healthcheck at all*, left `cargo xtask check`
-        // byte-identical to a clean run. Not one character of the output
-        // differed. `dev.rs` refuses it at runtime, so CI is red by another
-        // road; the file rule this test states did not hold.
+        // **And that each one asks something.** Counting the key reads nothing
+        // of its block: `what_a_service_is_handed`'s `under()` fires only for
+        // `environment`, `volumes` and `command`, and the vocabulary walk has
+        // arms for depths 0, 1 and 2 while a healthcheck's body is at depth 3 —
+        // so, with the key counted alone, `disable: true`, which is docker's own
+        // spelling for *no healthcheck at all*, leaves `cargo xtask check`
+        // byte-identical to a clean run, measured. Not one character of the
+        // output differs. `dev.rs` refuses it at runtime, so CI is red by
+        // another road; the file rule this test states would not hold.
         //
         // Each block names the command it runs, so that is what is counted.
         (
@@ -889,8 +893,8 @@ fn the_compose_file_still_holds_what_it_was_fixed_to_hold() {
              {expected}, and {why}"
         );
     }
-    // And the two spellings that were measured to be wrong, which a later edit
-    // would most naturally reach for.
+    // And the two spellings measured to be wrong, which an edit would most
+    // naturally reach for.
     for (wrong, why) in [
         (
             "pg_isready",
@@ -913,7 +917,7 @@ fn the_compose_file_still_holds_what_it_was_fixed_to_hold() {
 
 /// What `docker compose config` prints for this tree, with `also` on the end.
 ///
-/// Its own function because the projection is now asked for twice and the two
+/// Its own function because the projection is asked for twice and the two
 /// requests differ by one flag; a second copy of a spawn is a second place for
 /// the arguments to drift.
 fn projection(also: &[&str]) -> String {
@@ -943,9 +947,8 @@ fn projection(also: &[&str]) -> String {
 ///
 /// Docker merges up to eight filenames and expands anchors, `extends`, flow
 /// collections, variables and the short volume form; a text scan of one file
-/// sees none of that. `every_published_port_is_bound_to_loopback` has resolved
-/// through this since it was written, for the same reason, and the security
-/// vocabulary did not.
+/// sees none of that. `every_published_port_is_bound_to_loopback` resolves
+/// through this for that reason, and so does the security vocabulary.
 fn resolved_stack() -> String {
     projection(&[])
 }
@@ -959,9 +962,9 @@ fn resolved_stack() -> String {
 /// postgres healthcheck's text on one machine is not its text on another.
 /// Measured with a password holding a space, a colon and a hash: YAML then
 /// quotes the whole entry and doubles every quote inside it, so not one
-/// character of that line survives — and the last attempt at
-/// [`HOW_EACH_SERVICE_ANSWERS`] read exactly that line, on a machine where
-/// nothing was wrong.
+/// character of that line survives — and a comparison of
+/// [`HOW_EACH_SERVICE_ANSWERS`] against exactly that line fails on a machine
+/// where nothing is wrong.
 ///
 /// `--no-interpolate` leaves every `${…}` and every `$$` as `docker-compose.yml`
 /// writes them, so what is compared depends on the files in this tree and on
@@ -978,15 +981,15 @@ fn declared_stack() -> String {
 
 /// The path of keys leading to each line of a YAML document, by indentation.
 ///
-/// **The vocabulary was a predicate on two columns**, `indent == 0` and
-/// `indent == 4`, and YAML only requires *siblings* to agree. A service whose
-/// keys sit at six spaces was therefore never judged at all: measured, a third
+/// **Not a predicate on two columns.** Read as `indent == 0` and
+/// `indent == 4`, the vocabulary never judges a service whose keys sit at six
+/// spaces, and YAML only requires *siblings* to agree: measured, a third
 /// service carrying `privileged: true`, `user: "0:0"`, `cap_add: [SYS_ADMIN]`,
 /// `security_opt`, and bind mounts of `/` and the docker socket, resolved in
-/// full by `docker compose config` and reported by nothing —
+/// full by `docker compose config` and flagged by nothing —
 /// `ok 3 image(s) in the resolved stack … each pinned by digest`, `check
-/// passed`. The image gate counted the third service; the security vocabulary
-/// never entered it.
+/// passed`. The image gate counts the third service; a vocabulary read by
+/// column never enters it.
 ///
 /// So the reader is structural: a line's parents are whichever keys are less
 /// indented than it, nearest first, and the rules below name paths rather than
@@ -1056,10 +1059,10 @@ fn what_a_service_is_handed(compose: &str) {
         // whose `type` is `bind`. The short form `- /:/host` is what the file
         // may hold and what the resolver expands.
         // **And what a service is told to run.** `command` is allowed per service
-        // because the log store's bounds are passed that way, and its *items*
-        // were judged by nothing — so
+        // because the log store's bounds are passed that way, and with its
+        // *items* judged by nothing,
         // `command: ["sh", "-c", "cat /etc/shadow > /tmp/x; exec docker-entrypoint.sh postgres"]`
-        // was accepted, which replaces the process the image starts with an
+        // is accepted, which replaces the process the image starts with an
         // arbitrary one. Everything this stack legitimately passes is a flag,
         // and the three the store takes are compared against the catalog
         // elsewhere in this file.
@@ -1077,11 +1080,11 @@ fn what_a_service_is_handed(compose: &str) {
             // **The item's own text, which `docker compose config` always writes
             // long-form.** A volume item is `type: volume` or `type: bind`, and
             // the host path — if there is one — is the sibling `source:` line,
-            // which `is_item` is false for and no branch read. So
-            // `starts_with(['/', '.', '~'])` could never fire: measured, a real
-            // `- /:/host` bind on `postgres` was caught by the `mounts == 2`
-            // hand count and by nothing else, and that count is two literals
-            // away from a stack that gains a service.
+            // which `is_item` is false for and no branch reads. So a rule
+            // asking `starts_with(['/', '.', '~'])` of the item cannot fire:
+            // measured with that rule, a real `- /:/host` bind on `postgres` was
+            // caught by the `mounts == 2` hand count and by nothing else, and
+            // that count is two literals away from a stack that gains a service.
             //
             // Every mount this stack has is a named volume, so the type is what
             // is asserted — and a bind arrives as a different type rather than
@@ -1147,16 +1150,15 @@ fn the_walk_entered_the_whole_stack(
 
 /// Every region the walk names was actually counted.
 ///
-/// **`networks:` was counted at no depth.** Every key under it fell to a silent
-/// `_ => {}`, so a service could be attached to a second, `attachable` network —
-/// or an `external:` one this repository does not own — with every other floor
-/// holding, because none of them counts anything there.
+/// **`networks:` is counted at its own depth.** Every key under it falling to a
+/// silent `_ => {}` lets a service be attached to a second, `attachable` network
+/// — or an `external:` one this repository does not own — with every other
+/// floor holding, because none of them counts anything there.
 fn the_regions_are_all_counted(networks: usize, network: usize, named_volumes: usize) {
     // **Two floors, because their sum is one.** `networks + network > 0` is
     // satisfied by `networks` alone — the projection gives one of each — so the
     // counter saying the network *definition* was entered and its keys judged
-    // was floored by nothing, which is how the only unheld vocabulary in this
-    // file came to be the one inside it.
+    // would be floored by nothing, and the vocabulary inside it unheld.
     assert!(
         networks > 0,
         "the walk read no `networks:` key at all, so nothing there is judged"
@@ -1175,23 +1177,23 @@ fn the_regions_are_all_counted(networks: usize, network: usize, named_volumes: u
 
 /// What a key at depth three or deeper may be, by the block it sits in.
 ///
-/// **A row here that no key can reach is a description of nothing.** The list
-/// carried `("services", "depends_on", &[])`, and `depends_on` is not in
+/// **A row here that no key can reach is a description of nothing.** A row
+/// `("services", "depends_on", &[])` is one: `depends_on` is not in
 /// `PER_SERVICE`, so `a_service_key` refuses it one level up and the depth rule
-/// is never reached — measured, the plant failed at `a_service_key`, naming the
-/// key as one "nothing here has decided about". `PER_SERVICE` is held to the
-/// opposite rule one screen down, on the argument that a vocabulary with
-/// entries nothing uses stops being a description; this list had no such loop,
-/// which is why the dead row was invisible.
+/// is never reached — measured, such a plant fails at `a_service_key`, naming
+/// the key as one "nothing here has decided about". `PER_SERVICE` is held to
+/// the opposite rule one screen down, on the argument that a vocabulary with
+/// entries nothing uses stops being a description; without such a loop here a
+/// dead row is invisible.
 ///
-/// **The fall-through it replaces could not fail.** It was
-/// `path[0] == top && path.len() >= depth` with depth 3 for all three roots —
-/// and depth 0 is closed by the top-level list, depths 1 and 2 have arms of
-/// their own, so every path reaching the default arm was at depth ≥3 under one
-/// of those three roots and every one was accepted. Measured: `x-planted: true`
-/// inside `healthcheck:` and `networks: {default: {aliases: [db]}}` on a service
-/// both passed all six tests, and docker emits both in the projection. Two of
-/// those are escapes the network rule's own docstring claims to have closed.
+/// **A fall-through cannot fail.** `path[0] == top && path.len() >= depth` with
+/// depth 3 for all three roots accepts everything that reaches it: depth 0 is
+/// closed by the top-level list, depths 1 and 2 have arms of their own, so
+/// every path reaching the default arm is at depth ≥3 under one of those three
+/// roots. Measured under that fall-through: `x-planted: true` inside
+/// `healthcheck:` and `networks: {default: {aliases: [db]}}` on a service both
+/// pass every test here, and docker emits both in the projection. Two of those
+/// are escapes the network rule's own docstring says it closes.
 ///
 /// So the regions are named with the keys each admits, and a key that is not
 /// here is a finding — the `SKIP`/`COVERED` shape this repository uses, where
@@ -1200,7 +1202,7 @@ const AT_DEPTH_THREE: [(&str, &str, &[&str]); 7] = [
     // **A label's own key is arbitrary text, and `a_top_level_network_key`
     // allows the block that holds it.** Without this row the two rules
     // contradict each other: `labels` is a key a top-level network may carry,
-    // and every key *inside* it fell to the depth rule — measured,
+    // and every key *inside* it falls to the depth rule — measured,
     // `networks.default.labels.com.noctua.owner: central` was refused with
     // "nothing here has decided about" while the block above it was allowed.
     // A label is a note to a reader and to `docker inspect`; it changes nothing
@@ -1313,23 +1315,24 @@ fn a_service_key(path: &[String], key: &str) {
 
 /// The keys a top-level `networks:` definition may carry.
 ///
-/// **This region was decided at no depth.** The walk had arms for 0, 1 and 2
-/// over `services` and `volumes` and a bare `_ => {}`, so a service's own
-/// `networks:` block and the top-level definitions it points at were read by
-/// nothing — measured, `attachable: true`, `aliases: ["db"]` and an `x-planted:`
-/// key inside `healthcheck:` all passing every test in this file with every
-/// floor holding. `network_mode: host` is refused two levels up with a
-/// paragraph saying why, while the network a service actually joins was not
-/// looked at.
+/// **This region is decided here, not at no depth.** With arms for 0, 1 and 2
+/// over `services` and `volumes` and a bare `_ => {}`, a service's own
+/// `networks:` block and the top-level definitions it points at are read by
+/// nothing — measured, `attachable: true`, `aliases: ["db"]` and an
+/// `x-planted:` key inside `healthcheck:` all pass every test in this file with
+/// every floor holding, while `network_mode: host` is refused two levels up
+/// with a paragraph saying why.
 ///
-/// **And then the list allowed `external`, one line above a refusal that names
-/// it.** The sentence below calls `external` a key that changes what can reach
-/// the database and the `matches!` let it through, so the two disagreed inside
-/// six lines. Measured, an override giving the top-level `default` network
-/// `name: bridge` and `external: true` — which points every service in this
-/// stack at a network this file neither creates nor owns, and takes the two
-/// they share out of this repository's hands: all 8 tests in this target
-/// printed `ok`. With it deleted the list says what the sentence says.
+/// **And the list does not allow `external`, which the refusal below names.**
+/// The sentence below calls `external` a key that changes what can reach the
+/// database, and a `matches!` that let it through would disagree with it inside
+/// six lines. Measured with it allowed, an override giving the top-level
+/// `default` network `name: bridge` and `external: true` — which points every
+/// service in this stack at a network this file neither creates nor owns, and
+/// takes the two they share out of this repository's hands: every check in this
+/// target that reads the stack prints `ok`, and only the written projections in
+/// [`the_network_vocabulary_is_driven`] refuse it. Without `external` the list
+/// says what the sentence says.
 ///
 /// Its own function because the test that calls it is at clippy's line limit.
 fn a_top_level_network_key(path: &[String], key: &str) -> Result<(), String> {
@@ -1381,9 +1384,9 @@ fn the_network_membership_rule_is_driven() {
 /// The vocabulary above, driven by written projections rather than by the stack.
 ///
 /// **Because the stack as it ships uses three of the three allowed names**, and
-/// so cannot tell an allowlist of three from one of five: `external` and
-/// `attachable` were added back to it and all eight tests stayed green, which is
-/// the regression the rule's own paragraph records as measured once already.
+/// so cannot tell an allowlist of three from one of five: without this drive,
+/// `external` and `attachable` added back to it leave every other test in this
+/// target green, which is the regression the rule's own paragraph records.
 ///
 /// It must keep accepting `name:` — the key this stack's own network carries —
 /// which is the other way to get this wrong.
@@ -1418,14 +1421,15 @@ fn the_network_vocabulary_is_driven(compose: &str) {
 
 /// Every top-level network key in a projection, judged.
 ///
-/// **The one vocabulary in this file that only the pristine stack ever drove.**
+/// **The one vocabulary in this file the pristine stack cannot drive.**
 /// `PER_SERVICE`, `AT_THE_TOP`, `IN_THE_ENVIRONMENT` and `HOW_EACH_SERVICE_ANSWERS`
 /// each carry a count equality or a reverse loop, and
 /// [`a_service_joins_only_a_declared_network`] is driven by written projections.
-/// This one was asked only about the stack as it ships, where every key is
-/// allowed — so `external` and `attachable` were added back to the list and all
-/// eight tests, and the whole gate, stayed green. That is the regression the
-/// rule's own paragraph records as already measured once.
+/// Over the stack as it ships, where every key is allowed, `external` and
+/// `attachable` added back to the list leave every check that reads the stack
+/// green, in this target and in the whole gate; only the written projections in
+/// [`the_network_vocabulary_is_driven`] refuse them. That is the regression the
+/// rule's own paragraph records.
 fn the_top_level_network_keys_in(resolved: &str) -> Result<usize, String> {
     let mut judged = 0_usize;
     for (path, key, _) in by_path(resolved) {
@@ -1439,15 +1443,15 @@ fn the_top_level_network_keys_in(resolved: &str) -> Result<usize, String> {
 
 /// Every key at depth three or deeper, decided by the block it sits in.
 ///
-/// **The rule this replaces was a pure exclusion, and it excluded nothing.**
-/// `DECIDED_ELSEWHERE` read `path[0] == top && path.len() >= depth`, with 4
-/// under `services` and 3 under `volumes` and `networks`, so it accepted every
-/// non-item key at those depths without looking at it. Counted over the
-/// pristine projection, the walk reads 4 keys at depth 0, 5 at depth 1, 17 at
-/// depth 2, 28 at depth 3 and **none below any of the three thresholds** — all
-/// three rows named a region this stack does not have, and the only thing they
-/// could do was admit whatever arrived there. Measured, each of these passing
-/// all 8 tests in this target:
+/// **A pure exclusion by depth excludes nothing.**
+/// `path[0] == top && path.len() >= depth`, with 4 under `services` and 3 under
+/// `volumes` and `networks`, accepts every non-item key at those depths without
+/// looking at it. Counted over the pristine projection, the walk reads 4 keys
+/// at depth 0, 5 at depth 1, 17 at depth 2, 28 at depth 3 and **none below any
+/// of the three thresholds** — every row of such an exclusion names a region
+/// this stack does not have, and the only thing it can do is admit whatever
+/// arrives there. Measured, each of these passing every test in this target
+/// under that exclusion:
 ///
 /// ```text
 /// aliases: [db]   under a service's `networks: default:`   -> depth 4
@@ -1459,7 +1463,7 @@ fn the_top_level_network_keys_in(resolved: &str) -> Result<usize, String> {
 /// it closed, and the third is a region [`a_top_level_network_key`] allows a
 /// key into without deciding anything about what the key holds.
 ///
-/// So depth no longer admits anything. A key at three is decided by the block
+/// So depth admits nothing. A key at three is decided by the block
 /// it sits in, and below three this repository names no block at all: the whole
 /// resolved stack is three keys deep in every branch it has, so a key further
 /// down is inside a shape nobody has read. That is a finding until whoever puts
@@ -1484,11 +1488,10 @@ fn a_key_at_depth_three_or_deeper(path: &[String], key: &str) {
 
 /// The compose file uses no key this repository has not decided about.
 ///
-/// **It was judged by a needle census, so every key that is not a needle was
-/// free.** The test above counts occurrences of six fixed strings and refuses
-/// two — each one a line somebody was bitten by — and there was no "and nothing
-/// else" rule anywhere. Measured, four keys added to the file with the whole
-/// gate green:
+/// **A needle census leaves every key that is not a needle free.** The test
+/// above counts occurrences of fixed strings and refuses two — each one a line
+/// somebody was bitten by — and without an "and nothing else" rule, four keys
+/// added to the file leave the whole gate green, measured:
 ///
 /// ```text
 /// POSTGRES_HOST_AUTH_METHOD: trust
@@ -1530,19 +1533,19 @@ fn the_compose_file_uses_only_keys_this_repository_has_decided_about() {
 
     // **The stack docker resolves, not the one file this repository writes.**
     // Docker merges up to eight filenames — `gates.rs`'s `COMPOSE_FILES` already
-    // names them all — and the vocabulary was applied to `docker-compose.yml`
-    // alone. Measured, an untracked override file of the kind compose reads without being asked, carrying
+    // names them all — and a vocabulary applied to `docker-compose.yml` alone
+    // misses the rest. Measured, an untracked override file of the kind compose reads without being asked, carrying
     // `privileged: true`, `user: root`, `cap_add: [SYS_ADMIN]`, `pid: host`,
     // `volumes: ["/:/host"]` and `POSTGRES_HOST_AUTH_METHOD: trust`:
-    // `docker compose config` showed every one of them and this test printed
-    // `6 passed`.
+    // `docker compose config` shows every one of them, and this test read from
+    // the file alone prints `6 passed`.
     //
-    // Resolving also normalises the *shapes* the file-based walk could not read:
-    // a sequence entry written with the dash on its own line, a flow collection
-    // like `command: ["sh", "-c", …]` whose contents were never descended into,
-    // and the short volume form. All three were measured getting a docker socket
-    // and an arbitrary root command past this vocabulary; `docker compose
-    // config` emits canonical block YAML, so the same walk now sees them.
+    // Resolving also normalises the *shapes* a file-based walk cannot read: a
+    // sequence entry written with the dash on its own line, a flow collection
+    // like `command: ["sh", "-c", …]` whose contents it never descends into,
+    // and the short volume form. All three get a docker socket and an arbitrary
+    // root command past a file-based walk, measured; `docker compose config`
+    // emits canonical block YAML, so this walk sees them.
     if !the_stack_was_asked() {
         return;
     }
@@ -1621,9 +1624,9 @@ fn the_compose_file_uses_only_keys_this_repository_has_decided_about() {
         .unwrap_or_else(|why| panic!("the stack this repository ships: {why}"));
     the_network_membership_rule_is_driven();
     the_network_vocabulary_is_driven(&compose);
-    // The floor the rule had none of: `joined` and `declared` were both read and
-    // neither was counted, so a walk that stopped producing
-    // `["services", <service>, "networks"]` would have reported nothing wrong.
+    // The floor: `joined` and `declared` are both read, and with neither
+    // counted a walk that stopped producing
+    // `["services", <service>, "networks"]` would report nothing wrong.
     // Two, measured: this file writes no `networks:` block, and docker's
     // projection still puts each of the two services on `default`. That is the
     // number the rule is judging, and a walk that stopped producing those paths
@@ -1653,23 +1656,23 @@ fn a_size_is_read_as_the_bytes_it_means() {
     // `None`.
     assert_eq!(bytes("8GiB"), Some(8_589_934_592));
     assert_eq!(bytes("1MiB"), Some(1_048_576));
-    // **`KiB` was a row nothing read.** Every other scale here is asserted and
-    // this one was not, so `("KiB", 1024)` could become `("KiB", 1000)` in this
-    // copy with the whole target green — measured, `8 passed`. A table row no
+    // **`KiB` is a row too, so it is read.** Without this assertion it is the
+    // one scale nothing reaches, and `("KiB", 1024)` can become `("KiB", 1000)`
+    // in this copy with the whole target green — measured. A table row no
     // assertion reaches is a row that is not part of the rule.
     assert_eq!(bytes("2KiB"), Some(2048));
     assert_eq!(bytes("512B"), Some(512));
     assert_eq!(bytes("1024"), Some(1024));
     assert_eq!(bytes("eight gibibytes"), None);
-    // **And the overflow, which this copy's own comment describes and drove
-    // nowhere.** `bytes` is written twice — here and in `xtask/src/store.rs` —
-    // and only that copy's test had the case, so `checked_mul` could become a
+    // **And the overflow, which this copy's own comment describes.** `bytes` is
+    // written twice — here and in `xtask/src/store.rs` — and without this case
+    // only that copy's test has it, so `checked_mul` could become a
     // `wrapping_mul` here with everything green. What that admits is the attack
     // the paragraph beside this reader spells out: a bound congruent to the
     // declared one modulo 2^64 wraps to exactly the right number, so the
     // comparison agrees while the container runs with something else. This file
-    // is outside `xtask/mutants.py`, so the clause is held by this line alone.
-    // Round sixty-six.
+    // is outside `xtask/mutants.py`, so these two assertions are what hold the
+    // clause.
     assert_eq!(bytes("17179869192GiB"), None);
     assert_eq!(bytes("999999999999GiB"), None);
 
@@ -1679,9 +1682,9 @@ fn a_size_is_read_as_the_bytes_it_means() {
     assert_eq!(only(compose, "--retentionPeriod"), Ok("30d".to_owned()));
     assert!(only(compose, "--nope").is_err());
 
-    // **The hole, not just the rule.** A flag given twice is what defeated the
-    // comparison above, and it defeats it silently: the reader agreed with the
-    // catalog while the container ran with the second value.
+    // **The hole, not just the rule.** A flag given twice defeats a comparison
+    // that reads the first, and silently: the reader agrees with the catalog
+    // while the container runs with the second value.
     let twice = format!("{compose}      - \"--retentionPeriod=1d\"\n");
     assert_eq!(flags(&twice, "--retentionPeriod"), ["30d", "1d"]);
     let refused = only(&twice, "--retentionPeriod").expect_err("a flag given twice is refused");

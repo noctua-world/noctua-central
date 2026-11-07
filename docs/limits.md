@@ -9,7 +9,7 @@ Every bound this catalog declares. A table that can grow without bound and has n
 
 **A table is in one of two databases**, and its `Database` column says which: `server` is PostgreSQL, built by `migrations/`, and `local` is the SQLite file on the user's own machine, built by `local-migrations/`. A table whose strategy is `refuse-at-limit` is one whose oldest rows are not the pruner's to take — user state, what a plugin keeps or a blob a unit pinned, or a unit's images and notes, which an undo needs whole and which leave with their unit — so nothing prunes it by its own count: its `Maximum rows` is where its writer refuses a new row, and the refusal is the bound. `Counted over` says whose rows that number counts: a table counted over each plugin's rows in each realm holds that many for every plugin installed in every realm the machine serves, and one counted over each unit's rows that many for every unit the store holds, so its own size is the number times its owners, not the number.
 
-Each table below says where its own bound comes from, in its own last column or in the prose above it. This paragraph used to point at *the last column of each table*, which is true of **Stores outside PostgreSQL** alone — the others end `Why it has no number`, `Salt`, `Cumulative` and `What it bounds`. Named rather than counted: a number in emitted prose is a number nothing recomputes when a table is added.
+Each table below says where its own bound comes from, in its own last column or in the prose above it.
 
 ## Tables
 
@@ -41,8 +41,6 @@ Argon2id, per `§10.5` and `§10.6` — the sections `catalog/limits.toml` itsel
 ## Rate limits
 
 Every authentication surface, per identifier and per client address. **Attempts before the delay starts** is how many are answered at once; after that the delay curve applies, escalating, its last value repeating (`§15.5`). A surface answers an unlimited number of attempts when its **Lockout** column reads `never` — which 6 of these do — and a curve ending at zero would say the same, though none here does. Lockout is a later number than the budget on purpose: a lockout below it would mean the curve never runs.
-
-The prose here used to say *the first column of numbers*, which is `Window (s)`: a reader following it read `login` as answering 900 attempts at once.
 
 **None of this is enforced yet.** There is no rate limiter and no Argon2 dependency in this tree; these rows are the declaration the surfaces of a later stage read.
 

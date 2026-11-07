@@ -239,10 +239,11 @@ mod tests {
     fn a_build_script_that_appears_in_the_member_after_the_build_makes_it_stale() {
         // **The member's directory is the root, not its `src/`.** Cargo runs a
         // `build.rs` that no manifest names, so one written after the build is
-        // a plugin the component was not built from — measured, a panicking one
-        // left the kernel's suite green while the plugin build failed on it,
-        // when the roots were each member's `src/`. `xtask/src/plugins.rs`
-        // writes the member whole now, and this is that list read back.
+        // a plugin the component was not built from — measured, with each
+        // member's `src/` as the root, a panicking one would leave the
+        // kernel's suite green while the plugin build failed on it.
+        // `xtask/src/plugins.rs` writes the member whole, and this is that list
+        // read back.
         let listing = "component c0 target/plugins/components/a.wasm\n\
                        root plugins/a\n\
                        file m1 plugins/a/Cargo.toml\n\

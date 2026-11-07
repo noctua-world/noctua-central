@@ -26,11 +26,12 @@ mod tests {
 
     // **The image cases name a tag no machine has pulled.** `every_image_is_pinned`
     // asks docker what a pulled tag resolves to and reports a digest that is not
-    // that tag's — a rule about the *referent* of a pin, added after a reviewer
-    // ran PostgreSQL 16.14 under the tag `18-alpine` with every printed line
-    // identical. These cases are about the *shape* rule beside it, so they use a
-    // name that cannot resolve: the referent check then says it could not ask,
-    // which is its honest answer, and the shape rule is what the corpus decides.
+    // that tag's — a rule about the *referent* of a pin, because an image of
+    // PostgreSQL 16.14 can run under the tag `18-alpine` with every printed line
+    // of the shape rule identical, measured. These cases are about the *shape*
+    // rule beside it, so they use a name that cannot resolve: the referent check
+    // then says it could not ask, which is its honest answer, and the shape rule
+    // is what the corpus decides.
 
     /// A scratch tree, removed when the case is over.
     struct Scratch(PathBuf);
@@ -43,13 +44,13 @@ mod tests {
 
     /// The guard removes its directory when it is dropped.
     ///
-    /// **What this type does was decided by its name.**
+    /// **A census decides what this type does by its name.**
     /// [`crate::check::BUILDS_A_SCRATCH`] counts a site as guarded when the body
     /// around it names a type from `REMOVES_ITS_SCRATCH_ON_THE_WAY_OUT`, and
     /// `Scratch` is on that list — so gutting this `Drop` would leave every site
     /// in this file counted as removed however the test leaves while the
-    /// directories accumulated. Reported on 2026-09-14, measured in the policy
-    /// pack's suite: 85 left by one run, with the whole gate green.
+    /// directories accumulate. Measured in the policy pack's suite, with such
+    /// a `Drop`: 85 left by one run, with the whole gate green.
     ///
     /// A name is not a guarantee. This is.
     #[test]
@@ -108,9 +109,9 @@ mod tests {
 
     /// Every case, reported together rather than at the first failure.
     ///
-    /// **This is the assertion behind every driver in this file, and nothing
-    /// decided it.** `wrong.is_empty()` widened to `wrong.len() < 100` left
-    /// `cargo xtask check` printing `ok 914 test(s)` and `check passed` — one
+    /// **This is the assertion behind every driver in this file, and it needs a
+    /// case of its own.** Without one, `wrong.is_empty()` widened to
+    /// `wrong.len() < 100` leaves `cargo xtask check` printing `check passed` — one
     /// token, and the mechanism `xtask/canaries/README.md` calls the answer to
     /// "is the verdict the rule" reports nothing at all. `mutants.py` counts all
     /// its weakenings as `killed` through this function, so that script's tally is
@@ -130,7 +131,7 @@ mod tests {
     }
 
     /// `claim`'s own copy of the verdict, callable so the case below can drive
-    /// it. It survived the identical weakening.
+    /// it. Without that case it survives the identical weakening.
     fn the_claim_gate_reads(wrong: &[String]) {
         assert!(
             wrong.is_empty(),
@@ -154,11 +155,11 @@ mod tests {
 
     /// Every digest pin is accounted for, and the arm that says so decides.
     ///
-    /// **The sentence was in the census and the comparison was in nothing.**
-    /// `WHAT_THE_GATE_CAN_SAY` holds the message, so deleting the guard is
-    /// caught — and a reviewer widened `accounted != pinned` to
-    /// `accounted > pinned + 100` with `cargo test -p xtask` byte-identical to
-    /// baseline. A guard that can be weakened without being deleted is one the
+    /// **The sentence is in the census, and the comparison has to be decided
+    /// too.** `WHAT_THE_GATE_CAN_SAY` holds the message, so deleting the guard is
+    /// caught — and without this, `accounted != pinned` widened to
+    /// `accounted > pinned + 100` leaves `cargo test -p xtask` byte-identical to
+    /// baseline, measured. A guard that can be weakened without being deleted is one the
     /// verdict census cannot see weakened.
     ///
     /// Both directions: fewer answered than pinned is a pin walked past, and
@@ -221,24 +222,26 @@ mod tests {
 
     /// Every walk that has two counters still asks whether they agree.
     ///
-    /// **`the_identity_is_an_identity` decides the function; nothing decided the
-    /// call sites.** Deleting one — replaced by `let _ = (entered, judged);` so
-    /// no count moves and `dead_code` stays quiet — left `cargo test -p xtask`
-    /// identical, and `WHAT_THE_GATE_CAN_SAY` cannot see it either, because the
-    /// sentence lives in the shared function rather than at the site. So the
-    /// walk that lost its identity is a walk that can skip a line in silence,
-    /// which is the whole defect the consolidation was for.
+    /// **`the_identity_is_an_identity` decides the function, and this decides
+    /// the call sites.** Without it, deleting one — replaced by
+    /// `let _ = (entered, judged);` so no count moves and `dead_code` stays
+    /// quiet — leaves `cargo test -p xtask` identical, measured, and
+    /// `WHAT_THE_GATE_CAN_SAY` cannot see it either, because the sentence lives
+    /// in the shared function rather than at the site. A walk that has lost its
+    /// identity is a walk that can skip a line in silence, which is the whole
+    /// defect one shared function is there to prevent.
     ///
-    /// The number is the independent second reader: five walks carry two
-    /// counters, and a sixth that grows them writes itself down here.
+    /// The table is the independent second reader: every walk that carries two
+    /// counters is written into it, and one more that grows them writes itself
+    /// down here.
     #[test]
     fn every_two_counter_walk_still_asks() {
         // The one this test itself drives is in `corpus.rs`, which is why the
         // expected set names it: a probe is a call site too.
-        // **A count per file, not a set of files plus a grand total.** The two
-        // assertions were `sites == ASKED` and `calls == 6`, and `gates.rs`
-        // carries two of the six — so deleting one of its calls and duplicating
-        // another anywhere kept both exact. Measured, as one edit in one file:
+        // **A count per file, not a set of files plus a grand total.** Asserted
+        // as a set of files and a total of calls, with `gates.rs` carrying more
+        // than one of the calls, deleting one of its calls and duplicating
+        // another anywhere keeps both exact. Measured, as one edit in one file:
         // the blanket-allow walk's identity deleted and the §15.1 walk's
         // duplicated gave `corpus:: … ok` and `check passed`. Those two walks
         // are the ones this repository leans on hardest, and the sentence a lost
@@ -246,7 +249,7 @@ mod tests {
         // census cannot see the loss either.
         // **The walk, not the file.** A count per file cannot see a call moved
         // *within* one: `gates.rs` carries two, so deleting the blanket-allow
-        // walk's identity and duplicating the §15.1 walk's left `gates.rs: 2`
+        // walk's identity and duplicating the §15.1 walk's leaves `gates.rs: 2`
         // exact and the first walk with no identity at all. The enclosing
         // function is the walk, and that is what has to be named.
         // `corpus.rs`'s own is inside a test module, so no column-zero `fn`
@@ -265,9 +268,9 @@ mod tests {
             ("workflow.rs", "the_identity", 1),
         ];
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
-        // **The needle is assembled**, or this scanner counts itself: it read
-        // seven calls across five files where there are six, because the line
-        // holding the literal is a line of code in a file the walk reads.
+        // **The needle is assembled**, or this scanner counts itself one call
+        // too many: the line holding the literal is a line of code in a file the
+        // walk reads.
         let needle = ["everything_reached", "a_verdict("].join("_");
         let mut sites: Vec<(String, String, usize)> = Vec::new();
         for entry in std::fs::read_dir(root).expect("the source directory is readable") {
@@ -326,20 +329,19 @@ mod tests {
 
     /// The two-counter identity is an identity.
     ///
-    /// **Five gates rest on it and no test had ever handed it two numbers that
-    /// disagree.** It was written five times — twice inline in `gates.rs`, once
-    /// in `determinism.rs`, and once each in `sections.rs` and `references.rs`
-    /// as a byte-identical `every_citation_reached_a_verdict` — so widening the
-    /// comparison had to be done five times to be measured, and doing it left
-    /// every gate in this repository able to skip a line silently:
+    /// **Every two-counter walk rests on it, and this hands it two numbers that
+    /// disagree.** Written out once per gate instead — inline in `gates.rs` and
+    /// `determinism.rs`, and in `sections.rs` and `references.rs` as a
+    /// byte-identical `every_citation_reached_a_verdict` — the comparison has to
+    /// be widened in every copy to be measured, and widened in every copy it
+    /// leaves every gate in this repository able to skip a line silently:
     ///
     /// ```text
     /// if reached != judged   ->   if reached > judged + 100
-    ///   ok    927 test(s)
     ///   check passed
     /// ```
     ///
-    /// It is one function now, and this is the case that decides it. `equal`
+    /// It is one function, and this is the case that decides it. `equal`
     /// says nothing; either direction says something, because a filter can make
     /// the second counter smaller and a double-count can make it larger, and a
     /// gate that only notices one of those notices half.
@@ -376,17 +378,16 @@ mod tests {
 
     /// The verdict is a verdict: a case that decided wrongly is reported.
     ///
-    /// **Measured before this existed**, as the only change to the tree:
+    /// **Measured without it**, as the only change to the tree:
     ///
     /// ```text
     /// assert!(wrong.is_empty(), …)   ->   assert!(wrong.len() < 100, …)
-    ///   ok    914 test(s)
     ///   check passed
     /// ```
     ///
-    /// Ten drivers rest on `verdict` and two more carry their own copy of the
-    /// same assertion — all three are checked here, because all three survived
-    /// that weakening.
+    /// Most drivers rest on `verdict` and two more carry their own copy of the
+    /// same assertion — all three are checked here, because without this all
+    /// three survive that weakening.
     #[test]
     fn the_corpus_reports_a_case_that_decided_wrongly() {
         let wrong = ["a case that decided wrongly".to_owned()];
@@ -420,19 +421,20 @@ mod tests {
     //
     // What it decides: whether a committed file carries real credentials. A
     // weakening ships a secret in a clone with `no .env is committed` printed over
-    // it. Clauses: the `env` part, the empty-part filter, the known-format tail,
-    // and the four template words.
+    // it. Clauses: the `env` part, the two-part module exemption and its
+    // known-format tail, and the four template words.
     // ---------------------------------------------------------------------------
 
     /// Sentences that state a count, and sentences that name something with a number.
     ///
-    /// **Every digit form of every countable noun fell through.** The rule was
-    /// "a numeral with a word in front of it identifies rather than counts",
-    /// written after a list of label words — `stage`, `page`, `round` — let half
-    /// of fresh ordinary English through. That rule is right about `Stage 10`
-    /// and wrong about `there are 9 crates`, and the document stating the rule
-    /// this gate enforces gives *"there are 41 tests"* as its own example of the
-    /// forbidden sentence.
+    /// **Every digit form of every countable noun falls through a rule about the
+    /// word in front.** Neither that rule — "a numeral with a word in front of
+    /// it identifies rather than counts" — nor a list of label words — `stage`,
+    /// `page`, `round` — will do. The list lets half of fresh ordinary English
+    /// through, and the rule is right about `Stage 10` and wrong about
+    /// `there are 9 crates`, while the document stating the rule this gate
+    /// enforces gives a count of tests, written in digits after *there are*, as
+    /// its own example of the forbidden sentence.
     ///
     /// So the counting side is named instead, and this is the corpus that
     /// decides it: a word missing from `COUNTS_THEM` is a miss, and a word
@@ -512,44 +514,38 @@ mod tests {
 
     /// Where rustc put the caret, against the door a fixture is named for.
     ///
-    /// **The compile-fail gate never asked where the refusal happened.** A
-    /// fixture that names the door somewhere in its code and fails for an
-    /// unrelated reason satisfied every other rule — measured, `Origin`'s two
-    /// fields went back to `pub &'static str` with `check passed` and an email
-    /// address shipped into a log line. The caret's position is the one thing a
-    /// fixture does not choose.
+    /// **The compile-fail gate asks where the refusal happened.** A fixture
+    /// that names the door somewhere in its code and fails for an unrelated
+    /// reason satisfies every other rule — measured without this question,
+    /// `Origin`'s two fields went back to `pub &'static str` with
+    /// `check passed` and an email address shipped into a log line. The caret's
+    /// position is the one thing a fixture does not choose.
     ///
     /// `(the fixture's lines, the line rustc pointed at, is it the door's)`.
     const CARETS: [(&[&str], usize, bool); 94] = [
         // The ordinary case: the caret's own line names the door.
         (&["fn accepts<T: nc_log::LogValue>(_: T) {}"], 1, true),
-        // **A fixture's own item does not pay for the door.** `caret_uses`
-        // accepts the bare `LogValue` so a caret landing on a `use`-imported
-        // spelling still counts — but a fixture may declare a `trait LogValue`
-        // of its own, and then a block opening `impl LogValue for X {` named
-        // nothing of `nc-log`'s. Round 56 added `declared_locally` for exactly
-        // that and left it decided by nothing: the weakening survived every
-        // test. These rows are the difference between the shipped rule and the
-        // one it replaced.
+        // **A fixture's own item does not pay for the door.** A fixture may
+        // declare a `trait LogValue` of its own, and then a block opening
+        // `impl LogValue for X {` names nothing of `nc-log`'s. `caret_uses`
+        // accepts only the qualified `nc_log::` path, so a bare name pays for
+        // nothing, and these rows hold that: a rule accepting the bare
+        // `LogValue` certifies this fixture.
         //
-        // **And the rule is now the question the other way round**, which is
-        // what these rows are written against. A list of openers consulted to
-        // *excuse* a bare name fails open at every spelling it misses — `let`
-        // was one, and a reviewer wrote down ten more. What is asked instead is
-        // whether the file imports the door, because that is the only
-        // arrangement in which a bare name is `nc-log`'s. A spelling that
-        // question misses makes the gate stricter rather than blind.
+        // **Nor does a list of openers.** Consulted to *excuse* a bare name, it
+        // fails open at every spelling it misses — `let` is one, and there are
+        // at least ten more — which is why the rule asks for the path instead.
         (
             &["trait LogValue {}", "impl LogValue for Smuggled {"],
             2,
             false,
         ),
-        // **An import does not make the bare name the door's either.** Three
-        // repairs in three waves tried to decide whether a bare name on a caret
-        // line is `nc-log`'s, and each was wrong in a different direction. The
-        // rule reads the qualified path now, so a fixture written this way is
-        // reported as **not proving its door** — loud and actionable, where
-        // every earlier miss certified a forgery in silence.
+        // **An import does not make the bare name the door's either.** Deciding
+        // whether a bare name on a caret line is `nc-log`'s goes wrong in more
+        // than one direction, so the rule reads the qualified path, and a
+        // fixture written this way is reported as **not proving its door** —
+        // loud and actionable, where a wrong guess certifies a forgery in
+        // silence.
         (
             &["use nc_log::LogValue;", "impl LogValue for Smuggled {"],
             2,
@@ -557,9 +553,9 @@ mod tests {
         ),
         (&["impl LogValue for Smuggled {"], 1, false),
         // Each of these binds the short name and none of them opens with a
-        // keyword the old list held. Under it every one paid for the door; the
-        // import question refuses them all without knowing what a binding looks
-        // like.
+        // keyword a list of openers would hold. Under such a list every one
+        // pays for the door; the import question refuses them all without
+        // knowing what a binding looks like.
         (
             &["let LogValue = 5;", "impl LogValue for Smuggled {"],
             2,
@@ -614,8 +610,8 @@ mod tests {
         ),
         // **An alias binds another name.** The bare `LogValue` is then free for
         // the fixture's own item, which is the forgery this row is written
-        // against — measured in round seventy-one wave 9 against the rule as
-        // first repaired, which certified it.
+        // against — measured against a rule that asks only for an import, which
+        // certifies it.
         (
             &[
                 "use nc_log::LogValue as Other;",
@@ -624,11 +620,10 @@ mod tests {
             2,
             false,
         ),
-        // **A `use` inside a string literal is not an import.** The rule read
-        // the line through `without_comment`, which copies a literal's contents
-        // through, and a loose ` use ` split then read `pub const NOTE: &str =
-        // "we` as a visibility — so one const set the bare-name door for the
-        // whole file.
+        // **A `use` inside a string literal is not an import.** Read through
+        // `without_comment`, which copies a literal's contents through, a loose
+        // ` use ` split takes `pub const NOTE: &str = "we` as a visibility — so
+        // one const would set the bare-name door for the whole file.
         (
             &[
                 "pub const NOTE: &str = \"we use nc_log::LogValue here\";",
@@ -658,8 +653,8 @@ mod tests {
             2,
             false,
         ),
-        // **A comment is not code.** The rule stripped `//!` and nothing else,
-        // so one ordinary `//` line naming the door paid for it — measured, a
+        // **A comment is not code.** A rule that strips `//!` and nothing else
+        // lets one ordinary `//` line naming the door pay for it — measured, a
         // forgery about nothing the door guards passed the whole gate, and
         // deleting that single line turned it red.
         (
@@ -673,9 +668,9 @@ mod tests {
             false,
         ),
         // Imported and written short. This is the one arrangement the bare
-        // spelling ever existed for, and it is refused: the fixture is asked to
-        // write the path rather than certified on a name three rules in a row
-        // could not decide.
+        // spelling exists for, and it is refused: the fixture is asked to write
+        // the path rather than certified on a name no rule over the bare
+        // spelling decides.
         (
             &["use nc_log::LogValue;", "fn accepts<T: LogValue>(_: T) {}"],
             2,
@@ -704,12 +699,12 @@ mod tests {
             true,
         ),
         // **A dead type annotation on an initialiser block.** `let held: …= {`
-        // was the measured attack wave 10 closed; `const HELD: … = {` and
-        // `static HELD: … = {` are the same attack under a keyword
-        // `AN_ITEM_OPENS_WITH` excuses, and a reviewer in wave 11 carried one
-        // all the way to a shipped fixture: the door named only in the dead
-        // annotation, the refusal `Literal`'s, and the gate certifying it while
-        // `Variant`'s field was public.
+        // is a measured attack; `const HELD: … = {` and `static HELD: … = {` are
+        // the same attack under a keyword `AN_ITEM_OPENS_WITH` excuses. A rule
+        // that lets the keyword excuse the line certifies one carried all the
+        // way to a shipped fixture, measured: the door named only in the dead
+        // annotation, the refusal `Literal`'s, and the gate certifying it with
+        // `Variant`'s field made public.
         (
             &[
                 "const HELD: Option<nc_log::LogValue> = {",
@@ -728,10 +723,9 @@ mod tests {
             2,
             false,
         ),
-        // **The same forgery, five more ways.** Wave 12's reviewer wrote each of
-        // these against the `= {` test wave 11 had just added, and every one
-        // walked past it: the brace was never the question, and each answer to
-        // it was one spelling.
+        // **The same forgery, five more ways.** Each of these walks past a rule
+        // that tests for `= {`, measured: the brace is not the question, and each
+        // answer to it is one spelling.
         (
             &[
                 "const HELD: Option<nc_log::LogValue> = vec![",
@@ -780,9 +774,9 @@ mod tests {
             false,
         ),
         // **A redundant annotation on a struct literal declares the door.**
-        // Asked as *"is any occurrence inside the annotation"*, this was
-        // silenced — and a shipped fixture rewritten this way was reported as
-        // not proving its door. The too-strong half, found in wave 13.
+        // Asked as *"is any occurrence inside the annotation"*, this is
+        // silenced — and a shipped fixture rewritten this way is reported as
+        // not proving its door, measured. The too-strong half.
         (
             &[
                 "let origin: nc_log::LogValue = nc_log::LogValue {",
@@ -794,8 +788,7 @@ mod tests {
         ),
         // **And a dead type argument, which is a dead mention with no colon of
         // its own.** `::<` is two colons, which the annotation rule steps over
-        // by construction: the sixth spelling of one forgery, and the fourth
-        // wave to find it.
+        // by construction: the sixth spelling of one forgery.
         (
             &[
                 "let held = foo::<nc_log::LogValue>({",
@@ -851,11 +844,11 @@ mod tests {
         (&["//! EXPECT: nc_log::LogValue", "fn main() {}"], 1, false),
         // A caret past the end of the file decides nothing.
         (&["fn main() {}"], 9, false),
-        // **A bound's colon is not an annotation's.** Wave 13 opened the
-        // annotation region at the first single `:` with no regard for `<…>`
-        // depth, so one generic parameter turned the corpus's own canonical
-        // "declares the door" shape into a mention. Measured by a reviewer in
-        // wave 14 on all four shapes a colon takes in an item header.
+        // **A bound's colon is not an annotation's.** Opening the annotation
+        // region at the first single `:` with no regard for `<…>` depth turns
+        // the corpus's own canonical "declares the door" shape into a mention
+        // with one generic parameter. Measured on all four shapes a colon takes
+        // in an item header.
         (
             &[
                 "impl<T: Clone> nc_log::LogValue for Mine<T> {",
@@ -892,10 +885,9 @@ mod tests {
             2,
             true,
         ),
-        // **One space, and the turbofish was gone.** Rust lexes `::` and `<` as
-        // separate tokens. The sibling corpus one function away has carried
-        // rows for this hazard since round thirty-seven; this copy was written
-        // without them.
+        // **One space, and the turbofish is gone.** Rust lexes `::` and `<` as
+        // separate tokens. The sibling corpus one function away carries rows for
+        // this hazard, and this copy carries them too.
         (
             &[
                 "let held = foo:: <nc_log::LogValue>({",
@@ -905,8 +897,10 @@ mod tests {
             2,
             false,
         ),
-        // **A return type is a mention, and it was one only when a parameter
-        // happened to carry a colon.** One parameter apart, opposite answers.
+        // **A return type is a mention, whether or not a parameter carries a
+        // colon.** A rule that reads it as one only after a parameter's colon
+        // gives these the opposite answer to the same shape one typed parameter
+        // apart.
         (
             &[
                 "let held = |_x| -> nc_log::LogValue {",
@@ -925,9 +919,9 @@ mod tests {
             2,
             false,
         ),
-        // **Two arrows drove the depth counter below zero**, so an `=` inside a
-        // pair of angle brackets read as the end of the annotation and
-        // everything after it, the door included, read alive.
+        // **Two arrows can drive a depth counter below zero**, so that an `=`
+        // inside a pair of angle brackets reads as the end of the annotation and
+        // everything after it, the door included, reads alive.
         (
             &[
                 "let held: fn() -> fn() -> Box<dyn Iterator<Item = nc_log::LogValue>> = {",
@@ -938,8 +932,8 @@ mod tests {
             false,
         ),
         // **A door in a string literal, and a door handed to a macro.** Neither
-        // is what the line declares; both were read as declarations because
-        // this walk spent comments and nothing else.
+        // is what the line declares, and a walk that spends comments and
+        // nothing else reads both as declarations.
         (
             &[
                 "let held = vec![\"nc_log::LogValue\", {",
@@ -958,11 +952,11 @@ mod tests {
             2,
             false,
         ),
-        // **A number with two sources.** The predicate compared a byte offset
-        // from `match_indices` against character offsets from `enumerate`;
-        // nineteen non-ASCII characters before the door were enough for the
-        // byte offset to overrun the annotation's end and read alive. The ASCII
-        // form of the same annotation is pinned above.
+        // **A number with two sources.** A predicate comparing a byte offset
+        // from `match_indices` against character offsets from `enumerate` is
+        // wrong here: nineteen non-ASCII characters before the door are enough
+        // for the byte offset to overrun the annotation's end and read alive.
+        // The ASCII form of the same annotation is pinned above.
         (
             &[
                 "let held: \u{3a9}\u{3a9}\u{3a9}\u{3a9}\u{3a9}\u{3a9}\u{3a9}\u{3a9}\u{3a9}\u{3a9}\u{3a9}\u{3a9}\u{3a9}\u{3a9}\u{3a9}\u{3a9}\u{3a9}\u{3a9}\u{3a9}<nc_log::LogValue> = {",
@@ -972,8 +966,9 @@ mod tests {
             2,
             false,
         ),
-        // **A bound is a mention, and the exception list was reading any word
-        // on the line.** Five of these six were measured undecided in wave 15:
+        // **A bound is a mention, and the exception list reads the header's
+        // word, not any word on the line.** Five of these six are measured
+        // undecided without these rows:
         // `impl<T: …>` for the depth test, the wrapped `where` line for the
         // word that excuses it, the arrow inside a turbofish for `closing`'s
         // own guard, and the parameter list for the bracket arm that ends a
@@ -1018,8 +1013,9 @@ mod tests {
         // **A word before the colon is not the header's word.** `r#trait`
         // splits into `r` and `trait`, and an enclosing item written on the
         // same line puts a real `impl` in front of an ordinary binding — both
-        // measured in wave 15 turning the whole rule off for the line, with the
-        // wave-10 and wave-11 forgeries walking through after one token.
+        // measured turning a rule that reads any word before the colon off for
+        // the line, with the dead annotation forgeries above walking through
+        // after one token.
         (
             &[
                 "let r#trait: Option<nc_log::LogValue> = {",
@@ -1038,7 +1034,7 @@ mod tests {
             2,
             false,
         ),
-        // **Three more, each written for one clause nothing else decides.** A
+        // **Three more, each written so that one clause decides it.** A
         // bound on an item header the exception list *does* excuse, so the
         // depth test is what makes it a mention; a binding whose name merely
         // begins with one of the excused words; and an item whose brace is
@@ -1070,13 +1066,13 @@ mod tests {
             2,
             false,
         ),
-        // **Three the deletion sweep of wave 16 asked for.** The first breaks
-        // wave 15's argument that no line can reach `opens_a_type`'s
-        // parenthesis half; the second is the only shape that asks whether the
-        // walk lowers its angle counter after a generic parameter list; the
-        // third is the two-level sibling forgery `caret_uses`' own header names
-        // as the attack the indentation chain exists to stop, which until now
-        // was held by the annotation rule instead.
+        // **Three clauses a deletion sweep finds undecided without these.** The
+        // first shows a line can reach `opens_a_type`'s parenthesis half; the
+        // second is the only shape that asks whether the walk lowers its angle
+        // counter after a generic parameter list; the third is the two-level
+        // sibling forgery `caret_uses`' own header names as the attack the
+        // indentation chain exists to stop, held here by that chain rather than
+        // by the annotation rule.
         (
             &[
                 "impl Mine where fn(held: nc_log::LogValue): Copy {",
@@ -1107,11 +1103,10 @@ mod tests {
             4,
             false,
         ),
-        // **Two the deletions of wave 15 turned out to need.** A bounded
-        // parameter before a default one reaches `the_type_ends`' comma arm,
-        // which had been removed as unreachable; a macro token tree holding a
-        // bare `where` reaches the exception list, which was matched against
-        // the raw line.
+        // **Two clauses that look unreachable and are not.** A bounded
+        // parameter before a default one reaches `the_type_ends`' comma arm; a
+        // macro token tree holding a bare `where` reaches the exception list,
+        // which a match against the raw line gets wrong.
         (
             &[
                 "struct S<A: Clone, B = nc_log::LogValue> {",
@@ -1130,7 +1125,7 @@ mod tests {
             2,
             false,
         ),
-        // **The third of wave 15's five deletions to be reached.** A struct
+        // **And a third clause that looks unreachable.** A struct
         // literal's field colon opens a type by this rule's own reckoning, so
         // an `==` in the value ends the region four characters in and the door
         // after it is never spent.
@@ -1143,10 +1138,10 @@ mod tests {
             2,
             false,
         ),
-        // **Wave 18's guard was four characters, so the fifth walked
-        // through.** The `=` of a match arm and the `=` of `|=` both end the
-        // annotation region under it, and the door written after either is
-        // never spent — the wave-10 dead-mention forgery one operator on. The
+        // **A guard of four characters lets the fifth walk through.** The `=`
+        // of a match arm and the `=` of `|=` both end the annotation region
+        // under such a guard, and the door written after either is never spent
+        // — the dead-mention forgery above, one operator on. The
         // third row is the one no character rule can reach: an ordinary `=`
         // inside a nested block, where nothing about the `=` is wrong at all.
         (
@@ -1176,11 +1171,11 @@ mod tests {
             2,
             false,
         ),
-        // **A const generic argument is a brace inside a type.** The exception
-        // list asked whether a `{` sits anywhere between the excusing word and
-        // the colon, so one `Wrapper<{ SIZE }>` disqualified a genuine `where`
-        // and the predicate declaring the door was reported as proving nothing
-        // — the row above it, one const argument apart, is `true`. The second
+        // **A const generic argument is a brace inside a type.** An exception
+        // list asking whether a `{` sits anywhere between the excusing word and
+        // the colon lets one `Wrapper<{ SIZE }>` disqualify a genuine `where`,
+        // and the predicate declaring the door is then reported as proving
+        // nothing — the row above it, one const argument apart, is `true`. The second
         // row is the too-weak half a balanced-brace rule would leave: a trait
         // body that opens and closes before an ordinary binding's colon
         // balances to zero and turns the whole rule off.
@@ -1215,13 +1210,12 @@ mod tests {
             2,
             true,
         ),
-        // **Five rows the deletion sweep of wave 19 asked for.** Each is a
-        // clause of that wave's own repair that nothing else decided, and a
-        // clause nothing can decide is a clause that is not there. The first
-        // three are `a_block_opens_in`'s bracket counters: a brace inside `[…]`
-        // is an array length, a brace after an `->` inside `<…>` is still
-        // inside them, and a stray `>` that drove the angle count negative put
-        // a genuine const argument at depth zero. The last two are
+        // **Five rows, each written for one clause**, because a clause nothing
+        // can decide is a clause that is not there. The first three are
+        // `a_block_opens_in`'s bracket counters: a brace inside `[…]` is an
+        // array length, a brace after an `->` inside `<…>` is still inside
+        // them, and a stray `>` that drives the angle count negative puts a
+        // genuine const argument at depth zero. The last two are
         // `the_type_ends`' block depth, which the three rows above reach only
         // through a *nested* brace: a compound assignment and a comma written
         // in a struct literal's own field value reach it at depth zero.
@@ -1271,12 +1265,12 @@ mod tests {
             false,
         ),
         // **An arrow inside a generic argument list is not the line's return
-        // type.** The fill ran to the next brace with no bracket depth, so one
-        // arrow turned a genuine `where` predicate into a mention: the first
-        // two rows are one arrow apart and were decided opposite ways. The last
-        // two are the too-strong direction, which a fill that simply stopped at
-        // the first `>` would break — a return type whose own type holds the
-        // door, and a bound whose argument does.
+        // type.** A fill that runs to the next brace with no bracket depth lets
+        // one arrow turn a genuine `where` predicate into a mention: the first
+        // two rows are one arrow apart, and such a fill decides them opposite
+        // ways. The last two are the too-strong direction, which a fill that
+        // simply stops at the first `>` breaks — a return type whose own type
+        // holds the door, and a bound whose argument does.
         (
             &[
                 "impl Mine where Wrapper<u8>: nc_log::LogValue {",
@@ -1313,13 +1307,13 @@ mod tests {
             2,
             false,
         ),
-        // **Six rows wave 20 asked for, each a spelling of "this walk counts
-        // brackets by reading characters".** A macro's token tree hid a `<`
-        // from the walk that steps over macros and showed it to the one that
-        // does not, so a comparison inside a macro turned the rule off; the
-        // mirror is a macro whose own delimiter is a brace, which was read as
-        // the line's block. A shift raised the angle count by two with nothing
-        // to lower it and the region swallowed the line. And a `>` that shuts a
+        // **Six rows, each a spelling of "this walk counts brackets by reading
+        // characters".** A macro's token tree hides a `<` from the walk that
+        // steps over macros and shows it to the one that does not, so a
+        // comparison inside a macro can turn the rule off; the mirror is a macro
+        // whose own delimiter is a brace, which can be read as the line's block.
+        // A shift raises the angle count by two with nothing to lower it, so the
+        // region can swallow the line. And a `>` that shuts a
         // generic argument list leaves the `=` beside it a token of its own,
         // which the lexer alone cannot say — the control beneath it is the
         // `>=` whose `=` must still not end a region.
@@ -1377,15 +1371,14 @@ mod tests {
             2,
             false,
         ),
-        // **Five rows wave 21 asked for, and the first three are wave 20's own
-        // repairs turned against it.** A comparison before a `>=` inflated the
-        // angle count and the flag that read it certified the forgery its own
-        // doc says the repair was refused for; the shift guard was given to one
-        // of the three walks that count angles; and its sentence named the
-        // const argument while its expression could not see a brace. The last
-        // two are the controls the skeptics measured the failed repairs
-        // against: a statement boundary is what ends an annotation, and an
-        // array length's own `;` is not one.
+        // **Five rows, and the first three turn the rows above against their own
+        // rules.** A comparison before a `>=` can inflate the angle count so the
+        // flag that reads it certifies the forgery its own doc refuses; the
+        // shift guard has to be in every walk that counts angles, not one of
+        // the three; and a sentence naming the const argument needs an
+        // expression that sees a brace. The last two are controls: a statement
+        // boundary is what ends an annotation, and an array length's own `;` is
+        // not one.
         (
             &[
                 "let held = Wrapper { seen: first < 1, next: flag >= nc_log::LogValue::MASK, inner: {",
@@ -1432,14 +1425,13 @@ mod tests {
             false,
         ),
         // **The fourth walk, and the brace a return type is written inside.**
-        // Wave 21 gave the shift guard to three of the four walks in `wall.rs`
-        // that count angle brackets and did not come to `a_block_opens_in`: a
-        // shift in a `where` predicate then hid the brace that shuts the
-        // header, and the dead annotation after it read as declaring the door.
-        // The third row is the same sentence one walk over —
-        // `the_return_type_ends` returned at the first `{` with no depth, so a
-        // const argument inside the return type ended the fill at its own
-        // brace. The last two are the controls: a lone comparison and a `>>`
+        // Without the shift guard in `a_block_opens_in`, the fourth of the walks
+        // in `wall.rs` that count angle brackets, a shift in a `where` predicate
+        // hides the brace that shuts the header, and the dead annotation after
+        // it reads as declaring the door. The third row is the same sentence one
+        // walk over — a `the_return_type_ends` returning at the first `{` with
+        // no depth lets a const argument inside the return type end the fill at
+        // its own brace. The last two are the controls: a lone comparison and a `>>`
         // are decided correctly with or without the guard.
         (
             &[
@@ -1542,7 +1534,8 @@ mod tests {
         // `fn takes<String>(name: String)` shadows the prelude `String` for that
         // function's whole body, and the seven keywords look for `struct
         // String`, `type String`, `fn String` — none of which is written.
-        // Measured: all four `LogValue` fixtures rewritten this way kept their
+        // Measured against the seven keywords alone: all four `LogValue`
+        // fixtures rewritten this way kept their
         // `EXPECT` lines byte for byte, went on refusing to compile after the
         // three `impl LogValue` the wall exists to forbid were added, and the
         // whole step printed `12 fixture(s) refuse to compile` with `check
@@ -1555,8 +1548,8 @@ mod tests {
         ),
         ("struct Holder<str>(str);", "&str: LogValue", true, true),
         // ..and the whitespace rustc allows between the name and its group.
-        // Nothing formats `crates/nc-log/fixtures/`, so one space there turned
-        // the whole rule off with the shipped expectation unchanged.
+        // Nothing formats `crates/nc-log/fixtures/`, so one space there turns
+        // off a rule that expects none, with the shipped expectation unchanged.
         (
             "fn takes <String>(name: String) { accepts(name); }",
             "String: LogValue",
@@ -1575,10 +1568,11 @@ mod tests {
             true,
             true,
         ),
-        // **And the four keywords nothing reached.** The binder's list is
-        // `trait struct enum union type fn impl`, and the rows above exercised
-        // three of them: narrowed to `["struct ", "fn ", "impl"]` the whole
-        // suite and the whole gate were green. Each of the four is a real Rust
+        // **And the four keywords the rows above do not reach.** The binder's
+        // list is `trait struct enum union type fn impl`, and the rows above
+        // exercise three of them: with the list narrowed to
+        // `["struct ", "fn ", "impl"]` and only those rows, the whole suite and
+        // the whole gate are green, measured. Each of the four is a real Rust
         // binder that shadows a prelude name inside its own item, which is the
         // forgery the wall exists to refuse — and the sibling list one function
         // up carries a row per keyword for exactly this reason, under a comment
@@ -1623,19 +1617,20 @@ mod tests {
             true,
             false,
         ),
-        // The three keywords no case reached. `enum`, `union` and `fn` were in
-        // the list and decided by nothing: each could be dropped with the whole
-        // corpus green, which is a list frozen rather than covered.
+        // The three keywords no row above reaches. Without these, `enum`,
+        // `union` and `fn` are in the list and decided by nothing: each can be
+        // dropped with the whole corpus green, which is a list frozen rather
+        // than covered.
         ("enum LogValue {}", "String: LogValue", false, true),
         ("union LogValue { a: u8 }", "String: LogValue", false, true),
         ("fn LogValue() {}", "String: LogValue", false, true),
         // **And a comment about a binder is not a binder.** Every shipped
         // fixture opens with a `//!` header saying what it refuses and why, and
-        // the rule read that header as code: a sentence naming `fn takes<String>`
-        // made the gate report the fixture as declaring its own `String` and
-        // refuse it. Nothing formats `crates/nc-log/fixtures/`, so nothing was
-        // going to rewrite the sentence either. The too-strong direction, which
-        // this corpus had no row for at all.
+        // a rule that reads that header as code takes a sentence naming
+        // `fn takes<String>` for the fixture declaring its own `String`, and
+        // refuses it. Nothing formats `crates/nc-log/fixtures/`, so nothing
+        // rewrites the sentence either. The too-strong direction, which these
+        // rows hold.
         (
             "//! `fn takes<String>` would shadow it\nfn main() {}",
             "String: LogValue",
@@ -1708,7 +1703,7 @@ mod tests {
         ("env.production", true),
         ("secrets.env.local", true),
         ("production.env", true),
-        // `parts.last()`, not `parts.first()`: the format is at the end.
+        // The format is the last part, not the first.
         ("rs.env", true),
         // No `env` part at all.
         ("settings.toml", false),
@@ -1716,39 +1711,37 @@ mod tests {
         ("envelope.rs", false),
         // A file with a type is that type — one input per `KNOWN_FORMATS` entry.
         ("env.rs", false),
-        // The empty-part filter: the last part that names anything is what
-        // decides. **And the leading dot decides whether the type exemption
-        // applies at all**: a Rust module is not a dotfile, so a hidden file
-        // whose name holds `env` is an environment whatever follows it. Written
-        // `false` before, which is how a hidden environment written as shell or
-        // as JSON — two of the four formats an environment actually comes in —
-        // reached a clone with `check passed`.
+        // **The leading dot decides whether the type exemption applies at
+        // all**: a Rust module is not a dotfile, and the dot is an empty first
+        // part, so a hidden file whose name holds `env` is an environment
+        // whatever follows it. A rule answering `false` here lets a hidden
+        // environment written as shell or as JSON — two of the four formats an
+        // environment actually comes in — reach a clone with `check passed`,
+        // measured.
         (".env.rs.", true),
-        // **The non-dotfile with a trailing dot**, which is what the empty-part
-        // filter actually decides now: unfiltered it is three parts and gets no
-        // exemption, filtered it is `["env", "rs"]` and is a module. The dotfile
-        // above stopped deciding it the moment the leading dot became the thing
-        // that matters, and the mutation runner said so — `the empty-part filter`
-        // survived on a corpus that had only the hidden spelling.
-        // **A doubled or trailing dot is not a file type.** Both collapse to
-        // `["env", "rs"]` under the empty-part filter, so the module exemption
-        // fired while `.gitignore` ignored them — 48 such names, measured against
+        // **The non-dotfile with a trailing dot**, which reading the parts
+        // unfiltered decides: it is three parts and gets no exemption, where a
+        // rule dropping empty parts makes it `["env", "rs"]`, a module. The
+        // dotfile above is the same shape behind a leading empty part, and
+        // dropping empty parts makes it `["env", "rs"]` too.
+        // **A doubled or trailing dot is not a file type.** Dropping empty
+        // parts collapses both to `["env", "rs"]`, so a module exemption would
+        // fire while `.gitignore` ignores them — 48 such names, measured against
         // real `git check-ignore` over 115,454 generated ones.
         ("env.rs.", true),
         ("env..rs", true),
         ("env..sh..", true),
-        // **`env` first, a format last, and something in between.** This is what
-        // `parts.len() == 2` decides and `>= 2` does not: an environment named
-        // for its deployment, written in the format an environment is written in.
-        // The mutation runner found it — the corpus had no case where the length
-        // clause was the only thing standing between a module and a secret.
+        // **`env` first, a format last, and something in between**: an
+        // environment named for its deployment, written in the format an
+        // environment is written in. The module exemption asks for exactly two
+        // parts, and these have three.
         ("env.production.sh", true),
         ("env.local.json", true),
-        // **direnv's file**, which splits to one part and so was not an
-        // environment file to the part rule at all — while the docstring said
-        // "anything beginning `.env` is one". `.gitignore` had the same gap and
-        // the agreement test listed nineteen names and not this one, so both
-        // halves were off together.
+        // **direnv's file**, whose parts are an empty one and `envrc`, so a rule
+        // reading parts alone does not call it an environment file — while the
+        // docstring says "anything beginning `.env` is one". The `.gitignore`
+        // agreement test lists it too, because a gap here and a gap in
+        // `.gitignore` leave both halves off together.
         (".envrc", true),
         // **Case is folded by the reporter, not by the predicate.** These rows
         // drive `committed_env_files`, which folds; `holds_an_environment` stays
@@ -1759,9 +1752,9 @@ mod tests {
         (".ENV", true),
         (".Env.local", true),
         ("PRODUCTION.ENV", true),
-        // **A copy of the row fifty lines above, in the block about case.** It
-        // decided nothing: the same case is the same clause. The cased variant
-        // this block is written for is what stands here now.
+        // **The cased variant this block is written for**, not a copy of the
+        // row fifty lines above: the same case is the same clause, and a copy
+        // decides nothing.
         (".ENV.LOCAL", true),
         (".env.sh", true), // allow-reference: a name the rule judges, not a file here
         (".env.json", true), // allow-reference: a name the rule judges, not a file here
@@ -1776,9 +1769,9 @@ mod tests {
         // module exemption must not reach it whatever the kind.
         ("secrets.env.md", true),
         // **The five formats an environment is actually written in.** These
-        // read `false` — the module exemption asked only whether the suffix was
-        // a file kind this repository holds, and all twelve are — so a file
-        // named `env` wearing one of them was "a module named `env`". Measured,
+        // read `false` — a module exemption asking only whether the suffix is a
+        // file kind this repository holds makes a file named `env` wearing one
+        // of them "a module named `env`". Measured,
         // one such file under `policy/` holding `DATABASE_URL` and
         // `AWS_SECRET_ACCESS_KEY`: `check passed`, exit 0, online and
         // `--offline` both, with the whole run differing from a clean one by a
@@ -1820,10 +1813,26 @@ mod tests {
         for (name, expected) in ENVIRONMENTS {
             let scratch = Scratch::new();
             scratch.write(name, "TOKEN=live\n");
-            let (findings, walked) =
-                crate::gates::committed_env_files(scratch.root()).expect("a readable scratch");
-            assert!(walked >= 1, "the walk did not reach `{name}`");
-            let found = of_kind(&findings, "is committed here") == 1;
+            // **The name the filesystem kept is the one the walk meets.**
+            // Windows drops a trailing dot from every name it creates, so the
+            // module name with a dot after it lands there as the module itself,
+            // which is harmless, and the walk judges a file this case is not
+            // about. No checkout on such
+            // a filesystem can hold the name either, so there the case is put to
+            // the predicate itself, which is what the walk asks of a name
+            // anywhere one can exist.
+            let kept = std::fs::read_dir(scratch.root())
+                .expect("a readable scratch")
+                .flatten()
+                .any(|entry| entry.file_name() == *name);
+            let found = if kept {
+                let (findings, walked) =
+                    crate::gates::committed_env_files(scratch.root()).expect("a readable scratch");
+                assert!(walked >= 1, "the walk did not reach `{name}`");
+                of_kind(&findings, "is committed here") == 1
+            } else {
+                crate::gates::holds_an_environment(name)
+            };
             if found != expected {
                 wrong.push(format!(
                     "  `{name}` — the gate says {}, and it is {}",
@@ -2002,8 +2011,9 @@ mod tests {
         ("#![allow(clippy::perf)]\n", 1),
         ("#![allow(clippy::suspicious)]\n", 1),
         ("#![allow(clippy::restriction)]\n", 1),
-        // The eleven rustc groups the list did not hold. Each is a group by
-        // `rustc -W help`'s own table, and each was accepted here.
+        // The eleven rustc groups a list written from memory misses. Each is a
+        // group by `rustc -W help`'s own table and an entry of `LINT_GROUPS`,
+        // and dropping that entry fails its row here.
         ("#![allow(deprecated_safe)]\n", 1),
         ("#![allow(future_incompatible)]\n", 1),
         ("#![allow(keyword_idents)]\n", 1),
@@ -2019,8 +2029,8 @@ mod tests {
         // item under it and is the mechanism working.
         ("#[allow(clippy::all)]\nfn f() {}\n", 0),
         // **Unless the item is a module, where "scoped to the item under it" is
-        // a whole file.** This case is the one the line above got wrong by
-        // choosing a function to argue with: measured on the real tree, a
+        // a whole file.** This case is the one an argument from a function
+        // misses: measured on the real tree, a
         // planted `clippy::uninlined_format_args` failed a cold clippy, and then
         // one `#[allow(clippy::all, clippy::pedantic)]` above `pub mod entry;`
         // left clippy silent with `check passed`.
@@ -2039,20 +2049,20 @@ mod tests {
         // A name that merely begins with `mod` is not a module — and the case
         // has to *start* with those three letters for the rule to be doing any
         // work. `fn model()` is refused by the `fn` in front of it whatever
-        // `mod ` is spelled as, so it left `starts_with("mod")` deciding
-        // nothing; `mutants.py` reported the clause as a survivor.
+        // `mod ` is spelled as, so it leaves `starts_with("mod")` deciding
+        // nothing; `mutants.py` reports the clause as a survivor without this.
         ("#[allow(clippy::all)]\nfn model() {}\n", 0),
         ("#[allow(clippy::all)]\nmodel!();\n", 0),
         ("#[allow(clippy::all)]\npub modest_thing();\n", 0),
         // And an attribute on no item at all puts nothing down.
         ("#[allow(clippy::all)]\n", 0),
-        // **`#![`, not `#!`.** Widening the opener to `#!` was carried in
-        // `mutants.py`'s `EQUIVALENT` set for a round, argued as "the only other
+        // **`#![`, not `#!`.** Widening the opener to `#!` is not an equivalent
+        // weakening, though it can be argued as one: "the only other
         // `#!`-initial line in Rust is a shebang, which balances and holds no
         // lint name". This gate reads lines, and the interior of a multi-line
-        // raw string is a line — so the widened rule reported a *false* finding
+        // raw string is a line — so the widened rule reports a *false* finding
         // against a shell script carried in a `r#"…"#`, in the direction that
-        // costs a reviewer time rather than hiding a defect.
+        // costs a reader time rather than hiding a defect.
         (
             "const S: &str = r#\"\n#!allow(clippy::all)\necho hello\n\"#;\n",
             0,
@@ -2109,10 +2119,10 @@ mod tests {
     // ---------------------------------------------------------------------------
     // 3a. `gates::every_hatch_carries_its_reason`'s lint half.
     //
-    // What it decides: whether a lint put down carries a written reason. It held
-    // invariant 15 — the one `AGENTS.md` says has no gate — and it had no corpus
-    // at all, which is how both of the clauses below stayed wrong through seven
-    // rounds of review.
+    // What it decides: whether a lint put down carries a written reason. It
+    // holds the form of invariant 15 — a judgement whose substance, `AGENTS.md`
+    // says, no gate can hold — and without a corpus both of the clauses below
+    // can be wrong with every review passing.
     // ---------------------------------------------------------------------------
 
     /// `(the file's text, how many hatches in it carry no written reason)`.
@@ -2125,10 +2135,10 @@ mod tests {
         // The reason, written where `#[expect]` takes it.
         ("#[allow(clippy::all, reason = \"why\")]\nfn f() {}\n", 0),
         ("#[expect(clippy::all, reason = \"why\")]\nfn f() {}\n", 0),
-        // **And on one line, which the rule could not see.** The question asked
-        // was `!code.contains('"')`, and a reason is written in quotes — so
-        // every single-line attribute that answered the rule was dropped from
-        // the gate before it was judged, three of the tree's thirty-one.
+        // **And on one line.** Asked as `!code.contains('"')`, the rule drops
+        // every single-line attribute that answers it — a reason is written in
+        // quotes — before judging it: measured over a tree holding thirty-one,
+        // three.
         ("#[allow(clippy::all, reason = \"why\")]\nmod m;\n", 0),
         // Wrapped over lines, the shape rustfmt produces once the list is long.
         (
@@ -2143,11 +2153,11 @@ mod tests {
         // has no item to sit on, and the generated crates carry theirs that way.
         ("// why\n#[allow(clippy::all)]\nfn f() {}\n", 0),
         ("// why\n#![allow(clippy::all)]\n", 0),
-        // **A doc comment is not a reason.** `///` begins with `//`, so an allow
-        // written under the documentation of the item it sits on satisfied the
-        // rule — which is where an allow is usually written, and which says
-        // nothing about the lint. The rule was off for every documented item in
-        // the repository.
+        // **A doc comment is not a reason.** `///` begins with `//`, so a rule
+        // asking for a `//` line above is satisfied by an allow written under
+        // the documentation of the item it sits on — which is where an allow is
+        // usually written, and which says nothing about the lint. Such a rule is
+        // off for every documented item in the repository.
         ("/// The item.\n#[allow(clippy::all)]\nfn f() {}\n", 1),
         ("//! The module.\n#![allow(clippy::all)]\n", 1),
         ("/// The item.\n#[expect(clippy::all)]\nfn f() {}\n", 1),
@@ -2157,13 +2167,13 @@ mod tests {
             "/// The item.\n// why\n#[allow(clippy::all)]\nfn f() {}\n",
             0,
         ),
-        // **A quote in a trailing comment took the line out of the gate**, which
-        // is the same clause seen from the other side: not counted, not judged,
-        // and no finding.
+        // **A quote in a trailing comment does not take the line out of the
+        // gate**, which is the same clause seen from the other side: under
+        // `!code.contains('"')` it is not counted, not judged, and no finding.
         ("#[allow(clippy::all)] // see \"the note\"\nfn f() {}\n", 1),
         // A string is not an attribute. The emitter's template carries a real
-        // `#![allow(...)]` inside a `RENDER` literal, and it was read as one of
-        // this tree's own hatches.
+        // `#![allow(...)]` inside a `RENDER` literal, and a rule that reads
+        // literals takes it for one of this tree's own hatches.
         ("const S: &str = \"\\n#[allow(clippy::all)]\\n\";\n", 0),
         ("const S: &str = r#\"\n#![allow(clippy::all)]\n\"#;\n", 0),
         // A comment is not an attribute either.
@@ -2215,7 +2225,7 @@ mod tests {
     // here is asserted by a test, and a weakening ships acceptance criterion 3's
     // own suite not running at all — with `ok N test(s)` printed over it, because
     // the census shares this predicate and both sides of the floor move together.
-    // The gate's own doc records that happening five times.
+    // The gate's own doc records it happening.
     // ---------------------------------------------------------------------------
 
     /// `(the file's text, how many tests it hides)`.
@@ -2279,18 +2289,18 @@ mod tests {
         // A `mod x;` declares a whole file, and a condition on it deletes every
         // test in that file without touching it.
         ("#[cfg(feature = \"slow\")]\nmod slow_cases;\n", 1),
-        // **And behind a visibility**, which the brace form was given two rows
-        // for and this one none. `pub mod entry;` is how half the module
-        // declarations in this tree are written.
+        // **And behind a visibility**, which the brace form has two rows for.
+        // `pub mod entry;` is how half the module declarations in this tree are
+        // written.
         ("#[cfg(feature = \"slow\")]\npub mod slow_cases;\n", 1),
         ("#[cfg(unix)]\npub(crate) mod slow_cases;\n", 1),
         // A word beginning `mod` is not the keyword.
         ("#[cfg(unix)]\npub modest_helper();\n", 0),
         // **A literal that spans lines does not hide the tests below it.**
-        // `holds_a_test` asked a whole-file stripper for one line at a time, so
-        // the first line of such a literal was blanked and every line after it
-        // came back as code — a `}` in one closed the module early and the gate
-        // went silent on a condition that was still there. Measured on
+        // A `holds_a_test` asking a whole-file stripper for one line at a time
+        // blanks the first line of such a literal and gets every line after it
+        // back as code — a `}` in one closes the module early and the gate goes
+        // silent on a condition that is still there. Measured on
         // `crates/nc-policy/src/problem.rs`: with the fixture, `check passed`;
         // without it, `this test is hidden from the run by a condition`.
         (
@@ -2333,17 +2343,18 @@ mod tests {
         ("#![cfg(unix)]\npub fn f() {}\n", 0),
         // A comment is not an attribute.
         ("// #[test]\n// #[ignore]\nfn t() {}\n", 0),
-        // A doc *attribute* quoting one is not one either — the mirror of the
-        // hole `codes_something_raises` had, and this predicate does not.
+        // A doc *attribute* quoting one is not one either: a predicate that
+        // reads an attribute's text without asking whose it is takes the
+        // quotation for the real thing.
         ("#[doc = \"#[ignore]\"]\n#[test]\nfn t() {}\n", 0),
-        // **A test module is one by what it holds, not by its name.** Thirty of
+        // **A test module is one by what it holds, not by its name.** Many of
         // this tree's test modules are called something other than `tests` —
-        // `query_tests` (50 tests), `the_frozen_path_rule` (52),
-        // `hostile_store_tests` (18) — and a second condition on one of them was
-        // invisible to this gate, leaving the census as the only reader: it
-        // carries the run's doc-tests as slack, so hiding one or two moved no
-        // number anywhere. Measured on `crates/nc-ids/src/base32.rs`:
-        // `1072 test(s)` became `1070` under `check passed`.
+        // `query_tests`, `the_frozen_path_rule`, `hostile_store_tests` — and a
+        // second condition on one of them is invisible to a gate reading names,
+        // leaving the census as the only reader: it carries the run's doc-tests
+        // as slack, so hiding one or two moves no number anywhere. Measured on
+        // `crates/nc-ids/src/base32.rs`: the test count fell by two under
+        // `check passed`.
         (
             "#[cfg(test)]\n#[cfg(not(test))]\nmod width_tests {\n#[test]\nfn t() {}\n}\n",
             1,
@@ -2391,12 +2402,13 @@ mod tests {
     // 4b. `dev::is_backdated`, the forward-only migration rule.
     //
     // What it decides: whether a migration on disk is new and numbered below one
-    // this database has already applied. It was written inline in `migrate`,
-    // which has no test, and `dev` was outside `mutants.py`'s sources — so the
-    // clause was decided from neither direction. Measured, the condition
-    // replaced by `false`: `cargo test --workspace --locked` exit 0, all 34
-    // targets `ok`, and `cargo xtask dev` applying version 0 after version 12
-    // while printing `ok 1 migration(s) applied`. `_sqlx_migrations` records the
+    // this database has already applied. Written inline in `migrate`, which no
+    // test runs, in a file outside `mutants.py`'s sources, the clause is decided
+    // from neither direction: measured that way, the condition replaced by
+    // `false` gives `cargo test --workspace --locked` exit 0, every target `ok`,
+    // and `cargo xtask dev` applying version 0 after version 12 while printing
+    // `ok 1 migration(s) applied`. So it is the function `dev::is_backdated`,
+    // driven here and mutated through `SOURCES`. `_sqlx_migrations` records the
     // order it is told, so afterwards the database reads as though the backdated
     // migration had always been there — which is acceptance criterion 10's whole
     // subject.
@@ -2404,11 +2416,12 @@ mod tests {
 
     /// `(what the database has applied, the highest of it)`.
     ///
-    /// **The guard's argument, which the list below does not reach.** Every row
-    /// of `BACKDATED` hands `is_backdated` a `highest` written out as `12`, so
-    /// the expression that computes it was decided by nothing: `applied.last()`
-    /// replaced by `applied.first()` left `check passed` at `1232 test(s)`, and
-    /// a migration numbered 13 was applied and recorded after one numbered 20.
+    /// **The guard's argument, which `BACKDATED` does not reach.** Every row of
+    /// `BACKDATED` hands `is_backdated` a `highest` written out as `12`, so
+    /// without these rows the expression that computes it is decided by
+    /// nothing: measured, `applied.last()` replaced by `applied.first()` left
+    /// `check passed`, and a migration numbered 13 was applied and recorded
+    /// after one numbered 20.
     ///
     /// The rows are chosen so that *the last*, *the first* and *the smallest*
     /// each answer differently from the largest on at least one of them — an
@@ -2447,14 +2460,14 @@ mod tests {
 
     /// What the record-limits line says about the tables an escape hatch covers.
     ///
-    /// **A line whose branch is unreachable is a line nobody says**, and the two
-    /// functions that build these suffixes were decided by nothing. Measured on
-    /// 2026-09-09, `if exempt.is_empty()` replaced by `if true`: the whole xtask
-    /// suite green at 491 and `check passed`, with the run printing
+    /// **A line whose branch is unreachable is a line nobody says**, and without
+    /// these rows the two functions that build these suffixes are decided by
+    /// nothing. Measured, `if exempt.is_empty()` replaced by `if true`: the
+    /// whole xtask suite green and `check passed`, with the run printing
     /// `ok 2 table(s) created in the migrations were checked` and dropping the
     /// clause that names `journal_entries` — the only place a run says that
     /// table declares no bound. The same for `excused_by_a_marker`, which
-    /// *looked* covered: deleting its literal is caught by a source-text
+    /// *looks* covered: deleting its literal is caught by a source-text
     /// sentence census, and a sentence census sees that a sentence exists, not
     /// whether anything says it.
     ///
@@ -2484,7 +2497,7 @@ mod tests {
             ", and 1 excused by a marker: archive.login_attempts",
             ", and 1 of them declares no bound here: archive.login_attempts",
         ),
-        // And a quoted name, which round thirty-five's other finding is about.
+        // And a quoted name, which a fold applied to both sides gets wrong.
         (
             &["SOMETHING_UNBOUNDED"],
             ", and 1 excused by a marker: SOMETHING_UNBOUNDED",
@@ -2541,17 +2554,17 @@ mod tests {
 
     /// One line of `docker compose ps -a`, and what it says about that service.
     ///
-    /// **Acceptance criterion 10's health loop was entered by no test.** The
-    /// eleven `dev::` tests reach the log store's status line, the project name,
+    /// **Acceptance criterion 10's health loop, entered by no other test.** The
+    /// `dev::` tests reach the log store's status line, the project name,
     /// `--down`, the search path and the forward-only rule, and not the function
     /// that decides whether the stack is up. Measured, `health != "healthy"`
-    /// replaced by `health == "unhealthy"`: `check passed` at `1232 test(s)`,
-    /// and a cold `cargo xtask dev` reported `ok 2 service(s) healthy` against a
+    /// replaced by `health == "unhealthy"`: `check passed`, and a cold
+    /// `cargo xtask dev` reported `ok 2 service(s) healthy` against a
     /// PostgreSQL still initialising, then failed on the first query.
     ///
-    /// Here rather than in `dev::tests` because `xtask/mutants.py` runs
-    /// `corpus:: limits::` for `dev.rs` — a clause pinned only in `dev::` is a
-    /// clause the meta-gate reports as uncovered.
+    /// Here, beside the other tables a weakening is judged against:
+    /// `xtask/mutants.py` runs `corpus::` for `dev.rs`, as well as `limits::`
+    /// and `dev::`.
     ///
     /// **`starting` is "not yet" and not a failure.** A cold stack reports it on
     /// the first poll, so a rule that refused it would fail every first `dev`,
@@ -2565,8 +2578,8 @@ mod tests {
             "postgres running unhealthy",
             "not yet: postgres is unhealthy",
         ),
-        // Running and declaring no healthcheck: permanent, and the 120 s this
-        // once cost is why it is its own answer rather than `starting`.
+        // Running and declaring no healthcheck: permanent, and the 120 s it
+        // costs when read as `starting` is why it is its own answer.
         ("logs running", "no healthcheck: logs"),
         // Not running, whatever the health column says. `-a` is what makes an
         // exited container appear here rather than vanish from the list.
@@ -2658,8 +2671,8 @@ mod tests {
         // **The marker excuses a table a rename creates, as the remedy says it
         // does.** `unbounded` prints one `fix` on both paths — *If it genuinely
         // cannot grow, say so … on a line beginning `-- nc:bounded: <reason>`* —
-        // and the hatch was reached only from `CREATE TABLE`. A developer who
-        // did exactly what the gate told them got the same finding back.
+        // so a hatch reached only from `CREATE TABLE` hands a developer who did
+        // exactly what the gate told them the same finding back.
         (
             concat!(
                 "CREATE TABLE install_marker (id INT);\n",
@@ -2678,14 +2691,14 @@ mod tests {
             ),
             2,
         ),
-        // **`IF` is a non-reserved keyword, so it is a legal name**, and three
-        // copies of one skip consumed two tokens after it without asking what
-        // they were. Measured on PostgreSQL 18.6: `CREATE TABLE if (id int)`,
+        // **`IF` is a non-reserved keyword, so it is a legal name**, and a skip
+        // that consumes two tokens after it without asking what they are is
+        // wrong. Measured on PostgreSQL 18.6: `CREATE TABLE if (id int)`,
         // `DROP TABLE if`, `ALTER TABLE if RENAME TO landed` and
-        // `CREATE SCHEMA if; CREATE TABLE if.t (…)` all succeed. The scanner
-        // read the first as creating a table called `int` — a table nobody
+        // `CREATE SCHEMA if; CREATE TABLE if.t (…)` all succeed. Such a scanner
+        // reads the first as creating a table called `int` — a table nobody
         // wrote, which is criterion 5's second half failing in the one way this
-        // file's header forbids — and dropped the rename whole.
+        // file's header forbids — and drops the rename whole.
         ("CREATE TABLE if (id INT);\n", 1),
         (
             concat!(
@@ -2696,14 +2709,15 @@ mod tests {
             // Three, and every one of them named: `install_marker` created and
             // retired, `if` created by the first rename and retired by the
             // second, `landed` holding the rows at the end. Read as an
-            // existence test, the `if` was swallowed and only two were said.
+            // existence test, the `if` is swallowed and only two are said.
             3,
         ),
         // **And the verb is the token after the name, not the first one like it
         // below.** `set` is a legal column name and `schema` a legal type name,
-        // so searching forward read an `ADD COLUMN` as a table move: measured on
-        // PostgreSQL 18.6 the statement adds a column and moves nothing, while
-        // the gate retired `login_attempts` and invented `not.login_attempts`.
+        // so searching forward reads an `ADD COLUMN` as a table move: measured on
+        // PostgreSQL 18.6 the statement adds a column and moves nothing, while a
+        // gate searching forward retired `login_attempts` and invented
+        // `not.login_attempts`.
         (
             concat!(
                 "CREATE TABLE login_attempts (id INT);\n",
@@ -2712,9 +2726,10 @@ mod tests {
             1,
         ),
         // **A comment that *describes* the marker is not the marker.** The rule
-        // asks that the marker *begin* the comment, and nothing decided it:
-        // relaxed to a substring, both of these excused the table below them with
-        // the whole of `cargo xtask check` green. The second is this gate's own
+        // asks that the marker *begin* the comment, and these rows decide it:
+        // relaxed to a substring without them, both of these excuse the table
+        // below them with the whole of `cargo xtask check` green, measured. The
+        // second is this gate's own
         // `fix` text, which is the likeliest comment a developer writes next.
         (
             concat!(
@@ -2746,33 +2761,33 @@ mod tests {
             "-- nc:bounded: install_marker holds exactly one row\nCREATE TABLE login_attempts (id TEXT PRIMARY KEY);\n",
             1,
         ),
-        // **And the name handed back in the case SQL folds it from.** The
-        // "says something besides the name" half used a case-sensitive
-        // `replace`, so this — the string the rule's own paragraph names as the
-        // defect, one shift key away — was excused.
+        // **And the name handed back in the case SQL folds it from.** A
+        // "says something besides the name" half using a case-sensitive
+        // `replace` excuses this — the string the rule's own paragraph names as
+        // the defect, one shift key away.
         (
             "-- nc:bounded: login_attempts LOGIN_ATTEMPTS TODO\nCREATE TABLE login_attempts (id TEXT PRIMARY KEY);\n",
             1,
         ),
-        // **And ten spaces, which is not ten characters of prose.** The length
-        // half measured the span the words sit in rather than the words.
+        // **And ten spaces, which is not ten characters of prose.** A length
+        // half measuring the span the words sit in, rather than the words,
+        // accepts them.
         (
             "-- nc:bounded: login_attempts x          y\nCREATE TABLE login_attempts (id TEXT PRIMARY KEY);\n",
             1,
         ),
-        // **And ten digits, which is not a sentence either.** The length half
-        // then counted alphanumerics, so a row of zeroes paid for the prose a
-        // reader is owed — the same defect as the row above, one character class
-        // over.
+        // **And ten digits, which is not a sentence either.** A length half
+        // counting alphanumerics lets a row of zeroes pay for the prose a reader
+        // is owed — the same defect as the row above, one character class over.
         (
             "-- nc:bounded: login_attempts 0000000000 0\nCREATE TABLE login_attempts (id TEXT PRIMARY KEY);\n",
             1,
         ),
-        // **And a schema qualifier however SQL writes it.** The clause that
-        // makes `archive.login_attempts` a *different* table asked whether the
-        // character before the name was a `.`, so the three spellings
-        // PostgreSQL prints and accepts went past it and a reason about another
-        // schema's table excused an unbounded one in `public`.
+        // **And a schema qualifier however SQL writes it.** A clause that makes
+        // `archive.login_attempts` a *different* table by asking whether the
+        // character before the name is a `.` lets the three spellings
+        // PostgreSQL prints and accepts past it, and a reason about another
+        // schema's table then excuses an unbounded one in `public`.
         (
             "-- nc:bounded: \"archive\".\"login_attempts\" holds one row per rotation\nCREATE TABLE login_attempts (id TEXT PRIMARY KEY);\n",
             1,
@@ -2784,20 +2799,20 @@ mod tests {
         // **And the three spaced spellings, which are a decision rather than a
         // bug.** A `.` with nothing between it and the name is a qualifier; a
         // `.` followed by a space is the end of a sentence, and the two cannot
-        // both be read from the same string. Round sixty-six read the spaced
-        // forms as qualifiers, which closed a hole nobody writes through and
-        // opened one anybody could: `the installer writes it once and never
-        // again. login_attempts holds at most one row` is true, about this
-        // table, and was refused. Decided on 2026-09-15 — the developer
-        // delegated it — and the three rows below are what the decision gives
-        // up, stated where a reader meets them. The tight spellings, which is
-        // how a qualified name is actually written, are still refused above.
+        // both be read from the same string. Reading the spaced forms as
+        // qualifiers closes a hole nobody writes through and opens one anybody
+        // could: `the installer writes it once and never again. login_attempts
+        // holds at most one row` is true, about this table, and that reading
+        // refuses it. So the spaced forms are not qualifiers, and the three rows
+        // below are what the decision gives up, stated where a reader meets
+        // them. The tight spellings, which is how a qualified name is actually
+        // written, are still refused above.
         // **And a character a reader sees nothing of does not stand between
         // them.** The decision above is about what *stands* between the dot and
-        // the name, and the code asked only whether that character was a dot —
-        // so a zero-width space excused the table while rendering identically to
-        // the tight spelling the rows above refuse. Measured by a reviewer in
-        // round seventy-one. A tab is the same shape; a no-break space is not,
+        // the name, and asking only whether that character is a dot lets a
+        // zero-width space excuse the table while rendering identically to the
+        // tight spelling the rows above refuse, measured. A tab is the same
+        // shape; a no-break space is not,
         // because it renders as a space, which is what the decision says the end
         // of a sentence looks like.
         (
@@ -2805,9 +2820,9 @@ mod tests {
             1,
         ),
         // A tab renders as a gap, so by this rule's own criterion it ends a
-        // sentence exactly as a space does. Written down as `1` for one round,
-        // which refused the sentence round sixty-six's decision was taken to
-        // rescue with one space replaced by a tab.
+        // sentence exactly as a space does. Written down as `1`, this would
+        // refuse the sentence the decision above rescues, with one space
+        // replaced by a tab.
         (
             "-- nc:bounded: archive.\tlogin_attempts holds one row per rotation\nCREATE TABLE login_attempts (id TEXT PRIMARY KEY);\n",
             0,
@@ -2817,7 +2832,8 @@ mod tests {
             0,
         ),
         // **The quotes prose actually uses.** A backtick is this repository's
-        // house style for an identifier, and it walked past the whole rule.
+        // house style for an identifier, and a rule that knows no quotes lets
+        // it walk past.
         (
             "-- nc:bounded: archive.`login_attempts` holds one row per rotation\nCREATE TABLE login_attempts (id TEXT PRIMARY KEY);\n",
             1,
@@ -2831,10 +2847,9 @@ mod tests {
             1,
         ),
         // **A character that renders as nothing is not a word boundary either.**
-        // Round seventy-one taught the qualifier clause about them and left the
-        // two boundary clauses beside it reading the raw character, so a reason
-        // about a *different* table excused this one while rendering exactly
-        // like one.
+        // The qualifier clause knows about them, and boundary clauses reading the
+        // raw character would let a reason about a *different* table excuse this
+        // one while rendering exactly like one.
         (
             "-- nc:bounded: old_\u{200b}login_attempts holds one row per rotation\nCREATE TABLE login_attempts (id TEXT PRIMARY KEY);\n",
             1,
@@ -2845,9 +2860,9 @@ mod tests {
         ),
         // **And the classes the escapers' table does not hold.** A variation
         // selector and a combining mark render as nothing here and are neither
-        // `Cc` nor `Cf`; VS-16 and VS-17 are the same kind of character and used
-        // to get opposite verdicts, because the tag plane happens to sit in an
-        // array written for a different question.
+        // `Cc` nor `Cf`; VS-16 and VS-17 are the same kind of character, and a
+        // rule borrowing that array gives them opposite verdicts, because the
+        // tag plane happens to sit in an array written for a different question.
         (
             "-- nc:bounded: archive.\u{fe0f}login_attempts holds one row per rotation\nCREATE TABLE login_attempts (id TEXT PRIMARY KEY);\n",
             1,
@@ -2861,10 +2876,9 @@ mod tests {
             1,
         ),
         // **The classes a hand-written table missed.** A Mongolian free variation
-        // selector, whose neighbour `U+180E` *was* in the array; a Devanagari
-        // stress mark; and two marks a plane up. Found by a reviewer in round
-        // seventy-one walking past eleven ranges written by hand, which is why
-        // the question is std's now.
+        // selector, whose neighbour `U+180E` is in such an array; a Devanagari
+        // stress mark; and two marks a plane up. Each walks past ranges written
+        // by hand, which is why the question is std's.
         (
             "-- nc:bounded: archive.\u{180b}login_attempts holds one row per rotation\nCREATE TABLE login_attempts (id TEXT PRIMARY KEY);\n",
             1,
@@ -2928,25 +2942,25 @@ mod tests {
             "-- nc:bounded: \"archive\" . \"login_attempts\" holds one row per rotation\nCREATE TABLE login_attempts (id TEXT PRIMARY KEY);\n",
             0,
         ),
-        // **And the sentence that was refused, which is why the decision went
-        // that way.** This is the marker an author writes when the reason is a
+        // **And the sentence the decision rescues, which is why it goes that
+        // way.** This is the marker an author writes when the reason is a
         // sentence and the table's name follows it. Nothing about it is a
-        // qualifier, and until 2026-09-15 all of it was read as one.
+        // qualifier.
         (
             "-- nc:bounded: the installer writes it once and never again. login_attempts holds at most one row\nCREATE TABLE login_attempts (id TEXT PRIMARY KEY);\n",
             0,
         ),
         // **And ten hyphens, which is not a sentence either.** Counting every
-        // character that is not whitespace let punctuation pay for the prose.
+        // character that is not whitespace lets punctuation pay for the prose.
         (
             "-- nc:bounded: login_attempts ---------- x\nCREATE TABLE login_attempts (id TEXT PRIMARY KEY);\n",
             1,
         ),
         // **And the table's own name in the case the migration writes it.**
         // SQL folds an unquoted identifier and `Token::resolved` folds with it,
-        // so this marker is about this table — and the naming half was
-        // case-sensitive while the half beside it was folded, so a true reason
-        // was refused with a diagnostic quoting a name the file never wrote.
+        // so this marker is about this table — and a naming half that is
+        // case-sensitive beside a half that folds refuses a true reason with a
+        // diagnostic quoting a name the file never wrote.
         (
             "-- nc:bounded: LOGIN_ATTEMPTS holds at most one row per device\nCREATE TABLE LOGIN_ATTEMPTS (id TEXT PRIMARY KEY);\n",
             0,
@@ -2956,11 +2970,11 @@ mod tests {
         // `Token::resolved` with it. A quoted one keeps its case and is a
         // different relation — `something_unbounded` and `"SOMETHING_UNBOUNDED"`
         // both exist, side by side, on a real server. Folding both sides
-        // unconditionally excused the second with a reason about the first:
-        // measured through the shipped gate, one migration creating both and one
-        // marker naming the lower-case one reported
+        // unconditionally excuses the second with a reason about the first:
+        // measured through the shipped gate that way, one migration creating
+        // both and one marker naming the lower-case one reported
         // `` `something_unbounded` has no entry in catalog/limits.toml `` in the
-        // same run that excused `SOMETHING_UNBOUNDED`. The excuse drifted onto a
+        // same run that excused `SOMETHING_UNBOUNDED`. The excuse drifts onto a
         // table it says nothing about, which is what this predicate exists to
         // stop.
         (
@@ -2972,7 +2986,7 @@ mod tests {
             "-- nc:bounded: \"SOMETHING_UNBOUNDED\" holds one row, written at install\nCREATE TABLE \"SOMETHING_UNBOUNDED\" (id INT);\n",
             0,
         ),
-        // Both at once, which is the shape that was measured: one marker, two
+        // Both at once, which is the shape measured above: one marker, two
         // relations, and only the one it names may be excused.
         (
             "-- nc:bounded: something_unbounded holds one row, written at install\nCREATE TABLE something_unbounded (id INT);\nCREATE TABLE \"SOMETHING_UNBOUNDED\" (id INT);\n",
@@ -2980,20 +2994,20 @@ mod tests {
         ),
         // An empty reason is not a reason.
         ("-- nc:bounded:\nCREATE TABLE login_attempts (id INT);\n", 1),
-        // **The name is not the reason**, and this clause was decided by
-        // nothing: switching it off in `a_reason_names_what_it_exempts` left
-        // `cargo test --workspace --locked` at exit 0, and the bare table name
-        // then excused an unbounded table. All 26 cases here carried a long
-        // reason, so none of them straddled it.
+        // **The name is not the reason**, and this row decides that clause.
+        // Were every row of this table a long reason, switching the clause off
+        // in `a_reason_names_what_it_exempts` would leave
+        // `cargo test --workspace --locked` at exit 0, measured, and the bare
+        // table name would then excuse an unbounded table.
         (
             "-- nc:bounded: login_attempts\nCREATE TABLE login_attempts (id INT);\n",
             1,
         ),
-        // **And a name repeated is still a name.** Only the *first* occurrence
-        // was taken out before the rule counted what was left, so writing the
-        // table twice paid for the whole thing — measured through the gate, both
-        // of these were excused, and the second is the string the rule's own
-        // paragraph names as the defect.
+        // **And a name repeated is still a name.** A rule that takes out only
+        // the *first* occurrence before counting what is left lets the table
+        // written twice pay for the whole thing — measured through the gate that
+        // way, both of these were excused, and the second is the string the
+        // rule's own paragraph names as the defect.
         (
             "-- nc:bounded: login_attempts login_attempts x\nCREATE TABLE login_attempts (id INT);\n",
             1,
@@ -3002,29 +3016,28 @@ mod tests {
             "-- nc:bounded: login_attempts TODO login_attempts\nCREATE TABLE login_attempts (id INT);\n",
             1,
         ),
-        // **And the mechanism restated is not prose, however often.** Both
-        // counts were over every word the reason held, so the marker itself
-        // written four more times is four words and thirty-six letters and it
-        // excused an unbounded table — the third case the predicate's own doc
-        // says it refuses, reached by repetition. Reported in round sixty-four.
+        // **And the mechanism restated is not prose, however often.** With both
+        // counts over every word the reason holds, the marker itself written
+        // four more times is four words and thirty-six letters and it excuses
+        // an unbounded table — the third case the predicate's own doc says it
+        // refuses, reached by repetition.
         (
             "-- nc:bounded: login_attempts nc:bounded: nc:bounded: nc:bounded: nc:bounded:\nCREATE TABLE login_attempts (id INT);\n",
             1,
         ),
         // **And dressing a token is not writing another one.** Splitting the
-        // reason on whitespace left the punctuation attached, so one comma and
-        // one stop made three distinct words out of the marker: measured in
-        // round sixty-five through criterion 5's own driver, this excused an
-        // unbounded table while the identical reason without the two marks —
-        // the row above — was refused.
+        // reason on whitespace leaves the punctuation attached, so one comma and
+        // one stop make three distinct words out of the marker: measured through
+        // criterion 5's own driver, this excused an unbounded table while the
+        // identical reason without the two marks — the row above — was refused.
         (
             "-- nc:bounded: login_attempts nc:bounded: nc:bounded:, nc:bounded:.\nCREATE TABLE login_attempts (id INT);\n",
             1,
         ),
-        // **And a bound stated with a number is a bound.** The length counted
-        // letters alone, so `at most 1 row` — nine letters, four words, true,
-        // and the way anybody writes a bound — was refused, and the diagnostic
-        // blamed the word count, which was fine. The other way of being wrong,
+        // **And a bound stated with a number is a bound.** A length counting
+        // letters alone refuses `at most 1 row` — nine letters, four words, true,
+        // and the way anybody writes a bound — and its diagnostic blames the
+        // word count, which is fine. The other way of being wrong,
         // in the one place this predicate's doc has a paragraph about it.
         (
             "-- nc:bounded: login_attempts at most 1 row\nCREATE TABLE login_attempts (id INT);\n",
@@ -3103,7 +3116,7 @@ mod tests {
             2,
         ),
         // The statement is the unit, not the line: four shapes of valid
-        // PostgreSQL that a line-by-line reading walked straight through.
+        // PostgreSQL that a line-by-line reading walks straight through.
         (
             "CREATE TABLE\n    login_attempts (id TEXT PRIMARY KEY);\n",
             1,
@@ -3116,7 +3129,7 @@ mod tests {
             "CREATE TABLE install_marker (id INT);\nINSERT INTO install_marker VALUES ('CREATE TABLE login_attempts (id INT)');\n",
             1,
         ),
-        // A quoted identifier is one name, and flattening on whitespace made it
+        // A quoted identifier is one name, and flattening on whitespace makes it
         // two — a finding naming a table nobody wrote.
         ("CREATE TABLE \"login attempts\" (id INT);\n", 1),
         // A schema is part of the name.
@@ -3134,35 +3147,36 @@ mod tests {
         // Neither is something that is not a table.
         // **A schema qualifier is a different table.** `references::names`
         // accepts a preceding `.` because in a path it is a separator; in SQL it
-        // names another schema's table, so this excused a bare `login_attempts`
-        // in `public` — the excuse drifting onto a new table, which is the
-        // failure the naming requirement was added to stop.
+        // names another schema's table, so a rule borrowing it lets this excuse
+        // a bare `login_attempts` in `public` — the excuse drifting onto a new
+        // table, which is the
+        // failure the naming requirement exists to stop.
         (
             "-- nc:bounded: archive.login_attempts holds exactly one row\nCREATE TABLE login_attempts (id TEXT PRIMARY KEY);\n",
             1,
         ),
-        // **A marker excuses one table, not a statement full of them.**
-        // `excused()`'s `alone_in_its_statement` clause was decided by nothing:
-        // dropping it left `330 passed`, and the test written for it passed for
-        // a different reason — its fixture writes the marker about a bare name
-        // while the parser produces a schema-qualified one, so the excuse was
-        // refused by the naming rule rather than by this clause. `BOUNDS` had no
-        // case where one statement declares two tables.
+        // **A marker excuses one table, not a statement full of them.** This is
+        // the case where one statement declares two tables, and it decides
+        // `excused()`'s `alone_in_its_statement` clause. Without it the clause
+        // can be dropped with the suite green, measured: a test whose fixture
+        // writes the marker about a bare name, while the parser produces a
+        // schema-qualified one, passes for a different reason — the naming rule
+        // refuses the excuse before this clause is asked.
         (
             "-- nc:bounded: h.install_marker holds exactly one row\nCREATE SCHEMA h\n  CREATE TABLE install_marker (id INT)\n  CREATE TABLE login_attempts (id INT);\n",
             2,
         ),
-        // **Two occurrences, one per half.** `names` took the bare mention
-        // inside `login_attempts_history` and the `.`-rule took the qualified
-        // one, so a reason about another schema's table excused a table with no
-        // entry at all: measured, `unbounded=0 excused=["login_attempts"]`.
+        // **Two occurrences, one per half.** With `names` taking the bare
+        // mention inside `login_attempts_history` and the `.`-rule taking the
+        // qualified one, a reason about another schema's table excuses a table
+        // with no entry at all: measured, `unbounded=0 excused=["login_attempts"]`.
         (
             "-- nc:bounded: archive.login_attempts holds one row, unlike login_attempts_history\nCREATE TABLE login_attempts (id TEXT PRIMARY KEY);\n",
             1,
         ),
         // **The boundary *before* the name.** Without it a reason about
         // `old_login_attempts` excuses `login_attempts` — the substring defect
-        // `names` was written for, which the trailing-boundary check alone does
+        // `names` exists for, which the trailing-boundary check alone does
         // not cover because the name ends where the longer word ends.
         (
             "-- nc:bounded: old_login_attempts holds exactly one row\nCREATE TABLE login_attempts (id TEXT PRIMARY KEY);\n",
@@ -3175,11 +3189,11 @@ mod tests {
     /// Literals that put a file on this machine into generated output, and
     /// literals that only look like one.
     ///
-    /// **`determinism.rs` had no mutation coverage at all**, so none of the
-    /// clauses this rule gained — a doubled slash, an interpolated placeholder,
-    /// a climb that starts a segment in rather than at the front — was decided
-    /// by the suite the mutation runner executes. Each of them was found by a
-    /// reviewer by hand, and each is one character wide.
+    /// **The clauses of `determinism.rs`'s rule, decided by the suite the
+    /// mutation runner executes.** A doubled slash, an interpolated placeholder,
+    /// a climb that starts a segment in rather than at the front — each is one
+    /// character wide, and without these rows none of them is decided by
+    /// anything a weakening reaches.
     ///
     /// Driven through `nothing_the_emitter_reads_changes`, the real entry point,
     /// so a filter between the walk and the judgement fails these too.
@@ -3189,8 +3203,8 @@ mod tests {
         // would pin the needle and never reach the rule this drives.
         ("let here = \"/var/lib/dbus/machine-id\";\n", 1),
         // POSIX resolves `//x` and `///x` to `/x`, so a slash too many is the
-        // same file. The rule that kept the emitter's own doc comments out read
-        // the slashes rather than what follows them.
+        // same file. A rule that keeps the emitter's own doc comments out by
+        // reading the slashes, rather than what follows them, misses it.
         ("let here = \"//var/lib/dbus/machine-id\";\n", 1),
         ("let here = \"///var/lib/dbus/machine-id\";\n", 1),
         // What follows the slashes in a format string is a placeholder.
@@ -3249,19 +3263,18 @@ mod tests {
 
     /// Statements the redirect rule must refuse, and shapes it must not.
     ///
-    /// **The gate this drives had no mutation coverage at all**, and it turned
-    /// out to be wired to nothing: handed the first 400 bytes of every migration
-    /// it refused nothing, and `cargo xtask check`'s output was byte-identical to
-    /// a full run. `corpus.rs` held no `search_path` anywhere, so not one of the
-    /// clauses six rounds of repair had added to it was decided here — which is
-    /// the whole reason those rounds could not be settled by the suite.
+    /// **The gate this drives is decided here, and wired.** Without a corpus it
+    /// can be wired to nothing unnoticed: measured, handed the first 400 bytes of
+    /// every migration it refused nothing, and `cargo xtask check`'s output was
+    /// byte-identical to a full run. A clause with no row here is one the suite
+    /// cannot settle.
     ///
     /// Driven through `every_table_declares_a_bound`, the real caller, so what is
     /// covered is the wire as well as the rule: a filter between the reader and
     /// the judgement fails these too.
     ///
-    /// Every refused shape below was measured against PostgreSQL 18.6 before it
-    /// was written down, and every allowed one parses.
+    /// Every refused shape below is measured against PostgreSQL 18.6, and every
+    /// allowed one parses.
     const REDIRECTS: [(&str, usize); 52] = [
         ("SET search_path = archive;\nCREATE TABLE t (id INT);\n", 1),
         ("SET search_path TO archive;\nCREATE TABLE t (id INT);\n", 1),
@@ -3313,10 +3326,10 @@ mod tests {
             // a substring it clears *both*, which is the defect.
             2,
         ),
-        // **And the hatch clearing what it was written to clear.** Every case
-        // above is the hatch refusing; the direction it exists for was decided
-        // only by `migrations/0011_a_trigger_names_its_own_schema.sql`, so nothing
-        // in this corpus held it open. A
+        // **And the hatch clearing what it exists to clear.** Every case above
+        // is the hatch refusing; without this, the direction it exists for is
+        // decided only by `migrations/0011_a_trigger_names_its_own_schema.sql`,
+        // and nothing in this corpus holds it open. A
         // hatch tested in one direction is an exclusion list nobody tried.
         (
             concat!(
@@ -3326,8 +3339,8 @@ mod tests {
             0,
         ),
         // **With a comment riding on its line**, which is what the strip in
-        // `read_by_hand` is for and what nothing exercised: dropping
-        // `without_comments` there left the whole suite green, because the one
+        // `read_by_hand` is for and what nothing else exercises: dropping
+        // `without_comments` there leaves the rest of the suite green, because the one
         // cleared statement in this repository carries no `--` on either of its
         // lines. Without the strip the comment's words join the statement's, the
         // equality fails, and a migration this repository actually writes is
@@ -3354,8 +3367,8 @@ mod tests {
         ),
         ("CREATE TABLE t (id INT);\n", 0),
         // **`SET` is a non-reserved word.** A schema may be called it, and a
-        // statement may end where this rule reads a value: both of these made
-        // the gate abort with a Rust slice message rather than produce a
+        // statement may end where this rule reads a value: both of these can
+        // make a gate abort with a Rust slice message rather than produce a
         // finding. Measured on PostgreSQL 18.6 — `CREATE SCHEMA set;` and a
         // table in it both succeed.
         ("CREATE VIEW v AS SELECT c FROM set.t;\n", 0),
@@ -3363,8 +3376,8 @@ mod tests {
         // **An upsert and a merge write a column, not a setting.** Both
         // measured on PostgreSQL 18.6: the row is written and `SHOW search_path`
         // is unchanged. The third is the second with the column dropped from the
-        // `INSERT` list — the shape that showed the old fixture was passing for
-        // a reason of its own.
+        // `INSERT` list — the shape that tells a fixture passing for the right
+        // reason from one passing for a reason of its own.
         (
             "INSERT INTO paths VALUES (1) ON CONFLICT (id) DO UPDATE SET search_path = 'a';\n",
             0,
@@ -3380,8 +3393,8 @@ mod tests {
         ),
         // **Deeper than any migration's first statement.** The count the two
         // readers compare certifies how much was *read*, never that a verdict
-        // survived — so a one-line filter on the output silenced every refusal
-        // below line 24 with the two numbers equal to the byte. Nine of the
+        // survived — so a one-line filter on the output silences every refusal
+        // below line 24 with the two numbers equal to the byte, measured. Nine of the
         // twelve migrations begin below that line and the deepest begins at 68,
         // so a case has to be deeper than the tree it stands for. This one puts
         // its redirect at line 71.
@@ -3389,11 +3402,11 @@ mod tests {
             "-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\n-- a line of the prose every migration in this tree opens with.\nSET search_path = archive;\\nCREATE TABLE t (id INT);\\n",
             1,
         ),
-        // **The other three things this reader refuses.** Until the filter above
-        // read every verdict rather than the redirect alone, none of these could
-        // be written down here at all — which is why the whole of the
+        // **The other three things this reader refuses.** These can be written
+        // down here only because the filter above reads every verdict rather
+        // than the redirect alone; without them, the whole of the
         // `COPY … FROM stdin`, `IMPORT FOREIGN SCHEMA` and dynamic-`EXECUTE`
-        // rules had no mutation coverage.
+        // rules has no mutation coverage.
         ("COPY t FROM stdin;\n", 1),
         ("IMPORT FOREIGN SCHEMA remote INTO public;\n", 1),
         (
@@ -3420,8 +3433,9 @@ mod tests {
         ),
         // **And the word as an ordinary name.** `EXECUTE` is non-reserved on
         // PostgreSQL 18.6, so a table and a column may both be called it — and
-        // each of these three was refused as dynamic SQL, which tells a
-        // developer a column declaration builds a statement out of text and
+        // a rule reading the word alone refuses each of these three as dynamic
+        // SQL, which tells a developer a column declaration builds a statement
+        // out of text and
         // offers a hatch on a statement that needs none.
         ("CREATE TABLE execute (id INT);\n", 0),
         ("CREATE TABLE t (execute INT);\n", 0),
@@ -3435,8 +3449,9 @@ mod tests {
         ),
         // **A column may be called `search_path`.** Neither statement writes a
         // setting, and the clauses that tell them apart from a redirect — a
-        // `SET` or a `RESET` is present, and an operator follows the name — were
-        // each deletable with the whole suite green.
+        // `SET` or a `RESET` is present, and an operator follows the name — are
+        // each deletable with the whole suite green without these rows,
+        // measured.
         (
             "CREATE VIEW v AS SELECT * FROM paths WHERE search_path = 'archive';\n",
             0,
@@ -3449,17 +3464,18 @@ mod tests {
         // and rows at once, which is what tells this `SET` from the others.
         ("UPDATE paths SET search_path = 'archive';\n", 0),
         // **Past the longest migration this repository has.** The scope case
-        // above stops at ten statements, and `0012` holds twenty-two — so a rule
-        // switched off for the tail of a real file was invisible here while the
-        // suite stayed green. A ceiling below the thing it is written to cover
+        // above stops at ten statements, and `0012` holds twenty-two — so
+        // without this a rule switched off for the tail of a real file is
+        // invisible here while the suite stays green. A ceiling below the thing
+        // it is written to cover
         // is not a ceiling.
         (
             "SELECT 1;\nSELECT 1;\nSELECT 1;\nSELECT 1;\nSELECT 1;\nSELECT 1;\nSELECT 1;\nSELECT 1;\nSELECT 1;\nSELECT 1;\nSELECT 1;\nSELECT 1;\nSELECT 1;\nSELECT 1;\nSELECT 1;\nSELECT 1;\nSELECT 1;\nSELECT 1;\nSELECT 1;\nSELECT 1;\nSELECT 1;\nSELECT 1;\nSELECT 1;\nSET search_path = archive;\\nCREATE TABLE t (id INT);\\n",
             1,
         ),
-        // **And the two shapes that hatch let through.** `UPDATE` is an
-        // *unreserved* keyword, so a schema may be called it; and PL/pgSQL puts
-        // an `UPDATE` and a later `SET` in one `;`-delimited chunk. Both were
+        // **And the two shapes that hatch must not let through.** `UPDATE` is
+        // an *unreserved* keyword, so a schema may be called it; and PL/pgSQL
+        // puts an `UPDATE` and a later `SET` in one `;`-delimited chunk. Both are
         // measured on PostgreSQL 18.6: the path moves and an unqualified
         // `CREATE TABLE` lands in the new schema.
         ("SET search_path = update;\nCREATE TABLE t (id INT);\n", 1),
@@ -3471,7 +3487,7 @@ mod tests {
         // **And a CTE in the loop's header.** PL/pgSQL's `FOR r IN <query> LOOP
         // <stmt>;` header holds no `;`, so a `(UPDATE …)` there and a
         // `SET search_path` in the body are one chunk — and the arm that clears
-        // a column write answered for the whole of it. Measured on PostgreSQL
+        // a column write must not answer for the whole of it. Measured on PostgreSQL
         // 18.6: the path moved and an unqualified `CREATE TABLE` landed in the
         // new schema.
         (
@@ -3482,8 +3498,9 @@ mod tests {
         ),
         // **A conflict action wears an opener's clothes.** `ON CONFLICT … DO
         // UPDATE SET` and `MERGE … WHEN MATCHED THEN UPDATE SET` are clauses of
-        // the statement above them, not new statements — and inside a `FOR … IN`
-        // loop either turned the whole rule off for a chunk holding a redirect.
+        // the statement above them, not new statements — and a rule that takes
+        // either for an opener inside a `FOR … IN` loop turns itself off for a
+        // chunk holding a redirect.
         (
             "DO $$ DECLARE r record; BEGIN FOR r IN INSERT INTO paths VALUES (1) \
              ON CONFLICT (id) DO UPDATE SET n = 1 RETURNING * LOOP \
@@ -3519,14 +3536,14 @@ mod tests {
 
     /// No case in this file is a copy of another.
     ///
-    /// **A declaration says how many cases a table holds and nothing said they
-    /// were different ones.** A reviewer copied one row of `SCOPE` from the row
-    /// above it: the count held, the declaration held, the census that reads
-    /// that declaration held — and the clause the row used to decide was decided
-    /// by nothing, with every mutation over it surviving.
+    /// **A declaration says how many cases a table holds and not that they are
+    /// different ones.** Measured, one row of `SCOPE` copied from the row above
+    /// it: the count held, the declaration held, the census that reads that
+    /// declaration held — and the clause the row decided was decided by
+    /// nothing, with every mutation over it surviving.
     ///
     /// Asked of the values rather than of the source. Reading rows out of the
-    /// text was tried first and is the wrong tool: a comment inside a table
+    /// text is the wrong tool: a comment inside a table
     /// holds unbalanced brackets, a case spans lines, and the strippers that
     /// would remove the comments are not byte-for-byte with their input.
     ///
@@ -3534,15 +3551,15 @@ mod tests {
     /// different questions is two cases — so it is the whole row that must be
     /// distinct.
     ///
-    /// **And the tables are this file's, not a list somebody kept up.** Eleven
-    /// were named here and twelve are declared: `CARETS` was missing, so its
-    /// rows were the one place in this file where a copy cost nothing. Measured
-    /// — a real weakening of `wall.rs`'s local-declaration guard
-    /// (`== Some(short)` to `== Some(door)`), paid for by replacing one `CARETS`
-    /// row with a copy of the row above it — went from one RED test to a green
-    /// suite, with the declared length of 12 and every census over it intact.
-    /// A thirteenth table forgotten the same way is the same hole, so the names
-    /// are read from the declarations and the check is that the two agree.
+    /// **And the tables are this file's, not a list somebody kept up.** A table
+    /// left off a hand list is the one place in this file where a copy costs
+    /// nothing. Measured with `CARETS` left off — a real weakening of `wall.rs`'s
+    /// local-declaration guard (`== Some(short)` to `== Some(door)`), paid for by
+    /// replacing one `CARETS` row with a copy of the row above it — the suite
+    /// went from one RED test to green, with the declared length and every
+    /// census over it intact. Any table forgotten the same way is the same hole,
+    /// so the names are read from the declarations and the check is that the
+    /// two agree.
     #[test]
     fn no_case_is_a_copy_of_another() {
         /// Every case of one table, and none of them twice.
@@ -3649,9 +3666,9 @@ mod tests {
             // **And the reader read the whole file**, which the `expect` above
             // carries: the count the refusal reader publishes is held against
             // the reader beside it, and a disagreement is an `Err` rather than a
-            // finding. It was a finding once, and this loop scanned for its
-            // text — a filter on the verdicts then silenced both the finding and
-            // this assertion at one stroke, which is why it stopped being one.
+            // finding. As a finding, scanned for by its text in this loop, it
+            // would be silenced together with this assertion by one filter on
+            // the verdicts.
             // Without either, a defect that stops the scan early leaves
             // `found == 0` on every refused row, reading exactly like a rule
             // that was never reached.
@@ -3675,11 +3692,11 @@ mod tests {
                 ));
             }
             // **And the error names it**, which is the other half of acceptance
-            // criterion 5 and was decided by nothing here: this counted findings
-            // by kind and never read which table one named. Measured, with
-            // `limits.rs`'s message changed from `` format!("`{name}` has no
-            // entry …") `` to a fixed `"a table has no entry …"`, this driver —
-            // the command `xtask/canaries/README.md` names as the answer to
+            // criterion 5: counting findings by kind never reads which table one
+            // names. Measured, with `limits.rs`'s message changed from
+            // `` format!("`{name}` has no entry …") `` to a fixed
+            // `"a table has no entry …"`, this driver read that way — the
+            // command `xtask/canaries/README.md` names as the answer to
             // criterion 5 — reported `1 passed`.
             for finding in &findings {
                 if !finding.what.contains("has no entry in catalog/limits.toml") {
@@ -3747,7 +3764,7 @@ mod tests {
     // a name its publisher can repoint; a `build:` key is a Dockerfile nothing
     // here reads. A weakening ships that with `N image(s) in the resolved stack
     // and N written in its files, each pinned by digest` printed over it, and the
-    // gate's own doc records this reached the running stack six ways.
+    // gate's own doc records the ways this reaches the running stack.
     //
     // It drives `docker compose config` in the scratch tree, which is what the
     // shipped gate does — the whole reason the gate exists is that reading one
@@ -3760,16 +3777,16 @@ mod tests {
     /// How many, so the array type carries the number and the meta-gate can pin
     /// it.
     ///
-    /// **These two case lists were the ones
-    /// `the_corpus_still_decides_every_predicate_it_is_written_for` wrote itself
-    /// an exemption from**, because they are built by functions rather than
-    /// declared as tables — and a function body can be emptied. `verdict(&wrong,
-    /// …)` is `assert!(wrong.is_empty())`, which is true of a loop that never
-    /// ran, so with `referent_cases()` returning `Vec::new()` and `one_of_them_is`
-    /// weakened back to the substring test that let PostgreSQL 16.14 run under
-    /// the tag `18-alpine`, the whole gate printed `955 test(s)` and
-    /// `check passed`. Deleting statements deletes no `#[test]` attribute, so the
-    /// suite floor cannot see it either.
+    /// **These two case lists are built by functions rather than declared as
+    /// tables**, so `the_corpus_still_decides_every_predicate_it_is_written_for`
+    /// does not see them as tables — and a function body can be emptied.
+    /// `verdict(&wrong, …)` is `assert!(wrong.is_empty())`, which is true of a
+    /// loop that never ran, so with `referent_cases()` returning `Vec::new()` and
+    /// `one_of_them_is` weakened to a substring test that lets PostgreSQL 16.14
+    /// run under the tag `18-alpine`, the whole gate printed `check passed`,
+    /// measured with the list returned as a `Vec` rather than an array.
+    /// Deleting statements deletes no `#[test]` attribute, so the suite floor
+    /// cannot see it either.
     ///
     /// A fixed-size return type makes emptying the body a compile error, and the
     /// pin on this line makes lowering the number a failing test.
@@ -3786,15 +3803,12 @@ mod tests {
             //
             // **No finding, and an announced skip instead.** Nothing has pulled
             // `example.invalid/pinned:1` — nothing can — so its digest cannot be
-            // compared with what the tag resolves to. That was a silent `warn`
-            // until a reviewer shipped 18's digest under a tag reading 17
-            // through a green run, and it then became an error: which made the
-            // gate red on every CI runner, where neither image is pulled. The
-            // sentence here also said it would be red on a runner that *did*
-            // pull them, because both tags had been repointed upstream —
-            // measured on 2026-09-15 and false: `docker manifest inspect` gives
-            // each tag the same index as the digest beside it, so that runner
-            // would be green.
+            // compared with what the tag resolves to. A silent `warn` lets 18's
+            // digest ship under a tag reading 17 through a green run, measured;
+            // an error makes the gate red on every CI runner, where neither
+            // image is pulled. A runner that *does* pull them is green:
+            // `docker manifest inspect` gives each tag the same index as the
+            // digest beside it, measured.
             //
             // The digest is what pins the bytes and it is judged here whatever
             // the daemon says. What the comparison adds is that the label beside
@@ -3807,9 +3821,9 @@ mod tests {
                 0,
             ),
             // **The key's own spelling.** YAML allows whitespace before the
-            // colon and docker resolves it, and three copies of
-            // `strip_prefix("image:")` read one spelling — measured, one space
-            // added in `docker-compose.yml`:
+            // colon and docker resolves it, while `strip_prefix("image:")`
+            // reads one spelling — measured with that reader, one space added
+            // in `docker-compose.yml`:
             // `ok 2 image(s) in the resolved stack and 1 written in its files`,
             // the written count halved and the step still saying `ok`. A
             // quoted key is the other spelling.
@@ -3888,9 +3902,9 @@ mod tests {
             // **A quoted `build:` key, in block style.** The flow-style case
             // above reaches `is_a_build_key` through the `{` split; this one is
             // the plain spelling, and it is what keeps the predicate's own
-            // unquoting reachable. The file pass used to hand it an
-            // already-unquoted line, so the clause could not be decided by any
-            // input and the meta-gate reported a weakening of it as surviving.
+            // unquoting reachable. A file pass handing it an already-unquoted
+            // line leaves the clause decided by no input, and the meta-gate then
+            // reports a weakening of it as surviving.
             (
                 "services:\n  a:\n    \"build\":\n      context: .\n".to_owned(),
                 2,
@@ -3909,7 +3923,7 @@ mod tests {
             // exists for.** `docker compose config` resolves it against whichever
             // environment ran the command, so the resolved pass sees a pinned
             // image and the file does not — one finding, from the file pass
-            // alone. The referent is no longer a second: an image nothing has
+            // alone. The referent is not a second: an image nothing has
             // pulled is an announced skip rather than a defect, for the reason
             // written on the first case above.
             (
@@ -3939,12 +3953,13 @@ mod tests {
 
     /// One entry of `RepoDigests`, and every way a substring test says yes to it.
     ///
-    /// **The referent check was `listed.contains(digest)`.** `RepoDigests` is a
-    /// list of `repository@sha256:…`, one per repository the image is tagged
-    /// into, so a substring match answers "this digest is somewhere in this
-    /// list" — not "this tag resolves to this digest". This is the clause that
-    /// decides it, and it had no corpus and no test: the implementation replaced
-    /// by `Ok(true)` left all 301 of this crate's tests green.
+    /// **A referent check written as `listed.contains(digest)` answers the wrong
+    /// question.** `RepoDigests` is a list of `repository@sha256:…`, one per
+    /// repository the image is tagged into, so a substring match answers "this
+    /// digest is somewhere in this list" — not "this tag resolves to this
+    /// digest". This is the clause that decides it, and without this corpus it
+    /// has no case: measured, the implementation replaced by `Ok(true)` left
+    /// every test of this crate green.
     // allow-logging: `referent_cases` hands back a list of corpus labels written in this file
     fn referent_cases() -> [(String, &'static str, String, bool); REFERENT_CASES] {
         let other = "b".repeat(64);
@@ -4010,10 +4025,10 @@ mod tests {
             // A registry named with a port has two colons and only the second
             // introduces a tag; cutting at the first leaves the host alone as
             // the repository, which matches nothing. The clause that guards
-            // this — `.filter(|(_, after)| !after.contains('/'))` — was decided
-            // by no case, so a mutation removing it survived while the corpus
-            // said it was covered. A private registry on a port is the ordinary
-            // way to run one.
+            // this — `.filter(|(_, after)| !after.contains('/'))` — is decided
+            // by this case; without it a mutation removing the clause survives
+            // while the corpus says it is covered. A private registry on a port
+            // is the ordinary way to run one.
             (
                 format!("[\"registry.example:5000/pinned@sha256:{DIGEST}\"]"),
                 "registry.example:5000/pinned",
@@ -4055,6 +4070,12 @@ mod tests {
 
     #[test]
     fn the_image_pin_predicate_decides_every_clause() {
+        if let Some(why) =
+            crate::check::docker_stands_aside("the_image_pin_predicate_decides_every_clause")
+        {
+            println!("{why}");
+            return;
+        }
         let mut wrong = Vec::new();
         for (body, expected) in image_cases() {
             let scratch = Scratch::new();
@@ -4090,7 +4111,7 @@ mod tests {
     /// in the same file, splits on `{` and `,` because flow style is YAML too. One
     /// rule written twice, and the image half is the narrower copy.
     ///
-    /// Measured before anything was changed, that is not a hole. The resolved
+    /// Measured on the tree as it is, that is not a hole. The resolved
     /// projection prints one image line per service whatever the file spelled, so a
     /// spelling the file pass cannot read lowers its own count and not docker's, and
     /// `xtask/src/check.rs` refuses a run whose file count is under the resolved one.
@@ -4099,11 +4120,12 @@ mod tests {
     /// finding to make — docker resolved 2 and the file pass read 1. Alone in the
     /// file it is 1 and 0, which the emptiness guard takes first.
     ///
-    /// **Nothing decided that.** Every other case in this section counts findings,
-    /// and this spelling produces none: an `else if` on the line loop that paid the
-    /// file count back without judging what it counted — the widening somebody
-    /// reaching for this writes first — left all 413 of this crate's tests green
-    /// with `postgres:latest` in the resolved stack.
+    /// **These cases decide that.** Every other case in this section counts
+    /// findings, and this spelling produces none, so without these an `else if`
+    /// on the line loop that pays the file count back without judging what it
+    /// counted — the widening somebody reaching for this writes first — leaves
+    /// the rest of this crate's tests green with `postgres:latest` in the
+    /// resolved stack, measured.
     ///
     /// So every case here carries a real defect, and what is asserted is the verdict
     /// rather than the parser: read and judged, or the counts refuse the run. A
@@ -4168,6 +4190,12 @@ mod tests {
     /// with no docker would pass this while asking it nothing.
     #[test]
     fn a_flow_style_image_never_reaches_a_green_verdict() {
+        if let Some(why) =
+            crate::check::docker_stands_aside("a_flow_style_image_never_reaches_a_green_verdict")
+        {
+            println!("{why}");
+            return;
+        }
         let mut wrong = Vec::new();
         for (about, body) in flow_cases() {
             let scratch = Scratch::new();
@@ -4230,6 +4258,12 @@ mod tests {
     /// clause is reachable through the shipped entry point at all.
     #[test]
     fn the_digest_needs_a_name_in_front_of_it() {
+        if let Some(why) =
+            crate::check::docker_stands_aside("the_digest_needs_a_name_in_front_of_it")
+        {
+            println!("{why}");
+            return;
+        }
         let scratch = Scratch::new();
         scratch.write(
             "compose.yaml",
@@ -4259,6 +4293,12 @@ mod tests {
 
     #[test]
     fn the_compose_file_list_decides_every_clause() {
+        if let Some(why) =
+            crate::check::docker_stands_aside("the_compose_file_list_decides_every_clause")
+        {
+            println!("{why}");
+            return;
+        }
         let mut wrong = Vec::new();
         for named in COMPOSE_FILES {
             let scratch = Scratch::new();
@@ -4278,17 +4318,18 @@ mod tests {
             // finding it makes, so counting by name would count both passes for
             // one of the eight and one pass for the other seven.
             let found = of_kind(&findings, "is written here and is not pinned by digest");
-            // **And that the file pass named this file.** `of_file`'s only call
-            // site discarded its answer with `let _`, so the function was dead —
-            // `-D dead-code` cannot see a called-and-discarded one, and
-            // inverting its predicate changed nothing anywhere. What it is for
+            // **And that the file pass named this file.** `of_file` answers
+            // that, and its answer is used here: a call site that discards it
+            // with `let _` leaves the function dead — `-D dead-code` cannot see
+            // a called-and-discarded one, and inverting its predicate then
+            // changes nothing anywhere, measured. What it is for
             // is the other half of the sentence above: the finding is about the
             // file that holds the unpinned image, and the resolved pass writes
             // `docker-compose.yml` on every finding it makes.
             let by_name = of_file(&findings, named);
             // **Equality, not containment.** `finding.file == named` widened to
-            // `contains` answers the same for every name this list holds, so the
-            // clause was decided by nothing — measured in round sixty-two. A
+            // `contains` answers the same for every name this list holds, so
+            // without this the clause is decided by nothing, measured. A
             // substring of a real file name is the shortest input that tells the
             // two apart, and it needs no fixture: it is this name with its first
             // character gone.

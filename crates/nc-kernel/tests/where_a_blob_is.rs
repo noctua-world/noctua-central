@@ -453,9 +453,7 @@ impl Fixture {
         for entry in std::fs::read_dir(&self.blobs).expect("listed") {
             let path = entry.expect("an entry").path();
             if path.is_file() {
-                std::fs::File::open(&path)
-                    .and_then(|file| file.set_modified(long_ago))
-                    .expect("this test's own file is aged");
+                nc_platform::set_modified(&path, long_ago).expect("this test's own file is aged");
             }
         }
     }
@@ -828,11 +826,11 @@ async fn a_blob_made_in_a_unit_the_database_refused_to_commit_is_gone() {
 /// writer's `finish` is refused, its unit is let go, and nothing is left under
 /// the hash for the unit or the sweep to find.
 ///
-/// **Found by a review**: `finish` named the bytes before it read their row,
-/// and recorded them in its unit only once both had answered — so a refused
-/// read left a file under the hash that no row named and the unit let go knew
-/// nothing of, while the plugin was told the blob was not on this machine. The
-/// row is read first now, and a refusal lets the writing go unnamed.
+/// **The row is read first**: a `finish` that named the bytes before it read
+/// their row, and recorded them in its unit only once both had answered, would
+/// leave a refused read's file under the hash that no row names and the unit
+/// let go knows nothing of, while the plugin is told the blob is not on this
+/// machine. Read first, a refusal lets the writing go unnamed.
 #[tokio::test]
 async fn a_finish_whose_row_the_database_refused_names_no_bytes() {
     let fixture = opened("refused-row").await;
@@ -1022,13 +1020,14 @@ async fn a_sweep_deletes_only_what_no_unit_held_past_its_grace_and_what_no_row_n
 /// A directory under a blob's or a writing's name is not one, and stops no
 /// sweep.
 ///
-/// **No unlink deletes a directory**, so a sweep that took one for bytes no
-/// row names, for a writing no writer holds or for the bytes of a row past
-/// its grace refused at it, and every sweep after it refused at the same
+/// **No unlink deletes a directory**, so a sweep that took one for bytes no row
+/// names, for a writing no writer holds or for the bytes of a row past its
+/// grace would be refused at it, and every sweep after it refused at the same
 /// entry: the writings a stopped process left, which a sweep deletes last,
-/// were never deleted. Found in review: one directory under a hash's name made
-/// two sweeps in a row refuse at it with `[NC-BLOB-0004]` ("Is a directory"),
-/// and the unfinished writing beside it stayed.
+/// would never be deleted. Measured on a sweep that lists directories, one
+/// directory under a hash's name would make two sweeps in a row refuse at it
+/// with `[NC-BLOB-0004]` ("Is a directory"), and the unfinished writing beside
+/// it stay.
 #[tokio::test]
 async fn a_directory_under_a_blobs_name_is_not_a_blob_and_stops_no_sweep() {
     let fixture = opened("directories").await;
@@ -1089,9 +1088,8 @@ async fn a_directory_under_a_blobs_name_is_not_a_blob_and_stops_no_sweep() {
     );
     // **And the store, asked to delete one, holds no bytes there.** A sweep
     // lists no directory, so it never asks; this is what is left for one that
-    // takes a hash's name after a sweep listed it. Found by the mutation run:
-    // nothing asked the store itself, and its refusing such a name was
-    // decided by nothing.
+    // takes a hash's name after a sweep listed it. This asks the store itself,
+    // so its refusing such a name is decided here.
     assert_eq!(
         fixture
             .beside()
@@ -1212,14 +1210,20 @@ async fn an_announcement_reaches_no_peer_and_says_so() {
 }
 
 /// A directory another user could reach is not one a kernel keeps blobs in.
+///
+/// **One body for every system**: `nc_platform::testing` opens the directory
+/// to another user as this system does — a group bit on Unix, an entry for a
+/// group on Windows — and answers the words the refusal names that by.
 #[test]
 fn a_blob_directory_another_user_can_reach_is_refused() {
-    use std::os::unix::fs::PermissionsExt as _;
+    use nc_platform::testing;
 
     let scratch = Scratch::new("refused");
     let blobs: &Path = &scratch.0.join("blobs");
     std::fs::create_dir(blobs).expect("made");
-    std::fs::set_permissions(blobs, std::fs::Permissions::from_mode(0o750)).expect("chmod");
-    let refused = DirectoryBlobs::open(blobs).expect_err("0750 is refused");
+    testing::make_private(blobs).expect("private");
+    let said = testing::open_to_another_user(blobs).expect("opened up");
+    let refused = DirectoryBlobs::open(blobs).expect_err("refused");
     assert_eq!(refused.code(), ErrorCode::DbLocalOpenRefused, "{refused}");
+    assert!(refused.to_string().contains(&said), "{said}: {refused}");
 }

@@ -21,8 +21,8 @@
 # not share a vocabulary.** This one says how bad the error is — `info`,
 # `warning`, `error`, `critical` — and belongs to the error whatever writes it.
 # That one says which `tracing` level a log line is emitted at, and takes
-# `tracing`'s own spellings, of which `warn` is one. A newcomer who wrote
-# `level = "warn"` here, or `severity = "warning"` there, was reading the
+# `tracing`'s own spellings, of which `warn` is one. A newcomer who writes
+# `level = "warn"` here, or `severity = "warning"` there, is reading the
 # neighbouring file and not a rule; the rule is that these are two properties of
 # two things, and each is spelled the way its own consumer spells it.
 
@@ -90,9 +90,9 @@ code = "NC-JRNL-0005"
 # half of the same mistake: retrying an unstorable record produces the same
 # answer forever.
 #
-# **The sentence a person reads covers both**, which it did not: it said "holds a
-# character this system cannot store. Remove it", and a resource nested past the
-# reader holds no offending character and has nothing to remove. Two failures
+# **The sentence a person reads covers both.** "Holds a character this system
+# cannot store. Remove it" is false of a resource nested past the reader, which
+# holds no offending character and has nothing to remove. Two failures
 # share this code because the action is the same — the request has to change —
 # and the message has to be true of both or it is a message about one of them.
 description = "A record holds something no store could keep, so it was refused before the store saw it"
@@ -103,15 +103,14 @@ retryable = false
 # --- Identifiers (§16) ---
 
 [[error]]
-# **One variant, and `retryable = true`.** This covered three, and the
-# measurement that set `retryable = false` used two of them — a clock in 1999 and
-# a clock in 2200, where 500 retries each produced the same answer. The third is
-# the variant the code is *named* for, and it is the ordinary one: an NTP step
-# back of a few hundred milliseconds. Measured, `ClockMovedBackwards { drift:
-# 600ms }`, and 601 ms later the identical call answered `Ok` — which is verbatim
-# the criterion `NC-IDS-0007` uses to justify its own `true`. Both locales say
+# **One variant, and `retryable = true`.** A clock in 1999 or in 2200 is
+# `NC-IDS-0008`, where 500 retries each produce the same answer. This code is the
+# variant it is *named* for, and it is the ordinary one: an NTP step back of a
+# few hundred milliseconds. Measured, `ClockMovedBackwards { drift: 600ms }`,
+# and 601 ms later the identical call answers `Ok` — which is verbatim the
+# criterion `NC-IDS-0007` uses to justify its own `true`. Both locales say
 # "nothing can be saved until the time it skipped has passed", which is a
-# sentence about waiting; the field said do not wait. `NC-IDS-0008` is the
+# sentence about waiting, and the field agrees with it. `NC-IDS-0008` is the
 # permanent half.
 code = "NC-IDS-0001"
 description = "The clock moved backwards, so minting would repeat an identifier it has issued"
@@ -135,9 +134,9 @@ retryable = false
 # nothing constructs it, because `nc-ids` does not depend on `nc-log`: measured,
 # no `ErrorCode::IdsSequenceExhausted` outside the generated crate. So it is
 # `reserved` today, and becomes `raised` in the same change as the emitter.
-# Either way `docs/errors.md` stops publishing it under "every error the
-# platform can return", which it did over a code its own comment says nobody
-# receives.
+# Either way `docs/errors.md` does not publish it under "every error the
+# platform can return" — a phrase that would be false of a code its own comment
+# says nobody receives.
 raising = "reserved"
 
 [[error]]
@@ -148,10 +147,10 @@ severity = "critical"
 retryable = false
 # **Held, not raised.** `MachineFlake::exhausted()` is a `pub const fn` returning
 # this code and nothing calls it: pairing walks the candidate sequence and
-# pairing is Stage 24, so nothing in this tree can detect exhaustion. The gate
-# counted it as raised because its needle is the variant's *name*, and a `code()`
-# accessor names it — which is the gate's own limit, written down beside the
-# declaration it could not judge.
+# pairing is Stage 24, so nothing in this tree can detect exhaustion. The gate's
+# needle is the variant's *name*, and a `code()` accessor names it, so it reads a
+# function whose whole body is one code as a mapping rather than a raise — the
+# gate's own limit, written down beside the declaration it would misjudge.
 raising = "reserved"
 
 [[error]]
@@ -169,15 +168,15 @@ severity = "error"
 retryable = false
 
 [[error]]
-# **Its own code, because two types returned this failure and neither had one.**
-# `Base32Error` and `OpaqueIdError` both say "the text you handed me is not an
-# identifier", and both answered with a type the log cannot query and the journal
-# cannot record. `NC-IDS-0004` is about a *file name*, which is a different
+# **Its own code, because two types return this failure.** `Base32Error` and
+# `OpaqueIdError` both say "the text you handed me is not an identifier", and
+# without a code each is a type the log cannot query and the journal cannot
+# record. `NC-IDS-0004` is about a *file name*, which is a different
 # subject with a different reader.
 #
-# `MachineFlake::from_value` is **not** one of them, though it was for a round:
-# it takes a `u16`, so there is no text and nobody typed it, and a message
-# telling a person to check the value they entered is about nothing. It carries
+# `MachineFlake::from_value` is **not** one of them: it takes a `u16`, so
+# there is no text and nobody typed it, and a message telling a person to
+# check the value they entered is about nothing. It carries
 # `NC-VAL-0001` instead. A code is only worth having if its description is true
 # of every failure that carries it.
 code = "NC-IDS-0006"
@@ -188,14 +187,14 @@ retryable = false
 
 [[error]]
 # **Not NC-JRNL-0001, which is the chain being broken.** `OutOfOrder` is what a
-# second writer racing this one looks like: both read the tail, both computed the
-# same next sequence, one landed. Measured with twelve threads doing the
-# `head()`-then-`append()` that `Journal::append` does — three landed, nine were
-# refused, and every one of the nine was told `NC-JRNL-0001`: *the journal's hash
-# chain is broken*, severity **critical**, `retryable = false`. The chain was
-# perfectly intact, and the code said do not retry. That is the platform's
-# loudest alarm firing on its most ordinary event, and the one instruction a
-# caller could act on was the wrong one.
+# second writer racing this one looks like: both read the tail, both compute the
+# same next sequence, one lands. Measured with twelve threads doing the
+# `head()`-then-`append()` that `Journal::append` does: three land, nine are
+# refused, and the chain is perfectly intact. Under `NC-JRNL-0001` every one of
+# the nine would be told *the journal's hash chain is broken*, severity
+# **critical**, `retryable = false` — the platform's loudest alarm firing on its
+# most ordinary event, and the one instruction a caller could act on the wrong
+# one.
 code = "NC-JRNL-0006"
 description = "Another writer took this sequence first, so the entry was not written"
 message = "error.journal.contended"
@@ -203,11 +202,11 @@ severity = "warning"
 retryable = true
 
 [[error]]
-# **Not NC-JRNL-0004, whose description is the opposite.** `UnitAlreadyOpen`
-# carried the closed-unit code, so one error said in one line that a unit was
-# open and that it "was already committed or aborted", and both locales told the
-# reader the action had finished and to start it again — which is precisely the
-# operation that was refused. Measured: twelve to fifteen of every sixteen
+# **Not NC-JRNL-0004, whose description is the opposite.** Under the closed-unit
+# code, `UnitAlreadyOpen` would say in one line that a unit is open and that it
+# "was already committed or aborted", and both locales would tell the reader the
+# action had finished and to start it again — which is precisely the operation
+# refused. Measured: twelve to fifteen of every sixteen
 # concurrent openers of one unit receive this.
 code = "NC-JRNL-0007"
 description = "A work unit that is already open was opened again"
@@ -220,9 +219,10 @@ retryable = false
 # this sequence first* and is `retryable`; an entry numbered *past* the end of
 # the history is nobody else's doing, because writing only ever moves the end
 # forward. Measured on an empty table with one writer and nobody racing:
-# `Store::append` at sequence 7 answered `NC-JRNL-0006`, "Something else was
-# recorded at the same moment", and three retries answered the same. The
-# direction is what tells them apart, so the code is chosen by it.
+# `Store::append` at sequence 7 is refused, and three retries are refused the
+# same way, so `NC-JRNL-0006`'s "Something else was recorded at the same
+# moment" would be false of it. The direction is what tells them apart, so the
+# code is chosen by it.
 code = "NC-JRNL-0008"
 description = "An entry was numbered past the end of the history, which no other writer can cause"
 message = "error.journal.sequence-ahead"
@@ -230,20 +230,20 @@ severity = "error"
 retryable = false
 
 [[error]]
-# **The store answered, and refused.** Every SQLSTATE `unavailable` did not have
-# an arm for fell through to `NC-JRNL-0003` — "the journal store did not answer",
-# critical, `retryable = true` — so a revoked `INSERT` (42501), a dropped table
-# (42P01), a failed authentication (28P01) and a genuine outage were one code,
-# one severity, one retryability and one user sentence. Measured, all four:
+# **The store answered, and refused.** Under `NC-JRNL-0003` — "the journal store
+# did not answer", critical, `retryable = true` — a revoked `INSERT` (42501), a
+# dropped table (42P01), a failed authentication (28P01) and a genuine outage
+# would be one code, one severity, one retryability and one user sentence. Measured,
+# with every SQLSTATE `unavailable` has no arm for falling through to it:
 #
 #     permission denied for table journal_entries   -> NC-JRNL-0003 retryable
 #     relation "journal_entries" does not exist     -> NC-JRNL-0003 retryable
 #     pool timed out waiting for a connection       -> NC-JRNL-0003 retryable
 #
 # `§14.9` makes the journal fail closed, so every command on the platform stops
-# — and the only instruction anybody gets is *try again in a moment*, for ever.
-# `nc-prune` already separates these: `NC-DB-0005` is "refused, and retrying will
-# not change it". This is the journal's.
+# — and the only instruction anybody would get is *try again in a moment*, for
+# ever. `nc-prune` separates these the same way: `NC-DB-0005` is "refused, and
+# retrying will not change it". This is the journal's.
 code = "NC-JRNL-0009"
 description = "The journal store answered and refused the write: a grant, a schema or a role, not an outage"
 message = "error.journal.refused"
@@ -268,9 +268,9 @@ retryable = false
 # **The half of NC-IDS-0001 that waiting cannot fix.** A clock before this
 # system's epoch or past what 41 bits hold is a machine whose time is set wrong,
 # not one that stepped: measured with the clock at 1999 and at 2200, 500 retries
-# each produced the identical refusal. Under one code with the backwards step,
-# either the retryable half spun for ever or the transient half was told to give
-# up — and both locales' sentence, "until the time it skipped has passed", is
+# each produce the identical refusal. Under one code with the backwards step,
+# either the retryable half would spin for ever or the transient half be told to
+# give up — and both locales' sentence, "until the time it skipped has passed", is
 # about a step and false of these.
 code = "NC-IDS-0008"
 description = "The clock is outside the range this identifier layout can represent"
@@ -287,8 +287,8 @@ retryable = false
 # until somebody fixes its time. Reporting that as `info` about a wait is the
 # `§15.1` failure of a sentence that is not true of the thing carrying it.
 #
-# **`retryable = true`, and it was `false`.** Measured: the identical call, made
-# again after the clock ticked, answered `Ok`. Minting waits for the next
+# **`retryable = true`.** Measured: the identical call, made again after the
+# clock ticks, answers `Ok`. Minting waits for the next
 # millisecond and only refuses when the wait itself runs out, so what a caller
 # holds is a refusal a later attempt clears — which is what this field is for.
 # The severity stays `critical`: a clock that has stopped is a machine somebody
@@ -342,12 +342,13 @@ retryable = false
 # identity a log is queried by.
 
 [[error]]
-# **Only the failures a later run clears.** Every `Failure` carried this code,
-# and the crate keeps `waited` as a separate field precisely because a lock this
-# run did not get and a statement that cannot parse are different things.
-# Measured: three ticks against a table whose `order_by` column does not exist
-# gave three identical `NC-DB-0003`s, both locales promising "this will be tried
-# again", and twenty rows still held against a limit of five. The permanent half
+# **Only the failures a later run clears.** The crate keeps `waited` as a
+# separate field precisely because a lock this run did not get and a statement
+# that cannot parse are different things, and the codes follow it. Measured with
+# every `Failure` under this one: three ticks against a table whose `order_by`
+# column does not exist give three identical `NC-DB-0003`s, both locales
+# promising "this will be tried again", and twenty rows still held against a
+# limit of five. The permanent half
 # is `NC-DB-0005`.
 code = "NC-DB-0003"
 description = "Pruning a table did not finish, and a later run may"
@@ -359,18 +360,18 @@ retryable = true
 # **Not NC-DB-0003, which is pruning failing.** These are refusals *before* any
 # pruning is attempted: a table the catalog does not bound, the journal's §15.8
 # carve-out, an entry that disagrees with what `catalog/limits.toml` declares.
-# Measured: five of the pruner's nine failure paths reached a caller as a bare
-# `String` with no code at all, so a scheduler could neither journal them nor
+# Measured without a code for them: five of the pruner's nine failure paths
+# reach a caller as a bare `String`, so a scheduler can neither journal them nor
 # tell them apart from a lock it should wait on. The action a responder takes is
 # different too — change the request or the catalog, rather than try again.
 #
-# **The description covers all four of them, and it did not.** It read "a table
-# the catalog does not bound", which is true of one carrier: the other three are
-# the journal's `§15.8` carve-out and a request that disagrees with what
-# `catalog/limits.toml` declares — and for those the catalog *does* bound the
-# table, which is how the refusal is detectable at all. A caller asking the
-# pruner to delete the audit log by row count and a caller with a typo in a table
-# name were indistinguishable by code, severity and sentence.
+# **The description covers all four of them.** "A table the catalog does not
+# bound" is true of one carrier: the other three are the journal's `§15.8`
+# carve-out and a request that disagrees with what `catalog/limits.toml`
+# declares — and for those the catalog *does* bound the table, which is how the
+# refusal is detectable at all. Under that sentence, a caller asking the pruner
+# to delete the audit log by row count and a caller with a typo in a table name
+# would be indistinguishable by code, severity and sentence.
 code = "NC-DB-0004"
 description = "A table cannot be pruned the way the request asks, so it was left alone"
 message = "error.db.table-not-bounded"
@@ -381,8 +382,8 @@ retryable = false
 # **The half of NC-DB-0003 that retrying cannot fix.** A statement that will not
 # parse, a column that is not there, a table whose `DELETE` reaches beyond
 # itself: the run is over for that table until somebody changes something, and
-# `retryable = true` sent a scheduler round a loop that never clears while the
-# table grew.
+# `retryable = true` would send a scheduler round a loop that never clears while
+# the table grows.
 code = "NC-DB-0005"
 description = "Pruning a table was refused, and retrying will not change it"
 message = "error.db.prune-refused"
@@ -401,17 +402,21 @@ retryable = false
 [[error]]
 # The directory or a file in it is reachable by another user, is a link,
 # belongs to another user, or lacks a bit its owner needs — a `0500` folder, a
-# `0400` file — or this process may not write where it has to. Nothing is
-# opened, created or repaired — chmod-ing it would decide on the user's behalf
-# that whatever made it was harmless. **Not another application's file**, which
-# is NC-DB-0007: nothing about a foreign header is how the folder was set up.
+# `0400` file — or this process may not write where it has to. The refused path
+# is left as it was: not opened by SQLite, not chmod-ed and not repaired —
+# chmod-ing it would decide on the user's behalf that whatever made it was
+# harmless. What the open made before it judged that path stays: on every
+# system the database file, when it was missing and a companion is then
+# refused, and on Windows the profile's lock file (`nc_local::LOCK_NAME`),
+# which the open makes before it judges the database file and its companions.
+# **Not another application's file**, which is NC-DB-0007: nothing about a
+# foreign header is how the folder was set up.
 # Nor a path the filesystem cannot answer for — a missing parent, a full disk,
 # a read-only mount — which is NC-DB-0001.
 #
-# **The sentence is what is true of every one of those.** It said other people
-# using this computer could reach the data, which a `0500` folder nobody else
-# can enter was refused with. Rewritten before any build carried it, through
-# the ledger's deliberate steps.
+# **The sentence is what is true of every one of those.** "Other people using
+# this computer could reach the data" is false of a `0500` folder nobody else
+# can enter, which is refused all the same.
 code = "NC-DB-0006"
 description = "The local database's folder or files are not set up for this user alone to read and write, so it was not opened"
 message = "error.db.local-open-refused"
@@ -513,12 +518,9 @@ retryable = false
 # --- Canonical serialization (§16.4) ---
 #
 # A malformed payload is the most likely runtime failure of the boundary layer,
-# so it is the one the central log most needs to be queryable by. It had no code
-# at all until a reviewer pointed out that it was the only error type carrying
-# none in `nc-canon`, `nc-catalog` and `nc-ids` — the three crates `nc-journal`
-# and `nc-log` are each built on. This comment said "the three foundation
-# crates" and named none of them, which is the same unnameable claim the doc on
-# `ParseError`'s `code` field records having carried.
+# so it is the one the central log most needs to be queryable by. Without these
+# it would be the only error type carrying no code in `nc-canon`, `nc-catalog`
+# and `nc-ids` — the three crates `nc-journal` and `nc-log` are each built on.
 
 [[error]]
 code = "NC-CANON-0001"
@@ -751,8 +753,8 @@ retryable = false
 # **Bound to a plugin, not to a name.** An unloaded plugin leaves its
 # namespace to whichever identity loads next, which may declare a command
 # under the same name: dispatched by its name alone, a step's compensation
-# would run that plugin's code as the person, inside the undo's unit — a
-# reviewer found it doing so. So a compensation names the identity that held
+# would run that plugin's code as the person, inside the undo's unit — observed,
+# not supposed. So a compensation names the identity that held
 # its command when it was registered, and an undo dispatches none of the
 # step's compensations when another identity holds one of them now, or none
 # does.
@@ -766,7 +768,7 @@ retryable = false
 # **Bound to the grant that let it be registered.** Naming another plugin's
 # command as a compensation asks `commands.dispatch`, because the undo
 # dispatches it as the person; a plugin loaded again without that grant would
-# otherwise still have it dispatched — a reviewer found it so. So the note
+# otherwise still have it dispatched — observed, not supposed. So the note
 # names the plugin that registered it, and an undo dispatches none of the
 # step's compensations while one of another plugin's was registered by a
 # plugin no longer loaded granted `commands.dispatch`.
@@ -901,13 +903,11 @@ retryable = false
 [[error]]
 # A running plugin refused at a bound the catalog declares on what it holds,
 # sends, queues or opens: a quota, a queue or a count. Where it is raised is
-# `grep -rln PluginBoundReached crates/nc-kernel/src`, rather than a list here:
-# the list this comment kept named the store, the blobs and the network and
-# left out the timers, the surfaces, the event queue, the unit handles and the
-# compensations a unit records. Each is a limit Noctua sets, which is all the
-# message says. A load refused for declaring more than `commands_per_plugin`
-# commands is NC-PLUG-0009: that plugin keeps nothing and is never started,
-# which this message does not say.
+# `grep -rln PluginBoundReached crates/nc-kernel/src`, rather than a list here,
+# which would miss each bound added after it was written. Each is a limit
+# Noctua sets, which is all the message says. A load refused for declaring more
+# than `commands_per_plugin` commands is NC-PLUG-0009: that plugin keeps
+# nothing and is never started, which this message does not say.
 code = "NC-PLUG-0017"
 description = "A plugin reached a bound the catalog declares: a quota, a queue or a count"
 message = "error.plugin.bound-reached"
@@ -1016,8 +1016,8 @@ retryable = false
 # begun in a command that has returned has ended — whether its unit was kept or
 # not — so a method called on it does nothing, and is refused as a value: the
 # plugin lives on, and the call aborts nothing. Not `NC-KERN-0008`, which says
-# a unit was aborted: a reviewer found the handle of a unit that was kept
-# refused under it, in a command whose own unit nothing doomed.
+# a unit was aborted: the handle of a unit that was kept is refused too, in a
+# command whose own unit nothing doomed, and that sentence is false of it.
 code = "NC-PLUG-0028"
 description = "A plugin called a method on the handle of a unit that had ended — aborted, let go, or begun in a command that has returned — and the call did nothing"
 message = "error.plugin.unit-ended"

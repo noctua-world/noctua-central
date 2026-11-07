@@ -3,24 +3,18 @@
 //! One command to a working PostgreSQL and a working central log store —
 //! Stage 10's local development stack, and the tenth of its acceptance criteria.
 //!
-//! **Not *from a clean machine*, which this said.** That is the criterion's own
-//! wording and it is the half that has never been watched: what was seen on
-//! 2026-08-27 was `dev --down` → `dev` → `check` on a machine that already held
-//! both images, and `down -v` takes volumes rather than images. `NOCTUA-PLAN.md`
-//! records it as unmet for that reason, and the test module below says the same.
-//! This header is the half rustdoc publishes, which is why it is written here;
-//! the same split put a retracted claim back into the published documentation of
-//! `gates.rs`, one file over.
+//! **From a clean machine, which is what CI's Linux runner is.** That is the
+//! criterion's own wording, and it runs in the `linux` job on every push and
+//! pull request, and in `release.yml`'s gate job, each on a fresh runner that
+//! pulls both pinned images layer by layer before the stack comes up healthy
+//! and migrated — measured, with no layer already there. This header is the
+//! half rustdoc publishes, which is why it is written here: a claim made only
+//! in a body comment is one the published documentation can still contradict.
 //!
-//! **And it was not the only place in the file, which this claimed.** A comment
-//! in [`run`] said `dev --down` is what a developer runs *to get back to a clean
-//! machine* — the second sense of the same two words, four hundred lines below a
-//! paragraph asserting there was no second. Found on F5's seventh pass, and the
-//! sentence naming it was wrong in its own turn on the eighth: it sent a reader
-//! to `compose_command`, which is four hundred lines below the comment rather
-//! than its home and mentions `--down` nowhere. What `--down` empties is the
-//! database; the image store is untouched, which is the whole reason the
-//! criterion's own wording is unmet.
+//! **The two words mean the same thing everywhere in this file.** What `--down`
+//! empties is the database, and the image store is untouched — so a local
+//! `dev --down` → `dev` is not the clean-machine run, and the comment beside
+//! `--down` in [`run`] says *an empty database*, not a clean machine.
 //!
 //! **It passes no `.env`.** Docker Compose would read one from beside the
 //! compose file, which is inside the repository, and `cargo xtask check` fails
@@ -44,13 +38,13 @@ const HEALTH_TIMEOUT_SECONDS: u64 = 120;
 /// One setting of the local stack: the variable that names it, and what it is
 /// when nothing does.
 ///
-/// **These were written out four times and held to nothing.** `dev.rs` read the
-/// five variables with their defaults inline, `database.rs::default_url` read
-/// four of them again — its own paragraph asserting *"the same defaults"* — and
-/// `check.rs` read `LOGS_PORT` a third time, while `docker-compose.yml` declares
-/// each as `${NAME:-value}`. Measured on 2026-09-09, `POSTGRES_DB`'s default in
-/// this file alone changed to `"central"`: `check passed` at `1232 test(s)` with
-/// no warn line, and `cargo xtask dev` then failed outright —
+/// **Written once, and held to the compose file.** `docker-compose.yml`
+/// declares each as `${NAME:-value}`, and `dev.rs`, `database.rs::default_url`
+/// and `check.rs` all read them; a default copied into each reader and held to
+/// nothing drifts. Measured without
+/// `the_settings_this_tool_reads_are_the_ones_the_stack_declares`, `POSTGRES_DB`'s
+/// default in this file alone changed to `"central"`: `check passed` with no warn
+/// line, and `cargo xtask dev` then failed outright —
 /// `the stack is up and PostgreSQL refused: database "central" does not exist`.
 /// That is the defect [`stack_url`]'s own paragraph is written about, one
 /// argument along.
@@ -94,11 +88,11 @@ pub(crate) fn setting((variable, default): Setting) -> String {
 /// The url of the stack `docker-compose.yml` brings up.
 ///
 /// **Read from the same four variables compose reads, with the same defaults.**
-/// The previous fix stopped `migrate` reading `DATABASE_URL` — which was right,
-/// since that pointed anywhere — and hardcoded the credentials instead, so three
-/// of the four variables `.env.example` documents broke `dev` outright:
-/// `POSTGRES_PASSWORD=hunter2` gave *password authentication failed*, and
-/// `POSTGRES_DB=central` gave *database "noctua" does not exist*. A stack whose
+/// `migrate` does not read `DATABASE_URL`, which can point anywhere, and it does
+/// not hardcode the credentials either: hardcoded, three of the four variables
+/// `.env.example` documents break `dev` outright — `POSTGRES_PASSWORD=hunter2`
+/// gives *password authentication failed*, and `POSTGRES_DB=central` gives
+/// *database "noctua" does not exist*. A stack whose
 /// operator variables the tool that brings it up does not read is a stack with
 /// two configurations.
 fn stack_url(port: &str) -> String {
@@ -110,27 +104,27 @@ fn stack_url(port: &str) -> String {
 
 /// The `SET search_path` this run pins, as text.
 ///
-/// **Split out because the whole repair is in this one string and nothing read
-/// it.** `migrate` has no test — `dev.rs`'s module covers the health table,
-/// `--down`, the project name and the log store — so a single token added here
-/// put the schema second:
+/// **Split out because the whole rule is in this one string.** No test runs
+/// `migrate`, which needs a live database, so without a test of its own a
+/// single token added here puts the schema second:
 ///
 /// ```text
 /// SET search_path = "$user", "noctua", pg_catalog, pg_temp
 /// ```
 ///
 /// With a role-named schema present — the `CREATE SCHEMA … AUTHORIZATION`
-/// arrangement the twelfth migration calls ordinary — `dev` then built a second
-/// complete journal there, append-only triggers and all, reported
+/// arrangement the twelfth migration calls ordinary — `dev` then builds a second
+/// complete journal there, append-only triggers and all, reports
 /// `12 migration(s) were already applied, and this run applied none`, and the
-/// whole gate passed over it. `check` pins to the schema the URL names, so it
-/// can never disagree: the two agree by both being right, and nothing notices
-/// when one stops.
+/// whole gate passes over it, measured. `check` pins to the schema the URL names,
+/// so the two agree by both being right — which is why
+/// `the_search_path_puts_the_named_schema_first` holds this string rather than
+/// leaving it to a comparison of the two.
 ///
 /// The schema is first among the schemas a name may resolve in, and `pg_temp`
 /// is last so a temporary table cannot shadow a real one.
 ///
-/// **`pg_catalog` is not named, and naming it was the defect.** PostgreSQL puts
+/// **`pg_catalog` is not named, because naming it is a defect.** PostgreSQL puts
 /// the system catalogue implicitly first *unless the path names it*, so writing
 /// `<schema>, pg_catalog, pg_temp` moves the catalogue **behind** a schema this
 /// run may migrate — and the forward-only guard's own read of `pg_class` then
@@ -141,8 +135,7 @@ fn stack_url(port: &str) -> String {
 /// `cargo xtask check` byte-identical to a clean run. The control, with the
 /// shadow dropped, refuses it by name.
 ///
-/// `nc-journal`'s pinned path is `<schema>, pg_temp` for this reason and this
-/// file's paragraph above claimed the opposite in as many words. It needs
+/// `nc-journal`'s pinned path is `<schema>, pg_temp` for this reason. It needs
 /// `CREATE` on the schema, which its owner has, so it is a narrowing rather than
 /// the zero-privilege door the eleventh migration closed.
 pub(crate) fn path_statement(schema: &str) -> String {
@@ -153,11 +146,11 @@ pub(crate) fn path_statement(schema: &str) -> String {
 }
 /// How many migrations this run applied, from the two counts it read.
 ///
-/// **`saturating_sub` on a signed count saturates at `i64::MIN`.** The
-/// difference was taken inline, and a `now` smaller than `already` — which only
-/// a wrong read produces, and did — printed
+/// **`saturating_sub` on a signed count saturates at `i64::MIN`.** Taken
+/// inline, a difference with `now` smaller than `already` — which only a wrong
+/// read produces — prints
 /// `ok -12 migration(s) applied, and the database now holds 0 of 12 on disk`
-/// under a green run. A count that went backwards is not a negative number of
+/// under a green run, measured. A count that went backwards is not a negative number of
 /// migrations; it is a read this run cannot report from, and saying so is the
 /// only answer that is not a wrong one.
 fn what_this_run_applied(already: i64, now: i64) -> Result<i64, String> {
@@ -179,10 +172,10 @@ fn what_this_run_applied(already: i64, now: i64) -> Result<i64, String> {
 
 /// Pins the connection to the schema the URL names, and answers which it is.
 ///
-/// Split out because `migrate` crossed clippy's line limit when it learned to
-/// do this. The path is set once for the whole pool, so the forward-only guard's
-/// read, the count beside it and `Migrator::run` all resolve
-/// `_sqlx_migrations` in the same place — which is the defect this closed.
+/// Its own function, so `migrate` stays under clippy's line limit. The path is
+/// set once for the whole pool, so the forward-only guard's read, the count
+/// beside it and `Migrator::run` all resolve `_sqlx_migrations` in the same
+/// place, rather than each wherever its own search path reaches first.
 async fn pin_the_path(pool: &sqlx::PgPool, url: &str) -> Result<String, String> {
     let schema = crate::database::configured_schema(url);
     let pinned = path_statement(&schema);
@@ -195,13 +188,15 @@ async fn pin_the_path(pool: &sqlx::PgPool, url: &str) -> Result<String, String> 
 
 /// The highest migration this database has already applied, if any.
 ///
-/// **The guard's *argument* was outside every mechanism that covers its
+/// **The guard's *argument* is outside every mechanism that covers its
 /// predicate.** [`is_backdated`] is decided from two directions — its own unit
 /// test and `corpus::the_forward_only_predicate_decides_every_clause` — and both
-/// hand it `highest` written out as `12`, so the expression that computes it was
-/// read by nothing. Measured on 2026-09-09, `applied.last()` replaced by
-/// `applied.first()`: `cargo run -p xtask -- check` gave `check passed` at
-/// `1232 test(s)` with no warn line, while against a database holding versions
+/// hand it `highest` written out as `12`, so the expression that computes it is
+/// read by neither and has rows of its own,
+/// `corpus::the_highest_applied_is_the_highest_and_not_the_last_row_read`.
+/// Measured without those rows, `applied.last()` replaced by `applied.first()`:
+/// `cargo run -p xtask -- check` gave `check passed` with no warn line, while
+/// against a database holding versions
 /// 1..12 and 20, a migration numbered 13 was applied and recorded *after* 20 —
 /// `ok 1 migration(s) applied`, out of order, permanently.
 ///
@@ -217,13 +212,11 @@ pub(crate) fn highest_applied(applied: &[i64]) -> Option<i64> {
 
 /// Whether a migration on disk is new and numbered below one already applied.
 ///
-/// **A clause no test in this workspace decided.** It was written inline in
-/// [`migrate`], whose own neighbour records that `migrate` has no test, and
-/// `dev` was not then one of the files `xtask/mutants.py` mutates — it is one
-/// of the six now, which is what closed this — so nothing
-/// could reach it from either direction. Measured, the condition replaced by
-/// `false` and `cargo test --workspace --locked` run whole: **exit 0**, all 34
-/// targets `ok`. With the same neutering and
+/// **A clause no test in this workspace decides when it is written inline.**
+/// Inline in [`migrate`], which no test runs, nothing reaches it from either
+/// direction. Measured, the condition
+/// replaced by `false` and `cargo test --workspace --locked` run whole:
+/// **exit 0**, every target `ok`. With the same neutering and
 /// a backdated migration numbered 0 on disk, `cargo xtask dev` printed
 /// `ok 1 migration(s) applied, and the database now holds 13 of 13 on disk`,
 /// and `_sqlx_migrations` then held version 0 recorded *after* version 12:
@@ -242,7 +235,7 @@ pub(crate) fn is_backdated(version: i64, highest: i64, applied: &[i64]) -> bool 
 /// it, and two mechanisms recording what has been applied is two answers to
 /// "what state is this database in".
 ///
-/// **Forward-only is not one of the migrator's rules**, though this said it was.
+/// **Forward-only is not one of the migrator's rules.**
 /// The migrator refuses an applied migration that was *edited*, and applies a
 /// newly-added lower-numbered one without comment — so the check below reads
 /// what the database has already applied and refuses that case by name. The
@@ -259,12 +252,12 @@ pub(crate) fn is_backdated(version: i64, highest: i64, applied: &[i64]) -> bool 
 /// Returns why a migration could not be applied, or which applied migration the
 /// files no longer name.
 fn migrate(root: &Path, port: &str) -> Result<(), String> {
-    // **The stack's own database, and not `DATABASE_URL`.** This read the
-    // environment first, so a developer with `DATABASE_URL` pointing anywhere
-    // else — which `.env.example` tells them to export — got a run that migrated
-    // *that* database and then printed the compose url as though it were ready.
-    // "One command to a working platform" produced a stack whose advertised
-    // database had no schema, and said nothing.
+    // **The stack's own database, and not `DATABASE_URL`.** Reading the
+    // environment first gives a developer with `DATABASE_URL` pointing anywhere
+    // else — which `.env.example` tells them to export — a run that migrates
+    // *that* database and then prints the compose url as though it were ready:
+    // "one command to a working platform" producing a stack whose advertised
+    // database has no schema, and saying nothing.
     let url = stack_url(port);
     let migrations = root.join("migrations");
     if !migrations.is_dir() {
@@ -291,27 +284,26 @@ fn migrate(root: &Path, port: &str) -> Result<(), String> {
         // in silence: `_sqlx_migrations` ends up holding 0, 1, 2 with 0 recorded
         // last, and the schema is whatever that order happened to produce. The
         // migrator refuses an applied migration that was *edited*, which is a
-        // different rule, and `dev.rs` used to claim both were its.
+        // different rule.
         // **The schema the connection string names, not whichever one the
-        // search path reaches first.** This read `_sqlx_migrations` unqualified,
-        // and `database::applied` — the *reader* twenty lines of prose away —
-        // carries the whole paragraph explaining why that is wrong, with the
-        // measurement `app` recording six and `public` twelve. The fix was
-        // applied to the reader and not to the writer beside it.
+        // search path reaches first.** Read unqualified, `_sqlx_migrations` is
+        // wrong for the reason `database::applied` — the *reader*, in
+        // `database.rs` — gives in its own paragraph, with the measurement `app`
+        // recording six and `public` twelve; this writer is pinned the same way.
         //
-        // Measured: with a second `_sqlx_migrations` in a role-named schema
+        // Measured unqualified: with a second `_sqlx_migrations` in a role-named schema
         // ahead of `public` on the path, a migration numbered *below* the
         // twelve already applied ran, was recorded first, and `dev` printed
         // `13 migration(s) applied, and the database now holds 13 of 13 on
         // disk` — while `check`, which *is* pinned, read `public` and printed
         // `12 migration(s), numbered once each and in order`. Two parallel
         // schemas, and the guard's own sentence about applying out of order
-        // "as though it had always been there" describes exactly what happened.
+        // "as though it had always been there" describes exactly what happens.
         let schema = pin_the_path(&pool, &url).await?;
-        // **A read that failed is not a database with nothing applied.** This
-        // was `unwrap_or_default()`, so a permission error, a wrong path or a
-        // dropped connection all read as "nothing has been applied" and turned
-        // the forward-only guard off. Only a table that is genuinely absent is
+        // **A read that failed is not a database with nothing applied.** With
+        // `unwrap_or_default()`, a permission error, a wrong path or a dropped
+        // connection all read as "nothing has been applied" and turn the
+        // forward-only guard off. Only a table that is genuinely absent is
         // that, and it is asked for by name.
         let present: bool = sqlx::query_scalar(
             "SELECT EXISTS (SELECT 1 FROM pg_class c \
@@ -346,15 +338,15 @@ fn migrate(root: &Path, port: &str) -> Result<(), String> {
             }
         }
 
-        // **What was already there, so the line can say what this run did.** The
-        // number printed was `migrator.iter().count()` — the files on disk — so
-        // a second `dev` against an already-migrated database reported
+        // **What was already there, so the line can say what this run did.**
+        // Printing `migrator.iter().count()` — the files on disk — makes a second
+        // `dev` against an already-migrated database report
         // `12 migration(s) applied` having applied none. That is `§19.3`'s
         // shape: a step reporting on something it did not do, and the sentence
         // a reader uses to conclude the stack is at the right version.
         // Resolved through the pinned path above, and a failed read is a
-        // failure rather than a zero — the same two repairs as the guard's own
-        // read, which this line sat beside and did not share.
+        // failure rather than a zero — the same two rules as the guard's own
+        // read beside it.
         let already: i64 = if present {
             sqlx::query_scalar("SELECT count(*) FROM _sqlx_migrations")
                 .fetch_one(&pool)
@@ -365,8 +357,8 @@ fn migrate(root: &Path, port: &str) -> Result<(), String> {
         };
         // **And what landed before it failed.** `Migrator::run` wraps each
         // migration on its own, so a failure half-way through leaves every one
-        // before it committed and recorded — permanently, in a repository with
-        // no git. This said only which migration failed. Measured, a valid `0013`
+        // before it committed and recorded — permanently, since a migration
+        // only goes forwards. Saying only which migration failed hides that. Measured, a valid `0013`
         // followed by a `0014` that cannot apply:
         //
         // ```text
@@ -377,16 +369,15 @@ fn migrate(root: &Path, port: &str) -> Result<(), String> {
         // ```
         //
         // and the stack is up, with no URL printed, because the line that prints
-        // it is past this point. The success path two screens down was rewritten
-        // to report exactly what *this run* did; the failure path reported
-        // nothing at all.
+        // it is past this point. The success path two screens down reports
+        // exactly what *this run* did, and so does this failure path.
         if let Err(error) = migrator.run(&pool).await {
             // **No fallback at all, because every one of them is a claim.**
-            // This read `unwrap_or(already)` and took its difference with
-            // `saturating_sub` — the pair the repair four lines down removed
-            // from its sibling, left standing here — so a read that failed
-            // reported *"None landed"*, which is a statement about the database
-            // this path cannot make. A count that could not be read is its own
+            // With `unwrap_or(already)` and a difference taken by
+            // `saturating_sub` — the pair the read of `now` below refuses
+            // too — a read that failed would report *"None landed"*, which is a
+            // statement about the database this path cannot make. A count that
+            // could not be read is its own
             // third answer.
             let landed: Option<i64> = sqlx::query_scalar("SELECT count(*) FROM _sqlx_migrations")
                 .fetch_one(&pool)
@@ -407,12 +398,12 @@ fn migrate(root: &Path, port: &str) -> Result<(), String> {
                 port
             ));
         }
-        // **A read that failed is not a database holding nothing.** This was
-        // `unwrap_or(0)`, the shape repaired ninety lines above for `present`
-        // and `already` — *a permission error, a wrong path or a dropped
-        // connection all read as "nothing has been applied"* — and the read that
-        // decides what this run **reports** was left out of that repair. It is
-        // also the one number a developer reads to know the stack is ready.
+        // **A read that failed is not a database holding nothing.** Not
+        // `unwrap_or(0)`, the shape refused above for `present` and
+        // `already` — *a permission error, a wrong path or a dropped
+        // connection all read as "nothing has been applied"* — because this is
+        // the read that decides what this run **reports**. It is also the one
+        // number a developer reads to know the stack is ready.
         let now: i64 = sqlx::query_scalar("SELECT count(*) FROM _sqlx_migrations")
             .fetch_one(&pool)
             .await
@@ -420,15 +411,15 @@ fn migrate(root: &Path, port: &str) -> Result<(), String> {
         pool.close().await;
         // **And `saturating_sub` on a signed count saturates at `i64::MIN`, not
         // at zero.** With `now` smaller than `already` — which only a wrong read
-        // can produce, and did — the arm below printed
+        // can produce — the arm below would print
         // `ok -12 migration(s) applied, and the database now holds 0 of 12 on
-        // disk` under a green run.
+        // disk` under a green run, measured.
         let applied = what_this_run_applied(already, now)?;
         if applied == 0 {
             ui::ok(&format!(
                 // `now`, the rows, not `count`, the files on disk — the
                 // substitution this function's own paragraph records as the
-                // defect it was fixed for, left standing on the other arm.
+                // defect, on this arm too.
                 "{now} migration(s) were already applied, and this run applied none"
             ));
         } else {
@@ -441,7 +432,24 @@ fn migrate(root: &Path, port: &str) -> Result<(), String> {
     })
 }
 
-/// Brings the stack up, or takes it down with its volumes.
+/// Whether this system runs no stack, in which case this verb says so and
+/// does nothing.
+///
+/// **Not applicable rather than an error, and nothing touched.** The stack
+/// runs on Linux, where CI brings it up (`NOCTUA.md §22.2`); on macOS and
+/// Windows the gate's steps that need it are not applicable, and so is the
+/// verb that brings it up or takes it down. Its own function so a test can hand
+/// it either answer on any system.
+fn stands_aside(runs_the_stack: bool) -> bool {
+    if runs_the_stack {
+        return false;
+    }
+    ui::not_applicable("the container stack, which this verb brings up and takes down");
+    true
+}
+
+/// Brings the stack up, or takes it down with its volumes — on Linux. Elsewhere
+/// it says the stack is not applicable there and changes nothing.
 ///
 /// # Errors
 ///
@@ -449,6 +457,9 @@ fn migrate(root: &Path, port: &str) -> Result<(), String> {
 /// file is missing, or when a service does not become healthy.
 pub(crate) fn run(root: &Path, down: bool) -> Result<(), String> {
     ui::heading("dev");
+    if stands_aside(crate::check::RUNS_THE_STACK) {
+        return Ok(());
+    }
     let compose = root.join("docker-compose.yml");
     if !compose.is_file() {
         return Err("docker-compose.yml is missing, so there is no stack to bring up".to_owned());
@@ -460,19 +471,15 @@ pub(crate) fn run(root: &Path, down: bool) -> Result<(), String> {
         // and leaving the data behind would make the next `dev` a different
         // test from the first one.
         //
-        // **Not a clean machine, which this said.** `down -v` takes containers,
-        // networks and volumes and leaves the image store alone, so the tree a
-        // `--down` leaves behind still holds both pinned images. The header of
-        // this file records that confusion costing two rounds and claims to be
-        // the one place in the file that asserted it — and this line was a
-        // second, four hundred lines below it. Two senses of one word, found by
-        // a reviewer on F5's seventh pass reading the header and then the
-        // code.
-        // **And it says whether there was anything to take down.** It reported
+        // **Not a clean machine.** `down -v` takes containers, networks and
+        // volumes and leaves the image store alone, so the tree a `--down`
+        // leaves behind still holds both pinned images — the sense this file's
+        // header gives the words too.
+        // **And it says whether there was anything to take down.** Saying
         // `the stack is down and its volumes are gone` over compose's own
-        // `Warning: No resource found to remove for project "…"` — the same
-        // shape `migrate` was fixed for one function below, where a second run
-        // reported `12 migration(s) applied` having applied none. It matters
+        // `Warning: No resource found to remove for project "…"` is the shape
+        // of a second `migrate` reporting `12 migration(s) applied` having
+        // applied none, in the function above. It matters
         // when `--down` is run from the wrong checkout: the developer is told
         // the volumes are gone while another project's stack still holds the
         // ports, and the next `dev` fails on a port bind with no hint.
@@ -502,15 +509,16 @@ pub(crate) fn run(root: &Path, down: bool) -> Result<(), String> {
     wait_for_health(root)?;
 
     let logs_port = setting(LOGS_PORT);
-    // **Through the table, like its neighbour.** This read the variable itself
-    // with an inline `"5432"`, which is a fifth copy of a default the stack
-    // declares once — and it is the port `migrate` connects to *and* the port
-    // the success line prints. `database.rs::default_url` was repaired to read
-    // all four through `setting` and carries the paragraph saying why; this
-    // reader, the one that decides where the migrations land, was left out.
-    // Measured with the literal written `"5433"`: `check passed`, byte-identical
-    // to a clean run, while `cargo xtask dev` brought the stack up on one port
-    // and tried to migrate another.
+    // **Through the table, like its neighbour.** Reading the variable itself
+    // with an inline `"5432"` would be another copy of a default the stack
+    // declares once — and this is the port `migrate` connects to *and* the port
+    // the success line prints. `database.rs::default_url` reads all four
+    // through `setting` and carries the paragraph saying why; this reader, the
+    // one that decides where the migrations land, does the same.
+    // Measured with the literal written `"5433"` and without
+    // `every_setting_is_read_through_the_table_that_declares_it`: `check passed`,
+    // byte-identical to a clean run, while `cargo xtask dev` brought the stack up
+    // on one port and tried to migrate another.
     let postgres_port = setting(POSTGRES_PORT);
     the_log_store_is_serving(&logs_port)?;
     migrate(root, &postgres_port)?;
@@ -539,7 +547,7 @@ pub(crate) fn run(root: &Path, down: bool) -> Result<(), String> {
 /// `curl` and no `wget`, so the only thing a compose `CMD` can run is the binary
 /// — and `--help` parses arguments and exits 0 whether or not the HTTP server
 /// is serving. Measured: it exits 0 and the container reports `healthy` with the
-/// server never asked anything. `dev` then printed the store's URL, which is a
+/// server never asked anything. `dev` would then print the store's URL, which is a
 /// gate reporting success by not looking (`§19.3`), in the one place a developer
 /// takes the answer on trust.
 ///
@@ -584,10 +592,10 @@ fn the_log_store_is_serving(port: &str) -> Result<(), String> {
         answer.extend_from_slice(&chunk[..read]);
     }
     let status = String::from_utf8_lossy(&answer);
-    // **One statement of the rule, in `store.rs`.** This was a fourth copy, and
-    // the copies had drifted: only `nc-log`'s required the three characters to
-    // be digits, so `HTTP/1.1 2ab Invented` was a refusal there and
-    // `the log store answers /health` here.
+    // **One statement of the rule, in `store.rs`.** Copies drift: with one copy
+    // requiring the three characters to be digits and another not,
+    // `HTTP/1.1 2ab Invented` is a refusal in one place and
+    // `the log store answers /health` in the other.
     if crate::store::served(&status) {
         ui::ok("the log store answers /health");
         Ok(())
@@ -603,20 +611,20 @@ fn the_log_store_is_serving(port: &str) -> Result<(), String> {
 
 /// What one line of `docker compose ps -a` says about one service.
 ///
-/// **Acceptance criterion 10's one real decision, and nothing entered it.** The
-/// eleven `dev::` tests cover the log store's status line, the project name,
-/// `--down`, the search path and the forward-only rule; the loop that decides
-/// *whether the stack is up* was reached by none of them. Measured on
-/// 2026-09-09, `health != "healthy"` replaced by `health == "unhealthy"` so that
-/// a container reporting `starting` counts as healthy: `check passed` at
-/// `1232 test(s)` with no warn line, and a cold `cargo xtask dev` printed
-/// `ok 2 service(s) healthy` against a PostgreSQL still initialising its data
-/// directory, then failed with `Connection reset by peer`.
+/// **Acceptance criterion 10's one real decision.** The `dev::` tests cover
+/// the log store's status line, the project name, `--down`, the search path
+/// and the forward-only rule; the loop that decides *whether the stack is up*
+/// is reached by none of them. Measured with the loop inline,
+/// `health != "healthy"` replaced by `health == "unhealthy"` so that a container
+/// reporting `starting` counts as healthy: `check passed` with no warn line, and
+/// a cold `cargo xtask dev` printed `ok 2 service(s) healthy` against a
+/// PostgreSQL still initialising its data directory, then failed with
+/// `Connection reset by peer`.
 ///
-/// Every arm of that loop was in the same position, and each is a defect this
+/// Every arm of that loop is in the same position, and each is a defect this
 /// file already carries a paragraph about. A verdict over one line is a pure
-/// function, so it is one — driven from a written table in `corpus.rs`, which is
-/// the suite `xtask/mutants.py` runs for this file.
+/// function, so it is one — driven from a written table in `corpus.rs`, one of
+/// the suites `xtask/mutants.py` runs for this file.
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum Standing {
     /// Running, and its healthcheck says so.
@@ -628,7 +636,7 @@ pub(crate) enum Standing {
     /// tool can say by walking forward from a `.push(`, and its own paragraph
     /// names the four shapes it cannot follow — one of which is *a constructor
     /// that is no needle*. Returned as `NotYet(format!(…))` these three
-    /// sentences left that record, which is a verdict a reader sees and no list
+    /// sentences would leave that record, which is a verdict a reader sees and no list
     /// holds. Handed the list, the words stay where the record can see them and
     /// the table in `corpus.rs` still drives the clause.
     NotYet,
@@ -677,10 +685,11 @@ fn wait_for_health(root: &Path) -> Result<(), String> {
     let deadline =
         std::time::Instant::now() + std::time::Duration::from_secs(HEALTH_TIMEOUT_SECONDS);
     loop {
-        // **`-a`, because `docker compose ps` omits what is not running.** A
-        // service that exited on start simply disappeared from this list instead
-        // of appearing as unhealthy, so the loop below found nothing wrong and
-        // the stack was reported healthy with a declared service dead. The
+        // **`-a`, because `docker compose ps` omits what is not running.**
+        // Without it, a service that exited on start simply disappears from this
+        // list instead of appearing as unhealthy, so the loop below finds
+        // nothing wrong and the stack is reported healthy with a declared
+        // service dead. The
         // `seen == 0` guard only fires when *every* service is gone.
         let states = compose_output(
             root,
@@ -751,15 +760,13 @@ fn wait_for_health(root: &Path) -> Result<(), String> {
 /// and two checkouts of this repository are two directories called
 /// `noctua-central` — so the default collides in exactly the case it needs not
 /// to, and `cargo xtask dev --down` from either removes the other's containers
-/// *and its volumes*. A reviewer working in a copy called `noctua-central`
-/// measured that: the live stack's containers carried
-/// `com.docker.compose.project=noctua-central` with a working directory in the
-/// original tree.
+/// *and its volumes*. Measured from a copy called `noctua-central`: the live
+/// stack's containers carried `com.docker.compose.project=noctua-central` with
+/// a working directory in the original tree.
 ///
-/// A written-out constant is worse, and was what replaced it for one round: it
-/// makes the collision unconditional, from any directory under any name. A
-/// second reviewer measured *that*, from a directory sharing nothing with this
-/// repository but the flag:
+/// A written-out constant is worse: it makes the collision unconditional, from
+/// any directory under any name. Measured from a directory sharing nothing with
+/// this repository but the flag:
 ///
 /// ```text
 /// docker compose ps -a                       ->  (nothing)
@@ -799,11 +806,11 @@ fn digest_of(text: &str) -> u32 {
 
 /// The compose invocation that was made, written so it can be run again.
 ///
-/// **The `-p` is not optional, and three messages left it out.** Every
-/// invocation here passes `["-p", &project_for(root)]`, because a bare
-/// `docker compose` resolves the project from the *directory basename* — which
-/// by construction is never that name. So the printed command addressed a
-/// different project, and a developer who ran it saw:
+/// **The `-p` is not optional in a printed command either.** Every invocation
+/// here passes `["-p", &project_for(root)]`, because a bare `docker compose`
+/// resolves the project from the *directory basename* — which by construction
+/// is never that name. A printed command without it addresses a different
+/// project, and a developer who runs it sees, measured:
 ///
 /// ```text
 ///   error `docker compose up -d --remove-orphans` failed
@@ -816,8 +823,8 @@ fn digest_of(text: &str) -> u32 {
 ///
 /// — nothing at all, and running the printed command creates a *second* stack,
 /// which is the collision `project_for` exists to prevent. `wait_for_health`'s
-/// two messages already carried the project, with the measurement written above
-/// them; these three were the same lesson, unlearnt one function along.
+/// messages carry the project for the same reason, with the measurement written
+/// above them.
 fn ran(root: &Path, args: &[&str]) -> String {
     format!(
         "`docker compose -p {} {}`",
@@ -829,18 +836,17 @@ fn ran(root: &Path, args: &[&str]) -> String {
 /// What a caller wants back from a `docker compose` run.
 ///
 /// **Three copies of one builder chain are three places the isolation can be
-/// lost.** The three readers below each wrote `Command::new("docker")`, the
-/// `-p`, the arguments and `.current_dir(root)` out in full and differed only
-/// in which stream they read. A reviewer planted three defects in round
-/// seventy-one and every one left the suite green: an `--project-name`
-/// appended after the `-p`, which docker resolves to the **later** flag —
-/// measured, `docker compose -p a --project-name b config` answers `name: b`;
-/// a `root` shadowed by `Path::new("/")`, which points every checkout on the
-/// machine at one project while the printed command names another; and
-/// `.current_dir(root)` deleted, after which compose walks up from wherever
-/// the developer is standing and labels *that* tree's services with this
-/// tree's project. What held them was a count of tokens in this file's text,
-/// not the command that gets built.
+/// lost.** With each reader writing `Command::new("docker")`, the `-p`, the
+/// arguments and `.current_dir(root)` out in full and differing only in which
+/// stream it reads, each of three planted defects leaves the suite green,
+/// measured: an `--project-name` appended after the `-p`, which docker resolves
+/// to the **later** flag — `docker compose -p a --project-name b config`
+/// answers `name: b`; a `root` shadowed by `Path::new("/")`, which points every
+/// checkout on the machine at one project while the printed command names
+/// another; and `.current_dir(root)` deleted, after which compose walks up from
+/// wherever the developer is standing and labels *that* tree's services with
+/// this tree's project. A count of tokens in this file's text holds none of
+/// them; the command that gets built does.
 ///
 /// So the chain is written once, and the three readers say only what they read.
 enum Compose {
@@ -871,13 +877,11 @@ enum Stream {
 ///
 /// Everything from this signature to the `match` below is held whole by
 /// `the_block_that_decides_isolation_is_the_one_written_down` — **against this
-/// file's own text, comments and all**, because that rule compared a
-/// comment-stripped copy for one round while saying it did not, and a comment
-/// inside the block is where the next reader is told what it holds. The lines
-/// that decide what each arm does are held beside it, and so are the three
-/// readers' whole bodies: the variant each one passes is the whole of what
-/// tells output-through from captured, and for one round it was a token nothing
-/// read.
+/// file's own text, comments and all**, because a comment inside the block is
+/// where the next reader is told what it holds. The lines that decide what each
+/// arm does are held beside it, and so are the three readers' whole bodies: the
+/// variant each one passes is the whole of what tells output-through from
+/// captured.
 ///
 /// That refuses an ordinary edit as loudly as it refuses a defect: an
 /// `--ansi never`, a `--progress plain`, a `.stdin(Stdio::null())` or an
@@ -886,11 +890,8 @@ enum Stream {
 /// edit nobody read.
 ///
 /// **What a stack that cannot come up says, measured rather than described.**
-/// Two places in this tree pointed here for the transcript of a service aimed at
-/// a reference that cannot resolve, and there was no transcript anywhere —
-/// `grep` for any of docker's resolution errors returned nothing. Taken on
-/// 2026-09-15 in a scratch copy with its own compose project name, the log
-/// store's image replaced by `example.invalid/noctua-does-not-exist:1`:
+/// Taken in a scratch copy with its own compose project name, the log store's
+/// image replaced by `example.invalid/noctua-does-not-exist:1`:
 ///
 /// ```text
 /// dev
@@ -905,21 +906,21 @@ enum Stream {
 /// ```
 ///
 /// The sentence is not quoted here on purpose: it is a needle
-/// `a_stack_that_did_not_come_up_says_what_to_look_at` anchors on, and a second
-/// copy in this file is what sent that test's own predecessor to read its own
-/// text instead of the shipped line. The test now refuses a second copy rather
-/// than silently preferring the first.
+/// `a_stack_that_did_not_come_up_says_what_to_look_at` anchors on, and a test
+/// that took the first copy would read a quotation here instead of the shipped
+/// line. The test refuses a second copy rather than silently preferring the
+/// first.
 ///
 /// `cargo xtask dev` exited 1. So docker's own words reach the reader ahead of
 /// this tool's sentence, which is what letting the output through is for, and
 /// the sentence names the right three causes with the real one first.
 fn compose(root: &Path, args: &[&str], want: Compose) -> Result<String, String> {
     // **And a caller cannot name a project either.** The block below is held
-    // whole, and `.args(args)` sits inside it — so the one channel the pin left
-    // open was the slice itself: `compose_command(root, &["--project-name",
-    // "noctua-central", "up", "-d", …])` brought the stack up under the shared
-    // name with the whole suite green, measured by a reviewer in round
-    // seventy-one, because the walk that reads this file discards everything
+    // whole, and `.args(args)` sits inside it — so the one channel the pin
+    // leaves open is the slice itself: `compose_command(root, &["--project-name",
+    // "noctua-central", "up", "-d", …])` brings the stack up under the shared
+    // name with the whole suite green without this refusal, measured, because
+    // the walk that reads this file discards everything
     // above the first `Command::new("docker")` and the call site is four hundred
     // lines above it. Docker takes the later of two, so `--down` would then
     // address a project that never ran.
@@ -929,24 +930,24 @@ fn compose(root: &Path, args: &[&str], want: Compose) -> Result<String, String> 
     // that reads text.
     // **Among the top-level flags, and every spelling of them.** Docker takes
     // `-p x`, `-px`, `-p=x`, `--project-name x` and `--project-name=x` alike and
-    // resolves the flag to the *later* of two — and this asked for the exact
-    // token `-p` and the long form only, so `-pnoctua-central` at a call site
-    // brought every checkout up under one project with the suite green.
+    // resolves the flag to the *later* of two — so asking for the exact token
+    // `-p` and the long form only lets `-pnoctua-central` at a call site bring
+    // every checkout up under one project with the suite green.
     //
     // **And only the top-level ones, because `run`'s `-p` is `--publish`.** A
     // rule over the whole slice refuses `compose(root, &["run", "-p",
     // "8080:80", …])` with a message about project names, which is the
-    // too-strong half and was shipped for one round. The distinction is
+    // too-strong half. The distinction is
     // positional: docker's own flags come before the subcommand, so the scan
-    // stops at the first argument that is not a flag. A reviewer named the
-    // choice in round seventy-one and left it to the developer; this is the
-    // cheaper of the two they offered, and it needs no second parameter.
-    // **And a top-level flag may take a separated value.** `take_while` over
-    // flags stopped at the first token that is not one — so `--ansi never -p
-    // shared up` slipped past, because `never` is the *value* of `--ansi` and
-    // stands before the `-p`. Measured by a reviewer in round seventy-one;
+    // stops at the first argument that is not a flag. That is the cheaper way
+    // to draw the line: it needs no second parameter.
+    //
+    // **And a top-level flag may take a separated value.** A `take_while` over
+    // flags stops at the first token that is not one — so `--ansi never -p
+    // shared up` slips past it, because `never` is the *value* of `--ansi` and
+    // stands before the `-p`, measured. These are the flags that take one:
     // `--ansi`, `-f`, `--profile`, `--progress`, `--env-file`,
-    // `--project-directory` and `--parallel` all do this.
+    // `--project-directory` and `--parallel`.
     let takes_a_value = |it: &str| {
         matches!(
             it,
@@ -1028,7 +1029,7 @@ fn compose(root: &Path, args: &[&str], want: Compose) -> Result<String, String> 
 /// Runs `docker compose`, letting its output through.
 ///
 /// What a stack that cannot come up says is written on [`compose`], which is
-/// where the sentence this returns now lives.
+/// where the sentence this returns lives.
 fn compose_command(root: &Path, args: &[&str]) -> Result<(), String> {
     compose(root, args, Compose::Through)?;
     Ok(())
@@ -1057,10 +1058,10 @@ fn what_compose_reported(root: &Path, args: &[&str]) -> Result<String, String> {
 /// Where the running `logs` container actually mounts its data volume.
 ///
 /// **The compose file is what the stack *would* be; the container is what it
-/// is.** The rule that compares the log store's `-storageDataPath` against its
-/// volume read the mount out of `docker-compose.yml`, so a container still
+/// is.** A rule that compares the log store's `-storageDataPath` against a
+/// mount read out of `docker-compose.yml` is satisfied by a container still
 /// running from before the file was edited — or one started by hand with no
-/// volume at all — satisfied it: measured, the compose `logs` container stopped
+/// volume at all: measured, the compose `logs` container stopped
 /// and the same digest-pinned image run on the same port with no mount, the
 /// file untouched, left `check passed` and the whole transcript byte-identical,
 /// printing *"the running log store keeps 30 day(s) and 8589934592 byte(s), as
@@ -1075,14 +1076,12 @@ fn what_compose_reported(root: &Path, args: &[&str]) -> Result<String, String> {
 ///
 /// Returns why docker could not be asked.
 pub(crate) fn where_the_logs_container_mounts(root: &Path) -> Result<Option<String>, String> {
-    // **The whole body, not four lines somewhere in it.** Four rules have been
-    // written about this hand-over and a reviewer walked through each: a
-    // spelling, a count of `let`, a name in the callee, and then these four
-    // lines held as a block — which says they are *written*, not that they are
-    // all the function does. Three lines above them returning another
-    // container's mount left every pin green. The body is compared whole now,
-    // comments and all, so anything at all here is a failure that says to read
-    // twelve lines.
+    // **The whole body, not four lines somewhere in it.** A spelling, a count
+    // of `let`, a name in the callee, and these four lines held as a block each
+    // say what is *written*, not that it is all the function does: three lines
+    // above them returning another container's mount leave every such pin
+    // green, measured. Every statement of the body is compared, so any
+    // statement added here is a failure that says to read the function.
     match compose_output(root, &["ps", "-q", "logs"])?.trim() {
         "" => Ok(None),
         id => where_that_container_mounts(id),
@@ -1093,12 +1092,11 @@ pub(crate) fn where_the_logs_container_mounts(root: &Path) -> Result<Option<Stri
 ///
 /// **Split from its caller so the id cannot be rebound on the way.** The gate
 /// that exempts `docker inspect` from naming a project rests on the id having
-/// come from a project-scoped `compose ps -q`, and that rested on a rule about
-/// the text between the two — first a spelling (`let id = `), then a count of
-/// `let`. A reviewer walked through each: `let id: &str = "…";` keeps the
-/// spelling count, and `let mut id = …; id = "…";` keeps the `let` count. The
-/// same rule then refused an ordinary hoist of the format string, which is the
-/// other way to be wrong.
+/// come from a project-scoped `compose ps -q`, and neither a spelling nor a
+/// count of the text between the two holds that: a spelling (`let id = `) is
+/// kept by `let id: &str = "…";`, a count of `let` is kept by
+/// `let mut id = …; id = "…";`, and the same count refuses an ordinary hoist of
+/// the format string, which is the other way to be wrong.
 ///
 /// Here there is nothing between the signature and the command, so the rule the
 /// gate needs is about a name rather than about a count: `id` does not appear
@@ -1144,33 +1142,98 @@ fn unavailable(error: &std::io::Error) -> String {
 
 #[cfg(test)]
 mod tests {
+    /// Where no stack runs, the verb says so and goes no further; where one
+    /// does, it says nothing and carries on.
+    #[test]
+    fn the_verb_is_not_applicable_where_no_stack_runs() {
+        let _printing = crate::ui::printing();
+        crate::ui::forget_counts();
+        assert!(
+            !super::stands_aside(true),
+            "a system that runs the stack was told it does not"
+        );
+        assert!(
+            crate::ui::not_applicable_parts().is_empty(),
+            "a system that runs the stack printed a not-applicable line"
+        );
+        assert!(
+            super::stands_aside(false),
+            "a system that runs no stack would go on to ask docker"
+        );
+        assert_eq!(
+            crate::ui::not_applicable_parts(),
+            ["the container stack, which this verb brings up and takes down"],
+            "the verb stood aside without saying so"
+        );
+        crate::ui::forget_counts();
+    }
+
+    /// The verb itself asks this system, through its own entry point.
+    ///
+    /// **The test above holds the helper and not the call.** It hands
+    /// `stands_aside` each answer, so `run` handing it `true`, or not asking at
+    /// all, leaves it green, and nothing else drives `run` off Linux: CI's
+    /// macOS and Windows jobs run `cargo xtask check` and never `dev`. So this
+    /// drives `run` over a root with no `docker-compose.yml`, which stops it
+    /// before docker on every system. Where no stack runs it must stand aside
+    /// and say so, which the macOS and Windows jobs hold. Where one does it
+    /// must go on and meet the missing file, which the Linux job holds.
+    #[test]
+    fn the_verb_asks_this_system_before_it_reaches_docker() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        assert!(
+            !root.join("docker-compose.yml").exists(),
+            "the root this drives holds a compose file, so the verb would go on to docker"
+        );
+        let _printing = crate::ui::printing();
+        crate::ui::forget_counts();
+        let answer = super::run(root, false);
+        let parts = crate::ui::not_applicable_parts();
+        crate::ui::forget_counts();
+        if crate::check::RUNS_THE_STACK {
+            assert_eq!(
+                answer,
+                Err("docker-compose.yml is missing, so there is no stack to bring up".to_owned()),
+                "on a system that runs the stack the verb stood aside, or went past the \
+                 compose file"
+            );
+            assert!(
+                parts.is_empty(),
+                "on a system that runs the stack the verb said it does not apply: {parts:?}"
+            );
+        } else {
+            assert_eq!(
+                answer,
+                Ok(()),
+                "on a system that runs no stack the verb went on toward docker"
+            );
+            assert_eq!(
+                parts,
+                ["the container stack, which this verb brings up and takes down"],
+                "on a system that runs no stack the verb did not say it does not apply"
+            );
+        }
+    }
+
     /// A stack that did not come up says what to look at.
     ///
     /// **Acceptance criterion 10's failure half, which is the half that can be
-    /// measured here.** The pass half — `docker compose down -v` then
-    /// `cargo xtask dev` on a machine that has never had the images — was
-    /// watched once on a machine that already had them, and a genuinely cold
-    /// pull has never been seen; `NOCTUA-PLAN.md` records that and this does not
-    /// close it. What this closes is the sentence a reader meets when it goes
-    /// wrong, which used to be the command with the word *failed* after it.
+    /// measured here.** The pass half — `cargo xtask dev` on a machine that has
+    /// never had the images — is CI's: the `linux` job and `release.yml`'s gate
+    /// job run it on a fresh runner that pulls both. What this closes is the
+    /// sentence a reader meets when it goes wrong, which has to say more than
+    /// the command with the word *failed* after it.
     ///
     /// Written against the message rather than against docker, because
     /// producing the real failure means pointing a service at a reference that
     /// cannot resolve — measured, and the transcript is on [`super::compose`] —
     /// and a test that needs a daemon is a test `--offline` cannot run.
     ///
-    /// **That link named `the_stack_did_not_come_up`, which is nothing.**
-    /// `grep -rn` returned the one line, so the rendered documentation sent a
-    /// reader to an item that does not exist while the body comment below sent
-    /// them somewhere else again — the same split between a doc block and a
-    /// comment that put a retracted claim back into the published docs one file
-    /// over. Both named `compose_command` next, and round seventy-one moved the
-    /// transcript again — onto [`super::compose`], when three builder chains
-    /// were collapsed into one — so for a few hours all three references named
-    /// the item that no longer held it. That is this same defect for the third
-    /// time, and the third time is the one that says a rule is owed: nothing in
-    /// this tree reads a rustdoc link's target for relevance. All three name
-    /// `compose` now.
+    /// **The transcript lives on [`super::compose`]**, and every reference to it
+    /// here names that item. Nothing in this tree reads a rustdoc link's target
+    /// for relevance, so a link naming an item that does not hold the
+    /// transcript — or does not exist — stays green while it sends a reader
+    /// nowhere.
     #[test]
     fn a_stack_that_did_not_come_up_says_what_to_look_at() {
         // **A source assertion, and it says why.** Producing the real failure
@@ -1183,24 +1246,25 @@ mod tests {
         // **The shipped sentence, not this file.** `include_str!` reads the
         // whole file including this module, and both the needle below and the
         // five words it then looks for are string literals *this test
-        // contains* — four lines inside the six-hundred-byte window. When the
-        // live sentence moved, `find` landed on the test's own text and every
-        // word was satisfied by the list that was looking for it. Measured: the
-        // sentence reworded to name none of the five left `433 passed` and
-        // `check passed`. `the_over_deletion_guard_runs_before_the_commit` was
-        // repaired for exactly this by cutting at `mod tests`; this one was not.
+        // contains*. Read whole, the file lets `find` land on the test's own
+        // text once the live sentence moves, and the words are then supplied by
+        // the list that is looking for them: measured with that list four lines
+        // below the needle, inside the six-hundred-byte window, the sentence
+        // reworded to name none of the five left `check passed`. So this cuts
+        // at `mod tests`, as `the_over_deletion_guard_runs_before_the_commit`
+        // does.
         let source = include_str!("dev.rs")
             .split("mod tests")
             .next()
             .expect("this file has a test module");
         // **Exactly one**, not the first of however many. Cutting at `mod tests`
-        // stopped the test reading its own literals and left the other half of
-        // that defect standing: any earlier copy anywhere in the file — a doc
-        // block quoting the line, say — is what `find` returns, and the window
-        // then measures the copy rather than the shipped sentence. Measured
-        // when a transcript was added to the runner's documentation: the
-        // window landed on the quotation and the test failed against a sentence
-        // that had not changed. A needle that must be unique is asserted unique.
+        // stops the test reading its own literals and leaves the other half of
+        // that defect: any earlier copy anywhere in the file — a doc block
+        // quoting the line, say — is what `find` returns, and the window then
+        // measures the copy rather than the shipped sentence. Measured with a
+        // transcript in the runner's documentation quoting it: the window lands
+        // on the quotation and the test fails against a sentence that has not
+        // changed. A needle that must be unique is asserted unique.
         let needle = "failed. Docker's own words are above this line";
         assert_eq!(
             source.matches(needle).count(),
@@ -1225,11 +1289,11 @@ mod tests {
     ///
     /// **A needle list cannot win this.** `the_two_xx_rule_is_written_twice_and_no_more`
     /// scans for the *spelling* of a 2xx test and keeps a whitelist of the two
-    /// files allowed to hold one; a reviewer wrote a third classifier here whose
-    /// protocol test was `version.len() > 5 && version.contains('/')` and whose
-    /// value test was `code.as_bytes().first().copied() == Some(50)` — `50` being
-    /// ASCII `2` — and every needle missed it, both scans reported the same two
-    /// files, and `cargo xtask dev` printed `the log store answers /health` for
+    /// files allowed to hold one, and a third classifier written here — whose
+    /// protocol test is `version.len() > 5 && version.contains('/')` and whose
+    /// value test is `code.as_bytes().first().copied() == Some(50)`, `50` being
+    /// ASCII `2` — slips past every needle: measured, both scans report the same
+    /// two files, and `cargo xtask dev` prints `the log store answers /health` for
     /// `HTTP/1.1 2ab Invented`, the one row `xtask/canaries/status-lines.tsv`
     /// calls `not-2xx`.
     ///
@@ -1299,10 +1363,10 @@ mod tests {
 
     /// `--down` tells a nothing-to-remove run from a real one.
     ///
-    /// **It said `the stack is down and its volumes are gone` either way**, over
-    /// compose's own warning — the shape `migrate` was fixed for one function
-    /// up, where a second run reported `12 migration(s) applied` having applied
-    /// none. It matters when `--down` is run from the wrong checkout: the
+    /// **Saying `the stack is down and its volumes are gone` either way**, over
+    /// compose's own warning, is the shape of a second `migrate` reporting
+    /// `12 migration(s) applied` having applied none. It matters when `--down`
+    /// is run from the wrong checkout: the
     /// developer is told the volumes are gone while another project's stack
     /// still holds the ports, and the next `dev` fails on a port bind.
     ///
@@ -1322,13 +1386,13 @@ mod tests {
 
     /// Every `docker` invocation in `code` that names no project, by ordinal.
     ///
-    /// **Split out so the hole can be tested.** The loop lived inside the test
-    /// and read one file, so the exemption in it — `docker inspect` is scoped
-    /// by the id it is handed rather than by `-p` — could only ever be
-    /// exercised by the tree's own call. That exemption asked which subcommand
-    /// ran, and the property its justification rests on is about the argument:
-    /// an `inspect` pointed at a container *name* reaches whatever project
-    /// named it, which for a reviewer's copy is the developer's own.
+    /// **Split out so the hole can be tested.** Inside the test, reading one
+    /// file, the exemption — `docker inspect` is scoped by the id it is handed
+    /// rather than by `-p` — could only ever be exercised by the tree's own
+    /// call. Asking which subcommand ran is not enough, because the property
+    /// its justification rests on is about the argument: an `inspect` pointed
+    /// at a container *name* reaches whatever project named it, which for a
+    /// copy of this checkout is the developer's own.
     ///
     /// So the exemption asks for the binding as well. `id` and nothing else:
     /// the value a project-scoped `compose ps -q` returned, which is what makes
@@ -1357,8 +1421,8 @@ mod tests {
     /// a name in five places and this walks all five: a `let` head, a `for`
     /// head, a function's parameter list, a closure's parameter list, and a
     /// `match` arm's pattern. Enumerating **the grammar** is what a list of
-    /// spellings kept failing to do — four consecutive rounds repaired the
-    /// compose-project rule one spelling at a time.
+    /// spellings cannot do: a rule repaired one spelling at a time leaves the
+    /// next spelling open.
     ///
     /// `spent` must have its strings blanked: a `=>` inside a message is not an
     /// arm, and a `|` inside one is not a closure.
@@ -1431,7 +1495,7 @@ mod tests {
         for (index, &(at, character)) in characters.iter().enumerate() {
             // **The second half is belt and braces, and that is written down
             // rather than left looking undecided.** Deleting it survives the
-            // suite — measured in round sixty-seven — because the
+            // suite, measured, because the
             // preceding-character guard below refuses every `||` this tree can
             // produce: an or-expression's operands end in a name or a `)`, and
             // none of those is in that guard's list. It stays because `= || b`
@@ -1464,14 +1528,13 @@ mod tests {
 
     /// Whether one invocation passes `-p` with the project this tree computes.
     ///
-    /// **The flag, not one spelling of its argument.** The rule asked for the
-    /// literal `["-p", &project_for(root)]` exactly once, so hoisting the call
-    /// into a local — `let project = project_for(root);` above three
-    /// invocations, which is byte-identical behaviour and which `rustfmt` and
-    /// clippy are both silent about — made the gate report all three as
-    /// belonging to whatever the directory is called. Measured against a live
-    /// stack on 2026-09-12: same project, same containers, three false
-    /// findings. That is the too-strong half, and this file already records the
+    /// **The flag, not one spelling of its argument.** Asking for the literal
+    /// `["-p", &project_for(root)]` exactly once makes hoisting the call into a
+    /// local — `let project = project_for(root);` above three invocations, which
+    /// is byte-identical behaviour and which `rustfmt` and clippy are both
+    /// silent about — report all three as belonging to whatever the directory
+    /// is called. Measured against a live stack: same project, same containers,
+    /// three false findings. That is the too-strong half, and this file also records the
     /// same shape one rule along for the docker-id pin.
     ///
     /// So the flag is asked for once, and what follows it must be the project
@@ -1504,58 +1567,53 @@ mod tests {
         // between it and the invocation is where the project would change.
         // **The whole statement, because a prefix is not a value.**
         // `let project = project_for(root).replace("noctua-central", "…");`
-        // begins with the pinned call and ends somewhere else: measured on
-        // 2026-09-12 with the suite and clippy green, `compose up` under one
-        // project while `--down -v`, `ps` and the printed command addressed
-        // another.
+        // begins with the pinned call and ends somewhere else: measured, with
+        // the suite and clippy green, `compose up` under one project while
+        // `--down -v`, `ps` and the printed command addressed another.
         //
         // **Every binding of that name, not exactly one of them.** Three
         // invocations in three functions hoisting the same call is ordinary —
-        // and it was refused, with the most alarming message this tool prints
+        // and refusing it prints the most alarming message this tool has,
         // claiming three live invocations took the project from the directory's
-        // name. Measured by a reviewer on 2026-09-14, `fmt`- and clippy-clean,
-        // behaviour identical. What matters is that *no* binding of that name
+        // name, over code that is `fmt`- and clippy-clean with behaviour
+        // identical, measured. What matters is that *no* binding of that name
         // comes from anywhere else, which is what this compares.
         //
-        // **And every way of writing a binding, not one of them.** The count of
-        // bindings was `code.matches("let project = ")`, which a type annotation
-        // walks straight past: `let project: String = "whatever".to_owned();` is
-        // a binding of that name this never saw, so an invocation could take its
+        // **And every way of writing a binding, not one of them.** A count of
+        // bindings as `code.matches("let project = ")` walks straight past a
+        // type annotation: `let project: String = "whatever".to_owned();` is a
+        // binding of that name it never sees, so an invocation could take its
         // project from anywhere while the gate reported every invocation naming
-        // the one this tree computes. Measured in round sixty-three with the
-        // plant in `compose_command` — the function that runs `up -d
-        // --remove-orphans` and `down -v` — and `check passed`, 1366 tests, fmt
-        // and clippy clean. `--down -v` then removes a *fixed* project's
-        // volumes, which is the accident `project_for` exists to prevent, and
-        // `ran()` still prints the computed name, so the message names a project
-        // that is not the one that ran. Rounds sixty and sixty-one both carried
-        // this as a note nobody planted.
+        // the one this tree computes. Measured with the plant in
+        // `compose_command` — the function that runs `up -d --remove-orphans`
+        // and `down -v` — and `check passed`, fmt and clippy clean. `--down -v`
+        // then removes a *fixed* project's volumes, which is the accident
+        // `project_for` exists to prevent, and `ran()` still prints the computed
+        // name, so the message names a project that is not the one that ran.
         //
         // `let mut` is counted as a binding — it has to be, or one pinned
         // binding beside a `let mut project = …` would balance — and never as
         // a *pinned* one, for the reason written beside the comparison below.
         // **Every place Rust introduces a name, because every one of them is a
-        // binding.** The rule counted `let` and `for` heads. A *parameter* is
-        // neither: measured in round sixty-five, moving `compose_command`'s
-        // invocation into a closure `|project: String|` — the function that
-        // runs `up -d --remove-orphans` and `down -v` — and hoisting the call
-        // once elsewhere left `check passed`, 1376 test(s), with both compose
-        // verbs running under the *fixed* project every checkout's directory is
-        // called while `ran()` still printed the computed one. Four rounds in a
-        // row this rule has been repaired one spelling at a time; what closes
-        // the list is the grammar, not the next spelling.
+        // binding.** Counting `let` and `for` heads misses a *parameter*, which
+        // is neither: measured, moving `compose_command`'s invocation into a
+        // closure `|project: String|` — the function that runs
+        // `up -d --remove-orphans` and `down -v` — and hoisting the call once
+        // elsewhere left `check passed`, with both compose verbs running under
+        // the *fixed* project every checkout's directory is called while `ran()`
+        // still printed the computed one. A rule repaired one spelling at a time
+        // is closed by the grammar, not by the next spelling.
         //
         // The binders are: a `let` head, a `for` head, a function's parameters,
         // a closure's parameters, and a `match` arm's pattern. Strings are
         // spent first, because a `=>` inside a message is not an arm.
         //
-        // **And a binding is *pinned* by its value, not by its spelling.** The
-        // pinned form was the literal `let <name> = <call>;`, so the same hoist
-        // written `let project: String = project_for(root);` — which round
-        // sixty-three taught this rule to *see* — was a binding nobody had
-        // taught it to *accept*, and an ordinary line printed the most alarming
-        // message this tool has. Reported in round sixty-five as the other way
-        // of being wrong.
+        // **And a binding is *pinned* by its value, not by its spelling.** A
+        // pinned form of the literal `let <name> = <call>;` refuses the same
+        // hoist written `let project: String = project_for(root);` — a binding
+        // the rule *sees* and does not *accept* — and an ordinary line then
+        // prints the most alarming message this tool has: the other way of
+        // being wrong.
         let spent = crate::gates::without_string_contents(code);
         let mut bindings = 0_usize;
         let mut pinned = 0_usize;
@@ -1572,13 +1630,13 @@ mod tests {
             // binder, so `let mut project = project_for(root);` followed by
             // `project.push_str("-planted")` — or `project.truncate(…)`, which
             // yields the directory's own name and restores the collision this
-            // whole rule exists to prevent — counted as one binding, one
-            // pinned, and the gate reported the invocation as naming what this
-            // tree computes. Measured in round sixty-seven, `check passed` with
-            // only four line counts moving. The doc above records the same
-            // defect written as *one* statement and repaired with "the whole
-            // statement, because a prefix is not a value"; two statements walk
-            // past that, and so would three.
+            // whole rule exists to prevent — count as one binding, one pinned,
+            // unless `mut` is refused, and the gate then reports the invocation
+            // as naming what this tree computes. Measured: `check passed` with
+            // only line counts moving. The doc above records the same defect
+            // written as *one* statement, closed by "the whole statement,
+            // because a prefix is not a value"; two statements walk past that,
+            // and so would three.
             //
             // What closes it is not reading the statements after the binding —
             // that is the next spelling again — but refusing the thing that
@@ -1603,7 +1661,7 @@ mod tests {
     /// asserted is one flag. Without it the project name is the *directory's*
     /// name, so two checkouts of this repository — both called `noctua-central`
     /// — share one project and `cargo xtask dev --down` from either removes the
-    /// other's containers and volumes. Measured on a reviewer's copy: the live
+    /// other's containers and volumes. Measured from a copy of this checkout: the live
     /// stack's containers carried `com.docker.compose.project=noctua-central`
     /// with a working directory in the original tree.
     #[test]
@@ -1612,43 +1670,42 @@ mod tests {
             .expect("this file is readable");
         // **The test module, not the first `#[cfg(test)]`** — a file gains one
         // above its own tests sooner or later, and then the scan stops early
-        // without saying so. `ui.rs` had exactly that.
+        // without saying so: `ui.rs` has several, and this file has one on
+        // `THE_STACK_SETTINGS`.
         let body = source
             .split_once("\nmod tests {")
             .expect("the test module is below")
             .0;
         // **And code, not prose.** The doc on `failed` quotes the flag it is
-        // about, and counting raw text counted the quotation: four `-p`s against
-        // three invocations, a red test for a comment.
+        // about, and counting raw text counts the quotation: more `-p`s than
+        // invocations, a red test for a comment.
         // **Every comment, not the one spelling.** `line_without_a_comment`
         // reads a line at a time and knows `//`, so a `/* … */` holding
-        // `.args(["-p", &project_for(root)])` beside a live invocation made the
+        // `.args(["-p", &project_for(root)])` beside a live invocation makes the
         // chunk's flag count 2 — and one occurrence is all the rule below asks
-        // for. Measured on 2026-09-11. `without_comments` is a state machine
+        // for, measured. `without_comments` is a state machine
         // over the whole file: a block comment nests, a raw string ends at its
         // own hash count, and neither opens inside a string.
         let code = crate::gates::without_comments(body, "//");
-        // **Every process this file starts, and exactly two of them.** The
-        // floor was `>= 2` over a file with four invocations, and it counted one
-        // *spelling*: `let program = "docker";` a line above, then
-        // `Command::new(program)` with its `-p` dropped, leaves three literal
-        // invocations, clears a floor of two, and is invisible to the chunk walk
-        // below — because the text before the first literal is what `split`
-        // throws away. Measured on 2026-09-11 on the invocation that runs
-        // `compose up -d --remove-orphans`: `17 passed` and `check passed`, with
-        // the stack coming up under the project named after the directory while
-        // `--down` still addressed the hashed one.
+        // **Every process this file starts, and exactly two of them.** A floor
+        // such as `>= 2` counts one *spelling*: `let program = "docker";` a line
+        // above, then `Command::new(program)` with its `-p` dropped, leaves the
+        // literal invocations clearing the floor, and is invisible to the chunk
+        // walk below — because the text before the first literal is what `split`
+        // throws away. Measured on the invocation that runs
+        // `compose up -d --remove-orphans`: `check passed`, with the stack
+        // coming up under the project named after the directory while `--down`
+        // still addressed the hashed one.
         //
         // So the number is the number, and every process started in this file
         // has to be the literal `docker`. A third invocation is a line to change
         // here after reading it, not a floor to clear.
         //
-        // **It was four until round seventy-one.** Three of those four were one
-        // builder chain written out three times, differing only in which stream
-        // they read, and three defects planted in that duplication — a second
-        // project flag, a shadowed `root`, a deleted `.current_dir` — each left
-        // this suite green. The chain is `compose` now, and the second process
-        // is the `docker inspect` the rule below exempts.
+        // **Two: `compose`, and the `docker inspect` the rule below exempts.** A
+        // builder chain written out once per reader is where each of three
+        // planted defects — a second project flag, a shadowed `root`, a deleted
+        // `.current_dir` — leaves this suite green, so the chain is written
+        // once.
         let invocations = code.matches("Command::new(\"docker\")").count();
         let started = code.matches("Command::new(").count();
         assert_eq!(
@@ -1662,11 +1719,10 @@ mod tests {
         // **Each invocation, not the total.** Two counts over one file are equal
         // whenever the flag is written as often as `docker` is invoked, wherever
         // it is written — so moving it off the one invocation that runs
-        // `docker compose ps -a`, and writing it twice on another, left this
-        // green: measured, 514 of 514 tests passing and `check passed`, with the
-        // call that decides whether the stack is up addressing the project
-        // named after the directory, which for a reviewer's copy is the
-        // developer's own.
+        // `docker compose ps -a`, and writing it twice on another, leaves a
+        // total green: measured, `check passed`, with the call that decides
+        // whether the stack is up addressing the project named after the
+        // directory, which for a copy of this checkout is the developer's own.
         //
         // Each `Command::new("docker")` opens a chunk that ends where the next
         // one begins, and the flag has to be in that chunk exactly once.
@@ -1682,20 +1738,19 @@ mod tests {
     /// The block that decides isolation is the one written down.
     ///
     /// **A token count over this file's text is not a statement about the
-    /// command that gets built.** Round seventy-one planted three defects in
-    /// `compose` and its two predecessors, and every one left the whole suite
-    /// green, clippy silent and `fmt` clean:
+    /// command that gets built.** Each of three defects planted in the runner
+    /// leaves a token count green, clippy silent and `fmt` clean, measured:
     ///
     /// - `.args(["--project-name", "noctua-central"])` appended after the `-p`.
-    ///   The rule counts `["-p", ` and the long form shares no prefix with it,
-    ///   so the count stayed one — and docker resolves the flag to its **later**
+    ///   A rule counting `["-p", ` sees no prefix it shares with the long form,
+    ///   so the count stays one — and docker resolves the flag to its **later**
     ///   occurrence, measured: `-p a --project-name b` answers `name: b`. Every
-    ///   checkout on the machine then addressed one project.
+    ///   checkout on the machine then addresses one project.
     /// - `root` shadowed by `Path::new("/")` as the function's first statement,
-    ///   with the working directory left correct so the tool still worked. The
-    ///   argument was still the literal `&project_for(root)`, which the rule
-    ///   accepts on sight; the stack came up under the digest of `/` while the
-    ///   printed command named the real one.
+    ///   with the working directory left correct so the tool still works. The
+    ///   argument is still the literal `&project_for(root)`, which a count
+    ///   accepts on sight; the stack comes up under the digest of `/` while the
+    ///   printed command names the real one.
     /// - `.current_dir(root)` deleted. Compose then walks up from wherever the
     ///   developer is standing, so `up` labels *that* tree's services with this
     ///   tree's project and `down -v` takes them from inside it.
@@ -1710,8 +1765,8 @@ mod tests {
     /// ordinary edit as loudly as a defect: `--ansi never`, `--progress plain`,
     /// a `.stdin(Stdio::null())`, an `env_clear` of the `COMPOSE_*` variables.
     /// Each is a red test whose message quotes the block. That is the price this
-    /// file has already chosen to pay once, for the four lines that hand a
-    /// container id to `docker inspect`.
+    /// file also pays for the lines that hand a container id to
+    /// `docker inspect`.
     #[test]
     fn the_block_that_decides_isolation_is_the_one_written_down() {
         let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/dev.rs"))
@@ -1724,44 +1779,45 @@ mod tests {
             "fn {}(root: &Path, args: &[&str], want: Compose) -> Result<String, String> {{\n",
             "compose"
         );
-        // **This file's own text, not a comment-stripped copy of it.** The block
-        // was compared against `without_comments`, which turns every comment
-        // line into a blank one that the filter below then drops — so a comment
-        // inside the pinned block was free while the doc on both sides said
-        // "comments and all". Planted in round seventy-one: a sentence added
-        // between `command` and `.arg("compose")` left the suite green. A
+        // **This file's own text, not a comment-stripped copy of it.** Against
+        // `without_comments`, which turns every comment line into a blank one
+        // that the filter below then drops, a comment inside the pinned block is
+        // free while the doc on both sides says "comments and all": planted, a
+        // sentence added between `command` and `.arg("compose")` leaves the
+        // suite green. A
         // comment inside this block is where the next reader is told what it
         // holds, which is exactly what must not change unread.
         let at = body.find(&opens).expect("the one runner is here") + opens.len();
-        // **The whole body, not the lines a needle finds in it.** The pin ended
-        // at the `match` and a second clause then collected the lines naming
-        // `command`, `output.stdout` or `output.stderr` — a filter standing
-        // between the region and the judgement, which is this tree's own
-        // catalogue entry for a counter above the accounting. A reviewer wrote
-        // two lines into the `Captured` arm naming none of the three —
+        // **The whole body, not the lines a needle finds in it.** A pin ending
+        // at the `match`, with a second clause collecting the lines naming
+        // `command`, `output.stdout` or `output.stderr`, is a filter standing
+        // between the region and the judgement — this tree's own catalogue
+        // entry for a counter above the accounting. Two lines written into the
+        // `Captured` arm naming none of the three —
         // `let stream = match stream { Stream::Stdout | Stream::Stderr =>
-        // Stream::Stdout };` — and the suite, clippy and `fmt` were all silent
-        // while `what_compose_reported` asked for stderr and got stdout, so
-        // `dev --down` says the volumes are gone having removed nothing.
+        // Stream::Stdout };` — leave the suite, clippy and `fmt` all silent
+        // against it while `what_compose_reported` asks for stderr and gets
+        // stdout, so `dev --down` says the volumes are gone having removed
+        // nothing, measured.
         //
-        // There is no needle now. Everything from the signature to the closing
+        // There is no needle. Everything from the signature to the closing
         // brace is compared, so the price is the messages too: rewording the
         // diagnosis is a red test quoting the body. That is the price, and it is
-        // paid on purpose — the alternative was measured twice and both times a
-        // defect walked through the gap the filter left.
+        // paid on purpose — a filter leaves a gap, and a defect walks through
+        // it, measured.
         let ends = body
             .get(at..)
             .and_then(|rest| rest.find("\n}\n"))
             .expect("and the runner closes")
             + at;
         // **Compared trimmed, and reported one line at a time.** The `held`
-        // vector is 65 lines; an `assert_eq!` over it renders two 2,500-byte
-        // `Debug` dumps with the one differing element buried in the middle, and
-        // a developer rewording the diagnosis meets that rather than a sentence.
+        // vector is long; an `assert_eq!` over it renders two large `Debug`
+        // dumps with the one differing element buried in the middle, and a
+        // developer rewording the diagnosis meets that rather than a sentence.
         // And the wrapped literal's continuation lines sit at a column rustfmt
-        // will not touch while it re-indents the code around them — so interior
-        // indentation was load-bearing in the pin, and a no-op nesting change
-        // would have turned it red. Neither is what this holds: it holds which
+        // will not touch while it re-indents the code around them — so,
+        // untrimmed, interior indentation would be load-bearing in the pin, and a
+        // no-op nesting change would turn it red. Neither is what this holds: it holds which
         // statements are there and in what order.
         let body_of_the_runner: Vec<&str> = body[at..ends]
             .lines()
@@ -1772,7 +1828,7 @@ mod tests {
         // **And nothing else in this file writes a project flag at all.** The
         // block above is held, and the slice it spends is the caller's — so a
         // call site four hundred lines up could name a project the pin never
-        // sees. `compose` refuses one at run time now, and this says the refusal
+        // sees. `compose` refuses one at run time, and this says the refusal
         // is never reached, because a `cargo xtask dev` that fails on its own
         // arguments is a defect that shipped rather than one that was caught.
         let elsewhere: Vec<&str> = body[..at]
@@ -1780,12 +1836,11 @@ mod tests {
             .chain(body[ends..].lines())
             .filter(|line| !line.trim_start().starts_with("//"))
             .filter(|line| line.contains("\"--project-name") || line.contains("\"-p"))
-            // **And the two halves of one repair agree about `run -p`.** The
-            // rule above was narrowed so a published port after the subcommand
-            // is legal — `run`'s `-p` is `--publish` — and this needle read that
-            // same slice as a project flag, so one half refused what the other
-            // blessed. A reviewer planted the legal slice in round seventy-one
-            // and it went red.
+            // **And the two halves agree about `run -p`.** The rule above lets a
+            // published port after the subcommand through — `run`'s `-p` is
+            // `--publish` — and a needle reading that same slice as a project
+            // flag would refuse what the other half blesses: planted, the legal
+            // slice goes red without this filter.
             .filter(|line| {
                 let after_the_verb = line
                     .find("\"run\"")
@@ -1827,16 +1882,17 @@ mod tests {
     ///
     /// Lifted out of [`the_block_that_decides_isolation_is_the_one_written_down`]
     /// at clippy's hundred-line bound. It is the runner's whole body, trimmed
-    /// line by line, because a filter between the region and the judgement is
-    /// how the two defects before this one walked through.
+    /// line by line, because a filter between the region and the judgement is a
+    /// gap a defect walks through — the one measured beside the comparison in
+    /// that test.
     #[cfg(test)]
     const THE_RUNNER_AS_WRITTEN: [&str; 109] = [
         "// **And a caller cannot name a project either.** The block below is held",
-        "// whole, and `.args(args)` sits inside it — so the one channel the pin left",
-        "// open was the slice itself: `compose_command(root, &[\"--project-name\",",
-        "// \"noctua-central\", \"up\", \"-d\", …])` brought the stack up under the shared",
-        "// name with the whole suite green, measured by a reviewer in round",
-        "// seventy-one, because the walk that reads this file discards everything",
+        "// whole, and `.args(args)` sits inside it — so the one channel the pin",
+        "// leaves open is the slice itself: `compose_command(root, &[\"--project-name\",",
+        "// \"noctua-central\", \"up\", \"-d\", …])` brings the stack up under the shared",
+        "// name with the whole suite green without this refusal, measured, because",
+        "// the walk that reads this file discards everything",
         "// above the first `Command::new(\"docker\")` and the call site is four hundred",
         "// lines above it. Docker takes the later of two, so `--down` would then",
         "// address a project that never ran.",
@@ -1846,24 +1902,24 @@ mod tests {
         "// that reads text.",
         "// **Among the top-level flags, and every spelling of them.** Docker takes",
         "// `-p x`, `-px`, `-p=x`, `--project-name x` and `--project-name=x` alike and",
-        "// resolves the flag to the *later* of two — and this asked for the exact",
-        "// token `-p` and the long form only, so `-pnoctua-central` at a call site",
-        "// brought every checkout up under one project with the suite green.",
+        "// resolves the flag to the *later* of two — so asking for the exact token",
+        "// `-p` and the long form only lets `-pnoctua-central` at a call site bring",
+        "// every checkout up under one project with the suite green.",
         "//",
         "// **And only the top-level ones, because `run`'s `-p` is `--publish`.** A",
         "// rule over the whole slice refuses `compose(root, &[\"run\", \"-p\",",
         "// \"8080:80\", …])` with a message about project names, which is the",
-        "// too-strong half and was shipped for one round. The distinction is",
+        "// too-strong half. The distinction is",
         "// positional: docker's own flags come before the subcommand, so the scan",
-        "// stops at the first argument that is not a flag. A reviewer named the",
-        "// choice in round seventy-one and left it to the developer; this is the",
-        "// cheaper of the two they offered, and it needs no second parameter.",
-        "// **And a top-level flag may take a separated value.** `take_while` over",
-        "// flags stopped at the first token that is not one — so `--ansi never -p",
-        "// shared up` slipped past, because `never` is the *value* of `--ansi` and",
-        "// stands before the `-p`. Measured by a reviewer in round seventy-one;",
+        "// stops at the first argument that is not a flag. That is the cheaper way",
+        "// to draw the line: it needs no second parameter.",
+        "//",
+        "// **And a top-level flag may take a separated value.** A `take_while` over",
+        "// flags stops at the first token that is not one — so `--ansi never -p",
+        "// shared up` slips past it, because `never` is the *value* of `--ansi` and",
+        "// stands before the `-p`, measured. These are the flags that take one:",
         "// `--ansi`, `-f`, `--profile`, `--progress`, `--env-file`,",
-        "// `--project-directory` and `--parallel` all do this.",
+        "// `--project-directory` and `--parallel`.",
         "let takes_a_value = |it: &str| {",
         "matches!(",
         "it,",
@@ -1944,11 +2000,11 @@ mod tests {
 
     /// An argument that names a project of its own is refused.
     ///
-    /// **The one channel the body pin left open.** `.args(args)` is inside the
-    /// held block, and `args` is whatever a caller passes: a reviewer put
-    /// `--project-name noctua-central` into `run`'s slice in round seventy-one
-    /// and the stack came up under the shared name with the whole suite green,
-    /// because the walk that reads this file discards everything above the first
+    /// **The one channel the body pin leaves open.** `.args(args)` is inside the
+    /// held block, and `args` is whatever a caller passes: without this refusal,
+    /// `--project-name noctua-central` in `run`'s slice brings the stack up under
+    /// the shared name with the whole suite green, measured, because the walk
+    /// that reads this file discards everything above the first
     /// `Command::new("docker")` and the call site is four hundred lines above
     /// it. Docker resolves the flag to the later of two.
     ///
@@ -1984,7 +2040,7 @@ mod tests {
                 "`{named:?}` was not refused for naming a project: {refused}"
             );
         }
-        // **And the too-strong half, which shipped for one round.** `run`'s
+        // **And the too-strong half.** `run`'s
         // `-p` is `--publish`, so a rule over the whole slice refuses a
         // legitimate published port with a message about project names. The
         // scan stops at the subcommand; this reaches the spawn and fails on
@@ -2019,13 +2075,13 @@ mod tests {
             .expect("the test module is below")
             .0;
         let code = crate::gates::without_comments(body, "//");
-        // **And the variant each reader passes.** The collapse turned a whole
-        // function body into one token at three call sites, and nothing read it:
-        // planted in round seventy-one, `compose_command` asking for
-        // `Captured(Stdout)` instead of `Through` left the suite green while
-        // `cargo xtask dev` swallowed docker's entire transcript during a
-        // two-image pull and the long diagnosis above became unreachable from
-        // every caller. Their bodies are one line each, so they are held whole.
+        // **And the variant each reader passes.** With the builder written once,
+        // a whole function body is one token at each call site: planted,
+        // `compose_command` asking for `Captured(Stdout)` instead of `Through`
+        // leaves the rest of the suite green while `cargo xtask dev` swallows
+        // docker's entire transcript during a two-image pull and the long
+        // diagnosis above becomes unreachable from every caller. Their bodies
+        // are one line each, so they are held whole.
         for (named, returns, spends) in [
             (
                 "compose_command",
@@ -2066,17 +2122,17 @@ mod tests {
     /// A binding of the project is counted however it is written.
     ///
     /// Split from [`every_compose_invocation_names_its_project`] at clippy's
-    /// hundred-line bound, when the pattern cases arrived. The two are one
+    /// hundred-line bound. The two are one
     /// question asked of two things: which invocations in this file name a
     /// project, and what the predicate counts as a binding of the name.
     #[test]
     fn a_binding_of_the_project_is_counted_however_it_is_written() {
-        // **A hoist in every function is still a hoist.** The rule asked for
-        // exactly one binding of the name in the whole file, so hoisting the
-        // call in each of the three functions that start a compose command —
-        // ordinary, `fmt`-clean, identical behaviour — reported all three as
-        // taking the project from the directory's name. Measured on 2026-09-14.
-        // What is refused is a binding that comes from somewhere else, and that
+        // **A hoist in every function is still a hoist.** Asking for exactly one
+        // binding of the name in the whole file makes hoisting the call in each
+        // of the three functions that start a compose command — ordinary,
+        // `fmt`-clean, identical behaviour — report all three as taking the
+        // project from the directory's name, measured. What is refused is a
+        // binding that comes from somewhere else, and that
         // is what these two cases say.
         let hoisted_everywhere = concat!(
             "let project = project_for(root);\n",
@@ -2104,9 +2160,9 @@ mod tests {
             "a binding of the same name taken from somewhere else was accepted"
         );
         // **A type annotation is a binding.** `let project: String = …` holds no
-        // `let project = ` at all, so the count of bindings did not see it and
-        // one pinned binding elsewhere in the file paid for it. The function it
-        // was planted in is the one that runs `down -v`.
+        // `let project = ` at all, so a count of bindings does not see it and
+        // one pinned binding elsewhere in the file pays for it. Planted, it sits
+        // in the function that runs `down -v`.
         let annotated = concat!(
             "let project = project_for(root);\n",
             "Command::new(\"docker\").args([\"-p\", &project]);\n",
@@ -2137,13 +2193,13 @@ mod tests {
 
         // **And a `let mut` is never a *pin*, however it is initialised.** The
         // value this rule compares is the initialiser, and a statement after it
-        // is not a binder — so a hoist followed by an ordinary mutation counted
-        // as one binding, one pinned, and the gate reported the invocation as
+        // is not a binder — so a hoist followed by an ordinary mutation counts
+        // as one binding, one pinned, and the gate reports the invocation as
         // naming what this tree computes. `truncate` is the cheap one: it
         // yields `noctua-central`, the directory's own name, which is the
-        // collision `project_for` exists to prevent. Measured in round
-        // sixty-seven against `compose_command`, the function that runs
-        // `up -d --remove-orphans` and `down -v`.
+        // collision `project_for` exists to prevent. Measured against
+        // `compose_command`, the function that runs `up -d --remove-orphans`
+        // and `down -v`.
         for mutated in [
             "let mut project = project_for(root);\nproject.push_str(\"-planted\");\n",
             "let mut project = project_for(root);\nproject.truncate(4);\n",
@@ -2160,15 +2216,15 @@ mod tests {
 
     /// Every clause of the binder walk decides something.
     ///
-    /// **Eight clauses, and a fixture reached none of them.** The two tables
-    /// above drive the five *arms* of [`the_names_a_binder_introduces`]
+    /// **Eight clauses, and the tables above reach none of them.** The two
+    /// tables above drive the five *arms* of [`the_names_a_binder_introduces`]
     /// — a `let` head, a `for` head, a function's parameters, a closure's
-    /// parameters, a `match` arm — and nothing drove the guards, cuts and
-    /// boundary tests inside them. Each was deleted alone in round sixty-seven
-    /// and every one left the whole suite green, and `xtask/mutants.py` carries
-    /// no operator over this function at all.
+    /// parameters, a `match` arm — and not the guards, cuts and boundary tests
+    /// inside them: without this test each of those deleted alone leaves the
+    /// suite green, measured, and `xtask/mutants.py` carries no operator over
+    /// this function at all.
     ///
-    /// Two of them protect *correct* code and were undecided in both
+    /// Two of them protect *correct* code and are otherwise undecided in both
     /// directions: the word-boundary guards, without which `outlet ` and
     /// `effn ` are binders, and the `||` exclusion, without which an ordinary
     /// or-expression is a closure head.
@@ -2180,7 +2236,7 @@ mod tests {
         // binding that is not in the file and a real pin can be balanced out by
         // it. Asserted as the whole answer, because a test that only asks
         // whether some head mentions a name is answered the same way either
-        // way, which is this round's own defect written into its own fixture.
+        // way, which is the defect itself written into its own fixture.
         for (not_a_binder, whole) in [
             ("let outlet = elsewhere();\n", [("outlet ", " elsewhere()")]),
             ("let effn = elsewhere();\n", [("effn ", " elsewhere()")]),
@@ -2231,18 +2287,18 @@ mod tests {
 
     /// A binding written as a pattern or a parameter is counted too.
     ///
-    /// Split from [`a_binding_of_the_project_is_counted_however_it_is_written`],
-    /// which had grown past what one body may hold, and separate on its own
-    /// merits: every spelling there writes `let <name>` as two adjacent words
+    /// Kept apart from [`a_binding_of_the_project_is_counted_however_it_is_written`]
+    /// at clippy's hundred-line bound, and separate on its own merits: every
+    /// spelling there writes `let <name>` as two adjacent words
     /// and every spelling here does not, which is the difference the walk over
     /// the grammar exists for.
     #[test]
     fn a_binding_written_as_a_pattern_or_a_parameter_is_counted_too() {
         // **A pattern is a binding.** Three spellings, none of which holds
         // `let project` as adjacent words: a tuple, a refutable pattern, and a
-        // loop's own binding. The plant that produced this list sat in
-        // `compose_command`, the function that runs `up -d --remove-orphans`
-        // and `down -v`, and the whole gate stayed green.
+        // loop's own binding. Planted in `compose_command`, the function that
+        // runs `up -d --remove-orphans` and `down -v`, each leaves a rule that
+        // reads `let` heads green.
         for pattern in [
             "let (project,) = (String::new(),);\n",
             "let Some(project) = maybe else { return };\n",
@@ -2263,12 +2319,12 @@ mod tests {
             );
         }
         // **And a parameter is a binding.** A closure's, a function's and a
-        // `match` arm's: none of the three has a `let` or a `for` head, so the
-        // rule that read heads alone could not see them. The closure case is
-        // the one measured in round sixty-five — `compose_command`'s invocation
-        // moved into `|project: String|`, with one legitimate hoist elsewhere
-        // paying for it — and it left the whole gate green while both compose
-        // verbs ran under the fixed project every checkout is called.
+        // `match` arm's: none of the three has a `let` or a `for` head, so a
+        // rule reading heads alone cannot see them. The closure case is
+        // measured — `compose_command`'s invocation moved into
+        // `|project: String|`, with one legitimate hoist elsewhere paying for
+        // it — and under such a rule it leaves the whole gate green while both
+        // compose verbs run under the fixed project every checkout is called.
         for introduced in [
             "let under = |project: String| { drop(project) };\n",
             "fn under(project: String) { drop(project) }\n",
@@ -2287,11 +2343,10 @@ mod tests {
                 "a parameter is a binding and this did not see it: {introduced}"
             );
         }
-        // **And a hoist written with a type annotation is a hoist.** Round
-        // sixty-three taught this rule to *see* that spelling; nothing taught
-        // it to accept it, so the pinned form stayed the bare literal and an
-        // ordinary line printed the most alarming message this tool has.
-        // Reported in round sixty-five. A binding is pinned by its **value**.
+        // **And a hoist written with a type annotation is a hoist.** A rule
+        // that *sees* that spelling and pins only the bare literal refuses it,
+        // and an ordinary line prints the most alarming message this tool has.
+        // A binding is pinned by its **value**.
         let annotated_hoist = concat!(
             "let project: String = project_for(root);\n",
             "Command::new(\"docker\").args([\"-p\", &project]);\n"
@@ -2357,9 +2412,9 @@ mod tests {
             .0;
         // **Every comment, not the one spelling.** `line_without_a_comment`
         // reads a line at a time and knows `//`, so a `/* … */` holding
-        // `.args(["-p", &project_for(root)])` beside a live invocation made the
+        // `.args(["-p", &project_for(root)])` beside a live invocation makes the
         // chunk's flag count 2 — and one occurrence is all the rule below asks
-        // for. Measured on 2026-09-11. `without_comments` is a state machine
+        // for, measured. `without_comments` is a state machine
         // over the whole file: a block comment nests, a raw string ends at its
         // own hash count, and neither opens inside a string.
         let code = crate::gates::without_comments(body, "//");
@@ -2367,31 +2422,29 @@ mod tests {
         // **And where that `id` came from.** The exemption asks for the binding
         // by name, and a name is not a provenance: one line added inside
         // `where_the_logs_container_mounts` — `let id = "noctua-central-logs-1";`
-        // after the project-scoped read — left this whole suite green and
-        // pointed the command at the container a developer's own checkout
-        // produces. Measured on 2026-09-11. So the file has to bind `id` from
+        // after the project-scoped read — leaves a name-only rule green and
+        // points the command at the container a developer's own checkout
+        // produces, measured. So the file has to bind `id` from
         // `compose ps -q` and must not bind it again between there and the
-        // `inspect`: two bindings, the read and its `trim`, and no third.
-        // **And the four lines that hand the id over, held whole.** Three rules
-        // have been written about the text between the project-scoped read and
-        // the command — a spelling (`let id = `), a count of `let`, and a name
-        // in the callee's body — and a reviewer walked through each in turn. The
-        // third scanned the callee and left the caller open, so
-        // `let id = "noctua-central-logs-1";` on the line above the hand-over
-        // still passed, which is the third round running this one gate has
-        // fallen to the same class.
+        // `inspect`.
+        // **And the lines that hand the id over, held whole.** A spelling
+        // (`let id = `), a count of `let`, and a name in the callee's body are
+        // each a rule about the text between the project-scoped read and the
+        // command, and each leaves somewhere open: a scan of the callee leaves
+        // the caller, so `let id = "noctua-central-logs-1";` on the line above
+        // the hand-over passes it.
         //
-        // There is nowhere to put that line now: the caller is a `match` whose
-        // binding's only use is the call, and the whole block is compared. An
-        // edit here is a failure that says to read four lines rather than a
-        // number to move.
-        // **The whole body**, from the signature to its closing brace. The
-        // block was pinned as four lines, which says they are written somewhere
-        // in the function rather than that they are the function: three lines
-        // above them, returning the mount of a container named by the
-        // directory's own project, left all four pins green and `check passed`.
-        // Comments included, because a comment is where the next reader is told
-        // what this holds.
+        // There is nowhere to put that line: the caller is a `match` whose
+        // binding's only use is the call, and the whole block is compared. A
+        // statement changed there is a failure that says to read four lines
+        // rather than a number to move.
+        // **The whole body**, from the signature to its closing brace. Four
+        // lines pinned say they are written somewhere in the function rather
+        // than that they are the function: three lines above them, returning
+        // the mount of a container named by the directory's own project, leave
+        // four such pins green and `check passed`. Every statement is compared;
+        // comments are stripped first, so the comment in the body is free to say
+        // what it holds.
         let opens = format!(
             "pub(crate) fn {}(root: &Path) -> Result<Option<String>, String> {{\n",
             "where_the_logs_container_mounts"
@@ -2445,9 +2498,9 @@ mod tests {
              project-scoped `compose ps -q` returned: {between}"
         );
 
-        // **And the hole, not just the rule.** The exemption used to ask which
-        // subcommand ran; the sentence justifying it is about what the
-        // subcommand is *handed*. Measured on 2026-09-11: the one exempted call
+        // **And the hole, not just the rule.** Which subcommand ran is not the
+        // property: the sentence justifying the exemption is about what the
+        // subcommand is *handed*. Measured with a subcommand-only exemption: the one exempted call
         // pointed at `"noctua-central-logs-1"` — the container name a
         // developer's own checkout produces — and this test stayed green, so
         // the gate whose whole subject is a copy reaching another project's
@@ -2492,8 +2545,8 @@ mod tests {
     /// Every message that spells a `docker compose` command names its project.
     ///
     /// **Split from the invocation half at clippy's hundred-line bound**, which
-    /// is the fourth time that bound has been paid rather than allowed in this
-    /// crate. The two halves are one rule asked of two things: what the verb
+    /// this crate pays rather than allows. The two halves are one rule asked of
+    /// two things: what the verb
     /// *runs*, and what it *hands a developer to run*.
     #[test]
     fn every_compose_message_names_its_project() {
@@ -2509,9 +2562,9 @@ mod tests {
             .0;
 
         // **And every message that spells one names it too.** The assertion
-        // above is about the *invocation*; three failure messages printed
-        // `` `docker compose up -d --remove-orphans` failed `` with no `-p`, so
-        // the command a developer was handed addressed the directory's project —
+        // above is about the *invocation*; a failure message printing
+        // `` `docker compose up -d --remove-orphans` failed `` with no `-p`
+        // hands a developer a command addressing the directory's project —
         // which is by construction never the one that ran. Running it lists
         // nothing, and running `up` with it creates a second stack.
         let mut bare = Vec::new();
@@ -2520,7 +2573,7 @@ mod tests {
             // the shape of a bare command in order to say it is wrong.
             let line = crate::gates::line_without_a_comment(line);
             // **Every occurrence, not the first.** `find` stops at one, so a
-            // scoped command earlier on the same source line hid a bare one
+            // scoped command earlier on the same source line hides a bare one
             // after it — and the bare one is the command a developer is handed.
             // Measured: `` `docker compose -p {} ps` … `docker compose up -d` ``
             // passed, and the same line with the two swapped was a finding.
@@ -2577,10 +2630,10 @@ mod tests {
 
     /// And the project a checkout gets is its own, and stays its own.
     ///
-    /// **A constant failed both halves.** `-p noctua-central`, written out,
-    /// made every directory on the machine address one stack: a reviewer reached
-    /// the live database from a scratch directory holding a two-line toy compose
-    /// file and nothing else. The name has to separate checkouts, and it has to
+    /// **A constant fails both halves.** `-p noctua-central`, written out,
+    /// makes every directory on the machine address one stack: measured, the
+    /// live database is reached from a scratch directory holding a two-line toy
+    /// compose file and nothing else. The name has to separate checkouts, and it has to
     /// keep naming the same volumes tomorrow, or a developer's data is orphaned
     /// by a rename nobody asked for.
     #[test]
@@ -2591,9 +2644,9 @@ mod tests {
         // renamed and its volumes are stranded under the old name.
         assert_eq!(super::digest_of("/home/dev/noctua-central"), 0x5e24_507c);
         assert_eq!(super::digest_of(""), 0x811c_9dc5);
-        // **And the rendering, not only the digest.** `{:08x}` became `{:x}`
-        // with all five of these green — which drops the leading zero for one
-        // checkout path in sixteen and renames its project, stranding the
+        // **And the rendering, not only the digest.** `{:08x}` written `{:x}`
+        // leaves both digests above unchanged, and drops the leading zero for
+        // one checkout path in sixteen — renaming its project and stranding the
         // volumes the paragraph above says this exists to protect.
         assert_eq!(
             super::project_for(Path::new("/nonexistent/9/noctua-central")),
@@ -2601,25 +2654,24 @@ mod tests {
         );
 
         // **A path that exists, so the canonicalizing branch is the one under
-        // test.** Every path here was `/nonexistent/…`, which takes the
-        // fallback — so deleting the `canonicalize` call the doc comment calls
-        // load-bearing left all five of these green, and a symlinked checkout
-        // and its target would have been two stacks.
+        // test.** A `/nonexistent/…` path takes the fallback — so with only
+        // those, deleting the `canonicalize` call the doc comment calls
+        // load-bearing leaves every case here green, and a symlinked checkout
+        // and its target would be two stacks.
         let scratch = std::env::temp_dir().join(format!("nc-project-{}", std::process::id()));
         let real = scratch.join("noctua-central");
         let _ = std::fs::remove_dir_all(&scratch);
         std::fs::create_dir_all(&real).expect("writable");
-        #[cfg(unix)]
-        {
-            let linked = scratch.join("by-another-name");
-            std::os::unix::fs::symlink(&real, &linked).expect("a symlink");
-            assert_eq!(
-                super::project_for(&real),
-                super::project_for(&linked),
-                "a symlinked checkout and its target were given two stacks, so a \
-                 `dev --down` through one would leave the other's containers"
-            );
-        }
+        // A symbolic link on Unix and a junction on Windows: the link a person
+        // makes to a directory on each, and one `canonicalize` sees through.
+        let linked = scratch.join("by-another-name");
+        nc_platform::testing::link_directory(&real, &linked).expect("a link");
+        assert_eq!(
+            super::project_for(&real),
+            super::project_for(&linked),
+            "a linked checkout and its target were given two stacks, so a \
+             `dev --down` through one would leave the other's containers"
+        );
         let _ = std::fs::remove_dir_all(&scratch);
 
         let one = super::project_for(Path::new("/nonexistent/a/noctua-central"));
@@ -2652,7 +2704,8 @@ mod tests {
     ///
     /// Reads the request and shuts the write side down before closing: dropping
     /// a socket with unread data sends an RST, which destroys the reply about
-    /// one run in eight. `nc-log`'s fake servers learned this the same way.
+    /// one run in eight. `nc-log`'s fake servers close the same way, for the
+    /// same reason.
     fn answering(status: &'static str) -> String {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a free port");
         let port = listener.local_addr().expect("bound").port();
@@ -2672,7 +2725,7 @@ mod tests {
         // **The case the container's own healthcheck cannot see.** It runs
         // `--help`, which exits 0 while the process is alive — so a store that
         // answers 503, or answers nothing at all, reports `healthy` and `dev`
-        // printed its URL.
+        // would print its URL.
         let refusing = answering("HTTP/1.1 503 Service Unavailable\r\nContent-Length: 0\r\n\r\n");
         let error = the_log_store_is_serving(&refusing).expect_err("503 is not serving");
         assert!(error.contains("503"), "{error}");
@@ -2687,8 +2740,8 @@ mod tests {
         // reading the port and dropping the listener leaves a window in which
         // anything else on the machine can take it — and this suite starts
         // listeners on ephemeral ports in a dozen other tests, so under
-        // `cargo test`'s own parallelism the connect sometimes succeeded and
-        // this failed for a reason that had nothing to do with the store. Port
+        // `cargo test`'s own parallelism the connect sometimes succeeds and
+        // this fails for a reason that has nothing to do with the store. Port
         // zero is the wildcard: the kernel refuses a connection to it outright,
         // every time, with nothing to race against.
         let error = the_log_store_is_serving("0").expect_err("a closed port is not serving");
@@ -2743,12 +2796,12 @@ mod tests {
     #[test]
     /// A count that went backwards is a failed read, not a negative number.
     ///
-    /// **Both halves of this were free.** The count was read with
-    /// `unwrap_or(0)` — the shape repaired ninety lines above for its two
-    /// neighbours, *a permission error, a wrong path or a dropped connection all
-    /// read as "nothing has been applied"* — and the difference was taken with
-    /// `saturating_sub`, which on `i64` saturates at `i64::MIN` rather than at
-    /// zero. Measured with the pool closed before the read: `ok -12
+    /// **Both halves of this are held.** Read with `unwrap_or(0)` — the shape
+    /// `migrate` refuses for the two reads before it, *a permission error, a
+    /// wrong path or a dropped connection all read as "nothing has been
+    /// applied"* — and differenced with `saturating_sub`, which on `i64`
+    /// saturates at `i64::MIN` rather than at zero, the count goes wrong
+    /// silently. Measured with the pool closed before the read: `ok -12
     /// migration(s) applied, and the database now holds 0 of 12 on disk`,
     /// `check passed`, byte-identical to a clean run.
     fn a_count_that_went_backwards_is_a_failed_read_rather_than_a_negative_number() {
@@ -2774,43 +2827,40 @@ mod tests {
         let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/dev.rs"))
             .expect("this file is a file in this crate");
         let code = crate::gates::without_comments(&source, "//");
-        // **Every count read in `migrate`, at any indentation.** This scanned
-        // for one byte sequence — the read, its two continuations at twelve
-        // spaces, and `.unwrap_or(` — and `migrate` holds three
-        // `count(*) FROM _sqlx_migrations` reads at two indentations. Only one
-        // had that shape, and the failure path's read four lines above it was
-        // `.unwrap_or(already)` with a `saturating_sub` under it: the pair the
-        // repair beside it exists to remove. Written as a property, the rule
-        // reads every one of them.
+        // **Every count read in `migrate`, at any indentation.** A scan for one
+        // byte sequence — the read, its two continuations at twelve spaces, and
+        // `.unwrap_or(` — misses reads written at another indentation, and
+        // `migrate` holds its `count(*) FROM _sqlx_migrations` reads at two:
+        // a `.unwrap_or(already)` with a `saturating_sub` under it on the other
+        // one passes such a scan. Written as a property, the rule reads every
+        // one of them.
         let reads = code.match_indices("FROM _sqlx_migrations\")").count();
         assert!(
             reads >= 2,
             "this scan found {reads} count read(s) in the file and there are more than \
              one, so it is looking for the wrong text"
         );
-        // **To the end of the function, not to the next semicolon.** The scan
-        // read each arm up to its `;`, and a fallback moves past that with one
-        // more binding: measured on 2026-09-12,
+        // **To the end of the function, not to the next semicolon.** A scan of
+        // each arm up to its `;` lets a fallback move past that with one more
+        // binding: measured,
         // `let counted = …map_err(…); let now = counted.unwrap_or(0);` left
         // `check passed` and a transcript differing only in the source-line
         // counts the extra line moves — the message string does not move, so
-        // the sentence census, which is what caught this shape when the rule
-        // was written, said nothing.
+        // the sentence census says nothing.
         //
         // `migrate` legitimately falls back nowhere, so the question is asked
-        // of the whole body rather than of one statement. The three
-        // `unwrap_or` in it today are all inside comments, which are spent
-        // above.
+        // of the whole body rather than of one statement. Every `unwrap_or` in
+        // it today is inside a comment, and comments are spent above.
         let opens = "fn migrate(";
         let body_at = code.find(opens).expect("this file declares `migrate`");
         let body = &code[body_at..];
         let body_end = body.find("\n}\n").unwrap_or(body.len());
         let body = &body[..body_end];
-        // **The shape of the name, not four of them.** This listed
-        // `.unwrap_or`, `.or(`, `.or_else(` and `.unwrap_or_default` under a
-        // sentence about every spelling a fallback wears, and the arm rule
-        // beside it was rewritten to an allow-list for exactly that reason —
-        // leaving the body half one binding away from free. Measured:
+        // **The shape of the name, not a list of them.** A list of
+        // `.unwrap_or`, `.or(`, `.or_else(` and `.unwrap_or_default`, under a
+        // sentence about every spelling a fallback wears, leaves the body half
+        // one binding away from free — which is why the arm rule beside it is
+        // an allow-list. Measured:
         // `.map_or(0, |counted: i64| counted.max(0))` written one line below
         // the read passes all four, leaves clippy silent, and turns a failed
         // read of the applied count into zero with `check passed`.
@@ -2823,15 +2873,14 @@ mod tests {
         // bracket.
         for called in the_methods_in(body) {
             // **`or` as a word of the name, not four ways of spelling one.**
-            // The first version of this rule was `starts_with("unwrap_or") ||
-            // ends_with("_or") || contains("map_or") || == "or"`, and
-            // `or_else` — which the deny-list it replaced named by hand —
-            // satisfies none of the four. Measured: `.or_else(|error| Ok(…))`
-            // one binding below the read left `check passed` with 1288 test(s)
-            // and a transcript differing only in the source-line counters the
-            // extra line moves. A repair that drops a spelling the list it
-            // replaced already caught is the *too weak* half of the rule this
-            // file's own paragraph warns about.
+            // `starts_with("unwrap_or") || ends_with("_or") ||
+            // contains("map_or") || == "or"` is not satisfied by `or_else`,
+            // which a hand-written deny-list names. Measured with that rule:
+            // `.or_else(|error| Ok(…))` one binding below the read left
+            // `check passed` and a transcript differing only in the source-line
+            // counters the extra line moves. A rule that drops a spelling a
+            // hand list catches is the *too weak* half of the rule this file's
+            // own paragraph warns about.
             //
             // What it must not refuse is a method whose name merely holds the
             // letters: `order`, `ordering` and `for_each` are words, and `or`
@@ -2848,17 +2897,17 @@ mod tests {
             let arms = &code[at..];
             let ends = arms.find(';').unwrap_or(arms.len());
             let arm = &arms[..ends];
-            // **Every spelling a fallback wears, not one of them.** The rule
-            // asked for `.unwrap_or` and `.ok().or(Some(0))` is the same
-            // sentence in different words — measured, it passed. What a read of
+            // **Every spelling a fallback wears, not one of them.** A rule
+            // asking for `.unwrap_or` misses `.ok().or(Some(0))`, the same
+            // sentence in different words — measured, it passes. What a read of
             // this count may end in is `map_err(…)?`, which stops the run, or
             // `.ok()`, which makes *unread* an answer of its own; anything that
             // substitutes a number is a claim about the database that the read
             // did not establish.
-            // **What it may end in, rather than what it may not.** The rule
-            // was four spellings written out under a sentence promising *every*
-            // spelling a fallback wears, and there are more than four:
-            // `.map_or(0, |counted: i64| counted.max(0))` is a fifth, it leaves
+            // **What it may end in, rather than what it may not.** Spellings
+            // written out under a sentence promising *every* spelling a
+            // fallback wears always leave one more:
+            // `.map_or(0, |counted: i64| counted.max(0))` is one, it leaves
             // clippy silent, and under it a failed read of the applied count
             // becomes zero with `check passed`. A list of the ways to be wrong
             // grows with the language; the list of ways to be right does not.
@@ -2890,10 +2939,10 @@ mod tests {
     fn every_setting_is_read_through_the_table_that_declares_it() {
         // The names and the defaults are held to `docker-compose.yml` in both
         // directions by `the_settings_this_tool_reads_are_the_ones_the_stack_
-        // declares`, and **nothing asked whether this file reads them**. It did
-        // not: `run` read `POSTGRES_PORT` with its own `std::env::var` and its
-        // own inline `"5432"`, which is the port the migrations land in and the
-        // port the success line prints. Measured with that literal written
+        // declares`, and **this asks whether this file reads them**: a `run`
+        // reading `POSTGRES_PORT` with its own `std::env::var` and its own
+        // inline `"5432"` — the port the migrations land in and the port the
+        // success line prints — leaves that census green. Measured with that literal written
         // `"5433"`: `check passed`, byte-identical to a clean run, while
         // `cargo xtask dev` brought a stack up on one port and migrated another.
         //
@@ -2901,12 +2950,11 @@ mod tests {
         // `setting` itself reads the variable it is handed, so it holds none.
         let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/dev.rs"))
             .expect("this file is a file in this crate");
-        // **Comments only.** The first version of this spent the string contents
-        // too — and a variable's name lives *inside* the string it is read with,
-        // so the scan removed the very text it was looking for and passed
-        // against the planted bypass. A scanner that reads a literal as code is
-        // a shape this repository has repaired repeatedly; this is its mirror,
-        // and it is the one that is green.
+        // **Comments only.** Spending the string contents too would remove a
+        // variable's name, which lives *inside* the string it is read with — the
+        // very text the scan is looking for — and the scan then passes against
+        // the planted bypass, measured. A scanner that reads a literal as code
+        // is a familiar shape; this is its mirror, and the one that stays green.
         let code = crate::gates::without_comments(&source, "//");
         for (variable, default) in super::THE_STACK_SETTINGS {
             assert!(
@@ -2926,17 +2974,17 @@ mod tests {
 
     /// The migrated schema is the one the URL names, and it comes first.
     ///
-    /// **`migrate` is tested by nothing, and this is the line that matters.**
+    /// **No test runs `migrate`, and this is the line that matters.**
     /// A `"$user",` in front of the schema is one token, `cargo fmt` and
     /// `cargo clippy` are silent about it, and with a role-named schema present
-    /// `dev` then migrated *that* one — a second `_sqlx_migrations` with twelve
+    /// `dev` then migrates *that* one — a second `_sqlx_migrations` with twelve
     /// rows, a second `journal_entries` with its append-only triggers — while
-    /// reporting it had applied nothing, and `cargo xtask check` passed over
-    /// the result.
+    /// reporting it applied nothing, and `cargo xtask check` passes over the
+    /// result, measured.
     ///
-    /// `check` resolves the same schema from the same string, so the two can
-    /// never contradict each other: they agree by both being right, which is
-    /// why only a test of this statement can notice when one stops.
+    /// `check` resolves the same schema from the same string, so a comparison
+    /// of the two cannot tell them apart: they agree by being right together or
+    /// wrong together, which is why this test holds the statement itself.
     #[test]
     fn the_search_path_puts_the_named_schema_first() {
         assert_eq!(
@@ -2950,7 +2998,8 @@ mod tests {
             super::path_statement("two words"),
             "SET search_path = \"two words\", pg_temp"
         );
-        // And the ordinary role-named case, which is the one that bit.
+        // And the ordinary role-named case, which is the one this test's
+        // paragraph measures.
         let said = super::path_statement("noctua");
         assert!(
             said.starts_with("SET search_path = \"noctua\","),
@@ -2964,7 +3013,7 @@ mod tests {
         // the string: PostgreSQL puts `pg_catalog` implicitly first *unless the
         // path names it*, so naming it moves the system catalogue behind a
         // schema this run may migrate. `nc-journal` pins its own path the same
-        // way, and this file wrote the opposite for eleven rounds.
+        // way.
         for schema in ["public", "noctua", "two words"] {
             assert!(
                 !super::path_statement(schema).contains("pg_catalog"),
@@ -2976,16 +3025,16 @@ mod tests {
 
     /// A status line split across segments is still a status line.
     ///
-    /// **`read` returns what has arrived.** The health check took one call into
-    /// a 64-byte buffer, so a store answering `HTTP/1.1 ` in one segment and
-    /// `200 OK` in the next was read as `HTTP/1.1 ` — no code — and `dev`
-    /// reported a healthy store as "running and not serving". Nothing is wrong
+    /// **`read` returns what has arrived.** One call into a 64-byte buffer reads
+    /// a store answering `HTTP/1.1 ` in one segment and `200 OK` in the next as
+    /// `HTTP/1.1 ` — no code — and `dev` then reports a healthy store as
+    /// "running and not serving". Nothing is wrong
     /// with the store in that case, which is what makes it expensive: the
     /// failure is intermittent and points at the wrong thing.
     ///
     /// Both halves are driven here, against a listener that writes the answer
     /// the two ways, because a reader that only ever sees whole lines cannot
-    /// tell the repair from the defect.
+    /// tell a reader that loops from one that does not.
     #[test]
     fn a_status_line_split_across_segments_is_read_whole() {
         use std::io::{Read as _, Write as _};
@@ -3022,12 +3071,12 @@ mod tests {
 
     /// The stack's settings are the compose file's, in both directions.
     ///
-    /// **Four copies of five values, held to nothing.** `.env.example` and
+    /// **Copies of the same values, held to each other.** `.env.example` and
     /// `docker-compose.yml` are held together by
-    /// `the_example_environment_agrees_with_the_compose_defaults`; the code that
-    /// reads the same five was not held to either. Measured on 2026-09-09,
-    /// `POSTGRES_DB`'s default changed in this file alone: `check passed` at
-    /// `1232 test(s)` with no warn line, and `cargo xtask dev` failed with
+    /// `the_example_environment_agrees_with_the_compose_defaults`; this holds the
+    /// code that reads the same settings to both. Measured without it,
+    /// `POSTGRES_DB`'s default changed in this file alone: `check passed` with
+    /// no warn line, and `cargo xtask dev` failed with
     /// `database "central" does not exist`.
     ///
     /// **Both directions, because one is a sample.** Forwards: every setting
@@ -3090,8 +3139,9 @@ mod tests {
     /// A migration numbered below one already applied is refused, and nothing
     /// else is.
     ///
-    /// **The whole forward-only rule, decided by nothing.** See
-    /// [`super::is_backdated`] for what a neutered guard measured: the workspace
+    /// **The whole forward-only rule, decided here.** See
+    /// [`super::is_backdated`] for what a neutered guard measures with the clause
+    /// written inline in `migrate`, where no test reaches it: the workspace
     /// suite green at exit 0, and `cargo xtask dev` applying version 0 after
     /// version 12 while printing `ok`. `_sqlx_migrations` records the order it
     /// was told, so a database that has taken a backdated migration reads as

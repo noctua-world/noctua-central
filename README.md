@@ -11,6 +11,7 @@ noctua-workspace/repos/:
 
 ```sh
 cd path/to/noctua-workspace/repos
+git clone https://github.com/noctua-world/noctua-central.git
 ```
 
 **Start your agents at the workspace root, not here.** From inside this repository
@@ -19,16 +20,13 @@ design-system component, or consult the master technical reference — it will g
 instead, and the guesses will be wrong. Every repository here carries a probe that
 detects it and says so.
 
-There is nothing to clone yet: this repository gets its git repository in Stage 12
-of the plan, and has none until then on purpose (see the last section).
-
 ## Requirements
 
 - **Rust**, via rustup. `rust-toolchain.toml` pins the channel, the components
   and the `wasm32-unknown-unknown` target the plugins are built for, so `rustup
   show` installs exactly what this repository wants and no *version* is written
-  down twice. CI names the same components and target again on the line that
-  installs the toolchain, which is what a GitHub action needs to be told.
+  down twice. CI installs from the same file, with `rustup toolchain install` and
+  no toolchain named, so no workflow names a toolchain of its own.
 - **Docker**, for the local stack — PostgreSQL and the central log store.
 - **cargo-deny**, for the dependency audit the gate runs:
   `cargo install --locked cargo-deny`.
@@ -44,8 +42,8 @@ cargo xtask check    # the whole gate. CI runs this, `cargo xtask dev` for the
                      # job that builds twice and diffs — the only
                      # cross-process determinism check there is
 cargo xtask docs     # regenerate docs/ from the registries
-cargo xtask release <version>            # rewrite it everywhere, print the commands
-cargo xtask release <version> --dry-run   # say what would change and change nothing
+cargo xtask release --channel staging --dry-run   # what a channel would release
+cargo xtask release --channel staging   # gate, then write its version and changelog
 ```
 
 `cargo xtask dev --down` removes the stack and its data, which makes the next `dev`
@@ -74,9 +72,38 @@ the migrated functions' paths, and the journal's protections each fail and name
 `cargo xtask dev`, so no green run is compatible with the journal's forty-four protections never having
 been read. A database that answers and holds nothing is a database to migrate.
 
+`cargo xtask check` first runs `cargo fetch --locked`, so a fresh clone holds every
+package the lockfile names before any step asks cargo for the graph. Under `--offline` the
+fetch does not run and every cargo the gate starts is told to stay off the network, so a
+package missing from the machine fails instead of being downloaded, and is named with that
+command.
+
+`cargo xtask check` judges the history as well: every commit reachable from `HEAD` has a
+conventional subject and credits no agent, and no blob ever reachable is above the size
+limit unless its path is listed (`NOCTUA.md §22.5`). It needs the whole history, so a
+shallow clone is refused, and a tree with no `.git` says it was not judged.
+
+A push to `staging` or `main` releases that channel: `.github/workflows/release.yml`
+runs the gate on the pushed commit, the stack brought up, in a job that holds no secret
+and no token; then, in a job that waits for it and enters an environment only that branch
+can enter, it builds the release tool, mints the release App's token and runs
+`cargo xtask release --channel <branch> --publish --after-the-gate-job`, which runs no
+gate of its own. The gate holds that workflow to its two jobs, its steps, its keys and its
+expressions; refuses the token, an environment, a secret and a step's output in every
+other file GitHub runs (the workflows under `.github/` and a composite action's own file),
+and a publish or the release's gate stood aside in every other file CI reaches, the
+justfile and the scripts a step runs among them; and pins every action a workflow here
+uses to a commit, and every install to one crate, locked, at an exact version. Those rules read a file a line at a time, so the gate also refuses a
+line ended anywhere but at a line feed, or spaced with anything but a space or a tab, in
+a file CI reaches, and, in a file GitHub runs, a key not written out before its colon, a
+quote or a bracket not closed on the line that opens it, and a `#` those rules would take
+for a comment where YAML reads on. They read a file GitHub runs as GitHub does, a step's
+`name:` as a label, so the gate refuses a word that names one where a step finds a script
+to run.
+
 `cargo xtask check --offline` skips **nine** things — the advisory database, which is
-the one thing here that fetches anything (the audit's licence, ban and source checks
-read only the lockfile and still run); the PostgreSQL tests; the corroboration of
+fetched (the audit's licence, ban and source checks read only the lockfile and still
+run); the PostgreSQL tests; the corroboration of
 `migrations/` against what a database has actually applied; where `pg_temp` sits in
 the migrated functions' search paths; the journal's own protections, which are
 triggers and constraints held by the database and not by any file here; the bounds
@@ -90,6 +117,10 @@ what CI runs.
 
 `OFFLINE_SKIPS` in `xtask/src/check.rs` holds that number, and
 `the_documents_agree_about_what_offline_skips` holds this list to it.
+
+On macOS and Windows no stack runs (`NOCTUA.md §22.2`), so every one of those steps but
+the advisory database says it is not applicable on that system, by name, and that the
+Linux job runs it; the verdict names each one, and on Linux it holds the run to none.
 
 ## What is here
 
@@ -114,9 +145,13 @@ included — those it also applies to a scratch SQLite file and holds to the lis
 
 `AGENTS.md` is the operating manual for working here.
 
-## History
+## Branches and releases
 
-This repository has no git history yet, on purpose (`NOCTUA.md §5.3`): it takes its
-initial commit in Stage 12 of the plan. Until then there is no history to read a
-change against and nothing to restore from, so anything reusable belongs in one of
-the other Noctua repositories rather than here.
+`dev` is the default branch, and every feature branch's pull request targets it.
+`staging` and `main` are the release channels, each reached by a pull request from the
+branch below it, and a merge into either publishes that channel's release on GitHub:
+the version and the changelog are computed from the conventional commits, and nothing
+else chooses them (`NOCTUA.md §22`). Merges are merge commits, whose title and body are
+left as GitHub fills them from the pull request and never edited when merging; every
+commit is signed; and no branch's history is rewritten.
+`AGENTS.md` says how each of those is held.

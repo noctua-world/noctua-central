@@ -4,11 +4,11 @@
 //! compile into a log event**, proven by a compile-fail test rather than by a
 //! comment.
 //!
-//! **One shape per fixture, deliberately.** They were one file, and three of the
-//! four shapes reported a trait error while the fourth — a borrowed `&str` —
-//! reported none at all: a lifetime error comes out of borrow checking, and
-//! borrow checking does not run when type checking has already failed. The
-//! shape the wall most depends on was the one being masked by its neighbours.
+//! **One shape per fixture, deliberately.** Borrow checking does not run once
+//! type checking has failed, so a shape refused by a later stage than its
+//! neighbours would be masked by them, and a sentence two shapes share would
+//! not say which of them produced it. Each file holds one shape, and the only
+//! thing in it that can fail is the thing it is named for.
 //!
 //! EXPECT: the trait bound `String: LogValue` is not satisfied
 

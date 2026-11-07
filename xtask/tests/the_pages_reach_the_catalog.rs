@@ -3,12 +3,11 @@
 //! **The same gap as `the_registry_reaches_the_code.rs`, one artifact over.**
 //! `cargo xtask check` compares the files under `docs/` with what the emitter
 //! produces *now*, so an emitter that carries a value wrongly agrees with itself
-//! and the check is green. Nothing stood between the registries and the six
-//! Markdown pages at all: `grep -rn docs crates/*/tests xtask/tests` returned
-//! nothing.
+//! and the check is green. This file is what stands between the registries and
+//! the Markdown pages.
 //!
-//! The failure this was written for, reproduced with six simultaneous one-line
-//! mutations and a single `cargo xtask build`:
+//! The failure this exists for, reproduced with simultaneous one-line mutations
+//! and a single `cargo xtask build`:
 //!
 //! * every severity published as `info` — so `NC-JRNL-0001`, "the journal's hash
 //!   chain is broken", read as informational and retryable;
@@ -19,21 +18,21 @@
 //!   the *exact* failure `the_registry_reaches_the_code.rs` exists for;
 //! * every log field published as `U64`, and nothing optional.
 //!
-//! `cargo xtask check` was green through all six: 15 generated files matched,
-//! two generations were byte-identical, 382 tests passed. `NOCTUA.md §15.3`
-//! makes these pages normative — they are generated from the same source the
-//! code consumes *so that they cannot drift*, and they are the source the in-app
+//! Without this file, `cargo xtask check` is green through all of them, measured:
+//! every generated file matches, and the two generations are byte-identical.
+//! `NOCTUA.md §15.3` makes these pages normative — they are generated from the
+//! same source the code consumes *so that they cannot drift*, and they are the source the in-app
 //! pages will render — so a page that lies is a document that lies.
 //!
 //! # Two rules this file follows
 //!
 //! **Every mapping is written out here**, never asked of the emitter: a test
 //! that consults `severity_word` to check `severity_word` agrees with itself
-//! through any swap. That is what caught a `FieldType` swap one file over.
+//! through any swap. A mapping written out is what catches a `FieldType` swap
+//! one file over.
 //!
 //! **The pages are read from disk**, not regenerated. Comparing a fresh emission
-//! against a fresh emission is the `§19.3` failure this repository has already
-//! paid for once.
+//! against a fresh emission is the `§19.3` failure.
 
 use std::path::{Path, PathBuf};
 
@@ -113,11 +112,11 @@ fn rows(text: &str) -> Vec<Vec<String>> {
             let mut escaped = false;
             for character in line.trim_matches('|').chars() {
                 match character {
-                    // **The escape is kept.** Unescaping it was the other half
-                    // of the same mistake: both call sites build their expected
-                    // value with `replace('|', "\\|")`, so a *correct* page
-                    // failed on any sentence holding a pipe — which is exactly
-                    // what `cell()` exists for.
+                    // **The escape is kept.** Unescaping it is the other half
+                    // of the same mistake: an expected value built through
+                    // `cell_text` keeps the escape — a pipe is `\|` there too —
+                    // so a *correct* page would fail on any sentence holding a
+                    // pipe, which is exactly what `cell()` exists for.
                     '\\' if !escaped => {
                         escaped = true;
                         current.push('\\');
@@ -140,10 +139,10 @@ fn rows(text: &str) -> Vec<Vec<String>> {
 
 /// The row whose first cell is `key`, in a page's tables.
 ///
-/// **Exactly one, not the first.** `find` compared the first row with that key
-/// and never looked further, so an emitter publishing a code twice — once
-/// correctly and once with anything at all in it — was green: the first row
-/// satisfied every assertion and the second was read by nothing. A page that
+/// **Exactly one, not the first.** A `find` compares the first row with that key
+/// and never looks further, so an emitter publishing a code twice — once
+/// correctly and once with anything at all in it — is green under it: the first
+/// row satisfies every assertion and the second is read by nothing. A page that
 /// lists the same error code twice with two different meanings is worse than one
 /// that omits it, because a reader stops at the first.
 fn row<'a>(rows: &'a [Vec<String>], key: &str) -> &'a Vec<String> {
@@ -160,10 +159,10 @@ fn row<'a>(rows: &'a [Vec<String>], key: &str) -> &'a Vec<String> {
 
 /// The part of a page under one heading, from `## name` to the next `##`.
 ///
-/// **Everything below is read inside a section**, which is the fix for a whole
-/// class: `has(label, value)` and `matching.any(…)` searched the *page*, so any
-/// two entries' facts could be exchanged and every assertion still passed.
-/// Measured, on the registry that ships: `journal.verify` published as a
+/// **Everything below is read inside a section**, which closes a whole class:
+/// `has(label, value)` and `matching.any(…)` asked of the *page* let any two
+/// entries' facts be exchanged with every assertion still passing. Measured,
+/// on the registry that ships: `journal.verify` published as a
 /// mutating `Delete` and `limits.prune` as a non-mutating `Read` — a read-only
 /// command shown as destructive and a destructive one shown as needing no
 /// confirmation — with `cargo xtask check` green. That second half is
@@ -192,11 +191,11 @@ impl Counted {
 
     /// The floor: at least `least` cells, and never zero.
     ///
-    /// **Four of the five floors were `x >= x` and could never fire**, because
-    /// `least` was computed from the same catalog with the same per-entry
-    /// multiplier the loop had just used. Proved by the case they exist for: a
-    /// catalog with `errors`, `areas`, `limits.tables` and `limits.stores`
-    /// emptied compared **zero** cells and passed, `0 >= 0`. That is `§19.3`'s
+    /// **Never `x >= x`, which cannot fire.** A `least` computed from the same
+    /// catalog with the same per-entry multiplier the loop has just used is one.
+    /// Proved by the case floors exist for: with such floors, a catalog with
+    /// `errors`, `areas`, `limits.tables` and `limits.stores` emptied compares
+    /// **zero** cells and passes, `0 >= 0`. That is `§19.3`'s
     /// "gate wired to nothing", in the file whose header says a floor exists to
     /// prevent exactly it.
     ///
@@ -234,13 +233,12 @@ const fn severity_word(severity: Severity) -> &'static str {
 
 /// The sentence a raising state is published as, written out for the same reason.
 ///
-/// **This one asked `Raising::written` — the emitter's own function.** Every
-/// other word-mapping in this file is written out under the header that says
-/// why, and the reason this one was not is incidental: `Strategy::written` and
-/// `Level::written` are `pub(crate)` so a test *cannot* reach them, while
-/// `Raising::written` is `pub`. Swapping its two arms published the inverted
-/// sentence for all 29 codes with `cargo xtask check` byte-identical to a clean
-/// run, under the page's own pinned paragraph saying *"the column is the
+/// **Written out, not asked of `Raising::written` — the emitter's own
+/// function.** It is the one word-mapping here a test *could* ask the emitter
+/// for, because `Strategy::written` and `Level::written` are `pub(crate)` while
+/// `Raising::written` is `pub`; asked of it, swapping its two arms publishes the
+/// inverted sentence for every code with `cargo xtask check` byte-identical to
+/// a clean run, under the page's own pinned paragraph saying *"the column is the
 /// count"*. `raising` has no other published surface — there is no
 /// `ErrorCode::raising()` — so this is its only comparison.
 const fn raising_word(raising: Raising) -> &'static str {
@@ -268,18 +266,17 @@ const fn yes_no(value: bool) -> &'static str {
 
 /// The sentence the "what happens at lockout" column publishes.
 ///
-/// **The sixth mapping of this shape, and the one arm nothing compared.** It was
-/// written inline in the rate-limit loop as
+/// **The sixth mapping of this shape, with its arms apart.** The emitter's
+/// `what_a_lockout_does` is deliberately split into four, under a paragraph
+/// saying the spelled `refuse` and an absent `on_lockout` are two decisions that
+/// agree today and must be changeable apart. A mirror written inline as
 /// `(Some(_), Some(OnLockout::Refuse) | None)` — one arm with two alternatives —
-/// while the emitter's `what_a_lockout_does` had been deliberately split into
-/// four, under a paragraph saying the spelled `refuse` and an absent
-/// `on_lockout` are two decisions that agree today and must be changeable apart.
-/// The mirror put them back together, so the emitter's split was bounded by
-/// nothing: the mirror's arm split by hand and one half corrupted survives,
-/// where twelve sibling controls in this file all die to the same treatment.
+/// puts them back together and bounds the emitter's split by nothing: measured,
+/// that arm split by hand and one half corrupted survives, where twelve sibling
+/// controls in this file all die to the same treatment.
 ///
-/// **And the half that survives is the *spelled* one, which this said the other
-/// way round.** `catalog/limits.toml` spells `refuse` on no budget at all: four
+/// **And the half that survives is the *spelled* one.**
+/// `catalog/limits.toml` spells `refuse` on no budget at all: four
 /// budgets carry a `lockout_after`, three of them with no `on_lockout` — the
 /// `(Some(_), None)` arm — and the fourth is `device_pin`'s
 /// `on_lockout = "wipe-credential"`. So the arm no declared budget reaches is
@@ -308,10 +305,10 @@ const fn lockout_word(lockout_after: Option<u32>, on_lockout: Option<OnLockout>)
             "the stored credential is destroyed, so the next sign-in is a full \
              re-authentication"
         }
-        // **And `None` is a consequence, not a blank.** It rendered as an em dash
-        // on three rows that *have* a lockout, so a reader saw a lockout with no
+        // **And `None` is a consequence, not a blank.** Rendered as an em dash on
+        // the rows that *have* a lockout, it shows a reader a lockout with no
         // stated effect — while `model.rs` reads an absent value as refusing
-        // until the window passes, which is what the page says now.
+        // until the window passes, which is what the page says.
         (Some(_), Some(OnLockout::Refuse)) => {
             "further attempts are refused until the window passes"
         }
@@ -354,12 +351,11 @@ const fn counted_over_word(max_rows: Option<u64>, per: Option<Owner>) -> &'stati
 /// The answers this repository may publish to "can it be undone" for a command
 /// that changes state, written out by meaning.
 ///
-/// **A closed set, and not the absence of one word.** The assertion here was
-/// `!published.contains("yes")` over the three fixed sentences
-/// [`reversibility_word`] returns — none of which holds `yes`, so the predicate
-/// was true for every value it could range over. It was also asking this file's
-/// *mirror* rather than the page, so it judged a copy of the claim instead of
-/// the claim.
+/// **A closed set, and not the absence of one word.**
+/// `!published.contains("yes")` over the fixed sentences [`reversibility_word`]
+/// returns — none of which holds `yes` — is true for every value it can range
+/// over, and asked of this file's *mirror* rather than the page it judges a copy
+/// of the claim instead of the claim.
 ///
 /// Measured: the emitter's `Write` sentence changed to *"of course, the kernel
 /// reverses it each time"* in `crates/nc-catalog-compiler/src/docs.rs` **and**
@@ -373,15 +369,16 @@ const fn counted_over_word(max_rows: Option<u64>, per: Option<Owner>) -> &'stati
 /// file already records a rewording walking past one.
 ///
 /// So the set is written down, and a sentence that is not in it fails until
-/// somebody puts it there on purpose. **The `write` answer is a decision of
-/// Stage 11's**: `kernel.undo` and `kernel.redo` take back a step's store
+/// somebody puts it there on purpose. **The `write` answer is what the kernel's
+/// undo does**: `kernel.undo` and `kernel.redo` take back a step's store
 /// writes and the blobs it made, and refuse to pass a step that did anything
 /// else — the sentence says both, and names the two commands that do it.
 ///
 /// **And the answer of a `write` command undo stops at**, which every one the
-/// kernel runs on the realm itself is: the page told a reader `limits.prune`
-/// could be undone while the kernel makes every step that ran it a barrier,
-/// and this set accepted the sentence for every `write` command alike.
+/// kernel runs on the realm itself is: without it the page tells a reader
+/// `limits.prune` can be undone while the kernel makes every step that ran it a
+/// barrier, and a set with one `write` answer accepts that sentence for every
+/// `write` command alike.
 const REFUSALS: [&str; 3] = [
     "yes, for what the kernel keeps — its `store` writes and the blobs it made — through `kernel.undo` and `kernel.redo`; a step that left the machine or cannot be undone, with no compensation registered for it, is one undo stops at, and a timer it armed or an event it published stays as it is (§11.5)",
     "no — a step that ran it is one undo stops at (§11.5)",
@@ -394,11 +391,10 @@ const THE_HISTORY: [&str; 2] = ["kernel.undo", "kernel.redo"];
 
 /// What one command's block on `docs/commands.md` answers to "can it be undone".
 ///
-/// **Exactly one row, not the first** — [`row`]'s discipline, and this was
-/// written without it fifteen lines away from the paragraph that argues for it.
-/// `REFUSALS` closed the *value* and left the *row* open, so a second answer
-/// riding behind a compliant one was read by nothing. Measured, the emitter
-/// writing both rows into every command's block:
+/// **Exactly one row, not the first** — [`row`]'s discipline. `REFUSALS` closes
+/// the *value* and leaves the *row* open, so read as the first row, a second
+/// answer riding behind a compliant one is read by nothing. Measured, the
+/// emitter writing both rows into every command's block:
 ///
 /// ```text
 /// | Can it be undone | not automatically — it changes state and nothing here reverses it |
@@ -406,8 +402,8 @@ const THE_HISTORY: [&str; 2] = ["kernel.undo", "kernel.redo"];
 /// ```
 ///
 /// for `limits.prune`, a `DELETE … COMMIT` with no tombstone — `cargo xtask
-/// check` gave `check passed` at `ok 1077 test(s)`, byte for byte the baseline,
-/// and the drift gate passed too because the emitter is what produced it. The
+/// check` gave `check passed`, byte for byte the baseline, and the drift gate
+/// passed too because the emitter is what produced it. The
 /// three guards that look like they would see it do not: the prose pin skips
 /// every line opening with `|`, the dispatcher mirror asks membership, and the
 /// page-level needle is a phrase any rewording walks past.
@@ -432,14 +428,13 @@ fn the_undo_answer(block: &str, name: &str) -> String {
 /// when `the_history`.
 const fn reversibility_word(reversibility: Reversibility, the_history: bool) -> &'static str {
     // **The answer, not the registry's word.** The column asks "can it be
-    // undone" and published `read` / `write` — a permission, and not an answer.
+    // undone", and `read` / `write` is a permission, not an answer.
     //
-    // **And the answer has to be true**, which a mirror cannot say. This was a
-    // byte-for-byte copy of the emitter's own match, so when that said *"yes,
+    // **And the answer has to be true**, which a mirror cannot say. A
+    // byte-for-byte copy of the emitter's own match, when that says *"yes,
     // the kernel can reverse it"* of `limits.prune` — a `DELETE … ; COMMIT`
-    // with no tombstone and no copy, in a repository whose `AGENTS.md` says a
-    // destructive command here has no undo — this test asserted the false
-    // sentence and stayed green. `no_mutating_command_claims_more_undo_than_the_kernel_has`
+    // with no tombstone and no copy, which nothing reverses — asserts the false
+    // sentence and stays green. `no_mutating_command_claims_more_undo_than_the_kernel_has`
     // is the assertion that is not a mirror.
     match reversibility {
         Reversibility::Read => "nothing to undo — it changes nothing",
@@ -457,9 +452,9 @@ const fn reversibility_word(reversibility: Reversibility, the_history: bool) -> 
 /// Every line of prose the six generated pages publish, page by page.
 ///
 /// Pinned rather than derived, because prose is what the emitter authors: there
-/// is nothing in the registry to compare it against, and that is exactly why it
-/// was the one part of a generated page nothing read.
-const PROSE: [(&str, &str); 147] = [
+/// is nothing in the registry to compare it against, and that is exactly why
+/// it has to be written down here to be read at all.
+const PROSE: [(&str, &str); 146] = [
     (
         "capabilities.md",
         "<!-- Generated by nc-catalog-compiler — do not edit. -->",
@@ -624,7 +619,7 @@ const PROSE: [(&str, &str); 147] = [
     ),
     (
         "limits.md",
-        "Each table below says where its own bound comes from, in its own last column or in the prose above it. This paragraph used to point at *the last column of each table*, which is true of **Stores outside PostgreSQL** alone — the others end `Why it has no number`, `Salt`, `Cumulative` and `What it bounds`. Named rather than counted: a number in emitted prose is a number nothing recomputes when a table is added.",
+        "Each table below says where its own bound comes from, in its own last column or in the prose above it.",
     ),
     ("limits.md", "## Tables"),
     ("limits.md", "## Stores outside PostgreSQL"),
@@ -637,10 +632,6 @@ const PROSE: [(&str, &str); 147] = [
     (
         "limits.md",
         "Every authentication surface, per identifier and per client address. **Attempts before the delay starts** is how many are answered at once; after that the delay curve applies, escalating, its last value repeating (`§15.5`). A surface answers an unlimited number of attempts when its **Lockout** column reads `never` — which 6 of these do — and a curve ending at zero would say the same, though none here does. Lockout is a later number than the budget on purpose: a lockout below it would mean the curve never runs.",
-    ),
-    (
-        "limits.md",
-        "The prose here used to say *the first column of numbers*, which is `Window (s)`: a reader following it read `login` as answering 900 attempts at once.",
     ),
     (
         "limits.md",
@@ -666,7 +657,7 @@ const PROSE: [(&str, &str); 147] = [
     ("log-events.md", "# Log events"),
     (
         "log-events.md",
-        "Every event the central log can receive. **No field here can be written as free text at a logging call**: the kinds below are the only ones the registry has, `type = \"id\"` is refused outright, and a `String` cannot be made into a `LogValue` (`§15.4`). What that closes is a sentence a caller composed; what it does not close is a caller who encodes something into a value of a kind the registry does allow — `Snowflake` is written as its Crockford base32 text, and twelve of its characters are the caller’s. The source gate refuses the conversion at a logging call site, which is where it is visible; `crates/nc-log/src/value.rs` states the residual, and `NOCTUA.md §5.1` owns it. This paragraph used to say the log *holds no user data, because there is no type that could* — two rows below its own table listing that one.",
+        "Every event the central log can receive. **No field here can be written as free text at a logging call**: the kinds below are the only ones the registry has, `type = \"id\"` is refused outright, and a `String` cannot be made into a `LogValue` (`§15.4`). What that closes is a sentence a caller composed; what it does not close is a caller who encodes something into a value of a kind the registry does allow — `Snowflake` is written as its Crockford base32 text, and twelve of its characters are the caller’s. The source gate refuses the conversion at a logging call site, which is where it is visible; `crates/nc-log/src/value.rs` states the residual, and `NOCTUA.md §5.1` owns it.",
     ),
     (
         "log-events.md",
@@ -819,7 +810,7 @@ const PROSE: [(&str, &str); 147] = [
 /// The comment block `catalog/errors.reserved.toml` opens with.
 ///
 /// The checksum below it covers the reservations, not this, and the file is
-/// deliberately not drift-checked — so these lines were read by nothing.
+/// deliberately not drift-checked — so this list is what reads these lines.
 const LEDGER_HEADER: [&str; 20] = [
     "# The error codes this repository has used, and what each was reserved to",
     "# mean. Append-only: the compiler refuses to repoint or remove a line, because",
@@ -847,7 +838,7 @@ const LEDGER_HEADER: [&str; 20] = [
 ///
 /// **`each_page_names_the_registry_it_came_from` reads line two and nothing
 /// else.** Everything from line three down to the first table is free text the
-/// emitter assembles, and it was compared by nothing. Measured, each with
+/// emitter assembles, and this compares it. Measured, each with
 /// `cargo xtask build && cargo xtask check` green:
 ///
 /// ```text
@@ -865,11 +856,13 @@ const LEDGER_HEADER: [&str; 20] = [
 ///
 /// **And `catalog/errors.reserved.toml`'s header, which is outside its own
 /// checksum.** That checksum is taken over the reservations deliberately, and
-/// the ledger is deliberately not drift-checked, so its header was reachable
-/// from neither: rewritten to *"Advisory only: a line here may be edited or
-/// deleted by hand once the logs that mention the code have aged out"*, the
-/// file that exists to make "never reuse a code" enforceable shipped
-/// instructions to reuse one, with the whole gate green.
+/// the ledger is deliberately not drift-checked, so its header is reachable
+/// from neither: measured without
+/// `the_ledger_header_says_the_file_is_append_only`, rewritten to *"Advisory
+/// only: a line here may be edited or deleted by hand once the logs that
+/// mention the code have aged out"*, the file that exists to make "never reuse
+/// a code" enforceable ships instructions to reuse one, with the whole gate
+/// green.
 ///
 /// Pinned rather than derived, because prose is what the emitter authors: there
 /// is nothing in the registry to compare it against, and the two-place edit is
@@ -912,11 +905,11 @@ fn every_line_of_prose_a_page_publishes_is_written_down() {
 /// The header of `catalog/errors.reserved.toml`, which is outside its checksum.
 ///
 /// That checksum is taken over the reservations deliberately, and the ledger is
-/// deliberately not drift-checked, so its header was reachable from neither:
-/// rewritten to *"Advisory only: a line here may be edited or deleted by hand
-/// once the logs that mention the code have aged out"*, the file that exists to
-/// make "never reuse a code" enforceable shipped instructions to reuse one,
-/// with the whole gate green.
+/// deliberately not drift-checked, so its header is reachable from neither:
+/// without this test, rewritten to *"Advisory only: a line here may be edited
+/// or deleted by hand once the logs that mention the code have aged out"*, the
+/// file that exists to make "never reuse a code" enforceable ships instructions
+/// to reuse one, with the whole gate green.
 #[test]
 fn the_ledger_header_says_the_file_is_append_only() {
     let ledger = std::fs::read_to_string(root().join("catalog/errors.reserved.toml"))
@@ -938,9 +931,9 @@ fn the_ledger_header_says_the_file_is_append_only() {
 ///
 /// **A page can put every value under the wrong heading.** The row comparisons
 /// in this file key on the first cell and then read `row[1]`, `row[2]` by
-/// *position*, and the locale columns are the only ones ever resolved by name —
-/// so exchanging two labels in the emitter left every cell where it was and
-/// every assertion green:
+/// *position*, and the locale columns are the only ones resolved by name — so,
+/// without this list, exchanging two labels in the emitter leaves every cell
+/// where it was and every assertion green:
 ///
 /// ```text
 /// | Code | Retryable | Severity | Raised | … |
@@ -950,18 +943,17 @@ fn the_ledger_header_says_the_file_is_append_only() {
 ///
 /// A reader of `docs/errors.md` — which `NOCTUA.md §15.3` makes normative, and
 /// which the in-app pages will render — then reads that code as *not
-/// retryable → no* and its severity as `no`. The same hole was open on the
-/// limits, rate-limit and notification tables; only the log-event field table
-/// happened to be pinned, by an incidental literal in another test.
+/// retryable → no* and its severity as `no`. The limits, rate-limit and
+/// notification tables are read the same way, so this list holds every table.
 ///
 /// A written list, because a heading is prose the emitter authors rather than a
 /// value it copies: there is nothing in the registry to compare it against.
 #[test]
 fn every_page_publishes_its_values_under_the_headings_written_down_here() {
-    // Every heading, with how many tables carry it, compared as a whole. The
-    // list was nine entries checked with `any`, and `docs/limits.md` has four
-    // tables: the rate-limit one — ten rows by eight columns, the largest on
-    // these pages — was named nowhere. Measured, four of its labels exchanged in
+    // Every heading, with how many tables carry it, compared as a whole. Checked
+    // with `any` over a list that misses a table, the rate-limit one — ten rows
+    // by eight columns, the largest on these pages — is named nowhere. Measured,
+    // with such a list, four of its labels exchanged in
     // the emitter and the pages regenerated: `17 passed`, `check passed`, and
     // every verdict line byte-identical to the green run, while the page told a
     // reader that `device_pin`'s lockout threshold was its consequence and its
@@ -1050,10 +1042,10 @@ fn every_page_publishes_its_values_under_the_headings_written_down_here() {
     );
 
     // And the rate-limit table's rows are in the order the emitter claims, which
-    // is the one ordering on these pages that regressed unnoticed: the comment
-    // above the sort records it being fixed once — "a reader scanning for
-    // `activation_code` looked in the wrong place" — and the row comparison
-    // finds each row by `(surface, per which)` and never looks at where it sits.
+    // is an ordering a reader leans on: the comment above the sort says why — "a
+    // reader scanning for `activation_code` looked in the wrong place" — and the
+    // row comparison finds each row by `(surface, per which)` and never looks at
+    // where it sits.
     let limits = page("limits.md");
     let surfaces: Vec<&str> = limits
         .lines()
@@ -1130,8 +1122,8 @@ fn no_mutating_command_claims_more_undo_than_the_kernel_has() {
     assert!(mutating > 0, "no command in the registry changes state");
     // **And the command undo stops at, by name, on the page.** The kernel makes
     // a step that pruned a table a barrier (`leaves_the_machine` in
-    // `crates/nc-kernel/src/history.rs`), and its row said "yes": a sentence
-    // in the set, answered for the wrong command.
+    // `crates/nc-kernel/src/history.rs`), and a row saying "yes" there is a
+    // sentence in the set, answered for the wrong command.
     let pruned = the_undo_answer(section(&page, "limits.prune"), "limits.prune");
     assert_eq!(
         pruned, REFUSALS[1],
@@ -1149,23 +1141,22 @@ fn no_mutating_command_claims_more_undo_than_the_kernel_has() {
         "the page still tells a reader something here can be undone"
     );
 
-    // **And the generated crate, which is what a kernel author reads.** This
-    // guard was scoped to the page while `crates/nc-catalog/src/commands.rs`
-    // documented `Reversibility::Write` as "changes state the kernel can
-    // reverse" — the sentence `docs.rs`'s own comment calls "a safety claim
-    // nothing supports", in the file Stage 11 compiles against. The needle also
-    // missed it: the crate's wording had no trailing `it`.
+    // **And the generated crate, which is what a kernel author reads.** A guard
+    // scoped to the page misses `crates/nc-catalog/src/commands.rs` documenting
+    // `Reversibility::Write` as "changes state the kernel can reverse" — the
+    // sentence `docs.rs`'s own comment calls "a safety claim nothing supports",
+    // in the file the kernel compiles against. A needle misses it too when the
+    // wording has no trailing `it`.
     //
-    // **And the compiler's own enum, one file further out.** The guard named
-    // the generated crate and the emitter, and `Reversibility` is *declared* in
-    // `crates/nc-catalog-compiler/src/model.rs` — a `pub` type in a `pub`
-    // module, so `/// Changes state the kernel can reverse.` was what rustdoc
-    // published as this platform's definition of a `write` command, against
-    // `docs/commands.md`, against the generated crate, and against `AGENTS.md`.
-    // Measured: the same sentence moved one file over into
-    // `crates/nc-catalog/src/commands.rs` fails this at once; left where it
-    // actually was, the tree printed `check passed`. Every file that publishes
-    // the definition is read, not the two somebody happened to think of.
+    // **And the compiler's own enum, one file further out.** `Reversibility` is
+    // *declared* in `crates/nc-catalog-compiler/src/model.rs` — a `pub` type in
+    // a `pub` module, so its doc comment is what rustdoc publishes as this
+    // platform's definition of a `write` command, against `docs/commands.md`,
+    // against the generated crate, and against `AGENTS.md`. Measured, with a
+    // guard naming only the generated crate and the emitter: the sentence in
+    // `crates/nc-catalog/src/commands.rs` fails at once, and the same sentence
+    // in `model.rs` leaves the tree at `check passed`. Every file that publishes
+    // the definition is read.
     for source in [
         "crates/nc-catalog/src/commands.rs",
         "crates/nc-catalog-compiler/src/model.rs",
@@ -1193,7 +1184,7 @@ fn no_mutating_command_claims_more_undo_than_the_kernel_has() {
             assert!(
                 !published.contains(claim),
                 "`{source}` documents `{claim}`, and that is what a kernel author reads — \
-                 `AGENTS.md` says a destructive command in this tree has no undo"
+                 undo stops at a destructive command rather than reversing it"
             );
         }
     }
@@ -1201,9 +1192,9 @@ fn no_mutating_command_claims_more_undo_than_the_kernel_has() {
 
 /// The word a field kind is published as.
 ///
-/// The mapping a swap hides. `ErrorCode` and `Id` exchanged in the emitter left
-/// every descriptor-level test green one file over, because both sides consulted
-/// the same function.
+/// The mapping a swap hides. With both sides consulting the emitter's own
+/// function, `ErrorCode` and `Id` exchanged in the emitter leave every
+/// descriptor-level test one file over green.
 const fn kind_word(kind: FieldType) -> &'static str {
     match kind {
         FieldType::U64 => "count",
@@ -1228,14 +1219,13 @@ fn every_error_is_published_with_its_own_severity_and_retryability() {
         let row = row(&published, &format!("`{}`", entry.code));
         counted.same(&row[1], severity_word(entry.severity), &entry.code);
         counted.same(&row[2], yes_no(entry.retryable), &entry.code);
-        // **Whether the platform raises it at all**, which the page could not
-        // say: its header read "every error the platform can return" over seven
-        // codes nothing constructs.
+        // **Whether the platform raises it at all**: without it, a header
+        // reading "every error the platform can return" sits over codes nothing
+        // constructs.
         counted.same(&row[3], raising_word(entry.raising), &entry.code);
-        // **The parameters**, which the registry declared and this page did not
-        // publish: `§10.9` makes a response a key *plus parameters*, and a
-        // caller reading this page to build one could not learn what the
-        // sentence asks for.
+        // **The parameters**, which the registry declares: `§10.9` makes a
+        // response a key *plus parameters*, and a caller reading this page to
+        // build one cannot otherwise learn what the sentence asks for.
         counted.same(&row[4], &parameters(&entry.params), &entry.code);
         // The description, escaped for a table cell but otherwise unchanged.
         assert!(
@@ -1255,9 +1245,9 @@ fn every_error_is_published_with_its_own_severity_and_retryability() {
     );
     // **In the order a reader looks a code up.** The registry is append-only, so
     // its declaration order is reservation order — and a code added to an
-    // existing area lands at the bottom: `NC-JRNL-0006`, `-0007` and `-0008`
-    // were published below `NC-IDS-0006`, with `NC-IDS-0007` below them. The
-    // generated enum sorts, so the two surfaces disagreed about one list.
+    // existing area lands at the bottom: unsorted, `NC-JRNL-0006`, `-0007` and
+    // `-0008` publish below `NC-IDS-0006`, with `NC-IDS-0007` below them. The
+    // generated enum sorts, so the two surfaces would disagree about one list.
     let codes: Vec<&str> = published
         .iter()
         .filter_map(|row| row[0].strip_prefix('`')?.strip_suffix('`'))
@@ -1334,8 +1324,8 @@ fn every_limit_is_published_with_the_numbers_that_bound_it() {
             &row[4],
             &table
                 .max_rows
-                // **Not "the policy pack".** That named a live mechanism for a
-                // table nothing bounds; the page now says `none` and carries the
+                // **Not "the policy pack".** That names a live mechanism for a
+                // table nothing bounds; the page says `none` and carries the
                 // registry's own `pack_reason` in a column of its own.
                 .map_or_else(|| "none".to_owned(), |rows| rows.to_string()),
             name,
@@ -1348,14 +1338,15 @@ fn every_limit_is_published_with_the_numbers_that_bound_it() {
                 .map_or_else(|| "—".to_owned(), |batch| batch.to_string()),
             name,
         );
-        // **And the last column, which was the one that mattered most and the
-        // one nothing read.** `pack_reason` is the whole published justification
+        // **And the last column, which matters most.** `pack_reason` is the
+        // whole published justification
         // for a table `§15.8` refuses to bound — for `journal_entries` it is the
         // sentence saying audit retention is a per-realm policy-pack property
         // and that the table grows without limit, "a gap with a date on it
-        // rather than a bound". `load.rs` forces the registry to carry it; the
-        // page could drop it for an em dash with `cargo xtask check` green,
-        // measured, so the row read `| none | — |` and the reason was nowhere.
+        // rather than a bound". `load.rs` forces the registry to carry it;
+        // without this the page can drop it for an em dash with
+        // `cargo xtask check` green, measured, so the row reads `| none | — |`
+        // and the reason is nowhere.
         counted.same(
             &row[7],
             &table
@@ -1384,26 +1375,26 @@ fn every_limit_is_published_with_the_numbers_that_bound_it() {
             ),
             name,
         );
-        // **Who enforces it**, which the code side compares and this did not —
-        // so the page could publish "PostgreSQL's own pruner, which runs on
-        // every commit" for the log store's thirty-day retention with the whole
-        // gate green. `§15.3` makes these pages normative, and naming the wrong
+        // **Who enforces it**, which the code side compares too — without it the
+        // page can publish "PostgreSQL's own pruner, which runs on every commit"
+        // for the log store's thirty-day retention with the whole gate green.
+        // `§15.3` makes these pages normative, and naming the wrong
         // enforcer is the one thing a reader of a limits page acts on.
         counted.same(&row[3], &cell_text(&store.enforced_by), name);
     }
 
-    // **The key-derivation costs**, which were published as zero with the whole
-    // gate green. A published Argon2id cost of 0 is a document telling an
+    // **The key-derivation costs**, which can otherwise be published as zero
+    // with the whole gate green. A published Argon2id cost of 0 is a document telling an
     // operator their passwords are protected by nothing.
     for (purpose, argon) in [
         ("password", catalog.limits.argon2id.password),
         ("device PIN", catalog.limits.argon2id.device_pin),
     ] {
         let row = row(&published, purpose);
-        // **In the unit a reader thinks in.** Every one of these was a bare
-        // number in a column whose header named no unit: `Output 32` and
-        // `Salt 16` are *bytes*, and a reader assuming bits is out by eight.
-        // The page owns a humanizer and applied it to one figure.
+        // **In the unit a reader thinks in.** A bare number in a column whose
+        // header names no unit misleads: `Output 32` and `Salt 16` are *bytes*,
+        // and a reader assuming bits is out by eight. The page owns a
+        // humanizer, and this holds every figure here to it.
         counted.same(
             &row[1],
             &format!(
@@ -1558,11 +1549,10 @@ fn every_command_is_published_with_what_a_dispatcher_decides_on() {
         // commands' facts could be exchanged with every assertion still passing.
         let mine = rows(section(&text, &entry.name));
         // **Exactly one row per label, not at least one.** `the_undo_answer`
-        // argues for this fifteen lines above and the other four labels were
-        // read with `any`, so a *second* row under the same label published
-        // beside the right one and this stayed green: measured, one literal
-        // added to the emitter, `cargo xtask build`, then `check passed` with
-        // 1288 test(s) — and `limits.prune`, a `DELETE … COMMIT` command,
+        // argues for this above; read with `any`, a *second* row under the same
+        // label published beside the right one leaves this green: measured, one
+        // literal added to the emitter, `cargo xtask build`, then
+        // `check passed` — and `limits.prune`, a `DELETE … COMMIT` command,
         // published as both `Delete` and `Read`, eight lines under the page's
         // own paragraph saying every `Delete` command needs a quorum. A reader
         // stops at the first row, and the first row is whichever the emitter
@@ -1602,8 +1592,8 @@ fn every_command_is_published_with_what_a_dispatcher_decides_on() {
             counted.0 += 1;
         }
         // **The keybinding row exists only when there is a keybinding**, which
-        // is why it is not in the list above: `Keybinding | — |` was on every
-        // row of the shipped page, because nothing declares one.
+        // is why it is not in the list above: otherwise `Keybinding | — |` sits
+        // on every row of the shipped page, because nothing declares one.
         match entry.keybinding.as_deref() {
             Some(key) => assert!(
                 has("Keybinding", &format!("`{key}`")),
@@ -1625,8 +1615,8 @@ fn every_command_is_published_with_what_a_dispatcher_decides_on() {
         );
         counted.0 += 1;
     }
-    // **Every command published as a non-mutating `Read`** was the mutation that
-    // went out green. `mutating` is what undo, the journal and the allowlist
+    // **Every command published as a non-mutating `Read`** is the mutation that
+    // goes out green without this. `mutating` is what undo, the journal and the allowlist
     // read; `Irreversible` is what forces a human confirmation.
     assert!(
         catalog.commands.iter().any(|entry| entry.mutating),
@@ -1654,15 +1644,15 @@ fn every_log_event_is_published_with_the_kinds_the_registry_gave_it() {
             "`{}` has no section on the page",
             entry.name
         );
-        // **Inside this event's own section.** Both of these were page-global,
-        // so nine of eleven events could be published carrying the *next*
-        // event's level and the next event's field table with everything green.
+        // **Inside this event's own section.** Page-global, these let most
+        // events be published carrying the *next* event's level and the next
+        // event's field table with everything green.
         let mine = section(&text, &entry.name);
-        // **Written out, not `{:?}`.** This compared the page against the same
-        // `Debug` spelling the emitter used, so a variant rename changed the
-        // published page and this test with it — and the page published
-        // `OldestFirst` where the registry says `oldest-first`, with the test
-        // agreeing because both sides asked the same wrong question.
+        // **Written out, not `{:?}`.** Compared against the same `Debug`
+        // spelling the emitter uses, a variant rename changes the published page
+        // and this test with it — and the page publishes `OldestFirst` where the
+        // registry says `oldest-first`, with the test agreeing because both
+        // sides ask the same wrong question.
         assert!(
             mine.contains(&format!("Level: `{}`\n", level_word(entry.level))),
             "`{}` is `{}` and its own section says otherwise",
@@ -1704,8 +1694,8 @@ fn every_log_event_is_published_with_the_kinds_the_registry_gave_it() {
         kinds.len() > 1,
         "every field is one kind, so the kind column proves nothing"
     );
-    // Derived, not the constant `20` against an actual 46 — 57% slack, on the
-    // one page that had both scoping holes, while every other floor scaled.
+    // Derived, not a constant: a constant floor is slack the moment the page
+    // grows, while every other floor scales.
     let fields: usize = catalog.events.iter().map(|entry| entry.fields.len()).sum();
     counted.floor(fields * 2, "log-events.md");
 }
@@ -1759,8 +1749,8 @@ fn every_email_publishes_the_parameters_it_requires() {
 
 #[test]
 fn every_notification_publishes_its_severity_and_its_parameters() {
-    // Both were published as constants — `info` and `none` — with the whole gate
-    // green, and nothing here read either. A notification's severity is what
+    // Published as constants — `info` and `none` — both leave the whole gate
+    // green without this, measured. A notification's severity is what
     // decides how loudly a person is interrupted.
     let catalog = catalog();
     let text = page("notifications.md");
@@ -1784,41 +1774,39 @@ fn every_notification_publishes_its_severity_and_its_parameters() {
 
 /// A value as a table cell publishes it.
 ///
-/// **The escaper itself, not a copy of it.** This mirrored `docs.rs::cell` by
-/// hand and its doc said the same escaping applied; it applied neither
-/// `printable` nor the `<` arm — and that arm exists because a locale sentence
-/// reading *"Ask &lt;your administrator&gt; to look."* put a raw tag into a
-/// published table. So the first registry value holding an angle bracket made
-/// **this test** fail with the page correct: measured on 2026-09-11 with
-/// `enforced_by` given a `<docker-compose.yml>`, the page said `&amp;lt;` and
-/// the mirror said `<`, and the refusal named `docs/limits.md` — which is the
-/// outcome `docs.rs`'s own comment argues against, a page blamed for a registry
-/// line.
+/// **The escaper itself, not a copy of it.** A hand mirror of `docs.rs::cell`
+/// that applies neither `printable` nor the `<` arm — and that arm exists
+/// because a locale sentence reading *"Ask &lt;your administrator&gt; to
+/// look."* put a raw tag into a published table — makes **this test** fail
+/// with the page correct on the first registry value holding an angle bracket:
+/// measured with `enforced_by` given a `<docker-compose.yml>`, the page says
+/// `&amp;lt;` and the mirror says `<`, and the refusal names `docs/limits.md` —
+/// which is the outcome `docs.rs`'s own comment argues against, a page blamed
+/// for a registry line.
 ///
-/// **What the trade costs, since both sides now call one function.** This
-/// comparison can no longer notice a change to the escaping. That is acceptable
+/// **What the trade costs, with both sides calling one function.** This
+/// comparison cannot notice a change to the escaping. That is acceptable
 /// only because the escaper has gates that do *not* mirror it: dropping the `<`
 /// arm is caught by `no_doc_line_or_cell_carries_an_invisible_character`, and
 /// dropping `printable` by `docs::tests::nothing_a_translator_can_write_ends_a_cell_early`.
-/// Both were measured before this was written.
+/// Both catches are measured.
 fn cell_text(text: &str) -> String {
     nc_catalog_compiler::cell_for_tests(text)
 }
 
-// **Five more comparisons call it now, and they used to mirror it by hand.**
-// The mirror was `.replace('|', "\\|").replace(['\n', '\r'], " ")`, which is
-// what this function did two rounds ago and is not what it does: `printable`
-// runs first and `<` becomes `&lt;`, because a page is Markdown with HTML in it.
-// So an ordinary sentence holding an angle bracket — the exact shape the `<` arm
-// was added for — made **the test** fail with the page correct, and named a
-// generated file rather than the registry line the sentence came from.
+// **Where a comparison escapes a cell, it calls this rather than a hand mirror.**
+// A mirror like `.replace('|', "\\|").replace(['\n', '\r'], " ")` is not what
+// this function does: `printable` runs first and `<` becomes `&lt;`, because a
+// page is Markdown with HTML in it. So an ordinary sentence holding an angle
+// bracket — the exact shape the `<` arm exists for — makes **the test** fail
+// with the page correct, and names a generated file rather than the registry
+// line the sentence came from.
 //
-// The cost is the same one round forty-two wrote down for the first site: both
-// sides being one function means these comparisons can no longer see an
-// escaping change. That is acceptable only because the escaper is held without
-// mirroring elsewhere, and it is — measured here, not assumed: with `<` no
-// longer escaped, and again with the bar no longer escaped,
-// `cargo test -p nc-catalog-compiler` fails both times.
+// The cost is the one written above for the first site: both sides being one
+// function means these comparisons cannot see an escaping change. That is
+// acceptable only because the escaper is held without mirroring elsewhere, and
+// it is — measured here, not assumed: with `<` not escaped, and again with the
+// bar not escaped, `cargo test -p nc-catalog-compiler` fails both times.
 
 /// How a parameter list is published.
 fn parameters(params: &[String]) -> String {
@@ -1856,10 +1844,10 @@ fn every_log_event_publishes_the_line_that_describes_it() {
               places, which is how three of them went uncompared"
 )]
 fn every_sentence_is_published_under_the_locale_it_came_from() {
-    // **The columns are what the page is for**, and nothing compared them.
-    // Swapping which locale each column draws from published every user-visible
-    // sentence under the wrong language heading — Portuguese under `en`, English
-    // under `pt-BR` — with `check passed` and 414 tests. The generated Rust stays
+    // **The columns are what the page is for.** Without this, swapping which
+    // locale each column draws from publishes every user-visible sentence under
+    // the wrong language heading — Portuguese under `en`, English under
+    // `pt-BR` — with `check passed`, measured. The generated Rust stays
     // correct through that, so the *documents* are the only thing that lies, and
     // `docs.rs`'s own header says a reader comparing the two languages is doing
     // the thing this surface exists for.
@@ -1907,12 +1895,12 @@ fn every_sentence_is_published_under_the_locale_it_came_from() {
     }
     let _ = compared;
 
-    // **And the other three pages that carry locale columns.** Fix #1 was
-    // applied to `errors.md`, where the defect was found, and left standing on
-    // the rest: `messages()` drives `notifications.md` and `emails.md`, and
-    // `commands()` writes its own `**{tag}** —` lines. Reversing the locale each
-    // column draws from **in `messages()` only** published Portuguese under `en`
-    // and English under `pt-BR` on both pages, with everything green.
+    // **And the other three pages that carry locale columns**, not only
+    // `errors.md`: `messages()` drives `notifications.md` and `emails.md`, and
+    // `commands()` writes its own `**{tag}** —` lines. Measured with `errors.md`
+    // alone checked: reversing the locale each column draws from **in
+    // `messages()` only** publishes Portuguese under `en` and English under
+    // `pt-BR` on both pages, with everything green.
     for (name, entries) in [
         (
             "notifications.md",
@@ -2033,11 +2021,11 @@ fn every_sentence_is_published_under_the_locale_it_came_from() {
 
 #[test]
 fn every_rate_limit_is_published_with_the_numbers_that_bound_it() {
-    // Zeroing every one of them published `login` and `activation_code` as
-    // answering an unlimited number of attempts — which the page's own sentence
-    // three lines above the table says is what a curve ending at zero means —
-    // with `check passed` and formatting and lints clean. Nothing read any of
-    // these ten rows.
+    // Without this, zeroing every one of them publishes `login` and
+    // `activation_code` as answering an unlimited number of attempts — which the
+    // page's own sentence three lines above the table says is what a curve
+    // ending at zero means — with `check passed` and formatting and lints clean,
+    // measured. These rows are read here.
     let catalog = catalog();
     let published = rows(&page("limits.md"));
     let mut counted = Counted::default();
@@ -2051,10 +2039,10 @@ fn every_rate_limit_is_published_with_the_numbers_that_bound_it() {
             ("address", &limit.per_address),
         ] {
             // **Exactly one, which is what every other table on this page
-            // asks.** This was `.find(…)`, and a reader stops at the first —
+            // asks**, not a `.find(…)`: a reader stops at the first —
             // `row()`'s whole doc says so. The page→registry walk asks only
             // membership plus `judged >= declared`, so a *second* `login` row
-            // raised `judged` and passed: measured, one `out.push_str` in
+            // raises `judged` and passes it: measured, one `out.push_str` in
             // `docs.rs` emitting `| `login` | per identifier | 900 | 100000 | 0
             // | never | there is no lockout on this surface | no |` in sorted
             // position gave `16 passed`, `ok 15 generated file(s) match the
@@ -2091,7 +2079,8 @@ fn every_rate_limit_is_published_with_the_numbers_that_bound_it() {
                     .lockout_after
                     // **With the denominator, which the two numbers do not share.**
                     // `after 10` and `after 8` are ten failures inside the window and
-                    // eight ever, and the column said neither.
+                    // eight ever, and without the denominator the column says
+                    // neither.
                     .map_or_else(
                         || "never".to_owned(),
                         |after| {
@@ -2107,14 +2096,14 @@ fn every_rate_limit_is_published_with_the_numbers_that_bound_it() {
                     ),
                 &limit.surface,
             );
-            // **What happens at lockout**, which reached the generated code and
-            // no page at all: it is the one consequence in this table that is
-            // not a delay — `device_pin` destroys the stored credential
-            // (`§10.6`) — and a reader of the published limits could not see it.
-            // **And whether there is a lockout at all**, which this did not
-            // ask: six rows reading `Lockout: never` published a consequence
-            // for one anyway — the enumeration DoS `catalog/limits.toml`
-            // forbids over exactly those rows.
+            // **What happens at lockout**, which reaches the generated code and
+            // must reach the page: it is the one consequence in this table that
+            // is not a delay — `device_pin` destroys the stored credential
+            // (`§10.6`) — and a reader of the published limits has to see it.
+            // **And whether there is a lockout at all**: without it, rows
+            // reading `Lockout: never` can publish a consequence for one
+            // anyway — the enumeration DoS `catalog/limits.toml` forbids over
+            // exactly those rows.
             counted.same(
                 &row[6],
                 lockout_word(budget.lockout_after, budget.on_lockout),
@@ -2151,10 +2140,10 @@ fn every_rate_limit_is_published_with_the_numbers_that_bound_it() {
 
 #[test]
 fn a_line_break_in_a_message_cannot_break_the_table_it_is_in() {
-    // `cell()` collapses `\n`, `\r`, U+2028 and U+2029 to a space, and only the
-    // errors page had a row comparison that would notice one — and only
-    // incidentally, by the row going missing. Removing the collapse while
-    // keeping the pipe escape left the whole suite green across 28 binaries.
+    // `cell()` collapses `\n`, `\r`, U+2028 and U+2029 to a space, and the
+    // errors page's row comparison would notice one only incidentally, by the
+    // row going missing. Without this test, removing the collapse while keeping
+    // the pipe escape leaves the suite green, measured.
     //
     // Asserted as a property of every page rather than of one: a table row is a
     // line, so a value holding a line break ends the row early and every column
@@ -2197,10 +2186,10 @@ fn a_line_break_in_a_message_cannot_break_the_table_it_is_in() {
 
 #[test]
 fn every_section_on_every_page_is_an_entry_the_registry_declares() {
-    // **The pages were checked in one direction only.** Every test here walks
-    // the registry and asks "is it on the page"; none asked "is everything on
-    // the page in the registry". Measured: an emitter adding one command section
-    // and one error row that no registry declares published
+    // **The other direction.** The registry-to-page tests here walk the
+    // registry and ask "is it on the page"; this one asks "is everything on the
+    // page in the registry". Measured without it: an emitter adding one command section and
+    // one error row that no registry declares published
     //
     //     ## `audit.disable`  | Action | `Read` | … | Keybinding | `C-c C-x` |
     //     **en** — Disable the audit log — Turns the command journal off.
@@ -2259,11 +2248,11 @@ fn every_section_on_every_page_is_an_entry_the_registry_declares() {
     checked += every_row_of_the_limits_page_is_declared(&catalog);
     checked += every_row_of_the_capabilities_page_is_declared(&catalog);
 
-    // **And `docs/log-events.md`'s field rows, which nothing walked in this
-    // direction.** The registry→page walk asserts a row exists for each declared
-    // field; the prose pin drops every line starting `|`, and the heading pin
-    // reads header rows only — so a table *body* row was outside every
-    // mechanism. Measured: one literal `| \`operator_note\` | free text | no |`
+    // **And `docs/log-events.md`'s field rows, in this direction too.** The
+    // registry→page walk asserts a row exists for each declared field; the
+    // prose pin drops every line starting `|`, and the heading pin reads header
+    // rows only — so a table *body* row is outside every other mechanism.
+    // Measured: one literal `| \`operator_note\` | free text | no |`
     // added after the field loop published eleven rows, one per event, on the
     // page whose own emitted header reads *"No field here can carry free
     // text"*, with `cargo xtask check` byte-identical to a clean run.
@@ -2437,11 +2426,10 @@ fn every_row_of_the_limits_page_is_declared(catalog: &Catalog) -> usize {
     //
     // **The page's spelling, and the rows are selected without backticks.** The
     // Key-derivation table writes `| password |` and `| device PIN |` as plain
-    // literals, and this walk required a backtick — so neither row was reached
-    // and the arm below was never entered. The list held `device_pin`, the
-    // *registry field* spelling, which would have failed had it ever run: the
-    // list is the proof the arm was dead. The registry→page direction 750 lines
-    // up has `"device PIN"` and is correct.
+    // literals, so a walk requiring a backtick reaches neither row and never
+    // enters the arm below — and a list holding `device_pin`, the *registry
+    // field* spelling, fails the moment the arm runs. The registry→page
+    // direction above holds `"device PIN"` too.
     let derivations: [&str; 2] = ["password", "device PIN"];
     // The kernel's limits, by the key `[kernel]` writes each under.
     let kernel: Vec<&str> = catalog
@@ -2495,8 +2483,8 @@ fn every_row_of_the_limits_page_is_declared(catalog: &Catalog) -> usize {
     // `checked >= commands + events + errors` = 42, against contributions of
     // fifteen sections, twenty-nine error rows, thirteen limits rows and
     // seventeen area rows — so any one sub-walk could go dark and the total
-    // still paid it. Measured: the Key-derivation arm was dead for exactly that
-    // reason and nothing said so.
+    // still paid it. Measured: a Key-derivation arm dead for exactly that
+    // reason goes unreported without this floor.
     let declared = tables.len() + stores.len() + surfaces.len() + derivations.len() + kernel.len();
     assert!(
         judged >= declared,
@@ -2509,9 +2497,10 @@ fn every_row_of_the_limits_page_is_declared(catalog: &Catalog) -> usize {
 
 #[test]
 fn each_page_names_the_registry_it_came_from() {
-    // Every generated file's `Source:` header set to the bare directory left the
-    // whole gate green, and that line is what tells a reader which registry to
-    // edit. The pages carry the same line and had the same gap.
+    // Every generated file's `Source:` header set to the bare directory leaves
+    // the whole gate green without a check of it, and that line is what tells a
+    // reader which registry to edit. The pages carry the same line, and this is
+    // their check.
     for (name, source) in [
         ("errors.md", "catalog/errors.toml and catalog/i18n/"),
         (
@@ -2529,7 +2518,7 @@ fn each_page_names_the_registry_it_came_from() {
     ] {
         let text = page(name);
         // **The whole line, in its place**, like the Rust-side twin. A bare
-        // `contains` over the page passed a header truncated to
+        // `contains` over the page passes a header truncated to
         // `<!-- Source: catalog/. -->` with the real path buried in body prose —
         // and that line is the only thing telling a reader which registry to
         // edit.
@@ -2612,7 +2601,7 @@ fn every_lockout_is_published_as_the_sentence_it_names() {
 ///
 /// **The mirrors are only asserted where the registry reaches them.** Each
 /// `*_word` here is read by a loop over the declared entries, so an arm no
-/// entry reaches is compared against nothing — and three of them are in that
+/// entry reaches is compared against nothing — and some of them are in that
 /// position today. `catalog/log-events.toml` declares no `trace` event, so
 /// `level_word`'s first arm is dead; `catalog/commands.toml` declares `read`
 /// and `write` and no `irreversible`, so `reversibility_word`'s third arm is
@@ -2621,28 +2610,27 @@ fn every_lockout_is_published_as_the_sentence_it_names() {
 /// mirrors: `check passed`, every verdict line identical, with
 /// `no_mutating_command_claims_more_undo_than_the_kernel_has` reading this very function.
 ///
-/// **And [`kind_word`], which is the fifth table of this shape and had ten arms
-/// with four of them dead.** `catalog/log-events.toml` declares 6 of
-/// `FieldType`'s 10 kinds, so `I64`, `Bool`, `Id` and `Enum` are reached by no
-/// declared field and the loop in
+/// **And [`kind_word`], which is the fifth table of this shape, with arms no
+/// declared field reaches.** A kind no field in `catalog/log-events.toml` is
+/// declared with — `I64` and `Id` are two — is an arm the loop in
 /// `every_field_is_published_with_its_kind_and_whether_it_is_optional` compares
-/// them against nothing. Measured with a distinct wrong spelling on each of the
-/// four — identical bodies trip clippy's `match_same_arms`, so they have to
-/// differ — `17 passed` and `cargo xtask check` byte-identical to a clean run;
-/// the same corruption on one *live* arm is a failure. `severity_word`,
-/// `strategy_word` and `raising_word` were each measured too and every arm of
-/// those three is reached, so this is the one table left. Its compiler-side
-/// twin, `every_field_kind_is_spelled_as_the_thing_it_names` in
-/// `nc-catalog-compiler`'s `model.rs`, was written out for this reason.
+/// against nothing. Measured with four kinds undeclared and a distinct wrong
+/// spelling on each of them — identical bodies trip clippy's `match_same_arms`,
+/// so they have to differ — `17 passed` and `cargo xtask check` byte-identical
+/// to a clean run; the same corruption on one *live* arm is a failure. Its
+/// compiler-side twin, `every_field_kind_is_spelled_as_the_thing_it_names` in
+/// `nc-catalog-compiler`'s `model.rs`, is written out for this reason.
+/// `severity_word`, `strategy_word` and `raising_word` were each measured too,
+/// and every arm of those three is reached.
 ///
 /// **And [`lockout_word`], the sixth table, whose
 /// `(Some(_), Some(OnLockout::Refuse))` arm is reached by no declared budget.**
 /// `catalog/limits.toml` spells `refuse` on no budget at all — three of its four
 /// `lockout_after` rows declare no `on_lockout` and the fourth is
 /// `wipe-credential` — so the loop over the declared limits compares the spelled
-/// half against nothing, and the mirror had it merged into the absent one as a
-/// single arm with two alternatives, which is exactly what the emitter it
-/// mirrors was split apart to prevent.
+/// half against nothing, and a mirror merging it into the absent one as a
+/// single arm with two alternatives undoes exactly what the emitter it mirrors
+/// is split apart to prevent.
 ///
 /// Written out as exhaustive `match`es, the shape
 /// `every_field_kind_generates_the_variant_it_names` uses: a variant added to
@@ -2743,20 +2731,20 @@ fn every_variant_is_published_as_the_word_it_names() {
     assert!(
         REFUSALS.contains(&published),
         "an irreversible command would be published as `{published}`, which is not one \
-         of the answers this repository is allowed to give — `AGENTS.md` says a \
-         destructive command here has no undo"
+         of the answers this repository is allowed to give — undo stops at such a \
+         command rather than reversing it"
     );
 }
 
 /// The events `docs/log-events.md` says the kernel emits are the events the
 /// kernel records, both ways.
 ///
-/// **The page left one out, and a pin cannot see that.** Its sentence named
-/// every `kernel.*` event, `journal.verified` and `journal.broken` while
-/// `crates/nc-kernel/src/dispatch.rs` recorded `net.refused` beside them; the
-/// prose pin above held the sentence as written, so it held the omission
-/// too. Measured on 2026-10-26, that sentence put back: this test red, with
-/// `net.refused` on the kernel's side alone. So the names are read from both sides: every `nc_log::events::`
+/// **A pin cannot see an omission.** A sentence naming every `kernel.*` event,
+/// `journal.verified` and `journal.broken` while
+/// `crates/nc-kernel/src/dispatch.rs` records `net.refused` beside them is held
+/// as written by the prose pin above, omission and all. Measured, with that
+/// sentence on the page: this test red, with `net.refused` on the kernel's side
+/// alone. So the names are read from both sides: every `nc_log::events::`
 /// type a kernel source names, put back into the dotted name the catalog
 /// gives it, against `kernel.*` and every event the sentence names.
 #[test]
@@ -2845,10 +2833,10 @@ fn the_events_the_page_says_the_kernel_emits_are_the_ones_it_records() {
 
 /// What the limits page says holds its tables is there to hold them.
 ///
-/// **The page said nothing on it had a runner**, while `crates/nc-local`
-/// refused a commit at every `refuse-at-limit` bound and the kernel ran the
-/// pruner from `Kernel::pump` and from `limits.prune`. Its opening now names
-/// each, and this holds each name to something that exists: the command in
+/// **The page names what runs its tables**: `crates/nc-local` refuses a commit
+/// at every `refuse-at-limit` bound, and the kernel runs the pruner from
+/// `Kernel::pump` and from `limits.prune`. Its opening names each, and this
+/// holds each name to something that exists: the command in
 /// the catalog, the method on the kernel, and the refusals in the store — so
 /// the sentence goes red the day one of them goes, rather than outliving it.
 #[test]

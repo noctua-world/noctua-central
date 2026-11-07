@@ -330,10 +330,10 @@ proptest! {
 /// refused often, so the law reaches the last arm of `judge` as well as every
 /// refusal before it.
 ///
-/// **A reviewer found the law vacuous**: names drawn from any letters were
-/// almost never well formed, so none of 256 generated declarations was
-/// admitted in each of four runs — seven in 100,000 — and a last arm that
-/// answered a sound declaration with `Err(vec![])` passed it every time.
+/// **A law can be vacuous**: with names drawn from any letters, almost none is
+/// well formed — none of 256 generated declarations is admitted in each of
+/// four runs, seven in 100,000 — and a last arm that answered a sound
+/// declaration with `Err(vec![])` would pass the law every time.
 #[test]
 fn the_declarations_judged_are_admitted_often_and_refused_often() {
     let mut runner = TestRunner::deterministic();

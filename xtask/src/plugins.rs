@@ -15,9 +15,9 @@
 //!    in `crates/nc-kernel/wit` does not declare ([`outside_the_world`]).
 //!    The encoder alone does not: it encodes against **every** world the module
 //!    carries, and a dependency can carry its own — measured, `wasip2` added to
-//!    the reference plugin and called once encoded without a word, and the
-//!    kernel then found `get-random-u64`, from `wasi:random`, among its
-//!    imports. What the encoder does refuse is an import no carried world
+//!    the reference plugin and called once encodes without a word, and a kernel
+//!    handed that component would find `get-random-u64`, from `wasi:random`,
+//!    among its imports. What the encoder does refuse is an import no carried world
 //!    describes, such as a hand-written `extern` block;
 //! 3. writes the component to `target/plugins/components/<dir>.wasm`, and
 //!    beside it `<dir>.inputs` — every file the component was built from, with
@@ -45,8 +45,9 @@ use crate::ui;
 
 /// The one target a plugin is built for.
 ///
-/// `rust-toolchain.toml` and the `check` job in `ci.yml` both ask for it, and a
-/// test in `workflow.rs` holds each of them to that.
+/// `rust-toolchain.toml` asks for it, every job that builds in `ci.yml` and
+/// in `release.yml` installs the toolchain from that file, and a test in the
+/// workflow reader, `workflow.rs`, holds both.
 pub(crate) const TARGET: &str = "wasm32-unknown-unknown";
 
 /// Where plugin builds go, relative to the repository.
@@ -161,10 +162,10 @@ fn directory_of(plugin: &crate::members::Member) -> Result<&str, String> {
 ///
 /// **Every one for `wasm32`, and the lint and the documentation are the only
 /// runs that read the adapter**, which compiles for that target alone. So the
-/// arguments are a value a test holds: a reviewer weakened the lint's
-/// `-D warnings` to `-W` and pointed the documentation at the host, each one
-/// token, and the step went on printing `linted and documented` over a
-/// clippy violation and a broken link in the adapter, the whole gate green.
+/// arguments are a value a test holds: with the lint's `-D warnings` weakened
+/// to `-W` and the documentation pointed at the host, each one token, the step
+/// would go on printing `linted and documented` over a clippy violation and a
+/// broken link in the adapter.
 fn plugin_commands<'a>(name: &'a str, out: &'a str, offline: bool) -> [Vec<&'a str>; 3] {
     let mut common = vec![
         "-p",
@@ -198,7 +199,7 @@ fn build_one(root: &Path, plugin: &crate::members::Member, offline: bool) -> Res
     let out = root.join(OUT);
     let out = out.to_string_lossy();
     let [build, lint, document] = plugin_commands(&plugin.name, &out, offline);
-    run_cargo(root, "build", &build, &plugin.path)?;
+    run_cargo(root, "build", &build, &plugin.path, offline)?;
     let library = plugin.name.replace('-', "_");
     let core_path = root
         .join(OUT)
@@ -233,19 +234,27 @@ fn build_one(root: &Path, plugin: &crate::members::Member, offline: bool) -> Res
         &components.join(format!("{directory}.inputs")),
         listing.as_bytes(),
     )?;
-    run_cargo(root, "clippy", &lint, &plugin.path)?;
-    run_cargo(root, "doc", &document, &plugin.path)?;
+    run_cargo(root, "clippy", &lint, &plugin.path, offline)?;
+    run_cargo(root, "doc", &document, &plugin.path, offline)?;
     Ok(())
 }
 
 /// One cargo command for one plugin, or what cargo said when it refused.
-fn run_cargo(root: &Path, verb: &str, args: &[&str], plugin: &str) -> Result<(), String> {
-    crate::check::cargo(root, args).map(drop).map_err(|output| {
-        format!(
-            "`cargo {verb}` refused `{plugin}` for {TARGET}:\n{}",
-            crate::check::what_cargo_said(&output).join("\n")
-        )
-    })
+fn run_cargo(
+    root: &Path,
+    verb: &str,
+    args: &[&str],
+    plugin: &str,
+    offline: bool,
+) -> Result<(), String> {
+    crate::check::cargo(root, args, offline)
+        .map(drop)
+        .map_err(|output| {
+            format!(
+                "`cargo {verb}` refused `{plugin}` for {TARGET}:\n{}",
+                crate::check::what_cargo_said(&output).join("\n")
+            )
+        })
 }
 
 /// A core module, encoded as a component, once it is shown to reach nothing but `world`.
@@ -349,13 +358,13 @@ struct Inputs {
 /// world, whole, and the workspace's own manifest and lockfile, which decide
 /// the profile and every version.
 ///
-/// **The member, not its `src/`.** The roots were each member's `src/`, with
-/// `Cargo.toml`, `build.rs` and `plugin.toml` listed beside them only where
-/// each was there at build time — so a file cargo acts on without any manifest
-/// naming it could arrive after the build unseen. Measured: a `build.rs` that
-/// panics, written into `plugins/reference/` after a clean build, left the
-/// kernel's suite loading the old component as current while `cargo xtask build
-/// --plugins` failed on that very file. Listing more than the build reads — a
+/// **The member, not its `src/`.** With each member's `src/` as the root, and
+/// `Cargo.toml`, `build.rs` and `plugin.toml` listed beside it only where each
+/// is there at build time, a file cargo acts on without any manifest naming it
+/// would arrive after the build unseen. Measured with those roots: a `build.rs`
+/// that panics, written into `plugins/reference/` after a clean build, leaves
+/// the kernel's suite loading the old component as current while `cargo xtask
+/// build --plugins` fails on that very file. Listing more than the build reads — a
 /// member's own tests — costs a rebuild the next `check` does anyway; listing
 /// less is a suite running against a plugin its sources no longer build.
 fn inputs_of(root: &Path, directories: &[String]) -> Result<Inputs, String> {
@@ -423,10 +432,10 @@ mod tests {
     /// with its private items, each for `wasm32` and each under the verb that
     /// names it, offline when the gate is.
     ///
-    /// **Written by a reviewer (wave 5, gates), and it found a real gap**: these
-    /// two are the only runs that read the plugin's adapter, and weakening the
-    /// lint's deny or pointing the documentation at the host passed the whole
-    /// gate, the step still printing `linted and documented`.
+    /// **These two are the only runs that read the plugin's adapter**, so this
+    /// test holds their arguments: weakening the lint's deny or pointing the
+    /// documentation at the host fails it, where the step itself would still
+    /// print `linted and documented`.
     #[test]
     fn a_plugin_is_built_linted_and_documented_for_wasm32_with_warnings_denied() {
         assert_eq!(TARGET, "wasm32-unknown-unknown");
@@ -550,12 +559,13 @@ mod tests {
     /// A module carrying a second world is refused, and one carrying the
     /// world's own import is not.
     ///
-    /// **Found by a reviewer.** `wasip2`, added to the reference plugin and
-    /// called once, embeds a world of its own beside `nc-guest`'s; the encoder
-    /// merged the two, `cargo xtask build --plugins` said the component was
-    /// built, and the kernel found `get-random-u64`, from `wasi:random`, among
-    /// its imports. This is that shape, built by hand: one module, two embedded
-    /// worlds, one import from each.
+    /// **The encoder merges every world a module carries.** `wasip2`, added to
+    /// the reference plugin and called once, embeds a world of its own beside
+    /// `nc-guest`'s, and the encoder merges the two without a word: a build that
+    /// trusted it would say the component is built, and the kernel would find
+    /// `get-random-u64`, from `wasi:random`, among its imports. This is that
+    /// shape, built by hand: one module, two embedded worlds, one import from
+    /// each.
     #[test]
     fn a_module_carrying_a_second_world_is_refused_and_the_worlds_own_import_is_not() {
         let world = declared(&root().join(WORLD)).expect("the world parses");

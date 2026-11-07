@@ -4,15 +4,15 @@
 //! 'Run `cargo xtask check`', never 'there are 41 tests' — a written count rots
 //! silently and an agent that trusts a stale one errs with confidence."**
 //!
-//! Nothing enforced it, and a reviewer found every count in the tree wrong at
-//! once: "five compile-fail fixtures" where there are nine, "the five
-//! invariants" where there are six, "the journal's ten integration tests" where
-//! there are thirteen. Two of those had been corrected in one file and left
-//! standing in another, in the same change — which is the failure mode exactly.
+//! Unenforced, counts rot together: an audit of an unenforced tree finds every
+//! count wrong at once — "five compile-fail fixtures" in a tree holding nine,
+//! "the five invariants" in one holding six, "the journal's ten integration
+//! tests" in one holding thirteen — and a count corrected in one file stays
+//! standing in another, in the same change, which is the failure mode exactly.
 //!
 //! # It refuses the count rather than checking it
 //!
-//! Checking was the first attempt and it is the wrong shape: `§14.9`'s **seventh
+//! Checking is the wrong shape: `§14.9`'s **seventh
 //! invariant** is an ordinal rather than a count, and a gate that read it as one
 //! would report a number nobody wrote. A gate that is wrong in that direction is
 //! worse than no gate, because it teaches a reader to ignore it.
@@ -42,15 +42,14 @@ use crate::relative_to;
 ///
 /// **Source files are out of scope, and that is the scope's own exclusion.**
 /// `NOT_READ` states the one hole inside Markdown; the larger hole is the file
-/// type, and an audit found eleven rotted counts sitting in it — six of them in
-/// `xtask/src/`, the tool that enforces the rule. Two were the doc comment on
-/// `COUNTABLE` listing the wrong six nouns.
+/// type, and counts rot there too — an audit of the Rust sources finds eleven
+/// rotted, six of them in `xtask/src/`, the tool that enforces the rule.
 ///
-/// Widening to Rust sources was measured and costs more than it buys: twelve
-/// findings, nearly all of them a gate's own test fixture stating a count about a scratch
-/// tree, or this module's prose *about* counting. Each would need a marker, and
-/// twelve markers added to make a gate fire is the exclusion list growing to fit
-/// the gate rather than the gate fitting the tree.
+/// Widening to Rust sources is measured and costs more than it buys: twelve
+/// findings, nearly all of them a gate's own test fixture stating a count about
+/// a scratch tree, or this module's prose *about* counting. Each would need a
+/// marker, and twelve markers added to make a gate fire is the exclusion list
+/// growing to fit the gate rather than the gate fitting the tree.
 ///
 /// So the rule is what it says: a number in a document a person is told to read
 /// before running anything is a number a gate checks, and a number in a comment
@@ -61,12 +60,12 @@ const READ: [&str; 3] = ["AGENTS.md", "README.md", "CLAUDE.md"];
 
 /// The workspace documents, which live above this repository and are read too.
 ///
-/// This gate walked the repository root and stopped there, so `NOCTUA.md` and
-/// `NOCTUA-PLAN.md` — the Master Technical Reference and the staged plan, which
-/// an agent is told to read before anything else — were out of its reach
-/// entirely. The workspace's own `AGENTS.md`, `README.md` and
-/// `CLAUDE.md` are here for the same reason: a stale count in the file that
-/// tells an agent how to work is the worst place for one.
+/// A walk of the repository root alone leaves `NOCTUA.md` and `NOCTUA-PLAN.md`
+/// — the Master Technical Reference and the staged plan, which an agent is told
+/// to read before anything else — out of reach entirely. The workspace's own
+/// `AGENTS.md`, `README.md` and `CLAUDE.md` are here for the same reason: a
+/// stale count in the file that tells an agent how to work is the worst place
+/// for one.
 ///
 /// `sections.rs` finds the workspace the same way and treats its absence as an
 /// error rather than an empty result, and so does this: a gate that passed
@@ -74,17 +73,16 @@ const READ: [&str; 3] = ["AGENTS.md", "README.md", "CLAUDE.md"];
 ///
 /// **And the document that outranks every other one.**
 /// `reference/identity-and-authorization.md` is first in `NOCTUA.md §0.4`'s
-/// authority order — above `NOCTUA.md` itself — and it was the one workspace
-/// document this list did not name. The omission carried no reason, unlike every
-/// entry in [`NOT_READ`], and nothing tested it: the walk that proves no
-/// Markdown falls through the gap walks `root()`, which by construction cannot
-/// reach above the repository. Measured, a planted `The monorepo ships nine
-/// invariants under `policy/core/`.` — against seven on disk — left `13
-/// document(s) state no count that can rot, in 2115 paragraph(s)` byte-identical
-/// and `check passed`, while the same sentence in `NOCTUA.md` was refused. The
-/// step that holds `policy/schema.cedarschema` against §4 reads this file in the
-/// same run, so two gates in one `check` disagreed about what "the workspace
-/// documents" are.
+/// authority order — above `NOCTUA.md` itself — and an omission here carries no
+/// reason, unlike every entry in [`NOT_READ`]: the walk that proves no Markdown
+/// falls through the gap walks `root()`, which by construction cannot reach
+/// above the repository. Measured with it unnamed, a planted `The monorepo ships
+/// nine invariants under `policy/core/`.` — against seven on disk — leaves the
+/// `… document(s) state no count that can rot, in … paragraph(s)` line
+/// byte-identical and `check passed`, while the same sentence in `NOCTUA.md`
+/// is refused. The step that holds `policy/schema.cedarschema` against §4
+/// reads this file in the same run, so without it two gates in one `check`
+/// disagree about what "the workspace documents" are.
 pub(crate) const ABOVE: [&str; 6] = [
     "NOCTUA.md",
     "NOCTUA-PLAN.md",
@@ -125,10 +123,9 @@ fn under_the_directory(relative: &str, directory: &str) -> bool {
 /// there, and `every_workspace_document_is_one_this_gate_reads` holds the two
 /// against each other in both directions — but what this gate *reads* is what is
 /// on disk, so a document added to the workspace tomorrow is read the day it is
-/// added rather than the day somebody remembers to name it. That is the whole of
-/// the defect this replaced: `ABOVE` named five of the workspace's six, the
-/// missing one was the document `NOCTUA.md §0.4` puts above `NOCTUA.md` itself,
-/// and a planted count in it passed.
+/// added rather than the day somebody remembers to name it. A list alone misses
+/// whatever nobody names: measured with the document `NOCTUA.md §0.4` puts above
+/// `NOCTUA.md` itself left out of it, a planted count there passes.
 ///
 /// `repos/` holds other repositories, each with its own gate over its own
 /// documents; a dotted directory is scratch rather than something a person is
@@ -151,13 +148,11 @@ pub(crate) fn the_workspace_documents(workspace: &Path) -> Vec<std::path::PathBu
                 under(&path, workspace, found);
             } else if path.extension().is_some_and(|kind| kind == "md") {
                 // **By segment, not by prefix**, which is the rule [`excluded`]
-                // ten screens down already carries and this copy did not: a
-                // `starts_with` on the excluded directory's name is also true of
-                // a *file* of that name with an extension after it, sitting
-                // beside the directory and outside the gate with nothing said.
-                // One rule written twice, the second copy wider — and the test
-                // that holds the hole asked the same `starts_with`, so it could
-                // not see it.
+                // ten screens down carries too: a `starts_with` on the excluded
+                // directory's name is also true of a *file* of that name with an
+                // extension after it, sitting beside the directory and outside
+                // the gate with nothing said — and a test of the hole asking the
+                // same `starts_with` cannot see it.
                 let relative = crate::relative_to(workspace, &path);
                 if !NOT_READ_ABOVE
                     .iter()
@@ -186,12 +181,12 @@ const NOT_READ: [(&str, &str); 2] = [
     (
         // **`/docs`, which is one directory, and not `docs` anywhere.** The
         // reason below is true of the generated directory at the root and of
-        // nothing else, and the rule matched the *name* at any depth — so
-        // `policy/docs/README.md` was a hole with a reason written about a <!-- allow-reference: names `policy/docs/README.md`, the plant that proved this hole, which is deliberately not in the tree -->
-        // different file. Measured: that file, stating six invariants against
-        // seven policies and three migrations against twelve, left `14
-        // document(s) state no count that can rot` byte-identical and `431
-        // passed`; the same file at `policy/notes/README.md` was a finding. // allow-reference: `policy/notes/README.md` is where this measurement put a file, not a file this tree has
+        // nothing else, and a rule matching the *name* at any depth makes
+        // `policy/docs/README.md` a hole with a reason written about a <!-- allow-reference: names `policy/docs/README.md`, the plant that proved this hole, which is deliberately not in the tree -->
+        // different file. Measured under such a rule: that file, stating six
+        // invariants against seven policies and three migrations against
+        // twelve, leaves `14 document(s) state no count that can rot`
+        // byte-identical and the suite passing; the same file at `policy/notes/README.md` is a finding. // allow-reference: `policy/notes/README.md` is where this measurement put a file, not a file this tree has
         // A leading `/` means the entry is a path from this repository's root;
         // anything else is a name, matched wherever it sits.
         "/docs",
@@ -200,19 +195,30 @@ const NOT_READ: [(&str, &str); 2] = [
          claiming a count — and editing one by hand is already a build failure",
     ),
     (
-        // **The one canary this gate can reach, not the directory.** `NOT_READ`
-        // named `canaries`, which also hid `README.md` — 137 KB of prose a
-        // reviewer is told to read first, holding counts nothing could check.
-        // The stated reason is true of the fixtures and false of that file, and
-        // this walk reads Markdown, so `citations.md` is the only one of the
-        // three it could ever have read. Pointing it at the rest found a rotted
-        // heading on the first run.
+        // **The one canary this gate can reach, not the directory.** Naming
+        // `canaries` would also hide `README.md` — well over a hundred kilobytes
+        // of prose a reader is told to read first, holding counts nothing could
+        // check. The stated reason is true of the fixtures and false of that
+        // file, and this walk reads Markdown, so `citations.md` is the only one
+        // of the three it could ever read — and read, `README.md` is judged like
+        // the prose it is, so a rotted count in one of its headings is a
+        // finding.
         "citations.md",
         "a file whose whole purpose is to carry the defect a gate must report, so a \
          count in one is a fixture and not a claim. `check` asserts each gate found \
          its canary; a number about the canary would be a number about that fixture",
     ),
 ];
+
+/// Markdown the release writes, which this gate does not read: the changelog.
+///
+/// **Beside [`NOT_READ`] rather than in it, because a hole there holds a file**
+/// and the changelog is there only once a release has written it. Each of its
+/// lines is a commit's subject, written whole from the history by
+/// `cargo xtask release`, so a number in one is what a commit said of the tree
+/// when it was made, and the tree a later release reads is not held to it.
+#[cfg(test)]
+const WRITTEN_BY_THE_RELEASE: [&str; 1] = [crate::release::CHANGELOG];
 
 /// The nouns this repository can count, and where each is counted.
 ///
@@ -234,20 +240,20 @@ const NOT_READ: [(&str, &str); 2] = [
 /// "**one registry** deciding which floating list is open" — an article, about
 /// another repository, reported as a count. A count of a set is written with a
 /// plural noun; "one registry deciding" and "every compile-fail fixture
-/// declares" are not counts of anything and now cannot be read as one.
+/// declares" are not counts of anything and cannot be read as one.
 ///
 /// Spelled rather than derived, because `registry` pluralises to `registries`
 /// and appending an `s` would have produced a needle that never matches — a
 /// gate wired to nothing, which is the `§19.3` failure this whole suite exists
 /// to catch.
 ///
-/// **`components` was measured and left out, and the number is here so the next
+/// **`components` is measured and left out, and the number is here so the next
 /// reader does not measure it again.** It is the obvious candidate: the two
-/// workspace documents above make counts about `noctua-design`, and one of them
-/// — "`AILabel` is drawn inside forty-six other components" — went stale the day
-/// after it was written, which is precisely what this gate exists to stop. Added
-/// as another noun it fires seven times, and six of those are dated stage rows
-/// in `NOCTUA-PLAN.md`: "**complete** — 2026-07-30 … nine components declare it"
+/// workspace documents above make counts about `noctua-design`, and such a count
+/// — "`AILabel` is drawn inside forty-six other components" — goes stale as soon
+/// as the other repository moves, which is precisely what this gate exists to
+/// stop. Added as another noun it fires seven times, and six of those are
+/// dated stage rows in `NOCTUA-PLAN.md`: "**complete** — 2026-07-30 … nine components declare it"
 /// is a record of a day, not a claim about the tree, and it does not rot. Six
 /// `allow-count:` markers bought to catch one live claim is the trade this
 /// module's own header calls worse than no gate, because it teaches a reader to
@@ -257,15 +263,14 @@ const NOT_READ: [(&str, &str); 2] = [
 /// the directory that answers the noun is in **another repository**, reached
 /// through the workspace and absent from a bare checkout, so the noun would
 /// resolve to nothing here and the decoration test below would have to learn a
-/// skip — as the reference gate demonstrated by refusing the first draft of this
-/// very paragraph for naming that directory as a path. A gate
-/// whose only way to be honest is a new way to go quiet is the wrong gate. The
-/// one live claim was rewritten to carry no number instead.
+/// skip — and the reference gate refuses a paragraph naming that directory as a
+/// path. A gate whose only way to be honest is a new way to go quiet is the
+/// wrong gate. A live claim of that kind is written with no number instead.
 const COUNTABLE: [(&str, &str, &str); 7] = [
     ("compile-fail fixtures", "crates/nc-log/fixtures", "*.rs"),
     ("invariants", "policy/core", "*.cedar"),
-    // **One of the three examples in the header above**, and the noun was not
-    // in this list — so the gate could not see the defect it names.
+    // **One of the three examples in the header above**, and without this noun
+    // the gate cannot see the defect it names.
     ("integration test files", "crates/nc-journal/tests", "*.rs"),
     ("migrations", "migrations", "*.sql"),
     // The reservation ledger is a top-level file that is not a registry, and
@@ -274,14 +279,13 @@ const COUNTABLE: [(&str, &str, &str); 7] = [
     ("registries", "catalog", "*.toml"),
     // Answered by directories, which is why the field above is a glob.
     ("crates", "crates", "*/Cargo.toml"),
-    // **`AGENTS.md` states this one twice** — *two of the three policy packs*
-    // and *`§10.2` draws three packs* — and the noun was not here, so the
-    // document that tells a reader what the tree holds carried a number about
-    // `policy/packs/` that nothing checked. A pack is a directory with a README
-    // saying what it is for; that is the whole of `org/` and `collective/`
-    // today, and it is what makes the empty ones the indirection `§14.4` argues
-    // for rather than a missing directory. Answered by directories, like
-    // `crates` above.
+    // **A number about `policy/packs/` is a count like any other**, and
+    // without the noun here a document telling a reader how many packs the
+    // tree holds would carry a number nothing checks. A pack is a directory
+    // with a README saying what it is for; that is the whole of `org/` and
+    // `collective/` today, and it is what makes the empty ones the indirection
+    // `§14.4` argues for rather than a missing directory. Answered by
+    // directories, like `crates` above.
     ("packs", "policy/packs", "*/README.md"),
 ];
 
@@ -293,14 +297,14 @@ pub(crate) const ALLOW: &str = "allow-count:";
 
 /// Punctuation that touches a word rather than ending a clause.
 ///
-/// The lookback took the last *alphanumeric run*, so a hyphen or a closing quote
-/// against the noun ended it at an empty word: `six well-documented invariants`
-/// and `six "live" invariants` were both invisible. A bracket is deliberately
-/// not here — it closes a parenthetical, which is a boundary.
+/// A lookback taking the last *alphanumeric run* ends at an empty word on a
+/// hyphen or a closing quote against the noun: `six well-documented invariants`
+/// and `six "live" invariants` are then both invisible. A bracket is
+/// deliberately not here — it closes a parenthetical, which is a boundary.
 ///
-/// **A comma is not here, and that is the point.** It was, and the scan then
-/// walked across a list separator: `The pack ships six policies, invariants and
-/// schemas` was reported as six invariants. A comma ends the item before it, so
+/// **A comma is not here, and that is the point.** With it here, the scan walks
+/// across a list separator: `The pack ships six policies, invariants and
+/// schemas` is reported as six invariants. A comma ends the item before it, so
 /// it is a boundary; a quote and a hyphen touch the word they are part of.
 const TOUCHES_A_WORD: [char; 7] = [
     '-', '"', '\'', '\u{2018}', '\u{2019}', '\u{201c}', '\u{201d}',
@@ -309,14 +313,14 @@ const TOUCHES_A_WORD: [char; 7] = [
 /// How many words may sit between a number and the noun it counts.
 ///
 /// `six live invariants` and `nine new compile-fail fixtures` each put one
-/// there, and reading only the adjacent word missed both.
+/// there, and reading only the adjacent word misses both.
 ///
-/// **Two steps, and the number is measured rather than chosen.** Four was tried
-/// and audited: it read `Six people wrote migrations`, `It took six days to
-/// write invariants` and `Running three times the invariants would be slow` as
-/// counts, and stopping each of those needed another word in the list below.
-/// Every widening bought one real catch and several sentences of ordinary
-/// English reported as claims — which this module's own header calls worse than
+/// **Two steps, and the number is measured rather than chosen.** Four steps
+/// read `Six people wrote migrations`, `It took six days to write invariants`
+/// and `Running three times the invariants would be slow` as counts, and
+/// stopping each of those needs another word in the list below. Every widening
+/// buys one real catch and several sentences of ordinary English reported as
+/// claims — which this module's own header calls worse than
 /// no gate. Two reaches the phrasing these documents actually use (`six live
 /// invariants`, `six PostgreSQL migrations`) and stops before the verbs.
 ///
@@ -324,8 +328,7 @@ const TOUCHES_A_WORD: [char; 7] = [
 /// count of steps, and one of the steps is the number** — so one adjective is
 /// reached and two are not: `six pending schema migrations` and `six core Cedar
 /// invariants` both get past, and the known-miss list below carries them by
-/// name. It said "three adjectives", which is the boundary one step further out
-/// than the one this constant sets.
+/// name.
 const ADJECTIVES: usize = 2;
 
 /// Words the scan will not step over on its way back to a number.
@@ -355,35 +358,34 @@ const NOT_AN_ADJECTIVE: [&str; 45] = [
     "weeks",
     "months",
     "years",
-    // **The singulars, which the plurals' own reason covers.** `Every day six
-    // migrations run` was reported as six migrations: a frequency, not a count
-    // of what is in the tree, and the stop word was one letter from being on the
-    // list already.
+    // **The singulars, which the plurals' own reason covers.** Without them,
+    // `Every day six migrations run` is reported as six migrations: a
+    // frequency, not a count of what is in the tree.
     "day",
     "week",
     "month",
     "year",
     "time",
     "every",
-    // **And its synonym, which the same sentence is written with.** `every` was
-    // here and `each` was not, so `The pruner runs every six hours` was read as
-    // an interval and `It vacuums each seven days` — the same shape, the same
-    // rate — was reported as a claim of seven days.
+    // **And its synonym, which the same sentence is written with.** With
+    // `every` here and not `each`, `The pruner runs every six hours` reads as an
+    // interval and `It vacuums each seven days` — the same shape, the same rate
+    // — as a claim of seven days.
     "each",
-    // **A fraction of a number is not that number.** `Half a dozen invariants`
-    // was reported as **12**.
+    // **A fraction of a number is not that number.** Without it, `Half a dozen
+    // invariants` is reported as **12**.
     "half",
     // **A magnitude this reader cannot represent.** `written` tops out at a
-    // hundred, so `Two thousand invariants` was read as **2** — a finding whose
-    // own number was wrong. A document claiming thousands of any of
+    // hundred, so `Two thousand invariants` would read as **2** — a finding whose
+    // own number would be wrong. A document claiming thousands of any of
     // `COUNTABLE`'s nouns is not a claim this gate would be believed about
     // anyway, which is the same argument `is_a_year` already makes.
     "thousand",
     "million",
     "billion",
-    // **A hedge is not a count.** Eleven of twenty-two fresh ordinary sentences
-    // were reported, and every one of them said the number was *approximate* or
-    // a *bound*:
+    // **A hedge is not a count.** Without these, eleven of twenty-two fresh
+    // ordinary sentences are reported, and every one of them says the number is
+    // *approximate* or a *bound*:
     //
     // ```text
     // At most three migrations …            Roughly six or seven invariants …
@@ -394,8 +396,8 @@ const NOT_AN_ADJECTIVE: [&str; 45] = [
     // Nine of the ten invariants …
     // ```
     //
-    // The previous round caught `Nine out of ten migrations` and not
-    // `Nine of the ten invariants`: it closed a spelling, and this is the shape.
+    // Catching `Nine out of ten migrations` and not `Nine of the ten
+    // invariants` closes a spelling; this is the shape.
     // A number this gate should read is one a document *asserts* — "there are
     // six" — and none of these asserts anything a tree can contradict.
     "most",
@@ -427,10 +429,11 @@ pub(crate) fn every_written_count_matches_the_tree(
 ) -> Result<(Vec<Finding>, usize, usize, usize), String> {
     let files = documents(root)?;
     // **Counted by something that is not this walk.** `files.len()` is the same
-    // vector the loop below reads, so one filter inside `documents()` moved
-    // both: measured, a line skipping `policy/core/README.md` gave
-    // `ok 12 document(s)` against thirteen, with a real rotten count in the file
-    // it skipped ("three invariants and two migrations", against ten and six).
+    // vector the loop below reads, so one filter inside `documents()` moves
+    // both: measured with such a floor, a line skipping `policy/core/README.md`
+    // gives an `ok … document(s)` line one short, with a real rotten count in
+    // the file it skips ("three invariants and two migrations", against ten
+    // and six).
     // A floor derived from the thing it floors is a mirror. This one recurses
     // on its own and knows only the names.
     let expected = how_many_documents(root);
@@ -447,16 +450,16 @@ pub(crate) fn every_written_count_matches_the_tree(
         let text = std::fs::read_to_string(&path)
             .map_err(|error| format!("{} could not be read: {error}", path.display()))?;
         // **Named by the workspace, not by this machine.** `relative_to` cannot
-        // strip a path that is *above* the repository, so a finding in
-        // `NOCTUA.md` printed the absolute path of whoever's checkout it was —
+        // strip a path that is *above* the repository, so through it a finding
+        // in `NOCTUA.md` prints the absolute path of whoever's checkout it is —
         // machine-dependent output in a gate message, where every other finding
         // is repository-relative.
         //
         // **This repository's own documents keep their repository-relative
-        // name**, which they lost when the workspace prefix was tried first: the
-        // repository is *inside* the workspace, so `README.md` came out as
+        // name.** The repository is *inside* the workspace, so with the
+        // workspace prefix alone `README.md` comes out as
         // `<workspace>/repos/noctua-central/README.md` while every other finding
-        // in the same run was `README.md`. Two spellings for one file in one
+        // in the same run is `README.md`. Two spellings for one file in one
         // list of findings is a reader working out whether they are the same
         // file.
         let inside = path.strip_prefix(root).is_ok();
@@ -468,17 +471,17 @@ pub(crate) fn every_written_count_matches_the_tree(
             Some(above) => format!("<workspace>/{}", above.to_string_lossy().replace('\\', "/")),
             None => relative_to(root, &path),
         };
-        // **Documents opened, not counts found.** Counting the findings made the
+        // **Documents opened, not counts found.** Counting the findings makes the
         // floor fire on the state this gate exists to reach: every count removed
-        // is `read == 0`, which read as "the walk found nothing" when it meant
+        // is `read == 0`, which reads as "the walk found nothing" when it means
         // "there is nothing left to find". What has to be non-zero is the walk.
         read += 1;
-        // **An unbalanced fence is a finding, not a guess.** The parser used to
-        // drop the *last* marker when the total was odd, which leaves a stray
-        // marker that lands **first** flipping the role of every real fence
-        // after it: measured, one ``` inserted at line 9 of `AGENTS.md` made two
-        // stated counts in ordinary prose invisible, with the document count
-        // unchanged and the gate green.
+        // **An unbalanced fence is a finding, not a guess.** A parser that drops
+        // the *last* marker when the total is odd leaves a stray marker that
+        // lands **first** flipping the role of every real fence after it:
+        // measured, one ``` inserted at line 9 of `AGENTS.md` makes two stated
+        // counts in ordinary prose invisible, with the document count unchanged
+        // and the gate green.
         //
         // There is no reading that recovers the author's intent from an odd
         // number of fences, and every reading is one somebody can use to switch
@@ -500,15 +503,15 @@ pub(crate) fn every_written_count_matches_the_tree(
         // **And a document that yielded no paragraph at all, which is a document
         // read with nothing judged.** `unbalanced_fence` above reports an *odd*
         // number of markers; a document wrapped in a **pair** of them — one on
-        // the first line, one on the last — has an even count, so it passed, and
-        // every line of it was read as code. Measured: a stated count appended to
-        // the workspace's `CLAUDE.md` was reported; the same file wrapped in one
-        // pair of markers left `check passed` with the document still counted as
-        // read.
+        // the first line, one on the last — has an even count, so it passes that,
+        // and every line of it is read as code. Measured: a stated count
+        // appended to the workspace's `CLAUDE.md` is reported, and without this
+        // check the same file wrapped in one pair of markers leaves
+        // `check passed` with the document still counted as read.
         //
-        // The comment below used to answer this with "a paragraph count
-        // collapsing to zero is what says so" — and it is the *total* across
-        // fourteen documents, which no single wrapped document can collapse.
+        // A paragraph count collapsing to zero cannot say so: it is the *total*
+        // across every document read, which no single wrapped document can
+        // collapse.
         // Asked per document, it is exactly the right question, because a
         // document with no prose outside a fence is not a document anybody
         // wrote.
@@ -533,22 +536,22 @@ pub(crate) fn every_written_count_matches_the_tree(
         // **Paragraphs, not lines.** These documents are hard-wrapped at about
         // eighty columns, so a count and its noun landing on different lines is
         // the common case rather than the exotic one — "the core holds six" /
-        // "invariants that the gate reads" was invisible. A paragraph is what a
-        // sentence fits in; the line number reported is the paragraph's first,
-        // which is where a reader looks.
+        // "invariants that the gate reads" is invisible line by line. A
+        // paragraph is what a sentence fits in; the line number reported is the
+        // paragraph's first, which is where a reader looks.
         for (index, line) in paragraphs(&text) {
             // **Paragraphs judged, which is what this gate actually reads.**
             // `read` counts documents *opened*, and the floor compares it with
-            // another document count — so three lines here skipping every
-            // paragraph past the tenth left both numbers where they were and a
-            // rotten count in a document went unreported with `check passed`.
-            // This file's own sibling says of another gate that "what these
-            // gates judge is lines"; this one was floored on files.
+            // another document count — so with that alone, three lines here
+            // skipping every paragraph past the tenth leave both numbers where
+            // they are and a rotten count in a document goes unreported with
+            // `check passed`. This file's own sibling says of another gate that
+            // "what these gates judge is lines", and a floor on files is not one
+            // on lines.
             //
             // The fence hole one screen up is answered *there*, per document,
-            // and not here: a total across fourteen documents does not collapse
-            // when one of them is wrapped, which is what this comment used to
-            // claim.
+            // and not here: a total across every document read does not
+            // collapse when one of them is wrapped.
             // Counted where the verdict is — see below.
             for (noun, counted_in, glob) in COUNTABLE {
                 let claimed = claim(&line, noun);
@@ -563,10 +566,11 @@ pub(crate) fn every_written_count_matches_the_tree(
                 //
                 // **And the reason names the noun.** The marker is tested
                 // against the *paragraph*, because a count and its noun land on
-                // different lines all the time — which meant one marker on the
-                // first line of a three-line paragraph excused every claim in
-                // it, of every noun. Measured: one `<!-- allow-count: a probe -->`
-                // suppressed two findings about two different nouns across three
+                // different lines all the time — and unless the reason names the
+                // noun, one marker on the first line of a three-line paragraph
+                // would excuse every claim in it, of every noun. Measured
+                // without the noun rule: one `<!-- allow-count: a probe -->`
+                // suppresses two findings about two different nouns across three
                 // physical lines.
                 //
                 // A paragraph is the right unit for *finding* a claim and the
@@ -577,8 +581,8 @@ pub(crate) fn every_written_count_matches_the_tree(
                 // Markdown, where `#` is a heading and `#42` an issue
                 // reference — neither of them a comment.
                 // **Markdown's own comment, not Rust's.** Asked with `Slashes`,
-                // the scanner treated a `//` as opening a comment — so any
-                // `https://` earlier in the paragraph made the marker "in a
+                // the scanner treats a `//` as opening a comment — so any
+                // `https://` earlier in the paragraph makes the marker "in a
                 // comment" with no `<!-- -->` anywhere. Measured: the same
                 // paragraph with and without a URL in front of the marker, one
                 // reported and one not.
@@ -609,10 +613,10 @@ pub(crate) fn every_written_count_matches_the_tree(
                 });
             }
             // **The last statement a verdict reaches, not the first of the body.**
-            // `judged += 1` was at the head of this loop, above the `COUNTABLE`
-            // rule — the placement `xtask/canaries/README.md` records as
-            // repaired everywhere. It was not repaired here: one `continue` after
-            // it left the number exact with a rotten count in the part it skipped.
+            // At the head of this loop, above the `COUNTABLE` rule — the
+            // placement `xtask/canaries/README.md` records — `judged += 1` lets
+            // one `continue` after it leave the number exact with a rotten count
+            // in the part it skips.
             judged += 1;
         }
     }
@@ -621,10 +625,10 @@ pub(crate) fn every_written_count_matches_the_tree(
 
 /// How many documents there are, counted by code that is not the walk.
 ///
-/// **The floor for the walk below, and it used to be that walk's own output.**
-/// One filter inside `documents()` moved both numbers together, so a document
-/// with a rotten count in it could be dropped and the run stayed green. This
-/// recursion shares nothing with it but the list of names.
+/// **The floor for the walk below, and not that walk's own output.** Taken from
+/// the walk, one filter inside `documents()` moves both numbers together, so a
+/// document with a rotten count in it can be dropped and the run stays green.
+/// This recursion shares nothing with it but the list of names.
 fn how_many_documents(root: &Path) -> usize {
     fn under(at: &Path, root: &Path, found: &mut usize) {
         let Ok(entries) = std::fs::read_dir(at) else {
@@ -633,12 +637,11 @@ fn how_many_documents(root: &Path) -> usize {
         for entry in entries.flatten() {
             let path = entry.path();
             let name = entry.file_name().to_string_lossy().into_owned();
-            // **The walk's own rule, not a list beside it.** These three names
-            // were skipped at any depth while `gates::walk` steps over `target`
-            // only where cargo builds — so a document under a module directory
-            // of that name was inside the walk and outside this floor, and two
-            // readings of one number disagreed on a tree with nothing wrong
-            // with it.
+            // **The walk's own rule, not a list beside it.** `gates::walk` steps
+            // over `target` only where cargo builds, so a list skipping these
+            // names at any depth puts a document under a module directory of
+            // that name inside the walk and outside this floor, and two readings
+            // of one number then disagree on a tree with nothing wrong with it.
             if path.is_dir() && crate::gates::is_skipped(at, &name) {
                 continue;
             }
@@ -693,16 +696,15 @@ fn documents(root: &Path) -> Result<Vec<std::path::PathBuf>, String> {
     files.sort();
 
     // **The workspace's documents when there is a workspace, and the
-    // repository's own either way.** This returned an error when there was none,
-    // so the whole step was skipped — and 8 of its 13 documents live *in* this
-    // repository (`AGENTS.md`, `README.md`, `CLAUDE.md`,
-    // `xtask/canaries/README.md`, four `policy/**` READMEs) and are judgeable
-    // without one. Measured: `This tree holds three
-    // migrations.` in the repository's own `CLAUDE.md` was an error locally and
-    // invisible in CI.
+    // repository's own either way.** An error when there is none skips the
+    // whole step — and most of its documents live *in* this repository
+    // (`AGENTS.md`, `README.md`, `CLAUDE.md`, `xtask/canaries/README.md`, the
+    // `policy/**` READMEs) and are judgeable without one. Measured that way:
+    // `This tree holds three migrations.` in the repository's own `CLAUDE.md`
+    // is an error locally and invisible in CI.
     //
-    // The reference gate was split into a workspace half and a repository half
-    // for exactly this reason; this is that split.
+    // The reference gate has a workspace half and a repository half for
+    // exactly this reason; this is that split.
     Ok(match crate::sections::workspace_of(root) {
         Some(workspace) => {
             files.extend(the_workspace_documents(&workspace));
@@ -715,14 +717,12 @@ fn documents(root: &Path) -> Result<Vec<std::path::PathBuf>, String> {
 /// Whether `path` falls inside the hole `NOT_READ` declares.
 fn excluded(root: &Path, path: &Path) -> bool {
     let relative = relative_to(root, path);
-    // **By segment, not by prefix.** `NOT_READ` names `canaries`, and the
-    // canary directories are `xtask/canaries/` and
-    // `crates/nc-canon/canaries/` — neither of which *starts* with `canaries`,
-    // so `xtask/canaries/README.md` was read while the list said it was not.
-    // The test guarding the list matched by segment and passed; the production
-    // filter matched by prefix and did not. A declared hole that is not a hole
-    // is worse than no hole: somebody writes a count into it believing it is
-    // exempt.
+    // **By segment, not by prefix.** A name such as `canaries` sits in
+    // `xtask/canaries/` and `crates/nc-canon/canaries/` — neither of which
+    // *starts* with it, so a prefix match reads a file the list says it does
+    // not, while a test of the list matching by segment passes. A declared hole
+    // that is not a hole is worse than no hole: somebody writes a count into it
+    // believing it is exempt.
     NOT_READ.iter().any(|(name, _)| the_hole(name, &relative))
 }
 
@@ -759,37 +759,37 @@ fn unbalanced_fence(text: &str) -> Option<usize> {
 /// How many paragraphs the documents hold, counted by code that is not the walk.
 ///
 /// **The floor for the paragraph count, and it must not be that walk's own
-/// output.** `read` and `expected` were both document counts, so a walk that
-/// opened every file and judged ten paragraphs of it satisfied both — measured,
-/// three lines and a stated count in the part it skipped went unreported with
+/// output.** With `read` and `expected` both document counts, a walk that opens
+/// every file and judges ten paragraphs of it satisfies both — measured, three
+/// lines, and a stated count in the part it skips goes unreported with
 /// `check passed`. This recursion shares nothing with `every_written_count…` but
-/// the list of names, exactly as `how_many_documents` does one screen up.
+/// the list of names, exactly as `how_many_documents` does above it.
 ///
 /// A document that cannot be read counts nothing, which can only make the floor
 /// stricter: the walk would have failed on it first.
 pub(crate) fn how_many_paragraphs(root: &Path) -> usize {
-    // **Its own counter, because calling `paragraphs` made it a mirror.** It read
-    // the walk's `documents()` *and* the walk's `paragraphs()`, so one line inside
-    // the shared parser moved both numbers together: `found.truncate(70)` gave
-    // `12 document(s) … in 361 paragraph(s)` against 1549, `check passed`, and a
-    // rotten count in the part that vanished went unreported. 77% of the corpus
-    // gone with an "exact" floor that could not fire.
+    // **Its own counter, because calling `paragraphs` makes it a mirror.**
+    // Reading the walk's `documents()` *and* the walk's `paragraphs()`, one line
+    // inside the shared parser moves both numbers together: `found.truncate(70)`
+    // leaves a fraction of the corpus's paragraphs counted on both sides,
+    // `check passed`, and a rotten count in the part that vanished goes
+    // unreported — most of the corpus gone with an "exact" floor that cannot
+    // fire.
     //
     // This counts blank-line-separated blocks outside fenced code, which is what
     // a paragraph is, without asking the parser under test what it thinks.
     // **The workspace found the way `sections` finds it**, not the repository’s parent: the
     // repository sits under `repos/`, so joining one `..` names a directory that
-    // holds no documents at all — measured, the floor read nothing, `expected`
-    // came back zero, and `count < expected` was false for every count including
-    // the truncated one it was written to catch.
-    // **The same documents the walk opens, not eight.** This joined `ABOVE`
-    // onto the workspace and `READ` onto the root and stopped — while
-    // `documents()` recurses, so the four `README.md` files under `policy/` were
-    // in the walk and outside the floor. That is 43 paragraphs of free slack,
-    // exactly the 1553 against 1510 the two numbers used to print; a filter
-    // skipping `policy/` was invisible. `how_many_documents` recurses one screen
-    // up and this now does the same, sharing with the walk only the rule for
-    // which names count.
+    // holds no documents at all — measured, the floor then reads nothing,
+    // `expected` comes back zero, and `count < expected` is false for every
+    // count including the truncated one it is written to catch.
+    // **The same documents the walk opens.** Joining `ABOVE` onto the workspace
+    // and `READ` onto the root and stopping there leaves the `README.md` files
+    // under `policy/` in the walk — `documents()` recurses — and outside the
+    // floor: measured, every paragraph of those files free slack, under which
+    // a filter skipping `policy/` is invisible.
+    // `how_many_documents`, above, recurses and this does the same,
+    // sharing with the walk only the rule for which names count.
     fn under(root: &Path, at: &Path, found: &mut Vec<std::path::PathBuf>) {
         let Ok(entries) = std::fs::read_dir(at) else {
             return;
@@ -797,12 +797,11 @@ pub(crate) fn how_many_paragraphs(root: &Path) -> usize {
         for entry in entries.flatten() {
             let path = entry.path();
             let name = entry.file_name().to_string_lossy().into_owned();
-            // **The walk's own rule, not a list beside it.** These three names
-            // were skipped at any depth while `gates::walk` steps over `target`
-            // only where cargo builds — so a document under a module directory
-            // of that name was inside the walk and outside this floor, and two
-            // readings of one number disagreed on a tree with nothing wrong
-            // with it.
+            // **The walk's own rule, not a list beside it.** `gates::walk` steps
+            // over `target` only where cargo builds, so a list skipping these
+            // names at any depth puts a document under a module directory of
+            // that name inside the walk and outside this floor, and two readings
+            // of one number then disagree on a tree with nothing wrong with it.
             if path.is_dir() && crate::gates::is_skipped(at, &name) {
                 continue;
             }
@@ -832,11 +831,11 @@ pub(crate) fn how_many_paragraphs(root: &Path) -> usize {
 /// or the difference is slack rather than a measurement. Only the rule for which
 /// files count is shared; the recursion and the paragraph counting are separate.
 ///
-/// **It was a second copy of the rule, and the two read different text.** This
-/// matched `NOT_READ`'s directory names against the *absolute* path while
-/// [`excluded`] matches them against the path relative to the repository — so a
-/// checkout underneath a directory that happens to share a name with a declared
-/// hole made the floor exclude documents the walk read. Measured, two identical
+/// **One copy of the rule, so the two read the same text.** A second copy
+/// matching `NOT_READ`'s directory names against the *absolute* path, while
+/// [`excluded`] matches them against the path relative to the repository, makes
+/// a checkout underneath a directory that happens to share a name with a
+/// declared hole exclude documents the walk reads. Measured, two identical
 /// scratch trees one directory name apart:
 ///
 /// ```text
@@ -844,14 +843,13 @@ pub(crate) fn how_many_paragraphs(root: &Path) -> usize {
 /// base …/plain/ws-<pid>/repos/central  ->  judged=15  paragraph_floor=15
 /// ```
 ///
-/// So `cargo xtask check` could not pass from a checkout under a directory
-/// called `docs` — a clone under a home directory's own documents folder — and
-/// the message a
-/// developer got blamed the tree: `paragraphs: 15 were judged and a second count
-/// of the same ground says 10`. It fails closed, so it was a false failure
-/// rather than a hole; it still broke this file's own rule that two halves of
-/// one rule read the same text. It now calls [`excluded`] rather than
-/// reimplementing it.
+/// So with a second copy `cargo xtask check` cannot pass from a checkout under
+/// a directory called `docs` — a clone under a home directory's own documents
+/// folder — and the message a developer gets blames the tree:
+/// `paragraphs: 15 were judged and a second count of the same ground says 10`.
+/// It fails closed, a false failure rather than a hole, and it still breaks
+/// this file's own rule that two halves of one rule read the same text. This
+/// calls [`excluded`] rather than reimplementing it.
 pub(crate) fn excluded_for_tests(root: &Path, path: &Path) -> bool {
     excluded(root, path)
 }
@@ -891,12 +889,12 @@ fn paragraphs(text: &str) -> Vec<(usize, String)> {
     let mut began = 1_usize;
     // **A fenced block is not prose.** These documents hold directory trees,
     // shell transcripts and SQL, and joining their lines into a paragraph
-    // produced sentences nobody wrote: `… (Legs 2, 3)` immediately above
-    // `├── crates/` read as "3 crates", a finding against a tree diagram. A
+    // produces sentences nobody wrote: `… (Legs 2, 3)` immediately above
+    // `├── crates/` reads as "3 crates", a finding against a tree diagram. A
     // count *inside* a code block is output or an example, and neither is a
     // claim about this tree.
-    // **A fence that is never closed was never a fence.** The toggle flipped on
-    // any ``` and never reset, so one stray marker turned this gate off for
+    // **A fence that is never closed is not a fence.** A toggle that flips on
+    // any ``` and never resets lets one stray marker turn this gate off for
     // everything below it in the file — the "exclusion list turns the gate off"
     // shape, in the parser rather than in a list. Counting them first means an
     // odd number leaves the last one as ordinary prose rather than as an opening.
@@ -945,9 +943,10 @@ fn paragraphs(text: &str) -> Vec<(usize, String)> {
 /// The marker's reason, ending where its comment does.
 ///
 /// **Not "everything after the marker".** A paragraph is joined into one line
-/// here, so the text after `allow-count:` ran to the end of the *paragraph* —
-/// which meant the reason contained every later sentence, and a rule asking
-/// whether the reason names the claim was satisfied by the claim itself. The
+/// here, so the text after `allow-count:` would run to the end of the
+/// *paragraph* — the reason would contain every later sentence, and a rule
+/// asking whether the reason names the claim would be satisfied by the claim
+/// itself. The
 /// comment ends at `-->`, and so does the reason.
 fn reason_in(line: &str) -> Option<&str> {
     let after =
@@ -967,8 +966,8 @@ fn reason_in(line: &str) -> Option<&str> {
 ///
 /// See the paragraph in `claim` that uses it. Every entry is a construction that
 /// can only be counting — a copula, a verb of holding or listing, or a
-/// quantifier — so a word missing from here is a count this gate does not see,
-/// which is what it did for all of them. A word wrongly *in* here would be a
+/// quantifier — so a word missing from here is a count this gate does not see.
+/// A word wrongly *in* here would be a
 /// false finding, and this file's own header calls a gate wrong in that
 /// direction worse than no gate; that is why it is this list and not the other.
 const COUNTS_THEM: [&str; 31] = [
@@ -996,21 +995,21 @@ const COUNTS_THEM: [&str; 31] = [
     "only",
     "just",
     "both",
-    // **Seven more, each measured hiding a stale number.** A reviewer appended
-    // `The catalog defines 40 registries, and the pack provides 99 invariants.`
-    // to `README.md` and got `ok 12 document(s) state no count that can rot`;
-    // the same sentence with `holds` and `lists` reported both numbers. The
+    // **Seven more, each measured hiding a stale number.** Appended to
+    // `README.md` without them, `The catalog defines 40 registries, and the pack
+    // provides 99 invariants.` gives `ok … document(s) state no count that can
+    // rot`; the same sentence with `holds` and `lists` reports both numbers. The
     // whitelist is the weak half of this rule and this does not change that —
     // it is a list of English verbs and English has more.
     //
-    // **The other direction was tried and reverted.** Treating a number that
+    // **The other direction is the wrong one.** Treating a number that
     // *touches* its noun as a count needs no verb at all, and it reads as the
     // right shape: a label goes before its noun (`Stage 10`, `page 12`,
     // `§19.4`) and a count goes after the verb. But `Stage 10 migrations were
-    // written for it` touches `migrations` too, and the corpus said so
-    // immediately — four cases, all of them a label followed by a countable
-    // noun. Closing the class that way needs a list of every word that can
-    // *identify*, which this module's header records failing: a word it lacks
+    // written for it` touches `migrations` too, and the corpus says so — four
+    // cases, all of them a label followed by a countable noun. Closing the
+    // class that way needs a list of every word that can *identify*, which
+    // fails the way this module's header describes: a word it lacks
     // is then a false finding, and a gate wrong in that direction is worse than
     // no gate. A word missing from the list below is a miss, which is the
     // failure this rule is willing to have.
@@ -1025,37 +1024,36 @@ const COUNTS_THEM: [&str; 31] = [
 
 /// The number a line claims of `noun`, if it claims one.
 fn claim(line: &str, noun: &str) -> Vec<usize> {
-    // **Emphasis stripped first.** `claim` took the last *alphanumeric* run
-    // before the noun, and `**five**` ends in `*`, so the run was empty and
-    // `written("")` was `None`. Every bold, italic or backticked number was
-    // invisible — and `**five** compile-fail fixtures` is the spelling this
-    // module's own doc comment quotes twice as the historical form. These
-    // documents use bold constantly.
+    // **Emphasis stripped first.** Taking the last *alphanumeric* run before
+    // the noun, `**five**` ends in `*`, so the run is empty and `written("")` is
+    // `None`: every bold, italic or backticked number is invisible — and
+    // `**five** compile-fail fixtures` is the spelling this module's own doc
+    // comment quotes twice. These documents use bold constantly.
     let lowered = line.to_lowercase().replace(['*', '_', '`'], " ");
     // **And the runs that blanking just made, because the needle has none.**
     // The emphasis above is replaced character for character, and `COUNTABLE`
     // holds multi-word nouns written with exactly one space — so emphasis
-    // *inside* a noun phrase left two or three where the needle has one and
-    // nothing collapsed them. `five **compile-fail** fixtures` matched
-    // `compile-fail fixtures` nowhere and produced **no claim at all**, which
+    // *inside* a noun phrase leaves two or three where the needle has one, and
+    // uncollapsed, `five **compile-fail** fixtures` matches
+    // `compile-fail fixtures` nowhere and produces **no claim at all**, which
     // is a count gate switched off by the ordinary way somebody writes a
-    // sentence. The transformation added to make the *number* visible made the
-    // *noun* invisible: one side of the comparison was normalised and the
-    // other was a raw literal. Measured in round sixty-six.
+    // sentence. The transformation that makes the *number* visible would make
+    // the *noun* invisible: one side of the comparison normalised and the
+    // other a raw literal.
     //
     // Every index taken below is into `lowered` itself, never back into
     // `line`, so collapsing runs here changes no offset's meaning.
     let lowered = lowered.split_whitespace().collect::<Vec<_>>().join(" ");
     let mut found = Vec::new();
-    // **Every occurrence, not the first.** `find` stopped at the first mention,
-    // so a sentence naming the noun once without a number hid a count later on
-    // the same line.
+    // **Every occurrence, not the first.** `find` stops at the first mention,
+    // so a sentence naming the noun once without a number would hide a count
+    // later on the same line.
     let mut from = 0;
     while let Some(at) = lowered[from..].find(noun) {
         let here = from + at;
         from = here + noun.len();
         // **The noun, not a longer word that begins with it.** `crates.io` holds
-        // `crates`, and `Seven crates on crates.io` was reported twice — once
+        // `crates`, and `Seven crates on crates.io` would be reported twice — once
         // for the count and once for the registry's name, as `7 and 7`. A `.`
         // followed by a letter is a domain or a path, not the end of a word.
         let after = lowered[from..].chars();
@@ -1065,8 +1063,8 @@ fn claim(line: &str, noun: &str) -> Vec<usize> {
             // A dot then a letter is a domain: `crates.io`.
             (Some('.'), Some(next)) if next.is_alphanumeric() => false,
             // **And a slash is a path.** `3 crates/nc-journal/tests/…` is a
-            // criterion number in front of a directory, and it was reported as
-            // three crates — in a table of pointers whose whole job is to name
+            // criterion number in front of a directory, and it would be reported
+            // as three crates — in a table of pointers whose whole job is to name
             // files.
             (Some('/'), _) => false,
             _ => true,
@@ -1075,21 +1073,21 @@ fn claim(line: &str, noun: &str) -> Vec<usize> {
             continue;
         }
         let before = lowered[..here].trim_end();
-        // **Up to three words back, not one.** `six live invariants` and `nine
-        // new compile-fail fixtures` were both invisible: the number is not
-        // always adjacent to its noun, and an adjective between them is ordinary
-        // English. The scan stops at a sentence boundary so it cannot reach into
-        // the sentence before.
-        // **Trimmed of punctuation, not stopped by it.** The lookback took the
-        // last *alphanumeric run*, so `six well-documented invariants` and
-        // `six "live" invariants` ended the walk at an empty word: a hyphen or a
-        // closing quote touching the noun made the count invisible. `*`, `_` and
-        // backticks were stripped above; nothing else was.
+        // **Up to `ADJECTIVES` steps back, not one.** `six live invariants`
+        // and `nine new compile-fail fixtures` are invisible to one: the number
+        // is not always adjacent to its noun, and an adjective between them is
+        // ordinary English. The scan stops at a sentence boundary so it cannot
+        // reach into the sentence before.
+        // **Trimmed of punctuation, not stopped by it.** A lookback taking the
+        // last *alphanumeric run* ends the walk at an empty word on
+        // `six well-documented invariants` and `six "live" invariants`: a hyphen
+        // or a closing quote touching the noun makes the count invisible. `*`,
+        // `_` and backticks are stripped above; nothing else is.
         let mut rest = before.trim_end_matches(TOUCHES_A_WORD).trim_end();
         let mut counted = None;
         for _ in 0..ADJECTIVES {
             // **A hyphenated compound is one word.** `six on-disk invariants`
-            // and `six well-documented invariants` were two steps each — the
+            // and `six well-documented invariants` would be two steps each — the
             // second half, then the first — so an ordinary compound adjective
             // used up the whole lookback.
             let Some(word) = rest
@@ -1099,11 +1097,10 @@ fn claim(line: &str, noun: &str) -> Vec<usize> {
                 break;
             };
             let preceding = rest[..rest.len() - word.len()].trim_end();
-            // **Just the empty word.** This read
-            // `word.is_empty() || punctuation && word.is_empty()`, which is
-            // `word.is_empty()` — the punctuation half could never decide
-            // anything, and the comment beside it claimed the sentence boundary
-            // was enforced here. It is enforced below, where the walk steps.
+            // **Just the empty word.**
+            // `word.is_empty() || punctuation && word.is_empty()` is
+            // `word.is_empty()` — a punctuation half here decides nothing. The
+            // sentence boundary is enforced below, where the walk steps.
             if word.is_empty() {
                 break;
             }
@@ -1121,7 +1118,7 @@ fn claim(line: &str, noun: &str) -> Vec<usize> {
                 break;
             }
             // The punctuation, then the space it left behind: `six "live"`
-            // trimmed to `six ` and the empty run after that space ended the
+            // trims to `six `, and the empty run after that space would end the
             // walk one word short of the number.
             rest = preceding.trim_end_matches(TOUCHES_A_WORD).trim_end();
         }
@@ -1129,22 +1126,21 @@ fn claim(line: &str, noun: &str) -> Vec<usize> {
             continue;
         };
         // **What is before the number decides whether it is a count.** `Stage 6
-        // invariants` and `§19.4 invariants` were both reported — a stage and a
+        // invariants` and `§19.4 invariants` would both be reported — a stage and a
         // section, one of them with the wrong number ("4", from `19.4`). A gate
         // that is wrong in the other direction teaches a reader to ignore it,
         // which is worse than no gate.
         //
-        // **A full stop only hides a number when it is *inside* one.** The
-        // suppression was a bare `ends_with('.')`, added for `§19.4`, and it
-        // turned the gate off for every count that opens a sentence — 63% of the
-        // sentences in the documents this reads, including `Read \`ls
+        // **A full stop only hides a number when it is *inside* one.** A bare
+        // `ends_with('.')` suppression, for `§19.4`, turns the gate off for
+        // every count that opens a sentence after the first — including `Read \`ls
         // policy/core\`. Six invariants live there.`, which is the sentence this
         // gate's own fix text recommends followed by the stale number. What
         // distinguishes `19.4` is the digit before the dot.
         // **A separator with a digit on the far side is inside one number.**
-        // `§19.4` was the case this started for; `On 2026-08-25 migrations were
-        // re-verified` is the same shape with a hyphen, and it was reported as
-        // twenty-five migrations. A slash covers a date written the other way.
+        // `§19.4` is one case; `On 2026-08-25 migrations were re-verified` is
+        // the same shape with a hyphen, and would be reported as twenty-five
+        // migrations. A slash covers a date written the other way.
         let inside_a_number = preceding
             .chars()
             .next_back()
@@ -1155,11 +1151,11 @@ fn claim(line: &str, noun: &str) -> Vec<usize> {
                 .is_some_and(|c| c.is_ascii_digit());
         // **A four-digit number in this range is a year.** `In 2026 migrations
         // were re-verified` and `Since 2025 invariants have been enforced by a
-        // gate` were reported as 2026 migrations and 2025 invariants — the same
+        // gate` would be reported as 2026 migrations and 2025 invariants — the same
         // sentence this gate already suppresses when the date is written
         // `2026-08-25`, with the year alone. Nothing this reads counts in the
-        // thousands: `COUNTABLE`'s six nouns are compile-fail fixtures,
-        // invariants, integration tests, migrations, registries and crates, and
+        // thousands: `COUNTABLE`'s nouns are compile-fail fixtures, invariants,
+        // integration test files, migrations, registries, crates and packs, and
         // a document claiming two thousand of any of them is not a claim this
         // gate would be believed about anyway.
         // No number word reaches this range — `written` tops out at a hundred
@@ -1167,11 +1163,11 @@ fn claim(line: &str, noun: &str) -> Vec<usize> {
         // construction, and does not need to check that it is.
         let is_a_year = (1900..=2200).contains(&number);
         // **A number written in digits, with a word in front of it, names
-        // something.** This was a list of label words — `stage`, `leg`,
-        // `chapter`, `postgresql`, `round` — grown one entry at a time behind
-        // whichever sentence somebody happened to write, and a measured 50% of
-        // fresh ordinary English still got through it. Every miss had the same
-        // shape and differed only in the word:
+        // something.** A list of label words — `stage`, `leg`, `chapter`,
+        // `postgresql`, `round` — grows one entry at a time behind whichever
+        // sentence somebody happens to write, and measured, 50% of fresh
+        // ordinary English gets through such a list. Every miss has the same
+        // shape and differs only in the word:
         //
         // ```text
         // Day 3 migrations      Issue 5 migrations    Python 3 …
@@ -1181,9 +1177,9 @@ fn claim(line: &str, noun: &str) -> Vec<usize> {
         // Run 3 migrations      Schema 1 …            Priority 1 …
         // ```
         //
-        // `round` was on the list and `run` was not; `attempt` was on it and
-        // `task` was not; `node` was on it and `python` was not. The class the
-        // list was reaching for is *a number that identifies rather than
+        // A list with `round` on it misses `run`, with `attempt` misses `task`,
+        // with `node` misses `python`. The class such a list reaches for is *a
+        // number that identifies rather than
         // counts*, and in this repository's prose those are written in digits
         // and preceded by their label, while a count is written as a word:
         // `ls policy/core` and there are **six** invariants. Measured across the
@@ -1203,7 +1199,7 @@ fn claim(line: &str, noun: &str) -> Vec<usize> {
         // grounds that "nothing in these documents does" it — a measurement of
         // today's prose, not a property, and the same green-because-of-how-the-
         // tree-happens-to-look reasoning this file exists to refuse. Measured, a
-        // digit form of each of the six nouns:
+        // digit form of six of the nouns:
         //
         // ```text
         // There are 9 crates in this repository.        <- missed
@@ -1214,12 +1210,12 @@ fn claim(line: &str, noun: &str) -> Vec<usize> {
         //
         // `AGENTS.md` states the rule this gate enforces and its own example of
         // a forbidden sentence is *"there are 41 tests"* — a digit, mid-clause,
-        // which is exactly what fell through. And this module's header claims
+        // which is exactly what falls through without this. And this module's header claims
         // "written numbers **as well as digits**".
         //
         // A whitelist, and deliberately on the other side from the label list
-        // the paragraph above records failing: that one had to name every word
-        // that could *identify*, so a word it lacked was a false finding. This
+        // the paragraph above describes: that one has to name every word that
+        // could *identify*, so a word it lacks is a false finding. This
         // one names the words that *count*, so a word it lacks is a miss —
         // today's behaviour — and never a wrong report. An identifying number
         // keeps its label (`Stage 10`, `page 12`, `Ubuntu 24`) and no label is
@@ -1229,9 +1225,9 @@ fn claim(line: &str, noun: &str) -> Vec<usize> {
             .find(|word| !word.is_empty())
             .is_some_and(|word| COUNTS_THEM.contains(&word.to_ascii_lowercase().as_str()));
         // **A multiplier a numeral precedes is a number this reader cannot
-        // compose.** `two dozen migrations` was reported as **12**, and this
+        // compose.** `two dozen migrations` would be reported as **12**, and this
         // module's header calls a gate that is wrong in this direction worse
-        // than no gate — here the finding's own number was wrong.
+        // than no gate — here the finding's own number would be wrong.
         //
         // The word *immediately* before, not `word_before_the_number`: that one
         // walks past a numeral on purpose — `one hundred` is one number written
@@ -1252,13 +1248,13 @@ fn claim(line: &str, noun: &str) -> Vec<usize> {
                         word,
                         // **A subset, not a total.** `the first two invariants`
                         // and `the other two invariants` say nothing about how
-                        // many there are, and both were reported. These qualify
+                        // many there are, and both would be reported. These qualify
                         // a number written as a word, which the digit rule above
                         // does not reach.
                         "first" | "last" | "next" | "other" | "remaining" | "final"
                     | "another" | "further"
-                    // **The words the list forgot**, each measured reporting a
-                    // subset as a total: `the previous two invariants`,
+                    // **And these**, each measured reporting a subset as a
+                    // total without them: `the previous two invariants`,
                     // `the following three migrations`.
                     | "previous" | "following" | "latter" | "former" | "earlier"
                     | "later" | "preceding" | "subsequent"
@@ -1267,10 +1263,10 @@ fn claim(line: &str, noun: &str) -> Vec<usize> {
             || preceding.ends_with('§')
             || inside_a_number
             || is_a_year
-            // **The word immediately before the number**, which nothing looked
-            // at. `NOT_AN_ADJECTIVE` stops the *walk*, so it only ever sees
-            // words between the number and the noun — and every remaining false
-            // fire had its stop word on the other side:
+            // **The word immediately before the number.** `NOT_AN_ADJECTIVE`
+            // stops the *walk*, so it only ever sees words between the number
+            // and the noun — and each of these false fires has its stop word on
+            // the other side:
             //
             // ```text
             // more than one hundred concurrent invariants checks -> 100 invariants
@@ -1281,10 +1277,11 @@ fn claim(line: &str, noun: &str) -> Vec<usize> {
             // `than`, `of` and `and` each turn a number into a bound, a ratio or
             // a range, and none of the three is a count of what is in the tree.
             || stops_the_count(&preceding)
-            // **And a clause that asserts nothing states no count.** Seven of
-            // forty ordinary sentences were reported, all one shape: the number
-            // is in a supposition, a question, a prohibition or a negation, and
-            // none of them says how many of anything are in this tree.
+            // **And a clause that asserts nothing states no count.** Without it,
+            // seven of forty ordinary sentences are reported, all one shape: the
+            // number is in a supposition, a question, a prohibition or a
+            // negation, and none of them says how many of anything are in this
+            // tree.
             || asserts_nothing(&lowered, &preceding);
         if names_something_else {
             continue;
@@ -1297,8 +1294,8 @@ fn claim(line: &str, noun: &str) -> Vec<usize> {
 /// Whether the clause holding the number asserts nothing.
 ///
 /// **Seven of forty ordinary sentences, all one shape.** A number can sit in a
-/// sentence that makes no claim about this tree at all, and every one of these
-/// was reported as a stated count:
+/// sentence that makes no claim about this tree at all, and without this every
+/// one of these is reported as a stated count:
 ///
 /// ```text
 /// No two migrations share a number.          -> 2 migrations
@@ -1351,8 +1348,8 @@ fn asserts_nothing(line: &str, preceding: &str) -> bool {
     // six invariants by hand` states that there are six exactly as firmly as
     // `there are six invariants` does: the mood attaches to the verb and the
     // count sits in a noun phrase pointing at a set that exists. These
-    // documents are written almost entirely in that register, so the mood rule
-    // as first written switched the gate off for most of what they say:
+    // documents are written almost entirely in that register, so a mood rule
+    // blind to it switches the gate off for most of what they say:
     //
     // ```text
     // Do not edit the six invariants by hand.          -> suppressed
@@ -1400,11 +1397,11 @@ fn asserts_nothing(line: &str, preceding: &str) -> bool {
 
 /// Whether what comes before the number means it is not a count of this tree.
 ///
-/// **A preposition makes a ratio, and it also makes a passive sentence.** Every
-/// one of `of`, `by`, `from`, `on`, `with`, `to`, `in` and `for` was an absolute
-/// stop, which bought a zero false-fire rate on forty fresh ordinary sentences
-/// and paid for it here: **eleven of twelve** stated counts written after a
-/// preposition were missed, and that is how half of English states one.
+/// **A preposition makes a ratio, and it also makes a passive sentence.** As
+/// absolute stops, `of`, `by`, `from`, `on`, `with`, `to`, `in` and `for` buy a
+/// zero false-fire rate on forty fresh ordinary sentences and pay for it here:
+/// **eleven of twelve** stated counts written after a preposition are missed,
+/// and that is how half of English states one.
 ///
 /// ```text
 /// missed  The wall is proven by eleven compile-fail fixtures.
@@ -1451,9 +1448,10 @@ fn stops_the_count(preceding: &str) -> bool {
             continue;
         }
         // **`one` after `every` or `each` is a pronoun, not a quantity.**
-        // `Every one of the six invariants has a test` states a total, and the
-        // look-back read `one of the six` as a ratio and suppressed it — a plain
-        // statement of a count, missed, and not on the known-miss list either.
+        // `Every one of the six invariants has a test` states a total, and a
+        // look-back reading `one of the six` as a ratio would suppress it — a
+        // plain statement of a count, missed, and not on the known-miss list
+        // either.
         if head == "one" {
             let outer = before[..before.len() - head.len()].trim_end();
             if matches!(last_word(outer), "every" | "each" | "Every" | "Each") {
@@ -1482,10 +1480,10 @@ fn word_before_the_number(preceding: &str) -> &str {
     /// qualifies. `Nine of **the** ten invariants` puts one between them, and
     /// the whole phrase is a ratio either way.
     ///
-    /// **`every` and `each` are not among them, and adding them cost a false
-    /// fire.** They were put here for `Every one of the six invariants has a
-    /// test`, which `stops_the_count` already reads correctly by looking behind
-    /// the pronoun — so what they changed was a different shape entirely:
+    /// **`every` and `each` are not among them, and adding them costs a false
+    /// fire.** `Every one of the six invariants has a test` does not need them —
+    /// `stops_the_count` reads it correctly by looking behind the pronoun — so
+    /// what they would change is a different shape entirely:
     ///
     /// ```text
     /// The pruner runs every six hours.   with them: claims 6 hours
@@ -1493,8 +1491,8 @@ fn word_before_the_number(preceding: &str) -> &str {
     /// ```
     ///
     /// `every N <noun>` is a rate. Stepping past `every` hands the number to a
-    /// verb — `runs` — which is no stop word, so an interval was read as a
-    /// stated count and the gate went looking for six of something.
+    /// verb — `runs` — which is no stop word, so an interval is read as a
+    /// stated count and the gate goes looking for six of something.
     const CARRIES_NOTHING: [&str; 8] = ["the", "a", "an", "these", "those", "its", "our", "their"];
 
     let mut rest = preceding.trim_end();
@@ -1528,11 +1526,10 @@ fn written(word: &str) -> Option<usize> {
         "ten" => Some(10),
         "eleven" => Some(11),
         "twelve" | "dozen" => Some(12),
-        // **Past twelve**, which is where this stopped — and thirteen is the
-        // *true* number this module's own header cites as the correction ("the
-        // journal's ten integration tests where there are thirteen"). The one
-        // value the header calls out as right was the one the gate could not
-        // read.
+        // **Past twelve** — and thirteen is the *true* number this module's own
+        // header cites ("the journal's ten integration tests", in a tree holding
+        // thirteen), so a reader stopping at twelve cannot read the one value
+        // the header calls out as right.
         "thirteen" => Some(13),
         "fourteen" => Some(14),
         "fifteen" => Some(15),
@@ -1556,9 +1553,9 @@ fn written(word: &str) -> Option<usize> {
         // **A hyphenated compound of two number words is one number.** The
         // lookback reads a hyphenated compound as one word — deliberately, so
         // that `six well-documented invariants` is one step and not two — which
-        // made every number from twenty-one to ninety-nine unreadable:
-        // `twenty-one invariants` and `thirty-five migrations` were both
-        // invisible, and those are the numbers a growing tree reaches.
+        // without this makes every number from twenty-one to ninety-nine
+        // unreadable: `twenty-one invariants` and `thirty-five migrations` are
+        // both invisible, and those are the numbers a growing tree reaches.
         //
         // Both halves have to be numbers, so `well-documented` and `on-disk`
         // still read as one ordinary word.
@@ -1596,9 +1593,9 @@ mod tests {
 
     /// Write a scratch document, making the directory it sits in first.
     ///
-    /// `ABOVE` holds a document under `reference/`, and every scratch workspace
-    /// in this module wrote its entries flat — so adding that entry turned four
-    /// tests into `NotFound` rather than into a finding about what they test.
+    /// `ABOVE` holds a document under `reference/`, and a scratch workspace that
+    /// writes its entries flat turns a test into `NotFound` rather than into a
+    /// finding about what it tests.
     fn wrote(at: &Path, text: &str) {
         if let Some(parent) = at.parent() {
             std::fs::create_dir_all(parent).expect("writable");
@@ -1614,8 +1611,7 @@ mod tests {
         // them, which is what CI has. A test that cannot be performed is not a
         // test that passed, so `check`'s test count carries a clause naming what
         // did not run: "and the ones that need the workspace above this
-        // repository did not run". It used to claim a `warn` beside the step,
-        // which was true of some steps and not of this.
+        // repository did not run".
         if crate::sections::workspace_of(root()).is_none() {
             println!("skipped: there is no workspace above this repository (§3.5)");
             return;
@@ -1633,11 +1629,11 @@ mod tests {
 
     #[test]
     fn a_stray_fence_is_a_finding_rather_than_a_way_to_switch_the_gate_off() {
-        // **A stray marker that lands *first* flipped every real fence after
-        // it.** The parser dropped the last marker when the total was odd, which
-        // reads the file as if the stray one were an opening: measured, one ```
-        // at line 9 of `AGENTS.md` made two stated counts in ordinary prose
-        // invisible with the document count unchanged and the gate green — the
+        // **A stray marker that lands *first* flips every real fence after it**
+        // when a parser drops the last marker of an odd total, which reads the
+        // file as if the stray one were an opening: measured, one ``` at line 9
+        // of `AGENTS.md` makes two stated counts in ordinary prose invisible
+        // with the document count unchanged and the gate green — the
         // "exclusion list turns the gate off" shape, in the parser rather than
         // in a list.
         let stray = "Prose above.\n\n```\n\nThe core holds six invariants.\n\n                     ```\ncode\n```\n\nAnd nine compile-fail fixtures.\n";
@@ -1657,13 +1653,12 @@ mod tests {
 
     /// Fresh ordinary English, none of which states a count of this tree.
     ///
-    /// **Half of fifty fresh sentences were reported.** Every one had the same
-    /// shape — a label word, a number in digits, a countable noun — and the
-    /// suppression was a hand-written list of label spellings that `round` was
-    /// on and `run` was not, `attempt` was on and `task` was not, `node` was on
-    /// and `python` was not. This module's own header says a gate that is wrong
-    /// in this direction teaches a reader to ignore it, which is worse than no
-    /// gate.
+    /// **A list of label spellings reports half of fifty fresh sentences.**
+    /// Every one has the same shape — a label word, a number in digits, a
+    /// countable noun — and a hand-written list with `round` on it misses `run`,
+    /// with `attempt` misses `task`, with `node` misses `python`. This module's
+    /// own header says a gate that is wrong in this direction teaches a reader
+    /// to ignore it, which is worse than no gate.
     #[test]
     fn a_label_in_front_of_a_number_is_not_a_count_however_it_is_spelled() {
         for (ordinary, noun) in [
@@ -1686,7 +1681,7 @@ mod tests {
             ("Schema 1 migrations create the tables", "migrations"),
             ("Priority 1 invariants block a release", "invariants"),
             ("Column 3 migrations were renumbered", "migrations"),
-            // And the shapes the old list did cover, which must stay covered.
+            // And the shapes a label list covers, which must stay covered.
             ("Stage 6 invariants are in the plan", "invariants"),
             ("Leg 3 migrations describe the schema", "migrations"),
             ("Chapter 3 invariants come first", "invariants"),
@@ -1717,9 +1712,9 @@ mod tests {
 
     /// A count stated after a preposition is still a count.
     ///
-    /// **Eleven of twelve were missed**, and that is how half of English states
-    /// one. `of`, `by`, `from`, `on`, `with`, `to`, `in` and `for` were absolute
-    /// stops because they make a bound or a ratio — `Nine out of ten`, `more
+    /// **Eleven of twelve are missed by absolute stops**, and that is how half of
+    /// English states one. `of`, `by`, `from`, `on`, `with`, `to`, `in` and
+    /// `for` make a bound or a ratio — `Nine out of ten`, `more
     /// than one hundred` — and they also introduce the agent of a passive
     /// sentence, where the number after them is a plain count.
     ///
@@ -1766,10 +1761,10 @@ mod tests {
                 "invariants",
                 6,
             ),
-            // **`one` is a pronoun here, not a quantity.** The walk stepped past
-            // `the` to `one`, `written("one")` succeeded, and the phrase read as
-            // the ratio `one of the six` — so a plain statement of a total was
-            // missed, and nothing recorded it as a known miss either.
+            // **`one` is a pronoun here, not a quantity.** A walk stepping past
+            // `the` to `one` finds `written("one")` succeeds and reads the phrase
+            // as the ratio `one of the six` — a plain statement of a total,
+            // missed, and recorded nowhere as a known miss.
             (
                 "Every one of the six invariants has a test.",
                 "invariants",
@@ -1789,10 +1784,10 @@ mod tests {
             ("This tree has five migrations.", "migrations", 5),
             // **A definite reference is a claim whatever the mood.** These
             // documents are written almost entirely in the imperative and the
-            // prohibitive, and the mood rule as first written switched the gate
-            // off for that whole register: `Never edit the six invariants` was
-            // suppressed and `Edit the six invariants` was reported, one word
-            // apart. The count sits in a noun phrase pointing at a set that
+            // prohibitive, and a mood rule blind to that switches the gate off
+            // for that whole register: `Never edit the six invariants`
+            // suppressed and `Edit the six invariants` reported, one word apart.
+            // The count sits in a noun phrase pointing at a set that
             // exists, and the mood attaches to the verb.
             ("Do not edit the six invariants by hand.", "invariants", 6),
             (
@@ -1852,15 +1847,16 @@ mod tests {
             ("Nine out of ten migrations are additive.", "migrations"),
             // **A rate, not a count.** `every N <noun>` says how often, and
             // reading it as a claim sends the gate looking for six of
-            // something. It was read as one for as long as `every` and `each`
-            // sat in `CARRIES_NOTHING`, which put them there for a phrase
-            // `stops_the_count` already handled on its own.
+            // something. It is read as one if `every` and `each` sit in
+            // `CARRIES_NOTHING`, for a phrase `stops_the_count` already handles
+            // on its own.
             ("The pruner runs every six hours.", "hours"),
             ("It vacuums each seven days.", "days"),
-            // **A clause that asserts nothing states no count.** Seven of forty
-            // ordinary sentences were reported, all this one shape: the number
-            // sits in a supposition, a question, a prohibition or a negation,
-            // and none of them says how many of anything this tree holds.
+            // **A clause that asserts nothing states no count.** Without it,
+            // seven of forty ordinary sentences are reported, all this one
+            // shape: the number sits in a supposition, a question, a prohibition
+            // or a negation, and none of them says how many of anything this
+            // tree holds.
             ("No two migrations share a number.", "migrations"),
             ("Nothing stops two crates from logging.", "crates"),
             ("Never write three migrations in one change.", "migrations"),
@@ -1906,8 +1902,8 @@ mod tests {
 
     /// And the counts a document really does state are still read.
     ///
-    /// The other half of the same change: a rule that suppressed everything
-    /// would pass the test above and be a gate wired to nothing.
+    /// The other half of the test above: a rule that suppressed everything
+    /// would pass it and be a gate wired to nothing.
     #[test]
     fn a_stated_count_is_still_read_after_the_label_rule() {
         for (stated, noun, expected) in [
@@ -1932,9 +1928,9 @@ mod tests {
     #[test]
     fn ordinary_english_is_not_a_stated_count() {
         // **The direction this module's own header calls worse than no gate.**
-        // Fifteen sentences were written into `AGENTS.md` and put through the
-        // gate; it reported **eight of eight** ordinary sentences as stated
-        // counts and missed four real ones. A gate that is wrong in the
+        // Fifteen sentences written into `AGENTS.md` and put through a gate
+        // without these rules: **eight of eight** ordinary sentences reported as
+        // stated counts, and four real ones missed. A gate that is wrong in the
         // reporting direction teaches a reader to ignore it, and then the
         // direction that matters is off too.
         //
@@ -1947,8 +1943,9 @@ mod tests {
             "Appendix 2 migrations describe the schema in full.",
             "Round 2 invariants were reviewed by a second reader.",
             "Chapter 3 invariants are the ones a reader meets first.",
-            // A year. The dated form `2026-08-25` was already suppressed; the
-            // year alone was read as a count of two thousand and twenty-six.
+            // A year. The dated form `2026-08-25` is suppressed separately; the
+            // year alone, unsuppressed, reads as a count of two thousand and
+            // twenty-six.
             "In 2026 migrations were re-verified on this machine.",
             "Since 2025 invariants have been enforced by a gate.",
             // A time of day, which is the same suppression as a version number
@@ -1999,7 +1996,7 @@ mod tests {
         // **And a number that is a bound, a ratio or a range is not a count.**
         // `NOT_AN_ADJECTIVE` stops the *walk*, so it only ever saw words between
         // the number and the noun; each of these has its stop word on the other
-        // side, and each was reported.
+        // side, and each would be reported.
         for ordinary in [
             "PostgreSQL rejects more than one hundred concurrent invariants checks.",
             "Nine out of ten migrations are additive.",
@@ -2022,11 +2019,11 @@ mod tests {
 
     #[test]
     fn a_hedged_number_is_not_a_stated_count() {
-        // **A hedge is not a count either.** Eleven of twenty-two fresh
-        // ordinary sentences were reported, every one of them saying the number
-        // was approximate or a bound. The round before caught `Nine out of ten
-        // migrations` and not `Nine of the ten invariants`: it closed a
-        // spelling, and this is the shape.
+        // **A hedge is not a count either.** Without this, eleven of twenty-two
+        // fresh ordinary sentences are reported, every one of them saying the
+        // number is approximate or a bound. Catching `Nine out of ten
+        // migrations` and not `Nine of the ten invariants` closes a spelling,
+        // and this is the shape.
         for hedged in [
             "At most three migrations are ever pending.",
             "At least five migrations have to run first.",
@@ -2059,11 +2056,10 @@ mod tests {
 
         // **Nine misses left standing, on purpose, and this is the list.**
         // Reading any of them means widening the lookback or reading a number
-        // that follows its noun, and the measurement this module was narrowed by
-        // says each widening bought one catch and several false fires:
-        // `ADJECTIVES` went from four words to two for exactly that reason. A
-        // miss is a count nobody checked; a false fire is a gate nobody reads,
-        // and then both directions are gone.
+        // that follows its noun, and measured, each widening buys one catch and
+        // several false fires: `ADJECTIVES` is two words rather than four for
+        // exactly that reason. A miss is a count nobody checked; a false fire
+        // is a gate nobody reads, and then both directions are gone.
         //
         // Written down so the next reader knows they are known rather than
         // undiscovered, and so a widening that starts catching one is a
@@ -2083,9 +2079,8 @@ mod tests {
             ("We now have six of these invariants.", "invariants"),
             // **Two adjectives, not three.** `ADJECTIVES` is the number of
             // *steps* the walk takes, and one of them is the number itself — so
-            // the boundary is one adjective reached and two missed, and this
-            // list said three. Every one of these is a phrase somebody would
-            // write:
+            // the boundary is one adjective reached and two missed. Every one of
+            // these is a phrase somebody would write:
             //
             // ```text
             // six pending schema migrations    six brand new invariants
@@ -2099,10 +2094,9 @@ mod tests {
             ),
             // **The second item of a list**, which the stop-word rule costs.
             // `There are six migrations and seven invariants.` reports the six
-            // and not the seven, because `and` now suppresses — and without
-            // that rule it reports both *and* eleven ordinary sentences
-            // besides. The trade was measured: six fewer false fires for this
-            // one miss.
+            // and not the seven, because `and` suppresses — and without that
+            // rule it reports both *and* eleven ordinary sentences besides. The
+            // trade is measured: six fewer false fires for this one miss.
             (
                 "There are six migrations and seven invariants.",
                 "invariants",
@@ -2136,8 +2130,8 @@ mod tests {
             vec![5]
         );
         // **Bold, italic and backticked**, which is how every one of these was
-        // written — and `**five**` ends in `*`, so the last alphanumeric run was
-        // empty and the number was invisible.
+        // written — and `**five**` ends in `*`, so a reader taking the last
+        // alphanumeric run finds it empty and the number invisible.
         for emphasised in [
             "there are **five** compile-fail fixtures in this tree",
             "there are *five* compile-fail fixtures in this tree",
@@ -2146,9 +2140,9 @@ mod tests {
             // **Emphasis inside the noun, not on the number.** Every row above
             // emphasises the count; the blanking above replaces each `*` with a
             // space, and `COUNTABLE`'s nouns are written with exactly one — so
-            // `**compile-fail** fixtures` left two spaces where the needle has
-            // one and produced *no claim at all*. Bolding the adjective is how
-            // anybody writes it, and it switched the gate off. Round sixty-six.
+            // uncollapsed, `**compile-fail** fixtures` leaves two spaces where
+            // the needle has one and produces *no claim at all*. Bolding the
+            // adjective is how anybody writes it, and it would switch the gate off.
             "there are five **compile-fail** fixtures in this tree",
             "there are five compile-fail `fixtures` in this tree",
             "there are five _compile-fail_ **fixtures** in this tree",
@@ -2160,7 +2154,7 @@ mod tests {
             );
         }
         // **Every occurrence**, not the first: a sentence naming the noun once
-        // without a number hid a count later on the same line.
+        // without a number would hide a count later on the same line.
         assert_eq!(
             claim(
                 "each invariant is a file, and there are six invariants",
@@ -2176,7 +2170,7 @@ mod tests {
         // **The singular is not a count**, however it is spelled: the article
         // and the number are the same word, and `one registry deciding which
         // floating list is open` — prose about another repository entirely —
-        // was reported as a claim that this tree holds one registry.
+        // would be reported as a claim that this tree holds one registry.
         for prose in [
             "every compile-fail fixture declares",
             "one compile-fail fixture is enough to prove it",
@@ -2198,12 +2192,12 @@ mod tests {
 
     #[test]
     fn a_count_that_opens_a_sentence_is_still_a_count() {
-        // **The suppression that turned the gate off for two thirds of the
-        // prose.** A bare `preceding.ends_with('.')`, added so `§19.4
-        // invariants` would not be read as four, hid every count that begins a
-        // sentence — measured at 2366 of 3777 sentences in the documents this
-        // reads. The first of these is the sentence the gate's own fix text
-        // recommends, followed by the stale number it was meant to replace.
+        // **A suppression that turns the gate off for most of the prose.** A
+        // bare `preceding.ends_with('.')`, so `§19.4 invariants` is not read as
+        // four, hides every count that begins a sentence — measured, most of the
+        // sentences in the documents this reads. The first of these is the
+        // sentence the gate's own fix text recommends, followed by the stale
+        // number it is meant to replace.
         for prose in [
             "Read `ls policy/core`. Six invariants live there",
             "The pack is small, e.g. six invariants and a README",
@@ -2231,8 +2225,8 @@ mod tests {
 
     #[test]
     fn an_adjective_between_the_number_and_the_noun_does_not_hide_it() {
-        // `six live invariants` and `nine new compile-fail fixtures` were both
-        // silent: the scan read the word touching the noun and nothing further.
+        // `six live invariants` and `nine new compile-fail fixtures` are both
+        // silent to a scan reading the word touching the noun and nothing further.
         assert_eq!(
             claim("the core holds six live invariants", "invariants"),
             vec![6]
@@ -2245,9 +2239,9 @@ mod tests {
             vec![9]
         );
         // And what two steps deliberately does not reach, stated rather than
-        // left to be found. Four steps was tried and audited: it read
-        // `Six people wrote migrations` and `It took six days to write
-        // invariants` as counts, and stopping each needed another stop word.
+        // left to be found. Four steps read `Six people wrote migrations` and
+        // `It took six days to write invariants` as counts, and stopping each
+        // needs another stop word.
         assert_eq!(
             claim(
                 "there are three carefully written new invariants",
@@ -2290,8 +2284,8 @@ mod tests {
 
     #[test]
     fn punctuation_touching_the_noun_does_not_hide_the_count() {
-        // The lookback took the last *alphanumeric run*, so a hyphen or a
-        // closing quote against the noun ended the walk at an empty word.
+        // A lookback taking the last *alphanumeric run* ends the walk at an
+        // empty word on a hyphen or a closing quote against the noun.
         for (prose, noun) in [
             (
                 "the core holds six well-documented invariants",
@@ -2314,11 +2308,11 @@ mod tests {
     ///
     /// **No counter can answer this, which is why it is a fixture.** A plant that
     /// skips every paragraph past the tenth *and increments the counter anyway*
-    /// keeps every number honest — measured, `12 document(s) … in 1549
-    /// paragraph(s)` and `check passed`, byte-identical to baseline, with a
+    /// keeps every number honest — measured, the `… document(s) … in …
+    /// paragraph(s)` line and `check passed`, byte-identical to baseline, with a
     /// rotten count in the part that was skipped. The exact paragraph floor
-    /// catches a narrowed **walk** (`.take(10)` gave `93 of 1549`) and cannot
-    /// catch a narrowed **judgement**.
+    /// catches a narrowed **walk** (`.take(10)` leaves a small fraction of the
+    /// paragraphs judged) and cannot catch a narrowed **judgement**.
     ///
     /// What answers it is a defect at a position nothing can predict. The number
     /// of filler paragraphs comes from this process's own id, so a filter tuned
@@ -2337,10 +2331,10 @@ mod tests {
             wrote(&scratch.join(name), "# nothing here\n");
         }
         // **Past the longest document this gate reads, not within a window of
-        // sixty.** `pid % 60 + 5` put the claim between paragraphs 5 and 64 — a
-        // window written in this very line — so a filter skipping every paragraph
-        // past the eightieth was invisible to it while a rotten count in
-        // `AGENTS.md` went unreported with the paragraph number *up*.
+        // sixty.** `pid % 60 + 5` would put the claim between paragraphs 5 and
+        // 64 — a window written in the line itself — so a filter skipping every
+        // paragraph past the eightieth is invisible to it while a rotten count in
+        // `AGENTS.md` goes unreported with the paragraph number *up*.
         // **The real tree, not the scratch.** Measured against the scratch — which
         // is empty at this point — `longest` is zero and the plant lands in the
         // first hundred lines, which is the window this widening exists to
@@ -2368,39 +2362,37 @@ mod tests {
             );
         }
         document.push_str("The core holds six invariants.\n");
-        // **In every place the walk reads, not just the root.** The claim used to
-        // go in the scratch's own `README.md`, so a filter naming a *directory* —
+        // **In every place the walk reads, not just the root.** A claim in the
+        // scratch's own `README.md` alone leaves a filter naming a *directory* —
         // `if relative.starts_with("policy/") { judged += 1; continue; }`, with
-        // the counter kept honest — was invisible to it while a rotten count
-        // under `policy/` went unreported. A fixture that answers "did the walk
+        // the counter kept honest — invisible while a rotten count under
+        // `policy/` goes unreported. A fixture that answers "did the walk
         // reach the line" has to be at every place the walk goes, or it answers
         // only for one of them.
-        // **And above the repository, which is the half that was missing.** The
-        // gate reads the seven here and every one of `ABOVE`, whose own
-        // doc calls the workspace "the worst place" for a stale count. Every
-        // planted claim sat inside the scratch *repository*, so one branch keyed
-        // on `inside` — the variable the walk already has — skipped all five with
-        // the paragraph count going *up* and `check passed`, the stated count
-        // still sitting in the workspace's `AGENTS.md`.
+        // **And above the repository.** The gate reads the documents here and
+        // every one of `ABOVE`, whose own doc calls the workspace "the worst
+        // place" for a stale count. With every planted claim inside the scratch
+        // *repository*, one branch keyed on `inside` — the variable the walk
+        // already has — skips every document of `ABOVE` with the paragraph
+        // count going *up* and `check passed`, the stated count still sitting in
+        // the workspace's `AGENTS.md`.
         //
-        // The rule this test's own comment states was applied across directories
-        // and not across the two trees.
+        // The rule this test's own comment states holds across the two trees as
+        // well as across directories.
         //
         // **And every directory the real tree keeps a read document in, rather
-        // than five written here.** The five were the scratch root,
-        // `policy/core/`, `policy/packs/family/` and two of `ABOVE`. The tree
-        // holds a document this gate reads in six directories and six more
-        // above it, so a plant never landed in `xtask/canaries/` — the file
-        // `AGENTS.md` tells a reviewer to read first — and a walk narrowed to
-        // exactly that directory was invisible here. A fixture that names its
-        // own places answers for the places somebody remembered; one that reads
-        // the tree answers for the directory added tomorrow, on the day it is
-        // added. Found in wave 37.
+        // than a few written here.** A fixture naming the scratch root,
+        // `policy/core/`, `policy/packs/family/` and two of `ABOVE` never plants
+        // in `xtask/canaries/` — the directory of the file `AGENTS.md` names to
+        // read first — so a walk narrowed to exactly that directory is invisible
+        // to it. A fixture that names its own places answers for the places
+        // somebody remembered; one that reads the tree answers for the directory
+        // added tomorrow, on the day it is added.
         //
         // **Derived from `READ`, never from the hole.** Asking the production
         // exclusion which directories to plant in would make this fixture agree
         // with every widening of that exclusion, which is the derived
-        // expectation this file records being caught by twice. The places come
+        // expectation this file refuses throughout. The places come
         // from the file *names* in `READ`, a list held against the tree in both
         // directions by `every_kind_on_disk_is_either_read_or_written_down_as_
         // unread`'s sibling here. So a directory added to `NOT_READ` still gets
@@ -2480,8 +2472,8 @@ mod tests {
     #[test]
     fn a_fenced_block_is_not_prose() {
         // These documents hold directory trees, shell transcripts and SQL.
-        // Joining their lines produced sentences nobody wrote — `… (Legs 2, 3)`
-        // above `├── crates/` read as "3 crates", a finding against a tree
+        // Joining their lines produces sentences nobody wrote — `… (Legs 2, 3)`
+        // above `├── crates/` reads as "3 crates", a finding against a tree
         // diagram — and a count *inside* a block is output or an example, never
         // a claim about this tree.
         let workspace = std::env::temp_dir().join(format!("nc-fenced-{}", std::process::id()));
@@ -2491,8 +2483,8 @@ mod tests {
         std::fs::create_dir_all(workspace.join("repos")).expect("writable");
         // The marker is what names a workspace (`NOCTUA.md §3.6`), so a scratch
         // tree that stands in for one carries it — a document beside a `repos/`
-        // is a shape any copy can have, which is why the two detectors that
-        // asked different questions could disagree.
+        // is a shape any copy can have, so a detector asking only that would
+        // disagree with one asking for the marker.
         std::fs::write(workspace.join(crate::sections::MARKER), "").expect("writable");
         for document in ABOVE {
             wrote(&workspace.join(document), "Read `ls policy/core`.\n");
@@ -2515,7 +2507,7 @@ mod tests {
     #[test]
     fn a_subset_is_not_a_total() {
         // `the first two invariants` and `the other two invariants` say nothing
-        // about how many there are, and both were reported — the
+        // about how many there are, and both would be reported — the
         // wrong-direction failure this module says is worse than no gate.
         for prose in [
             "the first two invariants are enforced by a gate",
@@ -2523,7 +2515,7 @@ mod tests {
             "the last three migrations add constraints",
             "the remaining four invariants are policies",
             "another two invariants arrived with the pack",
-            // The words the list forgot, each measured reporting a subset.
+            // And these, each measured reporting a subset without the rule.
             "the previous two invariants are about the log",
             "the following three migrations add constraints",
             "the latter two invariants are the pack's",
@@ -2538,7 +2530,7 @@ mod tests {
 
     #[test]
     fn ordinary_prose_is_not_a_stated_count() {
-        // Every one of these was measured being reported, and the module's own
+        // Every one of these is measured being reported without it, and the module's own
         // header calls a gate wrong in this direction worse than no gate.
         for (prose, noun) in [
             (
@@ -2579,7 +2571,7 @@ mod tests {
     #[test]
     fn a_stated_count_is_read_however_it_is_written() {
         // The other direction, on the same batch: each of these is a real
-        // stated count that was missed.
+        // stated count a wider suppression misses.
         for (prose, noun, number) in [
             (
                 "there are six PostgreSQL migrations in this repository",
@@ -2606,7 +2598,7 @@ mod tests {
 
     #[test]
     fn a_domain_or_a_path_is_not_the_noun() {
-        // `Seven crates on crates.io` was reported twice — once for the count
+        // `Seven crates on crates.io` would be reported twice — once for the count
         // and once for the registry's name, as `7 and 7 crates`.
         assert_eq!(claim("seven crates on crates.io today", "crates"), vec![7]);
         assert_eq!(claim("published to crates.io", "crates"), [] as [usize; 0]);
@@ -2629,8 +2621,8 @@ mod tests {
     #[test]
     fn a_stage_or_a_section_number_is_not_a_count() {
         // **The wrong-direction failure this module says is worse than no
-        // gate.** `Stage 6 invariants` and `§19.4 invariants` were both reported
-        // as counts — one of them with the number "4", read out of `19.4`.
+        // gate.** `Stage 6 invariants` and `§19.4 invariants` would both be
+        // reported as counts — one of them with the number "4", read out of `19.4`.
         for prose in [
             "Stage 6 invariants are checked before the gate runs",
             "see §19.4 invariants for the rule that governs this",
@@ -2664,18 +2656,21 @@ mod tests {
                 .and_then(|name| name.to_str())
                 .unwrap_or("");
             // **The hole first, and the production rule rather than a second
-            // copy of it.** This asked `READ.contains(name)` before the hole
-            // and matched the hole by segment, so it disagreed with the filter
-            // twice over: a `README.md` inside the hole was called *read* here
-            // while the gate skipped it, and a hole named by a directory meant
-            // that directory anywhere. Both together made `policy/docs/README.md` <!-- allow-reference: names `policy/docs/README.md`, the plant that proved this hole, which is deliberately not in the tree -->
-            // a document nothing judged and nothing could notice — the walk
-            // excluded it and this test declared it read.
+            // copy of it.** Asking `READ.contains(name)` before the hole, and
+            // matching the hole by segment, disagrees with the filter twice
+            // over: a `README.md` inside the hole is called *read* while the
+            // gate skips it, and a hole named by a directory means that
+            // directory anywhere. Both together make `policy/docs/README.md` <!-- allow-reference: names `policy/docs/README.md`, the plant that proved this hole, which is deliberately not in the tree -->
+            // a document nothing judges and nothing can notice — the walk
+            // excludes it and the test declares it read.
             let hole = NOT_READ
                 .iter()
                 .find(|(entry, _)| super::the_hole(entry, &relative));
             if hole.is_some() {
                 skipped.insert(relative);
+                return;
+            }
+            if super::WRITTEN_BY_THE_RELEASE.contains(&relative.as_str()) {
                 return;
             }
             assert!(
@@ -2697,9 +2692,9 @@ mod tests {
 
         // **And the hole is where it says it is.** `/docs` is one directory;
         // the same name elsewhere is not excused, and a document written there
-        // is judged like any other. Measured before this: `policy/docs/README.md` <!-- allow-reference: names `policy/docs/README.md`, the plant that proved this hole, which is deliberately not in the tree -->
-        // stating six invariants against seven policies left `14 document(s)
-        // state no count that can rot` byte-identical and `431 passed`.
+        // is judged like any other. Measured with the name matched anywhere: `policy/docs/README.md` <!-- allow-reference: names `policy/docs/README.md`, the plant that proved this hole, which is deliberately not in the tree -->
+        // stating six invariants against seven policies leaves `14 document(s)
+        // state no count that can rot` byte-identical and the suite passing.
         assert!(
             super::the_hole("/docs", "docs/commands.md"),
             "the generated directory is not in its own hole"
@@ -2727,13 +2722,13 @@ mod tests {
 
     #[test]
     fn every_workspace_document_is_one_this_gate_reads() {
-        // **The other half of `every_markdown_file_is_read_or_named_in_the_hole`,
-        // and it did not exist.** That walk starts at `root()` and so cannot
-        // reach above the repository, which is where five of this gate's twelve
-        // documents live — so `ABOVE` was a hand-written list checked against
-        // nothing in either direction. It named five of the workspace's six, and
-        // the one missing was `reference/identity-and-authorization.md`, first in
-        // `NOCTUA.md §0.4`'s authority order. A planted count in it passed.
+        // **The other half of `every_markdown_file_is_read_or_named_in_the_hole`.**
+        // That walk starts at `root()` and so cannot reach above the
+        // repository, which is where many of this gate's documents live — so
+        // without this `ABOVE` is a hand-written list checked against nothing in
+        // either direction, and a document it leaves out —
+        // `reference/identity-and-authorization.md`, first in `NOCTUA.md §0.4`'s
+        // authority order, say — is one where a planted count passes.
         //
         // `repos/` holds other repositories, each with its own gate over its own
         // documents, and a dotted directory is scratch rather than something a
@@ -2788,33 +2783,30 @@ mod tests {
 
         // And the workspace this tree actually sits in, when there is one.
         let Some(workspace) = crate::sections::workspace_of(root()) else {
-            // **It stood down and said nothing.** The half it abandons is the
+            // **It says so when it stands down.** The half it abandons is the
             // one that means anything — `ABOVE`'s names held against the real
             // workspace, and the two assertions that keep `NOT_READ_ABOVE`
             // honest — and `NOT_READ_ABOVE`'s own doc says this test "holds
             // this one in both directions". In a bare checkout, which is what
-            // CI always has, it held neither and the run had no way to know.
-            // The tree's own remedy for a test that cannot run here is to make
-            // it say so, which is what its two siblings in this file do.
-            // Found in wave 36.
+            // CI always has, it holds neither, and a silent stand-down leaves the
+            // run no way to know. The tree's own remedy for a test that cannot
+            // run here is to make it say so, which is what its two siblings in
+            // this file do.
             println!("skipped: there is no workspace above this repository (§3.5)");
             return;
         };
         let mut on_disk = documents_under(&workspace);
         on_disk.sort();
-        // **And no assertion that the disk holds only what `ABOVE` names.** There
-        // was one, and it was wrong twice over. Its message said a document
-        // `ABOVE` did not name would have "a count that has rotted in it pass
-        // this gate" — the walk reads it, so a rotted count in it is reported,
-        // which is the whole point of walking. And the workspace is shared with
-        // four other repositories:
-        // a contributing guide written beside them, or a reviewer's brief
-        // dropped in for an hour, failed `noctua-central`'s gate
-        // with a message telling the developer to go and edit `xtask`. Measured
-        // twice in one round, on two reviewers' copies, before either of them had
-        // read a line of the tree.
+        // **And no assertion that the disk holds only what `ABOVE` names**,
+        // because it would be wrong twice over. A document `ABOVE` does not name
+        // does not have "a count that has rotted in it pass this gate" — the
+        // walk reads it, so a rotted count in it is reported, which is the whole
+        // point of walking. And the workspace is shared with other
+        // repositories: a contributing guide written beside them, or a brief
+        // dropped in for an hour, would fail `noctua-central`'s gate with a
+        // message telling the developer to go and edit `xtask`.
         //
-        // What is left is the direction that means something: a name here that
+        // What is checked is the direction that means something: a name here that
         // the disk does not hold is a name that has rotted.
         for document in ABOVE {
             assert!(
@@ -2842,9 +2834,9 @@ mod tests {
                 "`NOT_READ_ABOVE` excuses `{directory}` and the walk read it anyway"
             );
             // **And a file whose name merely begins with the directory's is
-            // read.** The exclusion and this assertion both used to ask
-            // `starts_with`, so the test agreed with the walk about a hole that
-            // was wider than the sentence describing it.
+            // read.** With the exclusion and this assertion both asking
+            // `starts_with`, the test would agree with the walk about a hole
+            // wider than the sentence describing it.
             assert!(
                 !under_the_directory(&format!("{directory}.md"), directory),
                 "`{directory}.md` is a file beside `{directory}`, and the exclusion \
@@ -2866,8 +2858,8 @@ mod tests {
         std::fs::create_dir_all(workspace.join("repos")).expect("writable");
         // The marker is what names a workspace (`NOCTUA.md §3.6`), so a scratch
         // tree that stands in for one carries it — a document beside a `repos/`
-        // is a shape any copy can have, which is why the two detectors that
-        // asked different questions could disagree.
+        // is a shape any copy can have, so a detector asking only that would
+        // disagree with one asking for the marker.
         std::fs::write(workspace.join(crate::sections::MARKER), "").expect("writable");
         for document in ABOVE {
             wrote(&workspace.join(document), "Read `ls policy/core`.\n");
@@ -2900,15 +2892,14 @@ mod tests {
         // them, which is what CI has. A test that cannot be performed is not a
         // test that passed, so `check`'s test count carries a clause naming what
         // did not run: "and the ones that need the workspace above this
-        // repository did not run". It used to claim a `warn` beside the step,
-        // which was true of some steps and not of this.
+        // repository did not run".
         if crate::sections::workspace_of(root()).is_none() {
             println!("skipped: there is no workspace above this repository (§3.5)");
             return;
         }
-        // The floor this gate had was `read > 0`, which a tree that reached only
-        // its own `CLAUDE.md` would clear — and reaching `NOCTUA.md` and
-        // `NOCTUA-PLAN.md` is the whole of what was missing.
+        // A floor of `read > 0` is cleared by a tree that reaches only its own
+        // `CLAUDE.md` — and reaching `NOCTUA.md` and `NOCTUA-PLAN.md` is the
+        // whole of what this asks.
         let read = documents(root()).expect("readable");
         for document in ABOVE {
             assert!(
@@ -2928,19 +2919,20 @@ mod tests {
     #[test]
     fn the_countable_nouns_are_the_ones_written_down() {
         // **The list's membership, not each entry's behaviour.** The test below
-        // iterates `COUNTABLE`, so deleting entries just shortens the loop:
-        // cutting six nouns to two left the whole suite green and
-        // `integration tests` — the entry the audit before last found missing,
-        // and one of the three examples this module's own header cites — was
-        // again one of the four that could go in silence.
+        // iterates `COUNTABLE`, so deleting entries just shortens its loop and
+        // cannot fail it; this names every row, so a deletion fails here —
+        // `integration test files`, the noun for one of the three examples this
+        // module's own header cites, among them.
         //
-        // Every unit test here passes the noun in by hand, so membership was
-        // exercised by nothing at all. Written out, a removal is a two-place
-        // edit a reviewer meets in the diff.
+        // The unit tests that call `claim` pass the noun in by hand, so they
+        // exercise no membership at all. Written out, a removal is a two-place
+        // edit a reader meets in the diff.
         // **The whole row, not the noun.** A noun's directory and glob are what
-        // it is a count *of*, and freezing the name alone left them free: the
-        // `crates` row repointed from `*/Cargo.toml` to `*/tests` answers 8
-        // either way, so `ANSWERED_TODAY` cannot see it and neither could this.
+        // it is a count *of*, and freezing the name alone leaves them free: a
+        // row repointed to a glob that answers the same number — `*/tests` for
+        // `*/Cargo.toml`, in a tree where every crate has a `tests/` — moves no
+        // count, so `ANSWERED_TODAY` cannot see it and neither could a frozen
+        // name.
         // Three of the seven directories hold the same number of two different
         // things, which is why *matches something* and *answers this number*
         // are both too weak on their own.
@@ -2963,10 +2955,9 @@ mod tests {
 
     #[test]
     fn every_countable_noun_is_a_rule_and_not_a_decoration() {
-        // `determinism.rs` guards its needle list this way and this did not:
-        // cutting `COUNTABLE` from six nouns to the two the other tests name
-        // left the whole suite green, and `integration tests` — the entry the
-        // last audit found missing — was one of the four that could go.
+        // `determinism.rs` guards its needle list this way, and so does this:
+        // a row removed from `COUNTABLE` — `integration test files`, say — is a
+        // loop one shorter here and a failure in the test above.
         for (noun, counted_in, glob) in COUNTABLE {
             assert_eq!(
                 claim(&format!("there are six {noun} here"), noun),
@@ -2991,10 +2982,10 @@ mod tests {
                  repository — every finding about `{noun}` names a path a reader cannot \
                  list"
             );
-            // **The glob, not the text after its last dot.** This took the
-            // suffix and looked for it *anywhere beneath* the directory, so
+            // **The glob, not the text after its last dot.** Taking the suffix
+            // and looking for it *anywhere beneath* the directory passes
             // `("invariants", "policy", "*.cedar")` and
-            // `("crates", "crates", "*/Cargo.toml")` both passed while
+            // `("crates", "crates", "*/Cargo.toml")` while
             // `ls policy/*.cedar` and `ls crates/*.rs` match nothing — every
             // finding about those nouns would hand a reader a command answering
             // zero, which is the defect the message below claims to prevent.
@@ -3008,13 +2999,13 @@ mod tests {
             // **And the number it answers, written down.** *Matches something*
             // is satisfied by any directory with a file in it, so a noun could
             // be pointed at an unrelated one and the rule would still pass —
-            // measured, two of the seven repointed and both survived. The noun
-            // that made this worth closing is the one that used to read
-            // *integration tests*: the glob counts **files**, and the journal's
-            // integration tests number 107 in 4 of them, so a document claiming
-            // either number was judged against the other. It counts what it
-            // says it counts now, and the answers are pinned so a repoint moves
-            // one.
+            // measured, two of the seven repointed and both pass that. A noun
+            // read as *integration tests* with a glob that counts **files** is
+            // the case: the journal's integration tests number over a hundred in
+            // four files, so a document claiming either number is judged against
+            // the other.
+            // Each noun counts what it says it counts, and the answers are
+            // pinned so a repoint moves one.
             let written = ANSWERED_TODAY
                 .iter()
                 .find(|(named, _)| *named == noun)
@@ -3041,15 +3032,14 @@ mod tests {
         ("integration test files", 4),
         ("migrations", 12),
         ("registries", 8),
-        ("crates", 13),
+        ("crates", 14),
         ("packs", 3),
     ];
 
     #[test]
     fn a_count_split_by_a_hard_wrap_is_still_a_count() {
-        // **The paragraph fix had no test.** Replacing `paragraphs()` with a
-        // line splitter left all of `cargo test -p xtask` green, so the fix for
-        // one of the named blockers could regress in silence. These documents
+        // **Paragraphs, not lines, held by a test.** Replacing `paragraphs()`
+        // with a line splitter fails this test. These documents
         // are wrapped at about eighty columns, which makes a count and its noun
         // landing on two lines the ordinary case.
         let workspace = std::env::temp_dir().join(format!("nc-wrap-{}", std::process::id()));
@@ -3059,8 +3049,8 @@ mod tests {
         std::fs::create_dir_all(workspace.join("repos")).expect("writable");
         // The marker is what names a workspace (`NOCTUA.md §3.6`), so a scratch
         // tree that stands in for one carries it — a document beside a `repos/`
-        // is a shape any copy can have, which is why the two detectors that
-        // asked different questions could disagree.
+        // is a shape any copy can have, so a detector asking only that would
+        // disagree with one asking for the marker.
         std::fs::write(workspace.join(crate::sections::MARKER), "").expect("writable");
         for document in ABOVE {
             wrote(&workspace.join(document), "Read `ls policy/core`.\n");
@@ -3086,10 +3076,10 @@ mod tests {
 
     #[test]
     fn words_and_digits_are_both_numbers() {
-        // **Past twelve**, which is where this stopped — and thirteen is the
-        // value this module's own header cites as the correction. Deleting
-        // `thirteen` through `fifty` left the whole suite green, because the
-        // test stopped at exactly the boundary that was the bug.
+        // **Past twelve** — thirteen is the value this module's own header
+        // cites. Deleting `thirteen` through `fifty` fails these rows, where a
+        // test stopping at twelve would stop at exactly the boundary that
+        // matters.
         for (word, value) in [
             ("one", 1),
             ("nine", 9),
@@ -3108,12 +3098,13 @@ mod tests {
 
     /// One marker excuses one claim, not a paragraph of them.
     ///
-    /// **It excused every claim in the paragraph, of every noun.** The marker is
-    /// tested against the joined paragraph — which is right for *finding* a
+    /// **Tested against the paragraph alone, a marker would excuse every claim in
+    /// it, of every noun.** The marker is tested against the joined paragraph — which
+    /// is right for *finding* a
     /// claim, because a count and its noun land on different lines all the time,
     /// and wrong for excusing one. Measured: a three-line paragraph with the
     /// marker on line 1 and a second, different claim on line 3, and one
-    /// `<!-- allow-count: a probe -->` silenced both.
+    /// `<!-- allow-count: a probe -->` silences both without the noun rule.
     #[test]
     fn an_excuse_names_the_claim_it_excuses() {
         // The same scratch workspace the test below builds: this gate reads
@@ -3123,10 +3114,9 @@ mod tests {
         let tree = workspace.join("repos/central");
         std::fs::create_dir_all(&tree).expect("writable");
         std::fs::write(workspace.join(crate::sections::MARKER), "").expect("writable");
-        // **`ABOVE`, not a copy of it.** Written out, this list stopped being the
-        // gate's own and the two drifted: the document that outranks every other
-        // was added to `ABOVE` and these scratch workspaces went on holding five,
-        // so the count below said the walk had read one document too few.
+        // **`ABOVE`, not a copy of it.** Written out, this list stops being the
+        // gate's own and the two drift: a document added to `ABOVE` and not
+        // here makes the count below say the walk has read one document too few.
         for document in ABOVE {
             wrote(&workspace.join(document), "Read `ls policy/core`.\n");
         }
@@ -3189,10 +3179,9 @@ mod tests {
         std::fs::create_dir_all(&scratch).expect("writable");
         // The marker is what names a workspace (`NOCTUA.md §3.6`).
         std::fs::write(workspace.join(crate::sections::MARKER), "").expect("writable");
-        // **`ABOVE`, not a copy of it.** Written out, this list stopped being the
-        // gate's own and the two drifted: the document that outranks every other
-        // was added to `ABOVE` and these scratch workspaces went on holding five,
-        // so the count below said the walk had read one document too few.
+        // **`ABOVE`, not a copy of it.** Written out, this list stops being the
+        // gate's own and the two drift: a document added to `ABOVE` and not
+        // here makes the count below say the walk has read one document too few.
         for document in ABOVE {
             wrote(&workspace.join(document), "Read `ls policy/core`.\n");
         }
@@ -3235,8 +3224,9 @@ mod tests {
         );
 
         // **The hatch, and the hole in it.** A marked line passes; a bare marker
-        // with no reason does not, because `references::marked` demands one —
-        // which is why this gate borrows it rather than inventing its own.
+        // with no reason does not, because `references::names` demands a reason
+        // that names the noun — which is why this gate borrows it rather than
+        // inventing its own.
         std::fs::write(
             scratch.join("AGENTS.md"),
             "The core holds the three invariants. <!-- allow-count: the invariants §14.9 fixes -->\n",
@@ -3274,25 +3264,26 @@ mod tests {
 
     /// A count in digits is a count, and a number that names something is not.
     ///
-    /// **Every digit form of every countable noun fell through**, on the written
-    /// grounds that "nothing in these documents does" it — which is a
-    /// measurement of today's prose rather than a property of the rule, and the
-    /// documents this reads are the ones an agent is told to trust before
-    /// running anything. `AGENTS.md` states this very rule and gives *"there are
-    /// 41 tests"* as its example of the forbidden sentence; that sentence was
-    /// invisible to the gate enforcing it.
+    /// **Without `COUNTS_THEM`, every digit form of every countable noun falls
+    /// through**, on the label rule's grounds that "nothing in these documents
+    /// does" it — which is a measurement of today's prose rather than a
+    /// property of the rule, and the documents this reads are the ones an agent
+    /// is told to trust before running anything. `AGENTS.md` states this very
+    /// rule and gives *"there are 41 tests"* as its example of the forbidden
+    /// sentence; without it, that sentence is invisible to the gate enforcing
+    /// it.
     ///
     /// A case per entry of `COUNTS_THEM`, because a whitelist with no case per
-    /// member is the shape this repository has removed twice — and the same
+    /// member is a shape this repository refuses — and the same
     /// sentences with their labels back, because a rule that caught those would
     /// be worse than no rule.
     #[test]
     fn a_count_in_digits_is_a_count_and_a_label_is_not() {
         // **Written out, not iterated from the list.** Looping over
         // `COUNTS_THEM` builds the cases from the thing under test, so dropping
-        // an entry drops its own case — measured: removing `"both"` left this
-        // test green. That is the shape this repository has now removed nine
-        // times, and it appeared in the very test written to close the ninth.
+        // an entry drops its own case — measured: with a loop, removing `"both"`
+        // leaves this test green. That is a shape this repository refuses
+        // wherever it finds it.
         const COUNTING: [&str; 31] = [
             "are",
             "is",
@@ -3348,7 +3339,7 @@ mod tests {
             "a counting word in the list reads as a label: {missed:#?}"
         );
 
-        // And the six nouns, each in the phrasing a person actually writes.
+        // And six of the nouns, each in the phrasing a person actually writes.
         for (line, noun) in [
             ("There are 9 crates in this repository.", "crates"),
             ("The tree holds 12 migrations.", "migrations"),
@@ -3406,12 +3397,11 @@ mod tests {
 
     /// The independent paragraph counter counts paragraphs.
     ///
-    /// **It had no test of any kind**, and it is one half of an equality the
-    /// whole rotting-count gate rests on: `blocks_in(&text) * 0` — one token —
-    /// took the other side to zero, and the comparison beside it accepted
-    /// anything at or above what it expected, so the rule collapsed to
-    /// `judged > 0`. `check.rs` calls that "a floor with everything in it" in as
-    /// many words.
+    /// **One half of an equality the whole rotting-count gate rests on.** With
+    /// `blocks_in(&text) * 0` — one token — the other side goes to zero, and
+    /// under a comparison accepting anything at or above what it expects the
+    /// rule would collapse to `judged > 0`. `check.rs` calls that "a floor with
+    /// everything in it" in as many words.
     ///
     /// The cases are the ones the walk it is compared against has to agree
     /// about: a fence is not prose, a run of blank lines is one break, and a
@@ -3449,12 +3439,12 @@ mod tests {
         // the two cannot drift while `check` happens not to be run.
         //
         // **Against the documents this run can actually see, not a constant.**
-        // `how_many_paragraphs` reads the eight documents in this repository
-        // *and* the five in the workspace above it, so the number is 1643 for a
-        // developer with the workspace checked out and 365 for a clone of this
-        // repository alone — which is what the checkout step gives CI, and what
-        // `README.md` promises `check` passes on. A floor of `> 500`
-        // calibrated in the first state made `cargo xtask check` fail in the
+        // `how_many_paragraphs` reads the documents in this repository *and*
+        // those in the workspace above it, so the number for a developer with
+        // the workspace checked out is several times the number for a clone of
+        // this repository alone — which is what the checkout step gives CI, and
+        // what `README.md` promises `check` passes on. A floor of `> 500`
+        // calibrated in the first state makes `cargo xtask check` fail in the
         // second, on the only machine that matters:
         //
         // ```text

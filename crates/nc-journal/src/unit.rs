@@ -7,13 +7,13 @@
 //!
 //! # Why the entries are written as they happen
 //!
-//! An earlier version buffered them and wrote them on commit, so dropping the
-//! handle wrote nothing at all. That is faithful to "*dropping the handle
-//! without `commit` aborts*" read narrowly, and it is wrong: it also erased the
-//! **denials**. `§15.5` requires every authorization denial to be recorded, "not
-//! optional and not sampled", and `§14.9` splits undo from audit precisely so
-//! that one cannot reach into the other. An agent could have wrapped hostile
-//! dispatches in a unit, dropped the handle, and left nothing behind.
+//! Buffering them and writing them on commit, so that dropping the handle
+//! writes nothing at all, is faithful to "*dropping the handle without `commit`
+//! aborts*" read narrowly, and it is wrong: it also erases the
+//! **denials**. `§15.5` requires every authorization denial to be recorded,
+//! "not optional and not sampled", and `§14.9` splits undo from audit precisely
+//! so that one cannot reach into the other. An agent could wrap hostile
+//! dispatches in a unit, drop the handle, and leave nothing behind.
 //!
 //! So: entries are appended immediately, and the unit's *outcome* is what the
 //! handle decides. Aborting is a fact about what happened, recorded like any
@@ -63,10 +63,10 @@
 
 /// The action the entry that opens a work unit carries.
 ///
-/// Written down and asserted rather than typed in place: this and [`CLOSES`]
-/// were two string literals a few lines apart, and swapping them changed which
-/// entry a query for "when did this unit start" would find, with the whole
-/// suite green.
+/// Written down and asserted rather than typed in place: as two string literals
+/// a few lines apart, this and [`CLOSES`] could be swapped — changing which
+/// entry a query for "when did this unit start" finds — with the whole suite
+/// green.
 pub const OPENS: &str = "kernel.begin";
 
 /// The action the entry that closes a work unit carries.
@@ -162,7 +162,7 @@ impl<'a, S: Store, C: Clock> WorkUnit<'a, S, C> {
     /// `Journal::bracket` asks the clock, and closing a unit goes through it —
     /// and whatever [`Journal::close_unit`] returned otherwise. Takes `&mut self` rather than `self` so that
     /// the closed state is reachable — with a consuming `commit`, the branch
-    /// above could never be taken and its error code was unreachable.
+    /// above could never be taken and its error code would be unreachable.
     pub async fn commit(&mut self) -> Result<Entry, Error> {
         self.close(Closing::Committed).await
     }
@@ -262,11 +262,9 @@ mod tests {
     /// **What tells the unit's own refusal from the store's.** `record` refuses
     /// after the group is closed, and `InMemory` refuses an entry that arrives
     /// after the closing bracket — two guards answering the same error on the
-    /// same input, so the unit's could be deleted with every test in this crate
-    /// still green. Measured on 2026-09-13, after a reviewer found that the file
-    /// carries no mutation operator at all. This store answers `Ok` to any
-    /// append, which leaves the unit's own guard as the only thing that can
-    /// refuse.
+    /// same input, so against `InMemory` the unit's could be deleted with every
+    /// test in this crate still green. This store answers `Ok` to any append,
+    /// which leaves the unit's own guard as the only thing that can refuse.
     ///
     /// **It keeps what it can, and it never says a unit is closed.** A close
     /// goes through `Journal::close_unit`, which asks whether the unit was ever
@@ -400,13 +398,13 @@ mod tests {
 
     /// The unit refuses a second close, whatever the store would have done.
     ///
-    /// **`close`'s own guard was decided by nothing.** Against a store that
-    /// conforms, a second close is refused anyway — `close_unit` writes through
-    /// `append`, which answers `UnitClosed` — so `if self.closed` could be
-    /// `if false` with every suite green, measured on 2026-09-28. Only a store
-    /// that answers otherwise tells the two apart, and under that plant this
-    /// one landed a second `kernel.unit` bracket for a unit that had already
-    /// committed. The twin of the test above, for the other door out.
+    /// **`close`'s own guard, decided.** Against a store that conforms, a
+    /// second close is refused anyway — `close_unit` writes through `append`,
+    /// which answers `UnitClosed` — so `if self.closed` could be `if false`
+    /// with every other suite green. Only a store that answers otherwise tells
+    /// the two apart, and under that plant this one lands a
+    /// second `kernel.unit` bracket for a unit that has already committed. The
+    /// twin of the test above, for the other door out.
     #[tokio::test]
     async fn a_closed_unit_refuses_a_second_close_the_store_would_have_taken() {
         let mut journal = Journal::new(
@@ -429,11 +427,11 @@ mod tests {
 
     #[tokio::test]
     async fn the_bracket_entries_carry_the_actions_a_query_looks_for_and_they_differ() {
-        // **Two literals a few lines apart, and nothing named either.** Swapping
-        // them changed which entry a query for "when did this unit start" would
-        // find, and the whole suite stayed green — so did flattening both to one
-        // string, which would make an opening entry and a closing one
-        // indistinguishable in the history `§11.5` is about.
+        // **Two literals a few lines apart, and this is what names them.**
+        // Without it, swapping them changes which entry a query for "when did
+        // this unit start" would find with the whole suite green — and so does
+        // flattening both to one string, which would make an opening entry and
+        // a closing one indistinguishable in the history `§11.5` is about.
         let mut journal = Journal::new(InMemory::default(), id("realm"), id("kernel"), minter());
         let mut unit = journal.begin("a label".to_owned()).await.expect("begins");
         unit.commit().await.expect("commits");
@@ -441,14 +439,15 @@ mod tests {
         let entries = journal.store().all();
         assert_eq!(entries.len(), 2, "{entries:#?}");
         // **Written out, because the constants restated prove nothing about
-        // them.** These two assertions read `super::OPENS` and `super::CLOSES`,
-        // so renaming both to `"zzz.a"` and `"zzz.b"` left the whole workspace
+        // them.** Assertions reading `super::OPENS` and `super::CLOSES` let
+        // both be renamed to `"zzz.a"` and `"zzz.b"` with the whole workspace
         // green. They are not internal names: they are the literal `action`
         // value written into the audit table and hashed into every bracket
-        // entry, so after a rename `unit_opened` and `unit_closed` stop matching
-        // the brackets already in the table — and a unit that was closed
-        // silently accepts new entries, which is the one thing the closed-unit
-        // rule exists to prevent. There is no migration for a hashed column.
+        // entry, so after a rename `unit_opened` and `unit_closed` stop
+        // matching the brackets already in the table — and a unit that was
+        // closed silently accepts new entries, which is the one thing the
+        // closed-unit rule exists to prevent. There is no migration for a
+        // hashed column.
         assert_eq!(super::OPENS, "kernel.begin");
         assert_eq!(super::CLOSES, "kernel.unit");
         assert_eq!(entries[0].record.action, "kernel.begin");
@@ -483,7 +482,7 @@ mod tests {
     /// A minter for a test, with a flake of its own.
     ///
     /// One per `Journal`, because two journals sharing a flake mint the same
-    /// work-unit identifiers — the defect this signature now makes visible.
+    /// work-unit identifiers — which this signature makes visible.
     fn minter() -> nc_ids::Minter<nc_ids::SystemClock> {
         use core::sync::atomic::{AtomicU16, Ordering};
         static NEXT: AtomicU16 = AtomicU16::new(1);
@@ -500,17 +499,18 @@ mod tests {
 
     /// A close the store refused leaves the unit open.
     ///
-    /// **`self.closed = true` sat one line from the append, and swapping the
-    /// two left the whole gate green.** With the flag set first, a store that
-    /// answers `Unavailable` — the *retryable* one, whose sentence tells the
-    /// caller to try again — closes the unit anyway: `is_closed()` answers
-    /// `true`, `commit` and `abort` both answer `UnitClosed` from then on, and
-    /// the handle can never be closed. No bracket is ever written, so the group
-    /// stays open in the table for ever, and `unit_opened` goes on refusing a
-    /// second opener for a unit that has no closing bracket and never will.
+    /// **`self.closed = true` sits one line from the append, and swapping the
+    /// two would leave the rest of the gate green.** With the flag set first, a
+    /// store that answers `Unavailable` — the *retryable* one, whose sentence
+    /// tells the caller to try again — closes the unit anyway: `is_closed()`
+    /// answers `true`, `commit` and `abort` both answer `UnitClosed` from then
+    /// on, and the handle can never be closed. No bracket is ever written, so
+    /// the group stays open in the table for ever, and `unit_opened` goes on
+    /// refusing a second opener for a unit that has no closing bracket and
+    /// never will.
     ///
-    /// Nothing here had a store that could fail, which is why the order was
-    /// free. This one blinks once.
+    /// Without a store that can fail, the order is free. This one
+    /// blinks once.
     #[tokio::test]
     async fn a_close_the_store_refused_leaves_the_unit_open() {
         let mut journal = Journal::new(
@@ -526,11 +526,11 @@ mod tests {
             minter(),
         );
         let mut unit = journal.begin("Import album").await.expect("opens");
-        // **`label` had no caller that read its value.** It is what a person
-        // sees in the history, and a systematic scan found it answering nothing
-        // anybody checked: the accessor could hand back the unit's identifier,
-        // or the empty string, with the whole suite green. `clippy` catches a
-        // literal here and nothing catches a wrong field.
+        // **`label` is read here.** It is what a person sees in the history,
+        // and with nothing checking its value the accessor could hand back the
+        // unit's identifier, or the empty string, with the whole suite green.
+        // `clippy` would catch a literal here, and nothing would catch a wrong
+        // field.
         assert_eq!(
             unit.label(),
             "Import album",
@@ -560,10 +560,11 @@ mod tests {
 
     #[tokio::test]
     async fn a_closed_unit_is_closed_for_every_way_in() {
-        // **`WorkUnit::record` refused a closed unit and `Journal::record` did
-        // not.** A caller setting `record.work_unit` by hand landed an entry
-        // *after* its own `UnitCommitted` bracket, inside the group to every SQL
-        // reader, with `verify` answering clean — the shape `postgres.rs`'s own
+        // **Both `WorkUnit::record` and `Journal::record` refuse a closed
+        // unit.** With only the first refusing, a caller setting
+        // `record.work_unit` by hand lands an entry *after* its own
+        // `UnitCommitted` bracket, inside the group to every SQL reader, with
+        // `verify` answering clean — the shape `postgres.rs`'s own
         // header names: a rule enforced only where it is convenient to enforce
         // it is a rule about one code path.
         let mut journal = journal();
@@ -571,11 +572,12 @@ mod tests {
             let mut unit = journal.begin("Import album").await.expect("opens");
             unit.record(record(1)).await.expect("open");
             let id = unit.id();
-            // **`is_closed` before and after, because nothing called it.** A
-            // systematic scan found it the only public function in these crates
-            // with no caller anywhere — so `self.closed = true` could be `false`
-            // and the whole suite stayed green, leaving an accessor that always
-            // answers "still open" for a unit that is not.
+            // **`is_closed` before and after, on a close that lands at once.**
+            // It is a public function no code in these crates calls outside
+            // their tests, so the tests are its only readers:
+            // `a_close_the_store_refused_leaves_the_unit_open` asks it around a
+            // close the store refused, and this asks it around one that lands —
+            // an accessor that always answered "still open" fails both.
             assert!(!unit.is_closed(), "a unit says it is closed before it is");
             unit.commit().await.expect("commits");
             assert!(
@@ -631,9 +633,9 @@ mod tests {
     #[tokio::test]
     async fn an_aborted_unit_keeps_every_entry_including_a_denial() {
         // The whole reason entries are not buffered. §15.5 requires every
-        // authorization denial to be recorded, and an aborted group used to
-        // erase them — which is what an agent wrapping hostile dispatches in a
-        // unit would have relied on.
+        // authorization denial to be recorded, and an aborted group that erased
+        // them would be what an agent wrapping hostile dispatches in a unit
+        // relies on.
         let mut journal = journal();
         {
             let mut unit = journal.begin("Tried something").await.expect("opens");
@@ -671,8 +673,8 @@ mod tests {
 
     #[tokio::test]
     async fn recording_into_a_closed_unit_is_refused_by_name() {
-        // Reachable, which it was not: `commit` used to consume the handle, so
-        // the closed branch could never be taken and its error code was dead.
+        // Reachable: a `commit` that consumed the handle would make the closed
+        // branch impossible to take and its error code dead.
         let mut journal = journal();
         let mut unit = journal.begin("Closed").await.expect("opens");
         unit.commit().await.expect("commits");
@@ -947,14 +949,14 @@ mod tests {
     /// A store that could not say whether a unit opened is not a unit that
     /// never opened.
     ///
-    /// **`close_unit` asks `unit_opened` first, and a failure there was one
-    /// token from reading as "no".** `!= Ok(true)` in place of its `?` turned
-    /// `Unavailable`, which tells the caller to try again, into
-    /// `UnitNeverOpened`, which tells them nothing will change — with every
-    /// suite but the PostgreSQL one green, reported on 2026-09-28. The retry
-    /// has to be the same close, so nothing is written and the label is kept
-    /// for it. And the provided `unit_closed` passes the same failure on
-    /// rather than answering "not closed" over it.
+    /// **`close_unit` asks `unit_opened` first, and a failure there is one
+    /// token from reading as "no".** `!= Ok(true)` in place of its `?`
+    /// turns `Unavailable`, which tells the caller to try again,
+    /// into `UnitNeverOpened`, which tells them nothing will change — with
+    /// every suite but the PostgreSQL one green without this. The retry has to
+    /// be the same close, so nothing is written and the label is kept for
+    /// it. And the provided `unit_closed` passes the same failure on rather
+    /// than answering "not closed" over it.
     #[tokio::test]
     async fn a_store_that_cannot_say_whether_a_unit_opened_is_not_a_unit_that_never_opened() {
         let mut journal = Journal::new(
@@ -1013,11 +1015,11 @@ mod tests {
     /// A close refused because another writer already closed the unit keeps
     /// no label: no retry of it can ever land.
     ///
-    /// **The label was dropped only when the close landed**, so this refusal
-    /// kept it for as long as the journal lived — measured on 2026-09-28, the
-    /// map still holding `"Import album"` after `UnitClosed`. The closing
-    /// bracket here is written by hand through `record`, which is what a second
-    /// writer, another process's recovery or an `INSERT`-only party produces.
+    /// **Not only when the close lands.** Dropped only then, the label would be
+    /// kept for as long as the journal lives — measured, the map still
+    /// holding `"Import album"` after `UnitClosed`. The closing bracket here is
+    /// written by hand through `record`, which is what a second writer, another
+    /// process's recovery or an `INSERT`-only party produces.
     #[tokio::test]
     async fn a_close_refused_as_closed_keeps_no_label() {
         let mut journal = journal();
@@ -1078,13 +1080,13 @@ mod tests {
     /// and nothing makes the first one the owner's.** Chained onto the tail
     /// through the public `Store::append` — all a party that can only `INSERT`
     /// needs, since the digest is unkeyed — a closing bracket with the outcome
-    /// of that party's choosing lands on a unit its owner still has open.
-    /// `unit_closing` then reports that outcome, the owner's own close is
-    /// refused as closed, and `verify` answers `Ok` over all of it. Reported on
-    /// 2026-09-28 against a crate header that called this only an availability
-    /// failure, while the kernel's undo acts on `Some(UnitCommitted)`. Pinned so
-    /// that the change which does make the first bracket the owner's fails here
-    /// and rewrites `Store::unit_closing`'s paragraph with it.
+    /// of that party's choosing lands on a unit its owner still has
+    /// open. `unit_closing` then reports that outcome, the owner's own close is
+    /// refused as closed, and `verify` answers `Ok` over all of it — more than
+    /// an availability failure, while the kernel's undo acts
+    /// on `Some(UnitCommitted)`. Pinned so that the change which does make the
+    /// first bracket the owner's fails here and
+    /// rewrites `Store::unit_closing`'s paragraph with it.
     #[tokio::test]
     async fn a_party_that_can_only_append_chooses_how_an_open_unit_closed() {
         for (forged, owners) in [

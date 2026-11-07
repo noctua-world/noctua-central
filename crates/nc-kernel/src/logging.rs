@@ -190,9 +190,9 @@ mod tests {
     /// The sink a daemon opens a kernel with ships what the kernel records to
     /// the central log's store, every field of it.
     ///
-    /// A verifier found it driven by nothing: every suite of this crate logs
-    /// into a capture, and `nc-log`'s own cannot reach this impl, so a sink
-    /// that dropped every line passed them all.
+    /// Nothing else drives it: every other suite of this crate logs into a
+    /// capture, and `nc-log`'s own cannot reach this impl, so a sink that
+    /// dropped every line would pass them all.
     #[test]
     fn the_central_log_sink_ships_what_the_kernel_records() {
         let (endpoint, received) = a_store_that_keeps_what_it_is_given();

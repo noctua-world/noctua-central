@@ -1,24 +1,24 @@
 //! This must NOT compile. See `a_string_cannot_be_a_log_value.rs`.
 //!
-//! **No string type is a `LogValue`**, and this is the shape that used to be the
-//! whole argument. The wall was once `LogValue for &'static str`, on the
-//! reasoning that a `&str` borrowed from a local cannot satisfy that bound. It
-//! cannot — and `String::leak` manufactures a real `&'static str` out of
-//! anything, so the reasoning held and the wall did not. `Literal` replaced it,
-//! and this fixture now proves the narrower thing it always proved: a borrowed
-//! `&str` is not a log value. No lint and no review is involved.
+//! **No string type is a `LogValue`**, borrowed or owned. A bound of
+//! `&'static str` would refuse this borrowed `&str` and still let run-time
+//! text through: `String::leak` manufactures a real `&'static str` out of
+//! anything, so a leaked value would satisfy it exactly as a literal does.
+//! Text from the source reaches a log line as a `Literal` instead
+//! (`a_leaked_string_cannot_be_a_literal.rs`), and this fixture proves the
+//! narrower thing: a borrowed `&str` is not a log value. No lint and no review
+//! is involved.
 //!
-//! **One fixture per file, and the reason is not the one this used to give.**
-//! It said "it fails during borrow checking rather than type checking", and it
-//! does not: compiled alone against the real crates, rustc answers
-//! `error[E0277]: the trait bound `&str: LogValue` is not satisfied` — E0277 is
+//! **The refusal is a type error.** Compiled alone against the real crates,
+//! this file gets an unsatisfied trait bound from rustc, E0277, and E0277 is
 //! trait selection, which is type checking, and the `EXPECT` line below says so
-//! itself.
+//! itself. Borrow checking, which does not run once type checking has failed,
+//! plays no part in this refusal.
 //!
-//! The rule still holds for the reason that applies to every fixture here: two
-//! type errors in one crate can stop the compiler before it reaches the second,
-//! so a file that must fail for a *stated* reason has to be the only thing that
-//! can fail in it.
+//! **One fixture per file**, for the reason that applies to every fixture
+//! here: one failure can stop rustc before it reaches another, so a file that
+//! must fail for a *stated* reason has to be the only thing that can fail in
+//! it.
 //!
 //! EXPECT: the trait bound `&str: LogValue` is not satisfied
 

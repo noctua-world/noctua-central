@@ -212,9 +212,9 @@ impl<E: Environment> HostState<E> {
     /// log the kernel keeps for the plugin.
     ///
     /// **One constructor for its load and every restart**, so the instance a
-    /// kill brings back is held to what the first one was: the restart built
-    /// its state apart, and handing it every grant or the catalog's memory
-    /// left every suite green.
+    /// kill brings back is held to what the first one was: a restart's state
+    /// built apart could be handed every grant or the catalog's memory, which
+    /// the restart tests of `crates/nc-kernel/tests/isolation.rs` refuse.
     pub(crate) fn for_plugin(
         manifest: &PluginManifest,
         shared: &Shared<E>,
@@ -307,11 +307,11 @@ impl<E: Environment> HostState<E> {
     /// as `refusal` says — for where it ran or whose name it used — once for
     /// that function and code, and answers what the plugin is told.
     ///
-    /// **A reviewer found a real bug with it**: a write where nothing may
-    /// change, an act for a person where no call tree runs and an event under
-    /// another plugin's topic were each answered and recorded nowhere, where
-    /// a capability denied and a fetch refused are each logged — and every
-    /// authorization denial is recorded (`NOCTUA.md §15.5`).
+    /// **Recorded, as a capability denied and a fetch refused are**:
+    /// unrecorded, a write where nothing may change, an act for a person where
+    /// no call tree runs and an event under another plugin's topic would each
+    /// be answered and recorded nowhere — and every authorization denial is
+    /// recorded (`NOCTUA.md §15.5`).
     pub(crate) fn refused_here(&self, function: &'static str, refusal: &Refusal) -> KernelError {
         let seen = (function, refusal.code());
         let mut refused = crate::dispatch::lock(&self.calls_refused);
@@ -681,9 +681,9 @@ mod tests {
     /// A million refusals keep one entry per function refused, not one per
     /// call.
     ///
-    /// **A review found this record a list of every refused call:**
-    /// `timers::cancel` called five million times inside one dispatch's fuel
-    /// left five million denials in the plugin's store, in host memory that
+    /// **Not a list of every refused call:** kept as one, `timers::cancel`
+    /// called five million times inside one dispatch's fuel would leave five
+    /// million denials in the plugin's store, in host memory that
     /// `memory_bytes` does not count, kept for the plugin's lifetime. Every
     /// function a capability grants is refused here in turn, so the record
     /// reaches its whole bound and no further, and the counts add up to every
@@ -848,11 +848,11 @@ mod tests {
     ///
     /// **Granted one capability at a time**, because a store granted two of an
     /// interface's capabilities cannot tell which of them a function asked for.
-    /// A review planted `unit.commit` asking for `commands.dispatch` and
-    /// `reader.seek` recording itself as `reader.sek`, and every test of this
-    /// crate passed: each interface's own test granted both of its capabilities
-    /// together or counted what was reached, and the coverage suite leaves out
-    /// every method, which no plugin can reach before a constructor is built.
+    /// With `unit.commit` planted asking for `commands.dispatch` and
+    /// `reader.seek` recording itself as `reader.sek`, a test granting both of
+    /// an interface's capabilities together, or counting what was reached,
+    /// would pass, and the coverage suite leaves out every method, which no
+    /// plugin can reach before a constructor is built.
     /// Here the first plant answers the wrong refusal under both grants, and
     /// either plant leaves what was reached apart from the catalog.
     ///

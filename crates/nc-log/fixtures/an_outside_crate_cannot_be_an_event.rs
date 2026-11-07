@@ -1,8 +1,8 @@
 //! This must NOT compile. See `a_string_cannot_be_a_log_value.rs`.
 //!
-//! **The largest hole the wall ever had.** `Event` was an open trait and
-//! `Field`'s variants were public, so a crate outside `nc-log` could write its
-//! own event and hand the log anything at all:
+//! **The door that needs no leak.** With `Event` an open trait and `Field`'s
+//! variants public, a crate outside `nc-log` could write its own event and
+//! hand the log anything at all:
 //!
 //! ```ignore
 //! impl Event for Mine {
@@ -12,14 +12,14 @@
 //! }
 //! ```
 //!
-//! No leak. No macro. Nothing any source gate looks for — the wall was moved to
-//! `Literal` and the door beside it was left open. A reviewer built exactly this
-//! and got `{"_msg":"user.did_something","who":"victim@example.com"}` out of the
-//! real crate, with no `unsafe`.
+//! No leak, no macro, no `unsafe`, nothing any source gate looks for. With both
+//! doors open, that impl in a consumer crate puts
+//! `{"_msg":"user.did_something","who":"victim@example.com"}` on a line the
+//! real crate ships to the store.
 //!
-//! `Event` now has a private supertrait, and that takes nothing away: every
-//! event struct is generated **into** `nc-log` from `catalog/log-events.toml`,
-//! so an event nobody declared does not exist (`§15.2`).
+//! `Event` has a private supertrait, and that takes nothing away: every event
+//! struct is generated **into** `nc-log` from `catalog/log-events.toml`, so an
+//! event nobody declared does not exist (`§15.2`).
 //!
 //! EXPECT: the trait bound `Mine: nc_log::sealed::Sealed` is not satisfied
 

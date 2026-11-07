@@ -192,10 +192,11 @@ impl Compiled {
     /// have been built from this world: one that imports a function by itself,
     /// with no interface around it, is named here by that name alone, and a
     /// function inside an instance inside an instance by the whole path, joined
-    /// with `#`. This walked the top-level instances only, and a crafted
-    /// component importing `foo` bare reported an empty surface while the link
-    /// stubbed `foo` like any other import — measured by a reviewer, with a
-    /// probe encoded the way the plugin build encodes a plugin.
+    /// with `#`. A walk of the top-level instances only would report an empty
+    /// surface for a crafted component importing `foo` bare — measured with a
+    /// probe encoded the way the plugin build encodes a plugin — and a link
+    /// that stubbed `foo` like any other import would let it reach a function
+    /// that surface does not show.
     #[must_use]
     pub fn imports(&self, engine: &Engine) -> Vec<String> {
         let mut functions = Vec::new();
@@ -362,9 +363,9 @@ mod tests {
     /// away, so an epoch nothing advances ends in the other trap rather than
     /// in a test that never returns. What the thread holds is let go of by the
     /// time the drop returns, which the join guarantees; a drop that only let
-    /// the thread go leaves the same answer microseconds later, and this
-    /// cannot tell the two apart — measured, with the join taken out, it
-    /// passed, so the join is held by nothing but reading it.
+    /// the thread go would end it microseconds later instead, so the count it
+    /// holds is read the moment the drop returns — measured, with the join
+    /// taken out this fails in most runs, the thread still holding it.
     #[test]
     fn the_ticker_advances_the_epoch_until_it_is_dropped() {
         let engine = Engine::new().expect("the configuration is one wasmtime accepts");

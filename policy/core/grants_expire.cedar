@@ -20,14 +20,13 @@ unless { context.grant has valid_until };
 
 // And a window that has not opened is not a window either.
 //
-// **`valid_from` was in the schema and read by nothing.** The reference gives
-// every tuple provenance — `granted_by`, `reason`, `valid_from`, `valid_until`,
-// `source` — and `grep -rn valid_from` over every `.cedar` expression in this
-// tree came back empty. So the far end of the window was enforced and the near
-// end was not, and the asymmetry is the whole finding: measured with `now =
-// 2026-08-26`, a grant written for a visit in June 2027 authorized reads,
-// writes and administration *today*, while the identical grant that ran out
-// last January was refused.
+// **`valid_from` is in the schema, and this is what reads it.** The reference
+// gives every tuple provenance — `granted_by`, `reason`, `valid_from`,
+// `valid_until`, `source` — and without this policy the far end of the window
+// is enforced and the near end is not. Measured without it, with `now =
+// 2026-08-26`: a grant written for a visit in June 2027 authorizes reads,
+// writes and administration *that day*, while the identical grant that ran out
+// the January before is refused.
 //
 // Fail-closed in the same shape as its neighbour: a grant with no `valid_from`,
 // or a request with no `now`, is refused rather than waved through. There is no
@@ -53,9 +52,8 @@ when {
 // disjunct is the same test — so by the time this one's guard would decide,
 // that one has already denied. Measured: deleting `!(context has now) ||` from
 // this policy leaves the whole `nc-policy` suite green, and deleting it from
-// *both* makes `guard-fails-open` fire for both, which is how the masking was
-// found. Deleting it from the policy above is now caught, by a case built on a
-// grant this one stands aside for.
+// *both* makes `guard-fails-open` fire for both. Deleting it from the policy
+// above is caught, by a case built on a grant this one stands aside for.
 //
 // It stays because a policy has to fail closed on its own terms: the sibling
 // that currently covers it is one edit away from not covering it, and this

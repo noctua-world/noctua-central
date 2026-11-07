@@ -11,13 +11,14 @@
 //! a table with no bound, a command that reads and mutates. Those are the ones
 //! `NOCTUA.md` asks for.
 //!
-//! The second class is about **what the emitter will do with the value**, and it
-//! exists because a reviewer proved what happens without it. Two error codes
+//! The second class is about **what the emitter will do with the value**, and
+//! without it the failure lands where nobody can act on it. Two error codes
 //! whose message keys differ only in a hyphen produce one Rust variant name, and
-//! `cargo xtask build` reported `ok` before rustc failed inside a generated file
-//! whose header forbids editing it — with no line in any registry and no fix.
-//! A notification called `2fa.enabled` did worse: rustfmt refused the emitted
-//! source and the location it gave was a byte offset into a stream the developer
+//! unchecked, `cargo xtask build` would report `ok` before rustc failed inside a
+//! generated file whose header forbids editing it — with no line in any
+//! registry and no fix.
+//! A notification called `2fa.enabled` does worse: rustfmt refuses the emitted
+//! source and the location it gives is a byte offset into a stream the developer
 //! cannot open. So every name that becomes an identifier is checked **here**,
 //! where the file and the line exist.
 
@@ -196,11 +197,11 @@ fn parse<T: DeserializeOwned>(
 ///
 /// Checked here rather than discovered by rustc inside a generated file.
 ///
-/// **The list held six names and five of them are not keywords.** It was written
-/// for `camel`-cased names — `Self`, `Super`, `Crate`, `Box`, `Type`, `Fn` — and
-/// compared case-sensitively, while this function has a *second* caller that
-/// hands it `crate::snake(&field.name)`. So `type`, the plainest name a log
-/// field can have, reached the emitter untouched and the build died inside
+/// **Every keyword, in both cases this function is handed.** A list written for
+/// `camel`-cased names — `Self`, `Super`, `Crate`, `Box`, `Type`, `Fn` — and
+/// compared case-sensitively misses its *second* caller, which hands it
+/// `crate::snake(&field.name)`. Through such a list `type`, the plainest name a
+/// log field can have, reaches the emitter untouched and the build dies inside
 /// rustfmt:
 ///
 /// ```text
@@ -217,9 +218,9 @@ fn parse<T: DeserializeOwned>(
 /// `await`, `dyn` and `where` are all the same, and several of them are
 /// plausible names for a field.
 ///
-/// So the list is now Rust's, plus the prelude names a `camel`-cased name can
-/// take — which is what the old list was reaching for with `Box`, and what the
-/// log-event registry needed a second list for. Compared exactly, because
+/// So the list is Rust's, plus the prelude names a `camel`-cased name can
+/// take — which is what `Box` stands for, and what would otherwise need a
+/// second list in the log-event registry. Compared exactly, because
 /// `camel` and `snake` have already decided the case: a variant called `Self`
 /// generates `Self` and is refused, and one called `self` generates `Self` too.
 fn identifier(name: &str) -> Result<(), String> {
@@ -266,11 +267,11 @@ struct Names<'a> {
     text: &'a str,
     /// The key each entry of this registry is written under.
     ///
-    /// **A name diagnostic was located by a bare substring**, and every name in
-    /// these registries appears in more than one place: `level` is a field of
-    /// every event, `event` opens every table, `field` names a column. Measured
-    /// on 2026-09-11 by appending an event to `catalog/log-events.toml`, a
-    /// 182-line file, and reading the line each collision reported:
+    /// **Not a bare substring**, because every name in these registries appears
+    /// in more than one place: `level` is a field of every event, `event` opens
+    /// every table, `field` names a column. Measured with a bare substring, by
+    /// appending an event to `catalog/log-events.toml`, a 182-line file, and
+    /// reading the line each collision reported:
     ///
     /// ```text
     /// `level` written on line 185, reported at 75   -> `level = "debug"`
@@ -288,17 +289,18 @@ struct Names<'a> {
 
 /// Whether a value says nothing a reader would see.
 ///
-/// **Seven rules in this file asked `trim().is_empty()` and the sibling rule in
-/// this crate does not.** `messages::no_key_is_blank` was repaired to ask
+/// **Not `trim().is_empty()`, which the sibling rule in this crate does not
+/// ask either.** `messages::no_key_is_blank` asks
 /// [`crate::tells_two_sentences_apart`] because *"a value of three `U+2063
 /// INVISIBLE SEPARATOR` characters was accepted: the published cell is empty"* —
-/// and every rule here was one code point away from the same thing. Measured on
-/// 2026-09-11 against the shipped catalog, one value at a time replaced by a
-/// single `U+2063`: the `[areas]` description, a command's `name`, a limit's
-/// `surface`, a store's `enforced_by`, a log event's `description` and a limit's
-/// `order_by` were all **accepted with no problem at all**, and `surface`
-/// carried through to two published budget rows for a surface with no name —
-/// verbatim the outcome `rate-limit-unnamed` refuses one spelling away.
+/// and every rule here asking `trim().is_empty()` is one code point away from
+/// the same thing. Measured that way against the shipped catalog, one value at a
+/// time replaced by a single `U+2063`: the `[areas]` description, a command's
+/// `name`, a limit's `surface`, a store's `enforced_by`, a log event's
+/// `description` and a limit's `order_by` are all **accepted with no problem at
+/// all**, and `surface` carries through to two published budget rows for a
+/// surface with no name — verbatim the outcome `rate-limit-unnamed` refuses one
+/// spelling away.
 ///
 /// Narrower than [`crate::shows_nothing`] on purpose, for the reason
 /// `tells_two_sentences_apart` gives: the characters in `BLANK_RANGES` sit
@@ -313,17 +315,17 @@ fn says_nothing(value: &str) -> bool {
 /// The identifiers `crates/nc-log/src/events.rs` already holds before a single
 /// event is written into it.
 ///
-/// **A registry name only had to differ from the other registry names**, and the
-/// file it generates opens with imports of its own:
+/// **A registry name has to differ from more than the other registry names**:
+/// the file it generates opens with imports of its own:
 ///
 /// ```text
 /// use nc_catalog::Level;
 /// use crate::{Event, Field, LogValue as _};
 /// ```
 ///
-/// So an event called `field` generated `pub struct Field`, `cargo xtask build`
-/// said `ok  15 generated file(s), 3 rewritten`, and the next `cargo build`
-/// failed *inside generated source* — the exact outcome this module's header
+/// So without this an event called `field` generates `pub struct Field`,
+/// `cargo xtask build` says `ok  15 generated file(s), 3 rewritten`, and the next
+/// `cargo build` fails *inside generated source* — the exact outcome this module's header
 /// says these checks exist to prevent:
 ///
 /// ```text
@@ -344,20 +346,19 @@ fn says_nothing(value: &str) -> bool {
 /// names from it would agree with whatever that literal said, including after
 /// somebody removed an import.
 ///
-/// **`LogValue` was here and is not a collision.** The preamble imports it
-/// `as _`, which brings the trait in for method resolution and binds no name —
-/// so a generated `pub struct LogValue` compiles. Measured on 2026-09-08 with
+/// **`LogValue` is not here, because it is not a collision.** The preamble
+/// imports it `as _`, which brings the trait in for method resolution and binds
+/// no name — so a generated `pub struct LogValue` compiles. Measured with
 /// exactly that appended to `crates/nc-log/src/events.rs`: `cargo build -p
-/// nc-log` finished and clippy said nothing, while the same line written
+/// nc-log` finishes and clippy says nothing, while the same line written
 /// `pub struct Field` gives `error[E0255]: the name `Field` is defined multiple
-/// times`. Three of the four entries were load-bearing and the fourth refused a
-/// name rustc takes — the *too strong* half of the same shape the `_msg` entry
-/// beside `OWNED_BY_THE_LOG` was found in, and the reason that list was given
-/// `every_name_here_needs_this_list_to_be_refused`. This one had no
-/// equivalent, and its fixture drives the rule rather than the hole: it asserts
-/// the compiler refuses these names, which is a restatement of the constant.
+/// times`. Listed, it would refuse a name rustc takes — the *too strong* half of
+/// the shape `OWNED_BY_THE_LOG` guards against with
+/// `every_name_here_needs_this_list_to_be_refused`. A fixture that asserts the
+/// compiler refuses these names drives the rule rather than the hole, which is
+/// a restatement of the constant.
 ///
-/// What holds it now is `every_import_here_is_a_name_the_preamble_binds`,
+/// What holds it is `every_import_here_is_a_name_the_preamble_binds`,
 /// which reads the emitter's preamble and asks whether each entry is a name it
 /// actually binds. The list stays hand-written — a reader that recovered the
 /// names would agree with whatever the literal said — and the *check* is
@@ -398,7 +399,7 @@ impl<'a> Names<'a> {
         // form is `name = "x"`, which is what `cargo fmt`'s equivalent for TOML
         // writes and what every registry here holds; a file written `name="x"`
         // is legal TOML, and falling back to the bare needle for it restores
-        // exactly the misdirection this anchoring removed — `level` reported a
+        // exactly the misdirection this anchoring prevents — `level` reported a
         // hundred lines above the entry that holds it. When neither spelling is
         // found the honest answer is no line at all, which every diagnostic in
         // this file already renders as a bare filename.
@@ -449,17 +450,19 @@ impl<'a> Names<'a> {
 
 /// Every key of `[areas]`, judged where it is declared.
 ///
-/// **Nothing read them.** They are the alphabet every code is checked against,
-/// so a key outside it is an area no code can ever name — declared, published on
-/// `docs/errors.md` as available, and refused only at the far end in a message
-/// about the *code*. `P2P` was exactly that for as long as it has existed.
+/// **Read here, where they are declared.** They are the alphabet every code is
+/// checked against, so a key outside it is an area no code can ever name —
+/// declared, published on `docs/errors.md` as available, and otherwise refused
+/// only at the far end in a message about the *code*. `P2P` is such a key unless
+/// this reads it.
 ///
-/// Its own function because `check_errors` crossed clippy's line limit.
+/// Its own function because inside `check_errors` it would cross clippy's line
+/// limit.
 fn every_area_is_one_a_code_could_name(file: &ErrorFile, text: &str, problems: &mut Vec<Problem>) {
     for (area, what_it_covers) in &file.areas {
         // **And it says what it covers.** `docs/errors.md` publishes that
         // sentence in a column whose own prose explains what it is for;
-        // `CANON = ""` filled it with nothing, with no diagnostic.
+        // without this, `CANON = ""` fills it with nothing, with no diagnostic.
         if says_nothing(what_it_covers) {
             push(
                 problems,
@@ -490,8 +493,8 @@ fn every_area_is_one_a_code_could_name(file: &ErrorFile, text: &str, problems: &
 /// Every registry has to hold something.
 ///
 /// `NOCTUA.md §19.3`'s first rule: assert that every gate's count of things
-/// checked is non-zero. Emptying four registries used to leave the catalog step
-/// green at "0 notification(s), 0 email(s), 0 command(s), 0 log event(s)".
+/// checked is non-zero. Without it, emptying four registries leaves the catalog
+/// step green at "0 notification(s), 0 email(s), 0 command(s), 0 log event(s)".
 fn floor(count: usize, file: &str, what: &str, problems: &mut Vec<Problem>) {
     if count == 0 {
         problems.push(Problem::in_file(
@@ -511,15 +514,15 @@ fn floor(count: usize, file: &str, what: &str, problems: &mut Vec<Problem>) {
 ///
 /// **The namespace, because a generated name is decided here.**
 /// `emit::error_variant` strips `error.` from the message key and camels
-/// what is left, with an `unwrap_or` for a key outside that namespace —
-/// and nothing required one. Measured, a code whose message key is
-/// `probe.p2p.thing`: `ACCEPTED, 0 problem(s)`, and the generated crate
-/// grew `ErrorCode::ProbeP2pThing`, a public name for an error that does
-/// not read as one. The `unwrap_or` was a live branch no test reached.
+/// what is left; a key outside that namespace has no name to give. Measured
+/// without this rule, a code whose message key is `probe.p2p.thing`:
+/// `ACCEPTED, 0 problem(s)`, and the generated crate grows
+/// `ErrorCode::ProbeP2pThing`, a public name for an error that does not read
+/// as one, through a fallback no test reaches.
 ///
 /// Refused here rather than tested there, which is this file's own rule:
 /// every generated name is decided at the registry. The shipped catalog
-/// uses the namespace throughout, and `error_variant` can now say so.
+/// uses the namespace throughout, and `error_variant` can say so.
 fn the_message_key_is_in_its_namespace(
     entry: &crate::model::ErrorEntry,
     line: Option<usize>,
@@ -551,10 +554,10 @@ fn check_errors(file: &ErrorFile, text: &str, problems: &mut Vec<Problem>) {
         problems,
     );
     floor(file.areas.len(), "catalog/errors.toml", "areas", problems);
-    // **The keys of `[areas]`, which nothing read.** They are the alphabet every
-    // code is checked against, and a key outside it is an area no code can ever
-    // name — declared, published as available, and refused only at the far end
-    // in a message about the code.
+    // **The keys of `[areas]`, checked for their shape.** They are the alphabet
+    // every code is checked against, and a key outside it would be an area no
+    // code can ever name — declared, published as available, and refused only
+    // at the far end in a message about the code.
     every_area_is_one_a_code_could_name(file, text, problems);
 
     let mut seen: BTreeMap<&str, usize> = BTreeMap::new();
@@ -604,10 +607,10 @@ fn check_errors(file: &ErrorFile, text: &str, problems: &mut Vec<Problem>) {
             Some(_) => {}
         }
         // **Trimmed, like the two rules beside it.** `store.enforced_by` and
-        // `pack_reason` in this same file trim before they test; these two did
-        // not, so one space satisfied "the description is the only English an
-        // operator reading the log gets" and reached the generated struct, the
-        // `///` above it and the page.
+        // `pack_reason` in this same file trim before they test; untrimmed, one
+        // space satisfies "the description is the only English an operator
+        // reading the log gets" and reaches the generated struct, the `///`
+        // above it and the page.
         if says_nothing(&entry.description) {
             push(
                 problems,
@@ -637,7 +640,7 @@ fn check_errors(file: &ErrorFile, text: &str, problems: &mut Vec<Problem>) {
             );
         }
         // **Only for a key the rule above accepted.** `error_variant` is what
-        // turns the key into the name being claimed, and it now says plainly
+        // turns the key into the name being claimed, and it says plainly
         // that the namespace is there — so claiming a name for a key already
         // refused would panic inside the check that refused it.
         if entry.message.starts_with("error.") {
@@ -652,12 +655,12 @@ fn check_errors(file: &ErrorFile, text: &str, problems: &mut Vec<Problem>) {
 
 /// The area part of a well-formed code, or `None` if the code is malformed.
 ///
-/// **A digit is allowed in an area, and it was not.** `NOCTUA.md §15.1` names
-/// the areas — "`AUTH`, `ACCT`, `APPR`, `KERN`, `PLUG`, `BLOB`, `P2P`, `AI`,
-/// `GW`, `DB`, `VAL`, `LOG`, …" — and `catalog/errors.toml` declares `P2P`,
-/// which `docs/errors.md` publishes as available. `b'2'` is not
-/// `is_ascii_uppercase`, so the first peer-to-peer code was refused as
-/// *malformed*:
+/// **A digit is allowed in an area.** `NOCTUA.md §15.1` names the areas —
+/// "`AUTH`, `ACCT`, `APPR`, `KERN`, `PLUG`, `BLOB`, `P2P`, `AI`, `GW`, `DB`,
+/// `VAL`, `LOG`, …" — and `catalog/errors.toml` declares `P2P`, which
+/// `docs/errors.md` publishes as available. `b'2'` is not
+/// `is_ascii_uppercase`, so on letters alone the first peer-to-peer code is
+/// refused as *malformed*:
 ///
 /// ```text
 /// error catalog/errors.toml:414 — NC-P2P-0001 is not of the form NC-<AREA>-<NNNN>
@@ -666,8 +669,8 @@ fn check_errors(file: &ErrorFile, text: &str, problems: &mut Vec<Problem>) {
 /// ```
 ///
 /// Whoever wrote it would be told their code does not match a shape it matches
-/// exactly, while the real cause — an area the reader could not spell — sat
-/// thirty lines above and was never mentioned. The four digits still fix the
+/// exactly, while the real cause — an area the reader could not spell — sits
+/// thirty lines above and is never mentioned. The four digits still fix the
 /// number, and `rsplit_once` still splits at the last `-`, so nothing here
 /// becomes ambiguous.
 pub(crate) fn area_of(code: &str) -> Option<&str> {
@@ -681,11 +684,11 @@ pub(crate) fn area_of(code: &str) -> Option<&str> {
 
 /// Whether a word can be an area: uppercase letters and digits, at least one.
 ///
-/// One reader, because the shape was decided in `area_of` and the `[areas]`
-/// table it is checked against was validated by nothing — so a key nobody could
-/// ever use was declared, published on `docs/errors.md` as available, and only
-/// refused at the far end, in a message about the code rather than about the
-/// area.
+/// One reader, because the shape is decided in `area_of` and the `[areas]`
+/// table it is checked against is validated by this — otherwise a key nobody
+/// could ever use would be declared, published on `docs/errors.md` as
+/// available, and only refused at the far end, in a message about the code
+/// rather than about the area.
 fn is_an_area(word: &str) -> bool {
     !word.is_empty()
         && word
@@ -907,10 +910,10 @@ fn check_tables(limits: &Limits, text: &str, problems: &mut Vec<Problem>) {
         problems,
     );
 
-    // **A store's three values had no rule of any kind.** `[tables.*]` is
-    // validated seven ways and `[rate_limit]` nine; `[stores.*]` was counted and
-    // never read, so `retention_days = 0`, `max_disk_bytes = 0` and an empty
-    // `enforced_by` each compiled, generated, and published themselves on
+    // **A store's three values have rules too.** `[tables.*]` is validated
+    // seven ways and `[rate_limit]` nine; with `[stores.*]` counted and never
+    // read, `retention_days = 0`, `max_disk_bytes = 0` and an empty
+    // `enforced_by` each compile, generate, and publish themselves on
     // `docs/limits.md` as though they meant something. The two numbers are what
     // `cargo xtask check` compares the running log store's flags against, so a
     // zero is a bound the gate then certifies the store as honouring.
@@ -1024,9 +1027,9 @@ fn only_a_writer_counts_per_owner(
 
 /// `§15.8` says prune in *large* batches, and this is the floor.
 ///
-/// Its own function because `check_one_strategy` crossed clippy's hundred-line
-/// bound when the rule arrived — which is the ordinary cost of a clause that was
-/// missing rather than a reason not to have it.
+/// Its own function because inside `check_one_strategy` it would cross clippy's
+/// hundred-line bound — which is the ordinary cost of a clause rather than a
+/// reason not to have it.
 fn the_batch_is_a_large_one(
     name: &str,
     prune_batch: u64,
@@ -1034,12 +1037,12 @@ fn the_batch_is_a_large_one(
     line: Option<usize>,
     problems: &mut Vec<Problem>,
 ) {
-    // **And a floor, which `§15.8`'s sentence is about and nothing
-    // enforced.** *"Prune in large batches, not row by row"* is
-    // `[CLOSED]`, and the only two rules here bound the batch at
-    // zero and from above — so `prune_batch = 1` against
-    // `max_rows = 500_000` was a legal catalog that passed the whole
-    // gate. On a table receiving writes that never converges, and
+    // **And a floor, which `§15.8`'s sentence is about.** *"Prune in
+    // large batches, not row by row"* is `[CLOSED]`, and with only the
+    // two rules that bound the batch at zero and from above,
+    // `prune_batch = 1` against `max_rows = 500_000` is a legal
+    // catalog that passes the whole gate. On a table receiving writes
+    // that never converges, and
     // every tick reports `Ok`; the load problem §15.8 names is
     // exactly deleting one row twenty thousand times.
     //
@@ -1074,9 +1077,9 @@ fn the_batch_is_a_large_one(
 
 /// What one table's strategy requires of it.
 ///
-/// Split from [`check_tables`] because it crossed a hundred lines when the
-/// `policy-pack` exemption gained the written reason every other escape hatch in
-/// this tree has always had to carry.
+/// Split from [`check_tables`] because with the written reason the
+/// `policy-pack` exemption carries, like every other escape hatch in this tree,
+/// it would cross a hundred lines.
 fn check_one_strategy(
     name: &str,
     table: &crate::model::TableLimit,
@@ -1102,22 +1105,22 @@ fn check_one_strategy(
                 }
                 // **And a written reason, like every other escape hatch here.**
                 // `policy-pack` exempts a table from the one gate `§15.8` is:
-                // it declares no bound, the pruner reports it `left_alone`, and
-                // the census of hatches did not count it. Measured — a
-                // `login_attempts` table with three lines of TOML entered the
-                // tree unbounded, never pruned, with `2 table(s) created in the
-                // migrations were checked` and `check passed`.
+                // it declares no bound and the pruner reports it `left_alone`.
+                // Measured without a reason required — a `login_attempts` table
+                // with three lines of TOML enters the tree unbounded, never
+                // pruned, with `2 table(s) created in the migrations were
+                // checked` and `check passed`.
                 //
-                // `nc:bounded:` has required a non-empty reason from the start,
-                // is tested for the bare-marker case, and is counted. This is
-                // the same rule for the hatch that had none of the three.
+                // `nc:bounded:` requires a non-empty reason, is tested for the
+                // bare-marker case, and is counted. This is the same rule for
+                // this hatch.
                 //
-                // **And a non-empty reason is not a reason.** Measured, `"x"`,
-                // `"TODO"`, `"policy-pack"`, `"pack_reason"` and the name of a
-                // *different* declared table each compiled clean, because the
-                // test was `trim().is_empty()` and the three cells the shipped
-                // test drove it with were three spellings of empty. The rule is
-                // now `a_reason_names_what_it_exempts`, which both hatches call.
+                // **And a non-empty reason is not a reason.** Measured with only
+                // `trim().is_empty()` asked, `"x"`, `"TODO"`, `"policy-pack"`,
+                // `"pack_reason"` and the name of a *different* declared table
+                // each compile clean — three spellings of empty are not a test
+                // of a reason. The rule is `a_reason_names_what_it_exempts`,
+                // which both hatches call.
                 let missing = table.pack_reason.as_ref().map_or_else(
                     || Some("says no why".to_owned()),
                     |reason| {
@@ -1267,11 +1270,10 @@ fn check_hashing(limits: &Limits, text: &str, problems: &mut Vec<Problem>) {
     // did the tuning it exists to permit. What it refuses is a configuration
     // that is not key derivation any more.
     //
-    // **There is no floor on `iterations`.** An earlier version required two,
-    // and a reviewer pointed out that RFC 9106's *first* recommended
-    // configuration is `t=1, m=2 GiB, p=4` — so the gate rejected the stronger
-    // of the two configurations the catalog's own comment cites. Memory is what
-    // carries the cost; a pass count is a trade against it.
+    // **There is no floor on `iterations`.** RFC 9106's *first* recommended
+    // configuration is `t=1, m=2 GiB, p=4`, so a floor of two would reject the
+    // stronger of the two configurations the catalog's own comment cites.
+    // Memory is what carries the cost; a pass count is a trade against it.
     for (which, argon, memory_floor) in [
         ("password", limits.argon2id.password, 19_456),
         // The PIN is four to eight digits, so the secret is enumerable and the
@@ -1339,28 +1341,28 @@ fn check_rate_limits(limits: &Limits, text: &str, problems: &mut Vec<Problem>) {
     let mut seen: BTreeMap<&str, usize> = BTreeMap::new();
     for (handled, limit) in limits.rate_limits.iter().enumerate() {
         let anchor = format!("surface = \"{}\"", limit.surface);
-        // **The surface, which nothing checked.** It is the key
-        // `nc_catalog::rate_limit()` is given and the first column of the
-        // rate-limit table on `docs/limits.md` — the same role `entry.name`
-        // plays for a command, which the rule below this file's commands check
-        // closed after the identical measurement. Measured on 2026-09-08 with
-        // `surface = ""`: `cargo xtask build` reported `ok  15 generated
-        // file(s), 2 rewritten`, `cargo xtask check --offline` exited 0 at
-        // `check passed`, and the published page carried two budget rows for a
-        // surface with no name while `rate_limit("")` answered `Some`.
+        // **The surface, checked.** It is the key `nc_catalog::rate_limit()` is
+        // given and the first column of the rate-limit table on
+        // `docs/limits.md` — the same role `entry.name` plays for a command,
+        // which the rule below this file's commands check holds after the
+        // identical measurement. Measured without this rule, with
+        // `surface = ""`: `cargo xtask build` reports
+        // `ok  15 generated file(s), 2 rewritten`, `cargo xtask check --offline`
+        // exits 0 at `check passed`, and the published page carries two budget
+        // rows for a surface with no name while `rate_limit("")` answers `Some`.
         //
         // Trimmed, like every other emptiness rule here: one space is a name
         // nobody typed on purpose.
         //
-        // **This block was written twice, byte for byte**, so one nameless
-        // surface produced the same diagnostic twice and the second copy decided
+        // **Written once**: twice, byte for byte, one nameless surface would
+        // produce the same diagnostic twice and the second copy would decide
         // nothing — one rule written twice, in the file that decides which
         // catalogs this repository accepts, which is the shape this tree names
-        // most often. And it was located by nothing: the anchor read
-        // `[[rate_limits]]` while the TOML table is `[[rate_limit]]`
-        // (`model.rs` renames it), so `line_of` never matched and the message
-        // reached a developer as a bare filename in a 196-line file holding five
-        // of these blocks. Every sibling rule here is located.
+        // most often. And located: the anchor is `[[rate_limit]]`, the TOML
+        // table's own name, not `[[rate_limits]]` (`model.rs` renames it), or
+        // `line_of` never matches and the message reaches a developer as a bare
+        // filename in a 196-line file holding five of these blocks. Every
+        // sibling rule here is located.
         //
         // The occurrence is `handled + 1` and not `max(1)`: `handled` is how
         // many blocks have been read *before* this one, so the block being
@@ -1411,8 +1413,8 @@ fn check_rate_limits(limits: &Limits, text: &str, problems: &mut Vec<Problem>) {
 /// The three rules about a budget's *magnitudes*, as opposed to its shape.
 ///
 /// Lifted out of [`check_budget`] because the three together cross clippy's
-/// line limit. Each closes a value that was written down, published on
-/// `docs/limits.md`, and validated by nothing.
+/// line limit. Each judges a value that is written down and published on
+/// `docs/limits.md`.
 fn the_bounds_a_budget_only_states(
     surface: &str,
     which: &str,
@@ -1421,11 +1423,12 @@ fn the_bounds_a_budget_only_states(
     problems: &mut Vec<Problem>,
 ) {
     // **A curve that ends at a millisecond is not a defence, and "ends non-zero"
-    // was the whole rule.** `curve-ends-free` refuses a final `0` because the
+    // is not the whole rule.** `curve-ends-free` refuses a final `0` because the
     // last value repeats for ever; a final `1` satisfies it and repeats just as
-    // freely. Measured, `login` — whose own comment says *the escalating delay
-    // is what carries this one* — given `delay_ms = [0, 0, 0, 0, 0, 0, 1]`:
-    // `cargo xtask check` green, and `docs/limits.md` republishing the curve.
+    // freely. Measured without this rule, `login` — whose own comment says *the
+    // escalating delay is what carries this one* — given
+    // `delay_ms = [0, 0, 0, 0, 0, 0, 1]`: `cargo xtask check` green, and
+    // `docs/limits.md` republishing the curve.
     // Ten attempts free and then one millisecond each is an unlimited surface
     // with a table about it.
     //
@@ -1436,9 +1439,9 @@ fn the_bounds_a_budget_only_states(
     // `curve-ends-free` already draws.
     //
     // **And the exemption is the lockout *arriving*, not the lockout existing.**
-    // Written as `lockout_after.is_none()`, any lockout at all bought the
+    // Written as `lockout_after.is_none()`, any lockout at all buys the
     // exemption — so `lockout_after = 1_000_000` with `delay_ms = [0, 0, 0, 1]`
-    // passed, and what an attacker actually pays is a million tries at a
+    // passes, and what an attacker actually pays is a million tries at a
     // millisecond each: about seventeen minutes, then the surface locks. The
     // complaint this rule makes is that *the last value repeats for ever*, and a
     // lockout answers it only when it fires before the repeating starts —
@@ -1514,12 +1517,11 @@ fn the_bounds_a_budget_only_states(
 /// **What shows a reader nothing is missing**, which is this registry's rule
 /// and wider than the judge's: a name, an action or a selector made of
 /// invisible characters is handed over as the empty string it looks like, so
-/// it is reported as absent rather than as malformed. Measured on 2026-09-11,
-/// one `U+2063` in each of the three was accepted with no problem at all.
+/// it is reported as absent rather than as malformed. Measured without it, one
+/// `U+2063` in each of the three is accepted with no problem at all.
 ///
-/// Every problem the judge finds is reported under a check of its own; the
-/// names older than the judge are kept, because `the_gates_fire.rs` asserts on
-/// them.
+/// Every problem the judge finds is reported under a check of its own, named
+/// as `the_gates_fire.rs` asserts on it.
 fn what_a_dispatcher_needs(entry: &CommandEntry, line: Option<usize>, problems: &mut Vec<Problem>) {
     let declared = nc_schema::Declared {
         name: as_shown(&entry.name),
@@ -1649,7 +1651,7 @@ const fn the_check_for_a_schema(fault: &nc_schema::SchemaFault) -> (&'static str
         // **The one registry value written to a published page with no
         // escaper**, and what exposes the command to an AI agent: every
         // description reaches `docs/` through `cell`, and the schema goes
-        // into a fenced JSON block verbatim. The rule is the judge's now, so
+        // into a fenced JSON block verbatim. The rule is the judge's, so
         // a plugin's schema answers to it at `activate` as this one does.
         Fault::InvisibleCharacter(_) => (
             "schema-invisible-character",
@@ -1719,9 +1721,9 @@ fn check_budget(
             "no-delay-curve",
         );
     }
-    // The property, not a consequence of it. An earlier version checked only that
-    // the curve was non-empty, while its own message said "escalating" — so
-    // `[0, 0, 0, 0]` passed a gate whose text described something else.
+    // The property, not a consequence of it. Checking only that the curve is
+    // non-empty, under a message saying "escalating", lets `[0, 0, 0, 0]` pass a
+    // gate whose text describes something else.
     if budget.delay_ms.windows(2).any(|pair| pair[1] < pair[0]) {
         push(
             problems,
@@ -1735,14 +1737,14 @@ fn check_budget(
     }
     // **And it has to rise, which "does not fall" is not.** The rule above
     // refuses a curve that *drops*; a flat one satisfies it, and §15.5 asks for
-    // an escalating delay. `model.rs`'s own doc names the case the check was
-    // accepting — *"a flat curve satisfies 'has a curve' while defending
-    // nothing"* — and the shipped test written for it asserts `>=`. Measured on
-    // 2026-09-08, `email_confirmation`'s per-identifier curve replaced by
-    // `[1_000, 1_000, 1_000, 1_000, 1_000]`: `ok 15 generated file(s), 2
-    // rewritten`, `check passed` with no warn line, and `docs/limits.md`
-    // republished the flat curve four lines under its own sentence *"after that
-    // the delay curve applies, escalating"*.
+    // an escalating delay. `model.rs`'s own doc names the case a "does not
+    // fall" check accepts — *"a flat curve satisfies 'has a curve' while
+    // defending nothing"* — and a test asserting `>=` holds only that. Measured
+    // without this rule, `email_confirmation`'s per-identifier curve replaced by
+    // `[1_000, 1_000, 1_000, 1_000, 1_000]`:
+    // `ok 15 generated file(s), 2 rewritten`, `check passed` with no warn line,
+    // and `docs/limits.md` republishes the flat curve four lines under its own
+    // sentence *"after that the delay curve applies, escalating"*.
     //
     // `login` carries no lockout by decision and its registry comment says *"the
     // escalating delay is what carries this one"*: a flat 1 s curve there is
@@ -1815,13 +1817,13 @@ fn check_budget(
             "lockout-unreachable",
         );
     }
-    // **The window itself, which every other rule here is stated inside and
-    // which nothing checked.** `max_attempts`, `delay_ms` and `lockout_after`
-    // are all counts *in the window*, so a zero-length one empties every one of
-    // them at once: attempts are counted in no time at all, which is either no
-    // limit or a permanent one depending on how a reader rounds. Nine budgets
-    // are declared and `window_seconds = 0` passed the compiler, generated the
-    // page and published `Window 0s` on `docs/limits.md`.
+    // **The window itself, which every other rule here is stated inside.**
+    // `max_attempts`, `delay_ms` and `lockout_after` are all counts *in the
+    // window*, so a zero-length one empties every one of them at once:
+    // attempts are counted in no time at all, which is either no limit or a
+    // permanent one depending on how a reader rounds. Without this,
+    // `window_seconds = 0` passes the compiler, generates the page and
+    // publishes `Window 0s` on `docs/limits.md`.
     the_bounds_a_budget_only_states(surface, which, budget, line, problems);
 }
 
@@ -1928,7 +1930,8 @@ fn a_field_name_the_struct_can_carry(
     // `identifier` checks Rust's *syntax*; `cargo clippy -- -D warnings`
     // is what the field has to survive, and a capitalised name gets
     // `structure field `Applied` should have a snake case name` in
-    // generated source. Measured: `cargo xtask build` said `ok`.
+    // generated source. Measured without this rule: `cargo xtask build` says
+    // `ok`.
     if field.name.chars().any(char::is_uppercase) {
         push(
             problems,
@@ -1958,11 +1961,11 @@ fn a_field_name_the_struct_can_carry(
 
 /// The keys `nc-log` writes on every line, which an event may not also declare.
 ///
-/// **`_msg` is not here, and used to be.** The clause that reads this list is
+/// **`_msg` is not here.** The clause that reads this list is
 /// `OWNED_BY_THE_LOG.contains(…) || field.name.starts_with('_')`, and `_msg`
-/// starts with `_` — so the entry decided nothing: removing it from the list
-/// changed no verdict on any input, and neither did removing the underscore
-/// disjunct for the one name they shared. Two clauses that overlap are one
+/// starts with `_` — so as an entry it would decide nothing: removing it from
+/// the list would change no verdict on any input, and neither would removing
+/// the underscore disjunct for the one name they share. Two clauses that overlap are one
 /// clause and a decoration, and the decoration is the half a later edit deletes
 /// believing the other still covers it.
 ///
@@ -2009,13 +2012,13 @@ fn check_events(entries: &[EventEntry], text: &str, problems: &mut Vec<Problem>)
             );
         }
         // **Keyed on the name the struct gets, not on the one that was written.**
-        // This deduped on `field.name`, and `snake` turns `.` and `-` into `_` —
-        // so `max_rows` beside `max-rows` passed the compiler, generated
-        // `pub max_rows: u64` twice, and `cargo build` failed inside a file whose
+        // `snake` turns `.` and `-` into `_`, so deduped on `field.name`,
+        // `max_rows` beside `max-rows` passes the compiler, generates
+        // `pub max_rows: u64` twice, and `cargo build` fails inside a file whose
         // header forbids editing it with `error[E0124]: field `max_rows` is
         // already declared`. `Names::claim` does exactly this for every
         // top-level registry name, and says so in its own diagnostic — "`-` and
-        // `_` become the same thing here" — and the field loop never reached it.
+        // `_` become the same thing here" — and the field loop does not reach it.
         // Both spellings are reported, because the pair is the finding.
         let mut fields: BTreeMap<String, &str> = BTreeMap::new();
         for field in &entry.fields {
@@ -2041,15 +2044,16 @@ fn check_events(entries: &[EventEntry], text: &str, problems: &mut Vec<Problem>)
             // The kind generates a field of type `nc_ids::OpaqueId`, and
             // `OpaqueId::new` accepts any 1..=128 bytes of `[A-Za-z0-9._:-]` —
             // which covers a username, a document number, a phone number and an
-            // email local-part. Measured: one registry line, an ordinary call
-            // site with no `format!`, no `to_string()`, no leak and no macro,
-            // and `{"actor":"ana.paula.silva.123.456.789-00"}` reached the store
-            // with all eleven compile-fail fixtures green and `check passed`.
+            // email local-part. Measured without this refusal: one registry
+            // line, an ordinary call site with no `format!`, no `to_string()`,
+            // no leak and no macro, and
+            // `{"actor":"ana.paula.silva.123.456.789-00"}` reaches the store
+            // with every compile-fail fixture green and `check passed`.
             //
             // That is `§15.4`'s central claim — *a dynamic string cannot compile
             // into a log event* — false as shipped, by a kind the registry
-            // itself offers. `FieldType::Id`'s own doc already recorded the risk
-            // and deferred it to `NOCTUA.md §5.1`, which is `[OPEN]`.
+            // itself offers. `FieldType::Id`'s own doc records the risk and
+            // defers it to `NOCTUA.md §5.1`, which is `[OPEN]`.
             //
             // **This does not decide §5.1.** It declines to depend on a rule
             // that does not exist yet: while the shape of an opaque identifier is
@@ -2072,23 +2076,23 @@ fn check_events(entries: &[EventEntry], text: &str, problems: &mut Vec<Problem>)
                     "field-kind-is-open",
                 );
             }
-            // **The four the log writes itself.** An event declaring one of them
-            // used to be accepted and emitted, and the two collided in one map —
-            // so a line could carry a level its event does not have, or name a
-            // service it did not come from. `nc-log` now writes its own last so
-            // it wins; this is the half that says so where somebody would write
+            // **The four the log writes itself.** An event declaring one of them,
+            // accepted and emitted, collides with the log's own in one map — so
+            // a line could carry a level its event does not have, or name a
+            // service it did not come from. `nc-log` writes its own last so it
+            // wins; this is the half that says so where somebody would write
             // the field.
             // **And the whole `_` prefix, not four names.** The store reserves
             // every field beginning with an underscore, and `_time` is the one
             // that matters: it is the record's own timestamp, so an event
             // declaring it writes a line the store *accepts with `200 OK` and
             // then drops* — measured against the running store, the shipper
-            // counted it delivered, nothing reached stderr, `lost()` stayed 0,
-            // and the record was nowhere, because the value landed the line in
-            // 1970 and 1970 is outside `-retentionPeriod=30d`. That was refused
-            // only by accident: `clippy::pub_underscore_fields` on the emitted
-            // struct, which is a lint anybody may allow, and not by the rule
-            // whose whole subject this is.
+            // counts it delivered, nothing reaches stderr, `lost()` stays 0,
+            // and the record is nowhere, because the value lands the line in
+            // 1970 and 1970 is outside `-retentionPeriod=30d`. Without this, only
+            // `clippy::pub_underscore_fields` on the emitted struct refuses it,
+            // which is a lint anybody may allow, and not the rule whose whole
+            // subject this is.
             if OWNED_BY_THE_LOG.contains(&field.name.as_str()) || field.name.starts_with('_') {
                 push(
                     problems,
@@ -2357,9 +2361,9 @@ fn check_ungated(file: &CapabilityFile, text: &str, problems: &mut Vec<Problem>)
 ///
 /// **The list is what the reason covers.** Without one, the kernel's coverage
 /// test could only take every function of the interface as given, so a
-/// function the world gained there reached every plugin under a reason
-/// written before it existed. Its own function because `check_ungated` crossed
-/// clippy's line limit with it inline.
+/// function the world gains there reaches every plugin under a reason
+/// written before it existed. Its own function because `check_ungated`, with
+/// it inline, is over clippy's line limit.
 fn check_ungated_functions<'a>(
     file: &CapabilityFile,
     entry: &'a UngatedEntry,
@@ -2422,9 +2426,9 @@ fn check_ungated_functions<'a>(
 /// A locale's tag as an identifier, and its direction as one of two words.
 ///
 /// Both reach generated code — the tag becomes a variant of `Locale`, the
-/// direction is what `Locale::dir()` answers — and neither was checked, although
-/// this module's header says every name that becomes an identifier is checked
-/// here. Its own function because `locales` crossed clippy's line limit.
+/// direction is what `Locale::dir()` answers — and this module's header says
+/// every name that becomes an identifier is checked here. Its own function
+/// because inside `locales` it would cross clippy's line limit.
 fn the_tag_is_a_name_and_a_direction(
     file: &LocaleFile,
     stem: &str,
@@ -2432,11 +2436,11 @@ fn the_tag_is_a_name_and_a_direction(
     generated: &str,
     problems: &mut Vec<Problem>,
 ) {
-    // **And it has to be an identifier**, which was checked for every other
-    // generated name and not this one — although this file's header says
-    // "every name that becomes an identifier is checked here, where the file
-    // and the line exist". Measured, a locale file named `2x` with
-    // `bcp47 = "2x"`: accepted, and `pub enum Locale { 2x, … }` emitted.
+    // **And it has to be an identifier**, like every other generated name —
+    // this file's header says "every name that becomes an identifier is
+    // checked here, where the file and the line exist". Measured without this,
+    // a locale file named `2x` with `bcp47 = "2x"`: accepted, and
+    // `pub enum Locale { 2x, … }` emitted.
     if let Err(why) = identifier(generated) {
         push(
             problems,
@@ -2450,8 +2454,8 @@ fn the_tag_is_a_name_and_a_direction(
     }
     // **And a direction is one of two words.** `Locale::dir()` is what the
     // emitter documents as going into a document's `dir` attribute; nothing
-    // renders one yet, which is the cheapest moment to close it. Measured,
-    // `dir = "sideways"`: accepted and compiled in.
+    // renders one yet, which is the cheapest moment to close it. Measured
+    // without this, `dir = "sideways"`: accepted and compiled in.
     if file.meta.dir != "ltr" && file.meta.dir != "rtl" {
         push(
             problems,
@@ -2464,11 +2468,10 @@ fn the_tag_is_a_name_and_a_direction(
             "locale-direction",
         );
     }
-    // **And the endonym, the third field, which nothing checked.** `meta.name`
-    // reaches generated code twice — the `///` line above each `Locale` variant
-    // and `Locale::name()`'s own return value — and this function's own reason
-    // for existing is that `bcp47` and `dir` *"reach generated code and neither
-    // was checked"*. The third field was left. Measured on 2026-09-08:
+    // **And the endonym, the third field.** `meta.name` reaches generated code
+    // twice — the `///` line above each `Locale` variant and `Locale::name()`'s
+    // own return value — and this function's own reason for existing is that
+    // the other two fields reach generated code. Measured without this rule:
     //
     // ```text
     // name = ""     cargo xtask build: ok, no diagnostic
@@ -2520,13 +2523,13 @@ fn locale_files(entries: std::fs::ReadDir) -> Vec<(String, std::path::PathBuf)> 
     let mut files: Vec<(String, std::path::PathBuf)> = Vec::new();
     for entry in entries.flatten() {
         let path = entry.path();
-        // **Whatever case the extension is written in.** This compared
-        // exactly, so `fr.TOML` was silently not a locale — accepted with no
-        // problem at all, and gone from every completeness check below. The
-        // paragraph above says the alternative to reporting a stray file is
-        // *"skipping it silently and losing a locale"*, and that is what an
-        // uppercase extension did. `xtask/src/build.rs` asks the same question
-        // with `eq_ignore_ascii_case` one crate over.
+        // **Whatever case the extension is written in.** Compared exactly,
+        // `fr.TOML` is silently not a locale — accepted with no problem at all,
+        // and gone from every completeness check below. The paragraph above
+        // says the alternative to reporting a stray file is *"skipping it
+        // silently and losing a locale"*, and that is what an uppercase
+        // extension would do. `xtask/src/build.rs` asks the same question with
+        // `eq_ignore_ascii_case` one crate over.
         if path
             .extension()
             .is_some_and(|extension| extension.eq_ignore_ascii_case("toml"))
@@ -2545,16 +2548,16 @@ fn locale_files(entries: std::fs::ReadDir) -> Vec<(String, std::path::PathBuf)> 
 
 /// Where a locale's stem sorts: the source locale first, then by name.
 ///
-/// **Its own function because neither half was decided by anything.** The key
-/// was written inline, and `catalog/i18n/` holds exactly two files — `en` and
-/// `pt-BR` — so the source-first half alone fixes the whole order *and* a plain
-/// alphabetical sort produces byte-identical output, since `en` sorts before
-/// `pt-BR` anyway. A reviewer measured both in round seventy-one wave 11:
-/// dropping the name tie-break, and replacing the whole key with `a.0.cmp(&b.0)`,
-/// each left `cargo test -p nc-catalog-compiler` at `57 passed`, `105 passed`,
-/// `3 passed` — `two_directory_orders_produce_the_same_bytes`, the test written
-/// for criterion 4, among them — and the second was invisible to the drift gate
-/// as well, because the emitted bytes do not move.
+/// **Its own function so that each half is decided by something.**
+/// `catalog/i18n/` holds exactly two files — `en` and `pt-BR` — so the
+/// source-first half alone fixes the whole order *and* a plain alphabetical
+/// sort produces byte-identical output, since `en` sorts before `pt-BR`
+/// anyway. Measured with the key written inline: dropping the name tie-break,
+/// and replacing the whole key with `a.0.cmp(&b.0)`, each leave
+/// `cargo test -p nc-catalog-compiler` green —
+/// `two_directory_orders_produce_the_same_bytes`, the test written for
+/// criterion 4, among them — and the second is invisible to the drift gate as
+/// well, because the emitted bytes do not move.
 ///
 /// The order is load-bearing: `Locale::ALL`, the enum's variant order,
 /// `Locale::index()`, every column of `MESSAGES`, four `docs/*.md` pages,
@@ -2712,21 +2715,21 @@ fn named(owners: &[String]) -> String {
 /// Every message key, with **all** the entries that claim it.
 ///
 /// `referenced_keys` keeps one owner per key because that is all a "this key
-/// does not exist" diagnostic needs — and a second claimant silently replaced
-/// the first there, which made a key owned twice structurally invisible.
+/// does not exist" diagnostic needs — and a second claimant silently replaces
+/// the first there, which makes a key owned twice structurally invisible to it.
 ///
 /// Two owners is a defect: `check_errors` already refuses two error codes
 /// sharing a key, on the grounds that the key is a code's identity in the
-/// ledger, and nothing said the same across registries. Measured — pointing a
-/// notification's title at `error.db.unreachable` compiled, and the notification
-/// then owned the sentence `NC-DB-0001` resolves to. Editing it "for the
+/// ledger, and this says the same across registries. Measured without it —
+/// pointing a notification's title at `error.db.unreachable` compiles, and the
+/// notification then owns the sentence `NC-DB-0001` resolves to. Editing it "for the
 /// notification" changes what the error says, and the ledger sees nothing,
 /// because the code's key and description never moved.
 pub(crate) fn every_reference(catalog: &Catalog) -> BTreeMap<String, Vec<String>> {
     let mut keys: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    // **Every claim, including two from one entry.** The dedup here was on the
-    // owner's *name*, so a notification whose `title` and `body` are the same
-    // key had one owner and never tripped `key-owned-twice` — while the gate's
+    // **Every claim, including two from one entry.** Deduped on the owner's
+    // *name*, a notification whose `title` and `body` are the same key would
+    // have one owner and never trip `key-owned-twice` — while the gate's
     // own reasoning applies to it word for word: rewording that sentence for
     // the title silently rewords the body, and neither slot can be edited for
     // its own purpose. Two slots are two claims whoever holds them.
@@ -2793,9 +2796,9 @@ pub(crate) struct Declaration {
 /// Every declaration in the catalog.
 ///
 /// An email declares one set of params and has **two** messages; so does a
-/// notification. Both used to be checked on the body alone, under a comment
-/// saying otherwise, so a subject could interpolate a name the declaration
-/// omitted and the build stayed green.
+/// notification. Both are checked on both messages, because on the body alone a
+/// subject could interpolate a name the declaration omits and the build stays
+/// green.
 pub(crate) fn declared_params(catalog: &Catalog) -> Vec<Declaration> {
     let mut declared = Vec::new();
     for entry in &catalog.errors {
@@ -2852,7 +2855,7 @@ mod tests {
     /// **Two locales cannot decide this and this repository ships two.** With
     /// `en` the source and `pt-BR` beside it, the source-first half alone fixes
     /// the order, and so does a plain alphabetical sort — so both halves of the
-    /// key were free. The third locale here sorts *before* the source, which is
+    /// key are free. The third locale here sorts *before* the source, which is
     /// the one arrangement that tells the three candidate keys apart.
     #[test]
     fn the_order_is_the_source_first_then_by_name() {
@@ -2875,8 +2878,7 @@ mod tests {
     /// field.name.starts_with('_')`. An entry beginning with `_` is already
     /// refused by the second half, so it decides nothing — it can be deleted
     /// with every test green, and so can the disjunct beside it as far as that
-    /// name is concerned. `_msg` was exactly that for as long as the list held
-    /// it.
+    /// name is concerned. `_msg` would be exactly that.
     ///
     /// Asserted here rather than left to reading, because the next name added to
     /// this list is added by someone copying the ones above it.
@@ -2971,8 +2973,8 @@ mod tests {
 
     #[test]
     fn a_name_that_is_not_a_rust_identifier_is_caught_here_and_not_by_rustc() {
-        // A notification called `2fa.enabled` used to reach rustfmt, which
-        // reported a byte offset into a stream the developer cannot open.
+        // A notification called `2fa.enabled` would otherwise reach rustfmt,
+        // which reports a byte offset into a stream the developer cannot open.
         assert!(identifier("2faEnabled").is_err());
         assert!(identifier("").is_err());
         assert!(identifier("has space").is_err());
@@ -2987,11 +2989,12 @@ mod tests {
             assert!(chord(good).is_ok(), "`{good}` should parse");
         }
         // **And a binding that shows a reader nothing**, which is the one
-        // emptiness this rule asks `says_nothing` about and the only one of its
-        // ten call sites no fixture drove: put back to `trim().is_empty()`, the
-        // whole crate stayed green while `keybinding = "\u{2063}"` was accepted
-        // as a chord, published as a key nobody can press, and counted as one
-        // command's binding for the purposes of the two-commands-one-chord rule.
+        // emptiness this rule asks `says_nothing` about: written as
+        // `trim().is_empty()`, it would accept `keybinding = "\u{2063}"` as a
+        // chord, publish it as a key nobody can press, and count it as one
+        // command's binding for the purposes of the two-commands-one-chord
+        // rule. The shipped catalog declares no binding, so this is where that
+        // call site is driven.
         for bad in [
             "",
             "C-",

@@ -32,8 +32,9 @@
 //! realm's profile and pin with the pack it carries denies the realm.
 //!
 //! It does **not** answer whether a version was bumped when a policy changed.
-//! There is no history here to compare against (`NOCTUA.md §5.3`), so a pack
-//! edited in place keeps its number, and that is a reviewer's question. Nor does
+//! Nothing here compares a pack with its history, so a pack edited in place
+//! keeps its number, and that is a reviewer's question, asked of the pull
+//! request's diff. Nor does
 //! it judge the version a realm pins when its profile selects no pack this tree
 //! carries: `office` pins `org@0.1.0` and `org` holds no policy, so there is
 //! nothing on disk to hold that version to — and a decision point denies such a

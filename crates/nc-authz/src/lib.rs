@@ -74,11 +74,11 @@ pub use directory::{
 
 /// Declares the sentinel module, and lists every sentinel it declares in its `ALL`.
 ///
-/// The module's body is this macro's grammar — `NAME = "value";` under its
-/// doc — so `ALL` is the one place a sentinel can be declared: a `pub const`
-/// written beside them does not compile. Found by review: with a hand-written
-/// list, a sentinel declared outside it under a prefix a pack's `@id` may also
-/// use passed every test, and that is the confusion the prefix exists to end.
+/// The module's body is this macro's grammar — `NAME = "value";` under its doc
+/// — so `ALL` is the one place a sentinel can be declared: a `pub const`
+/// written beside them does not compile. With a hand-written list, a sentinel
+/// declared outside it under a prefix a pack's `@id` may also use passes every
+/// test, and that is the confusion the prefix exists to end.
 macro_rules! sentinels {
     (
         $(#[$outer:meta])*

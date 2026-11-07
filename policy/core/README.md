@@ -7,8 +7,7 @@ and a collective without becoming three products.
 
 `NOCTUA.md §14.9` names seven invariants, and `§14.6` contributes several of its <!-- allow-count: the invariants §14.9 lists, which is fixed in that document rather than by this tree -->
 own that belong here — rules 2, 3 and 5 have rows below, and rule 4 rides with
-invariant 5 in `quorum.cedar`. It said "one more", which was true of no reading
-of the table underneath it. **Some are policies and live in this directory; the rest are not**, and
+invariant 5 in `quorum.cedar`. **Some are policies and live in this directory; the rest are not**, and
 saying which is which is the point of this file. The table is the record; `ls
 policy/core/*.cedar` is the count.
 
@@ -21,7 +20,7 @@ policy/core/*.cedar` is the count.
 | 5 | Destructive actions require quorum | `quorum.cedar` |
 | 6 | Re-evaluation on every request | **Not a policy.** It is where the decision point sits — `commands.dispatch` (`crates/nc-kernel/src/dispatch.rs`) and, from Stage 22, the gateway's middleware, and nowhere else (`§14.2`). A policy cannot make itself be consulted |
 | §14.6, 2 | Delegation, never impersonation | `agent_authority.cedar`. An `Agent` principal on a request not marked `via_agent` would be logged as the agent acting alone, and the rule is that the log always shows both. The **intersection** half of the same rule is **not a policy** — see below |
-| §14.6, 3 | An actor chain is limited to 2 | `chain_depth.cedar`. Agent calling agent calling agent is how privilege leaks unnoticed; the number was in the schema, in every case file's context, and in no policy at all until it was written |
+| §14.6, 3 | An actor chain is limited to 2 | `chain_depth.cedar`. Agent calling agent calling agent is how privilege leaks unnoticed; the number in the schema and in every case file's context binds nothing without that policy |
 | §14.6, 5 | Budget is a permission | `agent_authority.cedar`. Evaluated by the PDP and named in the journal like any other refusal. Middleware that checked a balance before calling the PDP would be a second authorization path with no entry in the log, which is what the rule forbids |
 | 7 | Every policy has a denial test | **Not a policy.** It is a gate: `cargo xtask check` fails when a policy — attributed by its `@id`, wherever the case is written — has no case that both expects `deny` and names it, in `because` for a `forbid` or in `no_permit_matched` for a `permit`. A case that merely expects `deny` is not enough, because Cedar denies by default (`§14.9, invariant 1`) |
 
@@ -32,11 +31,11 @@ anything. The step reads the effect of every policy loaded from this directory,
 with a floor under it so a prefix that matched nothing could not agree with any
 file; a `permit` here is refused by name.
 
-It was held by nothing until 2026-09-10, and the measurement is worth keeping:
-this sentence was changed to say the core is made of `permit`s, one row of the
-table above was pointed at the wrong file, and the marker count four screens
-down was made wrong in both its numbers — and the whole gate stayed green with
-every number in the run byte-identical. Two gates read this file and neither
+What the step holds is the policies, because nothing holds the prose. Measured:
+this sentence changed to say the core is made of `permit`s, one row of the
+table above pointed at the wrong file, and the marker count four screens down
+made wrong in both its numbers leave the whole gate green, with every number
+in the run byte-identical. Two gates read this file and neither
 asks whether what it says is true: `counts.rs` judges a numeral only where the
 noun is one of the seven it counts, and `references.rs` resolves paths and `§`
 citations while its own header says a sentence's *truth* is not a question a
@@ -74,13 +73,11 @@ impersonation*, is `core.an_agent_never_impersonates` in
 **outranks `NOCTUA.md`** (`§0.4`), so adding a field to it is not something to do
 while transcribing it.
 
-This sentence said *five keys* and listed five, while §4 had gained `quorum_met`
-and `grant` — an under-report of the normative document, in the paragraph that
-justifies why invariants 5 and 5b stop at `Delete`. The conclusion survived it,
-which is how it went unread. It carries no number now, for the reason
-`xtask/src/counts.rs`'s header gives: a claim rewritten to carry no number cannot
-rot, and "keys" is not a noun that gate can answer — every entry of its
-`COUNTABLE` is answered by a directory and a glob.
+That list carries no count, for the reason `xtask/src/counts.rs`'s header
+gives: a claim written with no number cannot rot, and "keys" is not a noun that
+gate can answer — every entry of its `COUNTABLE` is answered by a directory and
+a glob. A miscount here would under-report the normative document in the
+paragraph that justifies why invariants 5 and 5b stop at `Delete`.
 
 | Invariant | What is enforced | What is not |
 |---|---|---|
@@ -125,8 +122,8 @@ is one nobody checks against `§14.9` again.
 ## Every condition fails closed, and what that costs
 
 Cedar **skips a policy whose condition errors** and answers from the rest — so a
-`forbid` that dereferenced `context.policy_epoch` did not refuse a request
-without one, it allowed it. Measured with the shipped pack and no schema passed
+`forbid` that dereferences `context.policy_epoch` does not refuse a request
+without one, it allows it. Measured with such a condition and no schema passed
 to the authorizer:
 
 ```text
@@ -134,11 +131,11 @@ with the schema:    refused: expected the record to have an attribute `policy_ep
 without the schema: Allow    errors: ["… record does not have the attribute …"]
 ```
 
-Every condition here is now written `!(x has y) || …` or `unless { x has y && … }`,
+Every condition here is written `!(x has y) || …` or `unless { x has y && … }`,
 so a missing attribute forbids. Two consequences worth knowing:
 
 - **The decision point must pass the schema too.** `build_request` always does,
-  which is why no gate could see this, and so does `nc-authz`: its `Pdp::decide`
+  which is why no case shows the difference, and so does `nc-authz`: its `Pdp::decide`
   builds every request against the schema `nc_policy::compile` hands it beside
   the policies, and denies one the schema refuses before any policy runs. The
   guard is the belt, not the braces.
@@ -148,16 +145,15 @@ so a missing attribute forbids. Two consequences worth knowing:
   builds it without one, and requires `Deny`. The condition-mutation check
   excludes exactly that shape and says so.
 
-## Two readings of §14.6, 2 that were tried, and one that was withdrawn
+## The operator half of §14.6, 2 is not impersonation
 
-A reviewer read `principal = User::"ana"` with `via_agent = true` as
-impersonation — a request claiming a chain while naming no agent — and it looks
-like one. It is not: `§14.6, 2` makes the decision *the intersection of the agent's
+`principal = User::"ana"` with `via_agent = true` reads like impersonation — a
+request claiming a chain while naming no agent. It is not: `§14.6, 2` makes the decision *the intersection of the agent's
 rights and the operator's*, so the decision point asks twice, and that request is
-the **operator half** of an agent-mediated decision. A `forbid` on it would break
-the mechanism the invariant exists to implement. The rule was written, measured
-against the cases, and taken back out; this paragraph is here so the next reader
-does not spend the same afternoon on it.
+the **operator half** of an agent-mediated decision. A `forbid` on it breaks
+the mechanism the invariant exists to implement — measured against the cases —
+so the core carries none, and this paragraph says why before somebody writes
+one.
 
 What §14.6, 2 *does* leave to the decision point, and so to the stage in which
 agents act: asking twice and taking the narrower answer.
@@ -173,36 +169,35 @@ only one type declares, which is the same test in different words) or by action
 (`action == Action::"Read"`). It reads the policy as a syntax tree rather than as
 text, and looks *inside* every operand: `(if true then principal else principal)
 is Agent` and `principal in [Group::"role.guardian"]` are the same tests wrapped,
-and each defeated an earlier version that asked whether an operand *was* a bare
+and each defeats a check that asks only whether an operand *is* a bare
 variable.
 
 **A scope constraint can be excused with `nc:narrows: <reason>`; a condition
 cannot.** Five markers here, in three files — one in `no_self_escalation`, two in
 `quorum`, two in `agent_authority` — and each says why on the line above. The distinction is not
-decoration: the marker used to excuse the whole policy, so the one written for
-`core.destructive_needs_quorum`'s `action == Action::"Delete"` also excused a
-`|| resource is Feature` added to its `unless`, which is one person removing a
-platform capability alone. A constraint in the scope is on the policy's first
+decoration: a marker that excused the whole policy would let the one written
+for `core.destructive_needs_quorum`'s `action == Action::"Delete"` also excuse
+a `|| resource is Feature` added to its `unless` — measured — which is one
+person removing a platform capability alone. A constraint in the scope is on the policy's first
 line, where a reader meets it. A condition is where an exemption hides.
 
 **The reason quotes the constraint it excuses, backticks and all** — `` `action
-==` ``, `` `principal is` `` — and not the subject. Naming only the subject was
+==` ``, `` `principal is` `` — and not the subject. Naming only the subject is
 the same defect one level down: `principal is Agent` is a type test, which is
 what `§14.6`'s *delegation, never impersonation* is about, and
 `principal == Agent::"ana-assistant"` is the same invariant holding for exactly
 one entity in the world. Both are "the principal", and a reason written for the
-first excused the second with the gate green. The backticks are required because
+first would excuse the second with the gate green. The backticks are required because
 prose reaches the reader too: *"the action in its scope"* contains `action in`,
 and a rule an ordinary sentence satisfies by accident is not a rule.
 
 **And it quotes it on the marker's own line.** The lines under a marker are the
 reason a person reads; the line the marker is written on is the reason the gate
-reads. They were the same text once, and this file's own prose is why they are
-not: `no_self_escalation`'s marker explains itself by recalling that a blanket
-exemption let `core.provenance` be rescoped to `action == Action::"Read"` — a
-sentence that quotes a constraint in order to warn against it. Read as part of
-the reason, it excused exactly that rescoping of the policy it sits on, with no
-finding at all. Every marker here already quotes on its own line, which is where
+reads. They are kept apart because prose quotes a constraint to warn against
+it: `no_self_escalation`'s marker explains itself by saying that a blanket
+exemption would let `core.provenance` be rescoped to `action == Action::"Read"`,
+and read as part of the reason, that sentence excuses exactly that rescoping of
+the policy it sits on, with no finding at all. Every marker here quotes on its own line, which is where
 an excuse belongs: beside the thing it excuses.
 
 That is also why `agent_authority.cedar` writes `forbid (principal is Agent, …)`
@@ -217,14 +212,15 @@ do. Whether `unless { context.something }` is a rule's own definition or a way
 around it is a question about meaning, and nothing structural separates the two.
 A reviewer reading a new core policy has to answer it; the gate cannot.
 
-**An action constraint used to be exempt wholesale, and that was a hole.** The
-argument was that `action in [Action::"Grant", Action::"Revoke"]` is how
+**An action constraint is excused per policy, never wholesale.**
+`action in [Action::"Grant", Action::"Revoke"]` is how
 `core.no_self_escalation` says what it governs — true of that policy, and not a
-rule. Measured: `core.provenance` rescoped to `action == Action::"Read"` gave
-every `Write`, `Delete`, `Share`, `Grant` and `Revoke` a pass with no grant at
-all, and passed the whole gate. Every provenance case uses `Read`, so case
-coverage could not see it either. The exemption is now per policy, written in the
-file, rather than assumed for a whole kind of constraint.
+rule. Measured with action constraints exempt as a kind: `core.provenance`
+rescoped to `action == Action::"Read"` gives every `Write`, `Delete`, `Share`,
+`Grant` and `Revoke` a pass with no grant at all, and passes the whole gate.
+Every provenance case uses `Read`, so case coverage cannot see it either. So the
+exemption is written in the file, per policy, rather than assumed for a whole
+kind of constraint.
 
 ## The tests
 

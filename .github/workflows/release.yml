@@ -1,0 +1,144 @@
+# The release, on a push to `staging` or `main` (`NOCTUA.md §22.6`).
+#
+# A push to either branch is a merge its rules let through, and this workflow
+# turns it into that channel's release, in two jobs. `gate` runs the whole gate
+# on the pushed commit, and holds no secret and no token. `release` waits for
+# it, enters the environment of the branch pushed to, builds the release tool,
+# mints the App's token, and runs `cargo xtask release --channel <branch>
+# --publish --after-the-gate-job`, which computes the version and the changelog
+# from the history, writes them, and makes the release commit, the tag, the
+# GitHub release and the pull request that carries it back, as
+# `xtask/src/release.rs` says. The push the release commit causes runs this
+# again, and that run ends `already released`.
+#
+# `xtask/src/workflow.rs` holds this file to what is written here: it fires on a
+# push to those branches and on nothing else, it holds these two jobs, the
+# release waits for the gate, only the release enters an environment, neither
+# restores a cache, each runs exactly the steps below in this order, each step
+# holding exactly the lines below and no other, and the App's token is handed to
+# the release step alone. The file and its jobs hold no key but the ones written
+# here, the concurrency block holds its three lines, and no expression is
+# evaluated but the six written here, each where it stands. Every action is
+# pinned to a commit, with its release in a comment. No other file GitHub runs
+# may mint the App's token, enter an environment, or read a secret or a step's
+# output, and no other file CI reaches may publish or turn the release's gate
+# off. The gate reads this file a line at a time, so each line ends at a line
+# feed and is spaced with spaces and tabs alone, each key is a word before its
+# colon, and each quote and bracket closes on the line that opens it. It reads a
+# step's `name:` as a label and a shell reads it as a command, so no step runs
+# this file as a script.
+
+name: release
+
+on:
+  push:
+    branches: [staging, main]
+
+# **No permission for this workflow's own token.** Each job below asks for
+# reading the tree and nothing else; what the release writes on GitHub, it
+# writes with the App's token.
+permissions: {}
+
+# **One release per branch at a time, none stopped part way, and none dropped
+# while it waits.** A second push waits for the run before it instead of racing
+# it to the same version. `queue: max` keeps every run that waits, first in
+# first out: under GitHub's default a newer run replaces the one waiting, and
+# the run of a release commit's own push, which is what finishes a release that
+# died part way, would be cancelled by the next merge into the branch.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  # **The whole gate, on the pushed commit, where nothing of the release's
+  # is.** This job enters no environment, reads no secret and mints no token,
+  # so every build script, procedural macro and test the gate runs, of this
+  # tree and of every locked dependency, and the auditor it installs, run in a
+  # job that holds neither the App's key nor its token. Linux, because only
+  # Linux's runner brings the stack up (`NOCTUA.md §22.2`); elsewhere the steps
+  # that need it are not applicable, and the release would be judged by less
+  # than the gate every pull request passed.
+  gate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # **The whole history, and no credential left in it**, as every job
+      # checks out. The history step reads every commit and tag.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # The toolchain `rust-toolchain.toml` names, installed as `ci.yml`
+      # installs it.
+      - name: the toolchain rust-toolchain.toml names
+        run: rustup toolchain install --no-self-update
+      # **No cache, in this job or the next.** A cache holds what an earlier
+      # run built and saved, and the release is built from the branch it
+      # releases and nothing an earlier run, or a pull request, left behind.
+      # The auditor at the version `ci.yml` installs.
+      - name: cargo deny
+        run: cargo install --locked cargo-deny@0.20.2
+      # **The stack, before the gate**, as the `linux` job in `ci.yml` brings
+      # it up before its own.
+      - name: cargo xtask dev
+        run: cargo xtask dev
+      - name: cargo xtask check
+        run: cargo xtask check
+
+  release:
+    # **Only once the gate passed on this commit**, which is why the release
+    # runs no gate of its own.
+    needs: gate
+    # **Linux, as the gate's job is**, so the release tool is built on the
+    # system the gate judged.
+    runs-on: ubuntu-latest
+    # **The environment of the branch pushed to**, which GitHub lets a job enter
+    # from that branch alone: `release-staging` from `staging`, `release-main`
+    # from `main`. It holds the App's client id and its private key, so no other
+    # branch and no pull request can mint the App's token; and the gate refuses
+    # an environment, a secret or the token's action in every other job and
+    # every other file GitHub runs, so no other workflow can either.
+    environment: release-${{ github.ref_name }}
+    permissions:
+      contents: read
+    steps:
+      # **The same commit the gate judged**, with the whole history, which the
+      # version and the changelog are computed from, and no credential left in
+      # the checkout's git configuration.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: the toolchain rust-toolchain.toml names
+        run: rustup toolchain install --no-self-update
+      # **The release tool, built before the token exists.** Building it runs
+      # the build scripts and procedural macros of its dependencies, and here
+      # no step holds the token yet; the release step below finds it built and
+      # builds nothing.
+      - name: the release tool, built before the token is minted
+        run: cargo xtask release --help
+      # **The App's token, minted seconds before its first use and narrowed to
+      # what a release writes**: the release commit, the tag and the GitHub
+      # release are contents, and the pull request back is a pull request. The
+      # two `permission-` inputs are what narrow it; with none, the token holds
+      # whatever the App is granted. The action revokes it when the job ends,
+      # and an installation token lives an hour, which this step no longer
+      # spends on a gate.
+      - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        id: app
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+      # **The token reaches this step alone**, as `GH_TOKEN`, and the verb hands
+      # it to `gh` alone. The channel is the branch pushed to, which the trigger
+      # above makes `staging` or `main`, and the verb refuses any other. The
+      # gate ran in the job before; the verb refuses to stand its own gate aside
+      # anywhere but here.
+      - name: cargo xtask release
+        run: cargo xtask release --channel ${{ github.ref_name }} --publish --after-the-gate-job
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}

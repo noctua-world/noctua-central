@@ -17,8 +17,8 @@
 //!
 //! # Why this reads statements and not lines
 //!
-//! It used to match line by line, and **four ordinary shapes of valid
-//! PostgreSQL walked straight through acceptance criterion 5**:
+//! Matched line by line, **four ordinary shapes of valid PostgreSQL walk
+//! straight through acceptance criterion 5**:
 //!
 //! ```sql
 //! CREATE TABLE
@@ -31,11 +31,10 @@
 //! /* a prose block mentioning CREATE TABLE widgets */ -- a table nobody wrote, named
 //! ```
 //!
-//! Every one of them left `cargo xtask check` green while creating an unbounded
-//! table, or named a table that does not exist. A line is not the unit
-//! PostgreSQL reads and it was never the right unit here: `without_comments`
-//! removes both comment forms over the whole file, and the text is then split
-//! into statements on `;`.
+//! Read that way, every one of them leaves `cargo xtask check` green while
+//! creating an unbounded table, or names a table that does not exist. A line is
+//! not the unit PostgreSQL reads: `without_comments` removes both comment forms
+//! over the whole file, and the text is then split into statements on `;`.
 
 use std::path::Path;
 
@@ -91,8 +90,8 @@ pub(crate) const BOUNDED: &str = "nc:bounded:";
 
 /// The `set_config` values this gate cannot evaluate, cleared by hand.
 ///
-/// **Because the question is not decidable and pretending otherwise was the
-/// defect.** Whether a value preserves the first schema on the path depends on
+/// **Because the question is not decidable, and a rule pretending otherwise is
+/// wrong.** Whether a value preserves the first schema on the path depends on
 /// what SQL *computes*. `0011` writes
 /// `regexp_replace(current_setting('search_path'), ', pg_temp$', '')`, which
 /// removes a trailing element and keeps the first; `substr(current_setting(
@@ -103,7 +102,7 @@ pub(crate) const BOUNDED: &str = "nc:bounded:";
 ///
 /// **And the reason cannot live beside the statement.** A migration's text is
 /// immutable once applied: written as a comment above this one, `cargo xtask
-/// check` answered `check failed: an applied migration was edited`. So it lives
+/// check` answers `check failed: an applied migration was edited`. So it lives
 /// here, keyed on the statement's own words — an edit to those words stops
 /// matching and the gate reports again, which is the loud failure a written list
 /// is for.
@@ -133,8 +132,8 @@ fn the_body_opener_in(statement: &str) -> usize {
     // **And the bodies that open with a keyword rather than a quote.**
     // PostgreSQL's SQL-standard forms — `LANGUAGE sql RETURN <expr>` and
     // `BEGIN ATOMIC … END` — put the routine's code in the statement's own
-    // tokens with no `AS` and no quote at all. A rule that looked only for `AS`
-    // followed by a quote read the whole of such a function as its header.
+    // tokens with no `AS` and no quote at all. A rule that looks only for `AS`
+    // followed by a quote reads the whole of such a function as its header.
     let keyword = ["\nreturn ", " return ", "begin atomic"]
         .iter()
         .filter_map(|opener| cased.find(opener).map(|at| at + 1))
@@ -146,7 +145,7 @@ fn the_body_opener_in(statement: &str) -> usize {
         from = at + "as".len();
         // **A word, not `" as "`.** SQL wraps where it reads best, and this
         // tree writes `LANGUAGE sql\nAS $probe$` — the keyword preceded by a
-        // newline rather than a space, which a spaced needle never matched. The
+        // newline rather than a space, which a spaced needle does not match. The
         // boundaries are what make it the keyword rather than the tail of
         // `alias` or the head of `assert`.
         let opens = at == 0 || bytes[at - 1].is_ascii_whitespace();
@@ -198,9 +197,8 @@ fn where_the_path_is_named(tokens: &[Token]) -> (Option<usize>, Option<usize>) {
 
 /// Every custom setting a `SET` in this statement writes.
 ///
-/// Held apart from the walk because the walk passed a hundred lines when this
-/// was added to it, and because a `SET` and a `set_config` are two spellings of
-/// one question that read their name and value from different places.
+/// Held apart from the walk because a `SET` and a `set_config` are two
+/// spellings of one question that read their name and value from different places.
 fn the_settings_a_set_writes(
     statement: &Statement,
     index: usize,
@@ -208,11 +206,11 @@ fn the_settings_a_set_writes(
     let mut written = Vec::new();
     // **`set_config` is not the only way to write a setting.** `SET nc.p =
     // 'archive'`, `SET LOCAL`, `ALTER DATABASE … SET` and `ALTER ROLE … SET`
-    // are the same write in the spellings PostgreSQL also accepts, and none
-    // of them was read — so a save could be overwritten with a constant
-    // between the save and the read-back and the read-back was still
+    // are the same write in the spellings PostgreSQL also accepts, and with
+    // none of them read a save can be overwritten with a constant
+    // between the save and the read-back and the read-back is still
     // cleared. Measured on PostgreSQL 18: `SHOW search_path` → `archive`,
-    // and an unqualified `CREATE TABLE` landed there. This is the class
+    // and an unqualified `CREATE TABLE` lands there. This is the class
     // three paragraphs in this file already carry, one level down — in the
     // allow-list rather than in the detection.
     //
@@ -241,10 +239,10 @@ fn the_settings_a_set_writes(
             match token {
                 Token::Punct('.') => name.push('.'),
                 // **And the `=` the tokeniser glued on.** `SET nc.p='archive'`
-                // yields `nc`, `.`, `p=`, so the write was recorded under the
-                // name `nc.p=` and `holds_the_path`, looking for `nc.p`,
-                // never found the overwrite. Measured on PostgreSQL 18: the
-                // read-back put `probe_a` on the path and a table landed
+                // yields `nc`, `.`, `p=`, so unstripped the write is recorded
+                // under the name `nc.p=` and `holds_the_path`, looking for
+                // `nc.p`, never finds the overwrite. Measured on PostgreSQL 18:
+                // the read-back puts `probe_a` on the path and a table lands
                 // there.
                 _ => match token.name() {
                     Some(word) if name.is_empty() || name.ends_with('.') => {
@@ -276,22 +274,23 @@ fn the_settings_a_set_writes(
         // The value begins after the `=` or `TO`, which is where the shape
         // rule reads a `set_config`'s second argument from.
         // **A `SET`'s value is not an expression, and `current_schema` in one is
-        // an identifier.** `the_value_is_the_path` was written for a
+        // an identifier.** `the_value_is_the_path` reads a
         // `set_config`'s second argument, where `current_schema` is the function;
         // `assigns_a_new_path` in this same file already records that in a `SET`
         // it names a schema, and a migration may create one called
         // `current_schema` — two fixtures here do. So `SET nc.p = current_schema`
-        // stored that constant, this recorded the write as path-bearing, and the
-        // restore reading it back was cleared. Measured on PostgreSQL 18, with
-        // `access_records` landing in `"current_schema"`. It opened the exception
-        // in `hold_the_path`, so a four-word edit to a fixture already in the
-        // refused list walked through the guard by way of the guard's own escape.
+        // stores that constant, and read as the function, the write is recorded
+        // as path-bearing and the restore reading it back is cleared. Measured on
+        // PostgreSQL 18, with `access_records` landing in `"current_schema"`. That
+        // opens the exception in `hold_the_path`, so a four-word edit to a fixture
+        // already in the refused list walks through the guard by way of the
+        // guard's own escape.
         let value_at = if assigned { name_at + 1 } else { name_at + 2 };
         // **A slice, and the statement may end before it.** `SET` is a
         // non-reserved word, so `CREATE SCHEMA set; CREATE VIEW v AS SELECT c
-        // FROM set.t;` is ordinary SQL — and it ran this index past the end, so
-        // `cargo xtask check` aborted with a Rust slice message instead of
-        // producing a finding. A truncated `SET nc.p` did the same. This is the
+        // FROM set.t;` is ordinary SQL — and an unchecked index runs past the
+        // end, so `cargo xtask check` aborts with a Rust slice message instead of
+        // producing a finding, measured. A truncated `SET nc.p` does the same. This is the
         // gate whose whole argument is *refused rather than guessed at*, and a
         // panic is neither.
         let value = statement.tokens.get(value_at..).unwrap_or_default();
@@ -310,11 +309,11 @@ fn the_settings_a_set_writes(
     written
 }
 
-/// What this file has learned about the custom settings a migration writes.
+/// What this file knows about the custom settings a migration writes.
 ///
 /// The three travel together because they are one question — *does this name
 /// hold the real path at this point in the run* — and passing them separately
-/// put eight arguments on one signature.
+/// puts eight arguments on one signature.
 struct Settings<'a> {
     /// Every write to a custom setting: its name, its place in the running
     /// order, whether its value came from the path, and whether it was written
@@ -335,13 +334,13 @@ impl Settings<'_> {
 
     /// Whether `name` holds the real path at the statement numbered `self.index`.
     ///
-    /// **A name is not a value, and a name can be refilled.** `held` was a set of
-    /// *names* gathered over the whole file with no regard to order, so once a
-    /// custom setting had ever been filled from the path anywhere, every
-    /// `current_setting` of it counted as path-bearing — including after it had been
-    /// overwritten with a constant, and including *before* the save that filled it.
+    /// **A name is not a value, and a name can be refilled.** A set of *names*
+    /// gathered over the whole file with no regard to order counts every
+    /// `current_setting` of a custom setting as path-bearing once it has been
+    /// filled from the path anywhere — including after it has been overwritten
+    /// with a constant, and including *before* the save that fills it.
     /// Measured: three statements, `nc.probe` ← path, `nc.probe` ← `'archive'`,
-    /// `search_path` ← `nc.probe`, gave `check passed` with the `ok` lines
+    /// `search_path` ← `nc.probe`, give `check passed` with the `ok` lines
     /// unchanged.
     ///
     /// So what counts is the most recent assignment *before* the statement asking.
@@ -356,23 +355,23 @@ impl Settings<'_> {
         // statement, because `cut` finishes the top level before it recurses. It can
         // be ordered against another nested one: bodies are appended whole and in
         // order, so within and across them the index is the running order. Poisoning
-        // regardless refused the save-and-restore pair `0011` and `0012` write the
+        // regardless refuses the save-and-restore pair `0011` and `0012` write the
         // moment it is wrapped in the `DO` a conditional migration needs — measured
         // on PostgreSQL 18 as a genuine no-op.
         //
-        // **Mixed is unknowable, in both directions.** The guard was written for
-        // a top-level *reader* only. Measured: a save inside one `DO` block, a
+        // **Mixed is unknowable, in both directions.** A guard for a top-level
+        // *reader* only misses it. Measured: a save inside one `DO` block, a
         // top-level `SET nc.p = 'archive'` between them, and the restore inside
         // a second `DO` block — the overwrite is numbered *before* both bodies,
-        // so the restore trusted a save that had already been replaced.
-        // `SHOW search_path` → `r16archive`, and a table landed there. Sharper
+        // so the restore trusts a save that has already been replaced.
+        // `SHOW search_path` → `r16archive`, and a table lands there. Sharper
         // still: the save written inside a `CREATE FUNCTION` body the migration
-        // never calls was trusted too. Within one level the index is the running
+        // never calls is trusted too. Within one level the index is the running
         // order and that is kept; a name written at both levels is judged by
         // neither.
         // **And only where the order could change the answer.** Written as "a
-        // name written at both levels is judged by neither", this refused a
-        // migration whose *every* write of the name came straight from
+        // name written at both levels is judged by neither", this refuses a
+        // migration whose *every* write of the name comes straight from
         // `current_setting('search_path')` — a measured no-op, and one edit away
         // from the tree: `0012` already writes `nc.path_before_0012` at the top
         // level and carries a `DO` block, so moving the save inside the guard's
@@ -408,9 +407,9 @@ impl Settings<'_> {
 /// that with `CREATE "TABLE" x` — which is true of a *keyword*: quoting one
 /// stops it being one. A function name is an identifier, and quoting a
 /// lower-case identifier changes nothing about which function runs. Measured on
-/// PostgreSQL 18, `SELECT "set_config"('search_path', 'probe_q', false)` put
-/// `probe_q` on the path and a table landed there, with all three readers of
-/// this name silent.
+/// PostgreSQL 18, `SELECT "set_config"('search_path', 'probe_q', false)` puts
+/// `probe_q` on the path and a table lands there, with all three readers of
+/// this name silent under a bare-word match.
 ///
 /// A quoted identifier is case-sensitive, so only the exact lower-case spelling
 /// counts; a bare word is folded, so it is compared without case.
@@ -437,7 +436,7 @@ fn the_source_of(lines: &[&str], statement: &Statement) -> String {
 /// AS $$…$$` writes `proconfig` and leaves `SHOW search_path` exactly as it
 /// was** — measured on PostgreSQL 18, and it is the canonical hardening that
 /// migration `0011`'s own comment block records. Reading it as a session
-/// redirect refused the one thing this gate most wants a migration to do.
+/// redirect refuses the one thing this gate most wants a migration to do.
 ///
 /// Such a statement carries a `SET search_path` of its own, which is a
 /// property of the routine rather than of the session — `proconfig`, not the
@@ -447,14 +446,14 @@ fn the_routines_own_clause(tokens: &[Token], source: &str) -> bool {
     if !defines_a_routine(tokens) {
         return false;
     }
-    // **The clause, not the statement — and what that is really worth.** The
-    // hatch once skipped the whole statement, which read as spelling-sensitive:
+    // **The clause, not the statement — and what that is really worth.** A
+    // hatch skipping the whole statement is spelling-sensitive:
     // a dollar-quoted body is re-cut and judged, while PostgreSQL's SQL-standard
-    // body lives in the statement's own tokens. Measured on PostgreSQL 18, that
-    // redirect ran and a table landed in the wrong schema.
+    // body lives in the statement's own tokens. Measured on PostgreSQL 18, such a
+    // redirect runs and a table lands in the wrong schema.
     //
-    // **But it was `sets_by_function` that caught it, not this narrowing**, and
-    // saying otherwise was the same overclaim twice. `sets_by_function` is
+    // **But it is `sets_by_function` that catches it, not this narrowing.**
+    // `sets_by_function` is
     // deliberately not gated by this hatch, so a `set_config` anywhere in a
     // routine — header, dollar-quoted body or SQL-standard body — is judged
     // whatever this answers. And `SET` is not legal in a SQL-standard body at
@@ -472,17 +471,17 @@ fn the_routines_own_clause(tokens: &[Token], source: &str) -> bool {
     // or `strip_sql_comments` goes.
     //
     // **The narrowing itself is decided by what it does, not by a redirect.**
-    // For a round it was decided by nothing: replaced with `true` — the shape
-    // whose paragraph above records "that redirect ran and a table landed in the
-    // wrong schema" — the whole suite stayed green, and so it did with
-    // `begin atomic` removed from the body openers. There was no redirect left
-    // to catch it with, so the test asks the question directly instead:
-    // `the_routine_hatch_reads_the_clause_and_not_the_body`.
+    // No redirect is left in the tree to catch it with, so a test asks the
+    // question directly instead:
+    // `the_routine_hatch_reads_the_clause_and_not_the_body`. Replaced with
+    // `true` — the shape whose paragraph above records such a redirect running
+    // and a table landing in the wrong schema — the narrowing fails it, and so
+    // does `begin atomic` removed from the body openers.
     //
     // A routine's configuration clause is written among its *attributes*, and
     // PostgreSQL takes those in any order — before the body or after it.
     // Deciding on the first `search_path` and calling everything from the body
-    // opener onwards "the routine's code" refused the identical function with
+    // opener onwards "the routine's code" refuses the identical function with
     // two attributes swapped:
     // `CREATE FUNCTION … AS $$…$$ SECURITY DEFINER SET search_path = pg_catalog,
     // pg_temp;` writes `proconfig` and leaves `SHOW search_path` alone, measured
@@ -491,9 +490,9 @@ fn the_routines_own_clause(tokens: &[Token], source: &str) -> bool {
     // *span*, not everything after where it starts.
     //
     // **And SQL's comments, with SQL's stripper.** `gates::without_comments`
-    // closes `/* … */` only for Rust, so a block comment in a header — or a
-    // string in a parameter default — was scanned for the body-opener keywords
-    // and the function refused. `strip_sql_comments`'s own paragraph in this
+    // closes `/* … */` only for Rust, so with it a block comment in a header —
+    // or a string in a parameter default — is scanned for the body-opener
+    // keywords and the function refused. `strip_sql_comments`'s own paragraph in this
     // file records that exact failure one rule over.
     // `strip_sql_comments` blanks a string's contents as well as removing every
     // comment form, and preserves length — which is what both halves need: a
@@ -556,13 +555,13 @@ fn defines_a_routine(tokens: &[Token]) -> bool {
 /// Whether a token is the assignment of a `SET`, however it was cut.
 ///
 /// The tokeniser flushes on whitespace, so `= archive`, `=archive` and `TO x`
-/// are three shapes for one operator and only the first was recognised.
+/// are three shapes for one operator, and a reader of the first alone misses two.
 fn assigns_here(token: &Token) -> bool {
     // **And `FROM`, which is the fourth member of the closed set.** The
     // paragraph beside `reset_the_path` names `SET x TO v`, `SET x FROM
     // CURRENT`, `RESET x` and `RESET ALL`, and calls the last omission "one rule
-    // written twice, with the second copy narrower". This rule had learned three
-    // of the four, one member over. Measured on PostgreSQL 18: `ALTER DATABASE
+    // written twice, with the second copy narrower"; without `FROM`, this rule
+    // is that narrower copy, one member over. Measured on PostgreSQL 18: `ALTER DATABASE
     // noctua SET search_path FROM CURRENT` writes `pg_db_role_setting`, and a
     // brand-new session then answers with the saved path and an unqualified
     // `CREATE TABLE` lands there — the §15.8 harm, made permanent and surviving
@@ -580,39 +579,38 @@ fn assigns_here(token: &Token) -> bool {
 
 /// Whether a `SET search_path` at `at` puts a new path there.
 ///
-/// **And nothing after `current_schema`.** The carve-out looked at one token, so
-/// `SET search_path TO current_schema, archive;` — two words longer, and a
-/// redirect — was accepted. Measured on PostgreSQL 18: unquoted
+/// **And nothing after `current_schema`.** A carve-out reading one token
+/// accepts `SET search_path TO current_schema, archive;` — two words longer,
+/// and a redirect. Measured on PostgreSQL 18: unquoted
 /// `current_schema` in a `SET` is parsed as an *identifier* rather than the
 /// function, `SHOW search_path` answers `"current_schema", archive`, and an
-/// unqualified `CREATE TABLE` below it lands in `archive`. So the excuse holds
-/// only where the path the database already has is the whole of the value.
+/// unqualified `CREATE TABLE` below it lands in `archive`. So no excuse is
+/// made for it at all; see the paragraph inside.
 fn assigns_a_new_path(tokens: &[Token], at: usize) -> bool {
     // **The operator, however the tokeniser cut it.** `SET search_path =archive;`
     // — a space before the `=` and none after — flushes `search_path` as one
-    // word and glues `=archive` into the next, so neither this reader nor the
-    // `search_path=` one beside it saw an assignment and the statement produced
-    // no finding at all. Measured on PostgreSQL 18: `SHOW search_path` →
-    // `archive`, and an unqualified `CREATE TABLE access_records` landed there,
+    // word and glues `=archive` into the next, so a reader of a bare `=` and
+    // the `search_path=` one beside it see no assignment and the statement
+    // produces no finding at all. Measured on PostgreSQL 18: `SHOW search_path` →
+    // `archive`, and an unqualified `CREATE TABLE access_records` lands there,
     // which is the §15.8 scenario this gate's own paragraph names.
     if !tokens.get(at + 1).is_some_and(assigns_here) {
         return false;
     }
     // **And there is no carve-out, because there is no spelling to carve out.**
-    // This once excused `SET search_path TO current_schema`, then — when that
-    // turned out to name an *identifier*, and a migration may create a schema
-    // called `current_schema` — it was narrowed to require the parentheses of
-    // the function. Measured on PostgreSQL 18, that statement does not exist:
+    // `SET search_path TO current_schema` names an *identifier*, and a
+    // migration may create a schema called `current_schema`; the function,
+    // with its parentheses, cannot be written in a `SET` at all. Measured on
+    // PostgreSQL 18, that statement does not exist:
     //
     // ```text
     // SET search_path = current_schema();
     // ERROR:  syntax error at or near "("
     // ```
     //
-    // `SET` takes identifiers and literals, not calls. So the narrowed carve-out
-    // was unreachable from any valid migration — an assertion that cannot fire
-    // in the direction it was written for — and the two entries guarding it in
-    // the allowed list were both syntax errors. A `SET` that names the path is a
+    // `SET` takes identifiers and literals, not calls, so a carve-out requiring
+    // the parentheses is unreachable from any valid migration — an assertion
+    // that cannot fire in the direction it is written for. A `SET` that names the path is a
     // redirect, and the way to keep the path is `set_config`, which the value
     // rule reads.
     true
@@ -622,7 +620,7 @@ fn assigns_a_new_path(tokens: &[Token], at: usize) -> bool {
 ///
 /// **The statement's own words, and all of them.** Written as a `contains` over
 /// the source *lines*, anything sharing a line with the cleared statement
-/// inherited its clearance — a `--` comment holding the cleared words granted
+/// inherits its clearance — a `--` comment holding the cleared words grants
 /// it, which is a gate satisfied by a comment, in the file that carries three
 /// paragraphs about scanners reading a comment as code. So comments come off
 /// first and the match is an equality: a second statement on the same line
@@ -725,17 +723,17 @@ fn one_directory_declares_its_bounds(
     // How many statements have been read, so `Created.at` and
     // `ColumnChange.at` order the whole set of migrations and not one file.
     let mut stamp = 0_usize;
-    // **And how many files the walk actually read.** This gate reported a count
-    // of `CREATE TABLE`s, floored against the number of `[tables.` lines in the
-    // catalog — a number that does not move when a migration goes unread.
-    // Measured: filtering the walk to files below `0007` left
-    // `cargo test -p xtask --bin xtask` at 417 passed, and an unbounded
-    // `CREATE TABLE login_attempts` appended to `0012` was then excused.
+    // **And how many files the walk actually reads.** A count of
+    // `CREATE TABLE`s alone, floored against the number of `[tables.` lines in
+    // the catalog, does not move when a migration goes unread.
+    // Measured with that count alone: filtering the walk to files below
+    // `0007` leaves `cargo test -p xtask --bin xtask` passing, and an unbounded
+    // `CREATE TABLE login_attempts` appended to `0012` is then excused.
     // The accidental coverage stops at `0006` only because `access_records`
     // gains its ordering column by `ALTER TABLE` there.
     //
     // Its sibling `every_migration_is_numbered_once` returns a file count and
-    // `check.rs` floors it; this one, forty lines away, returned none. The count
+    // `check.rs` floors it, and this one does the same. The count
     // is taken here, inside the loop that judges, so a filter between the two
     // pays for itself.
     let mut files = 0_usize;
@@ -772,20 +770,20 @@ fn one_directory_declares_its_bounds(
         // **A shape this scanner cannot read is refused, not guessed at.**
         // `COPY t FROM stdin;` is followed by raw data until a line holding
         // `\.`, and an apostrophe in that data opens a string literal that runs
-        // to the next one — measured blanking the rest of the file, so every
-        // `CREATE TABLE` after it went unseen while the gate reported a count
-        // and passed. It is refused rather than parsed because `cargo xtask dev`
+        // to the next one — measured, it blanks the rest of the file, so every
+        // `CREATE TABLE` after it goes unseen while the gate reports a count
+        // and passes. It is refused rather than parsed because `cargo xtask dev`
         // applies migrations through sqlx, which cannot feed a statement's
         // stdin: a migration holding one is already broken, and saying so is
         // both simpler and more true than teaching the tokeniser a second
         // grammar.
         // **The reader says what it judged, and a disagreement is an error, not a
-        // finding.** Three shapes got past the previous arrangement, in which the
-        // reader took the other count and reported the disagreement as one of its
-        // own verdicts: a guard clause at the top of the reader returned before
-        // the comparison ran; a filter here on `files == 1` dropped every verdict
-        // from the eleven migrations no fixture writes; and a `retain` on the
-        // verdict's own text silenced the comparison itself. A finding can be
+        // finding.** With the reader taking the other count and reporting the
+        // disagreement as one of its own verdicts, three shapes get past: a
+        // guard clause at the top of the reader returning before the comparison
+        // runs; a filter here on `files == 1` dropping every verdict from the
+        // migrations no fixture writes; and a `retain` on the verdict's own text
+        // silencing the comparison itself. A finding can be
         // filtered — this cannot, and it stops the walk where it is.
         let (refused, judged) = unreadable_statements_in(&text, dialect);
         the_readers_agree(
@@ -806,23 +804,23 @@ fn one_directory_declares_its_bounds(
         changed_columns.extend(changes.columns.iter().cloned());
         // **The counter is the last statement a verdict reaches, not the first
         // statement of the body.** `seen` is what `check.rs` floors against
-        // `catalog/limits.toml`'s entry count and what it prints, and it stood
-        // at the top of this loop — so one line below it turned criterion 5 off
-        // with the number unmoved:
+        // `catalog/limits.toml`'s entry count and what it prints, and counted at
+        // the top of this loop, one line below it turns criterion 5 off with the
+        // number unmoved:
         //
         // ```text
         // + if table.line > 5 { continue; }
         //   PROBE seen=3 bounded=2 floor_ok=true findings=[]
-        //   316 passed
+        //   the suite passes
         // ```
         //
         // A real unbounded table, the count printed over it, and the suite
-        // green. `xtask/canaries/README.md` states this rule as closed
-        // everywhere; it was not closed here.
+        // green. `xtask/canaries/README.md` states this rule for every gate,
+        // and this is where this one keeps it.
         // **In the order the statements run, not every create and then every
-        // rename.** Two loops stood here, and the first ran to its end before
-        // the second began, so within one file a `DROP` always won over a
-        // `CREATE` however they were written:
+        // rename.** Two loops, the first run to its end before the second
+        // begins, make a `DROP` within one file always win over a `CREATE`
+        // however they are written:
         //
         // ```text
         // -- 0002, with every catalog table created in 0001
@@ -832,11 +830,11 @@ fn one_directory_declares_its_bounds(
         // ```
         //
         // Dropping and re-creating a table inside one migration is ordinary
-        // work, and the gate told the developer to delete a bound that is
-        // correct. That is this rule's *too strong* failure — a refusal of
-        // something legitimate — and the tree was green only because no
-        // migration here had tried it yet. Both lists carried the statement
-        // they came from; neither was consulted. Now they are merged on it.
+        // work, and unmerged the gate tells the developer to delete a bound that
+        // is correct. That is this rule's *too strong* failure — a refusal of
+        // something legitimate — and a tree where no migration does it yet is
+        // green regardless. Both lists carry the statement they came from, and
+        // they are merged on it.
         let (said, excused_here, counted) = what_one_file_declares(
             &changes,
             &Bounds {
@@ -853,12 +851,12 @@ fn one_directory_declares_its_bounds(
         seen += counted;
     }
 
-    // **Where the entry actually is.** Every finding this rule produced was
-    // reported at line 1 of the catalog, and the entries live from line 20 to
-    // line 179 — the migration-side findings in this same file carry real line
-    // numbers, so one run showed both and taught a reader to distrust the
-    // column. The text is read here rather than in the rule so the rule stays a
-    // function of the migrations and the catalog.
+    // **Where the entry actually is.** Reported at line 1 of the catalog, a
+    // finding about an entry living well down the file sits beside
+    // migration-side findings that carry real line numbers, so one run shows
+    // both and teaches a reader to distrust the column. The text is read here
+    // rather than in the rule so the rule stays a function of the migrations
+    // and the catalog.
     let limits = std::fs::read_to_string(root.join("catalog/limits.toml")).unwrap_or_default();
     findings.extend(order_by_names_a_column(
         &all,
@@ -878,7 +876,7 @@ fn one_directory_declares_its_bounds(
 ///
 /// **The other direction**: an entry naming a table nothing creates is a limit
 /// that will never be applied, which reads as protection and is not. Split out
-/// of the walk when the walk learnt a second directory.
+/// of the walk, which reads two directories.
 fn bounded_and_never_created(
     exists: &[String],
     limits: &str,
@@ -894,11 +892,11 @@ fn bounded_and_never_created(
         if !exists.iter().any(|name| name == table.name) {
             findings.push(Finding {
                 file: "catalog/limits.toml".to_owned(),
-                // **The entry's own line.** This said `1`, which is the file's
+                // **The entry's own line**, and not `1`, which is the file's
                 // header comment, while the migration-side findings in the same
                 // run carry real numbers — the mixed transcript `line_of_entry`'s
-                // own doc says "taught a reader that the column is decorative",
-                // and that function is fifty lines from here.
+                // own doc describes, which teaches a reader that the column is
+                // decorative.
                 line: line_of_entry(limits, table.name),
                 what: format!("`{}` is bounded and nothing creates it", table.name),
                 fix: "a limit on a table that does not exist is a number the pruner will \
@@ -952,7 +950,7 @@ fn unbounded(file: &str, name: &str, line: usize) -> Finding {
              `-- {BOUNDED} <reason>`",
             // **Quoted when it carries a schema.** A bare
             // `[tables.archive.access_records]` is a *nested* table to TOML, and
-            // following this advice literally produced `unknown field
+            // such advice followed literally produces `unknown field
             // 'access_records'` — a gate telling a developer to write something
             // that does not parse.
             toml_key(name)
@@ -975,23 +973,23 @@ fn toml_key(name: &str) -> String {
 
 /// Whether the comment block directly above a statement excuses it.
 ///
-/// **Three rules, and each closes a way the hatch was free.**
+/// **Three rules, and each closes a way the hatch would be free.**
 ///
 /// The marker must *begin* the comment, the block must be contiguous with the
-/// statement, and **the statement must be the only one on its line**. The first
-/// two were fixed when detection became statement-scoped; the third was not, so
-/// the hatch stayed line-scoped and one reason excused two tables:
+/// statement, and **the statement must be the only one on its line**. Without
+/// the third, the hatch is line-scoped while detection is statement-scoped,
+/// and one reason excuses two tables:
 ///
 /// ```sql
 /// -- nc:bounded: exactly one row, written by the installer
 /// CREATE TABLE install_marker (id INT); CREATE TABLE login_attempts (id TEXT);
 /// ```
 ///
-/// That is the same line-versus-statement mismatch, surviving on the side of the
+/// That is the line-versus-statement mismatch, on the side of the
 /// gate that turns it *off*.
 ///
-/// A comment that merely *described* the hatch also switched it off for
-/// everything beneath — the sentence this gate's own `fix` text tells you to
+/// Without the first, a comment that merely *describes* the hatch switches it
+/// off for everything beneath — the sentence this gate's own `fix` text tells you to
 /// write. That is the self-exemption `references.rs` documents for
 /// `is_generated`, and the reason the marker must begin its line.
 fn excused(lines: &[&str], comments: &[usize], table: &Declared<'_>) -> bool {
@@ -1001,11 +999,11 @@ fn excused(lines: &[&str], comments: &[usize], table: &Declared<'_>) -> bool {
     let mut at = table.line;
     while at > 1 {
         at -= 1;
-        // **Only a line the scanner called a comment.** This read raw text, so a
-        // `-- nc:bounded: …` that was the *second line of a string literal* —
-        // house style quoted inside a `COMMENT ON` — excused the table beneath
+        // **Only a line the scanner called a comment.** Reading raw text, a
+        // `-- nc:bounded: …` that is the *second line of a string literal* —
+        // house style quoted inside a `COMMENT ON` — excuses the table beneath
         // it, with the gate green and the table created on a live server.
-        // Detection became statement-scoped; the hatch was still reading lines.
+        // Detection is statement-scoped, and the hatch has to be too.
         if !comments.contains(&at) {
             return false;
         }
@@ -1018,14 +1016,14 @@ fn excused(lines: &[&str], comments: &[usize], table: &Declared<'_>) -> bool {
 
 /// A name one statement brings into existence, and where its marker would be.
 ///
-/// **Two statements create a table and only one of them could be excused.**
-/// `CREATE TABLE` reached the hatch and `ALTER TABLE … RENAME TO` did not, while
-/// the remedy printed on *both* paths says, on both, that a table which
+/// **Two statements create a table, and both can be excused.** With
+/// `CREATE TABLE` reaching the hatch and `ALTER TABLE … RENAME TO` not, the
+/// remedy printed on *both* paths still says, on both, that a table which
 /// genuinely cannot grow may say so in a comment above its statement — the
 /// marker `BOUNDED` spells, named here without spelling it, because a census
-/// counts a hatch wherever it is written. Measured: a marker written
-/// above a rename left the finding standing, so the gate named a hatch that path
-/// did not have — prose stating the inverse of the code, which is a shape this
+/// counts a hatch wherever it is written. Measured that way: a marker written
+/// above a rename leaves the finding standing, so the gate names a hatch that path
+/// does not have — prose stating the inverse of the code, which is a shape this
 /// file carries three paragraphs about.
 struct Declared<'a> {
     /// The table, as `catalog/limits.toml` would spell it.
@@ -1048,48 +1046,46 @@ fn is_the_marker(line: &str, table: &str) -> bool {
     let Some(reason) = comment.trim_start().strip_prefix(BOUNDED) else {
         return false;
     };
-    // **And the reason names the table.** It only had to be non-empty, so `x`
-    // was a reason — and the marker sits above a statement, which means the
+    // **And the reason names the table.** Held only to non-empty, `x` is a
+    // reason — and the marker sits above a statement, which means the
     // *next* table added above it inherits an excuse written about a different
     // one. Naming the table makes an excuse that drifted onto a new table fail
     // rather than widen, the rule `allow-logging:`, `allow-count:` and
-    // `allow-nondeterminism:` all follow after the same measurement.
+    // `allow-nondeterminism:` all follow, for the same measurement.
     // **And a preceding `.` is a different table, not this one.**
     // `references::names` accepts one, because it reasons about paths: in
     // `docs/limits.md` a preceding `/` is a path's last segment and *does* name
     // the thing. In SQL it is a schema qualifier, so
-    // a marker whose reason reads `archive.login_attempts …` excused a
+    // a marker whose reason reads `archive.login_attempts …` would excuse a
     // bare `login_attempts` in `public` — measured through criterion 5's own
     // driver: `the gate found 0 unbounded table(s), and it leaves 1`. That is
     // the excuse drifting onto another table, which is the failure the `names`
-    // requirement was added to stop.
+    // requirement exists to stop.
     //
     // Decided here rather than in `names`, because a preceding `.` in a Rust
     // path — `Utc::now` beside `now` — is a different question.
-    // **One occurrence has to satisfy both halves.** `names` needed a
-    // word-bounded occurrence and the clause beside it needed one not preceded
-    // by `.` — and they need not be the *same* occurrence. So a reason about
+    // **One occurrence has to satisfy both halves.** `names` needs a
+    // word-bounded occurrence and the clause beside it needs one not preceded
+    // by `.` — and asked apart, they need not be the *same* occurrence. So a reason about
     // `archive.login_attempts` plus any mention of the bare name inside a
-    // longer identifier excused `login_attempts` in `public`: measured through
-    // the gate, `unbounded=0 excused=["login_attempts"]` for a migration whose
-    // table has no entry at all. And the `names` half was decided by nothing —
-    // deleting it left the suite green, re-opening the substring defect it was
-    // written for.
+    // longer identifier would excuse `login_attempts` in `public`: measured
+    // through the gate, `unbounded=0 excused=["login_attempts"]` for a migration
+    // whose table has no entry at all. And deleting the `names` half re-opens
+    // the substring defect it exists for.
     // **And naming it is still not saying anything about it.** Measured through
     // criterion 5's own driver, all three of `nc:bounded: login_attempts`,
     // `nc:bounded: TODO login_attempts` and `nc:bounded: x login_attempts x`
-    // gave `found 0 unbounded, leaves 1` — the name satisfying the rule that
+    // give `found 0 unbounded, leaves 1` — the name satisfying the rule that
     // asked for the name. So the second half is the compiler's own
-    // `a_reason_names_what_it_exempts`, which is where the sibling hatch's
-    // identical repair lives; one predicate, so the two cannot drift apart in
+    // `a_reason_names_what_it_exempts`, which the sibling hatch reads as
+    // well; one predicate, so the two cannot drift apart in
     // what counts as a reason.
-    // **One rule, one place.** Both halves were written here as well, and the
-    // corpus said so: with the compiler's predicate also checking the name,
-    // deleting either the word-boundary clause or the schema-qualifier clause
-    // from this file left every corpus case deciding the same way, so
-    // `mutants.py` reported two survivors. Two copies of one rule is the defect
-    // this repository has caught most often — the second copy narrower than the
-    // language it scans — and the cure is not a third copy.
+    // **One rule, one place.** With both halves written here as well as in the
+    // compiler's predicate, deleting either the word-boundary clause or the
+    // schema-qualifier clause from this file leaves every corpus case deciding
+    // the same way, and `mutants.py` reports two survivors. Two copies of one
+    // rule is the defect this repository catches most often — the second copy
+    // narrower than the language it scans — and the cure is not a third copy.
     nc_catalog_compiler::a_reason_names_what_it_exempts(table, reason).is_ok()
 }
 
@@ -1112,12 +1108,12 @@ fn migrations_in(root: &Path, directory: &str) -> Result<Vec<std::path::PathBuf>
 
 /// Where a `CREATE [OR REPLACE] FUNCTION|PROCEDURE` begins, and what follows it.
 ///
-/// **Both halves of this gate required a literal single space between the
-/// keywords**, and SQL does not: a line break after `CREATE`, or between
-/// `OR REPLACE` and `FUNCTION`, is the same statement. Neither the parser nor
-/// the independent count that floors it could see one, so the two agreed and
+/// **SQL does not require a literal single space between the keywords**: a
+/// line break after `CREATE`, or between `OR REPLACE` and `FUNCTION`, is the
+/// same statement. A parser and an independent count that floors it, both
+/// requiring the space, cannot see one, so the two agree and
 /// `found != creates` — the one thing standing between a partial parse and a
-/// green run — was satisfied by both halves missing the same statement.
+/// green run — is satisfied by both halves missing the same statement.
 /// Measured over a scratch migrations tree:
 ///
 /// ```text
@@ -1127,7 +1123,7 @@ fn migrations_in(root: &Path, directory: &str) -> Result<Vec<std::path::PathBuf>
 /// ```
 ///
 /// `CREATE  FUNCTION` with two spaces *is* caught — by the count mismatch —
-/// which is what made this look tested. The live-database half backstops it, but
+/// which makes a single-space rule look tested. The live-database half backstops it, but
 /// `--offline` and a machine with no stack have only this.
 ///
 /// `lowered` is already lowercased and stripped of line comments. Returns the
@@ -1160,11 +1156,11 @@ fn routine_at(lowered: &str, from: usize) -> Option<(usize, &str)> {
 
 /// A routine's name and argument list, from the text that follows its keywords.
 ///
-/// **Both halves of this gate spelled it, and they spelled it differently.** The
-/// `CREATE` side walked the characters, counting brackets and dropping the
-/// whitespace inside them; the `ALTER` side took `words.get(2)` — one
-/// whitespace-separated token. Where the argument list holds a space, or a space
-/// sits before the bracket, the two disagree, and a disagreement here is not a
+/// **One spelling for both halves of this gate.** A `CREATE` side walking the
+/// characters, counting brackets and dropping the whitespace inside them, and
+/// an `ALTER` side taking `words.get(2)` — one whitespace-separated token —
+/// disagree where the argument list holds a space, or a space
+/// sits before the bracket, and a disagreement here is not a
 /// miss: the `ALTER` lands in the map as a *second* function, pinned, and the
 /// real one is reported unpinned. Measured, each an ordinary statement:
 ///
@@ -1181,8 +1177,8 @@ fn routine_at(lowered: &str, from: usize) -> Option<(usize, &str)> {
 fn the_routine_name_in(after: &str) -> String {
     // **A space before the bracket is not the end of the name.** `f ()` and
     // `f (a text)` are ordinary PostgreSQL, and the walk below ends the name at
-    // the first space outside a bracket — so it read `f`, while the other half
-    // read `f()`. Closed here rather than in the walk so both sides get it.
+    // the first space outside a bracket — so it reads `f`, while the other half
+    // reads `f()`. Closed here rather than in the walk so both sides get it.
     after
         .replace(" (", "(")
         .char_indices()
@@ -1214,20 +1210,18 @@ fn after_a_keyword<'a>(text: &'a str, word: &str) -> Option<&'a str> {
 
 /// How many distinct functions the migrations create, counted without the parser.
 ///
-/// **The walk's floor was its own output.** `every_function_resolves_its_own_names`
-/// reports `latest.len()` — the map the verdict loop drains — and the only guard
-/// was `functions == 0`, so a parser that read one function of three passed with
-/// `ok 1 function(s) in migrations pin how they resolve a name`. A floor derived
-/// from the thing it floors is a mirror, which this repository has removed three
-/// times in other gates.
+/// **The walk's floor is not its own output.** `every_function_resolves_its_own_names`
+/// reports `latest.len()` — the map the verdict loop drains — and with
+/// `functions == 0` as the only guard, a parser that reads one function of three
+/// passes with `ok 1 function(s) in migrations pin how they resolve a name`. A
+/// floor derived from the thing it floors is a mirror.
 ///
 /// **What it shares is the directory and the comment stripper, and nothing
-/// else.** For one round it also shared `routine_at` — the repair that taught
-/// both halves that a newline separates two keywords put the *same* reader in
-/// both, so `found != creates` could no longer disagree about anything that
-/// reader decides. Measured: one `if rest.starts_with("access_") { continue; }`
-/// inside `routine_at` took a real routine out of `creates=3, found=3` and left
-/// it at `creates=2, found=2, mismatch=false, findings=0`, with both scratch
+/// else.** Sharing `routine_at` as well would put the *same* reader in both
+/// halves, so `found != creates` could not disagree about anything that reader
+/// decides. Measured: one `if rest.starts_with("access_") { continue; }` inside
+/// a shared `routine_at` takes a real routine out of `creates=3, found=3` and
+/// leaves it at `creates=2, found=2, mismatch=false, findings=0`, with both scratch
 /// fixtures green. Two counts of the same ground catch a filter in one of them
 /// and cannot catch a blind spot both share.
 ///
@@ -1235,10 +1229,10 @@ fn after_a_keyword<'a>(text: &'a str, word: &str) -> Option<&'a str> {
 /// keyword sequence, which is a different way of finding the same statements —
 /// and the two agree about whitespace without going through one function.
 ///
-/// The comment stripper *is* shared, deliberately: this used
-/// `line.split("--").next()`, which does not know a block comment, a dollar
-/// quote or a string literal, so a `--` inside a literal made the two disagree
-/// and failed the run for a reason that is neither half's rule. A shared
+/// The comment stripper *is* shared, deliberately:
+/// `line.split("--").next()` does not know a block comment, a dollar
+/// quote or a string literal, so with it a `--` inside a literal makes the two
+/// disagree and fails the run for a reason that is neither half's rule. A shared
 /// normalisation of the input is not the same as a shared judgement of it.
 ///
 /// It keys on the name and the argument list — which is what makes an overload a
@@ -1295,13 +1289,13 @@ pub(crate) fn functions_the_migrations_create(root: &Path) -> Result<usize, Stri
 
 /// Every function a migration defines pins how it resolves a name.
 ///
-/// **`pg_temp` is searched before `search_path`, and nothing here looked.**
+/// **`pg_temp` is searched before `search_path`, and this looks.**
 /// PostgreSQL resolves a relation name in the temporary schema first — ahead of
-/// `search_path` entirely — and `CREATE TEMP TABLE` is a default privilege. Two
-/// trigger functions read an unqualified name, so one ordinary statement from
-/// the writing service's own connection decided what they saw: a temp
-/// `journal_entries` let a foreign row leap to the top of `0008`'s range and
-/// ended the history for ever, and a temp `access_records_recorded_seq` handed a
+/// `search_path` entirely — and `CREATE TEMP TABLE` is a default privilege. A
+/// trigger function reading an unqualified name lets one ordinary statement from
+/// the writing service's own connection decide what it sees: a temp
+/// `journal_entries` lets a foreign row leap to the top of `0008`'s range and
+/// ends the history for ever, and a temp `access_records_recorded_seq` hands a
 /// row a number the pruner will never reach. `migrations/0011_a_trigger_names_its_own_schema.sql` closes both and
 /// carries the transcripts.
 ///
@@ -1371,7 +1365,7 @@ pub(crate) fn every_function_resolves_its_own_names(
     // The state a function ends up in: where it was last defined, how that
     // definition reads, its line, and whether it is pinned. **The pin is a flag
     // and not a substring of the declaration**, because an `ALTER … RESET` has to
-    // take it away — editing the declaration text to do that put a mangled
+    // take it away — editing the declaration text to do that puts a mangled
     // sentence in the finding, which is a message about a statement nobody wrote.
     let mut latest: std::collections::BTreeMap<String, (String, String, usize, bool)> =
         std::collections::BTreeMap::new();
@@ -1381,19 +1375,20 @@ pub(crate) fn every_function_resolves_its_own_names(
             .map_err(|error| format!("{relative} could not be read: {error}"))?;
         for (name, declared, _, line, is_alter) in functions_in(&text) {
             // **The clause, not the substring.** `"reset search_path"` contains
-            // `"set search_path"`, so a migration that *lifts* a pin read as one
-            // that adds it: one `ALTER FUNCTION … RESET search_path` printed
+            // `"set search_path"`, so read as a substring, a migration that
+            // *lifts* a pin reads as one that adds it: one `ALTER FUNCTION …
+            // RESET search_path` prints
             // `ok 4 function(s) in migrations pin how they resolve a name` while
-            // the database held a null `proconfig` for that function.
+            // the database holds a null `proconfig` for that function.
             // `SET search_path TO DEFAULT` is the same shape, and
-            // `check --offline` never reaches the database half that objected.
+            // `check --offline` never reaches the database half that objects.
             // **And `RESET ALL`, which is the third and the widest.**
             // `ALTER FUNCTION f() RESET ALL` clears `proconfig` entirely, so it
             // lifts the pin without naming the path at all — measured, one such
-            // line printed `ok 3 function(s) in migrations pin how they resolve
-            // a name` under `check --offline` while the database half objected
+            // line prints `ok 3 function(s) in migrations pin how they resolve
+            // a name` under `check --offline` while the database half objects
             // that the function does not search `pg_temp` last. `--offline` is
-            // what `just check-offline` runs, and CI has never run at all.
+            // what `just check-offline` runs.
             //
             // These three are `ALTER FUNCTION`'s whole grammar for a
             // configuration clause — `SET x TO v`, `SET x FROM CURRENT`,
@@ -1402,12 +1397,12 @@ pub(crate) fn every_function_resolves_its_own_names(
             let lifts = declared.contains("reset search_path")
                 || declared.contains("reset all")
                 || declared.contains("set search_path to default");
-            // **And what the clause *says*, when it says anything.** This asked
-            // only whether a `SET search_path` was present, and `pg_temp_is_last`
-            // — the predicate that knows the rule — was applied to `proconfig`
-            // from the database and never to a path written into a migration. So
-            // three shapes the class exists to stop went unreported, one of them
-            // verbatim the defect the twelfth migration was written to remove:
+            // **And what the clause *says*, when it says anything.** Asking only
+            // whether a `SET search_path` is present, with `pg_temp_is_last` —
+            // the predicate that knows the rule — applied to `proconfig` from
+            // the database and never to a path written into a migration, leaves
+            // three shapes the class exists to stop unreported, one of them
+            // verbatim the defect the twelfth migration exists to remove:
             //
             // ```text
             // ALTER … SET search_path TO pg_temp                 -> count=3 findings=0
@@ -1424,13 +1419,11 @@ pub(crate) fn every_function_resolves_its_own_names(
             match latest.entry(name) {
                 // **`is_alter`, not `body.is_empty()`.** A bodyless
                 // `CREATE OR REPLACE … LANGUAGE sql … RETURN …;` also has an
-                // empty body, so a replacement that *removed* the pin was filed
-                // as a no-op `ALTER` and the earlier pinned entry survived in the
-                // map: measured, two definitions of one function with the second
-                // unpinned gave no finding and a null `proconfig`. The comment on
-                // `functions_and_alters` said the offset told them apart — and
-                // `functions_in` dropped the offset before returning, so nothing
-                // ever asked.
+                // empty body, so read by `body.is_empty()`, a replacement that
+                // *removes* the pin is filed as a no-op `ALTER` and the earlier
+                // pinned entry survives in the map: measured, two definitions of
+                // one function with the second unpinned give no finding and a
+                // null `proconfig`.
                 std::collections::btree_map::Entry::Occupied(mut held) if is_alter => {
                     // An `ALTER … SET` adds the pin and an `ALTER … RESET` takes
                     // it away, which is the whole point of writing one; an
@@ -1449,12 +1442,12 @@ pub(crate) fn every_function_resolves_its_own_names(
                     held.insert((relative.clone(), declared, line, pinned));
                 }
                 // **An `ALTER` that names nothing this tree creates is a
-                // finding, not a new function.** It used to insert one — pinned,
-                // because that is what an `ALTER … SET` says — so the phantom
-                // entry satisfied the gate while the function the statement was
-                // *meant* to pin stayed in the map unpinned and was reported.
-                // The message then quoted the `CREATE`, and the statement that
-                // was actually wrong was the `ALTER` two lines below it.
+                // finding, not a new function.** Inserting one — pinned, because
+                // that is what an `ALTER … SET` says — lets the phantom entry
+                // satisfy the gate while the function the statement was *meant*
+                // to pin stays in the map unpinned and is reported. The message
+                // then quotes the `CREATE`, and the statement that is actually
+                // wrong is the `ALTER` two lines below it.
                 //
                 // Measured, with the two halves spelling the schema differently
                 // — which PostgreSQL resolves through `search_path` and this
@@ -1520,13 +1513,14 @@ pub(crate) fn every_function_resolves_its_own_names(
     {
         for (relative, declared, line, pinned) in latest.into_values() {
             // **The clause, not the substring.** `"reset search_path"` contains
-            // `"set search_path"`, so a migration that *lifts* a pin read as one
-            // that adds it: one `ALTER FUNCTION … RESET search_path` gave
+            // `"set search_path"`, so read as a substring, a migration that
+            // *lifts* a pin reads as one that adds it: one `ALTER FUNCTION …
+            // RESET search_path` gives
             // `ok 4 function(s) in migrations pin how they resolve a name` with
             // the database holding a null `proconfig` for that function.
             // `SET search_path TO DEFAULT` is the same shape, and
             // `check --offline` — which `just check-offline` runs — never reaches
-            // the database half that would have objected.
+            // the database half that objects.
             if !pinned {
                 findings.push(Finding {
                     file: relative.clone(),
@@ -1602,11 +1596,10 @@ fn statements_of(text: &str) -> Vec<(usize, String)> {
 fn functions_in(text: &str) -> Vec<(String, String, String, usize, bool)> {
     let mut found: Vec<(usize, String, String, String, usize, bool)> = Vec::new();
     functions_and_alters(text, &mut found);
-    // **Source order.** The two forms were gathered in separate passes, so within
-    // one file the `CREATE` always arrived after the `ALTER` and overwrote its
-    // pin — a function pinned two lines below its own definition was reported
-    // unpinned. The class's own fix passes only because its `ALTER` is in a later
-    // file.
+    // **Source order.** Gathered in separate passes, the `CREATE` always arrives
+    // after the `ALTER` within one file and overwrites its pin — a function
+    // pinned two lines below its own definition is reported unpinned, and the
+    // class's own fix would pass only because its `ALTER` is in a later file.
     found.sort_by_key(|(at, ..)| *at);
     found
         .into_iter()
@@ -1618,21 +1611,20 @@ fn functions_in(text: &str) -> Vec<(String, String, String, usize, bool)> {
 fn functions_and_alters(text: &str, found: &mut Vec<(usize, String, String, String, usize, bool)>) {
     // **ASCII lowercase, because `to_lowercase` does not preserve byte length.**
     // `strip_sql_comments` blanks rather than removes precisely so offsets found
-    // in one string can index the other — and `to_lowercase()` broke that
-    // invariant anyway: `U+0130` is two bytes and lowercases to three. Measured,
-    // one migration with twenty-one of them in a string literal panicked
+    // in one string can index the other — and `to_lowercase()` breaks that
+    // invariant: `U+0130` is two bytes and lowercases to three. Measured with
+    // it, one migration with twenty-one of them in a string literal panics
     // `cargo xtask check` outright (`start byte index 760 is out of bounds for
-    // string of length 678`), and with thirty-eight it silently missed an
+    // string of length 678`), and with thirty-eight it silently misses an
     // unpinned function. SQL keywords are ASCII, which is all this matching
     // needs.
     let lowered = strip_sql_comments(text).to_ascii_lowercase();
     // An `ALTER FUNCTION … SET search_path` is a declaration with no body: it
     // pins an existing function without redefining it, which is what the
     // eleventh migration does to the one function that reads nothing at all.
-    // **Over the statement, not the line.** The scan below was line-scoped, so
-    // `ALTER FUNCTION` with the name on the next line — ordinary formatting, and
-    // the case this function's own comment claims to have fixed — lifted a pin
-    // with nothing reported. Measured, both shapes:
+    // **Over the statement, not the line.** A line-scoped scan misses
+    // `ALTER FUNCTION` with the name on the next line — ordinary formatting —
+    // and the pin is lifted with nothing reported. Measured, both shapes:
     //
     // ```text
     // ALTER FUNCTION\n    f()\n    RESET search_path;   -> ok 3 function(s) …
@@ -1646,11 +1638,11 @@ fn functions_and_alters(text: &str, found: &mut Vec<(usize, String, String, Stri
         let trimmed = trimmed.as_str();
         let index = lowered[..at].lines().count();
         // **Tokenised, and `ALTER ROUTINE` too.** `strip_prefix("alter function ")`
-        // line by line missed `ALTER  FUNCTION` with two spaces, a line break
+        // line by line misses `ALTER  FUNCTION` with two spaces, a line break
         // after the keyword, and `ALTER ROUTINE` — which is PostgreSQL's own
-        // spelling for the same operation. Measured, all three lifted a pin with
-        // the static half reporting nothing; only the database half caught them,
-        // and `check --offline` never runs that.
+        // spelling for the same operation. Measured with that reader, all three
+        // lift a pin with the static half reporting nothing; only the database
+        // half catches them, and `check --offline` never runs that.
         let words: Vec<&str> = trimmed.split_whitespace().collect();
         if matches!(words.first().copied(), Some("alter"))
             && matches!(
@@ -1664,55 +1656,55 @@ fn functions_and_alters(text: &str, found: &mut Vec<(usize, String, String, Stri
     }
     let mut at = 0_usize;
     // **The earliest of the two forms, not the first form that matches
-    // anywhere.** `create function` was tried first and `or_else` only ran when
-    // it found nothing — and it is not a substring of `create or replace
-    // function`, so one bare `CREATE FUNCTION` at the bottom of a file won the
-    // search and every `CREATE OR REPLACE` above it was jumped over. Measured: a
-    // migration declaring two functions, one unpinned, reported
-    // `ok 4 function(s) …` — three plus one — while the identical unpinned
-    // function alone in a file was caught. Adding a line below a function turned
-    // the gate off for it.
-    // **And procedures, which neither half of the gate could see.** A
+    // anywhere.** Trying `create function` first, with `or_else` only when it
+    // finds nothing, fails because it is not a substring of `create or replace
+    // function`: one bare `CREATE FUNCTION` at the bottom of a file wins the
+    // search and every `CREATE OR REPLACE` above it is jumped over. Measured
+    // with that order: a migration declaring two functions, one unpinned,
+    // reports `ok 4 function(s) …` — three plus one — while the identical
+    // unpinned function alone in a file is caught, so under it adding a line
+    // below a function turns the gate off for it.
+    // **And procedures, which both halves of the gate read.** A
     // `CREATE PROCEDURE` reading an unqualified name is the same defect with a
-    // different keyword — measured, one in a migration gave
+    // different keyword — measured, one in a migration gives
     // `ok 3 function(s) in migrations pin how they resolve a name`, a null
-    // `proconfig`, and a `CALL` that read a planted temporary table. The
-    // database half filtered on `prokind = 'f'` for the same reason.
-    // **And through `routine_at`, which the parser above also uses.** These four
-    // phrases each require a literal single space between their keywords, and
-    // SQL does not — so a line break after `CREATE` made this count and that
-    // parser miss the same statement, and `found != creates` was satisfied by
-    // their agreeing about nothing.
+    // `proconfig`, and a `CALL` that reads a planted temporary table. A
+    // database half filtering on `prokind = 'f'` misses it for the same reason.
+    // **And through `routine_at`, which the parser above also uses.** Four
+    // phrases each requiring a literal single space between their keywords
+    // fail where SQL does not — a line break after `CREATE` makes this count
+    // and that parser miss the same statement, and `found != creates` is then
+    // satisfied by their agreeing about nothing.
     while let Some((start, _)) = routine_at(&lowered, at) {
         // The dollar quote that opens the body, and the matching one that closes
         // it. `$fn$`, `$$` and `$sql$` all appear in this tree.
         let rest = &lowered[start..];
-        // A body may also be an ordinary string literal, which this could not
-        // see at all: a migration declaring a fourth function with a `'…'` body,
-        // reading `journal_entries` unqualified and pinning nothing, left the
-        // count at three and the verdict `ok`. A parser that silently skips what
+        // A body may also be an ordinary string literal: read for dollar quotes
+        // alone, a migration declaring a fourth function with a `'…'` body,
+        // reading `journal_entries` unqualified and pinning nothing, leaves the
+        // count at three and the verdict `ok`, measured. A parser that silently skips what
         // it does not understand is a walk that narrows itself.
         // **Bounded by the statement, because a function may have no body quote
         // at all.** PostgreSQL 14's `LANGUAGE sql … RETURN …;` is a whole
-        // definition with no `$$` and no `'…'`, and this searched forward until
-        // it found the *next* function's quote — so the declaration swallowed
+        // definition with no `$$` and no `'…'`, and an unbounded search runs
+        // forward to the *next* function's quote — so the declaration swallows
         // everything in between, including that function's `SET search_path`, and
-        // the loop then jumped past both. Measured: a file declaring two
-        // functions, the first unpinned and bodyless, reported
+        // the loop then jumps past both. Measured: a file declaring two
+        // functions, the first unpinned and bodyless, reports
         // `ok 4 function(s) …` where there are two, with no finding.
         //
         // A quote after the statement's terminating semicolon belongs to the next
         // statement, so the search stops there.
         let ends = rest.find(';').unwrap_or(rest.len());
         // **The body opens after `AS`, not at the statement's first quote.**
-        // Whichever of `$` and `'` came first decided, so a parameter with a
-        // text default — `note TEXT DEFAULT ''`, ordinary SQL — took the `'`
-        // branch and bracketed the declaration against a quote in the *signature*.
-        // The real `$tag$…$tag$` body was then folded into `declared`, and
-        // `declared.contains("set search_path")` was satisfied by a string
+        // With whichever of `$` and `'` comes first deciding, a parameter with a
+        // text default — `note TEXT DEFAULT ''`, ordinary SQL — takes the `'`
+        // branch and brackets the declaration against a quote in the *signature*.
+        // The real `$tag$…$tag$` body is then folded into `declared`, and
+        // `declared.contains("set search_path")` is satisfied by a string
         // literal inside the function's own body: measured,
         // `ok 4 function(s) in migrations pin how they resolve a name` while the
-        // database held a null `proconfig` for it. This is the same defect as the
+        // database holds a null `proconfig` for it. This is the same defect as the
         // one `strip_sql_comments` carries a paragraph about — a pin inside a
         // comment reading as a real pin — one quoting form over.
         //
@@ -1743,9 +1735,10 @@ fn functions_and_alters(text: &str, found: &mut Vec<(usize, String, String, Stri
         };
         // **The whole statement minus the body, not the run up to the body.**
         // PostgreSQL allows the option list after `AS …` — `0001` itself writes
-        // `LANGUAGE plpgsql` there — so a pin written after the body was never
-        // read: measured, a function whose `SET search_path FROM CURRENT`
-        // followed its `$$…$$` was reported as unpinned while the database held
+        // `LANGUAGE plpgsql` there — so a reader of the run up to the body never
+        // reads a pin written after it: measured, a function whose
+        // `SET search_path FROM CURRENT` follows its `$$…$$` is reported as
+        // unpinned while the database holds
         // the setting. A false finding is what this module's header calls worse
         // than no gate.
         let after_body = if tag.is_empty() {
@@ -1760,18 +1753,18 @@ fn functions_and_alters(text: &str, found: &mut Vec<(usize, String, String, Stri
             .chain(after_body.split_whitespace())
             .collect::<Vec<_>>()
             .join(" ");
-        // **Name and arguments, because overloads collapsed into one entry.** The
-        // map is keyed on what this returns, and truncating at `(` made
+        // **Name and arguments, or overloads collapse into one entry.** The
+        // map is keyed on what this returns, and truncating at `(` makes
         // `f(a INT)` and `f(a TEXT)` one function: measured, two definitions with
-        // the second pinned gave `count=1 findings=0` while the database held an
+        // the second pinned give `count=1 findings=0` while the database holds an
         // unpinned one. A count that is the map it judges cannot see that, which
         // is the shape this module keeps finding.
         // **Name and the whole argument list, with the spaces out.** `declared` is
-        // whitespace-joined, so taking one token stopped at the first space
-        // *inside* the parentheses: `f(a INT)` and `f(a TEXT)` both keyed to
-        // `f(a`, and two overloads collapsed into one entry with the pinned one
+        // whitespace-joined, so taking one token stops at the first space
+        // *inside* the parentheses: `f(a INT)` and `f(a TEXT)` both key to
+        // `f(a`, and two overloads collapse into one entry with the pinned one
         // winning. Measured — the migrations' own functions all take `()`, so
-        // nothing in the tree exercised it.
+        // no migration in the tree exercises it.
         let after = declared
             .split_whitespace()
             .skip(usize::from(declared.starts_with("create or replace")) * 2 + 2)
@@ -1798,9 +1791,9 @@ fn functions_and_alters(text: &str, found: &mut Vec<(usize, String, String, Stri
 /// Nesting is PostgreSQL's rule: `/*` inside a block comment opens another, and
 /// the outer one ends only when every inner one has.
 fn blank_block_comments(text: &str) -> String {
-    // **Not inside a string, and not inside a body.** This scanned for `/*` with
-    // no notion of either — so one `/*` in a `RAISE EXCEPTION '…'` opened a block
-    // comment that never closed, and every declaration below it in the file was
+    // **Not inside a string, and not inside a body.** A scan for `/*` with no
+    // notion of either lets one `/*` in a `RAISE EXCEPTION '…'` open a block
+    // comment that never closes, and every declaration below it in the file is
     // invisible. Measured, a pinned function whose message holds `see the note /*
     // above` and an unpinned one below it reading `journal_entries`:
     //
@@ -1837,25 +1830,24 @@ fn blank_block_comments(text: &str) -> String {
             at = ends;
             continue;
         }
-        // **A string literal is blanked, not copied through.** Copying it kept its
+        // **A string literal is blanked, not copied through.** Copying it keeps its
         // contents in the text every later pass reads — so a `--` inside one
-        // blanked the rest of its line *including the statement's semicolon*, and
-        // `statements_of` then merged the next statement into it, hiding an
+        // blanks the rest of its line *including the statement's semicolon*, and
+        // `statements_of` then merges the next statement into it, hiding an
         // `ALTER … RESET search_path` completely. And a `CREATE OR REPLACE
-        // FUNCTION …` written inside a literal overwrote the real entry in the
+        // FUNCTION …` written inside a literal overwrites the real entry in the
         // last-wins map, masking a genuinely unpinned definition. Both measured:
-        // `count=3 findings=0` where a finding was due.
+        // `count=3 findings=0` where a finding is due.
         //
         // `unreadable_statements` refuses `EXECUTE`-built DDL for this same
         // reason — a name assembled at run time is not in the file. A name
         // *quoted* in the file is not a declaration either.
         // **A quoted identifier is not a string, and a `'` inside one is not a
         // quote.** PostgreSQL's `"…"` names a relation or a column, doubling the
-        // quote to escape it — and to this walk a `'` inside one opened a
-        // literal that ran to the next `'` anywhere in the file, blanking every
+        // quote to escape it — and read as a quote, a `'` inside one opens a
+        // literal that runs to the next `'` anywhere in the file, blanking every
         // statement between them. It is copied through because a quoted
-        // identifier *is* a declaration's name, unlike a string. Found in
-        // wave 26.
+        // identifier *is* a declaration's name, unlike a string.
         if depth == 0 && bytes[at] == '"' {
             out.push('"');
             at += 1;
@@ -1880,12 +1872,11 @@ fn blank_block_comments(text: &str) -> String {
             // backslash, so `''` is the only way out of one. An **escape
             // string** is the other form the standard leaves to the
             // implementation: `SELECT length(E'don\'t')` is 5, one five-
-            // character string. This walk knew only the doubling, so it closed
-            // the literal at the backslash-escaped quote, re-opened one at the
-            // real closing quote, and blanked the rest of the file — a
-            // `CREATE FUNCTION` after such a line was invisible to every later
-            // pass. Measured by a reviewer in wave 26 against the running
-            // cluster, migration and all.
+            // character string. A walk that knows only the doubling closes the
+            // literal at the backslash-escaped quote, re-opens one at the real
+            // closing quote, and blanks the rest of the file — a
+            // `CREATE FUNCTION` after such a line is invisible to every later
+            // pass. Measured against the running cluster, migration and all.
             let escapes = at > 0
                 && matches!(bytes[at - 1], 'E' | 'e')
                 && (at < 2 || !(bytes[at - 2].is_alphanumeric() || bytes[at - 2] == '_'));
@@ -1912,8 +1903,8 @@ fn blank_block_comments(text: &str) -> String {
             }
             continue;
         }
-        // **And `--` here, where the quote state is known.** The `--` pass ran
-        // after this one over raw lines, so it could not tell a comment from a
+        // **And `--` here, where the quote state is known.** A `--` pass run
+        // after this one over raw lines cannot tell a comment from a
         // dash inside a literal or a body.
         if depth == 0 && bytes[at] == '-' && bytes.get(at + 1) == Some(&'-') {
             while at < bytes.len() && bytes[at] != '\n' {
@@ -1948,28 +1939,28 @@ fn blank_block_comments(text: &str) -> String {
 
 /// `text` with every `--` comment removed, line endings kept.
 ///
-/// **The prose was being read as SQL.** `0006`'s body carries the sentence "An
-/// UPDATE may change anything else about a row and never this", and the scan
-/// below reported `may` as an unqualified relation — a finding about a comment,
+/// **Prose is not SQL.** `0006`'s body carries the sentence "An
+/// UPDATE may change anything else about a row and never this", and unstripped,
+/// the scan below reports `may` as an unqualified relation — a finding about a comment,
 /// which is the shape this module's own header calls worse than no gate, because
 /// it teaches a reader to scroll past the output.
 fn strip_sql_comments(text: &str) -> String {
-    // **Block comments too, and they were not stripped at all.** The declaration
-    // is built from this text, so `/* SET search_path FROM CURRENT */` above a
-    // function *read as a pin*: measured, a migration whose only pin was inside a
-    // block comment gave `ok 4 function(s) in migrations pin how they resolve a
-    // name` with `proconfig` null, and a temporary table then decided what that
-    // function read. In the other direction a whole `CREATE FUNCTION` commented
-    // out as an example was reported as a real one — a false finding, which this
+    // **Block comments too.** The declaration is built from this text, so
+    // unstripped, `/* SET search_path FROM CURRENT */` above a
+    // function *reads as a pin*: measured, a migration whose only pin is inside a
+    // block comment gives `ok 4 function(s) in migrations pin how they resolve a
+    // name` with `proconfig` null, and a temporary table then decides what that
+    // function reads. In the other direction a whole `CREATE FUNCTION` commented
+    // out as an example is reported as a real one — a false finding, which this
     // module's header calls worse than no gate. The sibling parser in this same
-    // file has carried `a_block_comment_hides_a_table_and_does_not_invent_one`
+    // file carries `a_block_comment_hides_a_table_and_does_not_invent_one`
     // for exactly these two failures.
     let text = &blank_block_comments(text);
     // **Blanked, not removed, and the difference is a panic.** `functions_in`
     // searches the stripped text and then indexes the original with what it
     // found, so a strip that shortens lines makes every offset past the first
     // comment wrong: measured, `end byte index 2808 is out of bounds for string
-    // of length 1513` on the first run. Spaces keep the two the same length.
+    // of length 1513`. Spaces keep the two the same length.
     text.lines()
         .map(|line| {
             line.split_once("--").map_or_else(
@@ -1987,9 +1978,8 @@ fn strip_sql_comments(text: &str) -> String {
 
 /// Every migration is numbered once, and the numbers run without a gap.
 ///
-/// **`sqlx`'s migrator does not check this, and the comment saying it does was
-/// wrong.** `dev.rs` says "forward-only and ordered are the migrator's rules,
-/// not ones re-implemented here". Measured against a live database:
+/// **`sqlx`'s migrator does not check this.** Measured against a live
+/// database:
 ///
 /// | what was added | what happened |
 /// |---|---|
@@ -2020,12 +2010,12 @@ pub(crate) fn every_migration_is_numbered_once(
             .file_name()
             .and_then(|name| name.to_str())
             .unwrap_or_default();
-        // **Forward-only, which was a claim and not a gate.** `sqlx` reads a
+        // **Forward-only, as a gate and not only a claim.** `sqlx` reads a
         // reversal named for the migration it undoes, and `sqlx migrate revert`
         // runs it; `NOCTUA.md §21.7` says migrations here are applied forward
-        // and never reversed. Measured, one such file holding
+        // and never reversed. Measured without this, one such file holding
         // `DROP TABLE journal_entries CASCADE`: `files=7 findings=0`,
-        // `Migrator::new` accepted the set, and `cargo xtask dev` would print
+        // `Migrator::new` accepts the set, and `cargo xtask dev` would print
         // `7 migration(s) applied` for six that ran. A reversal of the
         // append-only audit log is exactly the thing that must not be one
         // statement away.
@@ -2102,13 +2092,13 @@ pub(crate) struct Created {
     /// Every column the statement declares, lowercased.
     ///
     /// **Read here rather than asked of a database.** `order_by` is written into
-    /// the pruner's `ORDER BY`, and it was checked against
-    /// `information_schema.columns` on whoever's machine ran the gate — which
-    /// ratified drift (a column added by hand and never written into a migration
-    /// satisfied it), was satisfiable by a table of the same bare name in an
-    /// unrelated schema, and could not pass at all on the empty database CI
-    /// starts. The migrations are what builds every database there will ever be,
-    /// so they are what the catalog has to agree with.
+    /// the pruner's `ORDER BY`. Checked against `information_schema.columns` on
+    /// whoever's machine runs the gate, it would ratify drift (a column added by
+    /// hand and never written into a migration satisfies such a check), be
+    /// satisfiable by a table of the same bare name in an unrelated schema, and
+    /// never pass on the empty database CI starts. The migrations are what
+    /// builds every database there will ever be, so they are what the catalog
+    /// has to agree with.
     ///
     /// Empty when the statement declares no column list — `CREATE TABLE … AS
     /// SELECT` and `SELECT … INTO` name their columns in the query — and the
@@ -2123,12 +2113,12 @@ pub(crate) struct Created {
     /// Each column's declared type, lowercased, in declaration order.
     ///
     /// **What a column sorts like, which decides what "oldest" means.**
-    /// `access_records` ordered by a `text` column holding a Crockford
-    /// identifier, and that encoding is variable width — twelve characters
-    /// below `32^12` and thirteen above, from about 2034. A `text` sort is
+    /// A `text` column holding a Crockford identifier is variable width as an
+    /// ordering column — twelve characters below `32^12` and thirteen above,
+    /// from about 2034. A `text` sort is
     /// byte-lexicographic, so from that day ascending order is not creation
     /// order, and the pruner deletes the newest rows while reporting an
-    /// ordinary run. Measured over six identifiers minted in order: it removed
+    /// ordinary run. Measured over six identifiers minted in order: it removes
     /// the oldest and the third-newest.
     pub(crate) types: Vec<(String, String)>,
     /// One-based, so a finding points where a reader can click.
@@ -2142,8 +2132,8 @@ pub(crate) struct Created {
     ///
     /// **A marker excuses one table.** `CREATE SCHEMA … CREATE TABLE a …
     /// CREATE TABLE b` is one statement declaring two, so a marker above it
-    /// cannot say which it meant — and it excused both, which is how an
-    /// unbounded table rode in beside a genuinely bounded one.
+    /// cannot say which it meant — and excusing both lets an
+    /// unbounded table ride in beside a genuinely bounded one.
     pub(crate) alone_in_its_statement: bool,
     /// Where this sits among every statement the migrations run.
     pub(crate) at: usize,
@@ -2152,9 +2142,9 @@ pub(crate) struct Created {
     /// **`at` is a running order within one level and not across them.** `cut`
     /// finishes the top level and then re-cuts the routine bodies, so every
     /// nested statement is numbered after every top-level one however the file
-    /// is written. `hold_the_path` has refused to judge a name written at both
-    /// levels since round eleven, in a paragraph that says why; the readers of
-    /// *tables* and *columns* judged by the same order and had no such guard.
+    /// is written. `hold_the_path` refuses to judge a name written at both
+    /// levels, in a paragraph that says why; the readers of *tables* and
+    /// *columns* judge by the same order and need the same guard.
     ///
     /// Measured on PostgreSQL 18.6, both directions from that one root:
     ///
@@ -2180,10 +2170,10 @@ pub(crate) struct Renamed {
     pub(crate) line: usize,
     /// Where this sits among every statement the migrations run.
     ///
-    /// **`Created` carried one and this did not**, so the walk that reconciles
-    /// them had nothing to order them by and read every create in a file before
+    /// **`Created` carries one, and so does this**, or the walk that reconciles
+    /// them has nothing to order them by and reads every create in a file before
     /// every drop. A table dropped and re-created in one migration — ordinary
-    /// work — therefore ended the file not existing.
+    /// work — would then end the file not existing.
     pub(crate) at: usize,
     /// Whether another statement shares the line this one starts on.
     pub(crate) shares_its_line: bool,
@@ -2194,9 +2184,9 @@ pub(crate) struct Renamed {
     /// **`at` is a running order within one level and not across them.** `cut`
     /// finishes the top level and then re-cuts the routine bodies, so every
     /// nested statement is numbered after every top-level one however the file
-    /// is written. `hold_the_path` has refused to judge a name written at both
-    /// levels since round eleven, in a paragraph that says why; the readers of
-    /// *tables* and *columns* judged by the same order and had no such guard.
+    /// is written. `hold_the_path` refuses to judge a name written at both
+    /// levels, in a paragraph that says why; the readers of *tables* and
+    /// *columns* judge by the same order and need the same guard.
     ///
     /// Measured on PostgreSQL 18.6, both directions from that one root:
     ///
@@ -2220,13 +2210,12 @@ pub(crate) struct Changes {
     pub(crate) renamed: Vec<Renamed>,
     /// Every column an `ALTER TABLE` adds, drops or renames.
     ///
-    /// **`declared_columns_of` read only `CREATE TABLE`.** A migration holding
-    /// `ALTER TABLE access_records RENAME COLUMN id TO record_id` left
-    /// `cargo xtask check` green, and the pruner's next `ORDER BY "id"` failed
+    /// **Not only `CREATE TABLE`.** Reading only that, a migration holding
+    /// `ALTER TABLE access_records RENAME COLUMN id TO record_id` leaves
+    /// `cargo xtask check` green, and the pruner's next `ORDER BY "id"` fails
     /// with `column "id" does not exist` — precisely the failure the `order_by`
-    /// check exists to prevent, and which the live-database version it replaced
-    /// *would* have caught. Reading the migrations is right; reading only one of
-    /// their statements was not.
+    /// check exists to prevent. Reading the migrations is right; reading only one of
+    /// their statements is not.
     pub(crate) columns: Vec<ColumnChange>,
     /// How many statements the file held, so the caller can keep `at` rising
     /// across files.
@@ -2240,8 +2229,8 @@ pub(crate) struct Changes {
     /// Every domain it declares, and the type each is built on.
     ///
     /// `CREATE DOMAIN epoch_millis AS BIGINT` is the idiomatic way to declare an
-    /// ordering column, and the type rule refused it for not being one of the
-    /// names it knows — with no way to permit it from `catalog/limits.toml`, in
+    /// ordering column, and a type rule knowing only names refuses it for not
+    /// being one of them — with no way to permit it from `catalog/limits.toml`, in
     /// a repository whose principle is that limits are data. The migrations
     /// declare the domain and the migrations are what this gate reads, so it
     /// follows the declaration rather than growing a second escape hatch.
@@ -2260,9 +2249,9 @@ pub(crate) struct ColumnChange {
     /// The type it is given, when the statement gives one.
     ///
     /// `ADD COLUMN <name> <type>` and `ALTER COLUMN <name> TYPE <type>` both
-    /// decide how a column sorts, and neither was read: the type rule asked the
-    /// `CREATE TABLE` and nothing else, so one `ALTER COLUMN occurred_at TYPE
-    /// TEXT` turned it off. Measured — the same type change written two ways,
+    /// decide how a column sorts: a type rule asking the `CREATE TABLE` and
+    /// nothing else is turned off by one `ALTER COLUMN occurred_at TYPE
+    /// TEXT`. Measured — the same type change written two ways,
     /// same database, same resulting schema:
     ///
     /// ```text
@@ -2282,9 +2271,9 @@ pub(crate) struct ColumnChange {
     /// **`at` is a running order within one level and not across them.** `cut`
     /// finishes the top level and then re-cuts the routine bodies, so every
     /// nested statement is numbered after every top-level one however the file
-    /// is written. `hold_the_path` has refused to judge a name written at both
-    /// levels since round eleven, in a paragraph that says why; the readers of
-    /// *tables* and *columns* judged by the same order and had no such guard.
+    /// is written. `hold_the_path` refuses to judge a name written at both
+    /// levels, in a paragraph that says why; the readers of *tables* and
+    /// *columns* judge by the same order and need the same guard.
     ///
     /// Measured on PostgreSQL 18.6, both directions from that one root:
     ///
@@ -2305,8 +2294,8 @@ pub(crate) struct ColumnChange {
 /// and telling them apart by which of `kind`/`non_null` happens to be `Some` is
 /// a rule about a coincidence. An `ADD COLUMN` replaces what is known about a
 /// name; an `ALTER COLUMN` amends it; a `Renamed` *moves* what is known from one
-/// name to another, which nothing did — so renaming a different column into the
-/// ordering column's name left the old column's type standing.
+/// name to another — without that, renaming a different column into the
+/// ordering column's name leaves the old column's type standing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum How {
     /// `ADD COLUMN`: the name is new, and this says what it is.
@@ -2323,23 +2312,23 @@ pub(crate) enum How {
 ///
 /// **Statements, not lines**, and the statements are cut by a single walk that
 /// knows every way PostgreSQL quotes text. Four ordinary shapes of valid SQL
-/// went through the previous version with `cargo xtask check` green, and each
-/// was a table a live PostgreSQL then created:
+/// go through a line-by-line reader with `cargo xtask check` green, and each
+/// is a table a live PostgreSQL then creates:
 ///
-/// * an `E'…\'…'` escape string, whose backslash-escaped quote closed the
-///   literal early — the `/*` that followed became a real block comment, nothing
-///   closed it, and **the rest of the file was blanked**, `CREATE TABLE` and
+/// * an `E'…\'…'` escape string, whose backslash-escaped quote closes the
+///   literal early — the `/*` that follows becomes a real block comment, nothing
+///   closes it, and **the rest of the file is blanked**, `CREATE TABLE` and
 ///   all;
 /// * a `DO $$ … CREATE TABLE … $$` block, the most idiomatic conditional DDL
-///   there is, which the old code copied verbatim and never looked inside;
+///   there is, which a line reader copies verbatim and never looks inside;
 /// * `SELECT … INTO login_attempts FROM …`, which creates a table without the
 ///   word `CREATE` anywhere;
 /// * `ALTER TABLE access_records RENAME TO login_attempts`, after which the
 ///   bounded entry names a table that no longer exists and the new one is
-///   unbounded — and neither direction of the gate noticed.
+///   unbounded — and neither direction of the gate notices.
 ///
-/// A fifth shape produced a **finding naming a table nobody wrote**:
-/// `CREATE TABLE "a;b" (…)` was cut at the `;` inside its quoted identifier and
+/// A fifth shape produces a **finding naming a table nobody wrote**:
+/// `CREATE TABLE "a;b" (…)` is cut at the `;` inside its quoted identifier and
 /// reported as `` `a;` ``. That is criterion 5's second half — *the error names
 /// the table* — failing, which is the one thing it must not do.
 #[cfg(test)]
@@ -2364,10 +2353,10 @@ pub(crate) fn changes_in_as(text: &str, dialect: Dialect) -> Changes {
         );
         let names = created_tables(&statement);
         let alone = names.len() == 1;
-        // **Only when the statement declares one table.** The column list was
-        // computed once and cloned to every name, so
+        // **Only when the statement declares one table.** A column list
+        // computed once and cloned to every name gives both tables of
         // `CREATE SCHEMA archive CREATE TABLE access_records (…) CREATE TABLE
-        // journal_entries (…)` gave both tables the first one's columns — and a
+        // journal_entries (…)` the first one's columns — and a
         // schema-qualified entry is a shape both `limits.rs` and
         // `nc-prune::identifier` explicitly support.
         let columns = if alone {
@@ -2428,15 +2417,15 @@ pub(crate) fn changes_in_as(text: &str, dialect: Dialect) -> Changes {
             });
         }
         // **The last statement a verdict reaches, and it has to be in *this*
-        // loop.** The fingerprint was folded over `all` above the loop, so both
-        // readers of a file measured what the *cutter* produced and neither
-        // could see this walk — the one that finds the tables — stop inside it.
-        // Measured: `if at >= 8 { continue; }` as the loop's first statement
-        // left the whole suite at 91 passed and `check passed`, with a real
-        // unbounded `CREATE TABLE` sitting past the eighth statement of a
-        // migration and the two numbers equal to the byte. The sibling reader
-        // `unreadable_statements` had been repaired for exactly this and this
-        // one had not: the same defect, one loop over.
+        // loop.** Folded over `all` above the loop, the fingerprint makes both
+        // readers of a file measure what the *cutter* produces, and neither
+        // can see this walk — the one that finds the tables — stop inside it.
+        // Measured with it folded there: `if at >= 8 { continue; }` as the
+        // loop's first statement then leaves the whole suite passing and
+        // `check passed`, with a real unbounded `CREATE TABLE` sitting past the
+        // eighth statement of a migration and the two numbers equal to the
+        // byte. The sibling reader
+        // `unreadable_statements` is held the same way, for the same defect.
         //
         // Wrapping, because what is carried is a fingerprint and not a quantity.
         changes.tokens = changes
@@ -2477,9 +2466,9 @@ struct Statement {
 
 /// Whether a statement redirects `search_path`, in either of its two forms.
 ///
-/// Split out because the function it came from crossed a hundred lines, and
-/// because the two answers are one question: SQL spells this several ways and a
-/// rule written for one spelling has been wrong here three times.
+/// Split out because the function that calls it is at a hundred lines, and
+/// because the two answers are one question: SQL spells this several ways, and
+/// a rule written for one spelling is wrong about the others.
 fn the_path_redirects_in(
     tokens: &[Token],
     at_the_name: Option<usize>,
@@ -2492,16 +2481,16 @@ fn the_path_redirects_in(
     // `ALTER DATABASE noctua SET search_path TO archive` and the `ALTER ROLE`
     // form say the same thing and outlive the migration; `RESET search_path`
     // puts the session back to a path this gate has not read. Requiring the
-    // statement to *open* with `SET` read none of the three.
+    // statement to *open* with `SET` reads none of the three.
     // **An `UPDATE`'s `SET` names a column, not a setting.** The allowed list
     // already blesses a table with a column called `search_path` read in a
     // `CREATE VIEW` and constrained in an `ALTER TABLE`; *writing* to that
-    // column is the third shape of the same thing, and it was refused —
-    // `UPDATE paths SET search_path = 'archive';`, which on PostgreSQL 18.6
+    // column is the third shape of the same thing, and a `SET` anywhere refuses
+    // it — `UPDATE paths SET search_path = 'archive';`, which on PostgreSQL 18.6
     // updates one row and leaves `SHOW search_path` exactly as it was.
     //
-    // The paragraph here used to say *no statement writes a session setting and
-    // rows*, and that is false: `WITH bumped AS (UPDATE paths SET n = n + 1
+    // *No statement writes a session setting and rows* is false:
+    // `WITH bumped AS (UPDATE paths SET n = n + 1
     // RETURNING n) SELECT set_config('search_path','archive',false) FROM bumped;`
     // does both, measured. It is harmless only because `sets_by_function` is
     // deliberately not gated by this hatch.
@@ -2510,10 +2499,10 @@ fn the_path_redirects_in(
     // which is why the token is looked for anywhere rather than at the front.
     //
     // **Where the word stands, not whether it is present.** As "`UPDATE`
-    // anywhere", this was a hatch two real statements walked through. `UPDATE`
+    // anywhere", this is a hatch two real statements walk through. `UPDATE`
     // is an *unreserved* keyword on PostgreSQL 18.6, so `CREATE SCHEMA update;
-    // SET search_path = update;` names a schema with it and was accepted — the
-    // path moved and an unqualified `CREATE TABLE` landed there. And PL/pgSQL
+    // SET search_path = update;` names a schema with it and is accepted — the
+    // path moves and an unqualified `CREATE TABLE` lands there. And PL/pgSQL
     // puts an `UPDATE` and a later `SET` in one `;`-delimited chunk:
     // `DO $$ BEGIN FOR r IN UPDATE paths SET n = n + 1 RETURNING * LOOP
     // SET search_path = archive; END LOOP; END $$;` leaves the path changed
@@ -2526,24 +2515,24 @@ fn the_path_redirects_in(
     // `DO` is on that list because a `DO $$…$$` block opens one — but
     // `ON CONFLICT … DO UPDATE SET` and `MERGE … WHEN MATCHED THEN UPDATE SET`
     // are *clauses* of the statement above them, and inside a `FOR … IN` loop
-    // either one turned this hatch on for a chunk that also held a
-    // `SET search_path`. Measured on PostgreSQL 18.6: the path moved and an
-    // unqualified `CREATE TABLE` landed in the new schema, with the gate silent.
+    // either one turns this hatch on for a chunk that also holds a
+    // `SET search_path`. Measured on PostgreSQL 18.6: the path moves and an
+    // unqualified `CREATE TABLE` lands in the new schema, with the gate silent.
     // What tells them apart is the word before the opener.
     //
     // The other direction is a `(`: a data-modifying CTE —
     // `WITH bumped AS (UPDATE paths SET search_path = 'a' RETURNING id) …` —
     // opens a statement there, leaves `SHOW search_path` untouched (measured),
-    // and was *refused*. That is the fifth spelling of "a column may be called
+    // and without this arm is *refused*. That is the fifth spelling of "a column may be called
     // `search_path`", beside the four the allowed list already carries.
     //
-    // **And it clears the segment it owns, not the whole chunk.** The `(` arm
-    // answered for every token in a `;`-free block, and PL/pgSQL's
-    // `FOR r IN <query> LOOP <stmt>;` header holds no `;` — so a CTE's
-    // `(UPDATE …)` in the header turned the rule off for a `SET search_path`
-    // in the *loop body*. Measured on PostgreSQL 18.6: the path moved and an
-    // unqualified `CREATE TABLE` landed in the new schema. Deleting the arm is
-    // not the repair — the top-level CTE beside it in the allowed list is a
+    // **And it clears the segment it owns, not the whole chunk.** A `(` arm
+    // answering for every token in a `;`-free block meets PL/pgSQL's
+    // `FOR r IN <query> LOOP <stmt>;` header, which holds no `;` — so a CTE's
+    // `(UPDATE …)` in the header turns the rule off for a `SET search_path`
+    // in the *loop body*. Measured on PostgreSQL 18.6: the path moves and an
+    // unqualified `CREATE TABLE` lands in the new schema. Deleting the arm is
+    // not the answer — the top-level CTE beside it in the allowed list is a
     // shape this repository writes — so what the arm clears is bounded the way
     // the `DO`/`THEN` arm's is: by where the statement openers fall.
     let segment_of = |upto: usize| -> usize {
@@ -2565,21 +2554,20 @@ fn the_path_redirects_in(
         if !opens_a_statement(before) {
             return false;
         }
-        // **And a conflict action is a row write like any other.** This once
-        // refused an `UPDATE` opened by a `DO` or a `THEN` when a `CONFLICT` or
-        // a `MATCHED` stood earlier, on the reasoning that those wear an
-        // opener's clothes. Measured on PostgreSQL 18.6, both
+        // **And a conflict action is a row write like any other.** Refusing an
+        // `UPDATE` opened by a `DO` or a `THEN` when a `CONFLICT` or a `MATCHED`
+        // stands earlier — on the reasoning that those wear an opener's clothes
+        // — refuses two ordinary upserts. Measured on PostgreSQL 18.6, both
         // `INSERT … ON CONFLICT (id) DO UPDATE SET search_path = 'archive'` and
         // `MERGE … WHEN MATCHED THEN UPDATE SET search_path = 'archive'` write
-        // the column and leave `SHOW search_path` alone — so the carve-out
-        // refused two ordinary upserts, and the fixture that was supposed to
-        // bless one passed for an unrelated reason: its first `search_path`
-        // token was the one in the `INSERT` column list, which is not followed
-        // by an assignment. Drop the column from that list and the identical
-        // statement was refused.
+        // the column and leave `SHOW search_path` alone. A fixture blessing one
+        // can pass for an unrelated reason: if its first `search_path`
+        // token is the one in the `INSERT` column list, it is not followed
+        // by an assignment, and with the column dropped from that list the
+        // identical statement is refused.
         //
         // What separates a row write from a session write is the *segment*, and
-        // that is now asked below rather than here.
+        // that is asked below rather than here.
         true
     };
     let writing_rows: Vec<usize> = tokens
@@ -2594,9 +2582,9 @@ fn the_path_redirects_in(
         .iter()
         .enumerate()
         .any(|(at, token)| (token.is("SET") || token.is("RESET")) && !assigns_a_column(at));
-    // **And `RESET ALL`, which resets the path without naming it.** This asked
-    // for a `RESET` *and* the name, so the widest form of the statement it
-    // refuses was accepted. Measured on PostgreSQL 18: `SET search_path =
+    // **And `RESET ALL`, which resets the path without naming it.** Asking for
+    // a `RESET` *and* the name accepts the widest form of the statement it
+    // refuses. Measured on PostgreSQL 18: `SET search_path =
     // r16probe; RESET ALL;` puts the path back to `"$user", public`, and the
     // journal's own tests connect with `options([("search_path", schema)])` —
     // one schema per test — so a `RESET ALL` in a migration aims every
@@ -2604,8 +2592,8 @@ fn the_path_redirects_in(
     //
     // The pin rule in this same file already carries the paragraph, and calls
     // `SET x TO v`, `SET x FROM CURRENT`, `RESET x` and `RESET ALL` "the closed
-    // set rather than a list that grows". This rule had learned three of the
-    // four: one rule written twice, with the second copy narrower.
+    // set rather than a list that grows". Without `RESET ALL` this rule knows
+    // three of the four: one rule written twice, with the second copy narrower.
     let reset_the_path = tokens.iter().any(|token| token.is("RESET"))
         && (at_the_name.is_some()
             || joined.is_some()
@@ -2627,40 +2615,39 @@ fn the_path_redirects_in(
             .map(str::to_ascii_lowercase)
     };
     //
-    // **And `session_authorization` is one token.** The two-word
-    // `SET SESSION AUTHORIZATION` was taught here and the GUC spelling of the
+    // **And `session_authorization` is one token.** A rule knowing only the
+    // two-word `SET SESSION AUTHORIZATION` misses the GUC spelling of the
     // very same statement — `SET session_authorization = archive`, which is how
-    // `ALTER DATABASE … SET` must write it — matched neither arm. Measured on
+    // `ALTER DATABASE … SET` must write it — which matches neither arm. Measured on
     // PostgreSQL 18.6: `SET LOCAL session_authorization = <role>` leaves
     // `SHOW search_path` at `"$user", public` and puts an unqualified
     // `CREATE TABLE access_records` in that role's schema; written as
     // `ALTER DATABASE … SET session_authorization`, it lands in
-    // `pg_db_role_setting` and every future session resolves there. One rule
-    // written twice, second copy narrower — for the third time in this walk.
+    // `pg_db_role_setting` and every future session resolves there.
     let a_role = |at: usize| {
-        // A glued `=` keeps the name in its token, which is how
-        // `search_path=archive` once walked through the reader beside this one.
+        // A glued `=` keeps the name in its token: `search_path=archive` is
+        // one word, which a reader of whole tokens walks past.
         let named = word(at).map(|word| word.split('=').next().unwrap_or_default().to_owned());
         matches!(named.as_deref(), Some("role" | "session_authorization"))
             || (matches!(named.as_deref(), Some("session"))
                 && matches!(word(at + 1).as_deref(), Some("authorization")))
     };
-    // **Anywhere in the statement, and in both spellings.** This was written as
-    // "the statement begins `SET` or `RESET`", which is the mistake this same
-    // walk records as already fixed five hundred lines below — *"a routine
-    // body's statements begin with `BEGIN`, so wrapping it in a `DO` block moved
-    // it off position zero and the refusal never fired"*. Measured on PostgreSQL
+    // **Anywhere in the statement, and in both spellings.** Written as "the
+    // statement begins `SET` or `RESET`", it would be the mistake this same
+    // walk records further down: a routine body's statements begin with
+    // `BEGIN`, so wrapping one in a `DO` block moves it off position zero and a
+    // first-token refusal never fires. Measured on PostgreSQL
     // 18: `DO $$ BEGIN SET ROLE r18; END $$;` leaves `current_user` changed after
     // the block and an unqualified `CREATE TABLE` lands in that role's schema.
     //
     // And `ALTER DATABASE … SET role = archive` writes `pg_db_role_setting`, so
     // *every future session* resolves there — measured in a brand-new session.
-    // `ALTER ROLE … SET search_path` is two lines above in the refused list;
-    // one rule written twice, with the second copy narrower.
+    // `ALTER ROLE … SET search_path` is in the refused list too, and one rule
+    // written twice has to reach both.
     //
     // **`DISCARD ALL` is those statements written as one word.** It is
     // `SET SESSION AUTHORIZATION DEFAULT`, `RESET ALL` and more, and `RESET ALL`
-    // is refused twelve lines above while this walked through. Measured on
+    // is refused above, so this is too. Measured on
     // PostgreSQL 18.6: `SET search_path = 'pg_temp'; DISCARD ALL;` puts the path
     // back to `"$user", public`. It cannot run inside a transaction block, so it
     // needs a migration marked to run outside one — which sqlx supports and
@@ -2680,34 +2667,33 @@ fn the_path_redirects_in(
             && (at_the_name.is_some_and(assigns)
                 || reset_the_path
                 || joined.is_some_and(|at| {
-                    // **The same rule, and it lived in two places.** The reader
-                    // forty lines up learned that `current_schema` without
-                    // parentheses is an identifier and not the function; this copy
-                    // kept the pre-repair test, so the spelling the repair was
-                    // written to refuse walked through in its no-space form.
+                    // **The same rule as `assigns_a_new_path`**, where
+                    // `current_schema` without parentheses is an identifier and
+                    // not the function — so in its no-space form too,
+                    // `search_path=current_schema` is a redirect.
                     // Measured on PostgreSQL 18: `CREATE SCHEMA "current_schema";
-                    // SET search_path=current_schema;` put a table in
-                    // `current_schema`. There is now nothing to excuse here either.
+                    // SET search_path=current_schema;` puts a table in
+                    // `current_schema`. There is nothing to excuse here either.
                     folded(at).is_some()
                 }));
-    // **Every `set_config`, and the whole of its first argument.** This took
-    // the *first* call in the statement and the *first* literal after it, so
+    // **Every `set_config`, and the whole of its first argument.** Taking the
+    // *first* call in the statement and the *first* literal after it accepts
     // `set_config('search' || '_path', 'archive', false)` — a name SQL builds
-    // rather than spells — was accepted, and so was a second `set_config`
-    // beside a harmless first one. Measured on PostgreSQL 18: the unqualified
+    // rather than spells — and a second `set_config` beside a harmless first
+    // one. Measured on PostgreSQL 18: the unqualified
     // `CREATE TABLE access_records` below such a line lands in `archive` while
     // `[tables.access_records]` goes on bounding and pruning `public`.
     //
-    // **And the excuse is that call's own value, not the statement's.** The
-    // exclusion asked whether `current_schema` or `current_setting` appeared
-    // *anywhere in the statement*, so a hard-coded redirect was accepted the
-    // moment either word stood beside it — in a different call, or in the
+    // **And the excuse is that call's own value, not the statement's.** An
+    // exclusion asking whether `current_schema` or `current_setting` appears
+    // *anywhere in the statement* accepts a hard-coded redirect the
+    // moment either word stands beside it — in a different call, or in the
     // redirect's own value. Measured: `set_config('search_path', 'archive, ' ||
     // current_setting('search_path'), false)` — which **prepends** `archive` to
     // the path and is therefore a redirect built out of `current_setting` — and
     // `set_config('search_path', 'archive', false), current_schema()`, the
     // statement the test list already requires to be refused with a no-op
-    // appended. Both passed with `check passed` and exit 0.
+    // appended. Both pass with `check passed` and exit 0.
     //
     // What the excuse is really about is *order*: the path the database
     // already has must come **before** anything written down. Appending to it
@@ -2722,9 +2708,9 @@ fn the_path_redirects_in(
             // **And the settings that re-aim resolution, which `set_config`
             // writes too.** `role` and `session_authorization` are ordinary
             // GUCs; the keyword statement and the function call are the same
-            // write, and only the keyword was refused. Measured on PostgreSQL
-            // 18: `SELECT set_config('role', 'r18', false)` changed
-            // `current_user`, left `SHOW search_path` alone, and put
+            // write, and refusing only the keyword lets the call through.
+            // Measured on PostgreSQL 18: `SELECT set_config('role', 'r18', false)`
+            // changes `current_user`, leaves `SHOW search_path` alone, and puts
             // `access_records` in that role's schema. The paragraph beside
             // `the_settings_a_set_writes` already says `set_config` is not the
             // only way to write a setting; this is the other direction of the
@@ -2742,22 +2728,22 @@ fn the_path_redirects_in(
             // where it was — which is why the shape below tolerates literals
             // after the call. A role is one value: append anything to it and it
             // names a different role. So the only `role` write this clears is
-            // the exact restore, and it is cleared, because refusing it told a
-            // migration not to put back what it had saved.
+            // the exact restore, and it is cleared, because refusing it would
+            // tell a migration not to put back what it has saved.
             Some(name) if name != "search_path" => {
                 !the_value_is_the_setting_it_writes(&tokens[at..], &name)
             }
             _ => !the_value_keeps_the_path(&tokens[at..], settings),
         });
     // **A name the gate cannot read is a name it cannot clear** — and it is a
-    // finding of its own, not the one above. The filter asked for `search_path`
-    // and skipped everything else, so a name PostgreSQL is perfectly happy to
-    // compute was not examined at all: `concat('search', '_path')`,
+    // finding of its own, not the one above. A filter asking for `search_path`
+    // and skipping everything else leaves a name PostgreSQL is perfectly happy
+    // to compute unexamined: `concat('search', '_path')`,
     // `lower('SEARCH_PATH')` and `format('%s_path', 'search')` each set the path
-    // to `archive` with `check passed`. Failing those into the branch above was
-    // right in outcome and wrong in what it said — an ordinary PL/pgSQL
+    // to `archive` with `check passed`. Failing those into the branch above is
+    // right in outcome and wrong in what it says — an ordinary PL/pgSQL
     // `set_config(knob, 'off', false)` naming `row_security` through a variable
-    // was told to qualify table names in a statement that creates none, and
+    // would be told to qualify table names in a statement that creates none, and
     // `§15.1` asks a `fix` to say what to do about the thing that is wrong.
     // **A signature is not a call.** `REVOKE ALL ON FUNCTION set_config(text,
     // text, boolean) FROM PUBLIC` names the routine and lists its *parameter
@@ -2786,7 +2772,7 @@ fn the_path_redirects_in(
 /// and it is built out of `current_setting`, so a rule that asks only whether that word
 /// appears excuses it.
 ///
-/// **And order turned out not to be answerable, because the path's own argument is
+/// **And order is not answerable, because the path's own argument is
 /// a literal.** `current_setting('search_path')` puts one inside the call, so "no
 /// literal ahead of the function" is true of every value that opens with such a
 /// call — including one reading an unrelated setting, or discarding the path and
@@ -2810,17 +2796,17 @@ fn the_value_is_the_path(value: &[Token], settings: &Settings<'_>) -> bool {
     /// The only things that may appear in a value this rule clears silently.
     const READABLE: [&str; 3] = ["current_schema", "current_setting", "quote_ident"];
 
-    // **The position test could not work, because the path's own argument is a
+    // **A position test cannot work, because the path's own argument is a
     // literal.** `current_setting('search_path')` puts a literal inside the
     // call, so "the function appears before any literal" is true of *every*
     // value that opens with such a call — whatever it then does with it. Five
-    // spellings walked through, each putting a constant on the path:
-    // `current_setting('nc.target') || ', pg_temp'` where `nc.target` was set to
+    // spellings walk through such a test, measured, each putting a constant on the path:
+    // `current_setting('nc.target') || ', pg_temp'` where `nc.target` is set to
     // `'archive'` a statement earlier; `COALESCE(current_setting('nc.missing',
     // true), 'archive')`; `substr(current_setting('search_path'), 1, 0) ||
     // 'archive'`, which names the path and discards it; a `CASE` whose arms are
     // both constants; and two `current_setting`s with a constant between them.
-    // Each gave `check passed` with the `ok` lines byte-identical.
+    // Each gives `check passed` with the `ok` lines byte-identical.
     //
     // So the value is read as a shape rather than as an ordering, and the shape
     // is closed: the only things that may appear are the path itself, a
@@ -2830,9 +2816,9 @@ fn the_value_is_the_path(value: &[Token], settings: &Settings<'_>) -> bool {
     // clear — `substr` and `CASE` are refused for the same reason a future
     // `regexp_replace` will be, without anybody adding it to a list.
     // **And a schema qualifier is not a function.** `pg_catalog.current_setting`
-    // is the spelling `search_path` hygiene exists to encourage, and it was
-    // refused — by the rule whose own message names `current_setting(…)` as the
-    // thing that makes a value safe. However the tokeniser splits it, the
+    // is the spelling `search_path` hygiene exists to encourage, and refusing
+    // it would contradict the rule's own message, which names `current_setting(…)`
+    // as the thing that makes a value safe. However the tokeniser splits it, the
     // qualifier is dropped and the function is read.
     //
     // **No spelling reaches the drop, and it stays anyway.** The tokeniser cuts
@@ -2861,9 +2847,9 @@ fn the_value_is_the_path(value: &[Token], settings: &Settings<'_>) -> bool {
         // **A boolean is an argument, not a function.**
         // `current_setting('search_path', true)` is PostgreSQL's documented
         // `missing_ok` form and appends exactly as the one-argument spelling
-        // does — measured, `"$user", public, pg_temp` either way — and the loop
-        // refused it because `true` is a word and every word had to be one of
-        // three function names.
+        // does — measured, `"$user", public, pg_temp` either way — and a loop
+        // requiring every word to be one of three function names refuses it,
+        // because `true` is a word.
         if matches!(lowered.as_str(), "true" | "false") {
             continue;
         }
@@ -2875,7 +2861,7 @@ fn the_value_is_the_path(value: &[Token], settings: &Settings<'_>) -> bool {
         }
     }
     // **The first source, not the only one.** Written as *exactly one*, this
-    // refused `current_setting('search_path') || ', ' || quote_ident(current_schema())`
+    // refuses `current_setting('search_path') || ', ' || quote_ident(current_schema())`
     // — an append, and identical on a database to what `0011` already ships.
     // Concatenation is ordered, so what decides the first schema on the path is
     // the *first* source; a later one is appended and cannot displace it.
@@ -2909,8 +2895,8 @@ fn the_value_is_the_path(value: &[Token], settings: &Settings<'_>) -> bool {
 ///
 /// `SELECT set_config('role', current_setting('role'), false)` is a measured
 /// no-op — it is the shape `0012` already writes for `search_path`, applied to
-/// the setting the round-18 widening added — and it was refused, which told a
-/// migration that saving and restoring the role it found is a redirect.
+/// the role — and refusing it would tell a migration that saving and restoring
+/// the role it found is a redirect.
 ///
 /// Deliberately narrower than [`the_value_is_the_path`]: nothing may be appended
 /// and no second reader may appear, because for a setting that is one value
@@ -2972,9 +2958,9 @@ fn the_settings_written_in(text: &str, dialect: Dialect) -> Vec<(String, usize, 
             // **A write inside a routine body cannot be ordered against the
             // rest.** `cut` finishes every top-level statement before it
             // recurses, so a `PERFORM set_config(…)` in a `DO $$ … $$` is
-            // numbered *after* statements that run before it — measured, a
-            // refill in a `DO` block was invisible to the comparison below and
-            // the read-back was cleared. Ordering it properly would mean
+            // numbered *after* statements that run before it — measured, ordered
+            // by that numbering, a refill in a `DO` block is invisible to the
+            // comparison below and the read-back cleared. Ordering it properly would mean
             // reordering the walk; what this needs instead is to stop claiming
             // an order it does not have, so a nested write is never
             // path-bearing and the statement that reads it is judged on its own.
@@ -3025,7 +3011,7 @@ fn joins_a_name(word: &str) -> bool {
 /// A function call's first argument, when it is written entirely as literals.
 ///
 /// **A name SQL builds is the same name.** `set_config('search' || '_path', …)`
-/// names `search_path`, and reading only the first literal after the call saw
+/// names `search_path`, and reading only the first literal after the call sees
 /// `search`. Every literal up to the first comma no bracket is open over is
 /// joined, which is what `||` does; anything that is not a literal — a column,
 /// a parameter, a nested call — answers `None`, because this rule is about a
@@ -3056,10 +3042,10 @@ fn the_first_argument_of(tokens: &[Token]) -> Option<String> {
 /// One piece of a statement.
 ///
 /// **A quoted identifier is one token**, which is the whole reason this is a
-/// token list rather than flattened text. Flattening on whitespace truncated
+/// token list rather than flattened text. Flattening on whitespace truncates
 /// `CREATE TABLE "login attempts"` to `login` — a finding naming a table nobody
 /// wrote — and `CREATE TABLE "access_records archive"` to `access_records`,
-/// which the catalog declares, so an unbounded table walked straight through.
+/// which the catalog declares, so an unbounded table walks straight through.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Token {
     /// A bare word: a keyword, or one part of an unquoted name.
@@ -3076,7 +3062,7 @@ enum Token {
     /// kind is for. What the text is needed for is the *argument* of a function
     /// that takes a setting's name as a string: `set_config('search_path', …)`
     /// redirects every unqualified name below it, and with the contents dropped
-    /// there was nothing to tell it from `set_config('nc.saved_path', …)`, which
+    /// there is nothing to tell it from `set_config('nc.saved_path', …)`, which
     /// is what this repository's own migrations write.
     Literal(String),
 }
@@ -3101,8 +3087,8 @@ impl Token {
 
     /// The name this token carries, spelled as PostgreSQL will resolve it.
     ///
-    /// **An unquoted name folds and a quoted one does not.** Every reader here
-    /// lowercased both, so `"RECORDED"` and `recorded` were one column. Measured,
+    /// **An unquoted name folds and a quoted one does not.** A reader that
+    /// lowercases both makes `"RECORDED"` and `recorded` one column. Measured,
     /// with the gate green:
     ///
     /// ```text
@@ -3110,11 +3096,11 @@ impl Token {
     /// ALTER TABLE access_records ADD COLUMN "RECORDED" BIGINT NOT NULL;
     /// ```
     ///
-    /// The gate concluded `recorded` was `bigint`; the database had `recorded`
+    /// Such a gate concludes `recorded` is `bigint`; the database has `recorded`
     /// as TEXT and a second column beside it. The pruner writes
     /// `ORDER BY "recorded"` and sorts text. This module goes to real trouble to
     /// keep a quoted identifier one token — `CREATE TABLE "access_records
-    /// archive"` is its own example — and then folded it anyway.
+    /// archive"` is its own example — and folding it afterwards would undo that.
     fn resolved(&self) -> Option<String> {
         match self {
             Self::Word(text) => Some(text.to_lowercase()),
@@ -3126,11 +3112,12 @@ impl Token {
 
 // A disagreement a test asked for, and zero in every other build.
 //
-// **The tripwire was wired to nothing.** `the_readers_agree` has a unit test of
-// its own, and the `?` that carries its verdict out of the walk had none:
-// `let _ = the_readers_agree(…)` left all 521 tests passing and `check passed`,
-// under a paragraph saying *"a finding can be filtered — this cannot, and it
-// stops the walk where it is"*. Nothing proved it stops the walk.
+// **A tripwire has to be wired to something.** `the_readers_agree` has a unit
+// test of its own, and this is what tests the `?` that carries its verdict out
+// of the walk: `let _ = the_readers_agree(…)` in its place fails the test
+// below, and nothing a clean run prints would change, under a paragraph saying
+// *"a finding can be filtered — this cannot, and it stops the walk where it
+// is"*.
 //
 // It cannot be driven from a file. Both readers fingerprint the same statements
 // with the same tokeniser, which is the whole reason a disagreement means one
@@ -3140,7 +3127,7 @@ impl Token {
 //
 // Written as prose rather than as a doc block because a `///` above a macro
 // invocation lands on the *item below the macro* — which is the fusion this
-// crate's own ratchet exists to catch, and it caught this one.
+// crate's own ratchet exists to catch.
 #[cfg(test)]
 thread_local! {
     /// One, once, for the next file the walk reads, and zero afterwards.
@@ -3173,13 +3160,13 @@ const fn a_forced_disagreement() -> usize {
 
 /// That the two readers of one file arrived at the same fingerprint.
 ///
-/// **An error, not a finding.** Three shapes got past the arrangement this
-/// replaces, in which the reader took the other count and reported the
-/// disagreement as one of its own verdicts: a guard clause at the top of the
-/// reader returned before the comparison ran; a filter in the caller on
-/// `files == 1` dropped every verdict from the eleven migrations no fixture
-/// writes; and a `retain` on the verdict's own text silenced the comparison
-/// itself. A finding can be filtered. This stops the walk where it stands.
+/// **An error, not a finding.** With the reader taking the other count and
+/// reporting the disagreement as one of its own verdicts, three shapes get
+/// past: a guard clause at the top of the reader returning before the
+/// comparison runs; a filter in the caller on `files == 1` dropping every
+/// verdict from the migrations no fixture writes; and a `retain` on the
+/// verdict's own text silencing the comparison itself. A finding can be
+/// filtered. This stops the walk where it stands.
 fn the_readers_agree(named: &str, judged: usize, counted: usize) -> Result<(), String> {
     if judged == counted {
         return Ok(());
@@ -3194,8 +3181,8 @@ fn the_readers_agree(named: &str, judged: usize, counted: usize) -> Result<(), S
 
 /// What one migration does to the set of tables that exist, and what it costs.
 ///
-/// **Split out of the walk**, which had grown past the length a reader keeps in
-/// their head once the two loops here became one merge on statement order.
+/// **Split out of the walk**, so the walk stays the length a reader keeps in
+/// their head with one merge on statement order in it.
 /// Returns the findings, the tables a marker excused by name, and how many
 /// tables were judged — the three things the walk accumulates — and applies the
 /// creations and retirements to `exists` in the order the statements run.
@@ -3233,9 +3220,9 @@ fn what_one_file_declares(
             }
             continue;
         }
-        // **A rename creates a table and retires one**, and neither
-        // direction saw it: `ALTER TABLE access_records RENAME TO
-        // login_attempts` left the bounded entry naming a table that no
+        // **A rename creates a table and retires one.** Unread,
+        // `ALTER TABLE access_records RENAME TO
+        // login_attempts` leaves the bounded entry naming a table that no
         // longer exists, and the table that now holds the rows unbounded,
         // with `check passed`.
         let Some(rename) = changes.renamed.get(moved) else {
@@ -3249,10 +3236,10 @@ fn what_one_file_declares(
         }
         exists.push(rename.to.clone());
         seen += 1;
-        // **The same three answers, because a rename creates a table.** This
-        // tested `declared.contains` and nothing else, so the marker the remedy
-        // tells a developer to write was inert here — the gate named a hatch
-        // this path did not have, which is prose stating the inverse of the
+        // **The same three answers, because a rename creates a table.** Testing
+        // `declared.contains` and nothing else leaves the marker the remedy
+        // tells a developer to write inert here — the gate naming a hatch
+        // this path does not have, which is prose stating the inverse of the
         // code.
         let landed = Declared {
             name: &rename.to,
@@ -3271,7 +3258,7 @@ fn what_one_file_declares(
 /// What one `CREATE TABLE` costs the census: a bound, an excuse, or a finding.
 ///
 /// **Split out so the walk that reads a migration stays a walk.** The
-/// reconciliation grew a merge on statement order — a drop and a create in one
+/// reconciliation carries a merge on statement order — a drop and a create in one
 /// file are read in the order they are written — and the decision about a single
 /// table is the part of it that has nothing to do with ordering.
 enum Bound {
@@ -3285,10 +3272,10 @@ enum Bound {
 
 /// Which of the three a table declared in one statement is.
 ///
-/// **Named, not only counted.** A table excused by the marker moved the census
-/// total from 92 to 97 and appeared nowhere else — and the one line a reader
-/// would look at, the one that says how many tables were checked and which
-/// declare no bound, was silent about it. An exemption that moves only an
+/// **Named, not only counted.** Counted only, a table excused by the marker
+/// moves the census total from 92 to 97, measured, and appears nowhere else —
+/// and the one line a reader would look at, the one that says how many tables
+/// were checked and which declare no bound, is silent about it. An exemption that moves only an
 /// aggregate is an exemption nobody sees, so `Excused` carries the name back.
 fn the_bound_for(
     table: &Declared<'_>,
@@ -3331,15 +3318,16 @@ struct Bounds<'a> {
 ///
 /// **`EXECUTE` is also SQL's privilege on a routine, and an ordinary name.**
 /// `REVOKE EXECUTE ON FUNCTION set_config(…) FROM PUBLIC` is the single most
-/// on-point hardening there is for `§15.8`, and this refused it — with a message
-/// about dynamic SQL, in the gate that exists for `§15.8`. `GRANT EXECUTE ON
+/// on-point hardening there is for `§15.8`, and a reader of the word alone
+/// refuses it — with a message about dynamic SQL, in the gate that exists for
+/// `§15.8`. `GRANT EXECUTE ON
 /// ALL FUNCTIONS IN SCHEMA …` and `ALTER DEFAULT PRIVILEGES … GRANT EXECUTE ON
 /// FUNCTIONS` are the same word in the same place, and
 /// `CREATE TRIGGER … EXECUTE FUNCTION f()` is the ordinary use every migration
 /// here has one of.
 ///
 /// **And it is a *non-reserved* keyword on PostgreSQL 18.6**, so a table or a
-/// column may be called it — which this asked nothing about at all. Measured,
+/// column may be called it, and the word alone says nothing about that. Measured,
 /// three statements that run and build nothing:
 ///
 /// ```text
@@ -3366,64 +3354,64 @@ fn builds_a_statement_out_of_text(tokens: &[Token]) -> bool {
                 .checked_sub(1)
                 .and_then(|before| tokens.get(before))
                 .is_none_or(opens_a_statement)
-        // **And the three-name carve-out is gone with the question it
-        // answered.** It read what followed the word — `FUNCTION`,
-        // `PROCEDURE`, `ON` — because the word was looked for anywhere in
-        // the statement, so a trigger's `EXECUTE FUNCTION f()` and a
-        // privilege's `GRANT EXECUTE ON …` had to be carved back out. With
-        // the position asked instead, neither of those `EXECUTE`s is at a
-        // statement boundary and neither reaches here at all: the runner
-        // reported `a trigger's PROCEDURE is a built statement` as a
+        // **And no carve-out for what follows the word.** A carve-out
+        // reading what follows — `FUNCTION`, `PROCEDURE`, `ON` — is needed
+        // only while the word is looked for anywhere in the statement, so
+        // that a trigger's `EXECUTE FUNCTION f()` and a privilege's
+        // `GRANT EXECUTE ON …` are carved back out. With the position asked,
+        // neither of those `EXECUTE`s is at a statement boundary and neither
+        // reaches here at all: measured with such a carve-out in place, the
+        // runner reports `a trigger's PROCEDURE is a built statement` as a
         // weakening no test can see, which is what a clause that decides
-        // nothing looks like from the outside. The carve-out's own corpus
-        // rows still stand and now prove the boundary test carries them.
+        // nothing looks like from the outside. The corpus rows for those
+        // shapes stand, and prove the boundary test carries them.
         //
-        // Its last shape went with it. `tokens.get(at + 1).is_none_or(…)`
-        // was there for `EXECUTE` with its text in a variable this reader
-        // cannot see — a statement whose last token is the word — and that
-        // is the boundary case anyway: `EXECUTE;` is one token, at position
-        // zero. `RENAME COLUMN a TO execute` is not, which is what the old
-        // disjunct got wrong.
+        // Nor a disjunct like `tokens.get(at + 1).is_none_or(…)` for
+        // `EXECUTE` with its text in a variable this reader cannot see — a
+        // statement whose last token is the word: that is the boundary case
+        // anyway, since `EXECUTE;` is one token, at position zero.
+        // `RENAME COLUMN a TO execute` is not, which is what such a disjunct
+        // gets wrong.
     })
 }
 
 /// Every statement this scanner refuses to read, and why.
 ///
-/// **Read from the tokens, not from the text.** The first version scanned the
-/// raw file and was wrong in both directions at once: a `--` line above a `COPY`
-/// made `copy` no longer the statement's first word, so the refusal was skipped
-/// and the apostrophe in the data blanked the file exactly as before; and a
-/// comment *mentioning* `import foreign schema` failed the build over prose.
+/// **Read from the tokens, not from the text.** A scan of the raw file is wrong
+/// in both directions at once: a `--` line above a `COPY` makes `copy` no longer
+/// the statement's first word, so the refusal is skipped and the apostrophe in
+/// the data blanks the file; and a comment *mentioning* `import foreign schema`
+/// fails the build over prose.
 ///
-/// The second version blanked comments and literals first — and re-implemented
-/// the quoting grammar to do it, knowing neither dollar quoting nor `E'…\'…'`.
-/// Both gaps were reachable: an `E'…'` above a `COPY` hid the refusal again, and
-/// a `$doc$…$doc$` document holding the words failed the build. That is the
-/// third appearance of the class this module already has a rule about — *a
+/// Blanking comments and literals first means re-implementing the quoting
+/// grammar, and a copy knowing neither dollar quoting nor `E'…\'…'` has both
+/// gaps, measured: an `E'…'` above a `COPY` hides the refusal again, and
+/// a `$doc$…$doc$` document holding the words fails the build. That is the
+/// class this module already has a rule about — *a
 /// grammar understood in two places is a grammar that will one day be understood
 /// two ways* — and the answer is not a better second copy.
 ///
 /// `cut` already knows every quoting form PostgreSQL has, and it already drops
 /// comments and reduces a literal to one opaque token. A statement's *tokens*
 /// therefore cannot contain a word that was written inside a comment or a
-/// string, which is exactly the property both earlier versions were trying to
+/// string, which is exactly the property a scan of the text would have to
 /// reconstruct.
 ///
 /// **It is given the weight the reader beside it measured**, and says so
 /// itself when the two disagree.
 ///
-/// **Counted where the judgement happens, not where the cutting did**, and in
-/// tokens rather than in statements. Three versions of this number have been
-/// wrong in the same direction:
+/// **Counted where the judgement happens, not where the cutting does**, and in
+/// tokens rather than in statements. Three other ways of taking this number
+/// are wrong in the same direction, measured:
 ///
-/// - `all.len()` above the loop measured what the *cutter* produced, so a
-///   `.filter(|(_, s)| s.line <= 5)` on the loop's own line silenced every rule
+/// - `all.len()` above the loop measures what the *cutter* produces, so a
+///   `.filter(|(_, s)| s.line <= 5)` on the loop's own line silences every rule
 ///   below it with both counts agreeing and `check`'s output byte-identical;
-/// - `judged += 1` as the loop's *first* statement moved for every iteration
-///   whatever the body then did, so re-slicing `tokens` to nothing for statements
-///   past the eighth left the tail of every migration unjudged — 0001 holds 9
-///   statements and 0012 holds 22 — and was byte-identical again. This
-///   repository's own canary notes state the rule the code kept breaking: *the
+/// - `judged += 1` as the loop's *first* statement moves for every iteration
+///   whatever the body then does, so re-slicing `tokens` to nothing for statements
+///   past the eighth leaves the tail of every migration unjudged — 0001 holds 9
+///   statements and 0012 holds 22 — and is byte-identical again. This
+///   repository's own canary notes state the rule: *the
 ///   counter is the last statement a verdict reaches, not the first statement of
 ///   the body.*
 /// - A count of *statements* says how much of the file was cut. What the rules
@@ -3431,17 +3419,16 @@ fn builds_a_statement_out_of_text(tokens: &[Token]) -> bool {
 ///   through the same binding the rules use.
 ///
 /// **And the comparison is not the caller's to remember.** Handed back as a
-/// number it was one line of wiring, and replacing that line with `let _ = …`
-/// restored the whole defect with the suite green. A count that has to be
+/// number it is one line of wiring, and replacing that line with `let _ = …`
+/// restores the whole defect with the suite green, measured. A count that has to be
 /// remembered is a count that can be forgotten, so what goes in is the other
 /// reader's number and what comes out already holds the verdict. Without it this
-/// rule was wired to nothing: handed `&text[..400]` it refused nothing, and
-/// `check`'s output was byte-identical to a full run — no count moved, because
-/// it published none. Its sibling rules in this loop each have a second,
+/// rule is wired to nothing: handed `&text[..400]` it refuses nothing, and
+/// `check`'s output is byte-identical to a full run — no count moves, because
+/// it publishes none. Its sibling rules in this loop each have a second,
 /// independent number (`files != on_disk`, `seen < bounded`, `found != creates`)
-/// and this one had only its own findings, which is the one number a defect that
-/// stops it from looking will always leave at zero. Six rounds of repair to the
-/// redirect rule could not be decided by the suite for exactly this reason.
+/// and without this one it would have only its own findings, which is the one
+/// number a defect that stops it from looking will always leave at zero.
 ///
 /// Read as `dialect` cuts it: the two directories of migrations are two SQLs.
 // allow-logging: `unreadable_statements_in` hands back a list of statement kinds written in this file
@@ -3473,7 +3460,7 @@ fn unreadable_statements_in(
         // **A redirected `search_path` renames every unqualified table below it**,
         // and this scanner credits an unqualified name to `public`
         // unconditionally. Measured through the gate: `SET search_path =
-        // archive;` on the line above `CREATE TABLE access_records (…)` gave
+        // archive;` on the line above `CREATE TABLE access_records (…)` gives
         // `unbounded=[]` — the same table written `CREATE TABLE
         // archive.access_records` is caught — so a table is credited to
         // `[tables.access_records]`, whose pruner runs `DELETE FROM
@@ -3485,20 +3472,20 @@ fn unreadable_statements_in(
         // would still have to be guessed at. So the shape is refused, which is
         // what this function is for. `SET search_path = current_schema()` is not
         // a redirect and is not refused: migrations 0011 and 0012 both write it.
-        // **Every spelling PostgreSQL accepts, not the one this was written
-        // against.** The rule asked for `SET … search_path = …` and nothing
-        // else, so `SET search_path TO archive;` — PostgreSQL's own documented
-        // form, and the one every tutorial writes — went into a migration above
-        // `CREATE TABLE access_records` with all 1123 tests green and `check
+        // **Every spelling PostgreSQL accepts, not one of them.** A rule asking
+        // for `SET … search_path = …` and nothing else lets
+        // `SET search_path TO archive;` — PostgreSQL's own documented form, and
+        // the one every tutorial writes — into a migration above
+        // `CREATE TABLE access_records` with every test green and `check
         // passed`, putting a table of personal data in another schema while
-        // `[tables.access_records]` went on pruning `public`. `SET SESSION`,
+        // `[tables.access_records]` goes on pruning `public`. `SET SESSION`,
         // `SET LOCAL`, a quoted value and `set_config('search_path', …)` are the
         // same statement again. This is the class two functions in this very
         // file each carry a paragraph about: a rule written for one spelling of
         // something SQL spells several ways.
         // The name, however the tokeniser split it. `search_path=archive` has no
         // space in it and is one word, so asking for the token `search_path`
-        // missed it — measured, accepted with `check passed`.
+        // misses it — measured, accepted with `check passed`.
         let folded = |at: usize| {
             tokens
                 .get(at)
@@ -3556,17 +3543,17 @@ fn unreadable_statements_in(
             ));
         }
         // **`IMPORT FOREIGN SCHEMA` creates arbitrarily many foreign tables**,
-        // and this scanner cannot know which. `CREATE FOREIGN TABLE` was added
-        // because a migration could add one and the count nobody reads stayed
+        // and this scanner cannot know which. `CREATE FOREIGN TABLE` is read
+        // because a migration can add one with the count nobody reads staying
         // the same; this is the bulk form of the same statement.
         // **Anywhere in the statement, not at its first token.** A routine body's
         // statements begin with `BEGIN`, so wrapping the import in a `DO` block
-        // moved it off position zero and the refusal never fired — measured,
-        // PL/pgSQL parses and dispatches it (only a missing server stopped it), and
-        // the gate then reported a count and no finding for a migration that creates
-        // arbitrarily many unbounded foreign tables. Safe to widen now that a quoted
+        // moves it off position zero and a first-token refusal never fires —
+        // measured, PL/pgSQL parses and dispatches it (only a missing server stops
+        // it), and the gate then reports a count and no finding for a migration that creates
+        // arbitrarily many unbounded foreign tables. Reading anywhere is safe because a quoted
         // string is only re-cut where something runs it: prose that merely names the
-        // statement is no longer a statement.
+        // statement is not a statement.
         if tokens
             .windows(3)
             .any(|three| three[0].is("IMPORT") && three[1].is("FOREIGN") && three[2].is("SCHEMA"))
@@ -3583,8 +3570,8 @@ fn unreadable_statements_in(
         }
         // **And `EXECUTE` that builds DDL out of text**, which is the same class
         // as the two above: a real table is created and no name exists in the
-        // file for this gate to read. Both shapes were measured creating tables
-        // on PostgreSQL 18.6 with the count unmoved and no finding at all:
+        // file for this gate to read. Both shapes, measured without this, create
+        // tables on PostgreSQL 18.6 with the count unmoved and no finding at all:
         //
         // ```text
         // DO $$ BEGIN EXECUTE format('CREATE TABLE %I (id INT)', 'login_attempts'); END $$;
@@ -3592,7 +3579,7 @@ fn unreadable_statements_in(
         // ```
         //
         // `%I` is dropped by the name reader and a concatenation yields no name
-        // token at all, so the guess this gate made was "nothing here" — which
+        // token at all, so without this the gate's guess is "nothing here" — which
         // is the one answer it must not give about a statement that creates
         // tables. `IMPORT FOREIGN SCHEMA` is refused for exactly this reason.
         //
@@ -3607,8 +3594,9 @@ fn unreadable_statements_in(
         //
         // **And `EXECUTE` is also SQL's privilege on a routine.**
         // `REVOKE EXECUTE ON FUNCTION set_config(…) FROM PUBLIC` is the single
-        // most on-point hardening there is for `§15.8`, and this refused it —
-        // with a message about dynamic SQL, in the gate that exists for `§15.8`.
+        // most on-point hardening there is for `§15.8`, and a reader of the word
+        // alone refuses it — with a message about dynamic SQL, in the gate that
+        // exists for `§15.8`.
         // `GRANT EXECUTE ON …`, `GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA …` and
         // `ALTER DEFAULT PRIVILEGES … GRANT EXECUTE ON FUNCTIONS` are the same
         // word in the same place. What tells the two apart is the statement's
@@ -3616,10 +3604,10 @@ fn unreadable_statements_in(
         // `GRANT` or a `REVOKE` and is followed by `ON` or by another privilege.
         // **Decided where the word stands, not by the statement's first token.**
         // The paragraph above states the rule as *a privilege follows a `GRANT`
-        // or a `REVOKE`*, and the code asked whether the statement *begins* with
-        // one — so `ALTER DEFAULT PRIVILEGES … REVOKE EXECUTE ON FUNCTIONS`,
+        // or a `REVOKE`*, and asking whether the statement *begins* with one
+        // drops `ALTER DEFAULT PRIVILEGES … REVOKE EXECUTE ON FUNCTIONS`,
         // which is how a privilege is made to persist, and a `GRANT` inside a
-        // `DO` block, which is how one is made conditional, both fell into the
+        // `DO` block, which is how one is made conditional, into the
         // dynamic-SQL refusal. What separates them is what follows the word: a
         // privilege is followed by `ON` or by the comma of a privilege list, a
         // trigger by `FUNCTION` or `PROCEDURE`, and dynamic SQL by the text it
@@ -3640,11 +3628,11 @@ fn unreadable_statements_in(
             ));
         }
         // **What the rules read, not how much of it there was.** A count of
-        // tokens is the third number this has been, and a reviewer defeated it
-        // by rewriting tokens rather than removing them: a same-length map
-        // renaming `EXECUTE`, `IMPORT` and `COPY` switched three refusals off
-        // with `judged == counted` exactly and `corpus::` entirely green. So what
-        // is added is what the tokens *say*, which no rewrite leaves alone.
+        // tokens is defeated by rewriting tokens rather than removing them: a
+        // same-length map renaming `EXECUTE`, `IMPORT` and `COPY` switches three
+        // refusals off with `judged == counted` exactly and `corpus::` entirely
+        // green. So what is added is what the tokens *say*, which no rewrite
+        // leaves alone.
         judged = judged.wrapping_add(the_weight_of(tokens));
     }
     (found, judged)
@@ -3703,20 +3691,19 @@ pub(crate) fn comment_only_lines(text: &str, dialect: Dialect) -> Vec<usize> {
 /// How much a statement's tokens *say*, which is what the rules below read.
 ///
 /// **Not how many there are, and not what they hold alone.** A count of tokens
-/// was the third number the two readers of a migration compared, and a reviewer
-/// defeated it by rewriting rather than removing: a same-length map renaming
-/// `EXECUTE`, `IMPORT` and `COPY` switched three refusals off with the counts
-/// equal to the token. Weighing the text closed that — and the next reviewer
-/// defeated *that*, because `Word(w)` and `Name(w)` hold the same text and
-/// `Punct`, `Literal("")` and `Name("")` held nothing: rewriting every token to
-/// `Name` turns every keyword test in the judging loop off and moves no number.
-/// `Token::is` answers `false` for a `Name`, which is exactly the difference the
-/// weight could not see.
+/// compared between the two readers of a migration is defeated by rewriting
+/// rather than removing: a same-length map renaming `EXECUTE`, `IMPORT` and
+/// `COPY` switches three refusals off with the counts equal to the token.
+/// Weighing the text closes that and is defeated in turn, because `Word(w)` and
+/// `Name(w)` hold the same text and `Punct`, `Literal("")` and `Name("")` hold
+/// nothing: rewriting every token to `Name` turns every keyword test in the
+/// judging loop off and moves no number. `Token::is` answers `false` for a
+/// `Name`, which is exactly the difference such a weight cannot see.
 ///
-/// The kind was then weighed with the text's *length*, and a reviewer got past
-/// that too: `COPY` and `COPz` are the same length, so a rename that keeps the
-/// spelling's shape moved no number and switched three refusals off. And a sum
-/// is order-blind — reversing a statement's tokens left it exactly where it was.
+/// Weighing the kind with the text's *length* is defeated as well: `COPY` and
+/// `COPz` are the same length, so a rename that keeps the spelling's shape
+/// moves no number and switches three refusals off. And a sum is order-blind —
+/// reversing a statement's tokens leaves it exactly where it was.
 ///
 /// So this is a **fingerprint**, not a weight: every byte of the text, the kind
 /// it is written as, and the position it stands in. Wrapping arithmetic, because
@@ -3749,14 +3736,14 @@ fn the_weight_of(tokens: &[Token]) -> usize {
             held.wrapping_mul(31).wrapping_add(byte as usize)
         });
         // A punctuation token's character is its whole content. Seeded with the
-        // kind alone, `.`, `(`, `)` and `,` were one token to this.
+        // kind alone, `.`, `(`, `)` and `,` would be one token to this.
         if let Token::Punct(character) = token {
             held = held.wrapping_mul(31).wrapping_add(*character as usize);
         }
-        // **The kind last, in bits the mixing cannot reach.** Seeded first it was
-        // absorbed: `Word("COPY")` and `Name("#mnx")` came to the same number,
-        // and `Token::is` answers `false` for a `Name` — so the one rewrite the
-        // kind term was added to catch left the two readers agreeing to the bit.
+        // **The kind last, in bits the mixing cannot reach.** Seeded first it is
+        // absorbed: `Word("COPY")` and `Name("#mnx")` come to the same number,
+        // measured, and `Token::is` answers `false` for a `Name` — so the one
+        // rewrite the kind term exists to catch leaves the two readers agreeing to the bit.
         // Four kinds, two bits, and the text above them.
         let held = held.wrapping_mul(4).wrapping_add(kind(token));
         sum.wrapping_add(held.wrapping_mul(at.wrapping_add(1)))
@@ -3769,14 +3756,14 @@ fn the_weight_of(tokens: &[Token]) -> usize {
 /// a statement, so it is either first or follows one of these. A function name
 /// follows `FUNCTION`, and a parameter follows `(`.
 ///
-/// **`;` is not one of them, and a disjunct here said it was.** The cutter makes
+/// **`;` is not one of them.** The cutter makes
 /// a token of `.`, `(`, `)` and `,` and of nothing else — a `;` finishes the
-/// statement and the character never reaches `tokens` — so
-/// `matches!(token, Token::Punct(';'))` stood at the front of this answering for
-/// a value that cannot be built. Deleting it left every test green. It is worse
-/// than dead: this predicate bounds the `UPDATE` carve-out two screens up, and
-/// the clause read as though a `;` were one of the boundaries holding that
-/// carve-out in. A rule that cannot fire is not protection, and a documented one
+/// statement and the character never reaches `tokens` — so a
+/// `matches!(token, Token::Punct(';'))` here would answer for
+/// a value that cannot be built, and deleting it would leave every test green.
+/// It would be worse than dead: this predicate bounds the `UPDATE` carve-out in
+/// `the_path_redirects_in`, and the clause would read as though a `;` were one of the
+/// boundaries holding that carve-out in. A rule that cannot fire is not protection, and a documented one
 /// that cannot fire is read as protection.
 /// `the_cutter_makes_a_token_of_four_punctuation_characters` pins the closed set
 /// over every migration, so making `;` a token again fails there rather than
@@ -3799,19 +3786,19 @@ fn statements_in(text: &str, dialect: Dialect) -> Vec<Statement> {
     cut(text, 1, false, &mut found, &mut comments, &[], dialect);
     // **In the order the file is written, which is the order they run.**
     // `cut` finishes the top level and *then* re-reads the routine bodies, so
-    // every statement inside a routine came back numbered after every statement
-    // outside one however the file reads — and three lists this file keys on
+    // in cut order every statement inside a routine comes back numbered after
+    // every statement outside one however the file reads — and three lists this file keys on
     // that number answer *what did the last statement to decide this say*.
-    // Measured on PostgreSQL 18.6, both directions from the one root: a type
-    // altered inside a conditional block and altered back outside it was read
-    // through the block, so the gate refused a column that ends `bigint`; and a
-    // table dropped, re-created inside a block and dropped again was read as
-    // still existing, so its entry went on bounding a table that is gone.
+    // Measured on PostgreSQL 18.6, in cut order, both directions from the one
+    // root: a type altered inside a conditional block and altered back outside
+    // it is read through the block, so the gate refuses a column that ends
+    // `bigint`; and a table dropped, re-created inside a block and dropped again
+    // is read as still existing, so its entry goes on bounding a table that is gone.
     //
-    // **The line is not a total order, and the tie went the wrong way.** A
-    // stable sort on it kept the cut order where two statements share a line —
+    // **The line is not a total order, and a tie on it goes the wrong way.** A
+    // stable sort on it keeps the cut order where two statements share a line —
     // and the cut order puts every top-level statement before every nested one,
-    // so a body and a statement *after* it on the same line came back reversed.
+    // so a body and a statement *after* it on the same line come back reversed.
     // Measured, one line of ordinary SQL:
     //
     // ```text
@@ -3909,10 +3896,10 @@ fn cut(
                     at += 1;
                 }
             }
-            // **Only when nothing else is on the line.** This marked the line
-            // comment-only the moment the comment started on it, regardless of
-            // the code that followed — so `/* one row */ CREATE TABLE x (…);`
-            // read as a comment line, and `excused` walked straight over that
+            // **Only when nothing else is on the line.** Marking the line
+            // comment-only the moment the comment starts on it, regardless of
+            // the code that follows, reads `/* one row */ CREATE TABLE x (…);`
+            // as a comment line, and `excused` then walks straight over that
             // statement to give one `nc:bounded:` marker to the table *after*
             // it. The decision has to wait until the line is finished, which is
             // what the `\n` arm below already does for `--`.
@@ -3928,23 +3915,23 @@ fn cut(
             continue;
         }
 
-        // A single-quoted literal. **Backslash escapes only after `E`**, which
-        // is a correction: PostgreSQL's `standard_conforming_strings` is on by
+        // A single-quoted literal. **Backslash escapes only after `E`**:
+        // PostgreSQL's `standard_conforming_strings` is on by
         // default, so `'C:\'` is a *closed* string holding a backslash. Treating
-        // `\` as an escape everywhere made the scanner run past the end of that
+        // `\` as an escape everywhere makes the scanner run past the end of that
         // literal, find no further quote, and blank the rest of the file —
-        // exactly the desynchronisation the `E` handling was added to fix,
+        // exactly the desynchronisation the `E` handling exists to prevent,
         // arriving from the other side.
         if here == '\'' {
             // **Inside a routine body a literal may be a statement.**
             // `DO $$ … EXECUTE 'CREATE TABLE …' … $$;` is idiomatic conditional
             // DDL, and blanking the literal's contents — right everywhere else,
-            // because a table's name is never inside one — made it invisible.
+            // because a table's name is never inside one — would make it invisible.
             // The contents are kept as a nested body when the enclosing
             // statement is a routine's.
             // Flushed first: the `E` is still in `word` at this point, not in
-            // `tokens`, so testing `tokens.last()` before flushing looked at the
-            // token before the prefix and never found it.
+            // `tokens`, so testing `tokens.last()` before flushing looks at the
+            // token before the prefix and never finds it.
             flush!();
             let escapes = matches!(
                 tokens.last(),
@@ -3982,12 +3969,12 @@ fn cut(
                 literal.push(inside);
                 at += 1;
             }
-            // **A routine body is a body however it is quoted.** This kept a
-            // literal only when it was already inside one — so `DO '…'` and
+            // **A routine body is a body however it is quoted.** Keeping a
+            // literal only when it is already inside one leaves `DO '…'` and
             // `CREATE FUNCTION … AS '…'`, the older spelling of the same
-            // statement, were never re-scanned and every `CREATE TABLE` inside
-            // one was invisible. Live PostgreSQL 18.6 creates those tables. The
-            // dollar-quoted form was caught and the quoted form was not, which
+            // statement, never re-scanned, and every `CREATE TABLE` inside
+            // one invisible. Live PostgreSQL 18.6 creates those tables. Catching
+            // the dollar-quoted form and not the quoted one
             // is a rule about punctuation rather than about SQL.
             //
             // `declares_a_routine()` cannot be asked yet — the statement is
@@ -3995,7 +3982,7 @@ fn cut(
             // filter below decides which are re-scanned.
             // **A `RAISE`'s literal is a message, not SQL**, and the tokens so
             // far are what say which statement this literal is in. Re-scanning
-            // it read `RAISE EXCEPTION 'this table is append-only; if you need
+            // it reads `RAISE EXCEPTION 'this table is append-only; if you need
             // another, CREATE TABLE ghost (id INT)'` as creating `ghost` — a
             // finding naming a table nobody wrote, in the gate whose whole value
             // is that its error names the table. `0001_journal.sql`'s own
@@ -4004,12 +3991,11 @@ fn cut(
             // it: `BEGIN RAISE EXCEPTION '…'` is one cut statement, so the
             // *first* token is `BEGIN` and the one that matters is the last
             // `RAISE` or `EXECUTE` before here.
-            // **`RAISE` the statement, not `raise` the name.** This took the
-            // last token spelled either way, so
-            // `CREATE FUNCTION raise() RETURNS void AS 'CREATE TABLE …'`
-            // silenced its own body — the function name is a `Word` like any
-            // other. PostgreSQL 18.6 accepts that and creates the table; the
-            // gate reported none.
+            // **`RAISE` the statement, not `raise` the name.** Taking the last
+            // token spelled either way, `CREATE FUNCTION raise() RETURNS void AS
+            // 'CREATE TABLE …'` silences its own body — the function name is a
+            // `Word` like any other. PostgreSQL 18.6 accepts that and creates
+            // the table, and such a gate reports none.
             //
             // What tells them apart is what comes *before*: a plpgsql statement
             // opens a statement, so `RAISE` and `EXECUTE` are either the first
@@ -4069,10 +4055,10 @@ fn cut(
 
         // **SQLite quotes a name two more ways**, `[name]` and `` `name` ``,
         // for compatibility with MS Access and MySQL. Read as PostgreSQL, the
-        // bracket and the backtick were characters of a word, the word could
-        // not be an identifier, and the table was not seen at all: measured,
-        // `CREATE TABLE [bracketed] (…)` in `local-migrations/` gave `seen 0`
-        // and no finding, while the same table quoted with `"` was named as
+        // bracket and the backtick are characters of a word, the word cannot
+        // be an identifier, and the table is not seen at all: measured,
+        // `CREATE TABLE [bracketed] (…)` in `local-migrations/` gives `seen 0`
+        // and no finding, while the same table quoted with `"` is named as
         // unbounded. A bracket has no escape and ends at the first `]`; a
         // backtick doubles itself.
         if dialect == Dialect::Sqlite && (here == '[' || here == '`') {
@@ -4107,17 +4093,17 @@ fn cut(
         // Dollar quoting: `$tag$ … $tag$`.
         // **A `$` inside an identifier is not a quote opening.** PostgreSQL:
         // "subsequent characters in an identifier can be letters, underscores,
-        // digits, or dollar signs" — so `ADD COLUMN geo$ip$hash TEXT` was read
-        // as opening a `$ip$` quote, and the scan ran to end of file looking for
-        // a close that never came. Everything after it was blanked, `CREATE
-        // TABLE` included. That is the third time this class has appeared, and
-        // the first two were fixed one spelling at a time; this is the rule.
+        // digits, or dollar signs" — so read as a quote opening,
+        // `ADD COLUMN geo$ip$hash TEXT` opens a `$ip$` quote, and the scan runs
+        // to end of file looking for a close that never comes. Everything after
+        // it is blanked, `CREATE TABLE` included. A rule about the character,
+        // rather than about each spelling, is what closes the class.
         //
         // **The test is the character *before*, not whether a word is being
-        // built.** `word.is_empty()` was a proxy for it and a leaky one: an
-        // operator accumulates into `word` too, so
-        // `SET user_agent=$doc$don't edit this$doc$` did not open a quote — and
-        // the apostrophe inside then opened a string literal that ran past the
+        // built.** `word.is_empty()` is a proxy for it and a leaky one: an
+        // operator accumulates into `word` too, so with that proxy
+        // `SET user_agent=$doc$don't edit this$doc$` does not open a quote — and
+        // the apostrophe inside then opens a string literal that runs past the
         // closing tag to the end of the file, taking the `CREATE TABLE` after
         // it. Live PostgreSQL 18.6 applies that migration and creates the table.
         // What PostgreSQL actually says is that a `$` continues an identifier;
@@ -4172,7 +4158,7 @@ fn cut(
             flush!();
             // **Inside a SQLite trigger's body a `;` ends a statement of the
             // body, not the trigger.** Cut here, `CREATE TRIGGER … BEGIN SELECT
-            // RAISE(ABORT, '…'); END;` was two statements, the second of them
+            // RAISE(ABORT, '…'); END;` would be two statements, the second of them
             // `END` — and a table created inside the body would be read as
             // created at the top level, by a statement that is not one.
             if dialect == Dialect::Sqlite && a_trigger_body_is_open(&tokens) {
@@ -4241,28 +4227,28 @@ fn cut(
 
     // **Routine bodies only.** A dollar-quoted run is a routine body in
     // `DO $$ … $$` and `CREATE FUNCTION … AS $$ … $$`, and is *data* everywhere
-    // else — so scanning every one as SQL made an `INSERT` of a document
+    // else — so scanning every one as SQL makes an `INSERT` of a document
     // containing the words `CREATE TABLE widgets` fail the build naming a table
     // nobody wrote, which is the one thing this gate must not do.
     //
-    // **This level's statements, not every one the walk has produced.** It read
-    // all of `found`, so each recursion swept the outer levels again — harmless
-    // only because their bodies had already been taken out of them.
+    // **This level's statements, not every one the walk has produced.** Reading
+    // all of `found`, each recursion would sweep the outer levels again — harmless
+    // only because their bodies have already been taken out of them.
     let nested_bodies: Vec<(Vec<usize>, String, usize)> = found[start..]
         .iter_mut()
         // **Or is itself already inside one.** `DO $$ … EXECUTE 'CREATE TABLE …'
         // … $$;` nests twice: the outer statement is a `DO`, and the inner one
-        // is an `EXECUTE`, which declares no routine — so its body was dropped
-        // and the DDL string was never read. Inside a routine, everything
+        // is an `EXECUTE`, which declares no routine — so a rule asking only for
+        // a routine drops its body and never reads the DDL string. Inside a routine, everything
         // quoted is a candidate statement.
         // **And only where the quoted text is *run*.** "Inside a routine,
-        // everything quoted is a candidate statement" was too wide in the one
+        // everything quoted is a candidate statement" is too wide in the one
         // direction the paragraph above says this gate must not be wrong in: an
         // ordinary `INSERT INTO access_records (note) VALUES ('we never EXECUTE
-        // anything here')` inside a `DO` block failed the build three ways at
+        // anything here')` inside a `DO` block then fails the build three ways at
         // once — as dynamic SQL, as a foreign-schema import, and as a `COPY`
-        // from stdin — because the *literal* was re-cut and its first word
-        // landed at position zero. The same sentence at the top level produces
+        // from stdin — because the *literal* is re-cut and its first word
+        // lands at position zero. The same sentence at the top level produces
         // nothing. What makes a quoted string a statement is that something
         // executes it, and in PL/pgSQL that word is `EXECUTE`.
         .filter(|statement| {
@@ -4371,8 +4357,8 @@ fn dollar_tag(rest: &[char]) -> Option<String> {
 ///
 /// **All of them, not the first.** `CREATE SCHEMA … CREATE TABLE a … CREATE
 /// TABLE b` is one statement declaring two tables, which is valid PostgreSQL —
-/// and only `a` was ever seen, so putting a `nc:bounded:` marker above it hid
-/// both.
+/// and a reader of the first sees only `a`, so a `nc:bounded:` marker above it
+/// hides both.
 fn created_tables(statement: &Statement) -> Vec<String> {
     let mut found = Vec::new();
     let tokens = &statement.tokens;
@@ -4380,16 +4366,16 @@ fn created_tables(statement: &Statement) -> Vec<String> {
     // `SELECT … INTO name FROM …` creates a table with no `CREATE` in it. Only
     // at the top level: inside a routine body it is plpgsql's assignment into a
     // variable, and reading that as a table would report one nobody wrote.
-    // **A CTE puts `WITH` first**, and this asked only whether the statement
-    // began with `SELECT` — so `WITH failed AS (…) SELECT id INTO login_attempts
-    // FROM failed;` created a table the scanner never looked for.
+    // **A CTE puts `WITH` first**, so asking only whether the statement begins
+    // with `SELECT` misses `WITH failed AS (…) SELECT id INTO login_attempts
+    // FROM failed;`, which creates a table.
     let opens_a_select = tokens.first().is_some_and(|token| token.is("SELECT"))
         || (tokens.first().is_some_and(|token| token.is("WITH"))
             && tokens.iter().any(|token| token.is("SELECT")));
     if !statement.nested && opens_a_select {
         // **Every `INTO` in the statement, not the one after the first
         // `SELECT`.** A CTE's own `SELECT` comes first, so walking from there
-        // met the CTE's `FROM` and gave up before reaching the `INTO` that
+        // meets the CTE's `FROM` and gives up before reaching the `INTO` that
         // names the new table. What identifies a creating `INTO` is what is
         // *before* it: `INSERT INTO` is not one, and everything else is.
         for (at, token) in tokens.iter().enumerate() {
@@ -4397,11 +4383,11 @@ fn created_tables(statement: &Statement) -> Vec<String> {
                 continue;
             }
             // **`INSERT INTO` and `MERGE INTO` both write to a table that
-            // already exists.** Only the first was skipped, so
+            // already exists.** Skipping only the first reports
             // `WITH wanted AS (SELECT 1) MERGE INTO install_marker …` — valid
-            // PostgreSQL 18.6, verified applied — was reported as *creating*
-            // `install_marker`, at the line of the `MERGE`. The developer was
-            // told to bound a table that had already declared, correctly, that
+            // PostgreSQL 18.6, verified applied — as *creating*
+            // `install_marker`, at the line of the `MERGE`, and tells the
+            // developer to bound a table that has already declared, correctly, that
             // it cannot grow: a finding naming a table nobody wrote, which is
             // the one thing this gate must not produce.
             if at > 0 && (tokens[at - 1].is("INSERT") || tokens[at - 1].is("MERGE")) {
@@ -4411,31 +4397,31 @@ fn created_tables(statement: &Statement) -> Vec<String> {
             // `INTO STRICT x`, the persistence keywords, and the optional
             // `TABLE`.
             //
-            // **`TABLE` was not on this list, and it is the name that got
+            // **`TABLE` is on this list, or it is the name that gets
             // reported.** The grammar is
             // `SELECT … INTO [ TEMPORARY | TEMP | UNLOGGED ] [ TABLE ] new_table`,
             // so `SELECT id INTO TABLE login_attempts FROM …` — verified on
-            // PostgreSQL 18.6 to really create `login_attempts` — was read as
-            // creating a table called `table`. A reviewer measured what that
-            // buys: the finding names `table`, the marker the finding's own
-            // `fix` text offers excuses `table`, and `login_attempts` is created
+            // PostgreSQL 18.6 to really create `login_attempts` — would read as
+            // creating a table called `table`. Measured, that buys: the finding
+            // names `table`, the marker the finding's own `fix` text offers
+            // excuses `table`, and `login_attempts` is created
             // unbounded with the whole gate green and
             // `the_tables_the_gate_inspects_are_the_ones_the_migrations_make`
             // passing, because the excused name is filtered out before it looks.
             // A finding naming a table nobody wrote is the one thing this gate
-            // must not produce, and here it also hid one that was.
+            // must not produce, and here it also hides one that is.
             //
             // A table genuinely called `table` has to be quoted, and `Token::is`
             // matches a `Word` and not a quoted identifier — so `INTO "table"`
             // and `INTO TABLE "table"` both still read as the table.
-            // **`GLOBAL` and `LOCAL` qualify `TEMPORARY` and were not on the
-            // list.** `SELECT id INTO GLOBAL TEMP scratch FROM …` stopped the
-            // walk on the qualifier, so the gate reported a table called
+            // **`GLOBAL` and `LOCAL` qualify `TEMPORARY`, and are on the list.**
+            // Without them, `SELECT id INTO GLOBAL TEMP scratch FROM …` stops the
+            // walk on the qualifier, so the gate reports a table called
             // `global` — a finding naming a table nobody wrote — and the `TEMP`
-            // return that excuses a temporary table was never reached. The
+            // return that excuses a temporary table is never reached. The
             // sibling reader `table_declared_at` steps over both under the
             // comment *"`GLOBAL` and `LOCAL` only ever qualify `TEMPORARY`"*:
-            // one rule written twice, and this was the narrower copy.
+            // one rule written twice, and the two copies have to agree.
             //
             // **Only in front of `TEMP`/`TEMPORARY`, which is the mirror.**
             // Both are unreserved keywords, so `SELECT id INTO global FROM t`
@@ -4473,7 +4459,7 @@ fn created_tables(statement: &Statement) -> Vec<String> {
 
     // **A schema element belongs to its schema.** `CREATE SCHEMA archive CREATE
     // TABLE t (…)` creates `archive.t`, and reading the name bare would credit
-    // it to `[tables.t]` — the mis-attribution the qualified-name fix was about,
+    // it to `[tables.t]` — the mis-attribution qualified names are read to prevent,
     // arriving through a shape that has no dot in it at all.
     let schema = tokens
         .first()
@@ -4481,8 +4467,8 @@ fn created_tables(statement: &Statement) -> Vec<String> {
         .and(tokens.get(1))
         .filter(|token| token.is("SCHEMA"))
         // `CREATE SCHEMA AUTHORIZATION noctua CREATE TABLE t (…)` names the
-        // schema after the owner, so the name is not always at index 2 — the
-        // gate reported `AUTHORIZATION.auth_five` for a table PostgreSQL creates
+        // schema after the owner, so the name is not always at index 2 — read
+        // there, the gate reports `AUTHORIZATION.auth_five` for a table PostgreSQL creates
         // as `noctua.auth_five`.
         .and_then(|_| {
             let at = if tokens.get(2).is_some_and(|token| token.is("AUTHORIZATION")) {
@@ -4492,20 +4478,20 @@ fn created_tables(statement: &Statement) -> Vec<String> {
             };
             tokens.get(at)
         })
-        // **Spelled as PostgreSQL resolves it, not as it is written.** This read
-        // the token verbatim, so `CREATE SCHEMA Archive CREATE TABLE
-        // access_records (…)` produced `Archive.access_records` while the
+        // **Spelled as PostgreSQL resolves it, not as it is written.** Read
+        // verbatim, `CREATE SCHEMA Archive CREATE TABLE
+        // access_records (…)` produces `Archive.access_records` while the
         // database creates `archive.access_records` — a name that matches no
         // `[tables.…]` entry, so the table reads as unbounded *and* the finding
         // names something the developer cannot find in `psql`. Every other
-        // reader here folds an unquoted word and keeps a quoted one; this one
-        // did neither, which is the case `resolved` was written for.
+        // reader here folds an unquoted word and keeps a quoted one, and so
+        // does this one, which is the case `resolved` exists for.
         .and_then(Token::resolved)
         .filter(|name| name != "public");
 
     // **A `RAISE`'s literal is a message, not SQL.** Inside a routine body every
     // string literal is re-scanned, which is what makes `EXECUTE 'CREATE TABLE
-    // …'` visible — and it also read
+    // …'` visible — and it would also read
     // `RAISE EXCEPTION 'this table is append-only; if you need another, CREATE
     // TABLE ghost (id INT)'` as creating `ghost`. A finding naming a table
     // nobody wrote is the wrong-direction failure, in the gate whose whole value
@@ -4531,14 +4517,14 @@ fn created_tables(statement: &Statement) -> Vec<String> {
 ///
 /// **And the caller needs to know *when*, which is why the index comes back.**
 /// The columns alone let every `ALTER TABLE` in the file apply to the last
-/// `CREATE TABLE`, whenever each ran. Measured on 2026-09-11: `ALTER TABLE
+/// `CREATE TABLE`, whenever each ran. Measured: `ALTER TABLE
 /// access_records DROP COLUMN recorded`, then `DROP TABLE access_records`, then
 /// a `CREATE TABLE` declaring `recorded` again — a set of migrations that leaves
-/// the column in place — was reported as *"orders by `recorded`, which no
+/// the column in place — is then reported as *"orders by `recorded`, which no
 /// migration declares as a column of it"*, with a `fix` listing the columns as
 /// `id` about a statement two lines above that declares both. That is the
 /// refusing-something-legitimate direction, and [`what_the_migrations_leave`]
-/// one function away had already been repaired for exactly it.
+/// one function away handles exactly it.
 fn declared_columns_of(created: &[Created], name: &str) -> Option<(usize, Vec<String>)> {
     created
         .iter()
@@ -4552,9 +4538,9 @@ fn declared_columns_of(created: &[Created], name: &str) -> Option<(usize, Vec<St
 /// pruner's `ORDER BY`; a name that is not a column fails the first time the
 /// pruner runs, which is when the table is at its limit. Checked against the
 /// migrations rather than against a live database, because the migrations are
-/// what builds every database there will ever be — and the database check
-/// ratified a column added by hand, was satisfied by a decoy of the same bare
-/// name in another schema, and could not pass at all on the empty database CI
+/// what builds every database there will ever be — and a database check
+/// ratifies a column added by hand, is satisfied by a decoy of the same bare
+/// name in another schema, and cannot pass at all on the empty database CI
 /// starts with.
 fn order_by_names_a_column(
     all: &[Created],
@@ -4574,16 +4560,16 @@ fn order_by_names_a_column(
             continue;
         };
         // **And what every `ALTER TABLE` did to it afterwards.** Reading only
-        // the `CREATE` left `ALTER TABLE … RENAME COLUMN id TO record_id`
-        // invisible, and the pruner's next `ORDER BY "id"` failed with `column
+        // the `CREATE` leaves `ALTER TABLE … RENAME COLUMN id TO record_id`
+        // invisible, and the pruner's next `ORDER BY "id"` fails with `column
         // "id" does not exist` — the failure this check exists to prevent.
         //
-        // **Afterwards, and in order.** Every change was applied to the last
-        // `CREATE TABLE` whatever its own position, so a column dropped and then
-        // restored by a later `DROP TABLE` + `CREATE TABLE` read as gone — a
+        // **Afterwards, and in order.** Applying every change to the last
+        // `CREATE TABLE` whatever its own position reads a column dropped and
+        // then restored by a later `DROP TABLE` + `CREATE TABLE` as gone — a
         // migration set that leaves the column in place, refused. `at` orders
         // the two lists against each other, the same way
-        // [`what_the_migrations_leave`] was repaired to.
+        // [`what_the_migrations_leave`] reads.
         let mut columns = created;
         let mut afterwards: Vec<&ColumnChange> = changed_columns
             .iter()
@@ -4598,12 +4584,11 @@ fn order_by_names_a_column(
                 columns.push(new.clone());
             }
         }
-        // **An empty column list is "cannot say", and it was read as "pass".**
+        // **An empty column list is "cannot say", not "pass".**
         // `CREATE TABLE … AS SELECT` names its columns in a query, so nothing
         // here can tell whether `order_by` is one of them or what it sorts like
-        // — and the pruner deletes by that order regardless. Both of this rule's
-        // halves went silent, and a test asserted that they should, which turned
-        // the exclusion into a rule.
+        // — and the pruner deletes by that order regardless. Read as "pass",
+        // both of this rule's halves go silent.
         if columns.is_empty() {
             findings.push(Finding {
                 file: "catalog/limits.toml".to_owned(),
@@ -4626,20 +4611,20 @@ fn order_by_names_a_column(
             // newest rows in the table and the last ever pruned — the table then
             // grows past its limit with the pruner running and reporting
             // success. Measured on PostgreSQL 18.6: with five of ten rows null,
-            // `ORDER BY at ASC LIMIT 4` answered `1, 2, 3, 4` and the null rows
-            // were untouchable.
+            // `ORDER BY at ASC LIMIT 4` answers `1, 2, 3, 4` and the null rows
+            // are untouchable.
             //
             // Both of today's tables order by a primary key, so this is the
             // check that has to stop the third one.
             // **And it sorts in creation order.** `ORDER BY … ASC` on a text
-            // column is byte-lexicographic, and `access_records` ordered by a
-            // `text` column holding a Crockford identifier — an encoding that
+            // column is byte-lexicographic, and a `text` column holding a
+            // Crockford identifier holds an encoding that
             // is twelve characters below `32^12` and thirteen above, from about
             // 2034. From the first thirteen-character row until the last
             // twelve-character one is gone, ascending order is not creation
             // order. Measured with the real pruner over six identifiers minted
-            // in order: it removed the oldest *and the third-newest*, and
-            // reported an ordinary `Pruned`.
+            // in order: it removes the oldest *and the third-newest*, and
+            // reports an ordinary `Pruned`.
             //
             // `base32`'s own header says "sorting by identifier value still
             // works, and that is what anything reading these names should do" —
@@ -4689,10 +4674,10 @@ fn column_changes(statement: &Statement) -> Vec<ColumnChange> {
     const NOT_A_COLUMN: [&str; 5] = ["constraint", "primary", "foreign", "unique", "check"];
 
     let tokens = &statement.tokens;
-    // **`ALTER TABLE` need not be the statement's first two words.** This
-    // required them at index 0, and `created_tables` scans every offset — so a
+    // **`ALTER TABLE` need not be the statement's first two words.** Requiring
+    // them at index 0, while `created_tables` scans every offset, makes a
     // `DO $$ BEGIN ALTER TABLE … END $$` body, whose first cut statement begins
-    // `BEGIN`, was invisible to this and visible to that. Measured:
+    // `BEGIN`, invisible to this and visible to that. Measured:
     //
     // ```text
     // CREATE inside a DO block  ->  tables seen: ["ghost"]
@@ -4700,10 +4685,10 @@ fn column_changes(statement: &Statement) -> Vec<ColumnChange> {
     // ```
     //
     // So `DO $$ BEGIN ALTER TABLE access_records ALTER COLUMN recorded TYPE
-    // TEXT; END $$;` passed the gate, while the same clause written *second* in
-    // the body was caught. `changes_in`'s own header calls `DO $$ … $$` "the
-    // most idiomatic conditional DDL there is" — it was read for creations and
-    // not for alterations.
+    // TEXT; END $$;` passes the gate, while the same clause written *second* in
+    // the body is caught. `changes_in`'s own header calls `DO $$ … $$` "the
+    // most idiomatic conditional DDL there is", and it is read for
+    // alterations as well as for creations.
     let Some(alter) = tokens.windows(2).position(|pair| {
         pair.first().is_some_and(|token| token.is("ALTER"))
             && pair.get(1).is_some_and(|token| token.is("TABLE"))
@@ -4782,13 +4767,13 @@ fn column_changes(statement: &Statement) -> Vec<ColumnChange> {
             && index > 0
             && let Some(name) = named(index + 1)
         {
-            // **`ALTER COLUMN` changes what a column *is*, and nothing read it.**
-            // `column_changes` was written for names — added, dropped, renamed —
-            // and said so: "`ALTER COLUMN … TYPE` changes a type and not a name,
-            // so it is not one." True of names, and the two rules that ask what
-            // the ordering column sorts like and whether it can be null both
-            // read the `CREATE TABLE` alone. One `ALTER COLUMN recorded TYPE
-            // TEXT` in a later migration turned both of them off, with the gate
+            // **`ALTER COLUMN` changes what a column *is*, and this reads it.**
+            // `column_changes` is about names — added, dropped, renamed —
+            // and says so: "`ALTER COLUMN … TYPE` changes a type and not a name,
+            // so it is not one." True of names; and with the two rules that ask what
+            // the ordering column sorts like and whether it can be null reading
+            // the `CREATE TABLE` alone, one `ALTER COLUMN recorded TYPE
+            // TEXT` in a later migration turns both of them off, with the gate
             // green and the resulting schema identical to the one it refuses.
             let (kind, non_null) = retyped_after(tokens, index + 1);
             if kind.is_some() || non_null.is_some() {
@@ -4939,13 +4924,14 @@ fn the_ordering_column_sorts_and_is_there(
 /// A numbered migration whose body was removed.
 ///
 /// **`0003_sequence_is_not_negative.sql` truncated to its comment header** — its
-/// `CHECK (sequence >= 0)` gone, the file and its number still there — left
-/// `ok 6 migration(s), numbered once each and in order` and `check passed`. That
+/// `CHECK (sequence >= 0)` gone, the file and its number still there — still
+/// reads `numbered once each and in order` to the numbering gate, and without
+/// this the run ends `check passed`. That
 /// constraint's own header records what it was measured stopping: a row
 /// recording `Escalate` by `attacker` that sat in the journal, could never be
 /// removed, and which `verify(0)` called a clean history.
 ///
-/// Every neighbouring gate is about *what* the migrations say; none asked
+/// Every neighbouring gate is about *what* the migrations say; this asks
 /// whether one still says anything. `sqlx` applies an empty file without
 /// complaint and its checksum then matches the empty file, so nothing downstream
 /// can tell either.
@@ -4991,10 +4977,10 @@ fn line_of_key(limits: &str, table: &str, key: &str) -> usize {
 
 /// The line `[tables.<name>]` is declared on in `catalog/limits.toml`.
 ///
-/// **Every finding about an entry was reported at line 1**, and the entries run
-/// from line 20 to the end of the file. The migration-side findings in this same
-/// gate carry real line numbers, so one run showed both kinds and taught a
-/// reader that the column is decorative.
+/// **A finding about an entry reported at line 1**, with the entries running
+/// from near the top of the file to its end, sits beside migration-side
+/// findings in this same gate that carry real line numbers, so one run shows
+/// both kinds and teaches a reader that the column is decorative.
 ///
 /// Line 1 when the entry cannot be found, which is where a reader who opens the
 /// file lands anyway.
@@ -5066,16 +5052,16 @@ fn type_phrase(tokens: &[Token], from: usize) -> (Option<String>, usize) {
 
 /// The column types that cannot hold a null, whatever else the declaration says.
 ///
-/// **`SERIAL` is `NOT NULL` and neither reader knew it.** PostgreSQL expands
+/// **`SERIAL` is `NOT NULL`, and both readers know it.** PostgreSQL expands
 /// `bigserial` to `bigint NOT NULL DEFAULT nextval(…)`, so the column is not
 /// nullable and `attnotnull` says so — corroborated on a live server for both
 /// `GENERATED ALWAYS AS IDENTITY` and `BIGSERIAL`. `SORTS_IN_CREATION_ORDER`
-/// three hundred lines from here names all six spellings as safe to order by,
-/// while the two rules that decide whether an ordering column may be null
-/// refused them. That is the *too strong* half: the gate refused the two most
-/// idiomatic ways of declaring an insertion-order column, and a migration
-/// cannot be edited once it has been applied, so the advice was about a file
-/// the developer may no longer change.
+/// below names all six spellings as safe to order by, and the two rules that
+/// decide whether an ordering column may be null have to agree. Refusing them
+/// is the *too strong* half: the two most idiomatic ways of declaring an
+/// insertion-order column, refused, and a migration cannot be edited once it
+/// has been applied, so the advice would be about a file the developer may no
+/// longer change.
 const CANNOT_HOLD_A_NULL: [&str; 6] = [
     "serial",
     "serial2",
@@ -5087,9 +5073,10 @@ const CANNOT_HOLD_A_NULL: [&str; 6] = [
 
 /// Whether this column's constraints make NULL impossible.
 ///
-/// Three spellings say it, and the column list reader knows two: `NOT NULL`,
-/// `PRIMARY KEY`, and `GENERATED … AS IDENTITY`, which PostgreSQL documents as
-/// implying `NOT NULL`. An identity column is the one shape that is monotonic
+/// Four shapes say it, and the reader of a created table's columns knows the
+/// same four: `NOT NULL`, `PRIMARY KEY`, a serial type, and
+/// `GENERATED … AS IDENTITY`, which PostgreSQL documents as implying
+/// `NOT NULL`. An identity column is the one shape that is monotonic
 /// with insertion by construction rather than by a promise, so a rule that
 /// reported it as nullable would refuse the best answer to its own question.
 ///
@@ -5139,7 +5126,7 @@ fn forbids_null(tokens: &[Token], from: usize) -> bool {
 /// `text`: SQL sorts it byte by byte, and an identifier encoded in a variable
 /// width stops sorting chronologically the day it gains a character.
 ///
-/// **`timestamp` is absent, and it used to be here.** Bare `timestamp` is
+/// **`timestamp` is absent.** Bare `timestamp` is
 /// `timestamp without time zone`, which records a reading with no answer to
 /// *whose clock took it*; at a daylight-saving fall-back a local-clock column
 /// repeats an hour, and for that hour "oldest first" is wrong. The type that
@@ -5179,15 +5166,15 @@ const SORTS_IN_CREATION_ORDER: [&str; 18] = [
 
 /// What every statement together leaves each column of `table` being.
 ///
-/// **The last statement to decide wins, and every clause is a statement.** The
-/// type rule read the `CREATE TABLE` alone, so `ALTER COLUMN … TYPE TEXT` in a
-/// later migration left it reading a type the column no longer had, and
-/// `ADD COLUMN … TEXT NOT NULL` left it with no type at all.
+/// **The last statement to decide wins, and every clause is a statement.** A
+/// type rule reading the `CREATE TABLE` alone is left by `ALTER COLUMN … TYPE TEXT` in a
+/// later migration reading a type the column no longer has, and by
+/// `ADD COLUMN … TEXT NOT NULL` with no type at all.
 ///
-/// **And a rename moves what is known, rather than leaving it behind.** That was
-/// the half this missed after the rest was fixed: a `RENAME COLUMN` carries no
-/// type, so a change that renamed a *different* column into the ordering
-/// column's name left the old column's entry standing under that name. Measured
+/// **And a rename moves what is known, rather than leaving it behind.** A
+/// `RENAME COLUMN` carries no type, so a reader that only records it lets a
+/// change renaming a *different* column into the ordering column's name leave
+/// the old column's entry standing under that name. Measured
 /// end to end, two ordinary renames in one migration:
 ///
 /// ```text
@@ -5196,8 +5183,8 @@ const SORTS_IN_CREATION_ORDER: [&str; 18] = [
 /// -> check passed
 /// ```
 ///
-/// `recorded` was then the TEXT Crockford identifier, and the real pruner over
-/// seven rows minted in order removed the oldest **and the fourth- and
+/// `recorded` is then the TEXT Crockford identifier, and the real pruner over
+/// seven rows minted in order removes the oldest **and the fourth- and
 /// fifth-newest**, reporting an ordinary `Pruned`.
 ///
 /// `at` orders the two lists against each other, so a table dropped and
@@ -5285,7 +5272,7 @@ fn declared_type_of(
 ///
 /// **A domain is how this column would idiomatically be declared.**
 /// `CREATE DOMAIN epoch_millis AS BIGINT` and a column of that type sorts
-/// exactly as a `bigint` does, and the type rule refused it — with no way to
+/// exactly as a `bigint` does, and a type rule knowing only names refuses it — with no way to
 /// permit it from `catalog/limits.toml`, in a repository whose principle is that
 /// limits are data. The remedy is not a second escape hatch: the migrations
 /// declare the domain, and the migrations are what this gate reads.
@@ -5323,14 +5310,14 @@ fn nulls_are_impossible(
 
 /// Each column's name and the first word of its declared type.
 ///
-/// **The whole phrase, not its first word.** A first-word rule read
+/// **The whole phrase, not its first word.** A first-word rule reads
 /// `TIMESTAMP WITHOUT TIME ZONE` and `TIMESTAMP WITH TIME ZONE` as one type
 /// called `timestamp`, so the spelling that carries no zone — and therefore no
-/// answer to *whose clock wrote this* — was indistinguishable from the one that
+/// answer to *whose clock wrote this* — is indistinguishable from the one that
 /// does. A parenthesised precision is not part of the phrase (`numeric(20,0)` is
 /// `numeric`), and a schema qualification is dropped rather than mistaken for
-/// the type: `pg_catalog.int8` read as `pg_catalog`, which named a type nobody
-/// wrote and sent the reader nowhere.
+/// the type: kept, `pg_catalog.int8` reads as `pg_catalog`, which names a type
+/// nobody wrote and sends the reader nowhere.
 ///
 /// A column whose type this cannot read is left out rather than guessed at, and
 /// the caller treats "cannot say" as a finding of its own.
@@ -5389,7 +5376,7 @@ fn declared_types(statement: &Statement) -> Vec<(String, String)> {
                         continue;
                     }
                     // The name as PostgreSQL resolves it: a quoted `"RECORDED"`
-                    // is not `recorded`, and reading them as one column let a
+                    // is not `recorded`, and reading them as one column lets a
                     // second column stand in for the ordering column's type.
                     name = token.resolved();
                 } else if name.is_some() && !ENDS_A_TYPE.contains(&lowered.as_str()) {
@@ -5467,7 +5454,7 @@ fn the_shape_a_word_names(lowered: &str, previous: Option<&str>) -> Option<usize
 /// ```
 ///
 /// Today's two tables both order by a primary key and are safe. The gate is what
-/// has to stop the third one, and `order_by_names_a_column` asked only that the
+/// has to stop the third one, and `order_by_names_a_column` asks only that the
 /// column exists.
 ///
 /// A column is non-null when its own definition says `NOT NULL` or
@@ -5490,11 +5477,10 @@ fn columns_that_cannot_be_null(statement: &Statement) -> Vec<String> {
     let mut keyed: Vec<String> = Vec::new();
     let mut previous_word: Option<String> = None;
 
-    // **The same three shapes the `ADD COLUMN` reader knows, and a fourth.**
-    // This knew `NOT NULL` and `PRIMARY KEY`; its sibling knew those and
-    // `GENERATED … AS IDENTITY`, and neither knew a serial type. Measured
-    // through the shipped rule, the identical ordering column was accepted
-    // when added and refused as *"which may be NULL"* when created.
+    // **The same shapes the `ADD COLUMN` reader knows, all four.** With the
+    // two readers knowing different shapes, the identical ordering column is
+    // accepted when added and refused as *"which may be NULL"* when created,
+    // measured.
     // The four flags in one place, so the walk closes a column in one line and
     // stays inside clippy's bound: `NOT NULL`, `PRIMARY KEY`, an identity
     // column and a serial type, in the order `the_shape_a_word_names` returns.
@@ -5599,10 +5585,10 @@ fn declared_columns(statement: &Statement) -> Vec<String> {
     /// A constraint clause opens with one of these, and a keyword is never a
     /// column name at this depth — which is the only thing distinguishing
     /// `PRIMARY KEY (a, b)` from a column called `primary`.
-    /// **`period` is gone**: it needs no quoting in PostgreSQL and is an
-    /// ordinary column name, and listing it dropped a real column from the list
-    /// — which then reported a valid `order_by` as naming no column. The
-    /// `PERIOD FOR` clause it was there for is SQL:2011 temporal syntax that
+    /// **`period` is not here**: it needs no quoting in PostgreSQL and is an
+    /// ordinary column name, and listing it would drop a real column from the list
+    /// — which then reports a valid `order_by` as naming no column. The
+    /// `PERIOD FOR` clause it would be for is SQL:2011 temporal syntax that
     /// PostgreSQL 18 does not have.
     const CLAUSES: [&str; 6] = [
         "primary",
@@ -5640,28 +5626,29 @@ fn declared_columns(statement: &Statement) -> Vec<String> {
                 let Some(name) = token.name() else { continue };
                 let lowered = name.to_lowercase();
                 // **A quoted identifier is never a keyword**, which is this
-                // module's own rule and was not applied here: `"check"`,
-                // `"like"` and `"primary"` are ordinary columns and every one
-                // of them was dropped. `token.is` already knows the
+                // module's own rule and applies here too: `"check"`,
+                // `"like"` and `"primary"` are ordinary columns, and a reader
+                // matching words would drop every one. `token.is` already knows the
                 // difference — a `Token::Name` is quoted and a `Token::Word` is
                 // not — so a clause is only a clause when it is unquoted.
                 // **`LIKE` means the list is not the whole list** — but only
                 // where a column name would go. `CREATE TABLE t (LIKE shape
                 // INCLUDING ALL, extra TEXT)` copies every column of `shape`,
-                // and reading only `extra` reported a real `order_by` as naming
+                // and reading only `extra` reports a real `order_by` as naming
                 // no column; this scanner cannot know what the template holds,
                 // so it says so, and "cannot say" is an empty list.
                 //
-                // **This used to scan the whole statement for the word**, which
-                // turned the check off for any table with an ordinary `CHECK
-                // (col LIKE '…')` constraint in it. Measured: one such line
-                // added to `migrations/0002_access_records.sql` left
+                // **Not the whole statement scanned for the word**, which turns
+                // the check off for any table with an ordinary `CHECK
+                // (col LIKE '…')` constraint in it. Measured with such a scan:
+                // one such line added to `migrations/0002_access_records.sql`
+                // leaves
                 // `order_by = "recorded_at"` — a column the table does not have
                 // — passing with `check passed`, and PostgreSQL 18.6 answering
                 // `ERROR: column "recorded_at" does not exist` for the pruner's
                 // own statement. A `LIKE` in a constraint is at depth two; a
                 // table-shape clone is a top-level item, which is exactly where
-                // this now looks.
+                // this looks.
                 if matches!(token, Token::Word(_)) && lowered == "like" {
                     return Vec::new();
                 }
@@ -5679,17 +5666,17 @@ fn declared_columns(statement: &Statement) -> Vec<String> {
 
 /// The table a `CREATE … TABLE …` beginning at `tokens[0]` declares.
 ///
-/// **`UNLOGGED` is a real table and `TEMP` is not.** They were excluded together
-/// under a comment saying a temporary table "cannot grow without bound", which is
+/// **`UNLOGGED` is a real table and `TEMP` is not.** A temporary table "cannot
+/// grow without bound", which is
 /// true of `TEMP` and false of `UNLOGGED`: an unlogged table is permanent,
-/// survives every session, and is emptied only by an unclean shutdown. It walked
-/// straight past this gate.
+/// survives every session, and is emptied only by an unclean shutdown, so
+/// excluding the two together lets it walk straight past this gate.
 fn table_declared_at(tokens: &[Token], whole: &[Token]) -> Option<String> {
     /// Whether a name is one PostgreSQL could have been given.
     ///
     /// `EXECUTE format('CREATE TABLE %I PARTITION OF access_records …', part)` is
     /// the standard dynamic-partition helper, and the literal is re-scanned as
-    /// SQL — so the gate failed the build naming `%I`, a placeholder rather than
+    /// SQL — so unguarded, the gate fails the build naming `%I`, a placeholder rather than
     /// a table. A name that could not be an identifier is not a table this gate
     /// can say anything about.
     fn could_be_a_name(name: &str) -> bool {
@@ -5721,8 +5708,8 @@ fn table_declared_at(tokens: &[Token], whole: &[Token]) -> Option<String> {
     }
     // **A foreign table is a table this database queries and does not store.**
     // Its bound is the remote server's, not a `[tables.*]` row the pruner can
-    // `DELETE` from — but it was invisible to both directions of the gate, so a
-    // migration could add one and the count nobody reads stayed the same. It is
+    // `DELETE` from — and unread, it is invisible to both directions of the
+    // gate, so a migration can add one and the count nobody reads stays the same. It is
     // declared with the marker and the reason, like any other table that cannot
     // be pruned here.
     if word.is("FOREIGN") {
@@ -5730,7 +5717,7 @@ fn table_declared_at(tokens: &[Token], whole: &[Token]) -> Option<String> {
     }
     // **A materialised view stores rows and grows with its source.** It is not
     // a `[tables.*]` row the pruner can `DELETE` from — its bound is a refresh
-    // policy — but it was invisible to both directions of a gate whose count is
+    // policy — and unread, it is invisible to both directions of a gate whose count is
     // the only thing anybody reads.
     if word.is("MATERIALIZED") {
         if !rest.next()?.is("VIEW") {
@@ -5779,9 +5766,9 @@ fn past_the_alter_prefix(tokens: &[Token], from: usize) -> usize {
 /// How many tokens after an `IF` belong to an existence test, if they do.
 ///
 /// Two for `NOT EXISTS`, one for `EXISTS`, and **zero when the `IF` is a name**
-/// — which it may be, because `IF` is a non-reserved keyword. Five places in
-/// this file stepped over a fixed number of tokens after an `IF` without asking
-/// what they were. Measured on PostgreSQL 18.6, every one of these is accepted:
+/// — which it may be, because `IF` is a non-reserved keyword, and stepping over
+/// a fixed number of tokens after an `IF` without asking what they are misreads
+/// these. Measured on PostgreSQL 18.6, every one of them is accepted:
 ///
 /// ```text
 /// CREATE TABLE if (id INT);          DROP TABLE if;
@@ -5789,12 +5776,12 @@ fn past_the_alter_prefix(tokens: &[Token], from: usize) -> usize {
 /// CREATE SCHEMA if;  CREATE TABLE if.t (id INT);
 /// ```
 ///
-/// The scanner read the first as declaring a table called `int` — a table nobody
-/// wrote, which this file's own header calls the one thing this gate must not
-/// produce — and dropped the rename and the drop whole, so
-/// `catalog/limits.toml` went on bounding a table that is gone.
+/// Such a scanner reads the first as declaring a table called `int` — a table
+/// nobody wrote, which this file's own header calls the one thing this gate must not
+/// produce — and drops the rename and the drop whole, so
+/// `catalog/limits.toml` goes on bounding a table that is gone.
 ///
-/// Written once because it was written five times: `CREATE TABLE`'s
+/// Written once for the five places that ask: `CREATE TABLE`'s
 /// `IF NOT EXISTS`, `ALTER TABLE`'s and `DROP TABLE`'s `IF EXISTS`, the
 /// `ALTER TABLE` prefix `column_changes` steps over, and `ADD COLUMN`'s own.
 /// *A grammar understood in five places is a grammar that will one day be
@@ -5818,15 +5805,14 @@ fn qualified(whole: &[Token], name: Option<&Token>) -> Option<String> {
 /// **One walker, because two readers need this grammar.** [`renamed_table`] has
 /// to look for its verb *after* the name — `SET` and `RENAME` are non-reserved
 /// keywords, so `ALTER TABLE set.t RENAME TO landed` is legal PostgreSQL whose
-/// third token spells a verb it is not — and the reader it grew for that walked
-/// the dots a second time, in three lines that were then never read. *A grammar
+/// third token spells a verb it is not — so where the name ends is returned by
+/// the walk that already found it, rather than walked a second time. *A grammar
 /// understood in two places is a grammar that will one day be understood two
-/// ways*, which this file has already paid for three times, so where the name
-/// ends is returned by the walk that already found it.
+/// ways.*
 fn the_qualified_name(whole: &[Token], name: Option<&Token>) -> Option<(Vec<String>, usize)> {
     let name = name?;
     // **`U&"…"` is one name**, and `U&` is a bare word before it. Taken as the
-    // name, the gate reported `` `U&` has no entry `` for a table PostgreSQL
+    // name, the gate reports `` `U&` has no entry `` for a table PostgreSQL
     // creates as `login_attempts` — criterion 5's second half failing in the one
     // way it must not.
     if name.name() == Some("U&")
@@ -5837,12 +5823,12 @@ fn the_qualified_name(whole: &[Token], name: Option<&Token>) -> Option<(Vec<Stri
     }
     let at = whole.iter().position(|token| core::ptr::eq(token, name))?;
     // **Spelled as PostgreSQL will resolve it, which `resolved` already knows.**
-    // This read `name()`, so an unquoted `CREATE TABLE Probe_Upper_A` was
+    // Read through `name()`, an unquoted `CREATE TABLE Probe_Upper_A` would be
     // reported as `Probe_Upper_A` — a table the database never created, since it
-    // folds an unquoted identifier — and the fix line told a developer to write
-    // `[tables.Probe_Upper_A]`, an entry the pruner can never match. The rule
-    // was already written one screen up, for columns, after the same defect:
-    // this was its second copy, and the narrower one.
+    // folds an unquoted identifier — and the fix line would tell a developer to
+    // write `[tables.Probe_Upper_A]`, an entry the pruner can never match. The
+    // rule is written once, in `resolved`, which the column readers already
+    // call, and this has to be the same copy of it.
     let mut parts = vec![name.resolved()?];
     let mut index = at + 1;
     while whole.get(index) == Some(&Token::Punct('.')) {
@@ -5854,15 +5840,15 @@ fn the_qualified_name(whole: &[Token], name: Option<&Token>) -> Option<(Vec<Stri
 
 /// A table reference as `catalog/limits.toml` would have to spell it.
 ///
-/// **A schema other than `public` keeps it**, which is a correction:
-/// `archive.access_records` was credited to `[tables.access_records]`, whose
+/// **A schema other than `public` keeps it**: dropped,
+/// `archive.access_records` is credited to `[tables.access_records]`, whose
 /// pruner runs `DELETE FROM access_records` — a different table.
 ///
-/// **And the parts are tokens, not a split on `.`.** Splitting the text meant a
-/// quoted identifier holding a dot — `"public.access_records"`, one name — was
-/// read as two parts, so it was credited to the entry for a table it is not.
-/// A three-part `database.schema.table`, which PostgreSQL accepts for the
-/// current database, yielded nothing at all.
+/// **And the parts are tokens, not a split on `.`.** Splitting the text reads a
+/// quoted identifier holding a dot — `"public.access_records"`, one name — as
+/// two parts, crediting it to the entry for a table it is not, and
+/// a three-part `database.schema.table`, which PostgreSQL accepts for the
+/// current database, yields nothing at all.
 fn catalog_name(parts: &[String]) -> Option<String> {
     let (schema, table) = match parts {
         [table] => (None, table),
@@ -5898,9 +5884,9 @@ fn catalog_name(parts: &[String]) -> Option<String> {
 ///   -> created = [ghost]  seen, because `created_tables` scans every offset
 /// ```
 ///
-/// So the gate believed a table created in a routine body and neither of the
-/// two ways one can leave, which is the asymmetry that makes a census drift
-/// upward and never down.
+/// So a gate reading the verb at token zero believes a table created in a
+/// routine body and neither of the two ways one can leave, which is the
+/// asymmetry that makes a census drift upward and never down.
 ///
 /// The offset is not searched for blindly. A statement's verb is either first
 /// or follows a word that opens a statement — the same test `statements` uses
@@ -5919,10 +5905,10 @@ fn the_statement_verb_at(tokens: &[Token], verb: &str) -> Option<usize> {
 
 /// Where the name begins after `<verb> <kind>`, for the kinds that hold rows.
 ///
-/// **The three kinds `table_declared_at` counts, and it counted three.** A
+/// **The three kinds `table_declared_at` counts.** A
 /// materialised view stores rows and a foreign table is a table this gate
-/// declares; both are *created* into the census, and neither could be renamed or
-/// dropped out of it:
+/// declares; both are *created* into the census, and a reader of tables alone
+/// renames or drops neither out of it:
 ///
 /// ```text
 /// CREATE MATERIALIZED VIEW recent_access AS …   -> counted
@@ -5931,8 +5917,8 @@ fn the_statement_verb_at(tokens: &[Token], verb: &str) -> Option<usize> {
 /// ```
 ///
 /// A census that can only go up is not a census. The list is here rather than
-/// spelled at each caller because the two readers below asked different
-/// questions of the same grammar once already.
+/// spelled at each caller so the two readers below ask the same
+/// question of the same grammar.
 fn past_the_object_kind(tokens: &[Token], at: usize) -> Option<usize> {
     let word = tokens.get(at)?;
     if word.is("TABLE") {
@@ -5949,9 +5935,9 @@ fn past_the_object_kind(tokens: &[Token], at: usize) -> Option<usize> {
 
 /// The table a statement renames or moves, if it moves one.
 ///
-/// `RENAME TO` and `SET SCHEMA` both retire a name and create another, and only
-/// the first was read — so `ALTER TABLE access_records SET SCHEMA archive` left
-/// the bounded entry naming a table that no longer exists, with the gate green.
+/// `RENAME TO` and `SET SCHEMA` both retire a name and create another, and
+/// reading only the first leaves `ALTER TABLE access_records SET SCHEMA archive`
+/// with the bounded entry naming a table that no longer exists, and the gate green.
 fn renamed_table(statement: &Statement) -> Option<(String, String)> {
     let tokens = &statement.tokens;
     let verb_at = the_statement_verb_at(tokens, "ALTER")?;
@@ -5968,8 +5954,8 @@ fn renamed_table(statement: &Statement) -> Option<(String, String)> {
     }
     // **`ONLY` is not a table name.** `ALTER TABLE ONLY t RENAME TO u` and
     // `ALTER TABLE ONLY t SET SCHEMA s` are both ordinary PostgreSQL — it is
-    // what `pg_dump` writes — and this read `ONLY` as the name. Two failures,
-    // measured:
+    // what `pg_dump` writes — and a reader taking the next word reads `ONLY`
+    // as the name. Two failures, measured:
     //
     // ```text
     // ALTER TABLE ONLY access_records RENAME TO login_attempts
@@ -5982,14 +5968,14 @@ fn renamed_table(statement: &Statement) -> Option<(String, String)> {
     //
     // The second is a finding naming a table nobody wrote, which this file's
     // own header calls the one thing this gate must not produce — while the
-    // real new table, `archive.access_records`, was unbounded and unnamed.
+    // real new table, `archive.access_records`, is unbounded and unnamed.
     if from.is_some_and(|token| token.is("ONLY")) {
         from = rest.next();
     }
     // **The verb is the word after the name, not the first one in the
     // statement.** `SET` and `RENAME` are both non-reserved keywords, so
-    // `CREATE SCHEMA set` and `CREATE TABLE rename` are legal, and the verb was
-    // looked for from token zero:
+    // `CREATE SCHEMA set` and `CREATE TABLE rename` are legal, and a verb looked
+    // for from token zero is the wrong one:
     //
     // ```text
     // ALTER TABLE set.t RENAME TO landed
@@ -5998,15 +5984,11 @@ fn renamed_table(statement: &Statement) -> Option<(String, String)> {
     //      `set.t` while `landed` holds the rows, unbounded and unnamed.
     // ```
     //
-    // What stood here instead was an iterator built to step past the
-    // qualifying dots and then discarded — a `skip_while` whose second clause
-    // was `is_some_and(|_| false)`, and a `rest.next()` whose value went
-    // nowhere. Deleting all three lines left the suite green, which is how they
-    // were found. The name's end now comes from the walk that reads it.
+    // The name's end comes from the walk that reads it.
     let (parts, after) = the_qualified_name(tokens, from)?;
     let from = catalog_name(&parts)?;
     // **And it is the token *at* the end of the name, not the first one like it
-    // anywhere below.** Searching forward read a column named `set` of a type
+    // anywhere below.** Searching forward reads a column named `set` of a type
     // named `schema` as the clause `SET SCHEMA`:
     //
     // ```text
@@ -6015,7 +5997,7 @@ fn renamed_table(statement: &Statement) -> Option<(String, String)> {
     // ```
     //
     // Measured on PostgreSQL 18.6, that statement adds a column and moves
-    // nothing — so the gate retired a table that still exists *and* invented
+    // nothing — so a forward search retires a table that still exists *and* invents
     // `not.login_attempts`, a table nobody wrote, which this file's own header
     // calls the one thing it must not produce. `ALTER TABLE <name>` is followed
     // by its action and by nothing else, so there is nothing to search for.
@@ -6037,10 +6019,10 @@ fn renamed_table(statement: &Statement) -> Option<(String, String)> {
     // `SET SCHEMA archive`.
     if tokens.get(verb + 1).is_some_and(|token| token.is("SCHEMA")) {
         // **`resolved`, not `name`**: an unquoted schema folds, so
-        // `SET SCHEMA Archive` credited the rows to `Archive.t`, an entry the
-        // pruner can never match. And the table that moves is the last part the
-        // walk read, not the tail of a split on the old name's text: a table
-        // PostgreSQL calls `a.b` was moved to `archive.b`, a table nobody wrote.
+        // `SET SCHEMA Archive` would credit the rows to `Archive.t`, an entry
+        // the pruner can never match. And the table that moves is the last part
+        // the walk read, not the tail of a split on the old name's text: split,
+        // a table PostgreSQL calls `a.b` moves to `archive.b`, a table nobody wrote.
         let schema = tokens.get(verb + 2)?.resolved()?;
         let bare = parts.last()?.clone();
         let to = catalog_name(&[schema, bare])?;
@@ -6052,9 +6034,9 @@ fn renamed_table(statement: &Statement) -> Option<(String, String)> {
 /// Every table a statement drops.
 ///
 /// **All of them.** `DROP TABLE journal_entries, access_records;` is one valid
-/// statement retiring both, and only the first was read — so the gate reported
-/// one bounded table with nothing creating it and stayed silent about the other,
-/// whose `[tables.*]` entry then named a table that does not exist.
+/// statement retiring both, and reading only the first reports
+/// one bounded table with nothing creating it and stays silent about the other,
+/// whose `[tables.*]` entry then names a table that does not exist.
 fn dropped_tables(statement: &Statement) -> Vec<String> {
     let tokens = &statement.tokens;
     let Some(opens) = the_statement_verb_at(tokens, "DROP")
@@ -6107,17 +6089,17 @@ mod tests {
 
     /// A configuration name this gate cannot read is refused, and says so.
     ///
-    /// **The same class as `'search' || '_path'`, one call over.** The filter
-    /// asked for the literal `search_path` and skipped everything else, so a
-    /// name PostgreSQL is perfectly happy to compute was never examined:
+    /// **The same class as `'search' || '_path'`, one call over.** A filter
+    /// asking for the literal `search_path` and skipping everything else never
+    /// examines a name PostgreSQL is perfectly happy to compute:
     /// `concat('search', '_path')`, `lower('SEARCH_PATH')` and
     /// `format('%s_path', 'search')` each put `archive` on the path with
-    /// `check passed`.
+    /// `check passed`, measured.
     ///
     /// It is its own finding rather than a redirect, because failing it into the
-    /// redirect branch told an author to qualify table names in a statement that
+    /// redirect branch tells an author to qualify table names in a statement that
     /// creates none — an ordinary PL/pgSQL `set_config(knob, 'off', false)`
-    /// naming `row_security` through a variable got a message about
+    /// naming `row_security` through a variable would get a message about
     /// `search_path`, and `§15.1` asks a `fix` to be about what is wrong.
     #[test]
     fn a_configuration_name_this_gate_cannot_read_is_refused() {
@@ -6168,7 +6150,7 @@ mod tests {
     ///
     /// **The two word boundaries survive their own deletion, and this test does
     /// not change that** — it is written down here rather than left for the next
-    /// reviewer to re-measure, and a second one has since confirmed it. What
+    /// reader to re-measure. What
     /// actually rejects `alias 'x'` is the clause three lines below them: a body
     /// has to open with `$` or `'`, and a spurious `as` is almost never followed
     /// by one. Measured on PostgreSQL 18.6, `AS'SELECT 2'` with no space *is*
@@ -6201,11 +6183,11 @@ mod tests {
 
     /// The routine hatch excuses the clause, and not the body.
     ///
-    /// **The narrowing was decided by nothing.** Replaced by `true` — the shape
-    /// whose own paragraph records "that redirect ran and a table landed in the
-    /// wrong schema" — the whole suite stayed green, and so it did with the
-    /// keyword-body openers removed. Only the *false-refusal* direction was
-    /// held, by three fixtures that turn red if the bracketing goes.
+    /// **The narrowing, decided here.** Replaced by `true` — the shape whose own
+    /// paragraph records such a redirect running and a table landing in the wrong
+    /// schema — fails this test, and so does removing the keyword-body
+    /// openers. Only the *false-refusal* direction is held elsewhere, by three
+    /// fixtures that turn red if the bracketing goes.
     ///
     /// So this asks what the rule does rather than what a redirect does: a
     /// `search_path` the body holds is not the routine's own clause, and one
@@ -6232,9 +6214,8 @@ mod tests {
         );
 
         // **And the other keyword body.** `BEGIN ATOMIC` and `RETURN` are one
-        // list, and only the first half had a fixture — so the `RETURN` entry
-        // was deletable with the suite green. PostgreSQL 14 and later parse
-        // this form.
+        // list, and this is the second half's fixture: the `RETURN` entry
+        // deleted fails it. PostgreSQL 14 and later parse this form.
         let returned = "CREATE FUNCTION f() RETURNS int LANGUAGE sql\n\
                         RETURN (SELECT search_path FROM paths LIMIT 1);";
         let lines: Vec<&str> = returned.lines().collect();
@@ -6270,18 +6251,19 @@ mod tests {
 
     /// No rewrite of a token weighs the same as the token.
     ///
-    /// **The measure the whole two-reader identity rests on was pinned by
-    /// nothing.** Replaced by a constant `1` it is the token count this file
-    /// records as the defeated third version; replaced by a constant `0` the
-    /// identity reads `0 == 0`. Both left 455 tests passing, because all three
-    /// readers call this one function and a weakening moves them together —
+    /// **The measure the whole two-reader identity rests on, pinned.** Replaced
+    /// by a constant `1` it is a token count, which this file records as
+    /// defeated; replaced by a constant `0` the identity reads `0 == 0`. Both
+    /// fail this test, and a comparison of the readers cannot see either,
+    /// because all three call this one function and a weakening moves them
+    /// together —
     /// which is the *expectation that shrinks with the thing it measures*, in
     /// the one place this file argues hardest that it must not.
     ///
     /// What the weight has to see is what the rules see. `Token::is` answers
     /// `false` for a `Name` and `true` for the same text as a `Word`, so those
     /// two must not weigh alike; `Punct`, an empty `Literal` and an empty `Name`
-    /// all held nothing and weighed one, so a rewrite to any of them was free.
+    /// all hold nothing, and weighed alike, a rewrite to any of them would be free.
     #[test]
     fn no_rewrite_of_a_token_weighs_the_same_as_the_token() {
         let word = super::Token::Word("EXECUTE".to_owned());
@@ -6291,8 +6273,8 @@ mod tests {
         let nameless = super::Token::Name(String::new());
 
         // **A kind mixed *into* the text is a kind the text can absorb.** Seeded
-        // first, `Word("COPY")` and `Name("#mnx")` came to one number, and so did
-        // `Word("SET")` and `Name("3cs")` — a collision that is also a meaning
+        // first, `Word("COPY")` and `Name("#mnx")` come to one number, and so do
+        // `Word("SET")` and `Name("3cs")`, measured — a collision that is also a meaning
         // change, because `Token::is` answers `false` for a `Name`. These two
         // pairs are here by name so the next reader cannot reintroduce it.
         for (word, name) in [("COPY", "#mnx"), ("SET", "3cs")] {
@@ -6310,7 +6292,8 @@ mod tests {
             "two different marks are two different tokens"
         );
 
-        // The rewrite that turned every keyword test off and moved no number.
+        // The rewrite that turns every keyword test off and, weighed by text
+        // alone, moves no number.
         assert_ne!(
             super::the_weight_of(std::slice::from_ref(&word)),
             super::the_weight_of(std::slice::from_ref(&name)),
@@ -6321,8 +6304,8 @@ mod tests {
         // to `Literal("(")`, whose one byte mixes to exactly what `Punct('(')`'s
         // character mixes to — so the kind tag is the only thing between them,
         // and every pair above holds a token with *no* text, where the tag is
-        // reached by a different route. Measured: `Token::Punct(_) => 4`, which
-        // gives punctuation a literal's tag, left the whole corpus green.
+        // reached by a different route. `Token::Punct(_) => 4`, which gives
+        // punctuation a literal's tag, fails this pair.
         let marked = super::Token::Literal("(".to_owned());
         for (one, other) in [
             (&punct, &empty),
@@ -6338,9 +6321,9 @@ mod tests {
             );
         }
 
-        // **The text, not its length.** This compared `COPY` with a word one
-        // character longer, so it pinned the length and nothing else — and a
-        // rename to `COPz`, which is the same length, switched three refusals
+        // **The text, not its length.** Compared with a word one character
+        // longer, `COPY` pins the length and nothing else — and a
+        // rename to `COPz`, which is the same length, switches three refusals
         // off with the two readers agreeing to the byte.
         assert_ne!(
             super::the_weight_of(&[super::Token::Word("COPY".to_owned())]),
@@ -6353,16 +6336,16 @@ mod tests {
             "and a longer word is a different word too"
         );
         // **And the order.** A sum is blind to it: reversing a statement's
-        // tokens left the number exactly where it was, so every rule that reads
-        // a token's neighbours could be fed the statement backwards.
+        // tokens leaves the number exactly where it was, so every rule that reads
+        // a token's neighbours can be fed the statement backwards.
         assert_ne!(
             super::the_weight_of(&[word.clone(), super::Token::Word("SET".to_owned())]),
             super::the_weight_of(&[super::Token::Word("SET".to_owned()), word.clone()]),
             "the same tokens in another order are another statement"
         );
-        // **A constant is what this was twice**, and a constant cannot tell one
-        // statement's tokens from another's. This is the shape the two plants
-        // took — `1` for every token, then `0` — and it is what must not pass.
+        // **A constant cannot tell one statement's tokens from another's.**
+        // This is that shape — `1` for every token, then `0` — and it is what
+        // must not pass.
         assert_ne!(
             super::the_weight_of(&[word.clone(), punct]),
             super::the_weight_of(std::slice::from_ref(&word)),
@@ -6372,11 +6355,11 @@ mod tests {
 
     /// A file read to two different lengths is an error, not a finding.
     ///
-    /// **A finding can be filtered.** Three shapes got past the arrangement this
-    /// replaces, all with the two numbers agreeing: a guard clause at the top of
-    /// the reader returned before the comparison ran; a filter in the caller on
-    /// `files == 1` dropped every verdict from the eleven migrations no fixture
-    /// writes; and a `retain` on the verdict's own text silenced the comparison
+    /// **A finding can be filtered.** Reported as a finding, three shapes get
+    /// past with the two numbers agreeing: a guard clause at the top of
+    /// the reader returning before the comparison runs; a filter in the caller on
+    /// `files == 1` dropping every verdict from the migrations no fixture
+    /// writes; and a `retain` on the verdict's own text silencing the comparison
     /// itself. What the walk returns as an `Err` is none of those — it stops the
     /// step where it stands.
     ///
@@ -6412,16 +6395,15 @@ mod tests {
     ///
     /// **Nothing can force one through the walk**, which is what a guard against
     /// a defect means: both readers run one tokeniser over one text, so on every
-    /// file a fixture can write they agree. Reduced to `if true` the whole
-    /// corpus and every test beside it stayed green — measured by the mutation
-    /// runner in the same change that added the guard — so it is driven where it
-    /// is written rather than through a file that cannot disagree.
+    /// file a fixture can write they agree, and reduced to `if true` the check
+    /// leaves every such file judged the same — so it is driven where it is
+    /// written rather than through a file that cannot disagree.
     ///
-    /// **And carrying its verdict out of the walk was decided by nothing**,
-    /// which this test could not see: `let _ = the_readers_agree(…)` at the call
-    /// site left all 521 tests passing and `check passed`, with this one still
-    /// green. A function tested where it is written is not a function whose
-    /// answer is used.
+    /// **And carrying its verdict out of the walk is a second decision**, which
+    /// this test cannot see: `let _ = the_readers_agree(…)` at the call site
+    /// leaves this one green, and is what the forced disagreement in the test
+    /// named below exists for. A function tested where it is written is not a
+    /// function whose answer is used.
     /// [`a_forced_disagreement_stops_the_walk_rather_than_becoming_a_finding`]
     /// is the other half, through a door that injects the one disagreement a
     /// file cannot.
@@ -6440,12 +6422,12 @@ mod tests {
 
     /// Every spelling of a `search_path` redirect, and the two that are not one.
     ///
-    /// **The rule was written for one spelling and there was no test at all.**
-    /// `SET search_path = archive;` was refused and `SET search_path TO archive;`
-    /// — PostgreSQL's own documented form — was not, so a migration written the
+    /// **Every spelling, because a rule written for one is not a rule.** Refusing
+    /// `SET search_path = archive;` and not `SET search_path TO archive;`
+    /// — PostgreSQL's own documented form — lets a migration written the
     /// ordinary way put `access_records`, which holds personal data and a
-    /// `GeoIP` column, into another schema while `[tables.access_records]` went on
-    /// pruning `public`. Measured: all 1123 tests green and `check passed`.
+    /// `GeoIP` column, into another schema while `[tables.access_records]` goes on
+    /// pruning `public`. Such a rule fails this test.
     ///
     /// The second half is what makes the first half safe. Refusing every
     /// `set_config` was measured too, and it refuses the six this repository
@@ -6463,11 +6445,11 @@ mod tests {
             "SET search_path TO 'archive';",
             "SELECT set_config('search_path', 'archive', false);",
             "SELECT set_config('SEARCH_PATH', 'archive', false);",
-            // **A name SQL builds is the same name.** The rule read the first
-            // literal after the first `set_config`, so this one named `search`
-            // and was accepted — measured against the live database, the
-            // unqualified `CREATE TABLE access_records` below it landed in
-            // `archive` while `[tables.access_records]` went on bounding and
+            // **A name SQL builds is the same name.** A rule reading the first
+            // literal after the first `set_config` reads this one as naming
+            // `search` and accepts it — measured against the live database, the
+            // unqualified `CREATE TABLE access_records` below it lands in
+            // `archive` while `[tables.access_records]` goes on bounding and
             // pruning `public`.
             "SELECT set_config('search' || '_path', 'archive', false);",
             "SELECT set_config('search_path'::text, 'archive', false);",
@@ -6482,8 +6464,8 @@ mod tests {
             // has not read.
             "RESET search_path;",
             // **A redirect built out of `current_setting` is still a redirect.**
-            // The excuse was statement-wide, so any mention of the path the
-            // database already has switched the rule off — including in the
+            // A statement-wide excuse lets any mention of the path the
+            // database already has switch the rule off — including in the
             // redirect's own value. This one *prepends* `archive`, which
             // replaces the first schema on the path; appending leaves it where
             // it was, and appending is what `0011` and `0012` write.
@@ -6495,15 +6477,15 @@ mod tests {
             // statement two lines above with four words added.
             "SELECT set_config('search_path', 'archive', false), current_schema();",
             // **One space moved.** The tokeniser flushes `search_path` as a word
-            // and glues `=archive` into the next, so neither the name reader nor
-            // the joined reader saw an assignment. Measured on PostgreSQL 18:
-            // `access_records` landed in `archive`.
+            // and glues `=archive` into the next, so a reader of a bare `=` and
+            // the joined reader see no assignment. Measured on PostgreSQL 18:
+            // `access_records` lands in `archive`.
             "SET search_path =archive;",
             // **PostgreSQL's SQL-standard body lives in the statement's own
             // tokens.** A dollar-quoted body is re-cut and judged; these two are
-            // not, so a whole-statement exemption swallowed the redirect.
-            // Measured on PostgreSQL 18: the function ran and an unqualified
-            // `CREATE TABLE` landed in `archive`.
+            // not, so a whole-statement exemption swallows the redirect.
+            // Measured on PostgreSQL 18: the function runs and an unqualified
+            // `CREATE TABLE` lands in `archive`.
             "CREATE FUNCTION f() RETURNS text LANGUAGE sql RETURN set_config('search_path', 'archive', false);",
             "CREATE FUNCTION g() RETURNS void LANGUAGE sql BEGIN ATOMIC \
              SELECT set_config('search_path', 'archive', false); END;",
@@ -6521,17 +6503,16 @@ mod tests {
             // the credit this gate's message says it gives to `public`.
             "SET ROLE archive;",
             "SET SESSION AUTHORIZATION archive;",
-            // **The `LOCAL` and `SESSION` arm, which nothing decided.** Deleting
-            // it left the whole suite green: these two were the only statements
-            // it stands for and neither was written down. Measured on
+            // **The `LOCAL` and `SESSION` arm, decided here.** These two are the
+            // only statements it stands for, so deleting the arm fails them.
+            // Measured on
             // PostgreSQL 18.6, both leave `SHOW search_path` unchanged and put
             // an unqualified `CREATE TABLE` in the role's schema.
             "SET LOCAL ROLE archive;",
             "SET SESSION ROLE archive;",
             // **And the GUC spelling of the same statement.** `session_authorization`
-            // is one token, so it matched neither the `role` arm nor the
-            // two-word `SESSION AUTHORIZATION` one — the rule that had just been
-            // taught the two-word form.
+            // is one token, so it matches neither the `role` arm nor the
+            // two-word `SESSION AUTHORIZATION` one.
             "SET session_authorization = archive;",
             "SET session_authorization=archive;",
             "SET session_authorization TO archive;",
@@ -6543,8 +6524,8 @@ mod tests {
             // `SET SESSION AUTHORIZATION DEFAULT`, and `RESET ALL` is refused.
             "DISCARD ALL;",
             // **A custom setting overwritten between the save and the read-back.**
-            // `SET LOCAL nc.p` was fixtured and `SET SESSION nc.p` was not, so
-            // the arm that reads the second was deletable with the suite green.
+            // With only `SET LOCAL nc.p` fixtured, the arm that reads
+            // `SET SESSION nc.p` is deletable with the suite green.
             // Measured on PostgreSQL 18.6: the read-back then puts `archive` on
             // the path and an unqualified `CREATE TABLE` lands there.
             "SELECT set_config('nc.p', current_setting('search_path'), false);\n\
@@ -6559,16 +6540,16 @@ mod tests {
             // **And a second reader inside the value.** The clearance above is
             // for a setting written back exactly as it was found; a value that
             // reads one setting to *name* another is not that. Measured on
-            // PostgreSQL 18.6, this moved `current_user` to whichever role the
+            // PostgreSQL 18.6, this moves `current_user` to whichever role the
             // outer read names.
             "SELECT set_config('role', current_setting(current_setting('role')), false);",
             // **A rider on the line the hatch clears.** `read_by_hand` matches
             // the cleared statement by *equality*, and its paragraph says a
             // second statement on the same line therefore fails to match and is
-            // reported — "the safe direction". Nothing decided that: relaxed to
-            // `contains`, the whole suite stayed green and this line, whose
-            // first half is the shape `0011` and `0012` write, carried a
-            // redirect through the hatch.
+            // reported — "the safe direction". This decides that: relaxed to
+            // `contains`, the match lets this line, whose first half is the
+            // shape `0011` and `0012` write, carry a redirect through the hatch,
+            // and the case fails.
             concat!(
                 "SELECT set_config('search_path', ",
                 "regexp_replace(current_setting('search_path'), ', pg_temp$', ''), false); ",
@@ -6576,8 +6557,8 @@ mod tests {
             ),
             // **The function spelling of the same write.** `role` and
             // `session_authorization` are ordinary GUCs; measured on PostgreSQL
-            // 18, this changed `current_user`, left `SHOW search_path` alone, and
-            // put `access_records` in that role's schema.
+            // 18, this changes `current_user`, leaves `SHOW search_path` alone, and
+            // puts `access_records` in that role's schema.
             "SELECT set_config('role', 'archive', false);",
             "SELECT set_config('session_authorization', 'archive', false);",
             // **And inside a `DO` block**, which is how this repository writes a
@@ -6588,15 +6569,15 @@ mod tests {
             "ALTER ROLE noctua SET role = archive;",
             // **A `SET` value of bare `current_schema` is an identifier**, so it
             // stores a constant — and a migration may create a schema of that
-            // name. The write then read as path-bearing and the restore was
-            // cleared, which opened `hold_the_path`'s own exception.
+            // name. Read as the function, the write is path-bearing and the
+            // restore cleared, which opens `hold_the_path`'s own exception.
             "CREATE SCHEMA \"current_schema\";\n\
              SET nc.p = current_schema;\n\
              SELECT set_config('search_path', current_setting('nc.p'), false);",
             // **A top-level overwrite between two routine bodies.** `cut`
             // finishes the top level before it recurses, so the overwrite is
-            // numbered before both bodies and the restore trusted a save that
-            // had already been replaced.
+            // numbered before both bodies, and a reader trusting that order
+            // trusts a save that has already been replaced.
             "DO $a$ BEGIN PERFORM set_config('nc.p', current_setting('search_path'), false); END $a$;\n\
              SET nc.p = 'archive';\n\
              DO $b$ BEGIN PERFORM set_config('search_path', current_setting('nc.p'), false); END $b$;",
@@ -6606,13 +6587,13 @@ mod tests {
              PERFORM set_config('nc.p', current_setting('search_path'), false); END $a$;\n\
              SET nc.p = 'archive';\n\
              DO $b$ BEGIN PERFORM set_config('search_path', current_setting('nc.p'), false); END $b$;",
-            // **The paren-less spelling, without the space.** The rule lived in
-            // two places and only one was repaired.
+            // **The paren-less spelling, without the space**, which the second
+            // copy of the rule has to read the same way.
             "CREATE SCHEMA \"current_schema\";\nSET search_path=current_schema;",
             // **A quoted lower-case function name is the same function.**
             "SELECT \"set_config\"('search_path', 'archive', false);",
-            // **And the overwrite spelled without a space**, which the `SET`
-            // reader recorded under the name `nc.p=`.
+            // **And the overwrite spelled without a space**, which a `SET`
+            // reader keeping the glued `=` records under the name `nc.p=`.
             "SELECT set_config('nc.p', current_setting('search_path'), false);\n\
              SET nc.p='archive';\n\
              SELECT set_config('search_path', current_setting('nc.p'), false);",
@@ -6622,10 +6603,10 @@ mod tests {
             "CREATE SCHEMA \"current_schema\";\nSET search_path TO current_schema;",
             "CREATE SCHEMA \"current_schema\";\nSET search_path TO CURRENT_SCHEMA;",
             // **A value that opens with the path's own function but reads a
-            // different setting.** The rule asked whether a literal stood ahead
-            // of `current_setting`, and `current_setting`'s own argument is a
-            // literal — so the position test was true of every value that began
-            // with such a call, whatever it went on to do. `nc.target` is a
+            // different setting.** A rule asking whether a literal stands ahead
+            // of `current_setting` fails, because `current_setting`'s own argument is a
+            // literal — so the position test is true of every value that begins
+            // with such a call, whatever it goes on to do. `nc.target` is a
             // constant a statement earlier; nothing here saved the path into it.
             "SELECT set_config('nc.target', 'archive', false),              set_config('search_path', current_setting('nc.target') || ', pg_temp', false);",
             // **And a function this rule cannot evaluate deciding the value.**
@@ -6636,7 +6617,7 @@ mod tests {
             // **A save overwritten before it is read back.** `set_config` is not
             // the only way to write a setting, and a name is not a value:
             // measured on PostgreSQL 18, `SHOW search_path` → `archive` and an
-            // unqualified `CREATE TABLE` landed there.
+            // unqualified `CREATE TABLE` lands there.
             "SELECT set_config('nc.p', current_setting('search_path'), false);\n\
              SET nc.p = 'archive';\n\
              SELECT set_config('search_path', current_setting('nc.p'), false);",
@@ -6670,8 +6651,8 @@ mod tests {
     /// `set_config` was measured too, and it refuses the six this repository
     /// writes in `0011` and `0012`. A routine's own configuration clause, a
     /// save-and-restore pair, and the `missing_ok` and schema-qualified
-    /// spellings of `current_setting` are all legitimate, and each has been
-    /// refused by some version of this rule.
+    /// spellings of `current_setting` are all legitimate, and a narrower rule
+    /// refuses each.
     #[test]
     fn the_shapes_this_repository_writes_are_not_refused() {
         for allowed in [
@@ -6693,45 +6674,46 @@ mod tests {
             // is the save, in the same file, straight from the path.
             "SELECT set_config('nc.saved', current_setting('search_path'), false);\n             SELECT set_config('search_path', current_setting('nc.saved'), false);",
             "SELECT set_config('nc.saved', '', false);",
-            // **A procedure's signature is not a call**, and only the `FUNCTION`
-            // half of that test was decided by anything. What follows the name
+            // **A procedure's signature is not a call**, and this decides the
+            // `PROCEDURE` half of that test. What follows the name
             // here is a list of parameter *types*, which reads as unreadable
             // arguments — so without the guard this hardening is a finding.
             "REVOKE ALL ON PROCEDURE set_config(text, text, boolean) FROM PUBLIC;",
             // **A data-modifying CTE**, which is the fifth spelling of a column
-            // called `search_path` and the one the opener list did not know
-            // about. Measured on PostgreSQL 18.6: the row is written and
+            // called `search_path` and the one an opener list misses.
+            // Measured on PostgreSQL 18.6: the row is written and
             // `SHOW search_path` is unchanged before and after.
             "WITH bumped AS (UPDATE paths SET search_path = 'a' RETURNING id) SELECT * FROM bumped;",
             // **`missing_ok` written as `false`.** PostgreSQL accepts both
-            // booleans there and only `true` was fixtured, so the skip that
-            // makes the second argument an argument rather than a function was
+            // booleans there, and with only `true` fixtured, the skip that
+            // makes the second argument an argument rather than a function is
             // decided in one direction.
             "SELECT set_config('search_path', current_setting('search_path', false), false);",
             // **A column may be called `search_path`.** Neither of these is a
             // session write: the first names no setting-writing keyword at all,
             // and the second names one but never assigns to the path. They are
-            // here because the two clauses that tell them apart from a redirect
-            // — "a `SET` or a `RESET` is present" and "an operator follows the
-            // name" — were each deletable with the whole suite green.
+            // here because they decide the two clauses that tell them apart from
+            // a redirect — "a `SET` or a `RESET` is present" and "an operator
+            // follows the name": deleting either clause fails them.
             "SELECT set_config('search_path', \"pg_catalog\".current_setting('search_path'), false);",
             "CREATE VIEW v AS SELECT * FROM paths WHERE search_path = 'archive';",
             "ALTER TABLE paths ALTER COLUMN search_path SET NOT NULL;",
             // **And writing to that column**, which is the third shape of the
-            // same thing and was refused. No statement writes a session setting
-            // and rows at once; `ON CONFLICT … DO UPDATE SET` is the same clause
+            // same thing and which a `SET` anywhere refuses. No statement writes a
+            // session setting and rows at once; `ON CONFLICT … DO UPDATE SET` is the same clause
             // reached from an `INSERT`.
             "UPDATE paths SET search_path = 'archive';",
             "INSERT INTO paths (id, search_path) VALUES (1, 'a') \
              ON CONFLICT (id) DO UPDATE SET search_path = 'b';",
             // **And a setting written back exactly as it was found.** This is
-            // the shape three lines above, applied to the settings round
-            // eighteen taught the gate to read. It is a measured no-op, and
-            // refusing it told a migration not to put back what it had saved.
+            // the shape of the path set back from its own `current_setting`
+            // above, applied to the other settings the gate reads. It is a
+            // measured no-op, and refusing it would tell a migration not to put
+            // back what it has saved.
             "SELECT set_config('role', current_setting('role'), false);",
             // **A body written between single quotes, not dollar tags.** The
-            // dollar-quoted twin of this is fixtured and this was not, so the
-            // branch that brackets it was decided by nothing — and what it
+            // dollar-quoted twin of this is fixtured too, and this decides the
+            // branch that brackets it — and what it
             // prevents is refusing the canonical hardening. Measured on
             // PostgreSQL 18.6: this writes `proconfig` and leaves
             // `SHOW search_path` at the session's own schema.
@@ -6786,11 +6768,10 @@ mod tests {
             "SELECT set_config('search_path',\n    regexp_replace(current_setting('search_path'), ', pg_temp$', ''), false);",
         ] {
             let (found, _) = unreadable_statements_in(allowed, super::Dialect::PostgreSql);
-            // **Any refusal, not only one naming the path.** This asked whether
-            // the verdict said `search_path`, so a shape refused for a different
+            // **Any refusal, not only one naming the path.** Asking whether the
+            // verdict says `search_path` passes a shape refused for a different
             // reason — a signature read as an unreadable call, a file the reader
-            // disagreed with itself about — passed here while `check` would have
-            // failed on it.
+            // disagrees with itself about — here while `check` fails on it.
             assert!(
                 found.is_empty(),
                 "`{allowed}` is a shape this repository writes, and it was refused: \
@@ -6818,8 +6799,8 @@ mod tests {
     /// `PROTECTIONS` and `SHAPES` are snapshots of what the *database* holds —
     /// triggers, constraints, indexes, privileges — and a `DO $tag$ … IF … THEN
     /// RAISE` block holds nothing there at all. So `0012`'s guard, the one line
-    /// that decides whether `0012` may be applied, was checked by nothing:
-    /// measured on 2026-09-08 with `IF current_schema() IS NULL OR
+    /// that decides whether `0012` may be applied, is checked by nothing else:
+    /// measured with `IF current_schema() IS NULL OR
     /// current_schema() LIKE 'pg\_temp%'` replaced by `IF FALSE`, and the schema
     /// rebuilt from the planted file —
     ///
@@ -6990,8 +6971,8 @@ mod tests {
 
     #[test]
     fn a_name_on_the_next_line_is_still_a_table() {
-        // **Acceptance criterion 5 failed on this.** The gate was line-scoped, so
-        // this ordinary, valid statement created an unbounded table with
+        // **Acceptance criterion 5 rests on this.** Read line by line, this
+        // ordinary, valid statement creates an unbounded table with
         // `cargo xtask check` green — verified against a real PostgreSQL.
         let sql = "CREATE TABLE\n    login_attempts (\n    id TEXT PRIMARY KEY\n);\n";
         assert_eq!(names(sql), vec!["login_attempts".to_owned()]);
@@ -7000,7 +6981,7 @@ mod tests {
 
     #[test]
     fn the_second_statement_on_a_line_is_still_a_table() {
-        // Also line-scoped, also green, also creates the table.
+        // Read line by line, also green, and also creates the table.
         let sql = "CREATE TABLE a (id INT); CREATE TABLE login_attempts (id INT);\n";
         assert_eq!(
             names(sql),
@@ -7010,10 +6991,10 @@ mod tests {
 
     #[test]
     fn a_block_comment_hides_a_table_and_does_not_invent_one() {
-        // Both directions were defeated by two characters. Commenting a table out
-        // left the reverse gate silent about a `limits.toml` entry with nothing
-        // behind it; prose inside a block comment produced a finding naming a
-        // table nobody wrote.
+        // Read line by line, both directions are defeated by two characters.
+        // Commenting a table out leaves the reverse gate silent about a
+        // `limits.toml` entry with nothing behind it; prose inside a block
+        // comment produces a finding naming a table nobody wrote.
         assert_eq!(
             names("/* CREATE TABLE ghost (id INT); */\n"),
             Vec::<String>::new()
@@ -7037,7 +7018,7 @@ mod tests {
         // Every trigger function in `migrations/` is written this way. The `;`s
         // inside one are not boundaries of the *outer* statement — the body is
         // cut separately — and a `--` inside one is a comment there too, which
-        // it was not while the body was also being copied into the outer
+        // it would not be if the body were also copied into the outer
         // statement verbatim.
         let sql = "CREATE FUNCTION f() RETURNS TRIGGER AS $$\nBEGIN\n  -- CREATE TABLE ghost (id INT);\n  RETURN NEW;\nEND;\n$$ LANGUAGE plpgsql;\nCREATE TABLE real_one (id INT);\n";
         assert_eq!(names(sql), vec!["real_one".to_owned()]);
@@ -7054,10 +7035,10 @@ mod tests {
 
     #[test]
     fn an_unlogged_table_is_a_table_and_a_temporary_one_is_not() {
-        // They were excluded together, under a comment saying a temporary table
-        // "cannot grow without bound". True of `TEMP`; false of `UNLOGGED`, which
-        // is permanent, survives every session and is emptied only by an unclean
-        // shutdown — so it walked straight past this gate.
+        // Excluded together with `TEMP` — a temporary table "cannot grow without
+        // bound" — `UNLOGGED` walks straight past this gate, and that is false of
+        // it: an unlogged table is permanent, survives every session and is
+        // emptied only by an unclean shutdown.
         assert_eq!(
             created_table_at_top("CREATE UNLOGGED TABLE widgets (").as_deref(),
             Some("widgets")
@@ -7075,7 +7056,7 @@ mod tests {
     #[test]
     fn whitespace_is_not_a_way_past_the_gate() {
         // `CREATE  TABLE` and `CREATE\tTABLE` are the same statement to
-        // PostgreSQL and were two ways past a prefix match on a single space.
+        // PostgreSQL and are two ways past a prefix match on a single space.
         for spelling in [
             "CREATE  TABLE widgets (",
             "CREATE\tTABLE widgets (",
@@ -7091,8 +7072,8 @@ mod tests {
 
     #[test]
     fn a_quoted_name_is_reported_whole_and_a_schema_is_dropped() {
-        // It was trimmed of its quotes and then re-sliced from the quoted
-        // original for that many bytes, so `"widgets"` came back as `widget` —
+        // Trimmed of its quotes and then re-sliced from the quoted original for
+        // that many bytes, `"widgets"` comes back as `widget` —
         // a diagnostic naming a table nobody wrote, which is the one thing
         // acceptance criterion 5 asks of it.
         assert_eq!(
@@ -7104,8 +7085,8 @@ mod tests {
             vec!["a--b".to_owned()],
             "the comment strip must not eat a quoted name"
         );
-        // `public.widgets` is `widgets`, which is what `limits.toml` spells; it
-        // came back as `public.widgets` and produced a spurious finding.
+        // `public.widgets` is `widgets`, which is what `limits.toml` spells;
+        // kept as `public.widgets`, it produces a spurious finding.
         assert_eq!(
             created_table_at_top("CREATE TABLE public.widgets (").as_deref(),
             Some("widgets")
@@ -7114,8 +7095,8 @@ mod tests {
 
     #[test]
     fn a_name_outside_ascii_is_read_rather_than_panicked_on() {
-        // `code.len() - rest.len()` assumed `to_uppercase` preserves byte length.
-        // It does not: `ı` uppercases to `I`, and the slice landed inside a
+        // `code.len() - rest.len()` assumes `to_uppercase` preserves byte length.
+        // It does not: `ı` uppercases to `I`, and such a slice lands inside a
         // character — a panic where a diagnostic belongs.
         assert_eq!(
             created_table_at_top("CREATE TABLE ıx (").as_deref(),
@@ -7169,26 +7150,26 @@ mod tests {
 
     #[test]
     fn an_escape_string_does_not_desynchronise_the_rest_of_the_file() {
-        // **The worst of the four.** `E'…\'…'` uses backslash escapes, and the
-        // scanner closed the literal at `\'`. `edit rows here` became code, the
-        // `/*` inside the literal became a real block comment, nothing closed
-        // it, and **everything to the end of the file was blanked** — the
+        // **The worst of the four.** `E'…\'…'` uses backslash escapes, and a
+        // scanner closing the literal at `\'` makes `edit rows here` code, the
+        // `/*` inside the literal a real block comment that nothing closes, and
+        // **everything to the end of the file blanked** — the
         // `CREATE TABLE` with it. Verified against PostgreSQL 18.6: the file
         // applies and the table is created, with `check passed`.
         let sql = "COMMENT ON TABLE journal_entries IS\n  \
                    E'append-only; don\\'t edit rows here /* see the trigger';\n\n\
                    CREATE TABLE login_attempts (\n    id TEXT PRIMARY KEY\n);\n";
         assert_eq!(caught(sql), vec!["login_attempts".to_owned()]);
-        // And the ordinary `''` escape, which was already right.
+        // And the ordinary `''` escape.
         let doubled = "COMMENT ON TABLE t IS 'don''t /* ';\nCREATE TABLE x (id INT);\n";
         assert_eq!(caught(doubled), vec!["x".to_owned()]);
     }
 
     #[test]
     fn a_table_created_inside_a_routine_body_is_still_a_table() {
-        // The most idiomatic conditional DDL there is. The body was copied whole
-        // and never looked inside, and the outer statement is a `DO` — so this
-        // created an unbounded table with the gate green.
+        // The most idiomatic conditional DDL there is. With the body copied
+        // whole and never looked inside, and the outer statement a `DO`, this
+        // creates an unbounded table with the gate green.
         let sql = "DO $$\nBEGIN\n    IF NOT EXISTS (SELECT 1 FROM pg_tables \
                    WHERE tablename = 'login_attempts') THEN\n        \
                    CREATE TABLE login_attempts (id TEXT PRIMARY KEY);\n    \
@@ -7212,8 +7193,8 @@ mod tests {
             [] as [String; 0]
         );
         // **And the optional `TABLE`, in each of the four places it can stand.**
-        // Every one of these creates the table it names; before the keyword was
-        // stepped over, each reported a table called `table` and left the real
+        // Every one of these creates the table it names; with the keyword not
+        // stepped over, each reports a table called `table` and leaves the real
         // one unbounded.
         for statement in [
             "SELECT id INTO TABLE login_attempts FROM access_records;\n",
@@ -7235,9 +7216,9 @@ mod tests {
             [] as [String; 0]
         );
         // **And the two qualifiers that only ever stand in front of `TEMPORARY`.**
-        // Before they were stepped over, each of these was reported as creating a
+        // Not stepped over, each of these is reported as creating a
         // table called `global` or `local`, and the temporary excuse below them
-        // was never reached.
+        // is never reached.
         for statement in [
             "SELECT id INTO GLOBAL TEMP scratch FROM access_records;\n",
             "SELECT id INTO LOCAL TEMPORARY scratch FROM access_records;\n",
@@ -7298,16 +7279,16 @@ mod tests {
 
     /// An ordering column a later `CREATE TABLE` declares again is a column.
     ///
-    /// **Every `ALTER TABLE` used to apply to the last `CREATE TABLE`**,
-    /// whatever order the two ran in — so a column dropped, then restored by a
-    /// `DROP TABLE` and a re-creation below it, read as gone. Measured on
-    /// 2026-09-11 against the real migration set: a legitimate set of three
-    /// statements was reported as *"orders by `recorded`, which no migration
-    /// declares as a column of it"*, with a `fix` listing the columns as `id`
-    /// about a statement two lines above it that declares `recorded`. That is
-    /// the refusing-something-legitimate direction, and a migration cannot be
-    /// edited once applied, so the advice was about a file the developer may no
-    /// longer change.
+    /// **An `ALTER TABLE` applies to the table as it stands when it runs**, not
+    /// to the last `CREATE TABLE` whatever order the two ran in — or a column
+    /// dropped, then restored by a `DROP TABLE` and a re-creation below it,
+    /// reads as gone. Measured against the real migration set: a legitimate set
+    /// of three statements is then reported as *"orders by `recorded`, which no
+    /// migration declares as a column of it"*, with a `fix` listing the columns
+    /// as `id` about a statement two lines above it that declares `recorded`.
+    /// That is the refusing-something-legitimate direction, and a migration
+    /// cannot be edited once applied, so the advice is about a file the
+    /// developer may no longer change.
     ///
     /// The second half is the control this needs in order not to be the
     /// opposite mistake: a column that really was dropped and not restored is
@@ -7363,7 +7344,7 @@ mod tests {
 
     #[test]
     fn an_ordering_column_that_does_not_sort_in_creation_order_is_a_finding() {
-        // **`access_records` ordered by a `text` column holding an identifier.**
+        // **A `text` column holding an identifier, as the ordering column.**
         // Crockford base32 is variable width — twelve characters below `32^12`
         // and thirteen at or above it, which `nc-ids`' `base32` header dates at
         // about 2034 — and SQL sorts `text` byte by byte. From the first
@@ -7377,8 +7358,8 @@ mod tests {
         //                      100000000001  4000000000000 G00000000000
         // ```
         //
-        // Measured with the real pruner over those six rows: it removed the
-        // oldest *and the third-newest*, and reported an ordinary `Pruned`.
+        // Measured with the real pruner over those six rows: it removes the
+        // oldest *and the third-newest*, and reports an ordinary `Pruned`.
         // `base32`'s own header says "sorting by identifier value still works,
         // and that is what anything reading these names should do" — and the
         // pruner is a reader that cannot, because SQL sorts the text.
@@ -7392,7 +7373,7 @@ mod tests {
         );
 
         // The types whose ascending order is creation order — including the
-        // four an allow-list of nine refused: an exact decimal, a date, and the
+        // four an allow-list of nine would refuse: an exact decimal, a date, and the
         // narrow integers. All of them sort in creation order, and refusing one
         // is a diagnostic a developer cannot act on except by editing this file.
         for numeric in [
@@ -7408,10 +7389,10 @@ mod tests {
             "DATE",
             "timestamptz",
             "TIMESTAMP WITH TIME ZONE",
-            // **The eight this list named and no fixture drove.** `int`, `int4`
-            // and the six serial spellings appear in
-            // `SORTS_IN_CREATION_ORDER` and nowhere else in the tree: removed,
-            // the whole suite stayed green, and with them gone an ordinary
+            // **The eight this list names, and this drives them.** `int`, `int4`
+            // and the six serial spellings removed from
+            // `SORTS_IN_CREATION_ORDER` fail these rows, and with them gone an
+            // ordinary
             // `INT NOT NULL` ordering column is reported as one that does not
             // sort in creation order. A list entry nothing drives is a list
             // entry nobody can tell from a typo.
@@ -7436,9 +7417,9 @@ mod tests {
         }
 
         // And the ones that are refused, each for its own reason. `timestamp`
-        // was in the allow-list, and it is `timestamp without time zone`: a
+        // is `timestamp without time zone`: a
         // reading with no answer to whose clock took it, which at a
-        // daylight-saving fall-back repeats an hour. A first-word rule could not
+        // daylight-saving fall-back repeats an hour. A first-word rule cannot
         // tell those two spellings apart at all.
         for unsafe_type in [
             "TIMESTAMP",
@@ -7464,8 +7445,8 @@ mod tests {
 
     /// A routine body runs where it is written, not after everything else.
     ///
-    /// **`cut` finishes the top level and then re-reads the bodies**, so every
-    /// statement inside a `DO` block came back numbered after every statement
+    /// **`cut` finishes the top level and then re-reads the bodies**, so in cut
+    /// order every statement inside a `DO` block comes back numbered after every statement
     /// outside one — and three lists keyed on that number answer *what did the
     /// last statement to decide this say*. Wrong in both directions from one
     /// root, and both measured on PostgreSQL 18.6.
@@ -7473,10 +7454,10 @@ mod tests {
     /// The too-strong half is the one that will be hit first, because a
     /// conditional block is the idiomatic way to write guarded DDL: a type
     /// altered inside one and altered back outside it ends as the outside
-    /// statement leaves it, and the gate refused the migration for the type the
-    /// block had set. The too-weak half is silent: a table dropped, re-created
-    /// inside a block and dropped again does not exist, and the gate went on
-    /// bounding it.
+    /// statement leaves it, and a gate reading cut order refuses the migration
+    /// for the type the block set. The too-weak half is silent: a table dropped,
+    /// re-created inside a block and dropped again does not exist, and such a gate
+    /// goes on bounding it.
     #[test]
     fn a_routine_body_runs_where_it_is_written() {
         let both = super::changes_in(
@@ -7543,13 +7524,13 @@ mod tests {
 
     /// Every shape that decides what the ordering column is, after the `CREATE`.
     ///
-    /// The type rule read the `CREATE TABLE` and nothing else. Each of these was
-    /// a way past it, and each is driven here as its own case.
+    /// Each of these is a way past a type rule that reads the `CREATE TABLE` and
+    /// nothing else, and each is driven here as its own case.
     #[test]
     fn every_statement_that_changes_the_ordering_column_is_read() {
-        // **A later `ALTER COLUMN … TYPE` turned the whole rule off.** The type
-        // was read from the `CREATE TABLE` alone, so the same change written as
-        // an alteration passed — same database, same resulting schema, and the
+        // **A later `ALTER COLUMN … TYPE` turns such a rule off.** With the type
+        // read from the `CREATE TABLE` alone, the same change written as
+        // an alteration passes — same database, same resulting schema, and the
         // gate firing for one spelling and not the other:
         //
         // ```text
@@ -7569,9 +7550,9 @@ mod tests {
             "an `ALTER COLUMN … TYPE` was not followed: {findings:#?}"
         );
 
-        // The ordering column arriving by `ADD COLUMN`, which left the type rule
-        // with nothing to read and the NULL rule reading the `CREATE` — so it
-        // reported *may be NULL* about a column declared `NOT NULL`.
+        // The ordering column arriving by `ADD COLUMN`, which leaves a
+        // `CREATE`-only type rule with nothing to read, and a `CREATE`-only NULL
+        // rule reporting *may be NULL* about a column declared `NOT NULL`.
         let added = super::changes_in(
             "CREATE TABLE access_records (id TEXT);\n\
              ALTER TABLE access_records ADD COLUMN recorded BIGINT NOT NULL;\n",
@@ -7603,12 +7584,12 @@ mod tests {
             "a domain over `text` was accepted: {findings:#?}"
         );
 
-        // **A rename carries no type, and one moved a different column's type
+        // **A rename carries no type, and can move a different column's type
         // onto the ordering column's name.** Two ordinary renames in one
-        // migration, and the gate read `recorded` as the `bigint` identity
-        // column while the database had the TEXT Crockford identifier under that
-        // name. The real pruner over seven rows minted in order then removed the
-        // oldest *and the fourth- and fifth-newest*, reporting an ordinary
+        // migration, and a reader that only records them reads `recorded` as the
+        // `bigint` identity column while the database has the TEXT Crockford
+        // identifier under that name. The real pruner over seven rows minted in
+        // order then removes the oldest *and the fourth- and fifth-newest*, reporting an ordinary
         // `Pruned` — verbatim the failure `migrations/0002_access_records.sql`'s header, `0006`,
         // the catalog entry and `SORTS_IN_CREATION_ORDER` all exist to prevent.
         let renamed = super::changes_in(
@@ -7625,7 +7606,8 @@ mod tests {
         );
 
         // And the nullability half, which falls the same way: a nullable column
-        // renamed into the ordering column's name was read as `NOT NULL`.
+        // renamed into the ordering column's name is read as `NOT NULL` by such a
+        // reader.
         let nullable = super::changes_in(
             "CREATE TABLE access_records (id TEXT, recorded BIGINT NOT NULL);\n\
              ALTER TABLE access_records DROP COLUMN recorded;\n\
@@ -7650,10 +7632,10 @@ mod tests {
         let findings = ordering(&moved);
         assert!(findings.is_empty(), "{findings:#?}");
 
-        // **A quoted name is not the same column as an unquoted one.** Every
-        // reader here folded both, so `"RECORDED"` stood in for `recorded` and
-        // the gate concluded the ordering column was `bigint` while the database
-        // had it as TEXT with a second column beside it.
+        // **A quoted name is not the same column as an unquoted one.** Folding
+        // both, `"RECORDED"` stands in for `recorded`, and a gate doing that
+        // concludes the ordering column is `bigint` while the database
+        // has it as TEXT with a second column beside it.
         let quoted = super::changes_in(
             "CREATE TABLE access_records (id TEXT, recorded TEXT NOT NULL);\n\
              ALTER TABLE access_records ADD COLUMN \"RECORDED\" BIGINT NOT NULL;\n",
@@ -7666,10 +7648,10 @@ mod tests {
             "a quoted `\"RECORDED\"` was read as the ordering column: {findings:#?}"
         );
 
-        // **And an `ALTER TABLE` inside a `DO $$ … $$` body is one.** The clause
-        // reader required `ALTER TABLE` at the statement's first two tokens, and
-        // a body's first cut statement begins `BEGIN` — so this passed, while
-        // the same clause written second in the body was caught.
+        // **And an `ALTER TABLE` inside a `DO $$ … $$` body is one.** A clause
+        // reader requiring `ALTER TABLE` at the statement's first two tokens
+        // misses it, because a body's first cut statement begins `BEGIN` — so this
+        // passes, while the same clause written second in the body is caught.
         let conditional = super::changes_in(
             "CREATE TABLE access_records (id TEXT, recorded BIGINT NOT NULL);\n\
              DO $$ BEGIN ALTER TABLE access_records ALTER COLUMN recorded TYPE TEXT; \
@@ -7683,10 +7665,9 @@ mod tests {
             "an `ALTER TABLE` inside a `DO` body was not read: {findings:#?}"
         );
 
-        // **A column whose type cannot be read is a finding, not a pass.** This
-        // asserted the opposite — "a table whose columns cannot be read was
-        // reported" — which turned the exclusion into a rule and pinned the hole
-        // open. A sort order that cannot be judged is one the pruner deletes by
+        // **A column whose type cannot be read is a finding, not a pass.** An
+        // assertion of the opposite would turn the exclusion into a rule and pin
+        // the hole open. A sort order that cannot be judged is one the pruner deletes by
         // anyway.
         let unknown = super::changes_in("CREATE TABLE access_records AS SELECT 1;\n");
         let findings = ordering(&unknown);
@@ -7724,11 +7705,11 @@ mod tests {
              from line 20 to the end of the real file: {findings:#?}"
         );
 
-        // **And the key, not the entry.** `line_of_key` is fifty lines from
-        // `line_of_entry` and had no test of its own: the column-missing finding
-        // was pointed at the entry's `strategy` line instead of its `order_by`
-        // line with the whole suite and `check` green. A finding's line is the
-        // line to edit, and this one is the key that is wrong.
+        // **And the key, not the entry.** `line_of_key` sits beside
+        // `line_of_entry`, and pointing the column-missing finding at the
+        // entry's `strategy` line instead of its `order_by` line fails this. A
+        // finding's line is the line to edit, and this one is the key that is
+        // wrong.
         let missing =
             super::changes_in("CREATE TABLE access_records (id TEXT, note TEXT NOT NULL);\n");
         let findings = super::order_by_names_a_column(
@@ -7767,12 +7748,12 @@ mod tests {
 
     #[test]
     fn an_ordering_column_that_may_be_null_is_a_finding() {
-        // **The gate asked that `order_by` names a column and stopped there.**
+        // **A gate asking that `order_by` names a column cannot stop there.**
         // `ORDER BY … ASC` sorts NULLs last, so a nullable ordering column makes
         // every row missing that value the newest rows in the table and the last
         // ever removed — the table grows past its limit while the pruner runs
         // and reports success. Measured on PostgreSQL 18.6, five of ten rows
-        // null: `ORDER BY at ASC LIMIT 4` answered `1, 2, 3, 4`.
+        // null: `ORDER BY at ASC LIMIT 4` answers `1, 2, 3, 4`.
         //
         // Driven against `access_records`, whose real bound orders by
         // `recorded`.
@@ -7812,8 +7793,8 @@ mod tests {
             vec!["at".to_owned(), "id".to_owned()]
         );
         // **The two idiomatic ways of declaring an insertion-order column**,
-        // which this refused and the `ADD COLUMN` reader beside it accepted —
-        // one of them. PostgreSQL expands `bigserial` to `bigint NOT NULL
+        // which a reader that knows only `NOT NULL` and `PRIMARY KEY` refuses.
+        // PostgreSQL expands `bigserial` to `bigint NOT NULL
         // DEFAULT nextval(…)` and an identity column is not nullable either;
         // `SORTS_IN_CREATION_ORDER` names all six serial spellings as safe to
         // order by, so a gate refusing them refuses what the tree recommends.
@@ -7838,12 +7819,12 @@ mod tests {
             "`serial_number` is a type name, not a serial column: {left_over:?}"
         );
 
-        // **And the other reader, whose three arms were decided by nothing.**
-        // `forbids_null` reads an `ADD COLUMN`, and only its `NOT NULL` arm had
-        // a fixture: `PRIMARY KEY`, `IDENTITY` and the serial list each
-        // survived deletion, and all three together left `check passed` with a
+        // **And the other reader's three arms, decided here.**
+        // `forbids_null` reads an `ADD COLUMN`, and with only its `NOT NULL` arm
+        // fixtured, `PRIMARY KEY`, `IDENTITY` and the serial list each
+        // survive deletion, and all three together leave `check passed` with a
         // transcript byte-identical to a clean run. That is the *too strong*
-        // direction the sibling above was repaired for, unheld — a migration
+        // direction the sibling above holds, unheld — a migration
         // adding `recorded BIGSERIAL` would be refused with advice about a file
         // that has already been applied.
         let added = |sql: &str| {
@@ -7902,11 +7883,11 @@ mod tests {
 
     /// A table can leave the census the same ways it can enter it.
     ///
-    /// **The gate believed a table created in a routine body and neither of the
-    /// two ways one can go.** `created_tables` scans every offset, so a `CREATE
-    /// TABLE` written as a body's first statement is seen; `renamed_table` and
-    /// `dropped_tables` asked for their verb at token zero, and a body is cut on
-    /// `;` — so the statement they were handed begins `BEGIN`, and both returned
+    /// **A table created in a routine body can leave it the same two ways.**
+    /// `created_tables` scans every offset, so a `CREATE
+    /// TABLE` written as a body's first statement is seen; a `renamed_table` and
+    /// `dropped_tables` asking for their verb at token zero, with a body cut on
+    /// `;`, are handed a statement that begins `BEGIN`, and both return
     /// at the first token. Measured, each on its own:
     ///
     /// ```text
@@ -7922,8 +7903,8 @@ mod tests {
     /// number nobody reads is the only thing that says so.
     ///
     /// **And the two kinds beside `TABLE`.** A materialised view stores rows and
-    /// a foreign table is declared here; both are counted by `CREATE`, and
-    /// neither could be renamed or dropped out of the count.
+    /// a foreign table is declared here; both are counted by `CREATE`, and a
+    /// reader of tables alone renames or drops neither out of the count.
     #[test]
     fn a_table_leaves_the_census_however_it_is_written() {
         for (body, from, to) in [
@@ -7993,9 +7974,9 @@ mod tests {
 
     /// Two statements on one line run in the order they are written.
     ///
-    /// **The line is not a total order, and the tie went the wrong way.** `cut`
+    /// **The line is not a total order, and a tie on it goes the wrong way.** `cut`
     /// finishes the top level and then re-reads the routine bodies, so a stable
-    /// sort on the line put every top-level statement before every nested one
+    /// sort on the line puts every top-level statement before every nested one
     /// that shares it. Measured, one line of ordinary SQL:
     ///
     /// ```text
@@ -8035,8 +8016,8 @@ mod tests {
     #[test]
     fn a_rename_creates_one_table_and_retires_another() {
         // After this the bounded entry names a table that no longer exists and
-        // the table now holding the rows is unbounded. Neither direction of the
-        // gate noticed.
+        // the table now holding the rows is unbounded. Unread, neither direction
+        // of the gate notices.
         let changes = changes_in("ALTER TABLE access_records RENAME TO login_attempts;\n");
         assert_eq!(changes.renamed.len(), 1, "{changes:#?}");
         assert_eq!(changes.renamed[0].from, "access_records");
@@ -8045,11 +8026,11 @@ mod tests {
         let column = changes_in("ALTER TABLE access_records RENAME COLUMN a TO b;\n");
         assert!(column.renamed.is_empty(), "{column:#?}");
 
-        // **And `ONLY`, which `pg_dump` writes and this read as the name.**
-        // Under `RENAME TO` the retired name was `ONLY`, so nothing was retired
-        // and `catalog/limits.toml` went on bounding a table that is gone; under
-        // `SET SCHEMA` the finding named `archive.ONLY` — a table nobody wrote —
-        // while `archive.access_records` was unbounded and unnamed. Both
+        // **And `ONLY`, which `pg_dump` writes and a naive reader takes for the
+        // name.** Under `RENAME TO` the retired name is then `ONLY`, so nothing
+        // is retired and `catalog/limits.toml` goes on bounding a table that is
+        // gone; under `SET SCHEMA` the finding names `archive.ONLY` — a table
+        // nobody wrote — while `archive.access_records` is unbounded and unnamed. Both
         // statements are ordinary PostgreSQL.
         for shape in [
             "ALTER TABLE ONLY access_records RENAME TO login_attempts;\n",
@@ -8073,9 +8054,9 @@ mod tests {
 
         // **And a schema or table spelled with the verb's own word.** `SET` and
         // `RENAME` are non-reserved keywords, so `CREATE SCHEMA set` and
-        // `CREATE TABLE rename` are legal PostgreSQL; the verb was looked for
-        // from token zero, so the name's own word arrived first and the whole
-        // rename was dropped — `catalog/limits.toml` goes on bounding a table
+        // `CREATE TABLE rename` are legal PostgreSQL; with the verb looked for
+        // from token zero, the name's own word arrives first and the whole
+        // rename is dropped — `catalog/limits.toml` goes on bounding a table
         // that is gone while the one holding the rows is unbounded and unnamed.
         for (shape, from, to) in [
             ("ALTER TABLE set.t RENAME TO landed;\n", "set.t", "landed"),
@@ -8103,17 +8084,17 @@ mod tests {
         }
 
         // **The schema a table moves to folds like every other unquoted name.**
-        // It was read with `name`, which returns the text as written, so
-        // `SET SCHEMA Archive` credited the rows to `Archive.t` — an entry the
+        // Read with `name`, which returns the text as written,
+        // `SET SCHEMA Archive` would credit the rows to `Archive.t` — an entry the
         // pruner can never match, since the database made the schema `archive`.
         let folded = changes_in("ALTER TABLE t SET SCHEMA Archive;\n");
         assert_eq!(folded.renamed.len(), 1, "{folded:#?}");
         assert_eq!(folded.renamed[0].to, "archive.t");
 
-        // **A quoted name holding a dot moves whole.** The new name was built
-        // by splitting the old one's text on `.` and keeping the tail, so a
-        // table PostgreSQL calls `a.b` was moved to `archive.b` — a table
-        // nobody wrote, which is the one thing this gate must not say.
+        // **A quoted name holding a dot moves whole.** Built by splitting the old
+        // name's text on `.` and keeping the tail, the new name of a table
+        // PostgreSQL calls `a.b` is `archive.b` — a table nobody wrote, which is
+        // the one thing this gate must not say.
         let dotted = changes_in("ALTER TABLE \"a.b\" SET SCHEMA archive;\n");
         assert_eq!(dotted.renamed.len(), 1, "{dotted:#?}");
         assert_eq!(dotted.renamed[0].to, "archive.a.b");
@@ -8218,12 +8199,12 @@ mod tests {
     /// A table `local-migrations/` creates is seen however SQLite lets it be
     /// written, and a virtual table is refused with a finding of its own.
     ///
-    /// **Three shapes walked past the gate**, measured through this same
+    /// **Three shapes a PostgreSQL reading walks past**, measured through this same
     /// function: `CREATE VIRTUAL TABLE notes_search USING fts5(body)`,
     /// `CREATE TABLE [bracketed] (…)` and ``CREATE TABLE `backticked` (…)``
-    /// each gave `seen 0` and no finding, while the plain and `"quoted"`
-    /// controls were named as unbounded — so a local migration in any of the
-    /// three passed `record limits` with a table nothing bounds.
+    /// each give `seen 0` and no finding, while the plain and `"quoted"`
+    /// controls are named as unbounded — so a local migration in any of the
+    /// three passes `record limits` with a table nothing bounds.
     #[test]
     fn a_sqlite_table_is_seen_however_sqlite_lets_it_be_written() {
         for (written, named, seen) in [
@@ -8305,7 +8286,7 @@ mod tests {
 
     #[test]
     fn a_semicolon_inside_a_quoted_name_does_not_cut_the_statement() {
-        // It did, and the finding then named `` `a;` `` — a table nobody wrote,
+        // Cut at the `;`, the finding names `` `a;` `` — a table nobody wrote,
         // which is criterion 5's second half failing in the one way it must not.
         assert_eq!(
             caught("CREATE TABLE \"a;b\" (id INT);\n"),
@@ -8320,8 +8301,8 @@ mod tests {
 
     #[test]
     fn a_schema_other_than_public_is_a_different_table() {
-        // `archive.access_records` was credited to `[tables.access_records]`,
-        // whose pruner runs `DELETE FROM access_records` — a different table. An
+        // Credited to `[tables.access_records]`, `archive.access_records` would
+        // be pruned by `DELETE FROM access_records` — a different table. An
         // entry cannot bound a table it does not name.
         assert_eq!(
             caught("CREATE TABLE archive.access_records (id INT);"),
@@ -8336,22 +8317,22 @@ mod tests {
             vec!["access_records".to_owned()]
         );
         // **A three-part name**, which PostgreSQL accepts for the current
-        // database. It yielded nothing at all, so the table was never seen and
-        // `seen` was not even incremented.
+        // database. Split on dots, it yields nothing at all, so the table is never
+        // seen and `seen` is not even incremented.
         assert_eq!(
             caught("CREATE TABLE noctua.public.login_attempts (id INT);"),
             vec!["login_attempts".to_owned()]
         );
         // **And a dot *inside* a quoted name is not a qualifier.** Splitting the
-        // text on `.` read `"public.access_records"` — one name — as two parts
-        // and credited it to the entry for a table it is not.
+        // text on `.` reads `"public.access_records"` — one name — as two parts
+        // and credits it to the entry for a table it is not.
         assert_eq!(
             caught("CREATE TABLE \"public.access_records\" (id INT);"),
             vec!["public.access_records".to_owned()]
         );
         // **A schema element's schema is folded like any other unquoted name.**
-        // The schema was read verbatim while every other name here is resolved,
-        // so this answered `Archive.access_records` — which matches no
+        // Read verbatim while every other name here is resolved, the schema
+        // would make this `Archive.access_records` — which matches no
         // `[tables.…]` entry, so the table reads as unbounded, and which names
         // in the finding a schema `psql` will not show the developer. The
         // quoted form is the control: it is not folded, and the two must differ.
@@ -8372,11 +8353,11 @@ mod tests {
 
     #[test]
     fn a_quoted_name_survives_whitespace_and_reserved_words() {
-        // **Flattening on whitespace truncated the name.**
-        // `CREATE TABLE "login attempts"` was reported as `` `login` `` — a
-        // table nobody wrote — and `CREATE TABLE "access_records archive"` was
+        // **Flattening on whitespace truncates the name.**
+        // `CREATE TABLE "login attempts"` is then reported as `` `login` `` — a
+        // table nobody wrote — and `CREATE TABLE "access_records archive"` is
         // truncated to `access_records`, which the catalog declares, so an
-        // unbounded table walked straight through.
+        // unbounded table walks straight through.
         assert_eq!(
             caught("CREATE TABLE \"login attempts\" (id INT);"),
             vec!["login attempts".to_owned()]
@@ -8396,8 +8377,8 @@ mod tests {
     #[test]
     fn one_statement_may_declare_more_than_one_table() {
         // `CREATE SCHEMA` takes schema elements, which is valid PostgreSQL, and
-        // only the first was ever seen — so a `nc:bounded:` marker above it hid
-        // both.
+        // a reader of the first alone sees one — so a `nc:bounded:` marker above
+        // it hides both.
         let sql = "CREATE SCHEMA hollywood\n                       CREATE TABLE install_marker (id BIGINT PRIMARY KEY)\n                       CREATE TABLE login_attempts (id TEXT PRIMARY KEY);\n";
         assert_eq!(
             caught(sql),
@@ -8412,12 +8393,13 @@ mod tests {
     /// A disagreement carried out of the walk stops it, rather than arriving as
     /// a finding.
     ///
-    /// **The `?` was decided by nothing.** `let _ = the_readers_agree(…)` left
-    /// all 521 tests passing and `check passed`, under a paragraph in the walk
+    /// **The `?`, decided here.** `let _ = the_readers_agree(…)` fails this
+    /// test, and nothing a clean run prints would change, under a paragraph in
+    /// the walk
     /// saying *"a finding can be filtered — this cannot, and it stops the walk
-    /// where it is"*. The function has a unit test; carrying its verdict out did
-    /// not. Three shapes had already got past the arrangement this replaced, so
-    /// this is a tripwire with a history and not a hypothetical one.
+    /// where it is"*. The function has a unit test; carrying its verdict out is
+    /// this one, and the three shapes that paragraph lists make it a tripwire
+    /// for a real failure and not a hypothetical one.
     ///
     /// A disagreement cannot be written into a file: both readers fingerprint
     /// the same statements with the same tokeniser, which is exactly why a
@@ -8453,7 +8435,7 @@ mod tests {
     fn a_marker_excuses_one_table_and_not_a_statement_full_of_them() {
         // `shares_its_line` catches two *statements* on one line. This is one
         // statement declaring two tables, so the marker cannot say which it
-        // meant — and it excused both, which is how an unbounded table rode in
+        // meant — and excusing both lets an unbounded table ride in
         // beside a genuinely bounded one.
         let held = crate::check::LeavesNothingBehind::new("limits-rename");
         let scratch = held.root.clone();
@@ -8484,9 +8466,9 @@ mod tests {
     fn an_ordinary_literal_ending_in_a_backslash_does_not_run_past_its_own_end() {
         // **`standard_conforming_strings` is on by default**, so `'C:\'` is a
         // *closed* string holding a backslash. Treating `\` as an escape in
-        // every literal made the scanner run past the end of that one, find no
+        // every literal makes the scanner run past the end of that one, find no
         // further quote, and blank the rest of the file — the exact
-        // desynchronisation the `E'…'` handling was added to fix, arriving from
+        // desynchronisation the `E'…'` handling exists to prevent, arriving from
         // the other side.
         let sql = "COMMENT ON TABLE access_records IS 'device paths look like C:\\';\n\n                   CREATE TABLE login_attempts (id TEXT PRIMARY KEY);\n";
         assert_eq!(caught(sql), vec!["login_attempts".to_owned()]);
@@ -8498,8 +8480,8 @@ mod tests {
     #[test]
     fn a_table_that_moves_or_is_dropped_stops_existing() {
         // `ALTER TABLE … SET SCHEMA` retires a name as surely as a rename, and
-        // so does `DROP TABLE` — and neither direction of the gate saw either,
-        // so a bounded entry could end up naming a table that does not exist.
+        // so does `DROP TABLE` — and unread, neither direction of the gate sees
+        // either, so a bounded entry can end up naming a table that does not exist.
         let moved = changes_in("ALTER TABLE access_records SET SCHEMA archive;\n");
         assert_eq!(moved.renamed.len(), 1, "{moved:#?}");
         assert_eq!(moved.renamed[0].from, "access_records");
@@ -8517,8 +8499,8 @@ mod tests {
 
     #[test]
     fn a_dollar_quoted_document_is_data_and_not_sql() {
-        // Every dollar-quoted run was scanned as SQL, so an `INSERT` of a
-        // document containing the words `CREATE TABLE widgets` failed the build
+        // Scanning every dollar-quoted run as SQL makes an `INSERT` of a
+        // document containing the words `CREATE TABLE widgets` fail the build
         // naming a table nobody wrote — the one thing this gate must not do.
         let sql = "INSERT INTO journal_entries (resource) VALUES ($doc$\n                   The change we are about to make: CREATE TABLE widgets (id INT);\n                   $doc$);\n";
         assert!(caught(sql).is_empty(), "{:?}", caught(sql));
@@ -8529,8 +8511,8 @@ mod tests {
 
     #[test]
     fn a_marker_excuses_one_statement_and_not_the_line() {
-        // Detection became statement-scoped and the hatch stayed line-scoped, so
-        // one reason excused two tables.
+        // With detection statement-scoped and the hatch line-scoped, one reason
+        // excuses two tables.
         let scratch = std::env::temp_dir().join(format!("nc-limits-line-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&scratch);
         std::fs::create_dir_all(scratch.join("migrations")).expect("writable");
@@ -8557,14 +8539,13 @@ mod tests {
 
     /// And the same, on the path a *rename* takes.
     ///
-    /// **The clause was written twice and only the first copy was decided.**
+    /// **The clause is written twice, and this decides the second copy.**
     /// `alone: !rename.shares_its_line && rename.alone_in_its_statement`
-    /// replaced by `alone: true` left the whole xtask suite green at 491 and
-    /// `check passed` — while `mutants.py`'s operator
+    /// replaced by `alone: true` fails this test — while `mutants.py`'s operator
     /// *"a second statement on the line is not excused"* rewrites the
-    /// **create** path thirty-three rows above and reports `killed`, so the run
-    /// printed a verdict reading *this rule is decided* over a copy decided by
-    /// nothing. That is this tree's most-caught defect shape, arriving in the
+    /// **create** path thirty-three rows above and reports `killed`, so without
+    /// this the run would print a verdict reading *this rule is decided* over a
+    /// copy decided by nothing. That is this tree's most-caught defect shape, in the
     /// runner's own output.
     ///
     /// The discriminating case is the *second* statement on the line: a comment
@@ -8633,16 +8614,15 @@ mod tests {
 
     /// A migration that runs no statement is reported, not counted as fine.
     ///
-    /// **The guard was held by its sentence and not by its behaviour.** `if
-    /// changes.statements == 0` could be switched off — `if false` — with
-    /// `cargo test -p xtask` and `cargo xtask check` both green, because the
-    /// only other reader of `runs_nothing` is the finding-message census, which
-    /// pins the *string*. A census sees that a sentence exists; it cannot see
-    /// whether anything ever says it.
+    /// **The guard, held by its behaviour and not only by its sentence.**
+    /// Switched off — `if false` — `if changes.statements == 0` fails this
+    /// test; the only other reader of `runs_nothing` is the finding-message
+    /// census, which pins the *string*. A census sees that a sentence exists; it
+    /// cannot see whether anything ever says it.
     ///
-    /// The defect it was written for is recorded on the function itself:
-    /// `0003_sequence_is_not_negative.sql` truncated to its comment header left
-    /// `ok 6 migration(s), numbered once each and in order` and `check passed`.
+    /// The defect it exists for is recorded on the function itself:
+    /// `0003_sequence_is_not_negative.sql` truncated to its comment header still
+    /// reads `numbered once each and in order` to the numbering gate.
     #[test]
     fn a_migration_that_runs_nothing_is_a_finding() {
         let held = crate::check::LeavesNothingBehind::new("limits-again");
@@ -8668,11 +8648,10 @@ mod tests {
     #[test]
     fn a_bound_on_a_table_nothing_creates_is_a_finding() {
         use std::fmt::Write as _;
-        // **The reverse gate could be deleted whole with the suite green.**
-        // Nothing exercised it, which is the same shape as the check the policy
-        // pack lost and had to have a test written for. Its own comment argues
-        // that a limit on a table that does not exist "reads as protection, and
-        // it is not" — and there was nothing making that argument true.
+        // **The reverse gate's own test.** Deleting the reverse gate whole fails
+        // it. Its own comment argues that a
+        // limit on a table that does not exist "reads as protection and is
+        // not" — and this is what makes that argument true.
         let scratch = std::env::temp_dir().join(format!("nc-limits-rev-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&scratch);
         std::fs::create_dir_all(scratch.join("migrations")).expect("writable");
@@ -8687,9 +8666,9 @@ mod tests {
         )
         .expect("writable");
         // **The scratch gets a real `catalog/limits.toml`.** Without one,
-        // `limits` is `""` and `line_of_entry("", name)` returns 1 — which is
-        // exactly what the repair replaced — so reverting `line_of_entry` to a
-        // literal `1` left this test green. A finding's line is part of the
+        // `limits` is `""` and `line_of_entry("", name)` returns 1 — the very
+        // answer a broken `line_of_entry` gives — so replacing `line_of_entry`
+        // with a literal `1` would leave this test green. A finding's line is part of the
         // finding, and a test that reads only `what` cannot see it.
         std::fs::create_dir_all(scratch.join("catalog")).expect("writable");
         let mut limits = String::from("# a scratch catalog, one entry per bounded table\n");
@@ -8736,10 +8715,9 @@ mod tests {
 
     /// A rename creates a table and retires one, and both halves are judged.
     ///
-    /// **Both branches were cold to the whole suite.** No migration in this tree
-    /// renames anything, so the rule that tracks a rename had never once run —
-    /// and deleting it left `cargo xtask check` green with `872 test(s)`. Its own
-    /// comment records what it was written for:
+    /// **Both branches, run here.** No migration in this tree renames anything,
+    /// so a run of the gate never reaches the rule that tracks a rename, and
+    /// deleting it fails this test. Its own comment records what it exists for:
     /// `ALTER TABLE access_records RENAME TO login_attempts` leaves the bounded
     /// entry naming a table that no longer exists, and the table that now holds
     /// the rows unbounded.
@@ -8805,9 +8783,9 @@ mod tests {
     /// A table dropped and re-created in one migration still exists at the end
     /// of it.
     ///
-    /// **The refusal of something legitimate, which is the harder half.** The
-    /// walk read every `CREATE TABLE` in a file before any `DROP`, so within one
-    /// migration a drop always won:
+    /// **The refusal of something legitimate, which is the harder half.** A
+    /// walk reading every `CREATE TABLE` in a file before any `DROP` makes a drop
+    /// always win within one migration:
     ///
     /// ```text
     /// DROP TABLE access_records;
@@ -8871,16 +8849,16 @@ mod tests {
     /// A column altered in one file and re-declared in a later one is read in
     /// the order the files run.
     ///
-    /// **`stamp` was load-bearing and decided by nothing.** `Created.at` and
+    /// **`stamp` is load-bearing, and this decides it.** `Created.at` and
     /// `ColumnChange.at` come out of `changes_in` numbered from zero *per file*,
     /// and the caller adds the running total so the two lists share one order.
-    /// Freezing that total — `stamp += changes.statements` to `stamp = 0` — left
-    /// the whole suite at 458 passed, and its own comment states the failure it
-    /// was written for: *a table dropped and re-created after an `ALTER COLUMN …
-    /// TYPE` would be read through the stale alteration.*
+    /// Freezing that total — `stamp += changes.statements` to `stamp = 0` —
+    /// fails this test, and its own comment states the failure it exists for:
+    /// *a table dropped and re-created after an `ALTER COLUMN … TYPE` would be
+    /// read through the stale alteration.*
     ///
-    /// Measured, with the total frozen: the re-created `bigint` column was read
-    /// as the `text` the earlier file had made it, and the gate asked for a
+    /// Measured, with the total frozen: the re-created `bigint` column is read
+    /// as the `text` the earlier file made it, and the gate asks for a
     /// correct `order_by` to be changed.
     #[test]
     fn a_column_altered_in_one_file_and_redeclared_in_a_later_one_reads_the_later_one() {
@@ -8936,12 +8914,12 @@ mod tests {
 
     /// The punctuation the cutter can make a token of, which is a closed set.
     ///
-    /// **Written because a rule read one that is not in it.**
-    /// `opens_a_statement` carried a `Token::Punct(';')` disjunct;
-    /// `;` finishes a statement in the cutter and is never tokenised, so the
-    /// clause answered for a value that cannot exist — and it is the predicate
-    /// that bounds the `UPDATE` carve-out, so a reader took `;` for one of the
-    /// boundaries holding that carve-out in.
+    /// **Because a rule can read one that is not in it.** A
+    /// `Token::Punct(';')` disjunct in `opens_a_statement` would answer for a
+    /// value that cannot exist — `;` finishes a statement in the cutter and is
+    /// never tokenised — and that is the predicate that bounds the `UPDATE`
+    /// carve-out, so a reader would take `;` for one of the boundaries holding
+    /// that carve-out in.
     ///
     /// A census over every migration this repository ships rather than over
     /// three fixtures, because what is claimed is that the set is *closed*.
@@ -8979,8 +8957,8 @@ mod tests {
         // **And a mark the migrations do not contain.** The census above is over
         // the twelve files this repository ships, so it can only refuse a fifth
         // character those files hold *as code* — measured, `|| here == '*'`
-        // added to the cutter's punctuation branch left it green, and widening
-        // that branch to every mark showed the migrations hold only
+        // added to the cutter's punctuation branch leaves it green, and widening
+        // that branch to every mark shows the migrations hold only
         // `( ) + , . : < = > | ~` between them: seven of the marks below are
         // decided by the census above and fourteen are not. So the closed set is
         // asserted a second time over text written to hold every mark there is,
@@ -9025,10 +9003,10 @@ mod tests {
 
     #[test]
     fn a_migration_set_that_cannot_be_applied_in_order_is_a_finding() {
-        // **The gate had no test at all.** Replacing its body with
-        // `Ok((Vec::new(), files.len()))` left all 444 tests green, and two
-        // files sharing number 2 — the case its own doc comment calls "the
-        // worst" — were reported as *numbered once each and in order*. Every
+        // **The gate's own test.** Replacing its body with
+        // `Ok((Vec::new(), files.len()))` fails it; so replaced, two files
+        // sharing number 2 — the case its own doc comment calls "the
+        // worst" — are reported as *numbered once each and in order*. Every
         // other gate in this file has a fire-it-on-purpose test; this is
         // `§19.3`'s opening failure, in the file that quotes `§19.3`.
         let held = crate::check::LeavesNothingBehind::new("scratch");
@@ -9051,13 +9029,13 @@ mod tests {
         assert_eq!(files, 3);
 
         // **A reversal, which is what `sqlx migrate revert` runs.** The guard for
-        // this was reached by no test: deleting it left `13 migration(s),
-        // numbered once each and in order` and `check passed`, with a
+        // this is decided here: deleting it fails this case, while the numbering
+        // line alone would still read `numbered once each and in order` with a
         // thirteenth migration whose name ends in the reversal suffix holding
         // `DROP TABLE journal_entries CASCADE` on disk. `sqlx` names a reversal
         // for the migration it undoes, so a file named this way is one whether
         // or not anybody meant it — and it is a one-command undo of an
-        // append-only audit log, in a tree with no git.
+        // append-only audit log.
         let (findings, files) = write(&["0001_a.sql", "0002_b.sql", "0002_b.down.sql"]);
         assert!(
             findings
@@ -9105,12 +9083,11 @@ mod tests {
 
     #[test]
     fn a_dollar_inside_an_identifier_is_not_a_quote() {
-        // **The worst of the five, and the third time this class appeared.**
-        // PostgreSQL: "subsequent characters in an identifier can be letters,
-        // underscores, digits, or dollar signs" — so `geo$ip$hash` opened a
-        // phantom `$ip$` quote, the scan ran to end of file looking for a close
-        // that never came, and everything after it was blanked. The first two
-        // recurrences were fixed one spelling at a time; this is the rule.
+        // **The worst of the five.** PostgreSQL: "subsequent characters in an
+        // identifier can be letters, underscores, digits, or dollar signs" — so
+        // read as a quote opening, `geo$ip$hash` opens a phantom `$ip$` quote,
+        // the scan runs to end of file looking for a close that never comes, and
+        // everything after it is blanked.
         let sql = "ALTER TABLE access_records ADD COLUMN geo$ip$hash TEXT;\n\
                    CREATE TABLE login_attempts (id TEXT PRIMARY KEY);\n";
         assert_eq!(caught(sql), vec!["login_attempts".to_owned()]);
@@ -9121,8 +9098,8 @@ mod tests {
 
     #[test]
     fn a_cte_before_a_select_into_does_not_hide_it() {
-        // The CTE's own `SELECT` comes first, so walking from there met the
-        // CTE's `FROM` and gave up before the `INTO` that names the new table.
+        // The CTE's own `SELECT` comes first, so walking from there meets the
+        // CTE's `FROM` and gives up before the `INTO` that names the new table.
         let sql = "WITH failed AS (SELECT id FROM access_records WHERE FALSE)\n\
                    SELECT id INTO login_attempts FROM failed;\n";
         assert_eq!(caught(sql), vec!["login_attempts".to_owned()]);
@@ -9133,7 +9110,7 @@ mod tests {
 
     #[test]
     fn a_ddl_string_executed_inside_a_routine_is_a_table() {
-        // Idiomatic conditional DDL. The body *was* re-scanned as SQL, and the
+        // Idiomatic conditional DDL. The body *is* re-scanned as SQL, and the
         // statement arrives as a single-quoted literal — whose contents are
         // blanked everywhere else, correctly, because a name is never inside
         // one. Inside a routine they are statements.
@@ -9147,9 +9124,9 @@ mod tests {
 
     #[test]
     fn a_block_comment_does_not_stretch_the_hatch_over_the_next_statement() {
-        // `cut` marked a line comment-only the moment a comment started on it,
-        // regardless of the code after — so `/* one row */ CREATE TABLE x (…);`
-        // read as a comment line and `excused` walked over that statement to
+        // Marking a line comment-only the moment a comment starts on it,
+        // regardless of the code after, reads `/* one row */ CREATE TABLE x (…);`
+        // as a comment line, and `excused` then walks over that statement to
         // give one marker to the table *after* it.
         let scratch = std::env::temp_dir().join(format!("nc-limits-blk-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&scratch);
@@ -9183,8 +9160,8 @@ mod tests {
 
     #[test]
     fn a_statement_that_writes_to_a_table_is_not_one_that_creates_it() {
-        // `MERGE INTO` writes; only `INSERT INTO` was skipped, so a `WITH …
-        // MERGE INTO t` was read as `SELECT … INTO t` and reported as creating
+        // `MERGE INTO` writes; skipping only `INSERT INTO` reads a `WITH …
+        // MERGE INTO t` as `SELECT … INTO t` and reports it as creating
         // `t` — at the line of the `MERGE`, for a table declared bounded three
         // lines above. Valid PostgreSQL 18.6, verified applied.
         let left_over = caught(
@@ -9212,10 +9189,11 @@ mod tests {
         // **The wrong-direction failure, in the gate whose whole value is that
         // its error names the table.** Inside a routine body every literal is
         // re-scanned as SQL, which is what makes `EXECUTE 'CREATE TABLE …'`
-        // visible — and it also read a placeholder and a sentence as tables.
+        // visible — and unguarded it also reads a placeholder and a sentence as
+        // tables.
         //
         // `format('CREATE TABLE %I …')` is the standard dynamic-partition
-        // helper, and it failed the build naming `%I`.
+        // helper, and it would fail the build naming `%I`.
         let left_over = caught(
             "DO $$ BEGIN EXECUTE format('CREATE TABLE %I PARTITION OF access_records \
                  FOR VALUES FROM (0) TO (1)', part); END $$;\n",
@@ -9226,7 +9204,7 @@ mod tests {
         );
         // And a `RAISE`'s message is prose. This one is the shape
         // `0001_journal.sql`'s own trigger is written in, and it happens not to
-        // contain the words — so the repository was one sentence away from it.
+        // contain the words — so the repository is one sentence away from it.
         let left_over = caught(
             "DO $$ BEGIN RAISE EXCEPTION 'this table is append-only; if you need \
                  another, CREATE TABLE ghost (id INT)'; END $$;\n",
@@ -9235,10 +9213,10 @@ mod tests {
             left_over.is_empty(),
             "a RAISE message was read as SQL: {left_over:?}"
         );
-        // **A routine *named* `raise`**, which the first fix did not tell from
-        // the keyword: the function name is a `Word` like any other, so the
-        // body it introduces was classified as a message and dropped. Live
-        // PostgreSQL 18.6 creates the table.
+        // **A routine *named* `raise`**, which a rule reading the last `RAISE`
+        // alone does not tell from the keyword: the function name is a `Word`
+        // like any other, so the body it introduces is classified as a message
+        // and dropped. Live PostgreSQL 18.6 creates the table.
         assert_eq!(
             caught(
                 "CREATE FUNCTION raise() RETURNS void AS \
@@ -9277,12 +9255,12 @@ mod tests {
 
     #[test]
     fn a_column_list_is_read_as_postgresql_reads_it() {
-        // Each of these was measured against a live PostgreSQL 18.6, and each
-        // was read wrong here.
+        // Each of these is measured against a live PostgreSQL 18.6, and each is
+        // a shape a naive column reader gets wrong.
         //
         // **A quoted identifier is never a keyword** — this module's own rule,
-        // not applied to the clause filter, so `"check"`, `"like"`, `"primary"`
-        // and `"unique"` were all dropped and the table read as having no
+        // applied to the clause filter too: unapplied, `"check"`, `"like"`, `"primary"`
+        // and `"unique"` are all dropped and the table reads as having no
         // columns at all.
         assert_eq!(
             columns_of(
@@ -9290,8 +9268,8 @@ mod tests {
             ),
             ["check", "like", "primary", "unique"]
         );
-        // **`period` needs no quoting**, and listing it as a clause dropped a
-        // real column: `order_by = "period"` was then reported as naming none,
+        // **`period` needs no quoting**, and listing it as a clause drops a
+        // real column: `order_by = "period"` is then reported as naming none,
         // against a migration PostgreSQL applies and a pruner that runs.
         assert_eq!(
             columns_of("CREATE TABLE p (id INT, period TEXT);"),
@@ -9310,7 +9288,7 @@ mod tests {
     #[test]
     fn a_table_built_from_a_template_says_it_cannot_say() {
         // `CREATE TABLE t (LIKE shape INCLUDING ALL, extra TEXT)` copies every
-        // column of `shape`, and reading only `extra` reported a real `order_by`
+        // column of `shape`, and reading only `extra` reports a real `order_by`
         // as naming no column. This scanner cannot know what the template holds,
         // so it says nothing rather than something wrong — and an empty list is
         // what the caller treats as cannot-say.
@@ -9323,9 +9301,9 @@ mod tests {
             [] as [String; 0]
         );
         // **And a `LIKE` that is not a table-shape clone does not turn the
-        // check off.** The word was looked for anywhere in the statement, so one
-        // ordinary pattern constraint made every column of that table
-        // unreadable — and `order_by` then matched nothing and was accepted.
+        // check off.** Looked for anywhere in the statement, the word lets one
+        // ordinary pattern constraint make every column of that table
+        // unreadable — and `order_by` then matches nothing and is accepted.
         assert_eq!(
             columns_of("CREATE TABLE t (id TEXT PRIMARY KEY, CHECK (id LIKE 'NC-%'), n INT);"),
             ["id", "n"]
@@ -9344,9 +9322,9 @@ mod tests {
 
     #[test]
     fn a_column_an_alter_changes_is_followed() {
-        // **The failure this whole check exists to prevent, reachable with
-        // `check passed`**: a migration renaming the column the catalog orders
-        // by left the gate green, and the pruner's next `ORDER BY "id"` failed
+        // **The failure this whole check exists to prevent**: read from the
+        // `CREATE TABLE` alone, a migration renaming the column the catalog
+        // orders by leaves the gate green, and the pruner's next `ORDER BY "id"` fails
         // with `column "id" does not exist`.
         let scratch = std::env::temp_dir().join(format!("nc-limits-alter-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&scratch);
@@ -9421,11 +9399,11 @@ mod tests {
         )
         .expect("writable");
         let (findings, _, _, _) = every_table_declares_a_bound(&scratch).expect("readable");
-        // **The sentence this gate actually writes.** The needle was
+        // **The sentence this gate actually writes.** A needle such as
         // `"does not name"`, which no finding this file builds contains — the
         // real one reads "`{table}` orders by `{column}`, which no migration
-        // declares as a column of it" — so the assertion was unfalsifiable:
-        // replaced with any string at all, nothing moved. A negative assertion
+        // declares as a column of it" — makes the assertion unfalsifiable:
+        // replaced with any string at all, nothing moves. A negative assertion
         // over a phrase that never appears is true for the same reason an
         // assertion over an empty collection is.
         assert!(
@@ -9470,9 +9448,9 @@ mod tests {
 
     #[test]
     fn one_statements_columns_do_not_bleed_onto_another_table() {
-        // The list was computed once and cloned to every name a statement
-        // declares, so `CREATE SCHEMA archive CREATE TABLE a (…) CREATE TABLE
-        // b (…)` gave both tables the first one's columns — and a
+        // A list computed once and cloned to every name a statement
+        // declares gives both tables of `CREATE SCHEMA archive CREATE TABLE a (…) CREATE TABLE
+        // b (…)` the first one's columns — and a
         // schema-qualified entry is a shape the catalog explicitly supports.
         let statements = super::statements(
             "CREATE SCHEMA archive CREATE TABLE access_records (id BIGINT, realm TEXT) \
@@ -9496,8 +9474,8 @@ mod tests {
 
     #[test]
     fn a_schema_qualified_name_is_offered_as_valid_toml() {
-        // `[tables.archive.access_records]` is a *nested* table to TOML, so
-        // following the fix text literally produced `unknown field
+        // `[tables.archive.access_records]` is a *nested* table to TOML, so an
+        // unquoted fix text followed literally produces `unknown field
         // 'access_records'` — a gate telling a developer to write something that
         // does not parse. The quoted form is what the compiler reads, and it is
         // what `nc-prune`'s identifier guard accepts.
@@ -9527,11 +9505,11 @@ mod tests {
 
     #[test]
     fn a_dollar_quote_after_an_operator_is_a_quote() {
-        // **Measured blanking a whole migration.** `word.is_empty()` was a proxy
-        // for "not inside an identifier", and an operator accumulates into
-        // `word` too — so `=$doc$…$doc$` did not open a quote, the apostrophe
-        // inside opened a string literal that ran to the end of the file, and
-        // the `CREATE TABLE` after it was invisible with `check passed`. Live
+        // **Measured blanking a whole migration.** With `word.is_empty()` as a
+        // proxy for "not inside an identifier" — and an operator accumulates into
+        // `word` too — `=$doc$…$doc$` does not open a quote, the apostrophe
+        // inside opens a string literal that runs to the end of the file, and
+        // the `CREATE TABLE` after it is invisible with `check passed`. Live
         // PostgreSQL 18.6 applies this and creates the table.
         assert_eq!(
             caught(
@@ -9541,7 +9519,7 @@ mod tests {
             vec!["login_attempts".to_owned()]
         );
         // The same with an operator that is two characters, and with a space —
-        // the shape that always worked, kept so the fix is not one-sided.
+        // the shape a proxy gets right, kept so the rule is not one-sided.
         for shape in ["<>$doc$don't$doc$", "= $doc$don't$doc$", "=$doc$don't$doc$"] {
             assert_eq!(
                 caught(&format!(
@@ -9565,8 +9543,8 @@ mod tests {
 
     #[test]
     fn a_routine_body_written_as_a_string_literal_is_read() {
-        // `DO $$ … $$` was scanned and `DO '…'` — the same statement, one
-        // quoting form older — was not, so every `CREATE TABLE` inside one was
+        // Scanning `DO $$ … $$` and not `DO '…'` — the same statement, one
+        // quoting form older — leaves every `CREATE TABLE` inside the second
         // invisible. Live PostgreSQL 18.6 creates all three of these.
         assert_eq!(
             caught(
@@ -9598,8 +9576,8 @@ mod tests {
     #[test]
     fn a_foreign_table_is_seen() {
         // Its rows live on another server, so its bound is not a `DELETE` this
-        // pruner can run — but a migration adding one left the count unchanged
-        // and the gate green, which is the shape `§15.8` exists to refuse.
+        // pruner can run — and unread, a migration adding one leaves the count
+        // unchanged and the gate green, which is the shape `§15.8` exists to refuse.
         assert_eq!(
             caught(
                 "CREATE FOREIGN TABLE remote_events (id BIGINT) SERVER other OPTIONS \
@@ -9618,14 +9596,14 @@ mod tests {
         );
     }
 
-    /// The two quoting forms the hand-rolled blanker did not know, both ways.
+    /// The two quoting forms a hand-rolled blanker misses, both ways.
     fn a_quoting_form_does_not_hide_or_invent_a_statement(scratch: &std::path::Path) {
-        // **The two quoting forms the hand-rolled blanker did not know.** An
-        // `E'…\'…'` above the `COPY` hid the refusal again — and then the
-        // apostrophe in the data hid the `CREATE TABLE` after it — while a
-        // `$doc$…$doc$` document holding the words failed the build over prose.
-        // Both are forms `cut` has had dedicated tests for since long before
-        // this refusal existed, which is the argument for having one grammar.
+        // **The two quoting forms a hand-rolled blanker misses.** With one, an
+        // `E'…\'…'` above the `COPY` hides the refusal again — and then the
+        // apostrophe in the data hides the `CREATE TABLE` after it — while a
+        // `$doc$…$doc$` document holding the words fails the build over prose.
+        // Both are forms `cut` has dedicated tests for, which is the argument
+        // for having one grammar.
         for hidden in [
             "COMMENT ON TABLE access_records IS E'seed rows; don\\'t edit them here';\n\
              COPY access_records (note) FROM stdin;\nit's a note\n\\.\n",
@@ -9661,8 +9639,8 @@ mod tests {
             );
         }
 
-        // **And prose is not a statement.** The words in a comment failed the
-        // build over a migration that holds no such statement — the
+        // **And prose is not a statement.** Read as text, the words in a comment
+        // fail the build over a migration that holds no such statement — the
         // wrong-direction failure this file names as the one it must not have.
         for prose in [
             "-- We never import foreign schema wholesale, because then nothing\n             -- here would say how many tables the database holds.\n             ALTER TABLE access_records ADD COLUMN note TEXT;\n",
@@ -9678,8 +9656,8 @@ mod tests {
             );
         }
 
-        // **`IMPORT FOREIGN SCHEMA`**, the bulk form of the statement
-        // `CREATE FOREIGN TABLE` was added for: it creates one foreign table per
+        // **`IMPORT FOREIGN SCHEMA`**, the bulk form of
+        // `CREATE FOREIGN TABLE`: it creates one foreign table per
         // table on the remote server, and this gate cannot know how many.
         std::fs::write(
             scratch.join("migrations/0001_x.sql"),
@@ -9705,10 +9683,10 @@ mod tests {
         //   -> pg_tables: login_attempts, x
         // ```
         //
-        // and both left the gate reporting a count with no finding: `%I` is not
-        // a name and a concatenation has no name token at all, so the gate's
-        // answer was "this migration creates nothing". `IMPORT FOREIGN SCHEMA`
-        // is refused for exactly that reason and this was not.
+        // and unrefused, both leave the gate reporting a count with no finding:
+        // `%I` is not a name and a concatenation has no name token at all, so the
+        // gate's answer is "this migration creates nothing". `IMPORT FOREIGN SCHEMA`
+        // is refused for exactly that reason, and so is this.
         let scratch = std::env::temp_dir().join(format!("nc-limits-exec-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&scratch);
         std::fs::create_dir_all(scratch.join("migrations")).expect("writable");
@@ -9735,9 +9713,9 @@ mod tests {
             "CREATE TRIGGER t BEFORE UPDATE ON access_records FOR EACH ROW \
              EXECUTE PROCEDURE f();\n",
             // **Prose in a literal inside a routine body is data.** The same
-            // sentence at the top level produces nothing; inside a `DO` block
-            // the literal was re-cut and its first word landed at position zero,
-            // failing the build as dynamic SQL, as a foreign-schema import and
+            // sentence at the top level produces nothing; inside a `DO` block,
+            // re-cut, the literal's first word lands at position zero and fails
+            // the build as dynamic SQL, as a foreign-schema import and
             // as a `COPY` from stdin at once.
             "DO $$ BEGIN INSERT INTO access_records (note) VALUES \
              ('we never EXECUTE anything here'); END $$;\n",
@@ -9748,7 +9726,8 @@ mod tests {
             // **And `EXECUTE` is SQL's privilege on a routine as well as its
             // verb for dynamic SQL.** Revoking it from `PUBLIC` is the ordinary
             // next hardening step for the three functions this tree ships in
-            // migrations, and it was refused with a message about dynamic SQL.
+            // migrations, and a reader of the verb alone refuses it with a
+            // message about dynamic SQL.
             "REVOKE EXECUTE ON FUNCTION public.f() FROM PUBLIC;\n",
             "GRANT EXECUTE ON FUNCTION public.f() TO noctua;\n",
             "GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO noctua;\n",
@@ -9773,7 +9752,7 @@ mod tests {
     fn a_copy_from_stdin_is_refused_rather_than_read_as_sql() {
         // **And a foreign-schema import wherever it is written.** A routine
         // body's statements begin with `BEGIN`, so a rule anchored at token zero
-        // never saw one inside a `DO` block — and PL/pgSQL parses and dispatches
+        // never sees one inside a `DO` block — and PL/pgSQL parses and dispatches
         // it.
         for wrapped in [
             "IMPORT FOREIGN SCHEMA remote LIMIT TO (events) FROM SERVER other INTO public;\n",
@@ -9793,9 +9772,9 @@ mod tests {
             );
             let _ = std::fs::remove_dir_all(&scratch);
         }
-        // Measured: the apostrophe in the data opened a string literal that ran
-        // to the end of the file, so `CREATE TABLE login_attempts` after it was
-        // invisible and the gate passed reporting a count.
+        // Measured unrefused: the apostrophe in the data opens a string literal
+        // that runs to the end of the file, so `CREATE TABLE login_attempts`
+        // after it is invisible and the gate passes reporting a count.
         let scratch = std::env::temp_dir().join(format!("nc-limits-copy-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&scratch);
         std::fs::create_dir_all(scratch.join("migrations")).expect("writable");
@@ -9810,9 +9789,9 @@ mod tests {
             "a COPY … FROM stdin was read as SQL: {findings:#?}"
         );
 
-        // **Wrapped, and after another statement on the same line**, which the
-        // line-at-a-time version walked straight past — and the apostrophe then
-        // blanked the file exactly as before.
+        // **Wrapped, and after another statement on the same line**, which a
+        // line-at-a-time reader walks straight past — and the apostrophe then
+        // blanks the file the same way.
         for wrapped in [
             "COPY access_records (note)\nFROM stdin;\nit's a note\n\\.\n",
             "BEGIN; COPY access_records (note) FROM stdin;\nit's a note\n\\.\n",
@@ -9830,10 +9809,10 @@ mod tests {
             );
         }
 
-        // **Behind a comment, and behind a quoted name.** A `--` line above the
-        // `COPY` made `copy` no longer the statement's first word, so the
-        // refusal was skipped and the apostrophe in the data blanked the file
-        // exactly as before — the defect the refusal exists to prevent,
+        // **Behind a comment, and behind a quoted name.** Read from the text, a
+        // `--` line above the `COPY` makes `copy` no longer the statement's first
+        // word, so the refusal is skipped and the apostrophe in the data blanks
+        // the file — the defect the refusal exists to prevent,
         // reachable by writing the comment every migration in this tree has.
         for hidden in [
             "-- Seed the first access record.\nCOPY access_records (note) FROM stdin;\nit's a note\n\\.\n",
@@ -9879,9 +9858,9 @@ mod tests {
 
     #[test]
     fn the_name_is_read_from_every_shape_postgresql_writes_it_in() {
-        // Each of these named the wrong thing, which is criterion 5's second
-        // half — *the error names the table* — failing in the one way it must
-        // not.
+        // Read naively, each of these names the wrong thing, which is criterion
+        // 5's second half — *the error names the table* — failing in the one way
+        // it must not.
         assert_eq!(
             caught("CREATE TABLE U&\"login_attempts\" (id TEXT);\n"),
             vec!["login_attempts".to_owned()],
@@ -9904,8 +9883,8 @@ mod tests {
     /// limits` step has already located the defect, named the table, given the
     /// four keys it needs and cited the rule; this is the net under the step
     /// itself being dropped from `check`, and it has nothing to add about any
-    /// particular finding. It used to `{findings:#?}` the whole list, so one
-    /// unbounded table produced a first-rate diagnostic and then, 800 lines
+    /// particular finding. A `{findings:#?}` of the whole list would make one
+    /// unbounded table produce a first-rate diagnostic and then, 800 lines
     /// later, the same finding again as a `Debug` dump — with the fix text
     /// repeated inside it.
     ///
@@ -9954,10 +9933,10 @@ mod tests {
             "the marker did not excuse it: {findings:#?}"
         );
 
-        // **And a bare marker excuses nothing.** It did: the check was
-        // `contains(BOUNDED)`, so the reason this file demands in three places was
-        // worth nothing, and the hatch cost nothing to use. `references::marked`
-        // exists because every gate that invents its own forgets the reason.
+        // **And a bare marker excuses nothing.** Checked with
+        // `contains(BOUNDED)`, the reason this file demands is worth nothing,
+        // and the hatch costs nothing to use. `references::marked_in` exists
+        // because every gate that invents its own forgets the reason.
         let (findings, _, _, _) = write(format!(
             "-- {BOUNDED}\nCREATE TABLE something_unbounded (\n    id BIGINT\n);\n"
         ));
@@ -9968,7 +9947,8 @@ mod tests {
 
         // **A comment that describes the hatch is not the hatch.** This exact
         // block — the sentence this gate's own `fix` text tells you to write —
-        // excused every table beneath it, in the file where the gate is loudest
+        // excuses every table beneath it under a rule that finds the marker
+        // anywhere, in the file where the gate is loudest
         // about not being routed around.
         let (findings, _, _, _) = write(format!(
             "-- House style: a table that genuinely cannot grow is excused by writing\n\
@@ -9993,15 +9973,14 @@ mod tests {
             "a mention inside a sentence excused a table: {findings:#?}"
         );
 
-        // **And the marker has to *open* its line, which was prose.** The rule
+        // **And the marker has to *open* its line, and this holds it.** The rule
         // is `strip_prefix("--")` and its own doc says the reason must begin its
-        // line — but nothing told that apart from `find("--")`.
+        // line, and this is what tells that apart from `find("--")`.
         // A block comment's interior lines are comment lines to the walk and
         // need not begin with `--` at all, so a line holding ` x -- ` and then
-        // the marker is the shape that walks through a `find`. Measured on
-        // 2026-09-11:
-        // with the prefix rule weakened to a search, this fixture excused an
-        // unbounded table and the whole suite stayed green.
+        // the marker is the shape that walks through a `find`. Measured: with
+        // the prefix rule weakened to a search, this fixture excuses an
+        // unbounded table, and the assertion below fails.
         let (findings, _, _, _) = write(format!(
             "/*\n x -- {BOUNDED} `something_unbounded` holds one row, written at install\n*/\n\
              CREATE TABLE something_unbounded (\n    id BIGINT\n);\n"
@@ -10011,7 +9990,7 @@ mod tests {
             "a marker with something before it on the line excused a table: {findings:#?}"
         );
 
-        // And the control, so the repair is not the opposite mistake: the same
+        // And the control, so the rule is not the opposite mistake: the same
         // line inside the same block comment, with nothing before the `--`,
         // still excuses. A block comment is where the migrations write prose.
         let (findings, _, _, _) = write(format!(
@@ -10024,7 +10003,7 @@ mod tests {
         );
 
         // The marker still works one comment line up, which is the shape the real
-        // migrations use — the fixes above must not have closed the hatch itself.
+        // migrations use — the rules above must not close the hatch itself.
         let (findings, _, _, _) = write(format!(
             "-- The install marker.\n\
              -- {BOUNDED} `something_unbounded` holds one row, written at install and \
@@ -10038,8 +10017,8 @@ mod tests {
 
         // **And an excuse written about a different table does not travel.** The
         // marker sits above a statement, so the next table added above it
-        // inherits whatever the comment said — and the comment only had to be
-        // non-empty, which made `x` a reason.
+        // inherits whatever the comment said — and with the comment only
+        // required to be non-empty, `x` is a reason.
         let (findings, _, _, _) = write(format!(
             "-- {BOUNDED} `install_marker` holds one row, written at install\n\
              CREATE TABLE something_unbounded (\n    id BIGINT\n);\n"
@@ -10059,11 +10038,12 @@ mod the_migration_function_gate {
 
     /// The gate reaches a function wherever in a migration set it sits.
     ///
-    /// **Neither half of this gate had a test.** Its count is `latest.len()` —
+    /// **Both halves of this gate, tested.** Its count is `latest.len()` —
     /// the very map the loop judges — so the two move together by construction,
-    /// and `if !text.is_empty() { return Vec::new(); }` inside `functions_in`
-    /// printed `ok 0 function(s) in migrations pin how they resolve a name` with
-    /// `check passed`. A floor on zero answers that one. What it cannot answer is
+    /// and with the count alone, `if !text.is_empty() { return Vec::new(); }`
+    /// inside `functions_in` prints `ok 0 function(s) in migrations pin how they
+    /// resolve a name` with `check passed`, measured. A floor on zero answers
+    /// that one. What it cannot answer is
     /// a walk that reads every file and judges only the first: this does, with a
     /// file position and a body depth this process picks.
     #[test]
@@ -10072,11 +10052,11 @@ mod the_migration_function_gate {
         let _ = std::fs::remove_dir_all(&scratch);
         std::fs::create_dir_all(scratch.join("migrations")).expect("writable");
         // **The last file, and past the longest migration.** `pid % 5 + 3` files
-        // with the plant at `pid % files` put it in the *first* file for 17.9% of
+        // with the plant at `pid % files` puts it in the *first* file for 17.9% of
         // process ids — the very shape this test's own name says it answers — and
-        // `pid % 30 + 2` put it between lines 5 and 34, a window written in this
-        // line. A filter at `line > 40` then judged nothing at all in the real
-        // tree, where every surviving definition is past line 40, and printed
+        // `pid % 30 + 2` puts it between lines 5 and 34, a window written in this
+        // line. A filter at `line > 40` then judges nothing at all in the real
+        // tree, where every surviving definition is past line 40, and prints
         // `ok 3 function(s)` unchanged.
         //
         // The plant goes in the last file and past the longest migration, so a
@@ -10147,17 +10127,17 @@ mod the_migration_function_gate {
 
     /// PostgreSQL's other two quoting forms do not blank the rest of the file.
     ///
-    /// **One of the two string forms, and neither identifier form.** The literal
-    /// walk knew `''` doubling and nothing else. With
+    /// **Both string forms, and both identifier forms.** A literal walk that
+    /// knows `''` doubling and nothing else fails on the rest. With
     /// `standard_conforming_strings` `on` — measured on the developer's cluster,
     /// PostgreSQL 18.6 — an **escape string** `E'don\'t'` is one five-character
-    /// string, and `SELECT length(E'don\'t')` answers 5. This walk closed the
-    /// literal at the backslash-escaped quote, re-opened one at the real closing
-    /// quote, and blanked everything after it — so a `CREATE FUNCTION` below
-    /// such a line was invisible to every later pass and an unpinned definition
-    /// went unreported with the audit printing its ordinary line. A `'` inside a
-    /// `"quoted identifier"` is the same hole from the other side. Found in
-    /// wave 26; a reviewer applied the migration to a real cluster and read
+    /// string, and `SELECT length(E'don\'t')` answers 5. Such a walk closes the
+    /// literal at the backslash-escaped quote, re-opens one at the real closing
+    /// quote, and blanks everything after it — so a `CREATE FUNCTION` below
+    /// such a line is invisible to every later pass and an unpinned definition
+    /// goes unreported with the audit printing its ordinary line. A `'` inside a
+    /// `"quoted identifier"` is the same hole from the other side. Applied to a
+    /// real cluster, that migration reads
     /// `pg_proc.proconfig` back as `NULL`.
     #[test]
     fn a_quoting_form_this_walk_did_not_know_does_not_hide_a_function() {
@@ -10207,16 +10187,16 @@ mod the_migration_function_gate {
 
     /// The two halves of this gate spell a routine's name the same way.
     ///
-    /// **They did not, and the disagreement is not a miss.** The `CREATE` side
-    /// walked the characters counting brackets; the `ALTER` side took one
-    /// whitespace-separated token. Where the argument list holds a space, or a
-    /// space sits before the bracket, the `ALTER` landed in the map as a
+    /// **Spelled two ways, the disagreement is not a miss.** A `CREATE` side
+    /// walking the characters counting brackets and an `ALTER` side taking one
+    /// whitespace-separated token disagree where the argument list holds a space, or a
+    /// space sits before the bracket: the `ALTER` lands in the map as a
     /// *second* function — pinned, because that is what it says — and the real
-    /// one was reported unpinned, with the message quoting the `CREATE` while
-    /// the statement that was wrong sat two lines below it.
+    /// one is reported unpinned, with the message quoting the `CREATE` while
+    /// the statement that is wrong sits two lines below it.
     ///
-    /// **And an `ALTER` that names nothing this tree creates is now a finding.**
-    /// It used to be a new entry, so the phantom satisfied the gate. Every
+    /// **And an `ALTER` that names nothing this tree creates is a finding.** As a
+    /// new entry, the phantom would satisfy the gate. Every
     /// `ALTER FUNCTION` in these migrations names a function an earlier one
     /// creates, which is the only way one can work at all.
     #[test]
@@ -10236,7 +10216,7 @@ mod the_migration_function_gate {
         }
         const BODY: &str = "RETURNS TRIGGER LANGUAGE plpgsql AS $$\nBEGIN RETURN NEW; END;\n$$;\n";
         // One function, pinned by an `ALTER`, in each of the spellings the two
-        // halves used to disagree about.
+        // halves have to agree about.
         for (created, altered) in [
             ("archive.f()", "archive.f()"),
             ("archive.f()", "archive.f ()"),
@@ -10276,12 +10256,12 @@ mod the_migration_function_gate {
 
     /// A quote in the signature does not open the body.
     ///
-    /// The bracketing took whichever of `$` and `'` came first, so a parameter
-    /// with a text default — ordinary SQL — bracketed the declaration against a
-    /// quote in the *signature* and folded the real `$tag$…$tag$` body into it.
-    /// `declared.contains("set search_path")` was then satisfied by a string
+    /// Bracketing on whichever of `$` and `'` comes first, a parameter
+    /// with a text default — ordinary SQL — brackets the declaration against a
+    /// quote in the *signature* and folds the real `$tag$…$tag$` body into it.
+    /// `declared.contains("set search_path")` is then satisfied by a string
     /// literal inside the function's own body: measured, `ok 4 function(s) in
-    /// migrations pin how they resolve a name` while the database held a null
+    /// migrations pin how they resolve a name` while the database holds a null
     /// `proconfig`. The same defect as a pin inside a comment reading as a real
     /// pin, one quoting form over.
     #[test]
@@ -10324,11 +10304,11 @@ mod the_migration_function_gate {
     /// Every clause `ALTER FUNCTION` has for lifting a pin lifts it here too.
     ///
     /// PostgreSQL's grammar for a configuration clause is `SET x TO v`,
-    /// `SET x FROM CURRENT`, `RESET x` and `RESET ALL`. The rule knew two of the
-    /// three ways to lift one, and `RESET ALL` — which clears `proconfig`
-    /// entirely and so lifts the pin without naming the path at all — printed
-    /// `ok 3 function(s) in migrations pin how they resolve a name`. Only the
-    /// database half objected, and `check --offline` is what `just check-offline`
+    /// `SET x FROM CURRENT`, `RESET x` and `RESET ALL`. A rule knowing two of
+    /// the three ways to lift one lets `RESET ALL` — which clears `proconfig`
+    /// entirely and so lifts the pin without naming the path at all — print
+    /// `ok 3 function(s) in migrations pin how they resolve a name`, measured. Only the
+    /// database half objects, and `check --offline` is what `just check-offline`
     /// runs.
     #[test]
     fn every_way_of_lifting_a_pin_is_a_lifted_pin() {
@@ -10371,12 +10351,12 @@ mod the_migration_function_gate {
 
     /// A keyword on its own line is the same statement.
     ///
-    /// **Both halves of this gate required a literal single space**, so a line
-    /// break after `CREATE`, or between `OR REPLACE` and `FUNCTION`, made the
-    /// parser and the independent count that floors it miss the *same*
-    /// statement — and `found != creates`, the one thing standing between a
-    /// partial parse and a green run, was satisfied by their agreeing about
-    /// nothing. Measured over a scratch tree, before `routine_at`:
+    /// **A parser and its independent count that both require a literal single
+    /// space** miss the *same* statement when a line break follows `CREATE`, or
+    /// falls between `OR REPLACE` and `FUNCTION` — and `found != creates`, the
+    /// one thing standing between a partial parse and a green run, is satisfied
+    /// by their agreeing about nothing. Measured over a scratch tree, with two
+    /// such readers:
     ///
     /// ```text
     /// one line                                  count 1, parser 1, findings 1
@@ -10384,8 +10364,8 @@ mod the_migration_function_gate {
     /// a break straight after CREATE                   0,        0,          0
     /// ```
     ///
-    /// `CREATE  FUNCTION` with two spaces was caught — by the mismatch, not by
-    /// either reader — which is what made this look tested.
+    /// `CREATE  FUNCTION` with two spaces is caught — by the mismatch, not by
+    /// either reader — which is what makes such a pair look tested.
     #[test]
     fn a_keyword_on_its_own_line_is_still_a_function() {
         let scratch = std::env::temp_dir().join(format!("nc-wrapped-fn-{}", std::process::id()));

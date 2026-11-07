@@ -30,8 +30,10 @@
 //!
 //! What this answers (`NOCTUA.md §2.4`): another account on the machine
 //! reading or replacing the bytes, because the directory is held to the local
-//! database's own rule — `0700`, this user's alone, not a link
-//! (`nc_local::blob_directory`) — and every file is created `0600`; a blob
+//! database's own rule — this user's alone, not a link
+//! (`nc_local::blob_directory`) — and every file is created private to that
+//! user (`nc_platform::create_private`: `0600` on Unix, an access list naming
+//! the user alone on Windows); a blob
 //! half written passing for a whole one, because a name is given only to bytes
 //! synced in full; and bytes outliving the unit that made them, because a unit
 //! let go deletes them and the sweep deletes whatever was named and never
@@ -53,7 +55,6 @@ use core::fmt;
 use core::future::Future;
 use std::collections::BTreeSet;
 use std::io::{Read as _, Seek as _, Write as _};
-use std::os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -230,8 +231,9 @@ pub trait BlobStore: fmt::Debug + Send + Sync + 'static {
     ///
     /// [`BlobError::Io`] when the bytes could not be kept. Nothing is then held
     /// under the hash that was not held before, unless the failure came after
-    /// the bytes were named — the directory refused its sync — and then they
-    /// are held under it all the same.
+    /// the bytes were named — the directory refused its sync, on a system that
+    /// syncs one (`nc_platform::SYNCS_A_DIRECTORY`) — and then they are held
+    /// under it all the same.
     fn finish(
         &self,
         writer: Self::Writer,
@@ -338,9 +340,9 @@ static WRITINGS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::ne
 ///
 /// **The directory is judged once, when the store is opened**, by the local
 /// database's rule (`nc_local::blob_directory`), and every file in it is
-/// created `0600` by the writer that makes it. Every call is a blocking read
-/// or write of the disk, made on a thread of its own so that the host call
-/// waiting on it can be abandoned at its deadline.
+/// created private by the writer that makes it (`nc_platform::create_private`).
+/// Every call is a blocking read or write of the disk, made on a thread of its
+/// own so that the host call waiting on it can be abandoned at its deadline.
 #[derive(Debug)]
 pub struct DirectoryBlobs {
     root: PathBuf,
@@ -349,7 +351,7 @@ pub struct DirectoryBlobs {
 }
 
 impl DirectoryBlobs {
-    /// The blobs kept in `root`, which is created `0700` when it is missing.
+    /// The blobs kept in `root`, which is created private when it is missing.
     ///
     /// # Errors
     ///
@@ -474,24 +476,6 @@ fn file_of(root: &Path, hash: &Hash) -> Result<Option<(PathBuf, u64)>, BlobError
     }
 }
 
-/// A new file, `0600`, refusing one that exists — a link included.
-#[expect(
-    clippy::disallowed_methods,
-    reason = "a writing is created here, private, before any byte is written: `create_new` \
-              refuses a name that exists, a link included, and the mode is set outright \
-              because the umask only ever narrows the one passed to `open`. `ui` is the \
-              output path, and this is a file inside the blobs' own directory"
-)]
-fn create_private(path: &Path) -> std::io::Result<std::fs::File> {
-    let file = std::fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .mode(0o600)
-        .open(path)?;
-    file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
-    Ok(file)
-}
-
 impl BlobStore for DirectoryBlobs {
     type Writer = DirectoryWriter;
 
@@ -536,7 +520,9 @@ impl BlobStore for DirectoryBlobs {
                 .map_or(0, |since| since.as_nanos());
             let name = format!("{WRITING}{}-{now}-{made}", std::process::id());
             let path = root.join(&name);
-            let file = create_private(&path)
+            // Private before any byte is written: a name that is there, a
+            // link included, is refused rather than opened.
+            let file = nc_platform::create_private(&path)
                 .map_err(|error| failed(&format!("creating `{}`", path.display()), &error))?;
             held(&writing).insert(name.clone());
             Ok(DirectoryWriter {
@@ -629,21 +615,20 @@ impl BlobStore for DirectoryBlobs {
                 // directory finds the bytes young while the unit that made
                 // them again is in flight (`sweep`).
                 let named = root.join(hash.as_str());
-                std::fs::File::open(&named)
-                    .and_then(|bytes| bytes.set_modified(std::time::SystemTime::now()))
+                nc_platform::set_modified(&named, std::time::SystemTime::now())
                     .map_err(|error| failed(&format!("naming `{}`", named.display()), &error))?;
             } else {
                 let named = root.join(hash.as_str());
                 std::fs::rename(&writer.path, &named)
                     .map_err(|error| failed(&format!("naming `{}`", named.display()), &error))?;
                 // The rename is the directory's to keep, and a directory is
-                // synced through a handle of its own. **A sync refused is not
-                // undone**: the bytes are named already, and the file whose
-                // place they took — not these bytes — is gone, so there is
-                // nothing to put back. They stay named, and the sweep deletes
-                // them unless a row names their hash.
-                std::fs::File::open(&root)
-                    .and_then(|directory| directory.sync_all())
+                // synced through a handle of its own where it has one.
+                // **A sync refused is not undone**: the bytes are named
+                // already, and the file whose place they took — not these
+                // bytes — is gone, so there is nothing to put back. They stay
+                // named, and the sweep deletes them unless a row names their
+                // hash.
+                nc_platform::sync_directory(&root)
                     .map_err(|error| failed(&format!("syncing `{}`", root.display()), &error))?;
             }
             writer.end();
@@ -723,9 +708,9 @@ impl BlobStore for DirectoryBlobs {
 /// order.
 ///
 /// **A directory is never a blob's bytes or a writing**, and no unlink deletes
-/// one. Listed, one under a hash's name stopped every sweep at it for good —
-/// each refused at the same entry, and the writings no writer holds, which a
-/// sweep deletes last, were never deleted at all.
+/// one. Listed, one under a hash's name would stop every sweep at it for good —
+/// each refused at the same entry — and the writings no writer holds, which a
+/// sweep deletes last, would never be deleted at all.
 fn names_in(root: &Path) -> Result<Vec<String>, BlobError> {
     let listing = |error: std::io::Error| failed(&format!("listing `{}`", root.display()), &error);
     let mut names = Vec::new();
@@ -1015,10 +1000,10 @@ const SWEPT_AT_ONCE: u32 = 1_000;
 ///
 /// **And only bytes no one has named for `blob_orphan_grace_ms`**, row or no
 /// row. The bus is one kernel's, and the kernels of the realms one person
-/// belongs to share the file and the bytes: a reviewer found one realm's
-/// sweep deleting, as an orphan, the bytes another realm's unit had made and
-/// not yet committed, whose step was then kept pinning bytes that were gone.
-/// A unit in flight names its bytes — again, when they are held already
+/// belongs to share the file and the bytes: judging by rows alone, one realm's
+/// sweep would delete, as an orphan, the bytes another realm's unit has made
+/// and not yet committed, whose step would then be kept pinning bytes that are
+/// gone. A unit in flight names its bytes — again, when they are held already
 /// ([`BlobStore::hashes`]) — so they are never old while it is.
 ///
 /// **And never a blob a reversal still owed pins again.** An undo whose close
@@ -1026,10 +1011,10 @@ const SWEPT_AT_ONCE: u32 = 1_000;
 /// store refused, or another realm's stopped process's, sharing the file — is
 /// held from the pruner (`nc_local::LocalStore::commit_held`), and its
 /// reversal, when it comes, pins again each blob the undo took the pin off. A
-/// reviewer found the sweep forgetting such a row and its bytes after their
-/// grace, and the reversal then inserting a pinned row for bytes that were
-/// gone; so the blobs the notes of a held unit record as unpinned by it are
-/// left for after its reversal.
+/// sweep that forgot such a row and its bytes after their grace would leave the
+/// reversal inserting a pinned row for bytes that are gone; so the blobs the
+/// notes of a held unit record as unpinned by it are left for after its
+/// reversal.
 ///
 /// # Errors
 ///
@@ -1387,18 +1372,11 @@ mod tests {
     /// not written again.
     #[tokio::test]
     async fn a_writing_is_named_by_its_hash_only_once_it_is_whole() {
-        use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
+        use nc_platform::testing::{identity, is_as_created};
 
         let scratch = Scratch::new("named");
         let store = DirectoryBlobs::open(&scratch.blobs()).expect("opens");
-        let mode = |path: &std::path::Path| {
-            std::fs::symlink_metadata(path)
-                .expect("there")
-                .permissions()
-                .mode()
-                & 0o777
-        };
-        assert_eq!(mode(&scratch.blobs()), 0o700);
+        assert!(is_as_created(&scratch.blobs()), "the directory");
         let mut writer = store.create().await.expect("a writing");
         let (back, wrote) = store.write(writer, b"half".to_vec()).await;
         wrote.expect("written");
@@ -1406,7 +1384,10 @@ mod tests {
         let unfinished: Vec<String> = super::names_in(&scratch.blobs()).expect("lists");
         assert_eq!(unfinished.len(), 1, "{unfinished:?}");
         assert!(unfinished[0].starts_with(WRITING), "{unfinished:?}");
-        assert_eq!(mode(&scratch.blobs().join(&unfinished[0])), 0o600);
+        assert!(
+            is_as_created(&scratch.blobs().join(&unfinished[0])),
+            "the writing"
+        );
         assert_eq!(
             store.hashes(Duration::ZERO).await.expect("lists"),
             [],
@@ -1426,20 +1407,27 @@ mod tests {
             [finished.hash.to_string()],
             "the writing is gone once it is named"
         );
-        assert_eq!(mode(&scratch.blobs().join(finished.hash.as_str())), 0o600);
+        assert!(
+            is_as_created(&scratch.blobs().join(finished.hash.as_str())),
+            "the bytes named"
+        );
 
         // The same bytes again are the same blob, and the file is not written
         // — the same file, the same bytes — though it is named again.
         let named = scratch.blobs().join(finished.hash.as_str());
         named_long_ago(&named);
         let before = std::fs::symlink_metadata(&named).expect("there");
+        let was = identity(&named).expect("there");
         let again = written(&store, &[b"half and the rest"]).await;
         assert_eq!(
             (again.hash.clone(), again.held_before),
             (finished.hash.clone(), true)
         );
         let after = std::fs::symlink_metadata(&named).expect("there");
-        assert_eq!((after.ino(), after.len()), (before.ino(), before.len()));
+        assert_eq!(
+            (identity(&named).expect("there"), after.len()),
+            (was, before.len())
+        );
         assert_eq!(std::fs::read(&named).expect("read"), b"half and the rest");
         assert!(
             after.modified().expect("a time") > before.modified().expect("a time"),
@@ -1462,9 +1450,7 @@ mod tests {
         let long_ago = std::time::SystemTime::now()
             - Duration::from_millis(KERNEL.blob_orphan_grace_ms)
             - Duration::from_secs(1);
-        std::fs::File::open(path)
-            .and_then(|file| file.set_modified(long_ago))
-            .expect("this test's own file is aged");
+        nc_platform::set_modified(path, long_ago).expect("this test's own file is aged");
     }
 
     /// A runtime whose blocking pool has one thread, which runs the work handed
@@ -1539,28 +1525,35 @@ mod tests {
     /// named before the refusal stay under their hash, which the sweep deletes
     /// as bytes no row names.
     ///
-    /// **What `finish` promised otherwise**, measured by a review: that nothing
-    /// a refused finish did not hold before is held under the hash. A directory
-    /// its owner may write in and enter but not read lets the rename through,
-    /// and refuses the handle the directory is synced through.
+    /// **The exception `finish` documents**: a refused finish may leave held
+    /// under the hash what was not held before. A directory its owner may write
+    /// in and enter but not list lets the rename through, and refuses the
+    /// handle the directory is synced through.
+    ///
+    /// **Where no directory is synced — Windows — there is no such refusal to
+    /// stage**, and the same finish, in the same directory, is kept: what is
+    /// asserted there is that the bytes are named and nothing is refused,
+    /// since a refusal could only come from a step that does not run.
     #[tokio::test]
     async fn bytes_named_before_their_directory_refused_its_sync_are_left_for_the_sweep() {
-        use std::os::unix::fs::PermissionsExt as _;
-
         let scratch = Scratch::new("unsynced");
         let store = DirectoryBlobs::open(&scratch.blobs()).expect("opens");
         let writer = store.create().await.expect("a writing");
         let (writer, wrote) = store.write(writer, b"named, not synced".to_vec()).await;
         wrote.expect("written");
-        let chmod = |mode| {
-            std::fs::set_permissions(scratch.blobs(), std::fs::Permissions::from_mode(mode))
-                .expect("this test made the directory it is chmod-ing");
-        };
-        chmod(0o300);
+        nc_platform::testing::hide_its_entries(&scratch.blobs())
+            .expect("this test made the directory it is shutting");
         let finished = store.finish(writer).await;
-        // Readable again before anything is asserted, so the scratch directory
+        // Listed again before anything is asserted, so the scratch directory
         // can be removed however this ends.
-        chmod(0o700);
+        nc_platform::testing::make_private(&scratch.blobs()).expect("private again");
+        let hash = Hash::of(b"named, not synced");
+        if !nc_platform::SYNCS_A_DIRECTORY {
+            let kept = finished.expect("nothing after the rename can refuse a finish here");
+            assert_eq!((kept.hash, kept.size), (hash.clone(), 17));
+            assert_eq!(store.size(&hash).await, Ok(Some(17)));
+            return;
+        }
         let refused = finished.expect_err(
             "a finish was kept in a directory that refused its sync: this test must run as a \
              user its mode binds, not the superuser",
@@ -1572,7 +1565,6 @@ mod tests {
                 .contains(&format!("syncing `{}`", scratch.blobs().display())),
             "{refused}"
         );
-        let hash = Hash::of(b"named, not synced");
         assert_eq!(
             super::names_in(&scratch.blobs()).expect("lists"),
             [hash.to_string()],
@@ -1633,9 +1625,9 @@ mod tests {
         let directory = Hash::of(b"a directory");
         std::fs::create_dir(scratch.blobs().join(directory.as_str())).expect("planted");
         let link = Hash::of(b"a link");
-        std::os::unix::fs::symlink(
-            scratch.blobs().join(finished.hash.as_str()),
-            scratch.blobs().join(link.as_str()),
+        nc_platform::testing::link_file(
+            &scratch.blobs().join(finished.hash.as_str()),
+            &scratch.blobs().join(link.as_str()),
         )
         .expect("planted");
         for planted in [&directory, &link] {
@@ -1683,25 +1675,24 @@ mod tests {
     /// A directory another user could reach is refused, and left as it was.
     #[test]
     fn a_directory_another_user_can_reach_is_refused_and_left_as_it_was() {
-        use std::os::unix::fs::PermissionsExt as _;
+        use nc_platform::testing;
 
         let scratch = Scratch::new("refused");
         std::fs::create_dir(scratch.blobs()).expect("made");
-        std::fs::set_permissions(scratch.blobs(), std::fs::Permissions::from_mode(0o755))
-            .expect("chmod");
-        let refused = DirectoryBlobs::open(&scratch.blobs()).expect_err("0755 is refused");
+        testing::make_private(&scratch.blobs()).expect("private");
+        let said = testing::open_to_another_user(&scratch.blobs()).expect("opened up");
+        let before = testing::access(&scratch.blobs()).expect("readable");
+        let refused = DirectoryBlobs::open(&scratch.blobs()).expect_err("refused");
         assert_eq!(refused.code(), nc_catalog::ErrorCode::DbLocalOpenRefused);
         assert!(
-            refused.to_string().contains("so the blobs were not opened"),
-            "{refused}"
+            refused.to_string().contains("so the blobs were not opened")
+                && refused.to_string().contains(&said),
+            "{said}: {refused}"
         );
         assert_eq!(
-            std::fs::symlink_metadata(scratch.blobs())
-                .expect("there")
-                .permissions()
-                .mode()
-                & 0o777,
-            0o755
+            testing::access(&scratch.blobs()).expect("readable"),
+            before,
+            "a refused directory was changed"
         );
     }
 
@@ -1743,9 +1734,9 @@ mod tests {
     /// bytes held already, or let go — so what it holds is only the writings in
     /// progress.
     ///
-    /// **What no test told apart**, measured by a review: with a name kept past
-    /// its writing's end, every suite passed, while the store held one name for
-    /// every blob ever written, for the life of the daemon.
+    /// **No name past its writing's end**: a name kept past it would leave the
+    /// store holding one name for every blob ever written, for the life of the
+    /// daemon, which this test refuses.
     #[test]
     fn a_store_holds_the_name_of_no_writing_that_has_ended() {
         one_blocking_thread().block_on(async {

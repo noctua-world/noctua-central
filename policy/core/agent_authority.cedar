@@ -1,11 +1,10 @@
-// `NOCTUA.md §14.6`, rules 2 and 5 — the two that had no policy at all.
+// `NOCTUA.md §14.6`, rules 2 and 5.
 //
-// `Agent.operator` and `Agent.budget_remaining` were in the schema and read by
-// nothing, which `policy/core/README.md` recorded as a gap of the same shape as
-// the chain-depth one: **a rule with no policy has no policy to lack a test**,
-// so `§14.9`'s seventh invariant cannot report it. Criterion 11 is structurally
-// blind to a missing rule; only a person reading `§14.6` beside `ls
-// policy/core/` finds one.
+// `Agent.operator` and `Agent.budget_remaining` are in the schema, and without
+// a policy reading them the gap has the same shape as the chain-depth one: **a
+// rule with no policy has no policy to lack a test**, so `§14.9`'s seventh
+// invariant cannot report it. Criterion 11 is structurally blind to a missing
+// rule; only a person reading `§14.6` beside `ls policy/core/` finds one.
 //
 // # What each of these is, and what it is not
 //

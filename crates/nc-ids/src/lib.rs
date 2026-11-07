@@ -39,27 +39,26 @@ pub use snowflake::{Clock, MintError, Minter, Snowflake, SystemClock};
 /// whole point of holding it this way is that a `UUIDv7`, a ULID or something
 /// else entirely can arrive later without a migration.
 ///
-/// **What it does not do is make the inside unreachable.** This paragraph said
-/// the type "offers no way to read a byte", and it hands out the whole string:
-/// [`OpaqueId::as_str`] is what every store and every wire format needs, and
-/// `id.as_str().as_bytes()[0]` and `sort_by_key(|id| id.as_str())` both compile
-/// today. The guarantee is about what this type *invites* — one reader, whole,
-/// with no shape-shaped accessor beside it — not about what a determined caller
-/// cannot write. A doc that overstates a guarantee is worse than one that
-/// states a narrower one, because the narrower claim is the one a reviewer can
-/// check. Found in wave 25; `as_str`'s own paragraph had it right.
+/// **What it does not do is make the inside unreachable.** It hands out the
+/// whole string: [`OpaqueId::as_str`] is what every store and every wire format
+/// needs, and `id.as_str().as_bytes()[0]` and `sort_by_key(|id| id.as_str())`
+/// both compile. The guarantee is about what this type *invites* — one reader,
+/// whole, with no shape-shaped accessor beside it — not about what a determined
+/// caller cannot write. A doc that overstates a guarantee is worse than one
+/// that states a narrower one, because the narrower claim is the one a reviewer
+/// can check; `as_str`'s own paragraph states it the same way.
 ///
 /// It **is** allowed into the central log, because an opaque identifier is not
 /// user data (`§15.4`).
 /// # Why there is no ordering
 ///
-/// `PartialOrd` and `Ord` were derived, which gives lexicographic order over the
+/// Deriving `PartialOrd` and `Ord` would give lexicographic order over the
 /// bytes — and for a `ULID` or a `UUIDv7`, that order **is** time order. `§5.1`
 /// is `[OPEN]` precisely so nothing built now depends on an opaque identifier's
-/// structure, and a derived `Ord` is how something would: a
-/// `BTreeMap<OpaqueId, _>` or a `sort()` reads as innocuous and quietly assumes
-/// the shape this repository has not chosen yet. `Eq` and `Hash` are enough to
-/// use one as a `HashMap` key.
+/// structure, and a derived `Ord` is how something would:
+/// a `BTreeMap<OpaqueId, _>` or a `sort()` reads as innocuous and quietly
+/// assumes the shape this repository has not chosen yet. `Eq` and `Hash` are
+/// enough to use one as a `HashMap` key.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct OpaqueId(String);
 
@@ -69,8 +68,8 @@ pub struct OpaqueId(String);
 /// size before the shape is decided. 128 is comfortably past every candidate,
 /// measured rather than guessed: a hyphenated UUID is 36, a ULID 26, the URN
 /// form of a UUID 45, a `did:key` 56, and a multibase-encoded BLAKE3 digest 67.
-/// An earlier bound of 64 would have excluded the last two, which is exactly the
-/// foreclosing this type exists to avoid.
+/// A bound of 64 would exclude the last two, which is exactly the foreclosing
+/// this type exists to avoid.
 pub const OPAQUE_ID_MAX: usize = 128;
 
 /// Why a string is not an acceptable opaque identifier.
@@ -131,15 +130,15 @@ impl OpaqueId {
     /// newline, a control character or a quote would let one forge a line in the
     /// central log or a field in a record.
     ///
-    /// **`.` and `:` are allowed**, and an earlier version excluded them on the
-    /// grounds that `.` is a file-name delimiter and `/` escapes a URL path.
-    /// That reasoning excluded `did:key:z…`, `urn:uuid:…` and every multibase
-    /// form — live candidates for a content-addressed identifier in a project
-    /// whose `§13.1` is BLAKE3 content addressing — and `§5.1` is open
-    /// precisely so nothing forecloses them. Escaping for a file name, a URL or
-    /// a log line belongs at those boundaries, each of which already has its own
-    /// rule; `/` stays out because it is the one character that changes what a
-    /// path *means* rather than how it reads.
+    /// **`.` and `:` are allowed**, although `.` is a file-name delimiter
+    /// and `/` escapes a URL path: excluding them on those grounds would
+    /// exclude `did:key:z…`, `urn:uuid:…` and every multibase form — live
+    /// candidates for a content-addressed identifier in a project whose `§13.1`
+    /// is BLAKE3 content addressing — and `§5.1` is open precisely so nothing
+    /// forecloses them. Escaping for a file name, a URL or a log line belongs
+    /// at those boundaries, each of which already has its own rule; `/` stays
+    /// out because it is the one character that changes what a path *means*
+    /// rather than how it reads.
     pub fn new(text: impl Into<String>) -> Result<Self, OpaqueIdError> {
         let text = text.into();
         if text.is_empty() || text.len() > OPAQUE_ID_MAX {
@@ -180,11 +179,11 @@ impl core::fmt::Display for OpaqueId {
 mod tests {
     /// Every identifier failure says which failure it is.
     ///
-    /// **Two of the three `NC-IDS-0006` producers were asserted by nothing.**
-    /// Set to plainly wrong codes — `CanonNumber` and `DbMigrationFailed` — the
-    /// whole suite stayed green and `check passed`. A code exists so a log can
-    /// be queried by it; a code nothing pins is a code that drifts to whatever
-    /// the last edit left behind.
+    /// **All three `NC-IDS-0006` producers, asserted.** Without this, two of
+    /// them set to plainly wrong codes — `CanonNumber` and `DbMigrationFailed`
+    /// — leave the whole suite green and `check passed`. A code exists so a log
+    /// can be queried by it; a code nothing pins is a code that drifts to
+    /// whatever the last edit left behind.
     #[test]
     fn every_identifier_failure_carries_the_code_it_should() {
         use nc_catalog::ErrorCode;
@@ -234,15 +233,16 @@ mod tests {
 
     /// The two declared widths are the numbers their paragraphs argue for.
     ///
-    /// **Both were pinned only against themselves.** `OPAQUE_ID_MAX` lowered from
-    /// 128 to 67 and `MAX_WIDTH` raised from 13 to 20 each left
-    /// `cargo xtask check` green. 67 is exactly the length of the longest
-    /// candidate this holder exists to keep possible — a multibase BLAKE3 digest
-    /// — so it leaves no headroom at all, which is the same foreclosing mistake
-    /// this crate's own doc calls the reason 64 was abandoned. And `MAX_WIDTH` is
-    /// caught when it *falls* (`encode(u64::MAX).len() <= MAX_WIDTH`) and not
-    /// when it rises, so a decoder that accepts a twenty-character identifier
-    /// from some other scheme was one digit away.
+    /// **Pinned against the argument, not only against themselves.** Without
+    /// this, `OPAQUE_ID_MAX` lowered from 128 to 67 and `MAX_WIDTH` raised from
+    /// 13 to 20 each leave `cargo xtask check` green. 67 is exactly the length
+    /// of the longest candidate this holder exists to keep possible — a
+    /// multibase BLAKE3 digest — so it leaves no headroom at all, which is the
+    /// same foreclosing mistake this crate's own doc gives as the reason
+    /// against 64. And `MAX_WIDTH` is otherwise caught when it *falls*
+    /// (`encode(u64::MAX).len() <= MAX_WIDTH`) and not when it rises, so a
+    /// decoder that accepts a twenty-character identifier from some other
+    /// scheme would be one digit away.
     #[test]
     fn every_declared_width_is_the_number_its_paragraph_argues_for() {
         assert_eq!(
@@ -275,15 +275,15 @@ mod tests {
         }
         // **And every punctuation character the rule admits, by itself.** The
         // six candidates above carry `-` and `:`, and `tampering.rs`'s probes
-        // carry `.` — so `_` was in the documented set and decided by nothing.
-        // Measured on 2026-09-08, `'_'` dropped from the `matches!` in
-        // `OpaqueId::new`: `cargo run --quiet -p xtask -- check --offline`
-        // answered `check passed` at `ok 1219 test(s)`, every verdict line
-        // identical to a clean run. `_` is half of RFC 4648's base64url
-        // alphabet, which every multibase and JWK-thumbprint candidate for
-        // `§5.1` uses, and this holder exists so that nothing forecloses those
-        // answers — a rule that refuses one is the *too strong* shape, green
-        // only because nothing legitimate has tried yet.
+        // carry `.` — so without this `_` would be in the documented set and
+        // decided by nothing. Measured that way, `'_'` dropped from the
+        // `matches!` in `OpaqueId::new`: `cargo xtask check --offline` answers
+        // `check passed`, every verdict line identical to a clean run. `_` is
+        // half of RFC 4648's base64url alphabet, which every multibase and
+        // JWK-thumbprint candidate for `§5.1` uses, and this holder exists so
+        // that nothing forecloses those answers — a rule that refuses one is
+        // the *too strong* shape, green only because nothing legitimate has
+        // tried yet.
         //
         // Written out per character rather than derived from the `matches!`,
         // which would be the same list twice and agree with itself however it
@@ -309,13 +309,13 @@ mod tests {
 
     /// Both refusals name the value and the bound they were judged against.
     ///
-    /// **The third identifier failure in this crate carried neither test its
-    /// two siblings carry.** `base32` and `flake` each have one; this one's
-    /// sentence was rendered by nothing, so `{bytes}` written
-    /// `{}`-of-`chars().count()` and the bound written backwards both survived
-    /// the whole workspace. A length refusal that says *"an identifier of 3
-    /// bytes is outside 1..=64"* about a value of 3 *characters* and 6 bytes is
-    /// a sentence that sends a reader to the wrong end of their input.
+    /// **The third identifier failure in this crate carries the test its two
+    /// siblings carry.** `base32` and `flake` each have one; with this sentence
+    /// rendered by nothing, `{bytes}` written `{}`-of-`chars().count()` and the
+    /// bound written backwards both survive the whole workspace. A length
+    /// refusal that says *"an identifier of 3 bytes is outside 1..=64"* about a
+    /// value of 3 *characters* and 6 bytes is a sentence that sends a reader to
+    /// the wrong end of their input.
     #[test]
     fn each_refusal_names_the_value_and_the_bound_it_was_judged_against() {
         // Six bytes and three characters, so the two numbers cannot be confused
@@ -350,14 +350,14 @@ mod tests {
 
     /// A letter that is not an ASCII letter is not one of these.
     ///
-    /// **The grammar was ASCII by spelling and by nothing else.** Measured on
-    /// 2026-09-10, `is_ascii_alphanumeric` written `is_alphanumeric`:
-    /// `cargo xtask check` printed `check passed`, exit 0, zero `warn` lines,
-    /// every verdict identical to a clean run. Three places in this fleet state
-    /// the ASCII grammar as fact, one of them criterion 3's own floor — *"the
-    /// identifier fields cannot hold one"* — and that floor is a pairwise
-    /// collision test whose corpus holds a single precomposed non-ASCII string,
-    /// so it cannot see this.
+    /// **The grammar is ASCII by test, not only by spelling.** Measured without
+    /// this, `is_ascii_alphanumeric`
+    /// written `is_alphanumeric`: `cargo xtask check` prints `check passed`,
+    /// exit 0, zero `warn` lines, every verdict identical to a clean run. Three
+    /// places in this fleet state the ASCII grammar as fact, one of them
+    /// criterion 3's own floor — *"the identifier fields cannot hold one"* —
+    /// and that floor is a pairwise collision test whose corpus holds a single
+    /// precomposed non-ASCII string, so it cannot see this.
     ///
     /// What it admits is a homoglyph: `асme` in Cyrillic `а` and `с` is a
     /// different realm from `acme` and looks like it in every log line, every
@@ -411,10 +411,10 @@ mod diagnostic_tests {
 
     /// Every refusal this crate can hand a reader says the right numbers.
     ///
-    /// **Two of them were rendered by nothing.** `diagnostic_tests` renders
-    /// `OpaqueIdError`, `Base32Error` and `NameError`; `FlakeOutOfRange` was the
-    /// one left out, and `Display for Snowflake` had no reader at all. Measured
-    /// on 2026-09-10, each alone:
+    /// **Two of them are checked only here.** The sibling test,
+    /// `no_refusal_carries_the_character_it_refuses`, renders `OpaqueIdError`,
+    /// `Base32Error` and `NameError`, and neither `FlakeOutOfRange` nor
+    /// `Display for Snowflake`. Measured without this, each alone:
     ///
     /// ```text
     /// "outside 0..{RANGE}"  ->  "outside 0..{BITS}"     workspace suite green
@@ -422,14 +422,14 @@ mod diagnostic_tests {
     /// Display for Snowflake -> &self.to_crockford()[1..]  workspace suite green
     /// ```
     ///
-    /// The first makes a bound contradict itself — *"a machine flake of 65535 is
-    /// outside 0..10"* for a bound of 1024, which is the `§15.1` shape
-    /// `base32.rs` has a whole module about. The third is worse than a wrong
-    /// sentence: `{}` on a `Snowflake` becomes a *second spelling* of one
-    /// identity, eleven characters where the layout is twelve, and
-    /// `against_denote.rs` interpolates one into a name — so the corpus passed
-    /// with a short identifier in it, because `decode` is lenient about width
-    /// and `encode` re-pads.
+    /// The first makes a bound contradict itself — *"a machine flake of 65535
+    /// is outside 0..10"* for a bound of 1024, which is the `§15.1`
+    /// shape `base32.rs` has a whole module about. The third is worse than a
+    /// wrong sentence: `{}` on a `Snowflake` becomes a *second spelling* of one
+    /// identity, eleven characters where the layout is twelve,
+    /// and `against_denote.rs` interpolates one into a name — so the corpus
+    /// passes with a short identifier in it, because `decode` is lenient about
+    /// width and `encode` re-pads.
     ///
     /// The numbers are read from the layout rather than written out, so a
     /// reworded sentence still passes; what is pinned is that the sentence names
@@ -471,25 +471,26 @@ mod diagnostic_tests {
 
     #[test]
     fn no_refusal_carries_the_character_it_refuses() {
-        // **The messages that exist *because* a character would forge a line were
-        // the one place that character appeared unescaped.** `OpaqueId::new`'s
-        // own doc says the rule exists because "a newline, a control character or
-        // a quote would let one forge a line in the central log or a field in a
-        // record" — and its refusal wrote the newline out raw.
+        // **The messages that exist *because* a character would forge a line
+        // must not be the one place that character appears unescaped.**
+        // `OpaqueId::new`'s own doc says the rule exists because "a newline, a
+        // control character or a quote would let one forge a line in the
+        // central log or a field in a record" — so its refusal does not write
+        // the newline out raw.
         //
-        // `§15.1` asks a diagnostic to point at an exact location. A message with
-        // a line break in it does not.
+        // `§15.1` asks a diagnostic to point at an exact location. A message
+        // with a line break in it does not.
         //
-        // **And the list is `nc-canon`'s rule, not a copy of it.** Eight
-        // characters were written out here, and they were that crate's ten minus
-        // `U+000B` and `U+0085` — so `OpaqueId`'s character rule could be widened
-        // to admit exactly those two with `check passed` and 1299 tests, and an
-        // identifier holding a vertical tab and a NEL would go into the central
-        // log and into a journal entry's hashed form. One rule written twice
-        // with the second copy narrower is the shape this tree carries three
-        // paragraphs about, and `nc-canon`'s own doc says the list is in one
-        // place *so that a gap is visible*. Asked of the predicate, a character
-        // added there is exercised here without anybody remembering to.
+        // **And the list is `nc-canon`'s rule, not a copy of it.** A copy of
+        // eight characters — that crate's ten minus `U+000B` and `U+0085` —
+        // would let `OpaqueId`'s character rule be widened to admit exactly
+        // those two with `check passed`, and an identifier holding a vertical
+        // tab and a NEL would go into the central log and into a journal
+        // entry's hashed form. One rule written twice with the second copy
+        // narrower is the shape this tree carries three paragraphs about, and
+        // `nc-canon`'s own doc says the list is in one place *so that a gap is
+        // visible*. Asked of the predicate, a character added there is
+        // exercised here without anybody remembering to.
         let forging: Vec<char> = ('\u{0}'..='\u{9f}')
             .chain(['\u{2028}', '\u{2029}', '"', '\\'])
             .filter(|character| nc_canon::is_unsafe_in_a_message(*character))
@@ -542,14 +543,13 @@ mod an_opaque_identifier_holds_no_shape {
 
     /// The name of the public method this line declares, if it declares one.
     ///
-    /// **`strip_prefix("pub fn ")` is the shape wave 26 took out of
-    /// `xtask/src/check.rs` and left here.** `pub const fn` is the ordinary
-    /// spelling for a cheap accessor, and a reader shaped exactly like the
-    /// version field the paragraph above `as_str` says does not exist could be
-    /// added without this census seeing it — while its own message went on
-    /// asserting what the inherent surface *is*. Rust's function prefix is a
-    /// closed grammar, so this strips it rather than matching one spelling of
-    /// it. Found in wave 27.
+    /// **Not `strip_prefix("pub fn ")`.** `pub const fn` is the ordinary
+    /// spelling for a cheap accessor, and under that prefix a reader shaped
+    /// exactly like the version field the paragraph above `as_str` says does
+    /// not exist could be added without this census seeing it — while its own
+    /// message goes on asserting what the inherent surface *is*. Rust's
+    /// function prefix is a closed grammar, so this strips it rather than
+    /// matching one spelling of it.
     fn a_public_method(line: &str) -> Option<&str> {
         let mut rest = line.trim_start().strip_prefix("pub")?;
         rest = match rest.strip_prefix('(') {
@@ -572,12 +572,12 @@ mod an_opaque_identifier_holds_no_shape {
 
     /// The trait this line implements for the identifier, however it is written.
     ///
-    /// **A generic impl begins `impl<` and an impl on a reference ends
-    /// `for &'a OpaqueId {`.** The census required the line to begin exactly
-    /// `impl ` and end exactly ` for OpaqueId {`, so neither was seen — and
-    /// `impl<'a> IntoIterator for &'a OpaqueId` with `type Item = u8` is a
+    /// **A generic impl begins `impl<` and an impl on a reference
+    /// ends `for &'a OpaqueId {`.** Requiring the line to begin exactly `impl `
+    /// and end exactly ` for OpaqueId {` sees neither —
+    /// and `impl<'a> IntoIterator for &'a OpaqueId` with `type Item = u8` is a
     /// byte-by-byte reader of the identifier, precisely the accessor the
-    /// paragraph above `as_str` promises does not exist. Found in wave 27.
+    /// paragraph above `as_str` promises does not exist.
     fn a_trait_on_the_identifier(line: &str) -> Option<String> {
         let rest = line.trim_start().strip_prefix("impl")?;
         // `impl<'a, T>` — the generics belong to the impl, not to the trait.
@@ -586,31 +586,29 @@ mod an_opaque_identifier_holds_no_shape {
             None => rest,
         };
         // **A `where` clause is not part of the receiver.** Joining a wrapped
-        // header hands this everything up to the opening brace, and rustfmt puts
-        // `where Self: Sized,` in there — so `rsplit_once(" for ")` compared
-        // against `OpaqueId where Self: Sized, {` and the impl became invisible.
-        // It was *visible* before the join, on its own line: wave 29 widened the
-        // rule on the axis it was attacked on and narrowed it on the one beside
-        // it, and the narrow spelling is the one the formatter produces. Found
-        // in wave 30.
+        // header hands this everything up to the opening brace, and rustfmt
+        // puts `where Self: Sized,` in there — so `rsplit_once(" for ")` alone
+        // compares against `OpaqueId where Self: Sized, {` and the impl becomes
+        // invisible. The join widens the rule on one axis and would narrow it
+        // on the one beside it, and the narrow spelling is the one the
+        // formatter produces.
         let rest = rest.split_once(" where ").map_or(rest, |(head, _)| head);
         let (named, implemented_for) = rest.rsplit_once(" for ")?;
         // **A receiver is a reference, a lifetime, and a mutability, in any
-        // combination.** Wave 27 wrote this for exactly `&'a OpaqueId` — the
-        // line its own doc names as the byte-by-byte reader `as_str`'s
-        // paragraph promises does not exist — and `&'a mut OpaqueId` walked
-        // straight through it one spelling along, because nothing stripped
-        // `mut`. Measured as a pure function: `&'a OpaqueId` gave the trait,
-        // `&'a mut OpaqueId` gave nothing, and a real `IntoIterator` yielding
-        // `u8` stood in the crate with the census reporting the surface
-        // unchanged. Peeled in a loop now, so the order cannot matter. Found in
-        // wave 28.
-        // **And `&` is not Rust's only fundamental wrapper.** `Box` is the
-        // other, so `impl <ForeignTrait> for Box<OpaqueId>` is legal in this
-        // crate by the same orphan rule that makes `&'a OpaqueId` legal, and it
-        // is reachable as `Box::new(id).into_iter()`. `Pin` peels beside it, and
-        // the path qualifier is dropped first because `std::pin::Pin<Box<…>>` is
-        // how the same impl is spelled one step along. Found in wave 29.
+        // combination.** Written for exactly `&'a OpaqueId` — the line its own
+        // doc names as the byte-by-byte reader `as_str`'s paragraph promises
+        // does not exist — the rule lets `&'a mut OpaqueId` walk straight
+        // through it one spelling along unless `mut` is stripped. Measured as a
+        // pure function that way: `&'a OpaqueId` gives the trait,
+        // `&'a mut OpaqueId` gives nothing, and a real `IntoIterator` yielding
+        // `u8` stands in the crate with the census reporting the surface
+        // unchanged. Peeled in a loop, so the order cannot matter. **And `&` is
+        // not Rust's only fundamental wrapper.** `Box` is the other, so
+        // `impl <ForeignTrait> for Box<OpaqueId>` is legal in this crate by the
+        // same orphan rule that makes `&'a OpaqueId` legal, and it is reachable
+        // as `Box::new(id).into_iter()`. `Pin` peels beside it, and the path
+        // qualifier is dropped first because `std::pin::Pin<Box<…>>` is how the
+        // same impl is spelled one step along.
         let peeled = implemented_for.trim().trim_end_matches('{').trim();
         let mut receiver = peeled;
         loop {
@@ -642,39 +640,38 @@ mod an_opaque_identifier_holds_no_shape {
                 _ => break,
             }
         }
-        // **And the type on the other side of the ` for ` is not this question.**
-        // Wave 31 read the trait path too, so `impl From<&OpaqueId> for Vec<u8>`
-        // would be reported — and the rule it needed was measured **too strong
-        // on the tree as it stands**: `impl Extend<OpaqueId> for Bag`, a
-        // container that reads the inside of no identifier, turned the suite red,
-        // and the widened receiver went on to read this file's own fixture
-        // literals as source. Five waves widened this reader and each widening
-        // was what the next wave beat.
+        // **And the type on the other side of the ` for ` is not this
+        // question.** Reading the trait path too, so that
+        // `impl From<&OpaqueId> for Vec<u8>` would be reported, needs a rule
+        // measured **too strong on the tree as it stands**:
+        // `impl Extend<OpaqueId> for Bag`, a container that reads the inside of
+        // no identifier, turns the suite red, and the widened receiver goes on
+        // to read this file's own fixture literals as source. Each widening of
+        // this reader is what the next spelling beats.
         //
-        // So it stops being asked to decide whether an impl is an *accessor*
-        // from its text, and asks the one question text can answer: **is the
-        // self type `OpaqueId`**. What a self type of something else can hide is
-        // put to the compiler in `no_wrapper_and_no_alias_reads_the_identifier`,
+        // So it is not asked to decide whether an impl is an *accessor* from
+        // its text, and asks the one question text can answer: **is the self
+        // type `OpaqueId`**. What a self type of something else can hide is put
+        // to the compiler in `no_wrapper_and_no_alias_reads_the_identifier`,
         // whose bounds are a written list and are the contract. What neither
-        // holds is written there, plainly, and is no longer claimed as covered.
-        // Found in wave 32.
+        // holds is written there, plainly, and is not claimed as covered.
         (receiver.trim_end_matches(['{', '}', ' ']).trim() == "OpaqueId")
             .then(|| named.trim().to_owned())
     }
 
     /// This source's lines, with a wrapped `impl` header joined into one.
     ///
-    /// **The formatter this repository enforces manufactures the blind spot.**
-    /// `a_trait_on_the_identifier` reads an impl whose header fits on one line:
-    /// it asks `rsplit_once(" for ")` of the same line it found `impl` on. Past
-    /// a hundred columns rustfmt wraps that header onto `impl <Trait>` /
-    /// `    for OpaqueId` / `{` and calls that canonical — so a byte-by-byte
-    /// reader written with a long trait path was invisible to the census *and*
-    /// clean under `cargo fmt --check`, and writing it on one line and running
-    /// this tree's own `cargo fmt` produced the wrapped form. Wave 28 widened
-    /// the receiver and left the line boundary exactly where it was, which is
-    /// one rule widened on the axis it was attacked on and not on the one
-    /// beside it. Found in wave 29.
+    /// **The formatter this repository enforces manufactures the blind
+    /// spot.** `a_trait_on_the_identifier` reads an impl whose header fits on
+    /// one line: it asks `rsplit_once(" for ")` of the same line it
+    /// found `impl` on. Past a hundred columns rustfmt wraps that header
+    /// onto `impl <Trait>` / `    for OpaqueId` / `{` and calls that canonical
+    /// — so without the join a byte-by-byte reader written with a long trait
+    /// path is invisible to the census *and* clean under `cargo fmt --check`,
+    /// and writing it on one line and running this tree's own `cargo fmt`
+    /// produces the wrapped form. A receiver widened while the line boundary
+    /// stays where it is would be one rule widened on one axis and not on the
+    /// one beside it.
     fn with_the_impl_headers_joined(source: &str) -> (Vec<String>, usize) {
         let mut out: Vec<String> = Vec::new();
         let mut carried: Option<String> = None;
@@ -684,23 +681,22 @@ mod an_opaque_identifier_holds_no_shape {
             // **A header carrying a comment is refused, not parsed.** Reading
             // one correctly needs Rust's literal grammar — escapes, raw strings
             // by hash count, byte strings, and the `'` that is a char rather
-            // than a lifetime — and the stripper that stood here had none of it:
-            // a `/*` inside a *string literal* opened a comment that ran to the
-            // end of the file, and this crate's own `lib.rs` carries such a
-            // literal, so four lines of real code below it were already being
-            // read as a comment. One ordinary `const OPENER: &str = "/*";` above
-            // any impl hid a byte-by-byte reader of the identifier, with
-            // `cargo fmt --check` clean.
+            // than a lifetime — and a stripper without it lets a `/*` inside a
+            // *string literal* open a comment that runs to the end of the file;
+            // this crate's own `lib.rs` carries such a literal, so four lines
+            // of real code below it would be read as a comment. One ordinary
+            // `const OPENER: &str = "/*";` above any impl would hide a
+            // byte-by-byte reader of the identifier, with `cargo fmt --check`
+            // clean.
             //
-            // Both repairs that keep parsing were measured and refused: a
-            // per-line reset of the depth loses a legitimate wrapped header, and
-            // a quote toggle walks through `"\"/*"` and through a balanced pair
-            // — which is exactly what `lib.rs` already holds. So this does what
-            // the rest of this tree does with something it cannot judge: it says
-            // so. The count is held below, so a header written this way is a red
-            // tree rather than a silence, and the guarantee itself sits on the
-            // compiler probe. Seven waves went into learning that. Found in
-            // wave 34.
+            // Neither way of keeping the parse holds, measured: a
+            // per-line reset of the depth loses a legitimate wrapped header,
+            // and a quote toggle walks through `"\"/*"` and through a balanced
+            // pair — which is exactly what `lib.rs` already holds. So this does
+            // what the rest of this tree does with something it cannot judge:
+            // it says so. The count is held below, so a header written this way
+            // is a red tree rather than a silence, and the guarantee itself
+            // sits on the compiler probe.
             if (carried.is_some() || trimmed.starts_with("impl")) && a_comment_is_in(trimmed) {
                 carried = None;
                 refused += 1;
@@ -737,18 +733,17 @@ mod an_opaque_identifier_holds_no_shape {
 
     /// Whether the item this line belongs to is finished on it.
     ///
-    /// **The question is the braces, not the last character.** Asked as
-    /// `ends_with('{') || ends_with(';')`, an empty-body impl — `impl Trait for
-    /// Type {}`, of which this crate carries five — was taken for an unfinished
-    /// wrapped header and had the next header glued onto it, so neither was read
-    /// as itself and the census reported a trait whose name is two headers. It
-    /// was live in the tree the moment the joiner landed, harmless only because
-    /// none of the five swallowed a trait impl on `OpaqueId`.
+    /// **The question is the braces, not the last character.** Asked
+    /// as `ends_with('{') || ends_with(';')`, an empty-body impl
+    /// — `impl Trait for Type {}`, of which this crate carries five — is taken
+    /// for an unfinished wrapped header and has the next header glued onto it,
+    /// so neither is read as itself and the census reports a trait whose name
+    /// is two headers.
     ///
     /// A suffix test is the wrong shape one spelling along as well: rustfmt
     /// leaves a trailing `// comment` alone, so `impl Marker for E {} // note`
     /// ends with neither brace nor semicolon. The comment is dropped and the
-    /// opening brace is looked for anywhere on what is left. Found in wave 30.
+    /// opening brace is looked for anywhere on what is left.
     fn the_item_is_finished_on(line: &str) -> bool {
         let letters: Vec<char> = line.chars().collect();
         let mut angle = 0_usize;
@@ -757,9 +752,10 @@ mod an_opaque_identifier_holds_no_shape {
         let mut at = 0;
         while at < letters.len() {
             let two: String = letters[at..(at + 2).min(letters.len())].iter().collect();
-            // **An arrow is not a closing angle.** `impl T<fn() -> u8, { 4 * 2 }>`
-            // dropped the depth to zero on the `->`, so the const block's brace
-            // was taken for the body's and the wrap below was never joined.
+            // **An arrow is not a closing angle.** Read as one,
+            // `impl T<fn() -> u8, { 4 * 2 }>` drops the depth to zero on the
+            // `->`, so the const block's brace is taken for the body's and the
+            // wrap below is never joined.
             if two == "->" {
                 at += 2;
                 continue;
@@ -784,15 +780,15 @@ mod an_opaque_identifier_holds_no_shape {
 
     /// The ways in are two, and the paragraph above the type names them.
     ///
-    /// **A guarantee stated wider than it holds.** The crate-root paragraph said
-    /// this type "offers no way to read a byte" while `as_str` hands out the
-    /// whole string — `id.as_str().as_bytes()[0]` compiles — so the sentence a
-    /// reader was meant to rely on was false, and nothing would have said so.
-    /// The narrower claim is the checkable one: there is one accessor, it
-    /// returns the value whole, `Display` prints the same string, and there is
-    /// no accessor shaped like a prefix, a byte or a version field. This pins
-    /// that, so an `as_bytes`, a `prefix`, an `AsRef<str>` or a `Deref` added
-    /// later fails here rather than making the paragraph quietly wrong again.
+    /// **A guarantee stated no wider than it holds.** Saying this type "offers
+    /// no way to read a byte" while `as_str` hands out the whole string
+    /// — `id.as_str().as_bytes()[0]` compiles — would make the sentence a
+    /// reader relies on false, with nothing to say so. The narrower claim is
+    /// the checkable one: there is one accessor, it returns the value
+    /// whole, `Display` prints the same string, and there is no accessor shaped
+    /// like a prefix, a byte or a version field. This pins that, so
+    /// an `as_bytes`, a `prefix`, an `AsRef<str>` or a `Deref` added later
+    /// fails here rather than making the paragraph quietly wrong.
     ///
     /// **What this does not judge**: whether a caller derives structure from the
     /// string it is handed. Nothing in a library can stop that; what a library
@@ -803,21 +799,21 @@ mod an_opaque_identifier_holds_no_shape {
     /// inside a string.
     #[test]
     fn the_only_readers_are_the_two_the_documents_name() {
-        // **Five files, and this read one.** `OpaqueId` is `pub` at the crate
-        // root, so `base32.rs`, `flake.rs`, `naming.rs` and `snowflake.rs` may
-        // each add an inherent accessor or a trait impl to it — and this census,
-        // whose message asserts what the inherent surface *is*, looked only at
-        // `lib.rs`. The first-occurrence `find` was the same hole one step
-        // nearer: a second `impl OpaqueId` block below the first was invisible
-        // too. Found in wave 26; the crate's whole `src/` is read now, and every
-        // block in it, not the first.
+        // **Five files, all read.** `OpaqueId` is `pub` at the crate root, so
+        // `base32.rs`, `flake.rs`, `naming.rs` and `snowflake.rs` may each add
+        // an inherent accessor or a trait impl to it — and a census whose
+        // message asserts what the inherent surface *is* cannot look only at
+        // `lib.rs`. A first-occurrence `find` is the same hole one step nearer:
+        // a second `impl OpaqueId` block below the first would be invisible. So
+        // the crate's whole `src/` is read, and every block in it, not the
+        // first.
         let mut methods: Vec<String> = Vec::new();
         let mut traits: Vec<String> = Vec::new();
         let directory = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
         let mut read = 0_usize;
         // **What the reader would not guess at**, held so a header written with
         // a comment is a red tree rather than a silence. See the paragraph in
-        // `with_the_impl_headers_joined`. Found in wave 34.
+        // `with_the_impl_headers_joined`.
         let mut refused = 0_usize;
         for entry in std::fs::read_dir(directory).expect("this crate has sources") {
             let path = entry.expect("a source is readable").path();
@@ -894,13 +890,13 @@ mod an_opaque_identifier_holds_no_shape {
 
     /// `OpaqueId` implements no ordering, and this is what says so.
     ///
-    /// **The paragraph above the type was the whole guard.** Putting
-    /// `PartialOrd, Ord` back on the derive list left the entire gate at
-    /// `check passed` with 1102 tests — and with `Ord` back,
-    /// `BTreeMap<OpaqueId, _>` and `.sort()` compile. For a ULID or a `UUIDv7`
-    /// that byte order **is** time order, so the thing `NOCTUA.md §5.1` is
-    /// `[OPEN]` to prevent — something built now depending on a strong
-    /// identifier's structure — arrives as an innocuous line in a later stage.
+    /// **More than the paragraph above the type.** Without
+    /// this, `PartialOrd, Ord` on the derive list leaves the entire gate
+    /// at `check passed` — and with `Ord`, `BTreeMap<OpaqueId, _>`
+    /// and `.sort()` compile. For a ULID or a `UUIDv7` that byte order **is**
+    /// time order, so the thing `NOCTUA.md §5.1` is `[OPEN]` to prevent —
+    /// something built now depending on a strong identifier's structure —
+    /// arrives as an innocuous line in a later stage.
     ///
     /// **How this asks the compiler rather than the source text.** An inherent
     /// associated constant is preferred over a trait's, but only when its
@@ -950,22 +946,22 @@ mod an_opaque_identifier_holds_no_shape {
 
     /// The spellings of a byte reader this census has been beaten by.
     ///
-    /// Each row is an impl a reviewer or a skeptic wrote into the crate and
-    /// watched the census report the surface unchanged over. They are read as
-    /// text rather than compiled, because compiling one would be adding the
-    /// accessor the crate promises not to have — and the assertion is that the
-    /// census sees *one* trait in each, not that it sees a particular name, so
-    /// the row for the wrapped header does not have to spell a hundred columns
-    /// of trait path twice.
+    /// Each row is an impl that, written into the crate, a weaker census
+    /// reports the surface unchanged over. They are read as text rather than
+    /// compiled, because compiling one would be adding the accessor the crate
+    /// promises not to have — and the assertion is that the census sees *one*
+    /// trait in each, not that it sees a particular name, so the row for the
+    /// wrapped header does not have to spell a hundred columns of trait path
+    /// twice.
     #[test]
     fn the_spellings_of_a_reader_this_census_has_been_beaten_by() {
         for (what, source, reads) in the_spellings_this_census_has_been_beaten_by() {
             // **The name, not the count.** Asked as `found.len() == 1`, the two
-            // rows about a swallowed header passed with the joiner broken: the
+            // rows about a swallowed header pass with the joiner broken: the
             // glued line still ends `for OpaqueId {`, so the census answers one
             // trait — whose name is two headers run together. A fixture that
             // counts what it should be reading is the shape this file's own
-            // census was repaired for. Found in wave 30.
+            // census refuses.
             let mut refused = 0_usize;
             let found: Vec<String> = the_readable_impl_headers(source, &mut refused)
                 .iter()
@@ -983,11 +979,11 @@ mod an_opaque_identifier_holds_no_shape {
     /// The impls this census has been beaten by, and what it must read out of
     /// each.
     ///
-    /// Its own function because the table crossed clippy's hundred-line bound
-    /// when wave 33's six rows arrived. Each row is a spelling a reviewer or a
-    /// skeptic actually wrote into the crate and watched the census miss, and
-    /// the expectation is the trait's **name** rather than a count — asked as a
-    /// count, two of these rows passed with the reader broken.
+    /// Its own function because inline the table would cross clippy's
+    /// hundred-line bound. Each row is a spelling that, written into the crate,
+    /// a weaker census misses, and the expectation is the trait's **name**
+    /// rather than a count — asked as a count, two of these rows pass with the
+    /// reader broken.
     /// <!-- allow-logging: `the_spellings_this_census_has_been_beaten_by` hands back fixture impls written as literals in this file, and nothing a caller chose -->
     fn the_spellings_this_census_has_been_beaten_by()
     -> [(&'static str, &'static str, &'static str); 11] {
@@ -998,7 +994,7 @@ mod an_opaque_identifier_holds_no_shape {
                 "ReadsEveryByteOfAnIdentifier",
             ),
             (
-                "a mutable reference, which wave 28 was shown",
+                "a mutable reference",
                 "impl<'a> IntoIterator for &'a mut OpaqueId {\n",
                 "IntoIterator",
             ),
@@ -1052,17 +1048,16 @@ mod an_opaque_identifier_holds_no_shape {
 
     /// A header carrying a comment is refused, and the refusal is counted.
     ///
-    /// **These are the spellings that used to be parsed, and the parsing was
-    /// wrong.** Each is a real impl that rustfmt keeps verbatim, and each was
-    /// read by the stripper that stood here — until a `/*` inside a string
-    /// literal was shown to open a comment running to the end of the file, in
-    /// this crate's own `lib.rs`. The reader refuses them now. What makes a
-    /// refusal a gate rather than a hole is the count beside it: the census
-    /// holds how many its sources carry, so one arriving is a red tree.
+    /// **These are spellings a parser would need Rust's literal grammar
+    /// for.** Each is a real impl that rustfmt keeps verbatim, and a stripper
+    /// without that grammar lets a `/*` inside a string literal open a comment
+    /// running to the end of the file — as it would in this crate's
+    /// own `lib.rs`. The reader refuses them. What makes a refusal a gate
+    /// rather than a hole is the count beside it: the census holds how many its
+    /// sources carry, so one arriving is a red tree.
     ///
     /// **What this does not judge**: whether such a header would have been an
-    /// accessor. It judges that the census did not pretend to know. Found in
-    /// wave 34.
+    /// accessor. It judges that the census does not pretend to know.
     #[test]
     fn a_header_carrying_a_comment_is_refused_rather_than_guessed_at() {
         for (what, source, still_read) in [
@@ -1171,9 +1166,9 @@ mod an_opaque_identifier_holds_no_shape {
     /// not exist: something to walk the bytes with, something that lends the
     /// string out, and something that derefs to it.
     ///
-    /// **What this does not judge**: a trait nobody named here. The census above
-    /// is what notices an unfamiliar one; this is what notices a familiar one
-    /// written so the census cannot see it. Found in wave 29.
+    /// **What this does not judge**: a trait nobody named here. The census
+    /// above is what notices an unfamiliar one; this is what notices a familiar
+    /// one written so the census cannot see it.
     #[test]
     #[expect(
         clippy::assertions_on_constants,
@@ -1221,47 +1216,42 @@ mod an_opaque_identifier_holds_no_shape {
         //
         // **The cells are enumerated, and the enumeration is the contract.**
         // The bounds are a hand-written cross-product of (bound x wrapper), and
-        // a cross-product has no last cell: `&mut` was asked of `WALKS` alone,
-        // so `impl From<&mut OpaqueId> for Vec<u8>` — a byte-by-byte reader,
-        // whose self type is `Vec<u8>` so the census cannot see it either —
-        // stood in the crate with nothing red. Found in wave 35.
+        // a cross-product has no last cell: with `&mut` asked of `WALKS` alone,
+        // `impl From<&mut OpaqueId> for Vec<u8>` — a byte-by-byte reader, whose
+        // self type is `Vec<u8>` so the census cannot see it either — stands in
+        // the crate with nothing red.
         //
-        // **Wave 35 answered that by removing cells, and removing cells lost
-        // real coverage.** `Box` on `WALKS` was the only cell asking about a
-        // `Box` at all, so `impl IntoIterator for Box<Identifier>` — an alias
-        // inside one — became reachable with nothing red: the census compares
-        // its peeled receiver against the literal `OpaqueId`, and the probe had
-        // stopped asking. The argument for removing it was that `T`, `&T` and
-        // `&mut T` are "what a caller holds without constructing anything", and
-        // that line does not survive contact: `&mut id` needs a `mut` binding
-        // while `(&&id).into_iter()` needs neither a binding nor a constructor,
-        // and escapes anyway. A principle that sounds defensible is worse than
-        // an enumeration that admits what it is. Found in wave 36.
+        // **Removing cells loses real coverage.** `Box` on `WALKS` is the only
+        // cell asking about a `Box` at all, so without it
+        // `impl IntoIterator for Box<Identifier>` — an alias inside one — is
+        // reachable with nothing red: the census compares its peeled receiver
+        // against the literal `OpaqueId`. The argument that `T`, `&T` and
+        // `&mut T` are "what a caller holds without constructing anything" does
+        // not survive contact: `&mut id` needs a `mut` binding while
+        // `(&&id).into_iter()` needs neither a binding nor a constructor, and
+        // escapes anyway. A principle that sounds defensible is worse than an
+        // enumeration that admits what it is.
         //
-        // So the cells are written out and `Box` is back on the six bounds that
-        // can hold it. It is **not** on `DEREFS`, and that is measured rather
-        // than assumed: `Box<T>: Deref` holds for every `T` in Rust, so asking
-        // it there refuses a tree with nothing wrong with it — the same reason
-        // already written down for `&T`.
+        // So the cells are written out and `Box` is on the six bounds that can
+        // hold it. It is **not** on `DEREFS`, and that is measured rather than
+        // assumed: `Box<T>: Deref` holds for every `T` in Rust, so asking it
+        // there refuses a tree with nothing wrong with it — the same reason
+        // written down for `&T`.
         //
         // **What this does not ask**, as a list rather than as a principle:
         // `Rc<OpaqueId>`, `&&OpaqueId`, `Pin<Box<OpaqueId>>`, and an alias
         // inside any of them. Each is reachable and each is outside this, and
-        // the next cell anyone needs is added here beside its measurement. `BORROWS` was a second exception with
-        // no reason written — not asked of the reference, where `core`'s three
+        // the next cell anyone needs is added here beside its measurement.
+        // `BORROWS` is asked of the reference too, because `core`'s three
         // blanket impls leave `impl Borrow<str> for &OpaqueId` perfectly
-        // writable, and where an alias would hide it from the text census as
-        // well. The same asymmetry as the one this paragraph was written about,
-        // one bound along. Found in wave 34. `&T` derefs for every `T`, so asking
-        // `DEREFS` of a reference is a question whose answer is yes for every
-        // type in Rust and would refuse a tree with nothing wrong with it.
-        // Wave 32 asked `BYTES` of the type *and* the reference, with the reason
-        // written — "the conversion can be written on either" — and asked
-        // `CONVERTS`, which is the same sentence word for word, of the type
-        // alone. So `impl From<&OpaqueId> for String` was a second way to the
-        // whole string that neither half saw. One rule described for two shapes
-        // and implemented for one, inside the repair whose own comment names
-        // that defect. Found in wave 33.
+        // writable, and an alias would hide it from the text census as well.
+        // `&T` derefs for every `T`, so asking `DEREFS` of a reference is a
+        // question whose answer is yes for every type in Rust and would refuse
+        // a tree with nothing wrong with it. `BYTES` and `CONVERTS` are both
+        // asked of the type *and* the reference, because the conversion can be
+        // written on either: asked of the type alone,
+        // `impl From<&OpaqueId> for String` is a second way to the whole string
+        // that neither half sees.
         assert!(
             !<Probe<OpaqueId>>::LENDS
                 && !<Probe<&OpaqueId>>::LENDS
@@ -1278,13 +1268,14 @@ mod an_opaque_identifier_holds_no_shape {
         );
         // **And the three the text census cannot ask about at all.** Its whole
         // question is what stands after the last ` for `, so it can only see an
-        // impl whose *self type* is `OpaqueId` — and `impl From<OpaqueId> for
-        // String`, which is a way to the string, has `String` there. Widening
-        // the text rule to any line mentioning the type was measured and is too
-        // strong: it reports the crate's own `OpaqueIdError` impls, because that
-        // name contains this one. A `Borrow<str>` is the same shape as the
-        // `AsRef` above, and a range taken out of the type is the prefix
-        // accessor `as_str`'s paragraph names first. Found in wave 30.
+        // impl whose *self type* is `OpaqueId` — and
+        // `impl From<OpaqueId> for String`, which is a way to the string, has
+        // `String` there. Widening the text rule to any line mentioning the
+        // type is measured too strong: it reports the crate's own
+        // `OpaqueIdError` impls, because that name contains this one. A
+        // `Borrow<str>` is the same shape as the `AsRef` above, and a range
+        // taken out of the type is the prefix accessor `as_str`'s paragraph
+        // names first.
         assert!(
             !<Probe<OpaqueId>>::BORROWS
                 && !<Probe<&OpaqueId>>::BORROWS
@@ -1310,13 +1301,11 @@ mod an_opaque_identifier_holds_no_shape {
             "a range can be taken out of `OpaqueId`, which is the accessor shaped like a \
              prefix that `as_str`'s paragraph says does not exist"
         );
-        // **The one the written residual named and no bound asked.** Wave 31
-        // wrote that `impl From<&Identifier> for Vec<u8>` is where the text rule
-        // gives out and "the probe below is where that is asked" — and none of
-        // the six bounds was `Into<Vec<u8>>`, so the sentence was the inverse of
-        // the code, over the crate's own written limit. It is asked here now, of
-        // the type and of the reference, because the conversion can be written
-        // on either. Found in wave 32.
+        // **The one the written residual names.**
+        // `impl From<&Identifier> for Vec<u8>` is where the text rule gives
+        // out, and the probe is where that is asked: `Into<Vec<u8>>`, of the
+        // type and of the reference, because the conversion can be written on
+        // either.
         assert!(
             !<Probe<OpaqueId>>::BYTES
                 && !<Probe<&OpaqueId>>::BYTES

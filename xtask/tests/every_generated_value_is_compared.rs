@@ -1,19 +1,20 @@
 //! A value the compiler emits that nothing compares can be emitted wrong.
 //!
-//! **Three fields reached the generated code with no comparison behind them**,
-//! each found by a different reviewer and each the same shape:
+//! **A field can reach the generated code with no comparison behind it**, and
+//! these are the shape, each measured with the comparison that holds it
+//! removed:
 //!
 //! * `ErrorCode::params()` — flattening the emitter to `&[]` for every code
-//!   passed the whole gate, and `§10.9` makes a response a key *plus
+//!   passes the whole gate, and `§10.9` makes a response a key *plus
 //!   parameters*;
-//! * `StoreLimit::enforced_by` — the published page could name the wrong
+//! * `StoreLimit::enforced_by` — the published page can name the wrong
 //!   enforcer for the log store's retention, green;
-//! * `Command::arguments` — added while closing the first two, and covered only
-//!   because it was added together with the test that reads it.
+//! * `Command::arguments` — compared only by tests that read the generated
+//!   constant, never the registry it came from.
 //!
-//! Every one of them was compared in *one* direction or on *one* surface, which
-//! is what made the gap hard to see: the registry was walked and the code was
-//! walked, and a field simply fell between them.
+//! A field compared in *one* direction or on *one* surface is what makes the gap
+//! hard to see: the registry is walked and the code is walked, and a field
+//! simply falls between them.
 //!
 //! So this walks the generated crate itself and requires every public field and
 //! every public accessor to be named by a comparison. It is the same argument as
@@ -51,7 +52,7 @@ const COMPARISONS: [&str; 7] = [
 /// checked, by a test that walks `catalog.events` and builds each field's
 /// expected declaration with `snake(&field.name)`. No type name and no field
 /// name is ever written as a literal, so the substring match below cannot see
-/// any of it, and the file sat outside a gate called
+/// any of it, and without this list the file would sit outside a gate called
 /// "every generated value is compared".
 ///
 /// This is not an exclusion list: naming a file here is a claim that a specific
@@ -60,14 +61,15 @@ const COMPARISONS: [&str; 7] = [
 /// test's own source. A file listed here whose comparison stops iterating fails.
 ///
 /// **The third field is the registry collection the covering test walks, and it
-/// is what ties the excuse to the file it excuses.** Every check on this list
-/// used to be a property of the *covering* file — that it is read by this gate,
+/// is what ties the excuse to the file it excuses.** The other checks on this
+/// list are properties of the *covering* file — that it is read by this gate,
 /// that the reason is long enough, that its text walks `catalog.events` — and
-/// not one asked whether that walk covers the file being let off. So a second
-/// row naming any generated file, pointed at this same comparison, passed the
-/// lot: measured, both comparisons of `StoreLimit::enforced_by` deleted and
-/// `crates/nc-catalog/src/limits.rs` added here gave `ok. 10 passed`, with the
-/// excuse plainly false in the green run. The collection is checked against the
+/// none of them asks whether that walk covers the file being let off. So
+/// without this field, a second row naming any generated file, pointed at this
+/// same comparison, passes the lot: measured, both comparisons of
+/// `StoreLimit::enforced_by` deleted and `crates/nc-catalog/src/limits.rs`
+/// added here leave the suite green, with the excuse plainly false in the green
+/// run. The collection is checked against the
 /// generated file's own stem, so excusing `limits.rs` is a claim that the
 /// comparison walks `catalog.limits`, and the needle built from it is what
 /// refuses the claim.
@@ -126,8 +128,8 @@ fn names_for(type_: &str) -> Vec<String> {
             if let Some(rest) = line.strip_prefix("pub const ")
                 && let Some(name) = rest.split(':').next()
                 // Digits included: `ARGON2ID_PASSWORD` is a constant of this
-                // shape and an uppercase-only test rejected it, which reported
-                // five fields as uncompared that four assertions compare.
+                // shape, and an uppercase-only test rejects it and then reports
+                // fields as uncompared that assertions do compare.
                 && name
                     .chars()
                     .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
@@ -257,11 +259,11 @@ fn without_block_comments(text: &str) -> String {
 /// name endpoints like `http://127.0.0.1:9428` that would otherwise blind the
 /// rest of the line.
 ///
-/// **A character literal is one quote and toggles nothing.** `let quote = '"';`
-/// left a reader of this shape believing a string was open for the rest of the
-/// line, after which its comment was read as code. Every other reader of source
-/// text in this tree grew that arm in rounds 53 to 55; this one is the last, and
-/// it is the last because it cannot share theirs: `xtask` is a binary, an
+/// **A character literal is one quote and toggles nothing.** Without that arm,
+/// `let quote = '"';` leaves a reader of this shape believing a string is open
+/// for the rest of the line, after which its comment is read as code. The
+/// readers in `gates.rs` have the arm too; this one writes it again because it
+/// cannot share theirs: `xtask` is a binary, an
 /// integration test cannot reach `crate::gates`, and the alternative — a
 /// dev-dependency on the gate — would put the gate inside what it judges
 /// (`AGENTS.md` rule 3). So the arm is written again here, with a corpus of its
@@ -388,24 +390,24 @@ fn comparisons() -> Vec<(&'static str, String)> {
             .unwrap_or_else(|error| panic!("{relative} is readable: {error}"));
         // **Code, not prose.** The match below is a substring test, and a
         // comment is text: *mentioning* a type anywhere in a chunk that happens
-        // to call the accessor satisfied it. Measured — one line inside the test
+        // to call the accessor satisfies it. Measured — one line inside the test
         // that compares `Notification` and `Email` params:
         //
         // ```text
         // // ErrorCode is compared elsewhere.
         // ```
         //
-        // and the same in the file's own `//!` header, chunk zero. Either one
-        // restored green after the real `ErrorCode::params` assertion was
-        // deleted, and with the emitter then flattened to `=> &[]` for every
-        // code, `check passed` with 553 tests. That is the exact defect this
-        // file's header opens with, at a cost of one comment.
-        // **And a block comment, which a line reader cannot see at all.**
-        // Rounds 53, 54 and 57 closed this spelling in five other files and
-        // this one was the last: the single comparison of `ErrorCode::params`
-        // wrapped in `/* … */` left the whole `check` transcript
-        // byte-identical to a clean run, where the same eleven lines behind
-        // `//` are reported at once. Measured on 2026-09-14.
+        // and the same in the file's own `//!` header, chunk zero. Read raw,
+        // either one restores green after the real `ErrorCode::params`
+        // assertion is deleted, and with the emitter then flattened to `=> &[]`
+        // for every code, `check passed`. That is the exact defect this file's
+        // header opens with, at a cost of one comment.
+        // **And a block comment, which a line reader cannot see at all**, the
+        // spelling `gates.rs`'s `without_comments` also refuses:
+        // without this, the single comparison of `ErrorCode::params` wrapped in
+        // `/* … */` leaves the whole `check` transcript byte-identical to a
+        // clean run, where the same lines behind `//` are reported at once,
+        // measured.
         let text = without_block_comments(&text);
         let text: String = text
             .lines()
@@ -437,7 +439,7 @@ fn comparisons() -> Vec<(&'static str, String)> {
 ///
 /// `self)`, `&self)`, `&self,` and a `&self` at the end of a line rustfmt
 /// wrapped all say the same thing; `self, index: usize` does not. The comma case
-/// is what a wrapped signature looks like, and it was invisible.
+/// is what a wrapped signature looks like, and a reader without it misses one.
 fn takes_only_the_receiver(parameters: &str) -> bool {
     let rest = parameters.trim_start().trim_start_matches('&').trim_start();
     let Some(after) = rest.strip_prefix("self") else {
@@ -460,12 +462,11 @@ fn takes_only_the_receiver(parameters: &str) -> bool {
 /// and a check that compared bare names treated one comparison as covering all
 /// of them.
 ///
-/// **How many is not written here, and said *seven* in four places while the
-/// surface held thirteen.** The seven were the ones a reader listed once; the
-/// largest omission was `code`, shared by `ErrorCode` and four generated event
-/// structs — exactly the collapse this paragraph warns about, in the paragraph
-/// warning about it. Reported on F1's sixth pass. The number moves with the
-/// registry and nothing computes it, so the argument is stated without it.
+/// **How many is not written here.** A count written once is the list a reader
+/// made once, and it misses exactly the collapse this paragraph warns about —
+/// `code`, shared by `ErrorCode` and generated event structs. The number moves
+/// with the registry and nothing computes it, so the argument is stated without
+/// it.
 fn emitted() -> Vec<(String, String, String, bool)> {
     let mut found = Vec::new();
     let mut files: Vec<PathBuf> = std::fs::read_dir(root().join("crates/nc-catalog/src"))
@@ -475,10 +476,10 @@ fn emitted() -> Vec<(String, String, String, bool)> {
         .filter(|path| path.extension().is_some_and(|kind| kind == "rs"))
         .collect();
     // **And the generated log events**, which the compiler emits from
-    // `catalog/log-events.toml` into another crate. The walk read
-    // `crates/nc-catalog/src` alone, so eleven event structs and their public
-    // fields — every one of them a value the compiler wrote — were outside a
-    // gate whose name is "every generated value is compared". They are compared,
+    // `catalog/log-events.toml` into another crate. A walk reading
+    // `crates/nc-catalog/src` alone leaves the event structs and their public
+    // fields — every one of them a value the compiler wrote — outside a gate
+    // whose name is "every generated value is compared". They are compared,
     // by `the_registry_reaches_the_code.rs`, and that is a thing this gate
     // should be checking rather than a thing it happens to be right about.
     files.push(root().join("crates/nc-log/src/events.rs"));
@@ -487,10 +488,10 @@ fn emitted() -> Vec<(String, String, String, bool)> {
         let text = std::fs::read_to_string(&path).expect("readable");
         // **The path, not the file name.** `crates/nc-catalog/src/events.rs` and
         // `crates/nc-log/src/events.rs` are both `events.rs`, and `BY_ITERATION`
-        // keys on this — so excusing the log's file excused the catalog's too:
-        // 30 of 83 emitted values, 36% of this gate's subject, including every
-        // field of `EventSpec` and `FieldSpec`. Demonstrated with a
-        // `pub const fn shard()` emitted onto `EventSpec` and compared by
+        // keys on this — so keyed on the file name, excusing the log's file
+        // excuses the catalog's too: over a third of this gate's subject,
+        // including every field of `EventSpec` and `FieldSpec`. Demonstrated
+        // with a `pub const fn shard()` emitted onto `EventSpec` and compared by
         // nothing: `check passed`.
         let file = path
             .strip_prefix(root())
@@ -519,27 +520,24 @@ fn emitted() -> Vec<(String, String, String, bool)> {
             if owner.is_empty() {
                 continue;
             }
-            // **One reader, because the digit clause was proven against a
-            // copy.** These eight clauses were written out here and again in
-            // `fields_of`, whose own doc called itself "the same rule
-            // `emitted()` applies, extracted so the digit case has a test of
-            // its own" — and it was not the same rule: it carried none of the
-            // six exclusions, and the test that keeps the digit clause alive
-            // drove it rather than this walk. Measured on 2026-09-11: the
-            // clause deleted from this walk left `check passed` and
+            // **One reader, because a clause proven against a copy is not
+            // proven.** With these clauses written out here and again in a copy
+            // that the test keeping the digit clause alive drives, the copy can
+            // differ from this walk and the test holds the copy: measured, the
+            // clause deleted from this walk leaves `check passed` and
             // `an_accessor_is_recognised_however_its_signature_is_written`
-            // green. There is one predicate now, and the test drives it.
+            // green. So there is one predicate, and the test drives it.
             if let Some(rest) = line.strip_prefix("pub ")
                 && let Some(name) = the_field_declared_by(rest)
             {
                 found.push((file.clone(), owner.clone(), name.to_owned(), false));
             }
             for opening in ["pub const fn ", "pub fn "] {
-                // **`&self` too, and a signature rustfmt wrapped.** This asked
-                // for the literal `(self)` on one line, so an accessor taking a
+                // **`&self` too, and a signature rustfmt wrapped.** Asking for
+                // the literal `(self)` on one line leaves an accessor taking a
                 // reference — which is how any accessor returning a borrow has
-                // to be written — and one whose signature crossed 100 columns
-                // were both outside the gate. What identifies an accessor is
+                // to be written — and one whose signature crosses 100 columns
+                // both outside the gate. What identifies an accessor is
                 // that it takes the receiver and nothing else, and `(self` with
                 // the next character not a name character says that whichever
                 // way the receiver is spelled and wherever the line breaks.
@@ -595,10 +593,10 @@ fn compares_this_value(text: &str, names: &[String], reads: &[String]) -> bool {
 
 /// Whether some assertion in `text` holds one of `reads` against something else.
 ///
-/// **The chunk was the unit, and a chunk is a whole test.** Requiring it to read
-/// the loaded catalog was satisfied by the *loop header* — `for entry in
-/// &catalog.commands` — which says nothing about the assertion inside it.
-/// Measured: the command emitter changed to write the title key into
+/// **The unit is not the chunk, because a chunk is a whole test.** Requiring a
+/// chunk to read the loaded catalog is satisfied by the *loop header* — `for
+/// entry in &catalog.commands` — which says nothing about the assertion inside
+/// it. Measured: the command emitter changed to write the title key into
 /// `description_key`, and the one real assertion replaced by the exact shape
 /// this gate's own doc names as the defect —
 ///
@@ -623,7 +621,7 @@ fn held_by_an_equality(text: &str, reads: &[String]) -> bool {
     // A lookup that panics is a comparison too: half the real comparisons here
     // find the generated entry *by* the value, and the value is held against
     // the registry by whether the lookup succeeds.
-    // **`assert_ne!` is not on this list**, and was. An assertion that two
+    // **`assert_ne!` is not on this list.** An assertion that two
     // things *differ* never pins either of them: `assert_ne!(generated.k,
     // entry.name)` relates two operands and establishes nothing about `k`. Both
     // uses in this tree are sanity checks sitting beside a real `assert_eq!`
@@ -672,7 +670,7 @@ fn held_by_an_equality(text: &str, reads: &[String]) -> bool {
         // **One conjunct, not the whole predicate.** Counting operands across a
         // whole `assert!` is beaten by five words: `!generated.k.is_empty() &&
         // !entry.k.is_empty()` names two operands and relates nothing, and
-        // measured, it shipped every command's description as its own title with
+        // measured, it ships every command's description as its own title with
         // the gate's output byte-identical to a clean run. Two things are
         // related when they meet in **one** comparison, so the conjuncts are
         // split and each is asked on its own.
@@ -703,9 +701,9 @@ fn pairs_the_two_sides(text: &str, reads: &[String]) -> bool {
         let Some((pattern, head)) = rest.split_once(" in ") else {
             continue;
         };
-        // **A tuple, because one binding cannot compare two things.** This
-        // accepted any `for` header that mentioned the read and named two
-        // identifiers, and never looked at the body — so
+        // **A tuple, because one binding cannot compare two things.** Accepting
+        // any `for` header that mentions the read and names two identifiers,
+        // without looking at the body, lets
         //
         // ```rust
         // for value in [entry.description.as_str(), generated.description_key] {
@@ -713,8 +711,8 @@ fn pairs_the_two_sides(text: &str, reads: &[String]) -> bool {
         // }
         // ```
         //
-        // passed, and shipped every command's description as its own title with
-        // the gate's output byte-identical to a clean run. The real shape
+        // pass — measured, shipping every command's description as its own
+        // title with the gate's output byte-identical to a clean run. The real shape
         // destructures a *pair* and compares the halves; a single binding walks
         // the two sides one at a time and can only ever inspect each.
         if pattern
@@ -816,7 +814,7 @@ fn defined_as(text: &str, name: &str) -> Option<String> {
 
 /// Whether `read` appears in `text` as a value in its own right.
 ///
-/// **A conjunction was not needed to beat the conjunct rule.** One conjunct with
+/// **A conjunction is not needed to beat the conjunct rule.** One conjunct with
 /// two operands that relates nothing does it:
 ///
 /// ```rust
@@ -828,8 +826,8 @@ fn defined_as(text: &str, name: &str) -> Option<String> {
 /// ```
 ///
 /// One conjunct, the read present, two operands — and true of every string the
-/// emitter could write. It shipped every command's description as its own title
-/// with the gate's output byte-identical to a clean run.
+/// emitter could write. Measured, it ships every command's description as its
+/// own title with the gate's output byte-identical to a clean run.
 ///
 /// What separates that from a real comparison is not the shape of the assertion
 /// but what is compared: `f(A) == f(B)` compares two *summaries*, and a summary
@@ -943,16 +941,16 @@ fn the_walk_reaches_both_generated_sources() {
 ///
 /// **An expectation that shrinks with the thing it measures.** The rule below
 /// compares what its loop judged against `emitted()`'s own length, so a filter
-/// inside `emitted()` moves both sides at once: a reviewer dropped `Email`,
-/// `Notification`, `Command` and three limit types — including
-/// `StoreLimit::enforced_by`, one of the three values this file's header was
-/// written for — and every guard here stayed green, the `> 20` floor included.
+/// inside `emitted()` moves both sides at once and that rule cannot see it:
+/// measured, dropping `Email`, `Notification`, `Command` and three limit types
+/// — including `StoreLimit::enforced_by`, one of the values this file's header
+/// opens with — clears that rule and the `> 20` floor alike.
 ///
 /// So the walk's own reach is written down. This is the test
 /// `xtask/src/check.rs`'s exclusion table names as the reason this file is
-/// floored rather than mutated; before this it named nothing, which is the
-/// defect the `INDIRECT` rule in this same file already refuses one screen
-/// down — *an excuse has to point at a test, and that test has to exist*.
+/// floored rather than mutated, and the `INDIRECT` rule in this same file says
+/// one screen down why the table must name one — *an excuse has to point at a
+/// test, and that test has to exist*.
 ///
 /// A number, because the surface is generated: it moves when the registry
 /// gains a value, and that is an edit somebody makes deliberately and records
@@ -977,24 +975,24 @@ fn every_field_and_accessor_the_compiler_emits_is_named_by_a_comparison() {
     // The floor, for the reason every gate here carries one: a walk that read no
     // generated file would pass having compared nothing. Its size is pinned by
     // [`the_generated_surface_is_judged_whole`], because a floor of twenty
-    // against a surface of eighty-five is sixty-five values of slack — and the
-    // equality below compares the loop against *this* list, so narrowing the
-    // walk moves both numbers together. Measured by a reviewer who dropped six
-    // generated types out of `emitted` with every guard in this file intact.
+    // against the whole surface is mostly slack — and the equality below
+    // compares the loop against *this* list, so narrowing the walk moves both
+    // numbers together. Measured: six generated types dropped out of `emitted`
+    // clear this floor and that equality alike.
     assert!(
         emitted.len() > 20,
         "only {} emitted values were found, so the walk read almost nothing",
         emitted.len()
     );
 
-    // **The type, not the bare name.** The match was a substring over pooled
-    // text, so `ErrorCode::params` and `Email::params` were one string —
-    // deleting the error comparison *and* flattening the emitter left the gate
-    // green, because `entry.params` on the model side still spelled `.params`
+    // **The type, not the bare name.** As a bare substring over pooled text,
+    // `ErrorCode::params` and `Email::params` are one string — deleting the
+    // error comparison *and* flattening the emitter leaves the gate green,
+    // because `entry.params` on the model side still spells `.params`
     // somewhere. Names are shared across two or more generated types — `params`,
     // `description`, `name`, `severity`, `id`, `title_key`, `body_key`, `code`
-    // and more — and all of them collapsed to one. The count is not written: it
-    // stood at seven here while the surface held thirteen.
+    // and more — and all of them collapse to one. The count is not written: a
+    // count written here drifts from the surface it counts.
     //
     // A comparison has to name the *type* it is about, in the same file. That is
     // what every real one already does: `ErrorCode::ALL`, `Notification::ALL`,
@@ -1018,15 +1016,15 @@ fn every_field_and_accessor_the_compiler_emits_is_named_by_a_comparison() {
             continue;
         }
         // **Counted here, below the skips, because a counter above them counts
-        // iterations rather than judgements.** The first repair put `judged +=
-        // 1` at the top of this loop, which is the shape `gates.rs`'s own
-        // `everything_reached_a_verdict` exists to refuse — its fix text says
-        // it in these words: *a filter between the counter at the top of the
-        // loop and the judgement at the bottom leaves every printed number
-        // whole while the rule is never asked*. A reviewer inserted `if
-        // !is_accessor { continue; }` under that counter and every emitted
-        // field stopped being judged with the equality still true — so it is
-        // incremented at the verdict itself, below, where `compared` is
+        // iterations rather than judgements.** `judged += 1` at the top of this
+        // loop is the shape `gates.rs`'s own `everything_reached_a_verdict`
+        // exists to refuse — its fix text says it in these words: *a filter
+        // between the counter at the top of the loop and the judgement at the
+        // bottom leaves every printed number whole while the rule is never
+        // asked*. Measured with the counter there: `if !is_accessor { continue; }`
+        // inserted under it stops every emitted field being judged with the
+        // equality still true — so it is incremented at the verdict itself,
+        // below, where `compared` is
         // decided. A filter anywhere above that skips the increment with it.
         let names = names_for(type_);
         // **An accessor is compared as a call.** `.params` matches
@@ -1043,19 +1041,21 @@ fn every_field_and_accessor_the_compiler_emits_is_named_by_a_comparison() {
         // picking a language reads — and the two real assertions deleted:
         //
         // ```text
-        // ok  594 test(s)
         // check passed
         // ```
         //
-        // The count did not even get smaller. What kept it green was
+        // with the printed count unchanged. What keeps it green is
         // `assert!(!locale.name().is_empty())` in a chunk that mentions
         // `Locale`, which is true of every string the emitter could write.
         //
         // A generated value's source is `catalog/`, so a comparison of one has
         // to read the loaded registry — `catalog.locales`, `catalog.commands`
-        // — and hold the generated side against it. Asking for that turned out
-        // to cost exactly one value across the whole surface, and that value
-        // (`Command::arguments`) was compared against itself.
+        // — and hold the generated side against it. Over every comparison but
+        // the one against `args_schema` in
+        // `xtask/tests/the_registry_reaches_the_code.rs`, asking for that refuses
+        // exactly one value across the whole surface, measured:
+        // `Command::arguments`, which a test reading only the generated constant
+        // compares against itself.
         let compared = comparisons
             .iter()
             .any(|(_, text)| compares_this_value(text, &names, &reads));
@@ -1066,11 +1066,11 @@ fn every_field_and_accessor_the_compiler_emits_is_named_by_a_comparison() {
     }
     // **What the loop reached, not what the walk found.** The floor above reads
     // `emitted`, which the loop then iterates — so narrowing the iteration
-    // itself was invisible to it: `emitted.iter().take(25)` removed seventy per
-    // cent of this gate's subject and `cargo xtask check` printed the same
-    // count and said `check passed`. Measured by the reviewer that closed F1,
-    // and it is the shape this file's own `held_by_an_equality` detector exists
-    // for, one level up.
+    // itself is invisible to it: `emitted.iter().take(25)` removes most of this
+    // gate's subject with the floor still holding, and without the comparison
+    // below `cargo xtask check` prints the same count and says `check passed`,
+    // measured. It is the shape this file's own `held_by_an_equality` detector
+    // exists for, one level up.
     //
     // This file is a rule rather than a suite, and it is the one integration
     // target `xtask/src/check.rs`'s exclusion table names as floored rather than
@@ -1079,12 +1079,12 @@ fn every_field_and_accessor_the_compiler_emits_is_named_by_a_comparison() {
     // `judged + excused == emitted.len()` holds however the two are divided, so
     // moving values into `excused` — which is what a new row in `BY_ITERATION`
     // does — keeps it true while the number of values actually judged collapses.
-    // `xtask/src/check.rs`'s exclusion table named
+    // `xtask/src/check.rs`'s exclusion table names
     // `the_generated_surface_is_judged_whole` as this file's floor, and that
     // test pins what the *walk* found, which is a different number; this is the
-    // one the table was describing. Measured: one row added to `BY_ITERATION`
-    // for `crates/nc-catalog/src/limits.rs` took every value of that file out of
-    // the judging with `ok. 10 passed` printed.
+    // one the table describes. Measured: one row added to `BY_ITERATION` for
+    // `crates/nc-catalog/src/limits.rs` takes every value of that file out of
+    // the judging with the equality above still green.
     assert_eq!(
         judged,
         115,
@@ -1112,12 +1112,12 @@ fn every_field_and_accessor_the_compiler_emits_is_named_by_a_comparison() {
 
 /// What counts as comparing a value, and what only looks like it.
 ///
-/// **Both rules this gate leans on had no test.** The requirement that a
-/// comparison read the loaded catalog, and the requirement that an accessor be
-/// *called* rather than named on the model side, could each be deleted with the
-/// whole suite green — and the first was also defeatable without deleting it,
-/// because it was asked of the chunk and every real chunk satisfies it in its
-/// loop header.
+/// **Both rules this gate leans on, tested.** Without this, the requirement
+/// that a comparison read the loaded catalog, and the requirement that an
+/// accessor be *called* rather than named on the model side, can each be
+/// deleted with the whole suite green — and the first is also defeatable
+/// without deleting it, when it is asked of the chunk, because every real chunk
+/// satisfies it in its loop header.
 #[test]
 fn an_assertion_that_inspects_one_value_is_not_a_comparison() {
     let read = |name: &str| vec![format!(".{name}")];
@@ -1132,17 +1132,17 @@ fn an_assertion_that_inspects_one_value_is_not_a_comparison() {
         "assert!(generated.name.len() > 0);",
         // A hard-coded expectation is not the registry.
         "assert_eq!(generated.name, \"English\");",
-        // **Two operands, related to nothing.** Five words beat the first form
-        // of this rule: each half inspects one value, and counting operands
-        // across the whole predicate read that as a comparison. Measured, it
-        // shipped every command's description as its own title with the gate's
-        // output byte-identical to a clean run.
+        // **Two operands, related to nothing.** Each half inspects one value,
+        // and a rule counting operands across the whole predicate reads that as
+        // a comparison: measured, these five words then ship every command's
+        // description as its own title with the gate's output byte-identical to
+        // a clean run.
         "assert!(!generated.name.is_empty() && !entry.name.is_empty());",
         "assert!(!entry.name.is_empty() || generated.name.is_some());",
         // An assertion that two things *differ* pins neither of them.
         "assert_ne!(generated.name, entry.tag);",
         // **Two operands inside one conjunct, relating nothing.** A conjunction
-        // was not needed to beat the conjunct rule: `f(A) == f(B)` compares two
+        // is not needed to beat the conjunct rule: `f(A) == f(B)` compares two
         // summaries, and a summary is where a value goes to be forgotten.
         "assert_eq!(generated.name.is_empty(), entry.name.is_empty());",
         "assert_eq!(generated.name.len(), entry.name.len());",
@@ -1250,12 +1250,13 @@ fn an_assertion_that_inspects_one_value_is_not_a_comparison() {
 /// **`"\n}"` is the end of the enclosing `impl`, not of the function.**
 /// Generated code is indented, so the first unindented `}` after a function is
 /// the block it lives in — and `emitted_sources()` pools every generated file,
-/// most of the tree's `impl`s among them. Measured: an entry in `INDIRECT`
-/// claiming `ErrorCode::description()` reads `code`, which it does not, passed
-/// every assertion in `the_indirect_list_is_not_a_place_to_hide` because
-/// `candidate.code()` appears about 150 lines further down the same `impl`. A
-/// faithful replay found **20** other false triples that pass, including
-/// `ErrorCode::code` through four different calls.
+/// most of the tree's `impl`s among them. Measured, bounded by `"\n}"`: an
+/// entry in `INDIRECT` claiming `ErrorCode::description()` reads `code`, which
+/// it does not, passes every assertion in
+/// `the_indirect_list_is_not_a_place_to_hide` because `candidate.code()`
+/// appears far further down the same `impl`, and a faithful replay finds other
+/// false triples that pass, including `ErrorCode::code` through four different
+/// calls.
 #[test]
 fn a_function_body_stops_at_its_own_brace() {
     // The shape generated code actually has: an indented function inside an
@@ -1309,7 +1310,7 @@ fn the_iterating_comparisons_really_iterate() {
     for (generated, comparison, collection, why) in BY_ITERATION {
         // **The collection is the generated file's own stem.** Without this the
         // third field is a free string, and a row could claim `events` while
-        // excusing `limits.rs` — which puts the hole back exactly where it was.
+        // excusing `limits.rs` — which is the hole this list exists to close.
         let stem = std::path::Path::new(generated)
             .file_stem()
             .and_then(std::ffi::OsStr::to_str)
@@ -1342,20 +1343,20 @@ fn the_iterating_comparisons_really_iterate() {
             generated.contains('/'),
             "`{generated}` is a bare file name, and two generated files share one"
         );
-        // **Code, not prose — the same rule `comparisons` applies, and this was
-        // the one reader that did not.** All three needles below were tested
-        // against the raw file, inside the one file whose own doc comment
-        // explains at length why that is not enough. Measured: the covering
-        // test deleted outright, replaced by the single line
+        // **Code, not prose — the same rule `comparisons` applies.** Needles
+        // tested against the raw file let a comment stand in for a test, inside
+        // the one file whose own doc comment explains at length why that is not
+        // enough. Measured: the covering test deleted outright, replaced by the
+        // single line
         //
         // ```text
         // // Moved: no_event_struct_holds_a_member_the_registry_does_not_declare
         // //        now lives with the compiler's own suite.
         // ```
         //
-        // and `pub const fn shard(&self) -> u8 { 7 }` emitted onto all eleven
-        // generated event structs: `ok 593 test(s)`, `check passed`. A comment
-        // carried the whole *emitted ⊆ declared* guarantee.
+        // and `pub const fn shard(&self) -> u8 { 7 }` emitted onto every
+        // generated event struct: `check passed`, with a comment carrying the
+        // whole *emitted ⊆ declared* guarantee.
         let text: String = std::fs::read_to_string(root().join(comparison))
             .unwrap_or_else(|error| panic!("{comparison} is readable: {error}"))
             .lines()
@@ -1382,11 +1383,11 @@ fn the_iterating_comparisons_really_iterate() {
 
         // **And it checks the other direction, which is what excuses the file.**
         // The comparison walks the registry and asserts *declared ⊆ emitted* —
-        // every entry has a struct, every field has a line. It said nothing
-        // about *emitted ⊆ declared*, so a value the compiler writes that the
-        // registry never asked for is compared by nobody. Measured: a
-        // `pub const fn shard(&self) -> u8 { 7 }` emitted onto all eleven event
-        // structs gave `check passed` with 591 tests — a fabricated value on
+        // every entry has a struct, every field has a line. That says nothing
+        // about *emitted ⊆ declared*, so without the other direction a value the
+        // compiler writes that the registry never asked for is compared by
+        // nobody. Measured: a `pub const fn shard(&self) -> u8 { 7 }` emitted
+        // onto every event struct gave `check passed` — a fabricated value on
         // every generated log event, which is the demonstration this gate's own
         // header opens with.
         //
@@ -1403,11 +1404,11 @@ fn the_iterating_comparisons_really_iterate() {
 
 #[test]
 fn an_accessor_is_recognised_however_its_signature_is_written() {
-    // **Two shapes the walk could not see.** It required the literal `(self)`
-    // on one line, so a `&self` accessor — how any accessor returning a borrow
-    // has to be written — and one whose signature rustfmt wrapped past 100
-    // columns were both outside the gate; and field names had to be all
-    // lowercase letters, so a generated field called `argon2id` or `sha256` was
+    // **Two shapes a narrower walk cannot see.** Requiring the literal `(self)`
+    // on one line leaves a `&self` accessor — how any accessor returning a
+    // borrow has to be written — and one whose signature rustfmt wrapped past
+    // 100 columns outside the gate; and requiring field names to be all
+    // lowercase letters makes a generated field called `argon2id` or `sha256`
     // invisible, which is a shape `catalog/limits.toml` declares.
     //
     // Neither shape exists in the tree today, which is precisely why they need a
@@ -1463,24 +1464,24 @@ fn fields_of(text: &str) -> Vec<String> {
 /// The field a `pub ` declaration names, or `None` when it declares something
 /// else.
 ///
-/// **The one place the rule is written.** `emitted()` and [`fields_of`] each
-/// carried it, and the copy the tests drove was the one the walk does not call:
-/// the digit clause could be deleted from the live walk with the suite green,
-/// including the test written to keep it alive.
+/// **The one place the rule is written**, for `emitted()` and [`fields_of`]
+/// both. With a copy in each, the copy the tests drive need not be the one the
+/// walk calls: the digit clause can then be deleted from the live walk with the
+/// suite green, including the test written to keep it alive.
 ///
-/// **A digit is part of a field name.** The rule required every character to be
-/// a lowercase letter or an underscore, so a generated field called `argon2id`
-/// or `sha256` was invisible to the gate — and `catalog/limits.toml` declares
-/// exactly that shape.
+/// **A digit is part of a field name.** A rule requiring every character to be
+/// a lowercase letter or an underscore makes a generated field called
+/// `argon2id` or `sha256` invisible to the gate — and `catalog/limits.toml`
+/// declares exactly that shape.
 ///
-/// **And the six exclusions decided nothing.** They refused `pub fn `,
-/// `pub const `, `pub struct `, `pub enum `, `pub mod ` and `pub use ` by name
-/// — and every one of those keywords ends in a space, which the character class
-/// below already refuses, because a field name is lowercase letters, digits and
-/// underscores. Measured by a reviewer on 2026-09-12: all six deleted, the
-/// workspace suite and `check` green. A clause that decides nothing is a clause
-/// nobody can tell is wrong, and six of them under a doc saying each is
-/// load-bearing is worse than none.
+/// **And no exclusions by keyword.** Refusing `pub fn `, `pub const `,
+/// `pub struct `, `pub enum `, `pub mod ` and `pub use ` by name decides
+/// nothing — every one of those keywords ends in a space, which the character
+/// class below already refuses, because a field name is lowercase letters,
+/// digits and underscores. Measured: all six deleted, the workspace suite and
+/// `check` green. A clause that decides nothing is a clause nobody can tell is
+/// wrong, and a list of them under a doc saying each is load-bearing is worse
+/// than none.
 fn the_field_declared_by(rest: &str) -> Option<&str> {
     let name = rest.split(':').next()?;
     (rest.contains(':')
@@ -1494,9 +1495,9 @@ fn the_field_declared_by(rest: &str) -> Option<&str> {
 #[test]
 fn a_comparison_is_code_and_a_comment_is_not() {
     // **The hole, tested rather than the rule.** Mentioning a type in a comment
-    // inside a chunk that happens to call the accessor satisfied the match, so
-    // one line of prose plus one deleted assertion shipped `ErrorCode::params()`
-    // as `&[]` for every code with `check passed`.
+    // inside a chunk that happens to call the accessor satisfies a match over
+    // text, so one line of prose plus one deleted assertion ships
+    // `ErrorCode::params()` as `&[]` for every code with `check passed`.
     assert_eq!(
         without_comment("    // ErrorCode is compared elsewhere."),
         "    "
@@ -1520,10 +1521,10 @@ fn a_comparison_is_code_and_a_comment_is_not() {
         without_comment(r#"let a = "x\" // y"; let b = 1;"#),
         r#"let a = "x\" // y"; let b = 1;"#
     );
-    // **And a block comment, which a line reader cannot see at all.** This was
-    // the last of the five files where "a comment pays for a call" was closed
-    // for `//` and left open for `/* … */`: the single comparison of an
-    // accessor wrapped in one left the whole transcript byte-identical.
+    // **And a block comment, which a line reader cannot see at all.** "A
+    // comment pays for a call" is closed for `/* … */` as well as for `//`:
+    // without this, the single comparison of an accessor wrapped in one leaves
+    // the whole transcript byte-identical, measured.
     assert_eq!(
         without_block_comments("let a = 1; /* ErrorCode::params() */ let b = 2;"),
         "let a = 1;  let b = 2;"
@@ -1538,11 +1539,11 @@ fn a_comparison_is_code_and_a_comment_is_not() {
     );
     // A newline inside one survives, so a line number is still a line number.
     assert_eq!(without_block_comments("a /* one\ntwo */ b"), "a \n b");
-    // **A character literal is one quote and opens nothing.** `'"'` left this
-    // reader believing a string was open, after which the comment behind it was
-    // read as code — the shape a reviewer planted in `wall.rs`'s copy on
-    // 2026-09-11, where it turned a comment into a logging call the gate then
-    // refused for being too long.
+    // **A character literal is one quote and opens nothing.** Without that,
+    // `'"'` leaves this reader believing a string is open, after which the
+    // comment behind it is read as code — the shape that, planted in `wall.rs`'s
+    // copy, turns a comment into a logging call the gate then refuses for being
+    // too long.
     assert_eq!(
         without_comment(r#"    let quote = '"'; // `.params()` writes one"#),
         r#"    let quote = '"'; "#
@@ -1583,11 +1584,11 @@ fn a_comparison_is_code_and_a_comment_is_not() {
 
 /// A character literal's quote does not open a string for the block stripper.
 ///
-/// **The one arm this scanner did not have.** `without_comment` grew a char
-/// arm and the block stripper that runs *before* it did not, so `'"'` — one
-/// character, written in this very file — left the scan inside a string for
-/// everything after it: the next `/* … */` came through whole and the line
-/// reader judged a comment as code. A lifetime is the other half, and reading
+/// **A char-literal arm in the block stripper too, not only in the line
+/// reader.** Without it the stripper, which runs *before* `without_comment`,
+/// takes `'"'` — one character, written in this very file — as opening a string
+/// for everything after it: the next `/* … */` comes through whole and the line
+/// reader judges a comment as code. A lifetime is the other half, and reading
 /// one as an opener is how a scanner runs out of phase for a whole file.
 #[test]
 fn a_char_literal_does_not_open_a_string_for_the_block_stripper() {
@@ -1618,13 +1619,13 @@ fn a_char_literal_does_not_open_a_string_for_the_block_stripper() {
 
 #[test]
 fn the_indirect_list_is_not_a_place_to_hide() {
-    // **The list silenced any name.** It asked only that the value be emitted,
-    // that the covering call appear *anywhere* in the pooled text, and that the
-    // excuse exceed forty characters — all trivially true for any name, so one
-    // three-line entry plus a broken emitter left `NC-JRNL-0001` saying
-    // `retryable: true` with `check passed`.
+    // **A list that asks too little silences any name.** Asking only that the
+    // value be emitted, that the covering call appear *anywhere* in the pooled
+    // text, and that the excuse exceed forty characters — all trivially true
+    // for any name — lets one three-line entry plus a broken emitter leave
+    // `NC-JRNL-0001` saying `retryable: true` with `check passed`, measured.
     //
-    // An excuse now has to name the type, and the covering call has to be
+    // So an excuse has to name the type, and the covering call has to be
     // compared *against that type* — which is the same bar every real
     // comparison already meets.
     let comparisons = comparisons();
@@ -1645,11 +1646,11 @@ fn the_indirect_list_is_not_a_place_to_hide() {
             "`{type_}::{name}` is excused as covered through `{through}`, and no \
              comparison calls `{through}` against `{type_}`"
         );
-        // **And it names the test that would fail.** A length check let any
-        // sentence past: one three-line entry excused `ErrorCode::retryable`
-        // and a broken emitter shipped `NC-JRNL-0001` as retryable with
-        // `check passed`. An excuse now has to point at a test, and that test
-        // has to exist.
+        // **And it names the test that would fail.** A length check lets any
+        // sentence past: one three-line entry excuses `ErrorCode::retryable`
+        // and a broken emitter ships `NC-JRNL-0001` as retryable with
+        // `check passed`, measured. So an excuse has to point at a test, and
+        // that test has to exist.
         let named = why
             .split_whitespace()
             .map(|word| word.trim_matches(|c: char| !c.is_alphanumeric() && c != '_'))
@@ -1671,14 +1672,14 @@ fn the_indirect_list_is_not_a_place_to_hide() {
         );
         // **And that test reads the excused value.** Every assertion above is
         // about the *chain* — the value is emitted, the covering call is
-        // compared, a test of that name exists — and none of them was about the
-        // value itself. Measured: one entry excusing `ErrorCode::retryable`
+        // compared, a test of that name exists — and none of them is about the
+        // value itself. Measured, without this: one entry excusing `ErrorCode::retryable`
         // through `description`, which is genuinely compared, naming a test that
         // genuinely exists, plus the deletion of the one assertion that read
         // `.retryable()` and an emitter flattened to `true` — and
-        // `NC-JRNL-0001`, "the journal's hash chain is broken", shipped as
+        // `NC-JRNL-0001`, "the journal's hash chain is broken", ships as
         // retryable to every caller with `check passed`, while the published
-        // page still said `no`.
+        // page still says `no`.
         //
         // An excuse is a claim that *this test would fail if the value were
         // wrong*, and that only holds if the covering call **reads** the value.
@@ -1702,18 +1703,18 @@ fn the_indirect_list_is_not_a_place_to_hide() {
         // **Bounded by braces, not by `"\n}"`.** Generated code is indented, so
         // the first `"\n}"` after a function is the end of the whole `impl`
         // block — and `emitted_sources()` pools every file, most of them
-        // hand-written. Measured: an entry claiming `ErrorCode::description()`
-        // reads `code`, which it does not, satisfied every assertion here
-        // because `candidate.code()` appears about 150 lines further down the
-        // same impl. A faithful replay found **20** other false triples that
-        // pass, including `ErrorCode::code` through four different calls.
-        // **On that type, and as the shape it is.** The read was
-        // `.{name}(` *or* `.{name}`, and an `||` whose second half matches
-        // everything the first does makes the first half dead: a substring, not
-        // a read. Nothing asked which type the covering call was about either.
-        // A faithful replay found **8** false triples still passing, one of
-        // which was verified end to end — `("name", "Locale", "command", …)`
-        // added to this list left all five tests in this file green, because
+        // hand-written. Measured, bounded by `"\n}"`: an entry claiming
+        // `ErrorCode::description()` reads `code`, which it does not, satisfies
+        // every assertion here because `candidate.code()` appears far further
+        // down the same impl, and a faithful replay finds other false triples
+        // that pass, including `ErrorCode::code` through four different calls.
+        // **On that type, and as the shape it is.** A read of `.{name}(` *or*
+        // `.{name}` is an `||` whose second half matches everything the first
+        // does, which makes the first half dead: a substring, not a read — and
+        // it does not ask which type the covering call is about. Measured with
+        // that read: false triples still pass, one verified end to end —
+        // `("name", "Locale", "command", …)` added to this list leaves every
+        // test in this file green, because
         // `fn command(name: &str)`'s body holds `candidate.name == name` and
         // that is all a substring test asks. Nothing about `command()` can fail
         // when a locale's endonym is wrong.

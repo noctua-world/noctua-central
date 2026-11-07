@@ -1,16 +1,17 @@
 //! What the *running* log store says it was started with.
 //!
-//! **The bounds were certified against the file that starts the store, and
-//! never against the store.** `xtask/tests/the_stack_enforces_the_declared_
+//! **The file that starts the store is not the store.**
+//! `xtask/tests/the_stack_enforces_the_declared_
 //! bounds.rs` reads `docker-compose.yml`, compares its two flags with
-//! `catalog/limits.toml`, and that is the whole of it — so the claim the gate
+//! `catalog/limits.toml`, and that is the whole of it — so the claim that test
 //! makes is "the file agrees with the catalog", while the sentence
 //! `catalog/limits.toml` actually writes down is that the log store keeps
 //! thirty days and eight gibibytes. Between the two sits everything that can
-//! start a container: an override file compose reads without being asked, a `-f` on the command
-//! line, an image whose entrypoint appends its own arguments, or simply a
-//! container still running from before the file was edited. Each of those
-//! leaves every gate green with a store bounded by something else.
+//! start a container: an override file compose reads without being asked, a
+//! `-f` on the command line, an image whose entrypoint appends its own
+//! arguments, or simply a container still running from before the file was
+//! edited. Each of those leaves that test green with a store bounded by
+//! something else.
 //!
 //! VictoriaLogs answers `GET /flags` with the flags it is actually running
 //! with, which is the one place the answer is not a claim about a file:
@@ -32,20 +33,20 @@ const PATIENCE: u64 = 5;
 
 /// What the running store answered, in a shape only this module can build.
 ///
-/// **A type, because four rounds of text pins did not hold the hand-over.**
-/// The comparison in `check.rs` that asks whether the store writes where the
-/// container mounts has been made a tautology four times: first inline, then
-/// through a closure, then through a rebinding, then through the argument
-/// itself. Round 52 pinned the callee's whole body, both of its argument lines
-/// and every call site — and round 53 walked past all of it by changing what
-/// the *caller hands in*, deriving the store's side of the comparison from the
-/// container it is compared against. `check passed`, and the only lines that
-/// moved in the transcript were line counts.
+/// **A type, because a pin over text does not hold the hand-over.** The
+/// comparison in `check.rs` that asks whether the store writes where the
+/// container mounts can be made a tautology in more ways than a text pin names:
+/// inline, through a closure, through a rebinding, or through the argument
+/// itself. A pin over the callee's whole body, both of its argument lines and
+/// every call site still lets the *caller* change what it hands in, deriving
+/// the store's side of the comparison from the container it is compared
+/// against — under such a pin `check` passes, and the only lines that move in
+/// the transcript are line counts.
 ///
 /// A pin over text is a description of one defect. This is the room itself:
 /// the flags are a `Reported`, its one field is private to this module, and
 /// `check.rs` cannot construct one from anything at all. The only way to fake
-/// the first side of that comparison is now to fake the store's answer, which
+/// the first side of that comparison is to fake the store's answer, which
 /// is the step's own subject and read from the socket a few lines below.
 pub(crate) struct Reported(Vec<(String, String)>);
 
@@ -106,12 +107,12 @@ pub(crate) fn flags(port: &str) -> Result<Reported, String> {
 ///
 /// **Lifted so the door opens above the decisions rather than below them.**
 /// `as_a_store_would_answer_for_tests` hands a test [`the_flags_in`], the
-/// parser — and the two judgements this function makes before the parser ever
-/// runs were left with no reader that could drive them. Both survived being
-/// removed: `served` answered unconditionally, and the body split taking the
-/// whole response, which the paragraph below says would report `Content-Type`
-/// as a flag. Reported in round sixty-six. A door written so a type's
-/// accessors can be driven has to open above what it is guarding.
+/// parser, and the two judgements this function makes before the parser ever
+/// runs are out of that door's reach: `served` answering unconditionally, and
+/// the body split taking the whole response, which the paragraph below says
+/// would report `Content-Type` as a flag. Lifted, both are driven through
+/// `as_a_store_answered_for_tests`. A door written so a type's accessors can be
+/// driven has to open above what it is guarding.
 fn the_answer_read(answer: &str) -> Result<Reported, String> {
     let status = answer.lines().next().unwrap_or_default();
     if !served(answer) {
@@ -134,9 +135,9 @@ fn the_answer_read(answer: &str) -> Result<Reported, String> {
 ///
 /// **A door, because the type is the point.** `Reported`'s one field is private
 /// so that `check.rs` cannot build one out of the container it is compared
-/// against — and that leaves its three accessors with no reader that can drive
-/// them. A reviewer emptied `names()` on 2026-09-12 with `check` passing. This
-/// hands a test the parser's own answer without handing it the constructor.
+/// against — and that would leave its accessors with no reader that can drive
+/// them, `names()` emptied with `check` passing. This hands a test the parser's
+/// own answer without handing it the constructor.
 #[cfg(test)]
 pub(crate) fn as_a_store_would_answer_for_tests(body: &str) -> Reported {
     the_flags_in(body)
@@ -147,7 +148,7 @@ pub(crate) fn as_a_store_would_answer_for_tests(body: &str) -> Reported {
 /// The door above hands a test the parser; this one hands it
 /// [`the_answer_read`], which is where the status and the header boundary are
 /// decided. Same argument as that door's, one layer up: without it those two
-/// judgements had no reader at all.
+/// judgements would have no reader at all.
 #[cfg(test)]
 pub(crate) fn as_a_store_answered_for_tests(answer: &str) -> Result<Reported, String> {
     the_answer_read(answer)
@@ -166,10 +167,10 @@ fn the_flags_in(body: &str) -> Reported {
 
 /// Posts one line to the store and reads it back.
 ///
-/// **Nothing in this repository ever spoke to the store `cargo xtask dev`
-/// brings up.** `crates/nc-log/tests/every_event_reaches_the_store.rs` is the
-/// only end-to-end coverage and its store is a hand-written listener that
-/// answers `HTTP/1.1 200 OK` to whatever bytes arrive — so it proves the shipper
+/// **A line through the store `cargo xtask dev` brings up, and back.**
+/// `crates/nc-log/tests/every_event_reaches_the_store.rs` is end-to-end
+/// coverage too, and its store is a hand-written listener that answers
+/// `HTTP/1.1 200 OK` to whatever bytes arrive — so it proves the shipper
 /// writes what it means to write, and nothing about whether the store keeps it.
 /// The step above asks `GET /flags`, which is a question about configuration.
 ///
@@ -212,15 +213,15 @@ pub(crate) fn a_line_survives_the_round_trip(
     // **The store indexes asynchronously**, so a query issued immediately after
     // the insert legitimately finds nothing. The wait is bounded and the failure
     // is the whole budget elapsing, not the first miss.
-    // **One value asks and answers.** `Receipt::read(&answer, tag)` took the
-    // needle as an ordinary argument beside a query built from the same name, so
-    // the two could be made to disagree — and `Receipt::read(&answer, "")`
-    // type-checks, `str::contains("")` is always true, and the first served
-    // answer then ends the poll whatever it holds. Two reviewers found that
-    // independently in round sixty-three: the type closed the *verdict* and left
-    // the *question* free, which is a pin on where a value came from and not on
-    // where it goes. A probe owns the tag, builds the query from it, and reads
-    // the answer against it; there is no second argument to get wrong.
+    // **One value asks and answers.** With the needle an ordinary argument
+    // beside a query built from the same name, as in `Receipt::read(&answer,
+    // tag)`, the two could be made to disagree — `Receipt::read(&answer, "")`
+    // would type-check, `str::contains("")` is always true, and the first
+    // served answer would then end the poll whatever it holds. A type that
+    // closes the *verdict* and leaves the *question* free is a pin on where a
+    // value came from and not on where it goes. A probe owns the tag, builds
+    // the query from it, and reads the answer against it; there is no second
+    // argument to get wrong.
     let probe = receipt::Probe::for_tag(tag).ok_or_else(|| {
         "the round trip was asked to look for an empty tag, which every answer holds".to_owned()
     })?;
@@ -255,18 +256,18 @@ const PATIENCE_STEP_MS: u64 = 250;
 
 /// Evidence the store gave back the line it was given.
 ///
-/// **The judgement was pinned and the hand-over was not.** `came_back` had a
-/// test of its own; its only call site had none, so `if came_back(&answer, tag)`
-/// narrowed to `if served(&answer)` changed no verdict anywhere — and the first
-/// empty `200` from `/select/logsql/query` then ends the poll and the run
-/// announces that a line came back having checked nothing. Measured in round
-/// sixty-two. The step exists because *"a `200` from this store is not a
+/// **A test of the judgement does not pin the hand-over.** With the judgement a
+/// function of its own, unit-tested, and its one call site holding no test,
+/// `if came_back(&answer, tag)` narrowed to `if served(&answer)` changes no
+/// verdict anywhere — and the first empty `200` from `/select/logsql/query`
+/// then ends the poll and the run announces that a line came back having
+/// checked nothing. The step exists because *"a `200` from this store is not a
 /// receipt"*, and that is the sentence the narrowing undoes.
 ///
 /// So the round trip hands back a receipt rather than `()`. Nothing outside this
-/// module can make one, and the only thing in it that makes one reads both
-/// halves — so a call site that decides the poll some other way has nothing to
-/// return and does not compile.
+/// module can make one, and the only thing in it that makes one, `Probe::read`,
+/// reads both halves — so a call site that decides the poll some other way has
+/// nothing to return and does not compile.
 mod receipt {
     /// The store served an answer, and that answer holds the line.
     #[derive(Debug)]
@@ -274,16 +275,16 @@ mod receipt {
 
     /// The tag this round trip sent, which is the tag it looks for.
     ///
-    /// **The question and the answer are one value.** The needle used to be an
-    /// argument beside a query built from the same name, and nothing held the
-    /// two together: `Receipt::read(&answer, "")` type-checks and every answer
-    /// "contains" the empty string, so the first served response ended the poll
-    /// having checked nothing — measured in round sixty-three against the
-    /// running store, with a query for a tag nothing inserted answering `200 OK`
-    /// and `Content-Length: 0`, and the step announcing that a line came back.
+    /// **The question and the answer are one value.** A needle passed as an
+    /// argument beside a query built from the same name holds nothing to it:
+    /// `Receipt::read(&answer, "")` would type-check and every answer
+    /// "contains" the empty string, so the first served response would end the
+    /// poll having checked nothing — measured against the running store, a
+    /// query for a tag nothing inserted answers `200 OK` and `Content-Length: 0`,
+    /// and a step reading that answer so announces that a line came back.
     ///
-    /// There is no empty tag: [`Probe::for_tag`] refuses one, so the shape the
-    /// reviewers planted cannot be written at all.
+    /// There is no empty tag: [`Probe::for_tag`] refuses one, so that shape
+    /// cannot be written at all.
     #[derive(Debug)]
     pub(crate) struct Probe {
         tag: String,
@@ -317,14 +318,14 @@ mod receipt {
 /// The protocol name at the start and a three-digit 2xx after it, so a body that
 /// happens to begin with `200` is not read as a status line.
 ///
-/// **It was written four times and the copies did not agree.** Twice in this
-/// file, once in `dev.rs`, once in `nc-log`'s shipper — and only the shipper
-/// required the three characters to be digits, so `HTTP/1.1 2ab Invented` was a
-/// refusal to the crate that ships logs and a success to both gates that decide
-/// whether the store is up. `cargo xtask dev` would have printed
-/// `the log store answers /health` for a store answering nonsense.
+/// **One function, because separate copies of it drift apart.** A copy that
+/// requires the three characters to be digits refuses `HTTP/1.1 2ab Invented`,
+/// and a copy that does not reads it as a success — so with two copies,
+/// `nc-log`'s shipper and a gate deciding whether the store is up could
+/// disagree, and `cargo xtask dev` would print `the log store answers /health`
+/// for a store answering nonsense.
 ///
-/// One function now, driven by `xtask/canaries/status-lines.tsv` — a table
+/// One function, driven by `xtask/canaries/status-lines.tsv` — a table
 /// `nc-log`'s own suite reads as well, so the two implementations are held to
 /// the same cases rather than to the same sentence in two comments.
 pub(crate) fn served(answer: &str) -> bool {
@@ -385,14 +386,13 @@ mod tests {
     /// A `/flags` answer is read only when the store served it, and only its
     /// body is read.
     ///
-    /// **Both decisions sat below the door and were driven by nothing.** The
-    /// door this module had hands a test the parser; these two judgements run
-    /// before the parser and each survived being removed with the whole suite
-    /// green. The first reads a `500` as an answer. The second reads the
-    /// headers as flags, which the code's own comment says would report
-    /// `Content-Type` as one — and a gate that believes the store is running
-    /// with a `Content-Type` flag is a gate reporting a flag it has no opinion
-    /// about, which is a refusal. Round sixty-six.
+    /// **Both decisions sit below the parser's door, and this drives them.**
+    /// That door hands a test the parser; these two judgements run before the
+    /// parser, and removing either fails this test. Without the first, a `500`
+    /// reads as an answer. Without the second, the headers read as flags, which
+    /// the code's own comment says would report `Content-Type` as one — and a
+    /// gate that believes the store is running with a `Content-Type` flag is a
+    /// gate reporting a flag it has no opinion about, which is a refusal.
     #[test]
     fn a_flags_answer_is_read_only_when_it_was_served_and_only_its_body() {
         // The shape this store really answers with: a leading `-` per flag,
@@ -430,9 +430,8 @@ mod tests {
         );
 
         // **`is_empty` in the direction its one reader is a floor against.**
-        // That floor catches a store answering with nothing; the accessor was
-        // asserted only on an answer that has flags, so any constant satisfied
-        // it.
+        // That floor catches a store answering with nothing; asserted only on
+        // an answer that has flags, the accessor is satisfied by any constant.
         let nothing = super::as_a_store_answered_for_tests("HTTP/1.1 200 OK\r\n\r\n")
             .expect("a 200 with an empty body is an answer");
         assert!(
@@ -449,13 +448,11 @@ mod tests {
 
     /// A line came back only when the store served the answer it came back in.
     ///
-    /// **The status half was a repair proven by nothing.** This store echoes a
+    /// **The status half, held here without the store.** This store echoes a
     /// query it could not parse back into the body of a `400`, so a search for
-    /// the tag alone reads that error as a receipt. Its own comment records the
-    /// hole and calls it *"one call to close"* — the call went in and nothing
-    /// held it there: measured on 2026-09-08 with the live log store up,
-    /// removing `served(&answer) &&` left `cargo test -p xtask --bin xtask`
-    /// green at 481.
+    /// the tag alone reads that error as a receipt. The `400` below quotes the
+    /// whole tag, so removing `super::served(answer) &&` from `Probe::read`
+    /// fails this test with no log store running.
     #[test]
     fn a_line_came_back_only_in_an_answer_the_store_served() {
         /// A receipt or none, as a `bool` the assertions below can read.
@@ -524,18 +521,17 @@ mod tests {
         assert_eq!(super::bytes("7B"), Some(7));
         assert_eq!(super::bytes("7"), Some(7));
         assert_eq!(super::bytes("what"), None);
-        // A size no `u64` holds is not a size, and was a wrapped one.
+        // A size no `u64` holds is not a size, and must not wrap into one.
         assert_eq!(super::bytes("999999999999GiB"), None);
     }
 
     /// The table in `xtask/canaries/status-lines.tsv`, answered here.
     ///
-    /// **`served` was written four times and the copies disagreed.** Twice in
-    /// this file, once in `dev.rs`, once in `nc-log`'s shipper, with one
-    /// sentence in four comments claiming they were "the same shape" — and only
-    /// the shipper required the three characters of the code to be digits. So
-    /// `HTTP/1.1 2ab Invented` was a refusal to the crate that ships logs and
-    /// `the log store answers /health` to `cargo xtask dev`.
+    /// **Copies of `served` drift apart, and a sentence cannot hold them
+    /// together.** A comment in each copy can claim they are "the same shape"
+    /// while only one requires the three characters of the code to be digits —
+    /// and then `HTTP/1.1 2ab Invented` is a refusal to the crate that ships
+    /// logs and `the log store answers /health` to `cargo xtask dev`.
     ///
     /// `the_shared_status_line_table_is_answered_the_same_way` in
     /// `crates/nc-log/src/ship.rs` reads this same file. A case added to it is
@@ -582,13 +578,13 @@ mod tests {
             );
             checked += 1;
         }
-        // **The row count, not a floor with room under it.** `checked >= 15` over
-        // twenty rows left five to spare, and one of the five is the only row
-        // that decides `code.chars().all(is_ascii_digit)` — so deleting
-        // `HTTP/1.1 2ab Invented` and then that clause restored exactly the
-        // drift this table was built to end, with both suites green. A number
-        // that has to move when the file moves is what makes a shared table a
-        // mechanism rather than a habit.
+        // **The row count, not a floor with room under it.** A floor such as
+        // `checked >= 15` leaves rows to spare, and `HTTP/1.1 2ab Invented` is
+        // the only row that decides `code.chars().all(is_ascii_digit)` — so
+        // under such a floor, deleting that row and then that clause would
+        // restore exactly the drift this table was built to end, with both
+        // suites green. A number that has to move when the file moves is what
+        // makes a shared table a mechanism rather than a habit.
         assert_eq!(
             checked, ROWS,
             "the shared table answered {checked} case(s) and holds {ROWS}. Adding or \
@@ -599,11 +595,10 @@ mod tests {
 
     /// Nothing else in the tree spells this rule a third time.
     ///
-    /// The four copies were found by reading, and a fifth would be found the
-    /// same way — which is not a mechanism. Testing a status code by its first
-    /// character is the shape, and it belongs in exactly two places: `served`
-    /// here and `Delivery`'s classifier in `nc-log`, which the shared table
-    /// holds together.
+    /// A copy found by reading is found only when somebody reads, which is not
+    /// a mechanism. Testing a status code by its first character is the shape,
+    /// and it belongs in exactly two places: `served` here and `Delivery`'s
+    /// classifier in `nc-log`, which the shared table holds together.
     ///
     /// **The needle is assembled rather than written**, because a test that
     /// scans for a string is a copy of it. Files, not line numbers: a copy is a
@@ -612,10 +607,10 @@ mod tests {
     #[test]
     fn the_two_xx_rule_is_written_twice_and_no_more() {
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
-        // **Every spelling of the shape, not one.** The needle was
-        // `starts_with('2')`, so a third copy written `starts_with("2")` — or
-        // `code.as_bytes()[0] == b'2'`, or `(200..300).contains(&code)` — was
-        // invisible, and a reviewer measured a plausible third copy passing.
+        // **Every spelling of the shape, not one.** A needle of
+        // `starts_with('2')` alone leaves a third copy written `starts_with("2")`
+        // — or `code.as_bytes()[0] == b'2'`, or `(200..300).contains(&code)` —
+        // invisible, and a plausible third copy then passes.
         // Assembling the needle keeps the scanner from being a copy; it does not
         // widen it.
         let quote = '\'';
@@ -627,8 +622,8 @@ mod tests {
             format!("first() == Some(&b{quote}2{quote})"),
             // **The ranges without their parentheses**, because `matches!(code,
             // 200..=299)` is how Rust writes an inclusive-range test and carries
-            // none. Measured: a third classifier ending in that pattern passed
-            // this scan.
+            // none. Measured: without them, a third classifier ending in that
+            // pattern passes this scan.
             "200..300".to_owned(),
             "200..=299".to_owned(),
             "/ 100 == 2".to_owned(),
@@ -639,17 +634,17 @@ mod tests {
             format!("next() == Some({quote}2{quote})"),
             format!("next() == Some(&b{quote}2{quote})"),
             format!("next() == Some(&{quote}2{quote})"),
-            // **And the prefix strip, which is how a third reader spelled it.**
-            // A reviewer replaced `served`'s call in `dev.rs` with a local whose
-            // code test was `code.len() == 3 && code.strip_prefix('2').is_some()`
-            // — matching none of the ten needles above — and `cargo xtask dev`
-            // printed `the log store answers /health` for `HTTP/1.1 2ab
+            // **And the prefix strip, another spelling a third reader can
+            // take.** With `served`'s call in `dev.rs` replaced by a local whose
+            // code test is `code.len() == 3 && code.strip_prefix('2').is_some()`
+            // — matching none of the ten needles above — `cargo xtask dev`
+            // prints `the log store answers /health` for `HTTP/1.1 2ab
             // Invented`, the exact invented code `status-lines.tsv` calls
             // `not-2xx`, with the shared table green.
             format!("strip_prefix({quote}2{quote})"),
             format!("starts_with(b{quote}2{quote})"),
-            // And the byte read through a slice, which is how a reviewer's
-            // third copy spelled it.
+            // And the byte read through a slice, another spelling a third copy
+            // can take.
             format!("first(), Some(&b{quote}2{quote})"),
             format!("first() == Some(&b{quote}2{quote})"),
         ];
@@ -670,9 +665,9 @@ mod tests {
         })
         .expect("the tree walks");
         // **And the shape of reading a status line at all**, which is the rule a
-        // needle list cannot be. A reviewer wrote a third classifier whose value
-        // test was `code.strip_prefix('2').is_some()` — matching none of the ten
-        // needles then in the list — and `cargo xtask dev` printed
+        // needle list cannot be. A value test the list does not spell lets a
+        // third classifier through — `code.strip_prefix('2').is_some()`, without
+        // its needle above, is one — and `cargo xtask dev` then prints
         // `the log store answers /health` for `HTTP/1.1 2ab Invented`, the exact
         // invented code `status-lines.tsv` calls `not-2xx`, with the shared
         // table green.
@@ -689,10 +684,10 @@ mod tests {
             let Ok(text) = std::fs::read_to_string(path) else {
                 return;
             };
-            // **`HTTP` without the slash too.** The needle was the whole
-            // `starts_with("HTTP/")`, so a third classifier written
-            // `version.starts_with("HTTP")` matched neither this nor any of the
-            // twelve value spellings — measured, `cargo xtask dev` printing
+            // **`HTTP` without the slash too.** With the whole
+            // `starts_with("HTTP/")` as the only needle, a third classifier
+            // written `version.starts_with("HTTP")` matches neither it nor any of
+            // the value spellings above — measured, `cargo xtask dev` printing
             // `the log store answers /health` for `HTTP/1.1 2ab Invented`, the
             // one row of `status-lines.tsv` that decides the digit clause.
             let protocols = [

@@ -10,9 +10,9 @@
 //! it. `xtask` already holds both the compiler and the generated crate, and a
 //! parser for the registries, so nothing new is pulled in to check them.
 //!
-//! The failure this was written for: an emitter patched to write every severity
-//! as `Info`, every command as `Reversibility::Read`, every `mutating` as
-//! `false`, every field kind as `U64` and every store bound as zero passed
+//! The failure this exists for: without it, an emitter patched to write every
+//! severity as `Info`, every command as `Reversibility::Read`, every `mutating`
+//! as `false`, every field kind as `U64` and every store bound as zero passes
 //! `cargo xtask check` — drift, determinism, the ledger and the whole test
 //! suite — with nothing red. `mutating` is what undo, the journal and the
 //! allowlist read; `Reversibility::Irreversible` is what forces a human
@@ -88,11 +88,11 @@ fn properties_in_order(schema: &str) -> Vec<String> {
 
 /// The word each enum answers is the word its registry entry carries.
 ///
-/// **No enum in the generated crate had a text form**, so every consumer wrote
-/// its own: `nc-log` had a `level_name`, the pages test has a `severity_word`,
-/// and `{:?}` gives `Critical` where the ledger and both pages write `critical`.
-/// `Severity`'s own doc names the hazard — "two vocabularies for one judgement
-/// is how they drift apart" — and there were three of them.
+/// **`Severity` and `Level` carry their own text form**, the generated `as_str`,
+/// because without one every consumer writes its own — the pages test's
+/// `severity_word` is one — and `{:?}` gives `Critical` where the ledger and both
+/// pages write `critical`. `Severity`'s own doc names the hazard — "two
+/// vocabularies for one judgement is how they drift apart".
 ///
 /// Held against the *loaded* registry, which is what this file is for: the
 /// generated `as_str` on one side and the catalog's own value on the other.
@@ -141,11 +141,11 @@ fn every_word_an_enum_answers_is_the_registrys_own() {
 /// [`rust_type`] gives: a mirror that consults the thing it mirrors agrees with
 /// it whatever either says.
 ///
-/// **And lifted out of the loop that used it**, so a test can reach it. It was
-/// four lines inside `every_declared_value_reaches_the_crate`, driven only by
-/// the levels `catalog/log-events.toml` declares — and it declares `debug`,
-/// `info`, `warn` and `error`, so the `Trace` arm was reached by nothing and
-/// could hold any word at all.
+/// **And outside the loop that uses it**, so a test can reach it. Inside
+/// `every_declared_value_reaches_the_crate` it would be driven only by the
+/// levels `catalog/log-events.toml` declares — and it declares `debug`, `info`,
+/// `warn` and `error`, so the `Trace` arm would be reached by nothing and could
+/// hold any word at all.
 const fn level_word(level: Level) -> &'static str {
     match level {
         Level::Trace => "trace",
@@ -172,7 +172,7 @@ const fn level_word(level: Level) -> &'static str {
 /// a dead arm is, is an expectation nobody has read: the day the registry
 /// declares an `i64` field or a `trace` event, the checker built to catch a
 /// wrong emitter is itself wrong, and the two hand tables agree about a value
-/// neither was ever driven with.
+/// neither is driven with.
 ///
 /// Written out as exhaustive `match`es, the shape
 /// `every_variant_is_published_as_the_word_it_names` uses in
@@ -290,10 +290,10 @@ fn every_variant_is_published_as_the_word_it_names() {
 /// JournalChainBroken,
 /// /// NC-JRNL-0002 — A payload is not the canonical form this platform carries
 /// JournalEntryTampered,
-///   ->  ok  882 test(s)   /   check passed
+///   ->  check passed
 /// ```
 ///
-/// All 28 read as `NC-CANON-0001`. That line is what an IDE shows on hover and
+/// Every code reads as `NC-CANON-0001`. That line is what an IDE shows on hover and
 /// what `cargo doc` publishes, so it is the description most readers actually
 /// meet.
 ///
@@ -307,14 +307,12 @@ fn every_derived_doc_line_says_what_the_registry_says() {
 
     let errors = std::fs::read_to_string(root().join("crates/nc-catalog/src/errors.rs"))
         .expect("the crate is generated");
-    // **Where the line stands, in this third too.** One round repaired the
-    // events loop below and left these two as they were, under a comment
-    // explaining that a permutation satisfies an existence assertion. Measured:
-    // all twenty-nine codes documented as the next code in the sorted order,
-    // and both locales exchanged — `ok 29 error code(s) reserved`, `ok 15
-    // generated file(s) match the catalog`, `check passed`, with `docs/errors.md`
-    // still correct, so the published page and the crate disagreed and no gate
-    // compared them.
+    // **Where the line stands, in this loop too**, as in the events loop below,
+    // whose comment explains that a permutation satisfies an existence
+    // assertion. Measured with membership here: every code documented as the
+    // next code in the sorted order, and both locales exchanged —
+    // `check passed`, with `docs/errors.md` still correct, so the published
+    // page and the crate disagreed with no other gate comparing them.
     for entry in &catalog.errors {
         let expected = format!("/// {} — {}", entry.code, entry.description);
         let variant = nc_catalog_compiler::error_variant(&entry.message);
@@ -333,18 +331,17 @@ fn every_derived_doc_line_says_what_the_registry_says() {
 
     let events = std::fs::read_to_string(root().join("crates/nc-log/src/events.rs"))
         .expect("the crate is generated");
-    // **Where the line stands, not whether the file holds it.** This asked
-    // `lines().any(…)` over the whole file, which a *permutation* satisfies: the
-    // multiset is unchanged. Measured — every one of the eleven structs
-    // documented as the next event in the sorted order, with the registry, the
-    // pages and `docs/log-events.md` all correct — `ok 15 generated file(s)
-    // match the catalog`, `ok 1305 test(s)`, `check passed`. That `///` line is
-    // what rustdoc publishes and what an editor shows on hover; it is the only
-    // prose a developer meets when picking an event to record.
+    // **Where the line stands, not whether the file holds it.**
+    // `lines().any(…)` over the whole file is satisfied by a *permutation*: the
+    // multiset is unchanged. Measured — every struct documented as the next
+    // event in the sorted order, with the registry, the pages and
+    // `docs/log-events.md` all correct — `check passed` under `any`. That `///`
+    // line is what rustdoc publishes and what an editor shows on hover; it is
+    // the only prose a developer meets when picking an event to record.
     //
     // The two other readers of this file take their block from `find("pub
     // struct {name} {")`, and a doc comment sits *above* `pub struct`, outside
-    // every block they read. Attachment was decided by nobody.
+    // every block they read, so attachment is decided here or nowhere.
     for entry in &catalog.events {
         let expected = format!("/// `{}` — {}", entry.name, entry.description);
         let name = nc_catalog_compiler::camel(&entry.name);
@@ -380,13 +377,14 @@ fn every_derived_doc_line_says_what_the_registry_says() {
         checked += 1;
     }
 
-    // **And the two registries whose generated enums nothing read.** The doc on
-    // `READ_WHOLE` said these four were held here; this test opened three files
-    // and `notifications.rs` and `emails.rs` were read by no test at all —
-    // measured by a reviewer on 2026-09-13, who changed an id line in the
-    // emitter and watched `check passed` with a byte-identical transcript. Each
-    // is one variant today, which is exactly when a loop is cheap to leave out
-    // and cheap to add.
+    // **And the two registries whose generated enums this test reads too.**
+    // The doc on `the_enums_a_doc_line_is_the_whole_meaning_of_are_read_whole`
+    // says `Email` and `Notification` are held here, and this loop holds the
+    // doc line above each variant of `notifications.rs` and `emails.rs` to the
+    // registry's id — measured, an id line changed in the emitter leaves
+    // `check passed` with a byte-identical transcript when this loop is gone.
+    // Each is one variant today, which is exactly when a loop is cheap to leave
+    // out and cheap to add.
     for (file, ids) in [
         (
             "crates/nc-catalog/src/notifications.rs",
@@ -421,13 +419,12 @@ fn every_derived_doc_line_says_what_the_registry_says() {
         }
     }
 
-    // **The three loops added up, not a floor under their sum.** This was
-    // `checked > 30` over 29 errors, 11 events and 2 locales: 29 alone clears
-    // it, so either of the other two could be made to read nothing with the
-    // suite green — and the events loop is the only reader in this repository
-    // of those eleven `///` lines. Measured on 2026-09-11 by a reviewer:
-    // `.take(0)` on the events loop, then on the locales loop, both **green**;
-    // the same on the errors loop is the control, and it is red.
+    // **The loops added up, not a floor under their sum.** A floor such as
+    // `checked > 30` is cleared by the errors alone, so any other loop could be
+    // made to read nothing with the suite green — and the events loop is what
+    // holds those `///` lines to the registry. Measured against
+    // that floor: `.take(0)` on the events loop, then on the locales loop, both
+    // **green**; the same on the errors loop is the control, and it is red.
     //
     // A sum of what the catalog declares cannot be cleared by two thirds of the
     // work.
@@ -445,15 +442,15 @@ fn every_derived_doc_line_says_what_the_registry_says() {
 
 /// The doc block that lands on the item beginning at `at`, in source order.
 ///
-/// **One reader, because there were three and two of them were narrower.** The
-/// errors loop and the locales loop stopped at the first line that is not
-/// `///`, so an attribute between a block and its item hid the block from them;
-/// the events loop knew better and carried the two clauses alone. Written three
-/// times, the strictest copy is the one nobody notices is missing.
+/// **One reader for every loop, because three readers drift narrower.** A loop
+/// that stops at the first line that is not `///` lets an attribute between a
+/// block and its item hide the block from it, while a sibling loop carries the
+/// two clauses alone. Written three times, the strictest copy is the one nobody
+/// notices is missing.
 ///
 /// The blank-line skip is for an item that is *indented*: the slice then ends
 /// mid-line and the last thing `lines()` yields is that indentation. Generated
-/// items stand at column zero, which is why the clause decided nothing here and
+/// items stand at column zero, which is why the clause decides nothing here and
 /// why the corpus beside this drives it.
 ///
 /// An attribute between a doc block and its item does not detach the block:
@@ -463,10 +460,11 @@ fn the_doc_block_above(text: &str, at: usize) -> Vec<&str> {
     // **A wrapped attribute is still one attribute.** `take_while` stops at the
     // first line that is neither `///` nor `#[`, and rustfmt breaks a long
     // attribute across lines whose continuations are neither — so the block
-    // above one is never read. Planted in `nc-journal` on 2026-09-13, where two
-    // readers of this shape failed with messages that are false; this copy is
-    // cold today because every generated item stands at column zero with no
-    // attribute above it, and being cold is not being right.
+    // above one is never read, and a reader of this shape then fails with a
+    // message that is false — measured with a plant in `nc-journal`, whose two
+    // readers go through its own copy of `past_the_attributes` for that reason.
+    // This copy is cold today because every generated item stands at column
+    // zero with no attribute above it, and being cold is not being right.
     let lines: Vec<&str> = text[..at].lines().collect();
     let mut item = lines.len();
     while item > 0 && lines[item - 1].trim().is_empty() {
@@ -508,13 +506,13 @@ fn more_opens_than_closes(line: &str) -> bool {
 /// The bound is what stops a stray `]` — an array closing above an item —
 /// walking the reader out of the block it is reading.
 ///
-/// **The third copy, and the third repair.** Wave 24 found the `]` test too
-/// weak in `xtask/src/gates.rs` — an intra-doc link ends a doc line in `]`, so
-/// the walk left the item and landed on a neighbour's attribute — and wave 25
-/// found the same reader unrepaired in `crates/nc-journal/src/lib.rs` and again
-/// here. One rule written three times is one rule with three answers, so
+/// **The third copy, with the same repair.** A bare `]` test is too weak — an
+/// intra-doc link ends a doc line in `]`, so the walk leaves the item and lands
+/// on a neighbour's attribute — and the same reader lives in
+/// `xtask/src/gates.rs` and `crates/nc-journal/src/lib.rs` as well as here. One
+/// rule written three times is one rule with three answers, so
 /// `every_copy_of_the_attribute_walk_reads_the_same` in `xtask/src/check.rs`
-/// now compares the three bodies and fails on the next divergence.
+/// compares the three bodies and fails on the next divergence.
 fn past_the_attributes(lines: &[&str], mut at: usize) -> usize {
     const WRAPPED_AT_MOST: usize = 12;
     while at > 0 {
@@ -549,7 +547,7 @@ fn past_the_attributes(lines: &[&str], mut at: usize) -> usize {
 
 /// The block reader decides every clause it carries.
 ///
-/// **Both of them were reached by nothing.** Measured on 2026-09-11: the blank
+/// **Without this, both of them are reached by nothing.** Measured: the blank
 /// skip and the attribute clause each deleted with the whole suite green,
 /// because every generated item stands at column zero with nothing but `///`
 /// above it. A clause no case reaches is a clause nobody can tell is wrong, and
@@ -581,14 +579,14 @@ fn the_block_reader_is_not_stopped_by_a_blank_line_or_an_attribute() {
 /// The first `///` line of a doc block — the one rustdoc publishes as the
 /// item's summary.
 ///
-/// **"Where the line stands" was asked as membership.** The three loops below
-/// checked that the registry's sentence is *somewhere* in the block, and
-/// rustdoc takes the **first** line as the description a reader meets on hover
-/// and in every generated index. Measured on 2026-09-12: all 29 error codes
-/// documented first as the *next* code in the sorted order, with the real
-/// sentence still present two lines down — `check passed`. That is the defect
-/// the events loop was repaired for one round earlier, one step along: a
-/// permutation satisfies a membership test, and so does a prefix.
+/// **"Where the line stands" is not membership.** A loop checking that the
+/// registry's sentence is *somewhere* in the block misses that rustdoc takes
+/// the **first** line as the description a reader meets on hover and in every
+/// generated index. Measured with membership: every error code documented
+/// first as the *next* code in the sorted order, with the real sentence still
+/// present two lines down — `check passed`. That is the events loop's
+/// permutation defect, one step along: a permutation satisfies a membership
+/// test, and so does a prefix.
 fn the_summary_line_of(block: &[&str]) -> String {
     block
         .iter()
@@ -600,12 +598,12 @@ fn the_summary_line_of(block: &[&str]) -> String {
 
 /// Every constant whose doc line claims an order is in that order.
 ///
-/// **Six of them said so and nothing read the claim.** The doc line is emitted
-/// beside the sort, and every comparison in this file locates entries by key —
-/// `KEYS` is compared as a `BTreeSet`, which discards order explicitly — so
-/// reversing each comparator left `cargo xtask build && cargo xtask check`
-/// green with the constant running backwards under a sentence saying it does
-/// not:
+/// **Each of these says so, and this is what reads the claim.** The doc line is
+/// emitted beside the sort, and the other comparisons of these constants in this
+/// file locate entries by key — `KEYS` is compared as a `BTreeSet`, which
+/// discards order explicitly — so without this, reversing each comparator leaves
+/// `cargo xtask build && cargo xtask check` green with the constant running
+/// backwards under a sentence saying it does not:
 ///
 /// ```text
 /// KEYS         /// Every message key, sorted.
@@ -801,9 +799,9 @@ fn the_generated_crate_states_its_contracts() {
             "the same pair, the other way round",
         ),
         // **`§10.6`'s consequence, and the pair that inverts it.** These two
-        // were exchanged in the emitter and `cargo xtask build && cargo xtask
-        // check` was green: `OnLockout::Refuse` then documented itself as
-        // destroying the stored device credential. `device_pin` is the one
+        // exchanged in the emitter leave `cargo xtask build && cargo xtask
+        // check` green without this row, measured: `OnLockout::Refuse` then
+        // documents itself as destroying the stored device credential. `device_pin` is the one
         // surface that declares `WipeCredential`, and this enum is the public
         // API a later stage's lockout handler is written against — a developer
         // reading the wrong line wipes a credential on an ordinary refusal.
@@ -838,10 +836,10 @@ fn the_generated_crate_states_its_contracts() {
     assert_eq!(checked, 5, "not every contract line was read");
 }
 
-/// The six enums whose bodies are compared whole, and what each must say.
+/// The enums whose bodies are compared whole, and what each must say.
 ///
-/// Written beside the test rather than inside it, because a body of six
-/// enums crosses the hundred-line budget `clippy.toml` sets — and a budget
+/// Written beside the test rather than inside it, because a body holding all
+/// of them crosses the hundred-line budget `clippy.toml` sets — and a budget
 /// met by reading fewer enums is the shape this test exists to refuse.
 const READ_WHOLE: [(&str, &str, &[&str]); 7] = [
     (
@@ -970,26 +968,25 @@ const READ_WHOLE: [(&str, &str, &[&str]); 7] = [
 /// the variant names — and a rotation, an inserted variant, a dropped doc line
 /// and a reworded promise are one failure rather than four rules.
 ///
-/// **`Strategy` was the third and was left out.** Round 53 closed this for
-/// `Severity` and `Reversibility`; a reviewer exchanged `Strategy`'s two lines
-/// on 2026-09-12 and `check passed`, with `OldestFirst` documenting itself as
-/// the strategy that never prunes — on the enum `nc-prune` reads to decide
-/// whether a table is touched at all.
+/// **`Strategy` too.** Measured with only `Severity` and `Reversibility`
+/// compared whole: `Strategy`'s two lines exchanged and `check passed`, with
+/// `OldestFirst` documenting itself as the strategy that never prunes — on the
+/// enum `nc-prune` reads to decide whether a table is touched at all.
 ///
-/// **And three of the ten enums is not the six this applies to.** A reviewer
-/// rotated `Level`'s `Trace` and `Error` doc lines on 2026-09-12, in the emitter
-/// and the generated crate together, as `cargo xtask build` would write them:
-/// the `check` transcript came back **byte-identical** to a clean run — on the
+/// **And not three of the enums but every one this applies to.** Measured the
+/// same way: `Level`'s `Trace` and `Error` doc lines rotated, in the emitter and
+/// the generated crate together, as `cargo xtask build` would write them, and
+/// the `check` transcript comes back **byte-identical** to a clean run — on the
 /// enum whose own generated header argues that the derived `Ord` *is* the scale
 /// and that written the other way round it would keep `Trace` and drop `Error`.
-/// `FieldKind` was the same: five of its ten variants' lines were held by the
-/// named list above, so exchanging `Id`'s and `Literal`'s left `check passed`
+/// `FieldKind` is the same: the named list above holds only some of its
+/// variants' lines, so exchanging `Id`'s and `Literal`'s leaves `check passed`
 /// and the type wall telling a developer that `Id` is a literal in the source
 /// and hanging the §5.1 personal-data warning on `Literal`.
 ///
-/// **`Database` is the seventh**, since the local database arrived: its two
-/// lines are the whole of which directory builds a table and which of the
-/// pruner's targets is asked about it.
+/// **`Database` is the seventh**: its two lines are the whole of which
+/// directory builds a table and which of the pruner's targets is asked about
+/// it.
 ///
 /// Seven, because in each the doc line is the entire published semantics. The
 /// variants carry no data and no accessor says what they mean: `Severity` is the
@@ -1039,12 +1036,13 @@ fn every_error_carries_its_own_severity_and_retryability() {
         assert_eq!(generated.message_key(), entry.message, "{}", entry.code);
         assert_eq!(generated.description(), entry.description, "{}", entry.code);
         assert_eq!(generated.retryable(), entry.retryable, "{}", entry.code);
-        // **The parameters, which reached the code and were read by nobody.**
-        // `Notification::params()` and `Email::params()` are both compared here;
-        // `ErrorCode::params()` was emitted and then never looked at, so
-        // flattening the emitter to `&[]` for every code passed the whole gate.
-        // `§10.9` makes a response a key **plus parameters**, and for errors that
-        // was enforced on the published page and nowhere in the code.
+        // **The parameters, which reach the code and are read here.**
+        // `Notification::params()` and `Email::params()` are both compared here,
+        // and so is `ErrorCode::params()`: emitted and never looked at, it would
+        // let the emitter be flattened to `&[]` for every code with the whole
+        // gate passing, measured.
+        // `§10.9` makes a response a key **plus parameters**, and for errors the
+        // published page alone would enforce that.
         assert_eq!(
             generated.params(),
             entry
@@ -1065,7 +1063,7 @@ fn every_error_carries_its_own_severity_and_retryability() {
         );
         // The area is a real prefix of the code, which is what `NC-<AREA>-<NNNN>`
         // means. Asserting that the code *contains* the area is the vacuous form:
-        // every string contains the empty one, so an emitter writing `""` passed.
+        // every string contains the empty one, so an emitter writing `""` passes.
         assert!(!generated.area().is_empty(), "{} has no area", entry.code);
         assert!(
             generated
@@ -1142,9 +1140,9 @@ fn every_command_carries_what_a_dispatcher_decides_on() {
             entry.name
         );
         assert_eq!(generated.mutating, entry.mutating, "{}", entry.name);
-        // **The argument schema, compared and not sniffed.** The surface test
-        // asserted only that it contained `"object"`, so an emitter writing one
-        // constant `{"type":"object"}` for every command passed — and `load.rs`
+        // **The argument schema, compared and not sniffed.** Asserting only that
+        // it contains `"object"` lets an emitter writing one constant
+        // `{"type":"object"}` for every command pass — and `load.rs`
         // says in its own words that a wrong schema "silently removes the
         // command's AI tool interface, which nothing else would notice".
         assert_eq!(generated.args_schema, entry.args_schema, "{}", entry.name);
@@ -1163,21 +1161,21 @@ fn every_command_carries_what_a_dispatcher_decides_on() {
         // **The argument names, against the schema they are derived from.**
         // `arguments` is the one emitted value the registry does not carry
         // directly — the emitter reads it out of `args_schema`'s `properties`,
-        // in declaration order — and it was compared only against itself, in a
-        // test that reads the generated constant and never the catalog. So the
+        // in declaration order — and a test that reads the generated constant
+        // and never the catalog compares it only against itself. So the
         // derivation is what is checked here: the same keys, in the same order.
         //
-        // **From the schema's text, not through `serde_json::Map`.** The
-        // expectation used to be `schema["properties"].as_object().keys()`,
-        // which is the emitter's own route — and a `serde_json::Map` is a sorted
-        // `BTreeMap` unless `preserve_order` is on, so both sides sorted together
-        // and the comparison held whatever the order was. The feature was on
-        // only because `cedar-policy-core`, reached through `nc-policy`, turns it
-        // on for the whole graph; built without that in it, the emitter wrote
-        // `["dry_run", "table"]` against a committed `["table", "dry_run"]` with
-        // every gate green. `Cargo.toml` declares the feature now, and this
-        // reads the order a person sees in `catalog/commands.toml` so that the
-        // declaration is checked rather than assumed.
+        // **From the schema's text, not through `serde_json::Map`.** An
+        // expectation of `schema["properties"].as_object().keys()` is the
+        // emitter's own route — and a `serde_json::Map` is a sorted `BTreeMap`
+        // unless `preserve_order` is on, so both sides sort together and the
+        // comparison holds whatever the order is. `cedar-policy-core`, reached
+        // through `nc-policy`, turns the feature on for the whole graph; built
+        // without that in it, the emitter writes `["dry_run", "table"]` against
+        // a committed `["table", "dry_run"]` with every gate green, measured.
+        // `Cargo.toml` declares the feature itself, and this reads the order a
+        // person sees in `catalog/commands.toml` so that the declaration is
+        // checked rather than assumed.
         let declared = properties_in_order(&entry.args_schema);
         assert_eq!(
             generated.arguments, declared,
@@ -1204,8 +1202,8 @@ fn every_command_carries_what_a_dispatcher_decides_on() {
         mutating.contains(&true) && mutating.contains(&false),
         "every command in the registry is {mutating:?}, so a constant would pass"
     );
-    // The same floor for reversibility, which was left to luck: the two commands
-    // happen to differ today, and nothing said they had to.
+    // The same floor for reversibility, which would otherwise be left to luck:
+    // the commands happen to differ today, and this says they have to.
     let reversibility: std::collections::BTreeSet<String> = catalog
         .commands
         .iter()
@@ -1220,10 +1218,10 @@ fn every_command_carries_what_a_dispatcher_decides_on() {
 #[test]
 fn the_key_derivation_parameters_are_the_ones_the_registry_declares() {
     // **The one place where the value is the guarantee and not the shape**
-    // (`NOCTUA.md §10.6`). The surface test asserted floors — `iterations >= 1`,
-    // `salt_length >= 16` — so an emitter writing `1` where the registry says `3`
-    // passed every gate, drift and determinism included, and the device PIN's
-    // cost silently fell by two thirds.
+    // (`NOCTUA.md §10.6`). Floors — `iterations >= 1`, `salt_length >= 16` — let
+    // an emitter writing `1` where the registry says `3` pass every gate, drift
+    // and determinism included, and the device PIN's cost silently falls by two
+    // thirds, measured.
     let catalog = catalog();
     for (name, declared, generated) in [
         (
@@ -1254,12 +1252,13 @@ fn the_key_derivation_parameters_are_the_ones_the_registry_declares() {
 
 #[test]
 fn every_sentence_the_platform_shows_is_the_one_the_registry_declares() {
-    // **The widest hole this file exists to close.** Nothing anywhere compared
-    // message *text* to `catalog/i18n/`: the surface test asserts every key
-    // resolves, is non-empty, and that the two locales differ from each other.
-    // Replacing every emitted sentence with `format!("PLACEHOLDER {tag}")` passed
-    // the entire gate — 264 tests, drift, determinism, 93 citations — with all
-    // twenty-seven keys reading "PLACEHOLDER en" and "PLACEHOLDER pt-BR".
+    // **The widest hole this file exists to close.** The surface test asserts
+    // every key resolves, is non-empty, and that the two locales differ from
+    // each other, and none of that compares message *text* to `catalog/i18n/`.
+    // Without this, replacing every emitted sentence with
+    // `format!("PLACEHOLDER {tag}")` passes the entire gate — drift,
+    // determinism, citations — with every key reading "PLACEHOLDER en" and
+    // "PLACEHOLDER pt-BR".
     //
     // `§15.2` makes the catalog the sole source of user-facing text. This is the
     // assertion that makes that true of the text and not only of the keys.
@@ -1287,10 +1286,10 @@ fn every_sentence_the_platform_shows_is_the_one_the_registry_declares() {
     }
     assert!(compared > 20, "only {compared} sentence(s) were compared");
 
-    // And the key list itself, which is emitted from the same registry and was
-    // never compared to it — truncating it to fifteen of twenty-seven was green,
-    // and the two tests that cover the message table both *iterate* `KEYS`, so
-    // shrinking it silently shrinks them.
+    // And the key list itself, which is emitted from the same registry —
+    // uncompared, truncating it to about half its keys is green, and the two
+    // tests that cover the message table both *iterate* `KEYS`, so shrinking
+    // it silently shrinks them.
     let declared: std::collections::BTreeSet<&str> = catalog
         .locales
         .iter()
@@ -1302,8 +1301,8 @@ fn every_sentence_the_platform_shows_is_the_one_the_registry_declares() {
 
 #[test]
 fn every_area_and_every_locale_reaches_the_code_as_written() {
-    // `AREAS` had no assertion anywhere at all — emitting it as an empty slice
-    // left the suite green — and a locale's `name()` is the endonym a language
+    // Without this, emitting `AREAS` as an empty slice leaves the suite green,
+    // measured — and a locale's `name()` is the endonym a language
     // picker shows, so an emitter writing the BCP 47 tag there would offer
     // "pt-BR" to somebody looking for "Português do Brasil".
     let catalog = catalog();
@@ -1342,12 +1341,11 @@ fn every_area_and_every_locale_reaches_the_code_as_written() {
 /// The comparison still reads `catalog.` in its own body, which is what the
 /// rule in `every_generated_value_is_compared.rs` asks of a comparing chunk.
 fn every_store_carries_its_own_numbers(catalog: &Catalog) {
-    // **The third loop, which kept no counter under a comment saying all of
-    // them do.** The table and rate-limit loops of its caller were floored a
-    // round ago and this one was not,
-    // in a file whose own header names *every store bound as zero* among the
-    // defects it exists to catch: `.iter().take(0)` here left `21 passed`,
-    // while the same narrowing on either sibling fails at once.
+    // **The third loop keeps a counter too**, like the table and rate-limit
+    // loops of its caller, in a file whose own header names *every store bound
+    // as zero* among the defects it exists to catch: without it,
+    // `.iter().take(0)` here leaves the suite green, while the same narrowing
+    // on either sibling fails at once.
     let mut stores = 0_usize;
     for (name, entry) in &catalog.limits.stores {
         stores += 1;
@@ -1379,9 +1377,10 @@ fn every_limit_carries_its_own_numbers() {
     assert!(!catalog.limits.tables.is_empty(), "nothing was compared");
     // **What was compared, not what there was to compare.** The floor above
     // reads the registry's own length, so a filter *inside* either loop below
-    // leaves it satisfied and the comparison covers nothing — measured, either
-    // loop narrowed to no rows left the whole suite green, and this is the only
-    // place a generated limit is held against the file it came from. Both
+    // leaves it satisfied and the comparison covers nothing — measured against
+    // that floor alone, either loop narrowed to no rows leaves the whole suite
+    // green, and this test is where a generated limit is held against the file
+    // it came from. Both
     // counts are held against both sides, so a row missing from either is a
     // failure rather than a smaller number.
     let mut tables = 0_usize;
@@ -1448,10 +1447,11 @@ fn every_limit_carries_its_own_numbers() {
             assert_eq!(carried.delay_ms, declared.delay_ms.as_slice(), "{surface}");
             assert_eq!(carried.lockout_after, declared.lockout_after, "{surface}");
             assert_eq!(carried.cumulative, declared.cumulative, "{surface}");
-            // **The one budget field nothing compared**, and the dangerous
-            // direction was the one that passed: emitting
-            // `Some(OnLockout::WipeCredential)` for every budget was green, which
-            // writes it into nine budgets the registry declares as `None` — so
+            // **`on_lockout`, compared like every field above it.** Without
+            // this the dangerous direction is the one that passes: emitting
+            // `Some(OnLockout::WipeCredential)` for every budget is green,
+            // measured, and writes it into every budget the registry declares as
+            // `None` — so
             // exhausting the activation-code or per-address budget would destroy
             // a user's stored device credential.
             assert_eq!(
@@ -1678,14 +1678,14 @@ const fn rust_type(kind: FieldType) -> &'static str {
 #[test]
 fn every_typed_event_struct_says_what_the_registry_declared() {
     // **The descriptors and the structs are two emissions from one registry, and
-    // only one of them was compared.** `nc_catalog::EVENTS` is data; the structs
+    // both are compared.** `nc_catalog::EVENTS` is data; the structs
     // in `crates/nc-log/src/events.rs` are what a service actually constructs and
-    // what reaches the central log (`§15.4`) — and nothing in the workspace
-    // builds one, so drift only proved the emitter agreed with itself.
+    // what reaches the central log (`§15.4`) — and drift proves only that the
+    // emitter agrees with itself.
     //
-    // Five mutations passed the whole gate at once: every `level()` returning
-    // `Info` (so `journal.broken` and `ids.clock_backwards`, declared `error`,
-    // reported `info`), every `name()` one constant, every field key `"field"`,
+    // Without this, five mutations pass the whole gate at once: every `level()`
+    // returning `Info` (so `journal.broken` and `ids.clock_backwards`, declared
+    // `error`, record `info`), every `name()` one constant, every field key `"field"`,
     // the `optional` branch dropped, and `error_code` and `id` swapped to each
     // other's Rust type.
     //
@@ -1769,8 +1769,8 @@ fn every_typed_event_struct_says_what_the_registry_declared() {
 
 #[test]
 fn every_log_field_carries_the_kind_the_registry_gave_it() {
-    // The type wall from the data's side. Flattening every kind to `U64` is the
-    // shape that passed everything else, and it would also have satisfied a test
+    // The type wall from the data's side. Without it, flattening every kind to
+    // `U64` passes everything else, measured, and it would also satisfy a test
     // that only checked the kinds were among the ones that exist.
     let catalog = catalog();
     assert!(!catalog.events.is_empty(), "nothing was compared");
@@ -1853,12 +1853,13 @@ const fn label(kind: FieldType) -> &'static str {
 
 /// The generated event structs are in the order the emitter sorts them into.
 ///
-/// **The one generated artefact whose order nothing pinned.** Every `.md` page
-/// has `every_page_lists_its_entries_in_order`, and `nc-catalog`'s own events
-/// module has a doc line claiming an order and a test holding it; this file has
-/// neither, and every reader finds a struct with `find("pub struct {name} {")`,
-/// which is order-blind. Measured: the emitter's `sort_by` deleted, the structs
-/// come out in registry file order, and `check passed` with 1305 tests.
+/// **The one generated artefact whose order nothing else pins.** Every `.md`
+/// page has `every_page_lists_its_entries_in_order`, and `nc-catalog`'s own
+/// events module has a doc line claiming an order and a test holding it; this
+/// file has neither, and every reader finds a struct with
+/// `find("pub struct {name} {")`, which is order-blind. Measured: the emitter's
+/// `sort_by` deleted, the structs come out in registry file order, and
+/// `check passed` without this test.
 ///
 /// It costs a reader rather than a caller — which is why it is a small finding
 /// and still a finding: the tree decided this property was worth holding and
@@ -1900,8 +1901,8 @@ fn every_generated_field_doc_says_what_that_kind_holds() {
     for entry in &catalog.events {
         for field in &entry.fields {
             // "An" before a vowel, which the emitter derives from the label's
-            // own first letter — it was always "A", and produced "A opaque
-            // identifier" in a file nobody may edit.
+            // own first letter — a fixed "A" produces "A opaque identifier" in
+            // a file nobody may edit.
             let words = label(field.kind);
             let article = if words.starts_with(['a', 'e', 'i', 'o', 'u']) {
                 "An"
@@ -1912,8 +1913,8 @@ fn every_generated_field_doc_says_what_that_kind_holds() {
             // **Above this field, not somewhere in the file.** `contains` over
             // the whole source is satisfied by a permutation, and the mutation
             // this test's own header records — flattening every label to one
-            // word — moves the *set*, which is why it was caught and a rotation
-            // was not. Measured: every field documented with the next field's
+            // word — moves the *set*, which is why a set catches it and misses a
+            // rotation. Measured: every field documented with the next field's
             // label, so a `Literal` reads "A count." and a `Duration` reads "A
             // fixed text chosen when the code was written" — the generated
             // crate, whose header says do not edit, telling a developer that a
@@ -1936,14 +1937,14 @@ fn every_generated_field_doc_says_what_that_kind_holds() {
                 .take_while(|line| line.trim_start().starts_with("///"))
                 .collect();
             // **The first line, not somewhere in the block.** rustdoc publishes
-            // the summary — the block's opening line — and `any` accepted the
-            // true sentence anywhere under a false one. Round 55 closed exactly
-            // this in the three loops beside it and left the fourth asking for
-            // membership: measured by a reviewer on 2026-09-13, a second
-            // summary written above the true one (with a blank `///` between,
-            // which walks past the fused-summary rule) made every field of the
-            // generated log-event surface publish *"A count."* — a `Duration`,
-            // an `ErrorCode` and an `Id` alike — with `check passed`.
+            // the summary — the block's opening line — and `any` accepts the
+            // true sentence anywhere under a false one, which is why the three
+            // loops beside this one take the first line too. Measured with `any`
+            // here: a second summary written above the true one (with a blank
+            // `///` between, which walks past the fused-summary rule) makes
+            // every field of the generated log-event surface publish
+            // *"A count."* — a `Duration`, an `ErrorCode` and an `Id` alike —
+            // with `check passed`.
             //
             // `above` is collected from the bottom up, so the summary is its
             // last element.
@@ -1968,9 +1969,9 @@ fn every_generated_field_doc_says_what_that_kind_holds() {
 #[test]
 fn every_generated_module_names_the_registry_it_came_from() {
     // The `Source:` line is what tells a reader which registry to edit. Setting
-    // every one of them to the bare `catalog/` directory left the whole gate
-    // green: `header()` is tested in isolation and nothing asserted which file
-    // names which source.
+    // every one of them to the bare `catalog/` directory leaves the rest of the
+    // gate green: `header()` is tested in isolation and nothing else asserts
+    // which file names which source.
     for (module, source) in [
         ("errors.rs", "catalog/errors.toml"),
         ("notifications.rs", "catalog/notifications.toml"),
@@ -2003,11 +2004,11 @@ const FROM_THE_TRAIT: [&str; 3] = ["name", "level", "fields"];
 fn no_event_struct_holds_a_member_the_registry_does_not_declare() {
     // **The other direction, for the one file a whole-file excuse covers.**
     // `every_event_is_a_struct_with_the_fields_it_declares` walks the registry
-    // and asserts *declared ⊆ emitted*; nothing asserted *emitted ⊆ declared*,
-    // so a value the compiler writes that no registry asked for was compared by
-    // nobody. Measured: `pub const fn shard(&self) -> u8 { 7 }` emitted onto all
-    // eleven event structs, `check passed`, 591 tests — a fabricated value on
-    // every generated log event.
+    // and asserts *declared ⊆ emitted*; without *emitted ⊆ declared*, a value
+    // the compiler writes that no registry asked for is compared by nobody.
+    // Measured: `pub const fn shard(&self) -> u8 { 7 }` emitted onto every
+    // event struct, `check passed` — a fabricated value on every generated log
+    // event.
     //
     // `every_generated_value_is_compared.rs` excuses this whole file through
     // `BY_ITERATION`, and an excuse for a whole file has to cover the whole
@@ -2063,9 +2064,9 @@ fn no_event_struct_holds_a_member_the_registry_does_not_declare() {
 
 #[test]
 fn the_code_holds_nothing_the_registry_does_not_declare() {
-    // **Everything here was checked in one direction only.** Every other test in
-    // this file walks the registry and asks "is it in the code"; none asked "is
-    // everything in the code in the registry". Measured: an emitter that appends
+    // **The other direction.** The registry-to-code tests in this file walk the
+    // registry and ask "is it in the code"; this asks "is everything in the code
+    // in the registry". Measured without it: an emitter that appends
     // one `Command` and one `RateLimit` that no registry declares publishes
     //
     //     Command { name: "audit.disable", action: "Read", mutating: false, … }
@@ -2074,10 +2075,9 @@ fn the_code_holds_nothing_the_registry_does_not_declare() {
     // with `cargo xtask check` green, `docs/commands.md` clean, and `build` still
     // reporting the declared count. A command is the authorization surface and
     // the AI tool surface (`§11.4`: commands are the only way to mutate state),
-    // and an undeclared rate-limit surface is a `§15.5` hole. `log-events` had
-    // this check and nothing else did; the pages grew their twin
-    // (`every_section_on_every_page_is_an_entry_the_registry_declares`) and the
-    // generated Rust never did.
+    // and an undeclared rate-limit surface is a `§15.5` hole. The pages have
+    // their twin (`every_section_on_every_page_is_an_entry_the_registry_declares`),
+    // and this is the generated Rust's.
     //
     // A length comparison rather than a set difference, because every one of
     // these already has a per-entry test walking the other way: the two together
@@ -2127,23 +2127,23 @@ fn the_code_holds_nothing_the_registry_does_not_declare() {
 
 /// The severity scale compares in the direction it reads in.
 ///
-/// **It ran backwards for a stage.** `Severity` derives `Ord`, and a derived
-/// `Ord` on an enum *is* its declaration order — which was `Critical, Error,
-/// Warning, Info`. So `Severity::Critical > Severity::Info` was `false`,
-/// `.max()` over every code answered `Info`, and the obvious paging filter
+/// **A derived `Ord` is the declaration order.** `Severity` derives `Ord`, so
+/// declared as `Critical, Error, Warning, Info` it runs backwards:
+/// `Severity::Critical > Severity::Info` is `false`, `.max()` over every code
+/// answers `Info`, and the obvious paging filter
 ///
 /// ```text
 /// codes.filter(|code| code.severity() >= Severity::Error)
 /// ```
 ///
-/// kept `IdsNameTooLong` and dropped `JournalChainBroken` — the code whose
-/// whole meaning is that the audit chain has been broken. Nothing in the tree
-/// compared two severities yet, which is why nothing was red; this is public
-/// generated API, and the first comparison written against it would have been
-/// wrong with no way to tell.
+/// keeps `IdsNameTooLong` and drops `JournalChainBroken` — the code whose
+/// whole meaning is that the audit chain has been broken. In a tree where no
+/// other code compares two severities, nothing would be red; this is public
+/// generated API, and the first comparison written against it would be wrong
+/// with no way to tell.
 ///
 /// The filter below is the one that failure was measured with, so this test
-/// fails the moment the order is reversed again.
+/// fails the moment the order is reversed.
 #[test]
 fn the_severity_scale_runs_upwards() {
     use nc_catalog::{ErrorCode, Severity};
@@ -2179,12 +2179,12 @@ fn the_severity_scale_runs_upwards() {
 
 /// The compiler and the renderer decide "is this a placeholder" the same way.
 ///
-/// **They did not, and the renderer's own comment said they did.**
+/// **Two rules for one question disagree unless something holds them to one.**
 /// `messages.rs`'s `placeholders` accepts `[A-Za-z0-9_]+` between the braces and
 /// calls everything else prose — its own test blesses `{"type": "object"}`, `{}`
-/// and `{ spaced }` — while the emitted `fill` took whatever sat between `{` and
-/// the next `}` as a name. So the compiler validated a sentence and the renderer
-/// refused the whole of it:
+/// and `{ spaced }` — and an emitted `fill` that takes whatever sits between `{`
+/// and the next `}` as a name makes the compiler validate a sentence the
+/// renderer refuses the whole of, measured:
 ///
 /// ```text
 /// message = Some("… such as {\"table\": \"journal_entries\"}.")
@@ -2192,24 +2192,24 @@ fn the_severity_scale_runs_upwards() {
 /// ```
 ///
 /// with `cargo xtask check` green, because no catalog sentence holds a brace
-/// today and nothing compared the two rules.
+/// today and nothing else compares the two rules.
 ///
-/// Compared as text rather than as behaviour because the two live in different
-/// crates — one is a private function of the compiler, the other a private
-/// function of what the compiler writes — and the thing that must not drift is
-/// the predicate itself. A behavioural test would need a sentence with prose
-/// braces in the shipped catalog, which is a product string bent to suit a test.
+/// The two live in different crates — one is a private function of the
+/// compiler, the other a private function of what the compiler writes — and the
+/// shipped catalog cannot drive them: a sentence with prose braces there would
+/// be a product string bent to suit a test. So this drives both over a corpus
+/// of its own.
 #[test]
 fn the_two_placeholder_rules_are_one_rule() {
-    // **Behaviour, not source text.** The first version of this test asserted the
-    // two files held the same predicate *expression* — and a reviewer deleted the
-    // branch that calls it, replacing the prose-brace arm with `return Err(name)`,
-    // with `check passed` and 789 tests green. `is_a_placeholder` was still
-    // defined and still called; only its result was acted on differently. A text
+    // **Behaviour, not source text.** An assertion that the two files hold the
+    // same predicate *expression* survives deleting the branch that calls it:
+    // measured, the prose-brace arm replaced with `return Err(name)` leaves
+    // `check passed` against such an assertion, with `is_a_placeholder` still
+    // defined and still called and only its result acted on differently. A text
     // comparison cannot see that, and the shipped catalog cannot either: no
     // sentence in it holds a prose brace, and
     // `every_declared_key_renders_with_nothing_left_in_braces` forbids one from
-    // ever being added.
+    // being added.
     //
     // So the corpus is here, and it drives the *emitted* renderer against the
     // compiler's own scanner. Each row is a sentence and what a reader must be
@@ -2225,14 +2225,14 @@ fn the_two_placeholder_rules_are_one_rule() {
         // A dotted path, which neither side accepts and both must call prose.
         "a path: {user.name}",
         // **Names with `_` and a digit**, which is where the two predicates can
-        // disagree and which nothing in the corpus or the catalog had.
+        // disagree.
         "{user_id} was here",
         "{arg1} and {arg2}",
         "such as {\"type\": \"object\"}.",
         "an empty pair {} in a sentence",
         "{ spaced } is not a name",
         // The Handlebars escaping a translator reaches for. Prose to the
-        // compiler, and `Err(\"name\")` to the renderer until the loops agreed.
+        // compiler, and `Err(\"name\")` to a renderer whose loop disagrees.
         "A translator wrote {{name}} here.",
         "{{}}",
         // A nested opener, and a stray closer.
@@ -2260,12 +2260,13 @@ fn the_two_placeholder_rules_are_one_rule() {
             Ok(shown) => {
                 // Every brace pair the compiler called prose survives verbatim.
                 // **Counted, not `contains`.** A sentence holding two prose pairs
-                // passed when the renderer wrote one of them: `contains` answers
-                // "somewhere", and what is being checked is that each survives.
-                // **And every name the compiler *declared* was substituted.**
-                // This arm only checked that prose survived, so a renderer
-                // *stricter* than the compiler — one that declares a placeholder
-                // and then writes it through as prose — was invisible. Measured:
+                // passes `contains` when the renderer writes one of them:
+                // `contains` answers "somewhere", and what is being checked is
+                // that each survives.
+                // **And every name the compiler *declared* is substituted.**
+                // Checking only that prose survives leaves a renderer *stricter*
+                // than the compiler — one that declares a placeholder and then
+                // writes it through as prose — invisible. Measured:
                 // the emitted predicate narrowed to `is_ascii_alphabetic`, and
                 // `{user_id}` and `{arg1}` came back with their braces in them,
                 // `check passed`. That is the half-rendered state `§9.9` forbids,
@@ -2274,10 +2275,11 @@ fn the_two_placeholder_rules_are_one_rule() {
                 // **Read with the scanner, not searched for as a substring.**
                 // `shown.contains("{a}")` is true of the string `{{a}}`, which
                 // the compiler reads as prose and the renderer is *right* to
-                // write through — so the sentence `"{a} and {{a}}"` reported the
-                // renderer for doing exactly what the other arm of this loop
-                // requires of it, and the two arms contradicted each other on one
-                // input. Counting rather than `contains` does not fix it: the
+                // write through — so with a substring search the sentence
+                // `"{a} and {{a}}"` reports the renderer for doing exactly what the
+                // other arm of this loop requires of it, and the two arms
+                // contradict each other on one input. Counting rather than
+                // `contains` does not fix it: the
                 // prose pair holds an occurrence of the name's brace-form too.
                 // What answers is asking the same question of the output that was
                 // asked of the input.
@@ -2315,12 +2317,12 @@ fn the_two_placeholder_rules_are_one_rule() {
 
 /// The placeholders `nc-catalog-compiler` declares a sentence to have.
 ///
-/// **The real scanner.** This used to be a copy of it, justified on the grounds
-/// that the function is private — which is the identical wiring defect this
-/// test's own header records fixing on the renderer side. Measured: the
-/// compiler's predicate widened to accept `.`, so it declares `{user.name}` a
-/// placeholder while the renderer calls it prose, and `check passed` with the
-/// corpus holding a row for that very sentence.
+/// **The real scanner, not a copy of it.** A copy, justified on the grounds that
+/// the function is private, is the identical wiring defect this test's own
+/// header records on the renderer side. Measured against a copy: the compiler's
+/// predicate widened to accept `.`, so it declares `{user.name}` a placeholder
+/// while the renderer calls it prose, and `check passed` with the corpus
+/// holding a row for that very sentence.
 fn placeholders_the_compiler_sees(sentence: &str) -> Vec<String> {
     nc_catalog_compiler::messages::placeholders_for_tests(sentence)
 }
@@ -2347,13 +2349,13 @@ fn prose_pairs(sentence: &str) -> Vec<String> {
 
 /// One sentence through the renderer the compiler emitted.
 ///
-/// **The real one.** This used to run a hand-written mirror of `fill`, guarded by
-/// three `contains` assertions over the generated file — so a divergence that
-/// left those substrings intact was invisible. Measured: the emitted `fill`
-/// changed to refuse an unmatched `{`, which `RENDER`'s own doc forbids, and
-/// `cargo xtask check` passed with this corpus green; the identical edit applied
-/// to the mirror made the corpus fail at once. The corpus was right and the
-/// wiring was not.
+/// **The real one, not a hand-written mirror of `fill`.** A mirror guarded by
+/// `contains` assertions over the generated file misses a divergence that
+/// leaves those substrings intact. Measured against a mirror: the emitted
+/// `fill` changed to refuse an unmatched `{`, which `RENDER`'s own doc forbids,
+/// and `cargo xtask check` passed with this corpus green; the identical edit
+/// applied to the mirror made the corpus fail at once. The corpus is right;
+/// what has to be right too is the wiring.
 fn render_through_the_emitted_code(
     sentence: &str,
     values: &[(&str, &str)],
@@ -2363,12 +2365,12 @@ fn render_through_the_emitted_code(
 
 /// A wrapped attribute is one attribute, and a stray `]` is not one at all.
 ///
-/// **The repair had no case, in three copies.** It was written after a plant
-/// in `nc-journal` on 2026-09-13 and neutered in all three a day later with
-/// every suite green — `nc-journal` has no multi-line attribute in it, and
-/// neither does the tree this copy reads, so the branch decided nothing
-/// anywhere. The bound is what stops a stray `]` above an item walking the
-/// reader out of the block it is reading, and it is written down here too.
+/// **The case none of the three copies' trees holds.** Without it, the
+/// wrapped-attribute branch can be neutered in all three copies with every
+/// suite green — `nc-journal` has no multi-line attribute in it, and neither
+/// does the tree this copy reads, so the branch decides nothing anywhere else. The bound is
+/// what stops a stray `]` above an item walking the reader out of the block it
+/// is reading, and it is written down here too.
 #[test]
 fn a_doc_block_is_found_past_a_wrapped_attribute() {
     fn lines(text: &str) -> Vec<&str> {

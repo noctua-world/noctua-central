@@ -18,8 +18,9 @@
 // granting and revoking, and a `forbid` covering every action would refuse a
 // person reading her own record. The constraint is the invariant's subject
 // matter rather than an exemption from it — and it is written here because a
-// blanket exemption for action constraints let `core.provenance` be rescoped to
-// `action == Action::"Read"`, which switched invariant 2 off for every write.
+// blanket exemption for action constraints would let `core.provenance` be
+// rescoped to `action == Action::"Read"`, which switches invariant 2 off for
+// every write.
 @id("core.no_self_escalation")
 forbid (
   principal,

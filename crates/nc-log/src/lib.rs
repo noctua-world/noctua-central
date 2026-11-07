@@ -55,27 +55,25 @@ pub trait Event: sealed::Sealed {
 /// Which service is speaking, and which build of it.
 ///
 /// `§15.4`'s own table lists "service and version" among what the central log
-/// holds, and neither can come from an event's fields: every event would have to
-/// declare them, and one that forgot would be a line nobody can place.
-/// **`Literal`, not `&'static str`** — and that is a correction. These two were
-/// bare `pub &'static str` fields, the only ones in the crate with no wall in
-/// front of them, in the two values that appear on **every** line the log emits.
-/// A `static OnceLock<String>` yields a genuine `&'static str` from run-time
-/// input with no leak spelling anywhere, which is the exact attack
-/// `a_leaked_string_cannot_reach_a_literal.rs` names in its own doc comment: the
-/// fixture defended `Literal` against it and left `Origin` open beside it.
+/// holds, and neither can come from an event's fields: every event would have
+/// to declare them, and one that forgot would be a line nobody can place.
+/// **`Literal`, not `&'static str`.** As bare `pub &'static str` fields these
+/// would be the only ones in the crate with no wall in front of them, in the
+/// two values that appear on **every** line the log
+/// emits. A `static OnceLock<String>` yields a genuine `&'static str` from
+/// run-time input with no leak spelling anywhere, which is the exact
+/// attack `an_origin_cannot_hold_a_runtime_string.rs` shows in its own doc
+/// comment: a `Literal` cannot be built from it, so `Origin`'s fields are
+/// `Literal` too.
 ///
-/// Measured before the fix: `Origin { service: held, .. }` where `held` came
-/// from a `OnceLock` put a tenant's address in the `service` field of every
+/// Measured with bare fields: `Origin { service: held, .. }` where `held` came
+/// from a `OnceLock` puts a tenant's address in the `service` field of every
 /// line, past every compile-fail fixture and a source gate.
 ///
-/// **A number in this sentence has now been wrong twice.** It said *"past nine
-/// of them"* when the directory held eleven, was corrected to eleven, and the
-/// directory holds twelve — a twelfth fixture arrived in round thirty-four to
-/// cover `version` by name. The number belongs to the run that counts them, and
-/// no gate reads a numeral in a Rust doc comment: `counts.rs` is scoped to the
-/// documents by stated design, which is why this drifts and the printed line
-/// does not.
+/// **No number of fixtures in this sentence.** The number belongs to the run
+/// that counts them, and no gate reads a numeral in a Rust doc
+/// comment: `counts.rs` is scoped to the documents by stated design, which is
+/// why a number here would drift and the printed line does not.
 ///
 /// So the sentence stops carrying one. What the fixtures refuse is written in
 /// `xtask/src/wall.rs`'s `SHAPES`, and how many there are is what `check` prints.
@@ -129,13 +127,13 @@ impl Log {
     #[must_use]
     pub fn line(&self, event: &impl Event) -> String {
         let mut fields: BTreeMap<String, nc_canon::Value> = BTreeMap::new();
-        // **The event's fields first, and the origin over them.** They were the
-        // other way round, into one map where the last write wins — so an event
-        // declaring a field called `service` or `level` overwrote the line's own,
-        // and a line could claim a level its event does not have and a service it
-        // did not come from. The registry now refuses those four names
-        // (`check_events`), and this ordering is the second half: a registry that
-        // somehow held one still cannot win.
+        // **The event's fields first, and the origin over them.** The other way
+        // round, into one map where the last write wins, an event declaring a
+        // field called `service` or `level` would overwrite the line's own, and
+        // a line could claim a level its event does not have and a service it
+        // did not come from. The registry refuses those four names
+        // (`check_events`), and this ordering is the second half: a registry
+        // that somehow held one still cannot win.
         for (name, field) in event.fields() {
             fields.insert(name.to_owned(), field.to_canonical());
         }
@@ -164,8 +162,8 @@ impl Log {
     /// How many lines the current batch has dropped, and why.
     ///
     /// **Reset by the shipper on every batch**, and it counts a disconnected
-    /// queue as well as a full one — `Shipper::dropped` says so and this
-    /// re-export did not, which is the kind of gap that makes a number mean two
+    /// queue as well as a full one — `Shipper::dropped` says so and so does
+    /// this re-export, because a gap between the two makes a number mean two
     /// things to two readers.
     #[must_use]
     pub fn dropped(&self) -> u64 {
@@ -175,23 +173,23 @@ impl Log {
     /// How many lines reached neither the store nor stderr, since this process
     /// began.
     ///
-    /// **`dropped()` was the only number a caller could read**, and it counts
+    /// **`dropped()` is not the only number a caller can read**, and it counts
     /// one thing: lines refused at the queue. A line the store did not take and
-    /// stderr would not write is a different loss, and it was counted in a
-    /// `static` nothing outside `ship.rs` could reach — measured with a store
-    /// that never answers and stderr on a full disk, 235 of 300 lines in
-    /// neither place with `dropped()` reading `0`. A number an operator cannot
-    /// reach is not a number they have.
+    /// stderr would not write is a different loss, and counted in a `static`
+    /// nothing outside `ship.rs` could reach it would be invisible — measured
+    /// with a store that never answers and stderr on a full disk, 235 of 300
+    /// lines in neither place with `dropped()` reading `0`. A number an
+    /// operator cannot reach is not a number they have.
     ///
-    /// **Not a monotonic total, and the line that said it was is the finding.**
-    /// It read *"Cumulative and never reset, unlike [`Self::dropped`], because
-    /// it is a total and a total that goes down is not one"*, and it goes down
-    /// on the ordinary path: when stderr blocks, `flush_stderr` charges the
-    /// backlog here so an operator can see it at once, and when stderr comes
-    /// back the writer un-charges each line it actually writes. That is the
-    /// right behaviour — a line that reached stderr in the end did not reach
-    /// neither place — and the wrong sentence, because a monitor told to treat
-    /// this as a counter reads a recovery as a rewrite of history.
+    /// **Not a monotonic total.** *"Cumulative and never reset, unlike
+    /// [`Self::dropped`], because it is a total and a total that goes down is
+    /// not one"* would be false, because it goes down on the ordinary path:
+    /// when stderr blocks, `flush_stderr` charges the backlog here so an
+    /// operator can see it at once, and when stderr comes back the writer
+    /// un-charges each line it actually writes. That is the right behaviour — a
+    /// line that reached stderr in the end did not reach neither place — and a
+    /// monitor told to treat this as a counter would read a recovery as a
+    /// rewrite of history.
     ///
     /// What it holds is *lines not accounted for right now*: charged when they
     /// are lost or stuck, released when they are written. It is `dropped`'s
@@ -204,10 +202,11 @@ impl Log {
 
 /// Nothing outside this crate implements [`Event`].
 ///
-/// **The trait was open, and that was the largest hole in the wall.** Any crate
-/// could `impl Event` and return `("who", Field::Id(user_email))` — no leak, no
-/// macro, nothing a source gate looks for. Sealing it costs a private supertrait
-/// and takes nothing away: every event struct is *generated into this crate*
+/// **The trait is sealed, because open it would be the largest hole in the
+/// wall.** Any crate could `impl Event` and
+/// return `("who", Field::Id(user_email))` — no leak, no macro, nothing a
+/// source gate looks for. Sealing it costs a private supertrait and takes
+/// nothing away: every event struct is *generated into this crate*
 /// from `catalog/log-events.toml`, so there is nobody outside who should be
 /// writing one. An event that is not in the registry does not exist (`§15.2`).
 pub(crate) mod sealed {
@@ -218,11 +217,11 @@ pub(crate) mod sealed {
 /// The level's name, as the store reads it.
 #[must_use]
 pub const fn level_name(level: Level) -> &'static str {
-    // **The registry's own word, not a second copy of it.** This was a `match`
-    // over the five variants written out here — a second vocabulary for one
+    // **The registry's own word, not a second copy of it.** A `match` over the
+    // five variants written out here would be a second vocabulary for one
     // judgement, which `Severity`'s own doc names as how they drift apart. The
-    // generated crate answers it now, from the same word the pages and the
-    // ledger write.
+    // generated crate answers it, from the same word the pages and the ledger
+    // write.
     level.as_str()
 }
 
@@ -278,16 +277,17 @@ mod tests {
 
     /// The number `lost()` reads is the number the shipper holds.
     ///
-    /// **The repair was made one level down.** `ship.rs`'s
-    /// `the_accessor_answers_the_counter` closes `Shipper::lost()`; this is a
-    /// different accessor in a different file, and its only driver is the one
-    /// that test's own doc rejects — `after > before` in the child whose stderr
-    /// is full, where the counter starts at zero, so any monotone transform
-    /// survives. Measured: `Shipper::lost()` wrapped in a `saturating_sub(1)`
-    /// here left all 1305 tests green.
+    /// **One level down
+    /// from `ship.rs`'s.** `ship.rs`'s `the_accessor_answers_the_counter`
+    /// closes `Shipper::lost()`; this is a different accessor in a different
+    /// file, and its other driver is the one that test's own doc rejects
+    /// — `after > before` in the child whose stderr is full, where the counter
+    /// starts at zero, so any monotone transform survives. Measured without
+    /// this: `Shipper::lost()` wrapped in a `saturating_sub(1)` here leaves
+    /// every test green.
     ///
-    /// Its sibling `Log::dropped()` has exactly this test; `lost()` had nothing
-    /// of the kind, and it is the number an operator reads when the store is
+    /// Its sibling `Log::dropped()` has exactly this test, and this is
+    /// `lost()`'s: the number an operator reads when the store is
     /// down *and* stderr is refusing — lines that reached neither.
     #[test]
     fn the_number_lost_reads_is_the_shippers() {
@@ -310,22 +310,21 @@ mod tests {
 
     /// The number a caller reads is the number the shipper holds.
     ///
-    /// **`Log::dropped()` had no caller anywhere in the workspace.** Measured on
-    /// 2026-09-08, `self.shipper.dropped()` replaced by
-    /// `self.shipper.dropped().saturating_sub(1)`:
-    /// `cargo run --quiet -p xtask -- check --offline` answered `check passed`
-    /// at `ok 1223 test(s)` and `ok 35 target(s) linted`. An under-reported drop
-    /// count is an outage an operator does not see, and it is the one number
-    /// they have for a full queue. Its sibling `Log::lost()` is driven through
-    /// the public accessor by `ship.rs`; this was driven by nothing — a first
-    /// plant of `self.lost()` was caught only by `-D dead-code` noticing that
-    /// `Shipper::dropped` had lost its last caller, which is the compiler
+    /// **`Log::dropped()` has no other caller in the workspace.** Measured
+    /// without this, `self.shipper.dropped()` replaced
+    /// by `self.shipper.dropped().saturating_sub(1)`:
+    /// `cargo xtask check --offline` answers `check passed`. An under-reported
+    /// drop count is an outage an operator does not see, and it is the one
+    /// number they have for a full queue. Its sibling `Log::lost()` is driven
+    /// through the public accessor by `ship.rs`; without this, a plant
+    /// of `self.lost()` here is caught only by `-D dead-code` noticing
+    /// that `Shipper::dropped` has lost its last caller, which is the compiler
     /// noticing an unused function rather than a test noticing a wrong number.
     ///
     /// **A store that stalls rather than one that is absent.** Against a port
     /// nothing listens on, every exchange is refused at once and the drain
-    /// thread keeps up with the sender: three times the queue depth was handed
-    /// over and *nothing* was refused, so the equality would have been about
+    /// thread keeps up with the sender: three times the queue depth handed
+    /// over has *nothing* refused, so the equality would be about
     /// zero and `saturating_sub(1)` invisible. What fills a bounded queue is a
     /// drain that is blocked, so this holds the answer back and reads the count
     /// while the thread is still inside its first exchange — which is also the
@@ -379,9 +378,9 @@ mod tests {
                 service: crate::literal!("test"),
                 // **Deliberately not this tree's version.** The release gate walks every
                 // file for the version it is at, so a fixture that names the real one
-                // reads as a file the release would leave behind — the same trap
-                // `AGENTS.md`'s spelling example fell into. A fixture's version is
-                // arbitrary; this one says so.
+                // reads as a file the release would leave behind — the trap
+                // `AGENTS.md`'s rule on illustrating a version's spelling
+                // names. A fixture's version is arbitrary; this one says so.
                 version: crate::literal!("9.9.9"),
             },
             "http://127.0.0.1:1/insert",
@@ -400,7 +399,7 @@ mod tests {
         assert!(line.contains("\"service\":\"test\""), "{line}");
         assert!(line.contains("\"version\":\"9.9.9\""), "{line}");
         // **A count goes out as text**, and the quotes are the point. JSON has no
-        // `u64`, and the alternative was `i64::try_from(value).unwrap_or(-1)` —
+        // `u64`, and the alternative is `i64::try_from(value).unwrap_or(-1)` —
         // which turns every value at or above 2^63 into the same number, so a
         // byte count past that boundary would read in the store as a value
         // nothing ever had.
@@ -410,19 +409,19 @@ mod tests {
 
     /// A value that could end the line does not end it.
     ///
-    /// **This was an assertion filtered by the predicate it then tests.** It
-    /// asked `Probe` — whose values are `3` and `access_records` — whether the
-    /// rendered line held a control character, and its comment said `nc-canon`
-    /// "escapes every control character". It does not, and the workspace pins
-    /// that it must not: canon escapes the C0 range, `"` and `\`, and
-    /// `nothing_a_specification_writes_literally_is_escaped` walks U+0020
-    /// upwards asserting every one of those is written literally. So the
-    /// assertion held for every value canon can emit, and what it was written to
-    /// catch — a `Log::line` that stops going through canon — was invisible,
-    /// because no value it was given contains anything canon escapes.
+    /// **Not an assertion filtered by the predicate it then
+    /// tests.** Asking `Probe` — whose values are `3` and `access_records` —
+    /// whether the rendered line holds a control character rests on `nc-canon`
+    /// escaping every control character. It does not, and the workspace pins
+    /// that it must not: canon escapes the C0 range, `"` and `\`,
+    /// and `nothing_a_specification_writes_literally_is_escaped` walks U+0020
+    /// upwards asserting every one of those is written literally. So such an
+    /// assertion holds for every value canon can emit, and what it would be
+    /// written to catch — a `Log::line` that stops going through canon — is
+    /// invisible, because no value it is given contains anything canon escapes.
     ///
-    /// Measured: `to_canonical()` followed by `.replace("\\n", "\n")` left the
-    /// whole gate green with `Log::line` emitting raw newlines.
+    /// Measured that way: `to_canonical()` followed by `.replace("\\n", "\n")`
+    /// leaves the whole gate green with `Log::line` emitting raw newlines.
     #[test]
     fn a_line_is_one_line() {
         // The property the whole file format rests on: the store reads one JSON
@@ -445,10 +444,10 @@ mod tests {
 
     #[test]
     fn every_level_has_a_name_the_store_reads() {
-        // **Each name, and five distinct ones.** This asserted only that a name
-        // was non-empty — so collapsing every level onto `"info"` left the suite
-        // green, and a central log reporting every `error` line as `info` was
-        // invisible to it. `§19.5`: a title is not an assertion.
+        // **Each name, and five distinct ones.** Asserting only that a name is
+        // non-empty lets collapsing every level onto `"info"` leave the suite
+        // green, and a central log reporting every `error` line as `info` would
+        // be invisible to it. `§19.5`: a title is not an assertion.
         let named = [
             (Level::Trace, "trace"),
             (Level::Debug, "debug"),
@@ -467,9 +466,10 @@ mod tests {
     #[test]
     fn a_field_an_event_declares_cannot_displace_one_the_log_owns() {
         // The ordering half. The registry refuses a *generated* event declaring
-        // one of the four, and this is what holds when something else does — and
-        // moving the origin back above the event's fields left the suite green,
-        // because the only test event declares none of them.
+        // one of the four, and this is what holds when something else does —
+        // without it, moving the origin back above the event's fields leaves
+        // the suite green, because the only other test event declares none of
+        // them.
         use crate::LogValue as _;
 
         struct Impostor;
@@ -486,13 +486,13 @@ mod tests {
                     ("_msg", crate::literal!("something else").to_field()),
                     ("level", crate::literal!("info").to_field()),
                     ("service", crate::literal!("somebody-else").to_field()),
-                    // **Not the origin's own version.** The impostor declared
-                    // `9.9.9` and so does the `Log` this runs against, so the
-                    // assertion below was true whichever of the two wrote it —
-                    // measured on 2026-09-12, the `version` insert moved above
-                    // the event-field loop left `cargo test -p nc-log` at
-                    // `59 passed`, while the identical edit one field along was
-                    // caught at once.
+                    // **Not the origin's own version.** An impostor declaring
+                    // `9.9.9`, like the `Log` this runs against, would make the
+                    // assertion below true whichever of the two wrote it —
+                    // measured, the `version` insert moved above the
+                    // event-field loop then leaves `cargo test -p nc-log`
+                    // green, while the identical edit one field along is caught
+                    // at once.
                     ("version", crate::literal!("0.0.0-impostor").to_field()),
                 ]
             }

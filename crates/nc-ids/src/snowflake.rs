@@ -19,13 +19,13 @@
 //! **And nothing in this repository persists that mark, which is a decision and
 //! not an omission.** Both halves are here — [`Minter::high_water_mark`] reads
 //! the highest millisecond a minter reached, [`Minter::resuming_at`] refuses to
-//! go below one — and there is no caller, because nothing in this stage mints an
-//! identifier in production. A store chosen here would be a second place the
-//! answer lives, in the crate least able to know where the first one is. `§16.2`
-//! now carries the rule instead, and it names the ordering that matters: the
-//! mark is written *before* the identifier is handed out, since a mark written
-//! after is one a crash skips — which is the same duplicate this module refuses
-//! to mint while it is running.
+//! go below one — and there is no caller, because nothing in this stage mints
+//! an identifier in production. A store chosen here would be a second place the
+//! answer lives, in the crate least able to know where the first one
+//! is. `§16.2` carries the rule instead, and it names the ordering that
+//! matters: the mark is written *before* the identifier is handed out, since a
+//! mark written after is one a crash skips — which is the same duplicate this
+//! module refuses to mint while it is running.
 //!
 //! **Nothing here logs**, and `§16.2` asks for it. The events are declared —
 //! `ids.clock_backwards`, `ids.sequence_exhausted`, `ids.flake_collision` in
@@ -112,20 +112,20 @@ impl Snowflake {
     ///
     /// # Errors
     ///
-    /// Returns what was wrong with the text, or `Base32Error::Overflows` when it
-    /// decodes to a value with bits outside the 63 this layout uses — which is
-    /// the same complaint as too many characters, arrived at by a different
-    /// route. It used to report the text's *first* character as "the offending
-    /// character", which is normally a perfectly valid digit.
+    /// Returns what was wrong with the text, or `Base32Error::Overflows` when
+    /// it decodes to a value with bits outside the 63 this layout uses — which
+    /// is the same complaint as too many characters, arrived at by a different
+    /// route, and not a complaint about the text's *first* character, which is
+    /// normally a perfectly valid digit.
     pub fn from_crockford(text: &str) -> Result<Self, base32::Base32Error> {
         let value = base32::decode(text)?;
         if value >> (TIMESTAMP_BITS + FLAKE_BITS + SEQUENCE_BITS) != 0 {
             return Err(base32::Base32Error::Overflows {
                 length: text.chars().count(),
                 // 63, not 64: a `Snowflake` is 41 bits of milliseconds, 10 of
-                // machine flake and 12 of sequence. The sentence used to say 64
-                // for both, so a value this refuses was reported as needing more
-                // than 64 bits while `base32::decode` had just returned it.
+                // machine flake and 12 of sequence. Saying 64 for both would
+                // report a value this refuses as needing more than 64 bits
+                // while `base32::decode` has just returned it.
                 bits: TIMESTAMP_BITS + FLAKE_BITS + SEQUENCE_BITS,
             });
         }
@@ -161,8 +161,8 @@ pub enum MintError {
     BeyondRange,
     /// The clock is before this system's epoch, which is 2026-01-01.
     ///
-    /// A separate variant, because it used to be reported as `BeyondRange` whose
-    /// message says "past this layout's range" — the opposite direction, and
+    /// A separate variant, because reported as `BeyondRange`, whose message
+    /// says "past this layout's range", it would point the opposite direction —
     /// exactly the `§15.1` failure of two causes under one identity.
     BeforeEpoch,
     /// The clock did not advance after waiting for it, so minting would repeat
@@ -174,9 +174,10 @@ pub enum MintError {
     /// A persisted high-water mark is further ahead of the clock than any real
     /// skew, so it is corrupt rather than early.
     ///
-    /// **Not `ClockMovedBackwards`, which says retrying works.** A mark inside
-    /// the 41-bit layout but at the top of it came back as a drift of sixty-nine
-    /// years carrying a retryable code — advice a caller cannot act on. A mark is
+    /// **Not `ClockMovedBackwards`, which says retrying works.** Under that
+    /// variant a mark inside the 41-bit layout but at the top of it comes back as
+    /// a drift of sixty-nine years carrying a retryable code — advice a caller
+    /// cannot act on. A mark is
     /// read from a store, and a store can hand back a wrong number; this crate's
     /// own doc counts 22 of 64 single-bit flips landing in that window.
     MarkOutOfRange {
@@ -202,29 +203,30 @@ impl MintError {
     #[must_use]
     pub const fn code(self) -> ErrorCode {
         match self {
-            // **One code per outcome a caller can act on.** All three shared
+            // **One code per outcome a caller can act on.** Sharing
             // `IdsClockBackwards`, whose sentence — "until the time it skipped
             // has passed" — is about a step and is false of a clock set to the
-            // wrong century, and whose `retryable` could only be right for one
-            // of them. Reserving a second code was argued against on the
-            // grounds that nothing would emit it for seventy years; a clock in
-            // 1999 emits it today, and a machine with no battery is how.
+            // wrong century, all three would get a `retryable` that can only be
+            // right for one of them. A second code is not one that nothing
+            // would emit for seventy years: a clock in 1999 emits it today, and
+            // a machine with no battery is how.
             Self::ClockMovedBackwards { .. } => ErrorCode::IdsClockBackwards,
             // **Their own code, because waiting fixes one of these and not the
             // other.** A clock that stepped back a few hundred milliseconds
-            // clears by itself — measured, the identical call answered `Ok`
-            // 601 ms later — and a clock set to 1999 or 2200 does not: 500
-            // retries each, the identical refusal every time. Under one code
-            // either the transient half was told to give up or the permanent
-            // half spun for ever, and both locales' sentence — "until the time
-            // it skipped has passed" — is about a step and false of these.
+            // clears by itself — measured, the identical call answered `Ok` 601
+            // ms later — and a clock set to 1999 or 2200 does not: 500 retries
+            // each, the identical refusal every time. Under one code either the
+            // transient half would be told to give up or the permanent half
+            // spin for ever, and both locales' sentence — "until the time it
+            // skipped has passed" — is about a step and false of these.
             //
             // **And a corrupt mark joins them**, for the same reason: retrying
-            // fixes none of the three, and each needs a person. What separates a
-            // corrupt mark from `ClockMovedBackwards` is exactly that — measured,
-            // a mark at the top of the layout reported a drift of sixty-nine
-            // years under a code the suite certifies as retryable, which is
-            // advice no caller can act on.
+            // fixes none of the three, and each needs a person. What separates
+            // a corrupt mark from `ClockMovedBackwards` is exactly that —
+            // measured, a mark at the top of the layout reported under
+            // `ClockMovedBackwards` gives a drift of sixty-nine years under a
+            // code the suite certifies as retryable, which is advice no caller
+            // can act on.
             Self::BeyondRange | Self::BeforeEpoch => ErrorCode::IdsClockOutOfRange,
             // **Not the clock's code, because the clock is fine here.**
             // `resuming_at` reaches this only after `within_range(now)?` has
@@ -242,10 +244,9 @@ impl MintError {
             // `flake::FlakeOutOfRange` is the same shape, `bounds()` and all.
             // `catalog/errors.toml` states the rule this settles at
             // NC-IDS-0006: a code is only worth having if its description is
-            // true of every failure that carries it. Decided in D5, on the
-            // developer's instruction to decide it.
+            // true of every failure that carries it.
             Self::MarkOutOfRange { .. } => ErrorCode::ValidationOutOfRange,
-            // **A clock that stopped is not a wait.** This answered
+            // **A clock that stopped is not a wait.** Not
             // `IdsSequenceExhausted` — severity `info`, description *"this
             // millisecond's sequence was exhausted and minting waited"*, and a
             // code whose own registry comment says a caller never receives it.
@@ -301,12 +302,12 @@ pub trait Clock {
     /// advice.** [`Minter::mint`] guards the wait with a bounded loop so a clock
     /// that does not move produces [`MintError::ClockStuck`] rather than a
     /// duplicate — and a `wait_past` that never returns makes that guard
-    /// unreachable, because the loop never gets its turn. The shipped
-    /// [`SystemClock`] spun on `while now_ms() <= millis` and did exactly that:
-    /// every test of the guard used a fake that returns immediately, so on a
-    /// frozen or suspended host with an exhausted sequence the journal would
-    /// have spun a core for ever instead of returning an error somebody can act
-    /// on. An implementation that cannot make progress returns and lets the
+    /// unreachable, because the loop never gets its turn. A [`SystemClock`]
+    /// spinning on `while now_ms() <= millis` does exactly that, and a test of
+    /// the guard through a fake that returns immediately cannot see it: on a
+    /// frozen or suspended host with an exhausted sequence the journal then
+    /// spins a core for ever instead of returning an error somebody can act on.
+    /// An implementation that cannot make progress returns and lets the
     /// minter decide.
     fn wait_past(&self, millis: u64);
 }
@@ -320,7 +321,8 @@ pub trait Clock {
 /// error[E0277]: the trait bound `Box<dyn Clock>: Clock` is not satisfied
 /// ```
 ///
-/// The forwarders existed, under `#[cfg(test)]`, for this crate's own fakes.
+/// The forwarders are not `#[cfg(test)]`-only: this crate's own fakes need
+/// them, and so does every caller.
 impl<C: Clock + ?Sized> Clock for &C {
     fn now_ms(&self) -> u64 {
         (**self).now_ms()
@@ -369,12 +371,12 @@ impl Clock for SystemClock {
         // what is being waited for on every platform this runs on.
         //
         // **Bounded, because the caller's guard depends on this returning.**
-        // `while self.now_ms() <= millis {}` was unbounded, so `mint`'s
-        // `WAIT_ATTEMPTS` loop and its `ClockStuck` error were reachable only
-        // through a test fake — on a frozen host this spun a core for ever and
-        // the caller never got the error. The bound is generous next to one
-        // millisecond and small next to for ever: a clock that has not moved
-        // after this many yields is not about to.
+        // With `while self.now_ms() <= millis {}` unbounded, `mint`'s
+        // `WAIT_ATTEMPTS` loop and its `ClockStuck` error would be reachable
+        // only through a test fake — on a frozen host this would spin a core
+        // for ever and the caller never get the error. The bound is generous
+        // next to one millisecond and small next to for ever: a clock that has
+        // not moved after this many yields is not about to.
         self.wait_past_with(millis, std::thread::yield_now);
     }
 }
@@ -399,13 +401,12 @@ impl SystemClock {
 /// Mints identifiers for one machine.
 ///
 /// **One minter is one sequence**, and two threads minting from one without a
-/// lock would hand out the same sequence number twice. [`Minter::mint`] takes
-/// `&mut self`, so the borrow checker enforces that — which is why `Minter` *is*
-/// `Send + Sync` and this paragraph used to claim it was not. The reasoning was
-/// right and the stated fact was wrong: what stops two threads is the exclusive
-/// borrow, not a missing trait. A caller that needs to mint from several threads
-/// wraps it in a mutex, which is cheap next to a lock-free scheme nobody can
-/// prove.
+/// lock would hand out the same sequence number twice. [`Minter::mint`]
+/// takes `&mut self`, so the borrow checker enforces that — which is
+/// why `Minter` *is* `Send + Sync`: what stops two threads is the exclusive
+/// borrow, not a missing trait. A caller that needs to mint from several
+/// threads wraps it in a mutex, which is cheap next to a lock-free scheme
+/// nobody can prove.
 #[derive(Debug)]
 pub struct Minter<C: Clock> {
     flake: MachineFlake,
@@ -415,18 +416,18 @@ pub struct Minter<C: Clock> {
     /// The millisecond a bounded wait already gave up on, and **what it
     /// concluded**, if one did.
     ///
-    /// **The conclusion, kept.** Without it every later `mint` walked the whole
-    /// `WAIT_ATTEMPTS` × `YIELDS_PER_WAIT` loop again — measured on a stopped
-    /// host at 5.36 s per call, for ever, burning a core to reach the same
-    /// answer. It clears itself: the clock moving past this value is what makes
-    /// the check below miss.
+    /// **The conclusion, kept.** Without it every later `mint` walks the
+    /// whole `WAIT_ATTEMPTS` × `YIELDS_PER_WAIT` loop again — measured on a
+    /// stopped host at 5.36 s per call, for ever, burning a core to reach the
+    /// same answer. It clears itself: the clock moving past this value is what
+    /// makes the check below miss.
     ///
-    /// **The drift with it, because one memo carried two conclusions.** Both
-    /// exits from the wait wrote this field and the early return that reads it
-    /// raised `ClockStuck` unconditionally — so a clock that dipped and came
-    /// back was diagnosed `ClockMovedBackwards` on the first call and
-    /// `ClockStuck` on the next. Measured with a clock scripted `+20, +20, +19,
-    /// +20`:
+    /// **The drift with it, because one memo carries two conclusions.** Both
+    /// exits from the wait write this field, and an early return that read it
+    /// and raised `ClockStuck` unconditionally would diagnose a clock that
+    /// dipped and came back as `ClockMovedBackwards` on the first call
+    /// and `ClockStuck` on the next. Measured that way, with a clock
+    /// scripted `+20, +20, +19, +20`:
     ///
     /// ```text
     /// first  = ClockMovedBackwards { drift: 1ms }   after 1002 read(s)  NC-IDS-0001
@@ -482,8 +483,8 @@ impl<C: Clock> Minter<C> {
     /// as the mark waits for the next rather than reusing a number the previous
     /// process may already have handed out.
     ///
-    /// **The mark is checked, and it was not.** It is a `u64` off a disk, and
-    /// every value was accepted:
+    /// **The mark is checked.** It is a `u64` off a disk, and unchecked every
+    /// value is accepted:
     ///
     /// ```text
     /// mark = 0, 1, EPOCH_MS - 1   -> the protection is silently off
@@ -506,21 +507,21 @@ impl<C: Clock> Minter<C> {
     /// [`MintError::ClockMovedBackwards`] when it is ahead of the clock.
     pub fn resuming_at(flake: MachineFlake, clock: C, millis: u64) -> Result<Self, MintError> {
         Self::within_range(millis)?;
-        // **And against the clock, which this held and never asked.** The layout
-        // check accepts any value 41 bits can hold — 69 years of them — so a
-        // mark corrupted in either direction was taken as a time this process
-        // wrote. Measured over the 64 single-bit flips of a mark persisted a
-        // moment ago: **16 are accepted as a past mark**, rolling the barrier
-        // back by up to 12.4 days and turning the protection off, and **22 are
-        // accepted as a future mark**, refusing all minting for up to 8.7 years
-        // behind `ClockMovedBackwards`. A mark from the future is not a mark
-        // this process wrote; a mark from the past cannot be told from an honest
-        // one, and that half stays the persisting caller's to get right.
-        // **And the clock itself is in range**, which this did not ask. A host
-        // in 2001 answered `ClockMovedBackwards` — `NC-IDS-0001`,
-        // `retryable = true` — here and `BeforeEpoch` — `NC-IDS-0008`,
-        // `retryable = false` — from `mint`, one fault with two codes and
-        // opposite advice depending on which door a caller came through.
+        // **And against the clock.** The layout check accepts any value 41 bits
+        // can hold — 69 years of them — so on its own it takes a mark corrupted
+        // in either direction as a time this process wrote. Measured over the
+        // 64 single-bit flips of a mark persisted a moment ago: **16 are
+        // accepted as a past mark**, rolling the barrier back by up to 12.4
+        // days and turning the protection off, and **22 would be accepted as a
+        // future mark**, refusing all minting for up to 8.7 years behind
+        // `ClockMovedBackwards`. A mark from the future is not a mark this
+        // process wrote; a mark from the past cannot be told from an honest
+        // one, and that half stays the persisting caller's to get right. **And
+        // the clock itself is in range.** Unasked, a host in 2001 answers
+        // `ClockMovedBackwards` — `NC-IDS-0001`, `retryable = true` — here and
+        // `BeforeEpoch` — `NC-IDS-0008`, `retryable = false` — from `mint`, one
+        // fault with two codes and opposite advice depending on which door a
+        // caller came through.
         let now = clock.now_ms();
         Self::within_range(now)?;
         if millis > now {
@@ -528,7 +529,7 @@ impl<C: Clock> Minter<C> {
             // clock that moved backwards.** The guard above only refuses a mark
             // outside the 41 bits, and the tests below reach `0`, `1`,
             // `EPOCH_MS - 1`, `u64::MAX`, `EPOCH_MS + 100` and nothing between —
-            // so a mark at the top of the layout came back as
+            // so without this a mark at the top of the layout comes back as
             // `ClockMovedBackwards { drift: 2199023255.451s }`, sixty-nine years,
             // carrying `NC-IDS-0007`, which
             // `the_clock_codes_say_retry_where_retrying_works` certifies as
@@ -560,18 +561,19 @@ impl<C: Clock> Minter<C> {
     /// mark — or `None` when it has no mark yet.
     ///
     /// **`Option`, because zero is not a mark.** A fresh [`Minter::new`] starts
-    /// at zero and this returned it, so a caller persisting on a timer wrote a
-    /// value that [`Minter::resuming_at`] then refuses — reported to a person,
-    /// in both locales, as a clock set to the wrong year, on a machine whose
-    /// clock is fine. Nothing to persist is a state a caller can act on; zero
-    /// is a state it has to know about this type to interpret.
+    /// at zero, and returning it would have a caller persisting on a timer
+    /// write a value that [`Minter::resuming_at`] then refuses — reported to a
+    /// person, in both locales, as a clock set to the wrong year, on a machine
+    /// whose clock is fine. Nothing to persist is a state a caller can act on;
+    /// zero is a state it has to know about this type to interpret.
     ///
-    /// **A resumed minter has a mark before it has minted**, and the sentence
-    /// above used to say `None` "when it has not minted anything" — false on that
-    /// path, and it is the sentence a caller reads before deciding what to
+    /// **A resumed minter has a mark before it has minted**, so `None` does not
+    /// mean "has not minted anything" — that is false on that path, and it is
+    /// the sentence a caller reads before deciding what to
     /// persist. `resuming_at` is handed a mark and keeps it, which is the point
-    /// of resuming; what `None` means is that there is nothing to write down yet,
-    /// whether because nothing was minted or because nothing was resumed from.
+    /// of resuming; what `None` means is that there is nothing to write down
+    /// yet, whether because nothing was minted or because nothing was resumed
+    /// from.
     #[must_use]
     pub const fn high_water_mark(&self) -> Option<u64> {
         if self.last_millis == 0 {
@@ -585,7 +587,7 @@ impl<C: Clock> Minter<C> {
     ///
     /// # Errors
     ///
-    /// Four, not the two this named: [`MintError::ClockMovedBackwards`] and
+    /// Four: [`MintError::ClockMovedBackwards`] and
     /// [`MintError::BeyondRange`] as below, plus [`MintError::BeforeEpoch`] when
     /// the machine's clock reads before 1970, and [`MintError::ClockStuck`] when
     /// the sequence for this millisecond is exhausted and the clock has not
@@ -604,21 +606,21 @@ impl<C: Clock> Minter<C> {
             });
         }
 
-        // **Range first, before anything is remembered.** It used to be checked
-        // after `last_millis` was written, so one glitched reading far in the
-        // future latched the minter to it — and every later call returned
+        // **Range first, before anything is remembered.** Checked after
+        // `last_millis` is written, one glitched reading far in the future
+        // would latch the minter to it — and every later call return
         // `ClockMovedBackwards` with a drift of nine million seconds, forever,
         // under an error identity that sends a responder to the wrong problem
         // (`NOCTUA.md §15.1`).
         Self::within_range(now)?;
 
         if now == self.last_millis {
-            // **Tested for exhaustion before the increment, never after.** The
-            // increment used to come first, and every path out of the wait below
-            // is an early return — so a minter that failed once left `sequence`
-            // sitting above the mask and raised it again on the next call. After
-            // 65 536 of them the `u16` wrapped to zero and the minter re-issued
-            // an identifier it had already handed out, in a release build, with
+            // **Tested for exhaustion before the increment, never after.**
+            // Every path out of the wait below is an early return — so with the
+            // increment first, a minter that failed once would leave `sequence`
+            // sitting above the mask and raise it again on the next call. After
+            // 65 536 of them the `u16` wraps to zero and the minter re-issues
+            // an identifier it has already handed out, in a release build, with
             // no error and no way to notice. Nothing here may leave `sequence`
             // above the mask.
             if self.sequence >= SEQUENCE_MASK_U16 {
@@ -628,30 +630,28 @@ impl<C: Clock> Minter<C> {
                 //
                 // And **check that the wait happened.** The `Clock` doc names
                 // this hazard — a clock that advances on read but not on wait —
-                // and an earlier version trusted the call, so a stuck clock
-                // minted a literal duplicate. A bounded loop refuses instead.
-                // **And once is enough to know.** The conclusion was not kept,
-                // so every later `mint` walked the whole bounded loop again:
-                // measured on a stopped host, 5.36 s per call, for ever — a
-                // caller writing a hundred journal entries waits nine minutes to
-                // be told the same thing a hundred times, burning a core. The
-                // answer does not change until the clock does, and the clock
-                // moving is exactly what clears this.
+                // and trusting the call lets a stuck clock mint a literal
+                // duplicate. A bounded loop refuses instead. **And once is
+                // enough to know.** With the conclusion not kept, every later
+                // `mint` walks the whole bounded loop again: measured on a
+                // stopped host, 5.36 s per call, for ever — a caller writing a
+                // hundred journal entries waits nine minutes to be told the
+                // same thing a hundred times, burning a core. The answer does
+                // not change until the clock does, and the clock moving is
+                // exactly what clears this.
                 //
-                // **The memo alone, because the guard beside it decided
-                // nothing.** A `now <= self.last_millis` conjunct stood here,
-                // written for a clock that resumed inside the stalled
-                // millisecond; `now == self.last_millis` holds on every path
-                // that reaches this line, so the conjunct was inert — a reviewer
-                // replaced it with `true` and all 79 tests passed — and the case
-                // it was written for takes the `else` branch above and never
-                // arrives. Two comments stood stacked here afterwards, the first
-                // still explaining the removed guard as though it were the fix.
-                // A conjunct nothing can falsify is not a defence, and a comment
-                // for code that is gone is worse than none.
-                // **The conclusion that was reached, not a fixed one.** This
-                // raised `ClockStuck` for whichever exit wrote the memo, so a
-                // clock that dipped and returned came back as `critical` on its
+                // **The memo alone, with no guard beside it.** A
+                // `now <= self.last_millis` conjunct, written for a clock that
+                // resumed inside the stalled millisecond, would decide nothing:
+                // `now == self.last_millis` holds on every path that reaches
+                // this line, so it would be inert — measured, `true` in its
+                // place leaves every test passing — and the case it would be
+                // written for takes the `else` branch above and never arrives.
+                // A conjunct nothing can falsify is not a defence, and a
+                // comment for code that is gone is worse than none. **The
+                // conclusion that was reached, not a fixed one.** Raising
+                // `ClockStuck` for whichever exit wrote the memo would make a
+                // clock that dipped and returned come back as `critical` on its
                 // second call — see `concluded`.
                 if let Some((at, verdict)) = self.concluded
                     && at == now
@@ -668,29 +668,29 @@ impl<C: Clock> Minter<C> {
                 // **What the clock read when the wait began**, so a clock that
                 // *moves* during it is not called stopped. The loop's exit
                 // condition is `now <= last_millis`, which a backwards step
-                // also satisfies — measured, a clock going from …605000 to
-                // …604000 during the wait came out as
+                // also satisfies — measured without this, a clock going from
+                // …605000 to …604000 during the wait comes out as
                 // `ClockStuck { at: 1767225605s }`, `critical`, "the clock has
-                // stopped", for a clock that had moved a full second. The two
+                // stopped", for a clock that has moved a full second. The two
                 // are different machine faults and a responder acts on them
                 // differently.
                 let began_at = now;
-                // **The lowest reading seen, not the last one.** The direction
-                // test looked only at the sample taken after the thousandth
-                // wait, so a clock that sat a full second in the past for 999
-                // samples and returned on the last one came out as
-                // `ClockStuck` — `NC-IDS-0007`, **critical**, *"the clock has
-                // stopped"* — for a clock that had moved a second. A machine
-                // fault reported as a different machine fault sends whoever
-                // reads it to the wrong thing.
+                // **The lowest reading seen, not the last one.** A direction
+                // test looking only at the sample taken after the thousandth
+                // wait makes a clock that sat a full second in the past for 999
+                // samples and returned on the last one come out as `ClockStuck`
+                // — `NC-IDS-0007`, **critical**, *"the clock has stopped"* —
+                // for a clock that has moved a second. A machine fault reported
+                // as a different machine fault sends whoever reads it to the
+                // wrong thing.
                 let mut lowest = now;
                 let mut attempts = 0_u32;
                 while now <= self.last_millis {
                     lowest = lowest.min(now);
                     if attempts >= WAIT_ATTEMPTS && lowest < began_at {
-                        // **Memoised, like the sibling exit.** The conclusion
-                        // was kept for a stopped clock and not for one that had
-                        // moved backwards, so that half paid the whole
+                        // **Memoised, like the sibling exit.** Kept for a
+                        // stopped clock and not for one that moved backwards,
+                        // the conclusion would leave that half paying the whole
                         // `WAIT_ATTEMPTS` loop on every later call — measured,
                         // `now_ms()` called 1001 times per `mint`, four rounds
                         // running, against 1001 then 1 then 1 for the stopped
@@ -707,11 +707,12 @@ impl<C: Clock> Minter<C> {
                         self.concluded = Some((now, Verdict::Stopped));
                         // **The barrier, not the reading.** These are the same
                         // number only when the clock has not moved at all;
-                        // after any partial step the message named a
-                        // millisecond the clock had already passed. Measured:
-                        // `ClockStuck { at: …017 }` with the value that must be
-                        // passed being …020, and the sentence reading "the
-                        // clock did not move past 017" while it read 017.
+                        // after any partial step a message naming the reading
+                        // names a millisecond the clock has already passed.
+                        // Measured: `ClockStuck { at: …017 }` with the value
+                        // that must be passed being …020, and the sentence
+                        // reading "the clock did not move past 017" while it
+                        // read 017.
                         return Err(MintError::ClockStuck {
                             at: Duration::from_millis(self.last_millis),
                         });
@@ -726,15 +727,17 @@ impl<C: Clock> Minter<C> {
                 self.sequence += 1;
             }
         } else {
-            // **The reset, and it could be deleted.** Removing this line left
-            // `cargo xtask check` green: `sequence()` then counts up across
-            // milliseconds for the life of the process — `ms+0: 0 and 1`,
-            // `ms+1: 1 and 2`, `ms+2: 2 and 3` — so its documented meaning
-            // ("its position within its millisecond") is false and the header's
-            // "4,096 per millisecond" becomes "4,096 per process, then a
-            // spurious exhaustion". `an_exhausted_sequence_waits_for_the_next_
-            // millisecond` asserts a zero, but that zero comes from the wait
-            // above rather than from here, and the proptest steps 0..3.
+            // **The reset on a new millisecond.** Without it `sequence()`
+            // would count up across milliseconds for the life of the process —
+            // `ms+0: 0 and 1`, `ms+1: 1 and 2`, `ms+2: 2 and 3` — so its
+            // documented meaning ("its position within its millisecond") would
+            // be false and the header's "4,096 per millisecond" would become
+            // "4,096 per process, then a spurious exhaustion".
+            // `an_exhausted_sequence_waits_for_the_next_millisecond` asserts a
+            // zero, but that zero comes from the wait above rather than from
+            // here, and the proptest steps 0..3;
+            // `each_millisecond_starts_its_sequence_again` is the test of this
+            // line.
             self.sequence = 0;
         }
         self.last_millis = now;
@@ -762,12 +765,12 @@ impl<C: Clock> Minter<C> {
 mod tests {
     /// A stopped clock is concluded once, not on every call.
     ///
-    /// **It cost 5.36 s per `mint`, for ever.** `WAIT_ATTEMPTS` × `YIELDS_PER_WAIT`
-    /// is a thousand waits of ten thousand yields, and the conclusion was thrown
-    /// away — so a caller writing a hundred journal entries on a host whose clock
-    /// has stopped waits about nine minutes, burning a core, to be told the same
-    /// thing a hundred times. The crate's own stuck-clock test uses a no-op
-    /// `wait_past`, which is why the cost was invisible here.
+    /// **Without the memo, 5.36 s per `mint`, for ever.** `WAIT_ATTEMPTS`
+    /// × `YIELDS_PER_WAIT` is a thousand waits of ten thousand yields, and with
+    /// the conclusion thrown away a caller writing a hundred journal entries on
+    /// a host whose clock has stopped waits about nine minutes, burning a core,
+    /// to be told the same thing a hundred times. The crate's own stuck-clock
+    /// test uses a no-op `wait_past`, which is why the cost is invisible there.
     #[test]
     fn a_stopped_clock_is_concluded_once() {
         // The clock the sibling test uses, which counts its own waits.
@@ -796,7 +799,7 @@ mod tests {
         );
     }
 
-    /// Two constants that must agree, and only one direction was coupled.
+    /// Two constants that must agree, coupled in both directions.
     #[test]
     fn the_two_flake_widths_are_one_width() {
         // **Two constants that must agree, with nothing saying so.**
@@ -822,14 +825,14 @@ mod tests {
 
     /// The epoch, written out, and what an identifier minted at it decodes to.
     ///
-    /// **The one constant whose doc says "never change this", and nothing was
-    /// measuring it.** Every test in this crate is written as `EPOCH_MS + n`,
-    /// so the constant was only ever compared against itself: moving it by nine
-    /// years — 2026-01-01 to 2017-07-14 — left `cargo xtask check` green with
-    /// 657 tests.
+    /// **The one constant whose doc says "never change this", measured against
+    /// the calendar.** The tests that mint are written as `EPOCH_MS + n`, so
+    /// they move with it; what holds the number is this and
+    /// `every_declared_bound_is_the_number_its_paragraph_argues_for`, and only
+    /// this spells it as the wall-clock instant it is supposed to be.
     ///
-    /// What that costs is not a failing test somewhere. Every identifier ever
-    /// minted is an offset from this number, so moving it renumbers history:
+    /// What moving it costs is not a failing test somewhere. Every identifier
+    /// ever minted is an offset from this number, so moving it renumbers history:
     /// `millis_since_epoch()` on a stored id is off by the delta, the 2095
     /// range boundary moves, the "names grow to thirteen characters in 2034"
     /// arithmetic in `base32.rs` moves, and ids minted either side of the
@@ -900,9 +903,8 @@ mod tests {
     }
 
     // **On the fake itself**, with the reference covered by the blanket
-    // `impl<C: Clock> Clock for &C` beside the trait. It used to be written on
-    // `&FakeClock` only, which is why the blanket impls were missing: the one
-    // caller that needed them had worked around their absence.
+    // `impl<C: Clock> Clock for &C` beside the trait — so no caller has to work
+    // around the absence of the blanket impls by writing on `&FakeClock` only.
     impl Clock for FakeClock {
         fn now_ms(&self) -> u64 {
             self.millis.get()
@@ -915,10 +917,10 @@ mod tests {
 
     /// One clock, two minters — and a clock chosen at run time.
     ///
-    /// **Neither compiled.** `Clock` had no `impl` for a reference or a box
-    /// outside `#[cfg(test)]`, so a kernel that owns one clock and wants two
-    /// minters could not have them, and one that picks a clock at run time could
-    /// not either:
+    /// **Both compile.** Without an `impl` of `Clock` for a reference or a box
+    /// outside `#[cfg(test)]`, a kernel that owns one clock and wants two
+    /// minters cannot have them, and one that picks a clock at run time cannot
+    /// either:
     ///
     /// ```text
     /// error[E0277]: the trait bound `&Shared: Clock` is not satisfied
@@ -953,7 +955,7 @@ mod tests {
 
     /// A clock whose `wait_past` does nothing at all.
     ///
-    /// The hazard `Clock`'s own documentation names, and the one that produced a
+    /// The hazard `Clock`'s own documentation names, and the one that produces a
     /// duplicate identifier: a virtualised or suspended host where the wait
     /// returns immediately and the reading never moves.
     #[derive(Debug)]
@@ -976,7 +978,7 @@ mod tests {
 
     /// A clock that is stuck, then healthy: `wait_past` advances once armed.
     ///
-    /// `StuckClock` can only ever be stuck, which is why it could not reach the
+    /// `StuckClock` can only ever be stuck, which is why it cannot reach the
     /// half of the memo below.
     struct RecoveringClock {
         now: Cell<u64>,
@@ -1010,11 +1012,12 @@ mod tests {
 
     /// A conclusion belongs to the millisecond it was reached in.
     ///
-    /// **`at == now` was decided by nothing.** Dropping it — `if let Some((_at,
-    /// verdict)) = self.concluded` — left `cargo test --workspace` and `cargo
-    /// xtask check` green, because `concluded` is never cleared and every
-    /// existing case asks the same millisecond twice. The memoisation half has
-    /// two tests; this half had none, and `AGENTS.md` names this exact repair.
+    /// **`at == now`, decided.** Dropping it
+    /// — `if let Some((_at, verdict)) = self.concluded` —
+    /// leaves `cargo test --workspace` and `cargo xtask check` green without
+    /// this, because `concluded` is never cleared and every other case asks the
+    /// same millisecond twice. The memoisation half has two tests; this is the
+    /// test of this half, and `AGENTS.md` names this exact repair.
     ///
     /// What it lets through: a machine whose clock stopped for one millisecond,
     /// recovered, and is then refused for the rest of the process with
@@ -1042,7 +1045,8 @@ mod tests {
                 .mint()
                 .expect("a healthy clock mints through a fresh millisecond");
         }
-        // And exhausting *that* millisecond is a wait, not the old conclusion.
+        // And exhausting *that* millisecond is a wait, not the `ClockStuck`
+        // concluded for the stuck one.
         let after = minter
             .mint()
             .expect("the wait runs and the next millisecond mints");
@@ -1058,8 +1062,8 @@ mod tests {
 
     #[test]
     fn every_minting_failure_is_reported_under_a_code_of_its_own() {
-        // The module header names the line each of these is queried by, and the
-        // mappings had no reader — `ClockStuck` could be repointed to
+        // The module header names the line each of these is queried by, and
+        // without a reader of the mappings `ClockStuck` could be repointed to
         // `IdsClockBackwards` with the whole suite green, which would send a
         // responder to look at a clock that moved when the problem is a clock
         // that did not.
@@ -1084,16 +1088,20 @@ mod tests {
             .code(),
             ErrorCode::IdsClockBackwards
         );
-        // **And the three the name of this test claims and nothing held.**
-        // `MintError` has five variants and two of their codes were pinned. The
-        // other three were held by nothing: `the_clock_codes_say_retry_where_
-        // retrying_works` asserts only that they are not retryable and are not
+        // **And the three the name of this test claims.** `MintError` has five
+        // variants, and two of their codes are pinned elsewhere. Of the other
+        // three, `MarkOutOfRange`'s is pinned by
+        // `a_mark_further_ahead_than_any_skew_is_corrupt_rather_than_early` as
+        // well, and `BeyondRange` and `BeforeEpoch` are held only here:
+        // `the_clock_codes_say_retry_where_retrying_works` asserts only that
+        // they are not retryable and that `BeyondRange`'s is not
         // `IdsClockBackwards`, which any non-retryable code in the registry
         // satisfies, and every other fixture matches on the *variant*. Measured
-        // in round seventy-one wave 9: `BeyondRange | BeforeEpoch` repointed to
-        // `IdsNameTooLong` left `119 passed`, so a clock set to 1999 was
-        // reported under *"A file name cannot be built within the filesystem's
-        // limits"*. `§15.1` calls a code the line a log is queried by.
+        // without these: `BeyondRange | BeforeEpoch` repointed to
+        // `IdsNameTooLong` leaves the suite green, so a clock set to 1999 would
+        // be reported under *"A file name cannot be built within the
+        // filesystem's limits"*. `§15.1` calls a code the line a log is queried
+        // by.
         assert_eq!(
             MintError::BeyondRange.code(),
             ErrorCode::IdsClockOutOfRange,
@@ -1105,8 +1113,7 @@ mod tests {
             ErrorCode::IdsClockOutOfRange,
             "a clock before the epoch is reported under a code that is not about a clock"
         );
-        // **The fifth, and it is written down as a question rather than a
-        // settled mapping.** `MarkOutOfRange` carries this code too, and
+        // **The fifth.** `MarkOutOfRange` does not carry this code, because
         // NC-IDS-0008 renders in both locales as *"This computer's clock is set
         // to the wrong year, so nothing can be saved. Fix the date and time,
         // then try again."* That sentence is true of the two above and false of
@@ -1115,25 +1122,20 @@ mod tests {
         // inside the layout. The clock is fine; the persisted mark is a wrong
         // number, which is what the variant's own `Display` says.
         //
-        // What it costs is not cosmetic: the one condition whose first place to
-        // look is the mark store is reported to a person as a machine with the
-        // wrong date, **and moving the clock forward past the corrupt mark is
-        // the single action that makes `resuming_at` accept the number it has
-        // just diagnosed as corrupt**. `catalog/errors.toml` states the rule at
-        // NC-IDS-0006 — "a code is only worth having if its description is true
-        // of every failure that carries it" — and split that code out on
-        // precisely this ground.
+        // What it would cost is not cosmetic: the one condition whose first
+        // place to look is the mark store would be reported to a person as a
+        // machine with the wrong date, **and moving the clock forward past the
+        // corrupt mark is the single action that makes `resuming_at` accept the
+        // number it has just diagnosed as corrupt**. `catalog/errors.toml`
+        // states the rule at NC-IDS-0006 — "a code is only worth having if its
+        // description is true of every failure that carries it" — and split
+        // that code out on precisely this ground.
         //
-        // **Decided, and the pin moved with it.** It stood at
-        // `IdsClockOutOfRange` because changing which code a failure carries
-        // changes the line a log is queried by, and that is the developer's
-        // call rather than this suite's — so the pin was put here to make the
-        // decision land on a line somebody has to edit. It was made on
-        // 2026-09-27, on the developer's instruction to decide it, and it is
-        // the repair this paragraph already named: `ValidationOutOfRange`,
-        // which `flake::FlakeOutOfRange` uses for the same thing, adding no
-        // code and renumbering none. Reported by the reviewer that closed
-        // wave 9.
+        // **So it carries `ValidationOutOfRange`**, which
+        // `flake::FlakeOutOfRange` uses for the same thing, adding no code and
+        // renumbering none. Which code a failure carries changes the line a log
+        // is queried by, so the pin is here to make that decision land on a
+        // line somebody has to edit.
         //
         // What is still the developer's: a code of its own for a corrupt mark
         // is an `errors.toml` reservation, and reservations are permanent.
@@ -1159,12 +1161,12 @@ mod tests {
 
     #[test]
     fn a_stuck_clock_refuses_for_ever_and_never_repeats_an_identifier() {
-        // The route to a literal duplicate. Every exit from the exhausted branch
-        // is an early return, so a `sequence` raised before the check stayed
-        // raised — and on the 65 536th refusal the `u16` wrapped to zero and the
-        // minter handed out an identifier it had already issued. In a release
-        // build that is silent; in a debug build it is an overflow panic. The
-        // count below is past the wrap on purpose.
+        // The route to a literal duplicate. Every exit from the exhausted
+        // branch is an early return, so a `sequence` raised before the check
+        // would stay raised — and on the 65 536th refusal the `u16` would wrap
+        // to zero and the minter hand out an identifier it had already issued.
+        // In a release build that is silent; in a debug build it is an overflow
+        // panic. The count below is past the wrap on purpose.
         let clock = StuckClock::at(EPOCH_MS + 1);
         let mut minter = Minter::new(flake(), &clock);
         let mut issued = std::collections::BTreeSet::new();
@@ -1188,13 +1190,14 @@ mod tests {
 
     /// A clock outside the layout is refused when a minter is resumed.
     ///
-    /// **The guard was a repair nothing drove.** Deleting
-    /// `Self::within_range(now)?` left the whole suite green — and without it
-    /// one fault gets two error codes with opposite advice: `resuming_at`
-    /// answers `ClockMovedBackwards` (`NC-IDS-0001`, retryable, which
-    /// `the_clock_codes_say_retry_where_retrying_works` certifies) while `mint`
-    /// answers `BeforeEpoch` (`NC-IDS-0008`, not retryable) for the same host.
-    /// Which one a caller is told depends on the door they came through.
+    /// **The guard, driven.** Deleting `Self::within_range(now)?` leaves the
+    /// rest of the suite green — and without it one fault gets two error codes
+    /// with opposite advice: `resuming_at` answers `ClockMovedBackwards`
+    /// (`NC-IDS-0001`, retryable,
+    /// which `the_clock_codes_say_retry_where_retrying_works` certifies)
+    /// while `mint` answers `BeforeEpoch` (`NC-IDS-0008`, not retryable) for
+    /// the same host. Which one a caller is told would depend on the door they
+    /// came through.
     #[test]
     fn a_clock_outside_the_layout_is_refused_when_resuming() {
         let early = FakeClock::at(EPOCH_MS - 1);
@@ -1217,9 +1220,9 @@ mod tests {
 
     #[test]
     fn a_resumed_minter_does_not_reissue_within_the_millisecond_it_resumed_at() {
-        // What `resuming_at`'s sequence-starts-exhausted rule is **for**, and the
-        // case it had no test for: the only `resuming_at` test drives the clock
-        // backwards, which takes a different branch entirely.
+        // What `resuming_at`'s sequence-starts-exhausted rule is **for**: the
+        // other `resuming_at` test drives the clock backwards, which takes a
+        // different branch entirely.
         //
         // A process issues sequences 0..=4 at millisecond 100 and stops. It
         // restarts with 100 as its high-water mark. With the sequence starting at
@@ -1240,7 +1243,7 @@ mod tests {
     #[test]
     fn an_identifier_that_would_set_the_sign_bit_is_refused() {
         // The layout is 63 bits and `Snowflake` is a `u64`, so the sign bit is
-        // always clear — a property the module header states and nothing tested.
+        // always clear — a property the module header states and this tests.
         // Thirteen characters is a legal Crockford width, so this arrives through
         // the length check and has to be caught by the value check behind it.
         let error = Snowflake::from_crockford("8000000000000").expect_err("must refuse");
@@ -1251,9 +1254,9 @@ mod tests {
             ),
             "{error:?}"
         );
-        // **And the sentence says 63.** It said 64 for both ceilings, so a value
-        // this layout refuses was reported as needing more than the 64 bits
-        // `base32::decode` had just fitted it into. Measured:
+        // **And the sentence says 63.** Saying 64 for both ceilings would
+        // report a value this layout refuses as needing more than the 64 bits
+        // `base32::decode` has just fitted it into. Measured:
         //
         // ```text
         // 8000000000000 -> decode = Ok(9223372036854775808)
@@ -1272,11 +1275,11 @@ mod tests {
 
     #[test]
     fn a_clock_at_the_far_edge_of_the_layout_is_refused_on_both_sides() {
-        // The upper bound, at the boundary rather than either side of it. A bound
-        // tested only well inside and well outside is a bound nobody has checked:
-        // doubling it here let a clock past the end of the range mint an
-        // identifier whose timestamp had wrapped to zero — an identifier from
-        // 2095 sorting before every identifier ever minted.
+        // The upper bound, at the boundary rather than either side of it. A
+        // bound tested only well inside and well outside is a bound nobody has
+        // checked: doubling it here lets a clock past the end of the range mint
+        // an identifier whose timestamp has wrapped to zero — an identifier
+        // from 2095 sorting before every identifier ever minted.
         let last = FakeClock::at(EPOCH_MS + TIMESTAMP_MASK);
         let mut minter = Minter::new(flake(), &last);
         let ok = minter.mint().expect("the last millisecond in range mints");
@@ -1289,9 +1292,9 @@ mod tests {
 
     #[test]
     fn a_wait_that_lands_past_the_range_is_refused_rather_than_minted() {
-        // The range re-check **after** the wait. Without it, a clock that jumped
-        // while the minter was waiting out an exhausted sequence minted an
-        // identifier with a fabricated timestamp instead of refusing.
+        // The range re-check **after** the wait. Without it, a clock that
+        // jumped while the minter was waiting out an exhausted sequence would
+        // mint an identifier with a fabricated timestamp instead of refusing.
         #[derive(Debug)]
         struct JumpingClock {
             millis: Cell<u64>,
@@ -1385,14 +1388,14 @@ mod tests {
 
     /// The bit above the layout is nobody's field.
     ///
-    /// **The accessor's own mask was reachable by nothing.** `assemble` masks
-    /// each field on the way in and `from_crockford` refuses a value past the
-    /// layout, so no `Snowflake` a caller can build has bit 63 set — and
-    /// `millis_since_epoch`'s `& TIMESTAMP_MASK` could be deleted with the whole
-    /// workspace green. That is not the same as the mask being wrong: it is a
-    /// clause in a third state, neither tested nor deleted, in a file whose
-    /// sibling test exists because deleting `assemble`'s three masks was also
-    /// green.
+    /// **The accessor's own mask, reached.** `assemble` masks each field on the
+    /// way in and `from_crockford` refuses a value past the layout, so
+    /// no `Snowflake` a caller can build has bit 63 set — and without
+    /// this `millis_since_epoch`'s `& TIMESTAMP_MASK` could be deleted with the
+    /// whole workspace green. That is not the same as the mask being wrong: it
+    /// is a clause in a third state, neither tested nor deleted, in a file
+    /// whose sibling test exists because deleting `assemble`'s three masks is
+    /// also green without it.
     ///
     /// The layout is 41 + 10 + 12 = 63 bits of a `u64`, so the sixty-fourth is
     /// the one place a value can carry something the layout does not name. The
@@ -1420,17 +1423,18 @@ mod tests {
     fn every_field_stays_inside_its_own_bits() {
         // **All three masks, from outside.** `mint` guarantees the sequence is
         // at most 4095, so `assemble`'s `& SEQUENCE_MASK` is defence in depth —
-        // and deleting it left the whole suite green, while the flake and the
-        // timestamp masks sit in the same expression and the module header rests
-        // its 63-bit claim on all three. A field that overflowed into its
-        // neighbour would produce an identifier whose timestamp is a lie, which
-        // is the one thing the layout exists to prevent.
+        // and without this deleting it leaves the whole suite green, while the
+        // flake and the timestamp masks sit in the same expression and the
+        // module header rests its 63-bit claim on all three. A field that
+        // overflowed into its neighbour would produce an identifier whose
+        // timestamp is a lie, which is the one thing the layout exists to
+        // prevent.
         //
         // `assemble` is private, so this is written through it directly rather
         // than through `mint`, which cannot produce the out-of-range values.
         // **Read as the whole value, and one field at a time.** Reading the
-        // accessors back was not enough: `flake()` and `sequence()` re-apply the
-        // same masks, so a mask missing from `assemble` was invisible through
+        // accessors back is not enough: `flake()` and `sequence()` re-apply the
+        // same masks, so a mask missing from `assemble` is invisible through
         // them — and saturating every field at once hides the overflow inside a
         // neighbour that is already all ones.
         //
@@ -1466,11 +1470,11 @@ mod tests {
 
     /// The shipped clock waits until the millisecond has actually turned.
     ///
-    /// **The wait's *success* path was exercised by nothing.** Every test of the
-    /// exhaustion guard uses a fake, and the one test of `SystemClock` asks it to
-    /// wait past an hour from now — a barrier it cannot pass — so it asserts the
-    /// wait *returns* and that it is fast, and both stay true when the wait
-    /// stops waiting. Measured on 2026-09-08, `if self.now_ms() > millis` widened
+    /// **The wait's *success* path.** Every other test of the exhaustion guard
+    /// uses a fake, and the other test of `SystemClock` asks it to wait past an
+    /// hour from now — a barrier it cannot pass — so it asserts the wait
+    /// *returns* and that it is fast, and both stay true when the wait stops
+    /// waiting. Measured without this, `if self.now_ms() > millis` widened
     /// to `>=`:
     ///
     /// ```text
@@ -1508,24 +1512,24 @@ mod tests {
     /// yielded exactly [`super::YIELDS_PER_WAIT`] times.
     ///
     /// **Every test of the `ClockStuck` guard uses a fake whose `wait_past`
-    /// returns immediately**, and the shipped `SystemClock`'s did not: it was
-    /// `while now_ms() <= millis { yield_now() }`, so on a frozen or suspended
-    /// host `mint`'s bounded loop never got its turn and the caller spun a core
-    /// instead of receiving an error. `SystemClock` is not test-only —
-    /// `nc-journal`'s `Journal<S, C = SystemClock>` is what the platform writes
-    /// through.
+    /// returns immediately**, and the shipped `SystemClock`'s does not: an
+    /// unbounded `while now_ms() <= millis { yield_now() }` would
+    /// leave `mint`'s bounded loop never getting its turn on a frozen or
+    /// suspended host, and the caller spinning a core instead of receiving an
+    /// error. `SystemClock` is not test-only
+    /// — `nc-journal`'s `Journal<S, C = SystemClock>` is what the platform
+    /// writes through.
     ///
     /// Asked to wait past an hour from now, which is what a stopped clock looks
     /// like from inside the wait, through the seam the shipped wait runs: the
-    /// yields are counted, which is the bound from both sides. A smaller one —
-    /// `0..YIELDS_PER_WAIT / 10_000`, measured — turns an ordinary sequence
-    /// exhaustion on a healthy host into `ClockStuck`, `NC-IDS-0007`, *the clock
-    /// has stopped*: 20 000 mints in a tight loop went from `minted 20000,
-    /// refusals 0` to `minted 6527, refusals 4`. **Counted, never timed**: a
-    /// reviewer found the five-second bound this replaced failing every run
-    /// with four spinners on its core — a red gate on a loaded machine nobody
-    /// could tell from a real one — as a 500 ms bound before it had under a
-    /// gate's ordinary load.
+    /// yields are counted, which is the bound from both sides. A smaller one
+    /// — `0..YIELDS_PER_WAIT / 10_000`, measured — turns an ordinary sequence
+    /// exhaustion on a healthy host into `ClockStuck`, `NC-IDS-0007`, *the
+    /// clock has stopped*: 20 000 mints in a tight loop go
+    /// from `minted 20000, refusals 0` to `minted 6527, refusals 4`. **Counted,
+    /// never timed**: a five-second bound fails every run with four spinners on
+    /// its core — a red gate on a loaded machine nobody could tell from a real
+    /// one — and a 500 ms bound fails under a gate's ordinary load.
     #[test]
     fn the_shipped_clocks_wait_returns_after_its_yields_when_the_clock_will_not_move() {
         let far_ahead = SystemClock.now_ms() + 3_600_000;
@@ -1547,9 +1551,9 @@ mod tests {
         // and the next call pays it again   5.36s
         // ```
         //
-        // Raising `YIELDS_PER_WAIT` a hundredfold left the whole crate green in
-        // half a second, and would make that five seconds nine minutes — per
-        // `mint`, for ever, because a frozen clock stays exhausted.
+        // Raising `YIELDS_PER_WAIT` a hundredfold leaves the rest of the crate
+        // green in half a second, and would make that five seconds nine minutes
+        // — per `mint`, for ever, because a frozen clock stays exhausted.
         assert_eq!(
             super::YIELDS_PER_WAIT,
             10_000,
@@ -1573,16 +1577,16 @@ mod tests {
         let error = minter.mint().expect_err("a stuck clock must refuse");
         assert!(matches!(error, MintError::ClockStuck { .. }), "{error:?}");
         assert_eq!(error.code(), nc_catalog::ErrorCode::IdsClockStuck);
-        // **The bound itself, which nothing checked**: raising `WAIT_ATTEMPTS`
-        // from a thousand to a hundred thousand was green, and the difference
-        // between those two is how long a caller waits for an error it is going
-        // to get either way.
-        // **Written out, not read from the constant.** The assertion said
-        // `clock.1.get() == super::WAIT_ATTEMPTS`, which reads the value under
-        // test and therefore cannot disagree with it: `WAIT_ATTEMPTS = 1` passed
-        // the whole gate. The number is a decision about how long a caller waits
-        // for an error it is going to get anyway, so it is written here the way
-        // this repository writes every other mapping it refuses to derive.
+        // **The bound itself**, which
+        // `every_declared_bound_is_the_number_its_paragraph_argues_for` pins
+        // too: a thousand against a hundred thousand is how long a caller waits
+        // for an error it is going to get either way. **Written out, not read
+        // from the constant.** An assertion of
+        // `clock.1.get() == super::WAIT_ATTEMPTS` reads the value under test
+        // and therefore cannot disagree with it: `WAIT_ATTEMPTS = 1` passes it.
+        // The number is a decision about how long a caller waits for an error
+        // it is going to get anyway, so it is written here the way this
+        // repository writes every other mapping it refuses to derive.
         assert_eq!(
             clock.1.get(),
             1_000,
@@ -1598,18 +1602,18 @@ mod tests {
 
     #[test]
     fn one_millisecond_backwards_is_already_a_duplicate() {
-        // **The boundary, which is the size the failure actually comes in.** The
-        // test above steps back six hundred milliseconds and the resumed-minter
-        // test steps back fifty; loosening the comparison to `now + 1 <
-        // last_millis` — which tolerates exactly the granularity NTP slew and
-        // leap-second smearing operate at — left both of them green and the whole
-        // gate passing.
+        // **The boundary, which is the size the failure actually comes in.**
+        // The test above steps back six hundred milliseconds and the
+        // resumed-minter test steps back fifty; loosening the comparison to
+        // `now + 1 < last_millis` — which tolerates exactly the granularity NTP
+        // slew and leap-second smearing operate at — leaves both of them green
+        // and the whole gate passing without this.
         //
         // And it is not a theoretical duplicate. Minting at 99, minting at 100
-        // and stepping back to 99 re-issues the identifier handed out at 99: the
-        // sequence is per millisecond, so a repeated millisecond repeats it from
-        // zero. `§16.2`'s rule is refuse rather than repeat, and the smallest
-        // step is the one nobody was watching.
+        // and stepping back to 99 re-issues the identifier handed out at 99:
+        // the sequence is per millisecond, so a repeated millisecond repeats it
+        // from zero. `§16.2`'s rule is refuse rather than repeat, and the
+        // smallest step is the one the other two tests leave unwatched.
         let clock = FakeClock::at(EPOCH_MS + 99);
         let mut minter = Minter::new(flake(), &clock);
         let first = minter.mint().expect("mints");
@@ -1649,8 +1653,8 @@ mod tests {
 
     #[test]
     fn a_clock_that_does_not_advance_refuses_rather_than_repeating_an_identifier() {
-        // The `Clock` doc names this hazard and an earlier version trusted the
-        // call, so a stuck clock minted a literal duplicate.
+        // The `Clock` doc names this hazard, and trusting the call lets a stuck
+        // clock mint a literal duplicate.
         struct Stuck(u64);
         impl super::Clock for &Stuck {
             fn now_ms(&self) -> u64 {
@@ -1668,8 +1672,8 @@ mod tests {
 
     #[test]
     fn one_glitched_reading_does_not_poison_the_minter() {
-        // A single reading far in the future used to latch `last_millis` to it,
-        // and every later call returned `ClockMovedBackwards` with an absurd
+        // A single reading far in the future must not latch `last_millis` to
+        // it, or every later call returns `ClockMovedBackwards` with an absurd
         // drift, forever.
         let clock = FakeClock::at(EPOCH_MS + 10);
         let mut minter = Minter::new(flake(), &clock);
@@ -1724,8 +1728,8 @@ mod tests {
         let clock = FakeClock::at(EPOCH_MS - 1);
         let mut minter = Minter::new(flake(), &clock);
         assert_eq!(minter.mint(), Err(MintError::BeforeEpoch));
-        // And the two directions are distinguishable, which they were not: a clock
-        // before the epoch was reported under a message saying "past the range".
+        // And the two directions are distinguishable: a clock before the epoch
+        // is not reported under a message saying "past the range".
         assert_ne!(MintError::BeforeEpoch, MintError::BeyondRange);
         assert!(MintError::BeforeEpoch.to_string().contains("before"));
     }
@@ -1739,17 +1743,16 @@ mod tests {
         // And the sign bit stays clear, so a signed reader sees the same number.
         assert!(one.value() < 1 << 63);
 
-        // **Every field at its widest, because two of the three were read only
-        // in their low half.** `millis_since_epoch` is asserted at
+        // **Every field at its widest, because two of the three are otherwise
+        // read only in their low half.** `millis_since_epoch` is asserted at
         // `TIMESTAMP_MASK` and `flake` at 789, which has its top bit set; the
-        // sequence was asserted at 42 and at 1_011, both under 2_048, so the
-        // top bit of its twelve-bit field was read by no assertion at all.
+        // sequence is asserted elsewhere at 42 and at 1_011, both under 2_048,
+        // so the top bit of its twelve-bit field is read by no other assertion.
         // A minter reaches 4_095 inside one millisecond, so a mask one bit
-        // short makes every identifier from the upper half of every
-        // millisecond report a position that is not its own, and two distinct
-        // identifiers report the same one. It is public API of a published
-        // crate. Measured: `& (SEQUENCE_MASK >> 1)` left `ok 1130 test(s)` and
-        // `check passed`.
+        // short makes every identifier from the upper half of every millisecond
+        // report a position that is not its own, and two distinct identifiers
+        // report the same one. It is public API of a published crate. Measured
+        // without this: `& (SEQUENCE_MASK >> 1)` leaves `check passed`.
         let widest = Snowflake::assemble(
             super::TIMESTAMP_MASK,
             u16::try_from(super::FLAKE_MASK).expect("ten bits fit a u16"),
@@ -1771,8 +1774,8 @@ mod tests {
     /// A resumed minter reports the mark it was resumed from.
     ///
     /// The other side of `a_minter_that_has_not_minted_has_no_mark`, which only
-    /// ever constructs through `Minter::new` — so the doc's claim about `None`
-    /// was never tested on the path that contradicts it.
+    /// ever constructs through `Minter::new` — so this is what tests the doc's
+    /// claim about `None` on the path that would contradict it.
     #[test]
     fn a_resumed_minter_has_the_mark_it_was_given() {
         let clock = FakeClock::at(EPOCH_MS + 500);
@@ -1788,11 +1791,12 @@ mod tests {
 
     /// A minter that has minted nothing has no mark, and says so.
     ///
-    /// **It said zero, which `resuming_at` refuses.** A caller persisting on a
-    /// timer wrote that value and was answered `BeforeEpoch` on the next start —
-    /// reported to a person, in both locales, as a clock set to the wrong year,
-    /// on a machine whose clock is fine. Nothing to persist is a state a caller
-    /// can act on; zero is a state it has to know about this type to read.
+    /// **Not zero, which `resuming_at` refuses.** A caller persisting on a
+    /// timer would write that value and be answered `BeforeEpoch` on the next
+    /// start — reported to a person, in both locales, as a clock set to the
+    /// wrong year, on a machine whose clock is fine. Nothing to persist is a
+    /// state a caller can act on; zero is a state it has to know about this
+    /// type to read.
     #[test]
     fn a_minter_that_has_not_minted_has_no_mark() {
         let clock = FakeClock::at(EPOCH_MS + 100);
@@ -1814,9 +1818,10 @@ mod tests {
 
     /// A mark inside the layout but far ahead of the clock is refused as corrupt.
     ///
-    /// **The guard only refused marks outside the 41 bits**, and the test below
-    /// reaches `0`, `1`, `EPOCH_MS - 1`, `u64::MAX` and `EPOCH_MS + 100` —
-    /// nothing between. So a mark at the top of the layout came back as
+    /// **A guard refusing only marks outside the 41 bits is not enough**, and
+    /// the test below reaches `0`, `1`, `EPOCH_MS - 1`, `u64::MAX` and
+    /// `EPOCH_MS + 100` — nothing between. Under that guard a mark at the top of
+    /// the layout comes back as
     /// `ClockMovedBackwards { drift: 2199023255.451s }`, sixty-nine years, under
     /// `NC-IDS-0007`, which `the_clock_codes_say_retry_where_retrying_works`
     /// certifies as *retryable*. A caller doing what the code says would wait
@@ -1854,14 +1859,15 @@ mod tests {
 
     /// The sequence starts again in each millisecond.
     ///
-    /// **The reset could be deleted with `cargo xtask check` green.** Without it
-    /// `sequence()` counts up across milliseconds for the life of the process —
-    /// `ms+0: 0 and 1`, `ms+1: 1 and 2`, `ms+2: 2 and 3` — so its documented
-    /// meaning, *its position within its millisecond*, is false, and the module
-    /// header's "4,096 identifiers per millisecond" becomes "4,096 per process,
-    /// and then a spurious exhaustion". `an_exhausted_sequence_waits_for_the_next_millisecond`
-    /// does assert a zero, but that zero is written by the wait rather than by
-    /// this branch, and the property test steps 0..3 which is inside one wait.
+    /// **Without this the reset could be deleted with `cargo xtask check`
+    /// green.** `sequence()` would count up across milliseconds for the life of
+    /// the process — `ms+0: 0 and 1`, `ms+1: 1 and 2`, `ms+2: 2 and 3` — so its
+    /// documented meaning, *its position within its millisecond*, would be
+    /// false, and the module header's "4,096 identifiers per millisecond" would
+    /// become "4,096 per process, and then a spurious
+    /// exhaustion". `an_exhausted_sequence_waits_for_the_next_millisecond` does
+    /// assert a zero, but that zero is written by the wait rather than by this
+    /// branch, and the property test steps 0..3 which is inside one wait.
     #[test]
     fn each_millisecond_starts_its_sequence_again() {
         let clock = FakeClock::at(EPOCH_MS + 1);
@@ -1898,8 +1904,8 @@ mod tests {
     #[test]
     /// A high-water mark this layout cannot hold is refused, not stored.
     ///
-    /// **Every `u64` was accepted.** A mark below the epoch silently turns the
-    /// protection off — the minter's barrier is already behind the clock, so a
+    /// **Not every `u64`.** A mark below the epoch would silently turn the
+    /// protection off — the minter's barrier already behind the clock, so a
     /// restart re-issues what the previous process handed out:
     ///
     /// ```text
@@ -1908,8 +1914,9 @@ mod tests {
     /// ```
     ///
     /// and a mark above it bricks minting behind a `retryable` code: 1000
-    /// retries at `u64::MAX` gave `ClockMovedBackwards { drift: 18446742306483951s }`
-    /// every time, first clearing in about 584 942 361 years.
+    /// retries at `u64::MAX`
+    /// give `ClockMovedBackwards { drift: 18446742306483951s }` every time,
+    /// first clearing in about 584 942 361 years.
     fn a_high_water_mark_outside_the_layout_is_refused() {
         for (about, mark) in [
             ("zero", 0),
@@ -1942,10 +1949,11 @@ mod tests {
 
     /// The two clock codes say retry in the direction a retry works.
     ///
-    /// **They carried it backwards, both of them.** A clock that is set wrong
-    /// stays set wrong — 500 retries at 1999 and at 2200 gave `BeforeEpoch` and
-    /// `BeyondRange` every time under `retryable = true` — while a stopped clock
-    /// is the one condition the next tick clears, and it said do not.
+    /// **Retry where a retry works, and nowhere else.** A clock that is set
+    /// wrong stays set wrong — 500 retries at 1999 and at 2200 give
+    /// `BeforeEpoch` and `BeyondRange` every time — while a stopped clock is the
+    /// one condition the next tick clears. Marked the other way round, both
+    /// codes would carry it backwards.
     #[test]
     fn the_clock_codes_say_retry_where_retrying_works() {
         assert!(
@@ -1956,11 +1964,11 @@ mod tests {
             !MintError::BeforeEpoch.code().retryable(),
             "a clock set to the wrong century is not fixed by asking again"
         );
-        // **And a step back is, which the shared code could not say.** All three
-        // carried `IdsClockBackwards`, `retryable = false`, so the ordinary NTP
-        // step — measured clearing 601 ms later with the identical call
-        // answering `Ok` — was reported as permanent under a sentence telling
-        // the reader to wait for it to clear.
+        // **And a step back is, which a shared code could not say.** With all
+        // three carrying `IdsClockBackwards`, `retryable = false`, the ordinary
+        // NTP step — measured clearing 601 ms later with the identical call
+        // answering `Ok` — would be reported as permanent under a sentence
+        // telling the reader to wait for it to clear.
         assert!(
             MintError::ClockMovedBackwards {
                 drift: Duration::from_millis(600),
@@ -1991,10 +1999,10 @@ mod tests {
     /// on.
     ///
     /// They are the same number only when the clock has not moved at all. After
-    /// a partial step the message named a millisecond the clock had already
-    /// passed: `ClockStuck { at: …017 }` while the value to beat was …020, and
-    /// the sentence read "the clock did not move past 017" with the clock
-    /// reading 017.
+    /// a partial step a message naming the reading names a millisecond the
+    /// clock has already passed: `ClockStuck { at: …017 }` while the value to
+    /// beat is …020, and the sentence reads "the clock did not move past 017"
+    /// with the clock reading 017.
     #[test]
     fn a_stopped_clock_names_the_millisecond_it_has_to_pass() {
         // **A genuinely stopped clock**, which is what `ClockStuck` is for: it
@@ -2021,13 +2029,14 @@ mod tests {
 
     /// Both exits from the wait are concluded once.
     ///
-    /// **The conclusion was kept for one of them.** A stopped clock costs the
-    /// whole `WAIT_ATTEMPTS` loop once and one clock read afterwards; a clock
-    /// that had moved backwards paid the loop again on every later call —
-    /// measured, `now_ms()` called 1001 times per `mint`, four rounds running,
-    /// against 1001 then 1 then 1 for the stopped case. With `SystemClock` each
-    /// of those waits is up to ten thousand `yield_now()`, which is the 5.36 s
-    /// per call the memo exists to stop.
+    /// **Both, not one.** A stopped clock costs the whole `WAIT_ATTEMPTS` loop
+    /// once and one clock read afterwards; with the conclusion kept for that
+    /// exit alone, a clock that had moved backwards would pay the loop again on
+    /// every later call — measured, `now_ms()` called 1001 times per `mint`,
+    /// four rounds running, against 1001 then 1 then 1 for the stopped
+    /// case. With `SystemClock` each of those waits is up to ten
+    /// thousand `yield_now()`, which is the 5.36 s per call the memo exists to
+    /// stop.
     #[test]
     fn both_ways_out_of_the_wait_are_concluded_once() {
         for (about, readings) in [
@@ -2064,10 +2073,10 @@ mod tests {
 
     /// A clock that dips and comes back is not a clock that stopped, twice over.
     ///
-    /// **One memo carried two conclusions.** Both exits from the wait wrote
-    /// `concluded` and the early return that reads it raised `ClockStuck`
-    /// whatever had been concluded — so the *second* call about a clock that had
-    /// moved backwards came out `critical`:
+    /// **One memo carries two conclusions.** Both exits from the wait
+    /// write `concluded`, and an early return that read it and
+    /// raised `ClockStuck` whatever had been concluded would make the *second*
+    /// call about a clock that had moved backwards come out `critical`:
     ///
     /// ```text
     /// first  = ClockMovedBackwards { drift: 1ms }   after 1002 read(s)  NC-IDS-0001, error
@@ -2131,22 +2140,21 @@ mod tests {
 
     /// A clock that *moves* during the wait is not a clock that stopped.
     ///
-    /// **The wait's exit condition is `now <= last_millis`, and a backwards step
-    /// satisfies it too.** Measured, a clock going from …605000 to …604000
-    /// during the wait: `ClockStuck { at: 1767225605s }`, `NC-IDS-0007`,
-    /// **critical**, *"The clock has stopped, so no more identifiers can be
-    /// minted on this machine"* — for a clock that had moved a full second. And
-    /// `NC-IDS-0007` is `retryable`, so a caller keyed on it retries a machine
-    /// fault that is not the one it is told about; the test that used to stand
-    /// here asserted the wrong answer as correct, with a fixture that stepped
-    /// backwards.
+    /// **The wait's exit condition is `now <= last_millis`, and a backwards
+    /// step satisfies it too.** Measured without this rule, a clock going from
+    /// …605000 to …604000 during the
+    /// wait: `ClockStuck { at: 1767225605s }`, `NC-IDS-0007`, **critical**,
+    /// *"The clock has stopped, so no more identifiers can be minted on this
+    /// machine"* — for a clock that has moved a full second. And `NC-IDS-0007`
+    /// is `retryable`, so a caller keyed on it retries a machine fault that is
+    /// not the one it is told about; a test with a fixture that stepped
+    /// backwards would assert that wrong answer as correct.
     #[test]
     fn a_clock_that_moves_backwards_during_the_wait_says_so() {
-        // **Inside the wait, which the first version of this never entered.**
-        // Its fake was consumed by `resuming_at` and the first `mint` read
-        // tripped the entry guard, so the branch it is named for had no test at
-        // all — and that branch looked only at the *last* sample, so a clock a
-        // full second in the past for 999 of 1000 samples came out
+        // **Inside the wait.** A fake consumed by `resuming_at`, whose first
+        // `mint` read trips the entry guard, never enters the branch this is
+        // named for — and a branch looking only at the *last* sample makes a
+        // clock a full second in the past for 999 of 1000 samples come out
         // `ClockStuck`, **critical**, *"the clock has stopped"*.
         //
         // This clock reads the barrier, spends the whole wait a second behind
@@ -2216,16 +2224,16 @@ mod the_numbers_are_written_down {
 
     /// The declared bounds are the ones their own paragraphs argue for.
     ///
-    /// **`PLAUSIBLE_DRIFT_MS` was pinned by nothing.** Its only test builds its
-    /// boundary *from the constant under test* — `soon = now + PLAUSIBLE_DRIFT_MS`
-    /// — so every value above about fifty milliseconds satisfies it. Raised to
-    /// sixty-three years, `cargo xtask check` passed and a mark a *year* ahead of
-    /// the clock came back as `ClockMovedBackwards { drift: 31536000s }` under
-    /// `IdsClockBackwards`, which the suite certifies as retryable: the exact
-    /// failure the constant was added to stop, told to a caller as "wait".
+    /// **`PLAUSIBLE_DRIFT_MS`, pinned.** Its other test builds its boundary
+    /// *from the constant under test* — `soon = now + PLAUSIBLE_DRIFT_MS` — so
+    /// every value above about fifty milliseconds satisfies it. Raised to
+    /// sixty-three years without this, `cargo xtask check` passes and a mark a
+    /// *year* ahead of the clock comes back
+    /// as `ClockMovedBackwards { drift: 31536000s }` under `IdsClockBackwards`,
+    /// which the suite certifies as retryable: the exact failure the constant
+    /// exists to stop, told to a caller as "wait".
     ///
-    /// `WAIT_ATTEMPTS` and `EPOCH_MS` are written out for the same reason and
-    /// were already; this is the one that was missed.
+    /// `WAIT_ATTEMPTS` and `EPOCH_MS` are written out for the same reason.
     #[test]
     fn every_declared_bound_is_the_number_its_paragraph_argues_for() {
         assert_eq!(

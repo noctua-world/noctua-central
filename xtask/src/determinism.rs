@@ -7,8 +7,8 @@
 //! milliseconds apart in
 //! the same process, so a stamp with day granularity — a date in a header, a
 //! year in a licence line — is identical in both and the check passes every day
-//! until it does not. The CI job that builds twice and diffs would catch it, on
-//! the day CI first runs, in a repository that has no CI yet (`§5.3`).
+//! until it does not. The CI job that builds twice and diffs runs both builds
+//! in one job, minutes apart, so it shares the day as well.
 //!
 //! So this reads the source instead. A clock, a random number, an unordered map,
 //! the environment or the process's own identity reaching the emitter is a
@@ -57,12 +57,12 @@ pub(crate) const EMITS: [&str; 4] = [
     // catalog compiles at all, so a clock or an unordered map in it is a build
     // that passes on one run and refuses on the next.
     "crates/nc-schema/src",
-    // **The last stage of generation, and it was outside the scan.**
+    // **The last stage of generation, which the closure cannot reach.**
     // `every_crate_the_emitter_reaches_is_read` walks the dependency closure of
     // `nc-catalog-compiler`, so `xtask` can never enter it — and
     // `artifacts` in that file is what pipes every generated file through
-    // rustfmt and produces the bytes that reach disk. A `std::env::var("USER")`
-    // there, appended to each generated file, gave:
+    // rustfmt and produces the bytes that reach disk. Unlisted, a
+    // `std::env::var("USER")` there, appended to each generated file, gives:
     //
     // ```text
     // //! Built by noctua.
@@ -82,29 +82,30 @@ pub(crate) const EMITS: [&str; 4] = [
 /// The directories [`EMITS`] covers, for a floor to count against.
 ///
 /// **A count with no floor is a number, not a result.** `inspected_something`
-/// asks only that the walk read something, so a filter keeping one file left
-/// `ok 1 line(s) of the emitter read nothing that changes` and `check passed`.
-/// Every entry of [`EMITS`], including the file: leaving it out was 268 lines of
-/// slack in an exact comparison, and it is the stage that writes the bytes.
+/// asks only that the walk read something, so under it alone a filter keeping
+/// one file would give `ok 1 line(s) of the emitter read nothing that changes`
+/// and `check passed`. Every entry of [`EMITS`], including the file: leaving
+/// it out makes every line of it slack in an exact comparison, and it is the
+/// stage that writes the bytes.
 pub(crate) const EMITS_UNDER: &[&str] = &[
     "crates/nc-catalog-compiler/src",
     "crates/nc-canon/src",
     "crates/nc-schema/src",
-    // **And the file, which was 268 lines of free slack.** The floor counted
-    // two of `EMITS`' three entries while the walk read all three, so
-    // `read = 7148` against `expected = 6880` — and one `continue` dropping
-    // `xtask/src/build.rs`, the stage that runs rustfmt and produces the bytes
-    // that reach disk, left `ok 6880 line(s)` with a live `SystemTime::now()`
-    // in it. `lines_under` takes a path and does not care that this one is a
-    // file.
+    // **And the file, which is otherwise free slack.** A floor counting every
+    // entry of `EMITS` but this file while the walk reads them all gives a
+    // `read` larger than its `expected` by the whole of that file — and one `continue`
+    // dropping `xtask/src/build.rs`, the stage that runs rustfmt and produces
+    // the bytes that reach disk, then makes the two agree and leaves
+    // `ok … line(s)` with a live `SystemTime::now()` in it. `lines_under`
+    // takes a path and does not care that this one is a file.
     "xtask/src/build.rs",
 ];
 
 /// The crate whose output is written to disk and compared byte for byte.
 ///
 /// [`EMITS`] is checked against this crate's own workspace dependencies, so a
-/// third crate the emitter starts calling has to be listed here or the test
-/// below fails. An inclusion list nothing ties to reality is the same defect as
+/// crate the emitter starts calling has to be listed there or the test below
+/// fails. An inclusion list nothing ties to reality is the same defect as
 /// an exclusion list nothing tests.
 #[cfg(test)]
 const EMITTER: &str = "nc-catalog-compiler";
@@ -135,11 +136,12 @@ const CHANGES: &[(&str, &str)] = &[
     ),
     // **The bare type name, because `::now` is one of its spellings.**
     // `SystemTime` and `HashMap` survive being renamed at the `use` because the
-    // needle is the type; these three did not. Measured: `use std::time::Instant
-    // as Tick;` and then `Tick::now()` gave **0 findings**, and `Utc` is the
-    // severe one — a date at day granularity is invisible to the in-process
+    // needle is the type; with the call as the needle these three do not.
+    // Measured: `use std::time::Instant as Tick;` and then `Tick::now()` gives
+    // **0 findings** against a needle of `Instant::now`, and `Utc` is the severe
+    // one — a date at day granularity is invisible to the in-process
     // two-generation check and to CI's same-day cross-checkout diff alike, so
-    // nothing else in this repository would ever have said so.
+    // nothing else in this repository would ever say so.
     (
         "Instant",
         "a duration is a measurement of this machine under this load. Nothing measured \
@@ -175,19 +177,18 @@ const CHANGES: &[(&str, &str)] = &[
         "where the process happens to be standing. Paths reaching generated output \
          come from the emitter's own root argument",
     ),
-    // **The path segment, not the module path and not the macro.** The needles
-    // were `env::var`, `env::vars`, `env::var_os` and `env::args`, and a
-    // reviewer got `std::env::consts::OS` past them with one line — putting
-    // `//! Platform: linux` into nine generated files, identical on two runs of
-    // one machine and different on every other. `env::vars_os` was a hole
-    // *created* by the whole-name fix: it matches neither `env::var`, blocked by
-    // the `s`, nor `env::vars`, blocked by the `_`. `env::current_exe` and
-    // `env::temp_dir` were never needles at all.
+    // **The path segment, not the module path and not the macro.** Needles of
+    // `env::var`, `env::vars`, `env::var_os` and `env::args` let
+    // `std::env::consts::OS` past with one line — putting
+    // `//! Platform: linux` into the generated files, identical on two runs of
+    // one machine and different on every other. Whole-name needles also leave
+    // `env::vars_os` between them: it matches neither `env::var`, blocked by
+    // the `s`, nor `env::vars`, blocked by the `_`; and `env::current_exe` and
+    // `env::temp_dir` are in no such list at all.
     //
-    // **Then the module spelling was itself walked past by an alias**, which is
-    // the same lesson a third time and the one the neighbouring
-    // `process::Command` entry had already been repaired for and this one had
-    // not. Measured, in `nc-catalog-compiler`:
+    // **And the module spelling is walked past by an alias**, the lesson the
+    // neighbouring `process` entry carries too. Measured, in
+    // `nc-catalog-compiler`, against a needle of `env::`:
     //
     // ```text
     // use std::env as machine;
@@ -198,19 +199,19 @@ const CHANGES: &[(&str, &str)] = &[
     //
     // The import avoids the `::` and so does every call through the alias, so a
     // needle carrying the separator can see neither. `usize::BITS` on the line
-    // beside it was reported instantly, which is what says the walk reached the
+    // beside it is reported at once, which is what says the walk reached the
     // file. The rule is the *segment*: `env` bounded by anything that is not
     // part of a name matches `std::env as machine`, `use std::{env, fs}`,
     // `env::var` and the build-time macro alike, while `option_env!` and
     // `target_env` are longer names and are not it.
     //
-    // The macro is no longer an entry of its own for exactly that reason: it
-    // is this needle, and two entries for one line report it twice under two
-    // reasons — which `no_needle_is_listed_twice` exists to refuse.
+    // The macro is not an entry of its own for exactly that reason: it is this
+    // needle, and two entries for one line report it twice under two reasons —
+    // which `no_needle_is_listed_twice` exists to refuse.
     //
     // Nothing in `std::env` is a property of the catalog, so the module is the
-    // rule and its functions are not worth enumerating. Listing them was the
-    // mistake twice over, and the second time it opened a hole while closing one.
+    // rule and its functions are not worth enumerating: an enumeration opens a
+    // hole each time it closes one.
     (
         "env",
         "the environment, the command line and the platform this ran on are properties \
@@ -223,8 +224,8 @@ const CHANGES: &[(&str, &str)] = &[
         "option_env!",
         "the same, and the absent case makes the difference silent",
     ),
-    // **The segment, for the reason `env` above is the segment.** This was
-    // `process::id`, and a needle carrying `::` can see neither half of
+    // **The segment, for the reason `env` above is the segment.** A needle of
+    // `process::id`, carrying `::`, can see neither half of
     // `use std::process as machine;` … `machine::id()` — measured, 0 findings —
     // nor the braced import wrapped over lines, which is the form rustfmt
     // itself writes once the group is long enough:
@@ -235,16 +236,16 @@ const CHANGES: &[(&str, &str)] = &[
     // };
     // ```
     //
-    // The one-line braced form was repaired here and the wrapped one is the
-    // same import; `mentions` reads a line at a time, so it saw `process::{`
-    // with nothing after it. The bare segment sees every spelling of the
+    // The one-line braced form and the wrapped one are the same import;
+    // `mentions` reads a line at a time, so it sees `process::{` with nothing
+    // after it. The bare segment sees every spelling of the
     // import, because `std::process` is the only door to any of this and no
     // alias can be written without naming it once.
     //
-    // `process::Command` was a second entry and is this one: it matched only
-    // the spelling with the separator in it, and every line it caught names
-    // `process` too. Two entries for one line is what `no_needle_is_listed_twice`
-    // refuses.
+    // `process::Command` is this entry too: as a second one it would match
+    // only the spelling with the separator in it, and every line it would catch
+    // names `process` too. Two entries for one line is what
+    // `no_needle_is_listed_twice` refuses.
     (
         "process",
         "the identifier of the running program differs on every run by definition, and \
@@ -252,8 +253,8 @@ const CHANGES: &[(&str, &str)] = &[
          than with the catalog",
     ),
     // **The clock without its type name.** `SystemTime` and `Instant` are how a
-    // clock is usually spelled, and a reviewer got a day-granular stamp past this
-    // list twice without writing either: `metadata(p).modified()` returns a
+    // clock is usually spelled, and a day-granular stamp gets past a list of
+    // types without writing either: `metadata(p).modified()` returns a
     // `SystemTime` and names nothing, and `.elapsed()` turns one into a duration.
     // A needle list is only as good as its worst-informed entry, so the
     // *operations* are needles too, not only the types.
@@ -267,32 +268,32 @@ const CHANGES: &[(&str, &str)] = &[
         "created",
         "a file's creation time, the same by another name",
     ),
-    // **And the same three operations under their POSIX names**, which is a
-    // hole this list had by construction: `modified`, `created` and `accessed`
-    // are `std::fs::Metadata`'s spellings, and `std::os::unix::fs::MetadataExt`
+    // **And the same three operations under their POSIX names**, which a list
+    // of `Metadata`'s names misses by construction: `modified`, `created` and
+    // `accessed` are `std::fs::Metadata`'s spellings, and `std::os::unix::fs::MetadataExt`
     // offers `mtime`, `ctime` and `atime` for the same three fields — plus
     // `uid`, `gid`, `ino`, `dev` and `nlink`, which are the checkout's own
-    // filesystem rather than the catalog. Measured: `mtime()` planted inside
-    // `build.rs::artifacts` — the stage that produces the bytes — left
-    // `ok 10611 line(s) of the emitter read nothing that changes` and
+    // filesystem rather than the catalog. Measured without them: `mtime()`
+    // planted inside `build.rs::artifacts` — the stage that produces the bytes —
+    // leaves `ok … line(s) of the emitter read nothing that changes` and
     // `ok two generations are byte-identical`, because both determinism checks
     // run in one process on one checkout and neither can see a stamp that is
     // the same twice in a row.
     //
-    // The needle is the path `std::os`, and it took two tries to get there.
-    // **`os::unix` was the first and is wrong**: `std::os::linux::fs::
+    // The needle is the path `std::os`.
+    // **`os::unix` is wrong**: `std::os::linux::fs::
     // MetadataExt` offers the same three timestamps as `st_mtime` / `st_atime`
     // / `st_ctime`, plus `st_ino`, `st_dev` and `st_uid`, and matches neither
     // that needle nor the bare `mtime` — `mentions` refuses a match whose
     // preceding character is part of a name, and `_` is one. Measured, planted
-    // in `build.rs`'s own writing loop: `ok 10692 line(s) of the emitter read
-    // nothing that changes` and `ok two generations are byte-identical`, which
-    // is the identical transcript the `mtime()` plant produced before any of
-    // this existed. `os::fd` is the same gap.
+    // in `build.rs`'s own writing loop under an `os::unix` needle: `ok …
+    // line(s) of the emitter read nothing that changes` and `ok two generations
+    // are byte-identical`, the same transcript as an unseen `mtime()`. `os::fd`
+    // is the same gap.
     //
-    // **And the bare segment `unix` was tried before that and is also wrong**:
+    // **And the bare segment `unix` is also wrong**:
     // `#[cfg(target_family = "unix")]` is an existing, legitimate line in this
-    // tree's own fixtures, and the two needles then reported it twice under two
+    // tree's own fixtures, and the two needles would report it twice under two
     // reasons — which is what `no_needle_is_listed_twice` refuses, in the other
     // direction. `std::os` is the whole module: every path under it is written
     // once, whatever the import is renamed to, including
@@ -341,9 +342,9 @@ const CHANGES: &[(&str, &str)] = &[
     // name; `std::path::absolute` is the process's working directory, which
     // `current_dir` and `canonicalize` are both needles for, under a third
     // name; and `size_of::<*const u8>()` is the pointer width, which
-    // `size_of::<usize>` and `usize::BITS` are both needles for. All three were
-    // planted inside `build.rs::artifacts` — the stage that writes the bytes —
-    // and the run read three more lines and reported nothing.
+    // `size_of::<usize>` and `usize::BITS` are both needles for. Planted inside
+    // `build.rs::artifacts` — the stage that writes the bytes — all three leave
+    // the run reading three more lines and reporting nothing without these.
     (
         "MAIN_SEPARATOR_STR",
         "the path separator differs by platform, and a generated file that holds one \
@@ -352,9 +353,8 @@ const CHANGES: &[(&str, &str)] = &[
     // **And the third spelling of the separator, which asks rather than
     // tells.** `std::path::is_separator(c)` answers `true` for `\\` on Windows
     // and `false` everywhere else, so a generated file whose content depends on
-    // it differs by platform exactly as one holding the character does — and
-    // `path::absolute` was a needle while `path::is_separator` beside it was
-    // not.
+    // it differs by platform exactly as one holding the character does, which
+    // is why it is a needle beside `path::absolute`.
     (
         "path::is_separator",
         "whether a character separates path segments is a platform fact, and a \
@@ -371,9 +371,9 @@ const CHANGES: &[(&str, &str)] = &[
     // `4294967295` on a 32-bit one, and a generated file that holds either
     // differs between them — the same fact `usize::BITS` and `size_of::<usize>`
     // are both needles for, written the way a constant actually gets written.
-    // Measured: `pub const WIDEST: usize = usize::MAX;` in the emitter's own
-    // crate read three more lines and reported nothing, while `usize::BITS as
-    // usize` on the same line was a finding.
+    // Measured without it: `pub const WIDEST: usize = usize::MAX;` in the
+    // emitter's own crate reads three more lines and reports nothing, while
+    // `usize::BITS as usize` on the same line is a finding.
     (
         "usize::MAX",
         "the largest address this machine can hold differs by pointer width, and a \
@@ -422,8 +422,7 @@ const CHANGES: &[(&str, &str)] = &[
         "Local",
         "a clock and a timezone, so the output differs by where the machine is",
     ),
-    // **Randomness**, which this module's header promised was a finding and no
-    // needle matched.
+    // **Randomness**, which this module's header names as a finding.
     (
         "rand",
         "a random number differs on every run by definition. Generated output is a \
@@ -456,16 +455,14 @@ const CHANGES: &[(&str, &str)] = &[
          differs with it",
     ),
     // **Every `size_of` whose answer the machine decides, which is most of
-    // them.** This carried `usize`, then `*`, then `&` — an enumeration one
-    // token short each time, and `size_of::<String>()` (24 bytes on a 64-bit
-    // target, 12 on a 32-bit one) and `size_of::<Box<_>>()` walked through both
-    // rounds of widening. So the needle is the call and the *exception* is
+    // them.** An enumeration — `usize`, then `*`, then `&` — is one token short
+    // each time: `size_of::<String>()` (24 bytes on a 64-bit target, 12 on a
+    // 32-bit one) and `size_of::<Box<_>>()` walk through all three. So the
+    // needle is the call and the *exception* is
     // written down: a fixed-width primitive answers the same everywhere, and
     // everything else holds a pointer, a length or a capacity. The exception is
     // this sentence and no test names it: the needle reports every
-    // `size_of::<…>` and the reader is told which ones are the machine's. The
-    // citation here used to point at `a_size_the_machine_decides`, which is a
-    // test no file in this tree has ever held.
+    // `size_of::<…>` and the reader is told which ones are the machine's.
     (
         "size_of::<",
         "the size of anything but a fixed-width primitive is the machine's — a \
@@ -486,10 +483,10 @@ const CHANGES: &[(&str, &str)] = &[
         "a thread's identity differs between runs of the same build, so output that \
          holds one differs from itself",
     ),
-    // **The process's own input, not a child's.** `stdin` alone also matched
-    // `.stdin(Stdio::piped())` and `child.stdin` — the emitter pipes source *into*
-    // rustfmt, which is a write and not a read — and reported three lines of the
-    // build step that read nothing at all. `io::stdin` is the function that reads
+    // **The process's own input, not a child's.** `stdin` alone would also
+    // match `.stdin(Stdio::piped())` and `child.stdin` — the emitter pipes source
+    // *into* rustfmt, which is a write and not a read — and report three lines of
+    // the build step that read nothing at all. `io::stdin` is the function that reads
     // what the terminal or the pipe held.
     (
         "io::stdin",
@@ -498,11 +495,11 @@ const CHANGES: &[(&str, &str)] = &[
     ),
     (
         // **Not anchored to the opening quote.** Written `"\"/etc/"`, the needle
-        // spoke only for a literal that *begins* with the path, so
+        // would speak only for a literal that *begins* with the path, so
         // `format!("{}/etc/machine-id", dir)` — the ordinary way a root is
-        // joined to one — was invisible to this half as well as to the
+        // joined to one — would be invisible to this half as well as to the
         // absolute-path half. `/etc/` cannot be a relative segment of anything
-        // in this repository, so the quote was carrying no weight.
+        // in this repository, so a quote would carry no weight.
         "/etc/",
         "a file under `/etc` describes the machine, not the catalog",
     ),
@@ -538,10 +535,10 @@ const CHANGES: &[(&str, &str)] = &[
     ),
     // **The platform asked as an attribute rather than as a macro.** `cfg!` is
     // on this list and the attribute spelling is the same question with the same
-    // answer — a reviewer put `Platform: linux, 64 bit` into all nine generated
-    // files with a `#[cfg(target_os = ...)]`-selected constant and `usize::BITS`,
-    // and `cargo xtask check` printed `check passed`. That is verbatim the
-    // failure the `env::` entry above says it was written to close, reached by
+    // answer — with only the macro a needle, a `#[cfg(target_os = ...)]`-selected
+    // constant and `usize::BITS` put `Platform: linux, 64 bit` into every
+    // generated file, and `cargo xtask check` prints `check passed`. That is
+    // verbatim the failure the `env::` entry above exists to close, reached by
     // spelling the same needle a second way.
     //
     // The needle is the platform *keys*, not the attribute: `cfg(test)` and
@@ -561,14 +558,13 @@ const CHANGES: &[(&str, &str)] = &[
         "target_endian",
         "the same for byte order, which decides how numbers reach a file",
     ),
-    // **The other eight, because the four above were the four somebody was
-    // bitten by.** This list's own comment records the incident that made it —
-    // `Platform: linux, 64 bit` in all nine generated files, selected by a
-    // `#[cfg(target_os = …)]` constant, with `check passed` — and the fix named
-    // the key that had done it and its three nearest relatives. Every key below
-    // selects code by the machine or by the build profile just as well, and each
-    // was measured writing a line into all nine generated files with the whole
-    // gate green:
+    // **The other eight, because the four above are not all the keys.** The
+    // four above are the key behind `Platform: linux, 64 bit` in every
+    // generated file — selected by a `#[cfg(target_os = …)]` constant, with
+    // `check passed` — and its three nearest relatives. Every key below selects
+    // code by the machine or by the build profile just as well, and each is
+    // measured writing a line into every generated file with the whole gate
+    // green without it:
     //
     // ```text
     // //! Built on unix/gnu, profile debug.
@@ -578,8 +574,9 @@ const CHANGES: &[(&str, &str)] = &[
     //   ->  check passed
     // ```
     //
-    // `unix` and `windows` take no `=`, which is why they are listed as bare
-    // words and why the needle is the key rather than the comparison.
+    // `unix` and `windows` take no `=`, which is why the needle is the key
+    // rather than the comparison; the two bare words are not needles, for the
+    // reason the paragraph after these entries gives.
     (
         "target_family",
         "the same for the family, of which `unix` is one value",
@@ -609,28 +606,24 @@ const CHANGES: &[(&str, &str)] = &[
          Written with its `=` because the bare word is `panic!`, which is not this",
     ),
     // **`unix` and `windows` are not here, and the rule about them is not a
-    // needle.** They were written `cfg(unix` and `cfg(windows`, which
-    // `#[cfg(any(unix, windows))]` does not contain — measured, four such lines
-    // added to a crate the emitter reads gave `ok 7840 line(s) of the emitter
-    // read nothing that changes` against a baseline of 7836, and `check
-    // passed`. The same hole covered `not(windows)` and `all(unix, …)`. And the
-    // bare words cannot replace them: `windows` is `slice::windows`, which this
-    // tree uses twice in the catalog loader, so the needle reported the loader
-    // for iterating a slice.
+    // needle.** Written `cfg(unix` and `cfg(windows`, they are not contained
+    // in `#[cfg(any(unix, windows))]` — measured, four such lines added to a
+    // crate the emitter reads move the `ok … line(s) of the emitter read
+    // nothing that changes` count up by four, and `check passed`. The same
+    // hole covers `not(windows)` and `all(unix, …)`. And the bare words cannot
+    // replace them: `windows` is `slice::windows`, which this tree uses in the
+    // catalog loader, so the needle would report the loader for
+    // iterating a slice.
     //
     // A predicate is not a substring. `conditional_compilation` below reads the
     // whole attribute instead — `conditional_on` hands it the predicate, from
     // either `cfg` or `cfg_attr` — which is the shape rather than any spelling
     // of it.
     //
-    // **This sentence named `no_conditional_compilation_but_test`, and no such
-    // function has ever existed anywhere in this tree.** A comment naming the
-    // test that decides a rule is what a reader checks the rule by, and this one
-    // sent them looking for nothing — while the rule was in fact decided by
-    // nothing: `code.find("#[cfg(")` misspelt to `code.find("#[cfgZ(")` left the
-    // emitter's line count unmoved, all 353 tests in `xtask` green and `check
-    // passed`. `a_cfg_that_is_not_test_is_a_finding` is the test now, and it
-    // exists.
+    // **`a_cfg_that_is_not_test_is_a_finding` is the test that decides this
+    // rule.** A comment naming the test that decides a rule is what a reader
+    // checks the rule by. The opener `#[cfg(` misspelt as `#[cfgZ(` leaves the
+    // emitter's line count unmoved, and fails that test.
     (
         "usize::BITS",
         "the pointer width of the machine that built this, which `size_of::<usize>` \
@@ -722,20 +715,19 @@ pub(crate) fn nothing_the_emitter_reads_changes(
             // **The whole file through the stripper, not each line on its own.**
             // A string literal that opens on one line and closes three below is
             // in no literal when its middle line is read alone — so an assertion
-            // message whose continuation line names `read_dir` was reported as a
-            // call. `wall.rs` carries the same sentence for the same reason.
+            // message whose continuation line names `read_dir` reads as a call.
+            // `wall.rs` carries the same sentence for the same reason.
             // The line count is preserved, so the two walks stay in step.
             let spent = crate::gates::blanked(&text);
             let without_literals: Vec<&str> = spent.lines().collect();
-            // **And the whole file through the comment stripper too.** The five
-            // needles routed to the line *as written* were judged against a
-            // text in which a `/* … */` block is still code: both copies of the
-            // wave-11 repair call `without_comments` on **one line at a time**,
-            // so they know only the `//` spelling, while `blanked` beside them
-            // spends block comments character for character. One rule written
-            // twice inside one walk, with the second copy knowing one of the
-            // two comment forms. Measured by a reviewer in wave 17. The line
-            // count is preserved for the same reason it is above.
+            // **And the whole file through the comment stripper too.** Judged
+            // against a text in which a `/* … */` block is still code —
+            // `without_comments` called on **one line at a time** knows only
+            // the `//` spelling — the needles routed to the line *as written*
+            // would disagree with `blanked` beside them, which spends block
+            // comments character for character: one rule written twice inside
+            // one walk, with the second copy knowing one of the two comment
+            // forms. The line count is preserved for the same reason it is above.
             let spoken = crate::gates::without_comments(&text, "//");
             let without_comments: Vec<&str> = spoken.lines().collect();
             for (index, line) in all.iter().enumerate() {
@@ -853,23 +845,21 @@ fn conditional_compilation(
     // scope today, so the rule costs nothing to hold.
     //
     // **Decided in the code and named from the line as written.** Each pair is
-    // `(as written, with literals and comments spent)`. This rule was handed
-    // the raw line while the two rules beside it in the same walk were handed
-    // the whole-file stripped texts — one walk, three readers, and the third
-    // still asking `find("#[cfg(")` of text in which a comment and a string
-    // literal are both code. So it held "those six characters appear nowhere on
-    // the line except after a leading `//`": a trailing comment and a literal
-    // were read as attributes, and the emitter this rule guards writes
-    // attribute text as literals twenty-six times in `emit.rs` alone. That is
-    // the too-strong direction — legitimate prose refused, with a fix line
+    // `(as written, with literals and comments spent)`. Handed the raw line,
+    // while the two rules beside it in the same walk are handed the whole-file
+    // stripped texts, this rule would ask `find("#[cfg(")` of text in which a
+    // comment and a string literal are both code — holding "those six
+    // characters appear nowhere on the line except after a leading `//`": a
+    // trailing comment and a literal read as attributes, and the emitter this
+    // rule guards writes attribute text as literals throughout `emit.rs`. That
+    // is the too-strong direction — legitimate prose refused, with a fix line
     // telling its author to "write it unconditionally".
     //
     // The blanked text cannot *name* the predicate, because it spends the
     // contents of `#[cfg(feature = "probe")]` along with everything else, and
-    // the incident this rule was written for is a `#[cfg(target_os = "linux")]`
+    // the case this rule exists for is a `#[cfg(target_os = "linux")]`
     // constant. So the finding is decided on the spent text and worded from the
-    // written one. Found by a reviewer in wave 19, and the naming half by the
-    // skeptic who measured the repair.
+    // written one.
     //
     // **And the fallback is reachable, which is why it is written rather than
     // argued.** `#[cfg(feature = "a(b")]` is the line: in the text as written
@@ -878,31 +868,29 @@ fn conditional_compilation(
     // spent text it is a space and the attribute closes. The finding is then
     // worded from the spent predicate — the value gone, the rule still firing —
     // which is the direction to fail in. A clause whose reachability is argued
-    // instead of shown is what wave 15 deleted five of and waves 16 to 19
-    // reached three.
+    // instead of shown is a clause nobody has seen run.
     //
     // **And the question is asked of the spent text, not merely opened there.**
-    // Wave 19 wrote the paragraph above and then compared the *written*
-    // predicate against `test` — so the sentence claimed one thing and the line
-    // did another, on a repair whose whole subject was which text a rule reads.
-    // `conditional_on` takes the first of the four openers by byte offset, so a
-    // comment or a literal spelling `#[cfg(test)]` ahead of a real
-    // `#[cfg(unix)]` answered `test` from the written walk and `unix` from the
-    // spent one, and the rule stood down for a genuinely conditional line. The
-    // mirror was live too: `/* #[cfg(unix)] */ #[cfg(test)]` is a `test`-only
-    // line that was refused. Found by a reviewer in wave 20, and the mirror by
-    // the skeptic who measured the repair.
+    // Comparing the *written* predicate against `test` would let the sentence
+    // above claim one thing and the line do another. `conditional_on` takes the
+    // first of the four openers by byte offset, so a comment or a literal
+    // spelling `#[cfg(test)]` ahead of a real `#[cfg(unix)]` answers `test`
+    // from the written walk and `unix` from the spent one, and the rule would
+    // stand down for a genuinely conditional line. The mirror holds too:
+    // `/* #[cfg(unix)] */ #[cfg(test)]` is a `test`-only line that would be
+    // refused.
     // **And the wording is read at the offset the decision was made at.** The
     // two walks each take the *first* of the four openers by byte offset, so
     // they need not be looking at the same attribute: a commented-out
-    // `#[cfg(test)]` in front of a live `#[cfg(unix)]` made the written walk
-    // answer `test` while the spent one answered `unix` — the gate fired,
-    // correctly, and then said "this is compiled only when `test`" over a fix
-    // line reading "`test` is the one predicate that cannot reach the output".
-    // The sentence and its own remedy contradicted each other, and the reader
-    // was sent to the attribute in the comment. `blanked` preserves the
-    // character count, so the offset the spent text decided at is the offset
-    // the written text is read from. Found by a reviewer in wave 21.
+    // `#[cfg(test)]` in front of a live `#[cfg(unix)]` makes the written walk
+    // answer `test` while the spent one answers `unix` — and worded from the
+    // written walk's own first opener, the gate would fire, correctly, and then
+    // say "this is compiled only when `test`" over a fix line reading "`test` is
+    // the one predicate that cannot reach the output": a sentence and its own
+    // remedy contradicting each other, and the reader sent to the attribute in
+    // the comment. `blanked` preserves the character
+    // count, so the offset the spent text decided at is the offset the written
+    // text is read from.
     let Some((at, spent)) = conditional_on_at(here.1, below.1) else {
         return;
     };
@@ -936,8 +924,8 @@ fn conditional_compilation(
 /// Returns `None` for a line with no `cfg` attribute — including `cfg!(…)`,
 /// which is a macro the needle list already names.
 ///
-/// **An attribute is not a line, and this read one.** It did `code.find("#[cfg(")`
-/// and matched parentheses inside that same string, so a wrapped attribute —
+/// **An attribute is not a line.** A reader that does `code.find("#[cfg(")` and
+/// matches parentheses inside that same string misses a wrapped attribute —
 ///
 /// ```text
 /// #[cfg(all(
@@ -946,14 +934,15 @@ fn conditional_compilation(
 /// ))]
 /// ```
 ///
-/// — returned `None` and the whole rule stepped over it. Measured: five such
-/// lines in `crates/nc-canon/src/lib.rs` left `check passed`, with the output
-/// differing from a clean run only in the four line counters. `#![cfg(unix)]`
-/// was missed the same way, by spelling. Neither is exotic: **rustfmt rewrites**
-/// a long one-line `cfg` into the wrapped form, and `xtask/src/main.rs` and
-/// `crates/nc-log/src/ship.rs` already carry multi-line attributes — so the rule
-/// this module's needle list calls "the shape rather than any spelling of it"
-/// could be switched off by running the formatter.
+/// — returning `None`, so the whole rule steps over it. Measured with such a
+/// reader: five such lines in `crates/nc-canon/src/lib.rs` leave
+/// `check passed`, with the output differing from a clean run only in the four
+/// line counters. `#![cfg(unix)]` is missed by it the same way, by spelling.
+/// Neither is exotic: **rustfmt rewrites** a long one-line `cfg` into the
+/// wrapped form, and `xtask/src/main.rs` and `crates/nc-log/src/ship.rs`
+/// already carry multi-line attributes — so the rule this module's needle list
+/// calls "the shape rather than any spelling of it" could be switched off by
+/// running the formatter.
 ///
 /// So the lines under the opening one are handed in, and joined until the
 /// parentheses close. Bounded, because an unbalanced `(` inside a string
@@ -968,7 +957,7 @@ fn conditional_on(here: &str, below: &[&str]) -> Option<String> {
 /// decides on the text with comments and literals spent and words the finding
 /// from the text as written, and the two must be talking about the **same**
 /// attribute. Both walks take the first opener by offset, so a commented-out
-/// `cfg` in front of a live one put them on different ones. `blanked` preserves
+/// `cfg` in front of a live one puts them on different ones. `blanked` preserves
 /// the character count, which is what makes one walk's offset meaningful to the
 /// other.
 fn the_predicate_at(here: &str, below: &[&str], from: usize) -> Option<String> {
@@ -1055,19 +1044,20 @@ fn still_open(text: &str) -> usize {
     depth
 }
 
-/// The finding an absolute path makes, when no needle already made one.
+/// The finding an absolute path makes.
 ///
 /// **The shape those four roots are instances of.** `CHANGES` names `/dev/`,
 /// `/etc/`, `/proc/` and `/sys/`, and the prose beside them says "the machine's
 /// own files" — but `/etc/machine-id` is a symlink to
 /// `/var/lib/dbus/machine-id`, one directory outside the list, and reading
-/// *that* changed the generated crate with `two generations are byte-identical`,
+/// *that* changes the generated crate with `two generations are byte-identical`,
 /// `10824 line(s) of the emitter read nothing that changes` and `check passed`
-/// all green. The other two mechanisms cannot see it by construction: both
-/// generations run on one machine.
+/// all green under the four roots alone. The other two mechanisms cannot see
+/// it by construction: both generations run on one machine.
 ///
-/// The caller asks it only where no needle spoke, so the four roots keep their reasons
-/// and a line is reported once. The emitter's own `"//` and `"///` — the doc
+/// The caller asks it on every line, beside the needles, so a line naming one of
+/// the four roots is two findings about two different things: that root's own
+/// reason, and an absolute path. The emitter's own `"//` and `"///` — the doc
 /// comments of the crate it writes — are not paths, which is what the character
 /// after the slash decides.
 fn the_absolute_path_in(
@@ -1079,12 +1069,11 @@ fn the_absolute_path_in(
 ) -> Option<Finding> {
     // **A trailing comment is not code here either.** `mentions` strips one and
     // carries the paragraph saying why — *prose about the file after code on the
-    // same line became a finding* — and this half was written later without it.
-    // One rule written twice with the second copy narrower is a shape this
-    // repository has produced before; this is its too-strong direction, which is
-    // the one that is green until something legitimate arrives. Measured: a
-    // trailing comment saying that a line opens **no** machine file was reported
-    // as an absolute path reaching generated output.
+    // same line became a finding* — and this half strips one too. One rule
+    // written twice with the second copy narrower has a too-strong direction,
+    // the one that is green until something legitimate arrives. Measured
+    // without the strip: a trailing comment saying that a line opens **no**
+    // machine file is reported as an absolute path reaching generated output.
     if !names_an_absolute_path(&crate::gates::without_comments(code, "//")) {
         return None;
     }
@@ -1113,16 +1102,16 @@ const THE_ABSOLUTE_PATH: &str = "an absolute path is a file on this machine rath
 /// difference.
 fn names_an_absolute_path(code: &str) -> bool {
     let characters: Vec<char> = code.chars().collect();
-    // **A doubled slash is a path, not a comment.** The `!= '/'` was written to
-    // keep the emitter's own generated `//` and `///` doc comments out of this
-    // rule, and it hid every absolute path spelled with one slash too many —
+    // **A doubled slash is a path, not a comment.** A `!= '/'` keeping the
+    // emitter's own generated `//` and `///` doc comments out of this rule
+    // hides every absolute path spelled with one slash too many —
     // POSIX resolves `//x` and `///x` to `/x`, so
     // `"//var/lib/dbus/machine-id"` reads the file this rule's own paragraph
     // names as the reason it exists, and `check passed`. What tells a comment
     // from a path is not how many slashes there are but what follows them: a
     // comment has a space, a `!` or an escape, and a path has a *name*. Written
     // the other way round — "a path is anything that is not a space" — the
-    // emitter's own `"///\n"` and `"//!"` were read as paths, so the test is on
+    // emitter's own `"///\n"` and `"//!"` read as paths, so the test is on
     // what a path segment is made of rather than on what a comment is not.
     let absolute = characters.windows(2).enumerate().any(|(at, window)| {
         if window[0] != '"' || window[1] != '/' {
@@ -1133,27 +1122,27 @@ fn names_an_absolute_path(code: &str) -> bool {
             end += 1;
         }
         characters.get(end).is_some_and(|after| {
-            // **And `{`, which is how a path is interpolated.** The rule
-            // read a *name* after the slashes, and in a format string what
-            // follows is a placeholder: `format!("/{}/machine-id", dir)` and
-            // `format!("/{dir}/machine-id")` open the file this rule exists
-            // for, and neither was seen.
+            // **And `{`, which is how a path is interpolated.** A rule reading
+            // only a *name* after the slashes misses a format string, where
+            // what follows is a placeholder: `format!("/{}/machine-id", dir)`
+            // and `format!("/{dir}/machine-id")` open the file this rule
+            // exists for.
             after.is_alphanumeric() || matches!(after, '.' | '_' | '-' | '~' | '{')
         })
     });
     // **And a path that climbs out of the repository reaches the same files.**
-    // The rule generalised the four named roots in one direction only:
     // `"../../../etc/machine-id"` is the very file the paragraph above names as
-    // the reason this exists, and it was not seen.
+    // the reason this exists, and generalising the four named roots in one
+    // direction only misses it.
     //
     // **A segment, not an opening.** Written as "the literal begins `..`", it
-    // read `"../../../etc/machine-id"` and walked past `"./../../../etc/machine-id"`
+    // would read `"../../../etc/machine-id"` and walk past `"./../../../etc/machine-id"`
     // and `"src/../../../etc/machine-id"`, which open the same file — one
     // character and one segment in front of the climb, and `check passed` both
     // times. A `..` is a path segment wherever it is, so it is bounded the way a
     // segment is: by a separator or by the end of the literal. That is also
     // narrower in the direction that matters — a literal beginning `"..and then"`
-    // is prose and used to be a finding.
+    // is prose and is not a finding.
     let climbs = characters.windows(4).any(|window| {
         (window[0] == '"' || window[0] == '/')
             && window[1] == '.'
@@ -1186,11 +1175,11 @@ fn what_this_line_reads(
         // for in the line as written. `mentions` decides which by
         // the needle's own spelling.
         //
-        // **`'"'` was a third character here and no needle could decide it.**
-        // All sixty-eight of `CHANGES` were classified in wave 15: the only
-        // three holding a quote are `"/dev/`, `"/proc/` and `"/sys/`, and each
-        // holds a slash as well, so the two spellings of this test answered the
-        // same on every input this tree can produce. A clause nothing can
+        // **No `'"'` here, because no needle could decide it.** Of every entry
+        // in `CHANGES`, the only three holding a quote are `"/dev/`, `"/proc/`
+        // and `"/sys/`, and each holds a slash as well, so a third character
+        // here answers the same as the slash on every input this tree can
+        // produce. A clause nothing can
         // decide is a clause that is not there; `MUST_STAY` pins the needle
         // list in both directions, so a needle that would need it back cannot
         // arrive without a person editing that list.
@@ -1202,9 +1191,9 @@ fn what_this_line_reads(
         if !mentions(read_in, needle) {
             continue;
         }
-        // **And the reason names the needle.** The marker was tested
-        // once, before the loop, so one comment excused all thirty
-        // needles on its line — and the two live markers in the
+        // **And the reason names the needle.** A marker tested once,
+        // before the loop, lets one comment excuse every needle on its
+        // line — and the two live markers in the
         // byte-producing stage sit on a `Command::new("rustfmt")`
         // builder chain, where anything appended to the line lands
         // permanently unjudged. The rule `allow-logging:` and
@@ -1239,22 +1228,21 @@ fn what_this_line_reads(
             ),
         });
     }
-    // **Asked on every line, which it was not.** This sat under
-    // `if !named_a_needle`, so any line naming a needle — and
-    // excused with a reason that names it, which is what the hatch
-    // is for — was permanently outside the absolute-path and
-    // path-climb rule. Measured on 2026-09-08 on the emitter's own
-    // locale loader, whose `read_dir` carries a written excuse of
-    // its own: the argument changed from
-    // `&directory` to `directory.join("../i18n")` gave
-    // `check passed` and `determinism:: 15 passed`, while the
-    // identical climb three lines up — on a line with no needle —
-    // is reported at once.
+    // **Asked on every line.** Under `if !named_a_needle`, any line
+    // naming a needle — and excused with a reason that names it,
+    // which is what the hatch is for — is permanently outside the
+    // absolute-path and path-climb rule. Measured under that `if` on
+    // the emitter's own locale loader, whose `read_dir` carries a
+    // written excuse of its own: the argument changed from
+    // `&directory` to `directory.join("../i18n")` gives
+    // `check passed` and every `determinism::` test passing, while
+    // the identical climb three lines up — on a line with no needle
+    // — is reported at once.
     //
     // The two rules are about different things: a needle is a call
     // that differs between *runs*, and an absolute path is a machine
     // this output would carry to another. A hatch written for the
-    // first switched off the second, on the eight excused lines this
+    // first would switch off the second, on every excused line this
     // tree has. Both other determinism mechanisms are blind to it by
     // construction — they run two generations in one process on one
     // checkout.
@@ -1262,29 +1250,27 @@ fn what_this_line_reads(
 
 /// Whether `code` uses `needle` as a name rather than as part of a longer one.
 ///
-/// `env!` is a substring of `option_env!`, so a line using the second was two
-/// findings — and a gate that reports the same defect twice under two names is
+/// `env!` is a substring of `option_env!`, so a line using the second would be
+/// two findings — and a gate that reports the same defect twice under two names is
 /// one a reader learns to skim.
 fn mentions(code: &str, needle: &str) -> bool {
-    // **A trailing comment is not code.** The `/etc/` needle lost its opening
-    // quote so an interpolated root would be seen, and prose about the file
-    // after code on the same line became a finding — while the identical
-    // sentence about `/proc/`, whose needle kept its quote, did not. The line
+    // **A trailing comment is not code.** The `/etc/` needle has no opening
+    // quote so an interpolated root is seen, and prose about the file after
+    // code on the same line would then be a finding — while the identical
+    // sentence about `/proc/`, whose needle keeps its quote, would not. The line
     // walk above skips a line that *begins* with `//`; this is the one that has
     // to skip the rest of one. Every other needle here is a name or a quoted
     // path, so stripping comments costs them nothing.
     let code = &crate::gates::without_comments(code, "//");
-    // **And a name inside a string literal is not a call.** Comments were
-    // stripped and literals were not, so an assertion message explaining what a
-    // sort is for — *"leaves the rest wherever `read_dir` put them"* — was
-    // reported as a `read_dir` reaching generated output. Found by this
-    // repository's own acceptance in round seventy-one wave 11, on a message
-    // written one repair earlier.
+    // **And a name inside a string literal is not a call.** With comments
+    // stripped and literals not, an assertion message explaining what a sort
+    // is for — *"leaves the rest wherever `read_dir` put them"* — is reported
+    // as a `read_dir` reaching generated output.
     //
     // **Only for the needles that are names.** Several of them are *about* a
     // literal and live inside one by construction — `/etc/`, `/dev/`, `"/proc/`,
     // `"/sys/`, `{:p}` — and blanking literals for those would make them match
-    // nothing at all; `/etc/` lost its opening quote on purpose, so that an
+    // nothing at all; `/etc/` has no opening quote on purpose, so that an
     // interpolated root would be seen. What separates the two kinds is whether
     // the needle is spelled as Rust names it: a path or a format holds a `/`, a
     // `{` or a quote, and a name holds none of them.
@@ -1298,17 +1284,17 @@ fn mentions(code: &str, needle: &str) -> bool {
         let here = from + at;
         from = here + needle.len();
         let before = code[..here].chars().next_back().is_some_and(part_of_a_name);
-        // **And after**, which the first version did not check: `env::vars` and
-        // `env::var_os` both begin with `env::var`, so a line using either was
-        // two findings under two names — and `created` would have matched
-        // `created_tables`. A gate that reports the same defect twice is one a
+        // **And after**: `env::vars` and `env::var_os` both begin with
+        // `env::var`, so without this a line using either is two findings under
+        // two names — and `created` would match `created_tables`. A gate that
+        // reports the same defect twice is one a
         // reader learns to skim.
         // A needle ending in punctuation has already said where it ends, so the
         // character after it decides nothing: `env::` is the module and
         // `env::consts` is inside it, and `"/etc/` is a directory and
         // `"/etc/hostname` is a file in it. Written as "does the needle end in a
         // name character" rather than as a list of the punctuation marks used so
-        // far, because that list is what needed adding to the second time.
+        // far, because such a list needs adding to each time.
         let ends_in_a_name = needle.chars().next_back().is_some_and(part_of_a_name);
         let after = ends_in_a_name && code[from..].chars().next().is_some_and(part_of_a_name);
         if !before && !after {
@@ -1316,8 +1302,8 @@ fn mentions(code: &str, needle: &str) -> bool {
         }
     }
     // **And the braced import, which is the same path written another way.**
-    // `use std::process::{id as pid};` is `process::id` and the needle did not
-    // match it — measured, 0 findings, with `pid()` then used freely below.
+    // `use std::process::{id as pid};` is `process::id`, and a plain needle
+    // does not match it — measured, 0 findings, with `pid()` then used freely below.
     // `a::b` and `a::{…, b, …}` are one import to rustc, so they are one needle
     // here.
     if let Some((path, name)) = needle.rsplit_once("::") {
@@ -1369,12 +1355,12 @@ mod tests {
         let source = scratch.join(EMITS[0]).join("emit.rs");
 
         // **A name inside a string literal is prose, and the literal may span
-        // lines.** Measured in round seventy-one wave 11 by this repository's own
-        // acceptance: an assertion message explaining what a sort is for — its
-        // continuation line naming `read_dir` — was reported as a `read_dir`
-        // reaching generated output, because comments were stripped and literals
-        // were not, and because each line was read alone. Both halves are here:
-        // the name on one line of a literal, and on the second line of one.
+        // lines.** Measured: an assertion message explaining what a sort is for
+        // — its continuation line naming `read_dir` — is reported as a
+        // `read_dir` reaching generated output when comments are stripped and
+        // literals are not, and when each line is read alone. Both halves are
+        // here: the name on one line of a literal, and on the second line of
+        // one.
         for written in [
             "fn f() {{ assert!(true, \"sorted, so no read_dir order leaks\"); }}\n",
             "fn f() {{\n    assert!(\n        true,\n        \"sorted, so no \\\n         read_dir order leaks\"\n    );\n}}\n",
@@ -1390,12 +1376,11 @@ mod tests {
 
         // **And the needles that live inside a literal, written as they really
         // are.** The classification sends a needle holding `/`, `{` or `"` to
-        // the line as written and every other to the blanked copy — and only
-        // the `"` member was decided by anything, because the corpus below
-        // writes each needle as bare code, where both texts hold it. In real
-        // emitter source `/etc/` and `{:p}` can only ever appear *inside* a
-        // literal, so reading them in the blanked copy would make those rules
-        // dead and nothing would say so. Named by a reviewer in wave 12.
+        // the line as written and every other to the blanked copy — and a
+        // corpus that writes each needle as bare code, where both texts hold it,
+        // decides only the `"` member. In real emitter source `/etc/` and
+        // `{:p}` can only ever appear *inside* a literal, so reading them in the
+        // blanked copy would make those rules dead and nothing would say so.
         for (written, needle) in [
             (
                 "fn f() { let p = read_to_string(\"/etc/hostname\"); }\n",
@@ -1415,12 +1400,12 @@ mod tests {
         for &(needle, _) in CHANGES {
             // **A line of Rust, quotes and all.** Some needles are the opening
             // of a string literal — `"/etc/` is one — so writing them followed
-            // by `();` left the line with an unterminated quote. That is not
-            // source anybody would write, and `references::marked` now reads
+            // by `();` leaves the line with an unterminated quote. That is not
+            // source anybody would write, and `references::marked_in` reads
             // whether the marker is inside a string: on a line whose string
-            // never closes, the trailing `//` is inside it, and the fixture was
-            // asserting the marker does not excuse what it does excuse in real
-            // source.
+            // never closes, the trailing `//` is inside it, and the fixture
+            // would assert the marker does not excuse what it does excuse in
+            // real source.
             let tail = if needle.starts_with('"') {
                 "\";"
             } else {
@@ -1429,12 +1414,11 @@ mod tests {
             std::fs::write(&source, format!("fn f() {{ let x = {needle}{tail} }}\n"))
                 .expect("writable");
             let (findings, _) = nothing_the_emitter_reads_changes(&scratch).expect("readable");
-            // **At least one, because two rules now read every line.** The
-            // absolute-path rule used to be asked only where no needle matched,
-            // which is the hole a reviewer measured: a line naming a needle and
-            // carrying a written excuse for it was outside that rule for good.
-            // Both rules are asked now, so a needle that *is* an absolute path —
-            // `"/dev/`, `"/etc/`, `"/proc/` — is two findings about two
+            // **At least one, because two rules read every line.** Asked only
+            // where no needle matched, the absolute-path rule leaves a line
+            // naming a needle and carrying a written excuse for it outside that
+            // rule for good. Both rules are asked, so a needle that *is* an
+            // absolute path — `"/dev/`, `"/etc/`, `"/proc/` — is two findings about two
             // different things, and the assertion is that the needle produced
             // one rather than that the line produced only one.
             assert!(
@@ -1443,8 +1427,8 @@ mod tests {
             );
 
             // The same line, marked **and naming what it excuses** — because a
-            // marker tested once before the needle loop excused all thirty
-            // needles on its line, and `cargo fmt` puts things on lines.
+            // marker tested once before the needle loop would excuse every
+            // needle on its line, and `cargo fmt` puts things on lines.
             std::fs::write(
                 &source,
                 format!(
@@ -1499,15 +1483,14 @@ mod tests {
 
     /// A clock read under its POSIX name is a finding.
     ///
-    /// **The three `std::fs::Metadata` spellings were needles and their
-    /// `MetadataExt` twins were not**, which is a list covering an operation by
-    /// one of its names. Measured, planted inside the stage that produces the
-    /// bytes: `mtime()` left `ok 10611 line(s) of the emitter read nothing that
-    /// changes` and `ok two generations are byte-identical`, because both
-    /// determinism checks run in one process on one checkout and a stamp that
-    /// is the same twice in a row is invisible to each. The only thing that
-    /// would have caught it is CI's second-checkout diff, in a job whose own
-    /// header says it has never run.
+    /// **The three `std::fs::Metadata` spellings and their `MetadataExt`
+    /// twins**, because a list covering an operation by one of its names misses
+    /// the others. Measured, planted inside the stage that produces the bytes
+    /// with only the first three as needles: `mtime()` leaves `ok … line(s) of
+    /// the emitter read nothing that changes` and `ok two generations are
+    /// byte-identical`, because both determinism checks run in one process on
+    /// one checkout and a stamp that is the same twice in a row is invisible to
+    /// each. The only thing that would catch it is CI's second-checkout diff.
     #[test]
     fn a_clock_under_its_posix_name_is_a_finding() {
         let scratch = std::env::temp_dir().join(format!("nc-posix-{}", std::process::id()));
@@ -1530,7 +1513,7 @@ mod tests {
             // and what no per-method needle would ever enumerate.
             "use std::os::unix::fs::MetadataExt;\n",
             // **And the other family under the same module**, which `os::unix`
-            // could not see: `std::os::linux::fs::MetadataExt` offers the same
+            // cannot see: `std::os::linux::fs::MetadataExt` offers the same
             // fields under their C names, and `st_mtime` is not a longer
             // spelling of `mtime` to a reader that treats `_` as part of a name.
             "use std::os::linux::fs::MetadataExt;\n",
@@ -1543,8 +1526,7 @@ mod tests {
             "fn stamp(m: &std::fs::Metadata) -> i64 { m.st_atime() }\n",
             // And the prelude, which brings the trait in without naming it.
             "use std::os::unix::prelude::*;\n",
-            // And renamed, because a needle a rename walks past is the lesson
-            // this list has learned four times.
+            // And renamed, because a needle a rename walks past is no needle.
             "use std::os::unix as posix;\n",
         ] {
             let found = judged(planted);
@@ -1564,14 +1546,13 @@ mod tests {
 
     /// A `cfg` that is not `test` is a finding, and the marker excuses it.
     ///
-    /// **An entire rule of this module was decided by no test.**
+    /// **The test that decides an entire rule of this module.**
     /// [`super::conditional_compilation`] runs on every line this gate judges,
-    /// and every fixture beside it plants a *needle* — so misspelling the
-    /// attribute it reads, `code.find("#[cfg(")` to `code.find("#[cfgZ(")`,
-    /// left `9063 line(s) of the emitter read nothing that changes` unmoved,
-    /// all 353 tests in this crate green and `check passed`. The rule's own
-    /// paragraph names the incident it exists for: `Platform: linux, 64 bit` in
-    /// all nine generated files, selected by a `#[cfg(target_os = …)]` constant.
+    /// and every fixture beside it plants a *needle* — so misspelling an
+    /// opener it reads, `#[cfg(` as `#[cfgZ(`, leaves the emitter's line count
+    /// unmoved and fails this test. The rule's own paragraph names the case it
+    /// exists for: `Platform: linux, 64 bit` in every generated file, selected
+    /// by a `#[cfg(target_os = …)]` constant.
     ///
     /// The predicate here is `unix`, and it is chosen because `CHANGES` is
     /// deliberately without it — the needle list's own comment says why. A
@@ -1651,14 +1632,14 @@ mod tests {
 
     /// A `cfg` the formatter wrapped is still a `cfg`, and so is an inner one.
     ///
-    /// **The rule read a line and an attribute is not one.** `conditional_on`
-    /// did `code.find("#[cfg(")` and then matched parentheses inside that same
-    /// line, so an attribute broken across five lines returned no predicate at
-    /// all — and `#![cfg(unix)]`, the inner spelling, was missed by the needle.
+    /// **An attribute is not a line.** A reader doing `code.find("#[cfg(")` and
+    /// then matching parentheses inside that same line returns no predicate at
+    /// all for an attribute broken across five lines — and its needle misses
+    /// `#![cfg(unix)]`, the inner spelling.
     /// Neither is exotic: **rustfmt rewrites** a long one-line `cfg` into the
     /// wrapped form, and two files in this tree already carry multi-line
     /// attributes, so the rule its own needle list calls "the shape rather than
-    /// any spelling of it" could be switched off by running the formatter.
+    /// any spelling of it" would be switched off by running the formatter.
     ///
     /// Split out of [`a_cfg_that_is_not_test_is_a_finding`] because the two
     /// together cross a hundred lines: that one holds the predicate and the
@@ -1678,12 +1659,13 @@ mod tests {
                 .0
         };
 
-        // **Wrapped, which is the form `cargo fmt` writes.** This read a line
-        // and matched parentheses inside it, so an attribute broken across five
-        // lines returned no predicate and the rule stepped over it — measured
-        // on `crates/nc-canon/src/lib.rs`, where five such lines left `check
-        // passed`, the output differing from a clean run only in the four line
-        // counters. rustfmt *rewrites* a long one-line `cfg` into this.
+        // **Wrapped, which is the form `cargo fmt` writes.** A reader of one
+        // line, matching parentheses inside it, returns no predicate for an
+        // attribute broken across five lines, and the rule steps over it —
+        // measured with such a reader on `crates/nc-canon/src/lib.rs`, where five
+        // such lines leave `check passed`, the output differing from a clean run
+        // only in the four line counters. rustfmt *rewrites* a long one-line
+        // `cfg` into this.
         let found = judged("#[cfg(all(\n    unix,\n    not(windows)\n))]\nfn f() {}\n");
         assert_eq!(
             found.len(),
@@ -1714,7 +1696,7 @@ mod tests {
             found[0].what
         );
 
-        // **The inner spelling**, missed by the needle rather than by the
+        // **The inner spelling**, which a needle misses rather than the
         // wrapping: `#[cfg(` is not a substring of `#![cfg(`.
         let found = judged("#![cfg(unix)]\nfn f() {}\n");
         assert_eq!(
@@ -1748,13 +1730,13 @@ mod tests {
 
     /// A `cfg` a comment or a string literal merely spells is not an attribute.
     ///
-    /// **One walk, three readers, and this was the one still reading the raw
-    /// line.** Its two neighbours are handed the whole-file stripped texts; this
-    /// rule did `find("#[cfg(")` of the line as written, with one defence — a
-    /// leading `//`. So it held "those six characters appear nowhere else on the
-    /// line", and a trailing comment, a `/* … */` block and a string literal
-    /// were all read as attributes. The carrier is live rather than theoretical:
-    /// `emit.rs` pushes attribute text as string literals twenty-six times, and
+    /// **One walk, three readers, and none of them decides on the raw line.**
+    /// Its two neighbours are handed the whole-file stripped texts; doing
+    /// `find("#[cfg(")` of the line as written, with one defence — a leading
+    /// `//` — this rule would hold "those six characters appear nowhere else on
+    /// the line", and a trailing comment, a `/* … */` block and a string literal
+    /// would all read as attributes. The carrier is live rather than theoretical:
+    /// `emit.rs` pushes attribute text as string literals throughout, and
     /// the day one of them is a `cfg` the emitter's own `push_str` is reported
     /// as conditionally compiled, with a fix line telling its author to write it
     /// unconditionally.
@@ -1762,7 +1744,7 @@ mod tests {
     /// The last case is the other half, and it is why the finding is decided on
     /// the spent text but **worded from the written one**: the blanked text
     /// spends a predicate's own literal, so reading the name off it would report
-    /// `#[cfg(target_os = "linux")]` — the constant this rule was written for —
+    /// `#[cfg(target_os = "linux")]` — the constant this rule exists for —
     /// as `target_os = " "`.
     #[test]
     fn a_cfg_in_a_comment_or_a_literal_is_not_an_attribute() {
@@ -1795,10 +1777,11 @@ mod tests {
 
         // **A `cfg` hidden behind one the rule allows.** `conditional_on` takes
         // the first opener on the line, so a comment or a literal spelling
-        // `#[cfg(test)]` before a real `#[cfg(unix)]` answered `test` from the
-        // written text — and the rule stood down for a line that is genuinely
-        // conditional. The second pair is the mirror: a `test`-only line whose
-        // comment or literal spells something else, refused for the same reason.
+        // `#[cfg(test)]` before a real `#[cfg(unix)]` answers `test` from the
+        // written text — and the rule would stand down for a line that is
+        // genuinely conditional. The second pair is the mirror: a `test`-only
+        // line whose comment or literal spells something else, which would be
+        // refused for the same reason.
         for (behind, conditional) in [
             ("/* #[cfg(test)] */ #[cfg(unix)]\nfn f() {}\n", true),
             (
@@ -1822,10 +1805,11 @@ mod tests {
 
         // **And the finding names the attribute it fired about.** The two walks
         // each take the first opener by offset, so a commented-out `cfg` in
-        // front of a live one put them on different attributes: the gate fired
-        // for `unix` and said `test`, over a fix line reading "`test` is the one
-        // predicate that cannot reach the output". The sentence and its own
-        // remedy contradicted each other and the reader was sent to the comment.
+        // front of a live one puts them on different attributes; worded from the
+        // written walk's own opener, the gate would fire for `unix` and say
+        // `test`, over a fix line reading "`test` is the one predicate that
+        // cannot reach the output" — a sentence and its own remedy contradicting
+        // each other, and the reader sent to the comment.
         let found = judged("/* #[cfg(test)] */ #[cfg(unix)]\nfn f() {}\n");
         assert!(
             found
@@ -1874,9 +1858,9 @@ mod tests {
 
     /// What claims `rust-toolchain.toml` pins says what it actually pins.
     ///
-    /// **A marker's reason is the whole of why a line is excused, and this one
-    /// was not true.** `xtask/src/build.rs` excuses its `Command::new` on the
-    /// ground that rustfmt is "pinned by rust-toolchain.toml"; that file says
+    /// **A marker's reason is the whole of why a line is excused, so it has to
+    /// be true.** `xtask/src/build.rs` excuses its `Command::new` by what
+    /// `rust-toolchain.toml` pins for rustfmt; that file says
     /// `channel = "stable"`, which is a name that moves under this repository
     /// every six weeks, and CI does not read the file at all — it installs the
     /// toolchain through an action pointed at the same moving channel by name.
@@ -1884,9 +1868,9 @@ mod tests {
     /// `rustfmt` and `clippy` are asked for, so they are installed. The version
     /// that formats the generated files is whatever `stable` is on the day.
     ///
-    /// `README.md` describes this correctly. The marker's reason and
-    /// `AGENTS.md`'s repository map did not, and a reason that overstates is
-    /// worse than none: it is the sentence a reviewer checks the excuse by.
+    /// `README.md`, the marker's reason and `AGENTS.md`'s repository map each
+    /// have to describe this correctly, and a reason that overstates is worse
+    /// than none: it is the sentence a reader checks the excuse by.
     ///
     /// This is a rule about the two sentences and not about the channel. If the
     /// channel is ever pinned to a version on purpose, the first assertion
@@ -1896,13 +1880,12 @@ mod tests {
     fn what_claims_the_toolchain_is_pinned_says_what_is_pinned() {
         let toolchain = std::fs::read_to_string(root().join("rust-toolchain.toml"))
             .expect("rust-toolchain.toml is readable");
-        // **Parsed, because both keys were read by `lines().find_map`, which
-        // knows nothing of the table they are in.** rustup reads them under
-        // `[toolchain]` and nowhere else, and the two blindnesses are not the
-        // same:
+        // **Parsed, because `lines().find_map` knows nothing of the table the
+        // keys are in.** rustup reads them under `[toolchain]` and nowhere else,
+        // and the two blindnesses of such a reader are not the same:
         //
         // ```text
-        // components moved under an [extra] table   ->  386 passed
+        // components moved under an [extra] table   ->  every test passes
         //   rustup ignores it entirely — proved with a component that does not
         //   exist: under [toolchain] rustup warns, under [extra] it never looks
         //
@@ -1911,12 +1894,12 @@ mod tests {
         //   `channel` makes rustup refuse the file outright
         // ```
         //
-        // So the component list could be moved out of the table rustup reads
-        // with every test in this repository green and a fresh clone left with
-        // neither `rustfmt` nor `clippy` — the exact defect the paragraph below
-        // was written for, one table along. The `toml` crate is already in this
-        // workspace and answers the question that was being asked: what does
-        // `[toolchain]` say.
+        // So without a parse the component list can be moved out of the table
+        // rustup reads with every test in this repository green and a fresh
+        // clone left with neither `rustfmt` nor `clippy` — the exact defect the
+        // paragraph below is about, one table along. The `toml` crate is
+        // already in this workspace and answers the question being asked: what
+        // does `[toolchain]` say.
         let table = toolchain
             .parse::<toml::Table>()
             .expect("rust-toolchain.toml is TOML rustup can read");
@@ -1940,15 +1923,13 @@ mod tests {
         );
 
         // **And the component list, which is the thing all three sentences say
-        // is pinned and which nothing read.** Deleting
-        // `components = ["rustfmt", "clippy"]` left every test in this
-        // repository green, and with `profile = "minimal"` beside it a fresh
-        // clone then has neither binary: `cargo xtask build` fails at the spawn
-        // in `build.rs`, whose marker excuses that spawn on precisely this
-        // ground. CI stays green through all of it, because
-        // the workflow's own action names both components itself — so the
-        // one machine that would have reported it is the one machine that does
-        // not read this file.
+        // is pinned.** Deleting `components = ["rustfmt", "clippy"]` fails the
+        // assertion below, and with `profile = "minimal"` beside it a fresh
+        // clone would then have neither binary: `cargo xtask build` fails at the
+        // spawn in `build.rs`, whose marker excuses that spawn on precisely this
+        // ground. CI would stay green through all of it, because the workflow's
+        // own action names both components itself — so the one machine that
+        // would report it is the one machine that does not read this file.
         //
         // The three sentences below are held to saying what is pinned; this is
         // what holds the file to still pinning it.
@@ -1974,9 +1955,9 @@ mod tests {
         }
 
         // **The sentences themselves, by digest, and not a word test on them.**
-        // The rule here was `said.contains("pin") && !(said.contains("component")
-        // || said.contains("channel"))`, which asks whether three words are
-        // present and nothing about what the sentence says with them: *"the
+        // A rule such as `said.contains("pin") && !(said.contains("component")
+        // || said.contains("channel"))` asks whether three words are present
+        // and nothing about what the sentence says with them: *"the
         // channel is pinned to a version and the component list is not"* — the
         // exact opposite of the truth — carries `channel` and passes. A prose
         // rule made of word tests moves the rot rather than stopping it, because
@@ -1986,11 +1967,11 @@ mod tests {
         // are pinned: by digest, over the words with the wrapping normalised, so
         // that reflowing a paragraph is not a failure and changing what it says
         // is. Rewriting one is then a two-place edit whose second place is a
-        // reviewer reading the new sentence against `rust-toolchain.toml`.
+        // reader checking the new sentence against `rust-toolchain.toml`.
         //
         // **And three, not two.** `README.md` makes the same claim in the same
-        // words — *"pins the channel and the components"* — and nothing read it;
-        // it is the first account of this a newcomer meets.
+        // words — *"pins the channel and the components"* — and it is the first
+        // account of this a newcomer meets.
         let words = |text: &str| text.split_whitespace().collect::<Vec<_>>().join(" ");
 
         let source = std::fs::read_to_string(root().join("xtask/src/build.rs")).expect("readable");
@@ -2028,7 +2009,7 @@ mod tests {
                 "dad58095d0c1d74ab22b70fe921af3ad",
             ),
             ("AGENTS.md", &mapped, "281a4d27ce27d73c403d726137dfa78b"),
-            ("README.md", &bullet, "ad1b185d1d9c5d30f273f948170a331b"),
+            ("README.md", &bullet, "acd6a185e587fa606a76ddc98972c43e"),
         ] {
             // The floor under the digest: a locator that matched an empty line
             // would pin the digest of nothing, and every rewrite would pass.
@@ -2043,7 +2024,7 @@ mod tests {
                 "{named} no longer says what it said about `rust-toolchain.toml`. What \
                  that file pins is the *component list*; the channel it names is `stable`, \
                  which moves under this repository every six weeks, and CI installs the \
-                 toolchain through an action pointed at the same moving name. Read the new \
+                 toolchain from that same file, so it follows the same moving name. Read the new \
                  sentence against the file, then put its digest here in the same edit — \
                  it is `{measured}`. The sentence read was: {sentence}"
             );
@@ -2052,22 +2033,22 @@ mod tests {
 
     /// A needle renamed at the `use` is the same needle.
     ///
-    /// **Four of the list's entries could be walked past by writing `as`.**
+    /// **A needle that is a call can be walked past by writing `as`.**
     /// `SystemTime` and `HashMap` survive being aliased because the needle is
-    /// the bare type name; `Instant::now`, `Utc::now` and `Local::now` were the
-    /// *call*, so `use std::time::Instant as Tick;` and then `Tick::now()` was
-    /// **0 findings**, measured. `process::id` was the same hole through the
-    /// other spelling of an import: `use std::process::{id as pid};` was 0
+    /// the bare type name; with `Instant::now`, `Utc::now` and `Local::now` as
+    /// the *call*, `use std::time::Instant as Tick;` and then `Tick::now()` is
+    /// **0 findings**, measured. `process::id` is the same hole through the
+    /// other spelling of an import: `use std::process::{id as pid};` is 0
     /// findings too, because `process::id` is not a substring of
     /// `process::{id`.
     ///
     /// `Utc` is the severe one. A date at day granularity is identical in two
     /// generations a millisecond apart and identical again in CI's same-day
     /// cross-checkout diff, so neither of the two determinism checks would ever
-    /// have said a word — this list is the whole of what stands there.
+    /// say a word — this list is the whole of what stands there.
     ///
-    /// **`process::Command` is not in here, and that is a correction to an
-    /// earlier record**: it is backstopped. clippy resolves the alias by
+    /// **`process::Command` is not in here, because it is backstopped.** clippy
+    /// resolves the alias by
     /// def-id, so `disallowed_methods` fires on a renamed `Command::new` and
     /// `check` fails at lints. The four above have no backstop at all.
     #[test]
@@ -2091,7 +2072,7 @@ mod tests {
             ("use chrono::Local as Here;", "Local"),
             ("use std::process::{id as pid};", "process"),
             ("use std::process::{self, id};", "process"),
-            // **The alias, and the wrapped braced import.** Neither could be
+            // **The alias, and the wrapped braced import.** Neither can be
             // seen by a needle carrying `::`: `machine::id()` names no
             // `process::id`, and `mentions` reads one line, so a group rustfmt
             // has wrapped leaves `process::{` with nothing after it on the line.
@@ -2126,16 +2107,16 @@ mod tests {
 
     /// A braced import is the same path, and a needle carrying `::` reads it.
     ///
-    /// **The branch that does that was decided by nothing.** Both fixtures for
-    /// the braced form pass the needle `process`, which is a bare segment the
-    /// plain scan matches on its own — so the branch's own reason for existing,
-    /// `process::id`, stopped being a needle and nothing noticed. Measured, the
-    /// `rsplit_once` filtered to `None`: the whole gate byte-identical to a
-    /// clean run, and `use std::io::{stdin as read_input};` planted into a
-    /// scanned crate reported nothing where the unplanted tree reports
+    /// **The test that decides that branch.** Both other fixtures for the
+    /// braced form pass the needle `process`, which is a bare segment the plain
+    /// scan matches on its own — so the branch's own reason for existing,
+    /// `process::id`, is not a needle and they cannot reach it. With the
+    /// `rsplit_once` filtered to `None` this test fails, and
+    /// `use std::io::{stdin as read_input};` planted into a scanned crate
+    /// reports nothing where the unplanted tree reports
     /// `` `io::stdin` reaches generated output ``.
     ///
-    /// Ten needles carry `::` today, `Command::new` among them.
+    /// Several needles carry `::`, `Command::new` among them.
     #[test]
     fn a_needle_that_carries_a_path_reads_a_braced_import() {
         assert!(
@@ -2162,8 +2143,8 @@ mod tests {
         );
         // And the group ends at its own brace: a name written after it is not
         // in it. Measured, the closing brace replaced by the end of the text —
-        // a parameter called `stdin` beside an unrelated import was reported as
-        // a use of `io::stdin`, and every other assertion here stayed green.
+        // a parameter called `stdin` beside an unrelated import is reported as
+        // a use of `io::stdin`, which is what this assertion refuses.
         assert!(
             !mentions("use std::io::{stdout}; fn f(stdin: u8) {}", "io::stdin"),
             "a name after the group is not inside it"
@@ -2178,7 +2159,7 @@ mod tests {
         // And the other end of the name, which `env::vars` needed: a longer name
         // that *begins* with the needle is not a use of it either.
         // The `env::` module rule reaches every one of these, which is why they
-        // are no longer four needles that each had to be remembered.
+        // are not four needles that each have to be remembered.
         for spelling in [
             "let a = env::var(\"A\");",
             "for (k, v) in env::vars() {}",
@@ -2193,8 +2174,8 @@ mod tests {
             // nothing on this list — measured past the whole gate.
             "use std::env as machine;",
             "use std::{env, fs};",
-            // The build-time macro is this needle too, which is why it is no
-            // longer an entry of its own.
+            // The build-time macro is this needle too, which is why it is not an
+            // entry of its own.
             "let x = env!(\"A\");",
         ] {
             assert!(mentions(spelling, "env"), "{spelling}");
@@ -2226,14 +2207,15 @@ mod tests {
     fn every_crate_the_emitter_reaches_is_read() {
         // The entries listed by hand, because no dependency edge reaches them.
         const BY_HAND: [&str; 1] = ["xtask/src/build.rs"];
-        // **`EMITS_UNDER` is the floor's scope, and nothing tied it to `EMITS`.**
-        // Dropping `crates/nc-canon/src` from it left `ok 9015 line(s) of the
-        // emitter read nothing that changes` and `check passed` — 1,864 lines of
-        // silent slack. Spending it: one `return` in the walk's visitor skipping
-        // `docs.rs`, the file that emits every `docs/*.md` page, gave
-        // `ok 8216 line(s)`; then `let _ = std::time::SystemTime::now();` at the
-        // top of `docs::all` — a live clock in the emitter — also `check passed`,
-        // 968 tests green. `EMITS` is pinned by this test; its copy was not.
+        // **`EMITS_UNDER` is the floor's scope, and this ties it to `EMITS`.**
+        // Without that, dropping `crates/nc-canon/src` from it leaves
+        // `ok … line(s) of the emitter read nothing that changes` and
+        // `check passed` — every line of that crate silent slack. Spending it:
+        // one `return` in the walk's visitor skipping `docs.rs`, the file that
+        // emits every `docs/*.md` page, gives a smaller `ok … line(s)`; then
+        // `let _ = std::time::SystemTime::now();` at the top of `docs::all` — a
+        // live clock in the emitter — also `check passed`, every test green.
+        // `EMITS` is pinned by this test, and so is its copy.
         for named in super::EMITS {
             assert!(
                 super::EMITS_UNDER.contains(&named),
@@ -2243,15 +2225,16 @@ mod tests {
             );
         }
 
-        // **`EMITS` was two hard-coded directories with nothing tying them to
-        // what emits**, and the first fix did not tie them either: it read the
-        // emitter's `[dependencies]` looking for `nc-` crates, and the emitter
-        // has none — so `reached` was `[EMITTER, ALSO]`, the same two strings
-        // `EMITS` already held, and replacing the whole manifest walk with an
-        // empty string left the test green. It was also blind to the table form
-        // `[dependencies.nc-ids]`, which `gates.rs` already documents for
-        // `[lints]`: a real dependency written that way put a clock in a crate
-        // the emitter calls, and the gate never opened the directory.
+        // **`EMITS` is tied to what emits.** `reached` starts as
+        // `[EMITTER, ALSO]`, so a walk that read no manifest would agree with
+        // those two entries by finding nothing; what refuses that is the
+        // equality at the foot of this test, which counts `nc-schema`, reached
+        // only through the emitter's own `[dependencies]`, among the entries
+        // the walk has to find. A read of the inline form alone is also blind
+        // to the table form `[dependencies.nc-ids]`, which `gates.rs` already
+        // documents for `[lints]`: a real dependency written that way can put a
+        // clock in a crate the emitter calls, and such a read never opens the
+        // directory.
         //
         // So this walks the *closure*: every workspace crate reachable from the
         // emitter, by either TOML spelling, transitively.
@@ -2282,8 +2265,9 @@ mod tests {
         }
         reached.sort();
         reached.dedup();
-        // The floor: a walk that read no manifest would agree with `EMITS` by
-        // finding nothing, which is how the first version passed.
+        // The floor: the two crates the walk starts from, which a walk that
+        // read no manifest still holds; the equality below is what such a walk
+        // fails.
         assert!(
             reached.len() >= 2,
             "the dependency walk found {reached:?}, so it proves nothing"
@@ -2301,14 +2285,14 @@ mod tests {
         // **And nothing else, except what no dependency edge can reach.** The
         // closure walks from the emitter *outwards*, so it can never find the
         // crate that calls it — and `xtask/src/build.rs`, which runs rustfmt and
-        // writes the bytes, was outside the scan for exactly that reason. A
-        // `std::env::var("USER")` there reached every generated file with all
-        // three determinism gates green.
+        // writes the bytes, is outside the closure for exactly that reason. A
+        // `std::env::var("USER")` there, unlisted, reaches every generated file
+        // with all three determinism gates green.
         //
         // So the equality is against the closure plus the entries listed by
-        // hand, and each of those is named here: adding a fourth without saying
-        // why fails, and a crate the closure finds is still required to be in
-        // `EMITS` by the loop above.
+        // hand, and each of those is named here: adding an entry to `EMITS`
+        // without saying why fails, and a crate the closure finds is still
+        // required to be in `EMITS` by the loop above.
         for named in BY_HAND {
             assert!(
                 EMITS.contains(&named),
@@ -2329,8 +2313,8 @@ mod tests {
     #[test]
     fn a_dependency_is_found_in_either_toml_spelling() {
         // The table form is what `gates.rs` already documents for `[lints]`, and
-        // the walk read only the inline one — so a real dependency written
-        // `[dependencies.nc-ids]` was invisible.
+        // a walk reading only the inline one leaves a real dependency written
+        // `[dependencies.nc-ids]` invisible.
         let inline = "[dependencies]\nnc-ids = { path = \"../nc-ids\" }\nserde.workspace = true\n";
         assert_eq!(workspace_dependencies(inline), vec!["nc-ids".to_owned()]);
 
@@ -2351,36 +2335,34 @@ mod tests {
 
     /// Needles whose deletion must turn this suite red.
     ///
-    /// **`CHANGES` had no membership assertion**, unlike `SUITES`, `SHAPES` and
-    /// `CORE_POLICIES` — `every_shape_is_a_finding…` iterates the list, so
-    /// deleting an entry only shortens the loop and every test stays green.
-    /// Measured: all nine needles added in one round removed together, suite
-    /// green; and with `target_os` alone gone, a `#[cfg(target_os = "linux")]`
-    /// constant in `nc-canon` put the build machine's platform into nine
-    /// generated files with `check passed` — verbatim the failure that needle's
-    /// own comment says it closes.
+    /// **`CHANGES`'s membership assertion**, like those of `SUITES`, `SHAPES`
+    /// and `CORE_POLICIES` — `every_shape_is_a_finding…` iterates the list, so
+    /// deleting an entry only shortens its loop and cannot fail it; this
+    /// assertion fails instead. `target_os` is the needle for a
+    /// `#[cfg(target_os = "linux")]` constant in `nc-canon` putting the build
+    /// machine's platform into every generated file — verbatim the failure that
+    /// needle's own comment says it closes.
     ///
-    /// **The whole list**, and it was fourteen of about forty. The criterion
-    /// was "a needle a measurement was written against", which is a fact about
-    /// this module's history rather than about what the needle is worth:
-    /// measured, `HashSet`, `getrandom`, `Utc::now` and `is_terminal` deleted
-    /// **together** left the whole suite green, and `HashSet` sits directly
-    /// beside `HashMap` — which was protected — and is exactly as dangerous.
+    /// **The whole list**, and not only the needles a measurement was written
+    /// against, which is a fact about how each arrived rather than about what
+    /// it is worth: measured, with such a partial list, `HashSet`, `getrandom`,
+    /// `Utc::now` and `is_terminal` deleted **together** from `CHANGES` leave
+    /// the whole suite green, and `HashSet` sits directly beside `HashMap` and is
+    /// exactly as dangerous.
     ///
     /// A needle nobody has been burned by yet is still a needle somebody wrote
-    /// for a reason. Removing one is now a two-place edit whichever it is, and
+    /// for a reason. Removing one is a two-place edit whichever it is, and
     /// the list below is checked against `CHANGES` in **both** directions, like
     /// `SUITES` and `SHAPES`: a needle added and not named here fails too, so
     /// the pair cannot drift.
     const MUST_STAY: [&str; 68] = [
-        // **The nine added when a reviewer showed the four were four of twelve.**
-        // `CHANGES`'s own comment records the incident that made it — a
-        // `#[cfg(target_os = …)]` constant putting `Platform: linux, 64 bit` into
-        // all nine generated files with `check passed` — and the fix named the
-        // key that had done it and its three nearest relatives. Each of these
-        // selects code by the machine or by the build profile just as well, and
-        // each was measured writing a line into all nine generated files with
-        // the whole gate green.
+        // **The platform and profile keys beyond the first four.** `CHANGES`'s
+        // own comment names the key behind a `#[cfg(target_os = …)]` constant
+        // putting `Platform: linux, 64 bit` into every generated file with
+        // `check passed`, and its three nearest relatives. Each of these selects
+        // code by the machine or by the build profile just as well, and each is
+        // measured writing a line into every generated file with the whole gate
+        // green without its needle.
         "target_family",
         "target_env",
         "target_vendor",
@@ -2456,7 +2438,7 @@ mod tests {
         // **Both directions.** One direction says every named needle is still
         // in `CHANGES`; the other says `CHANGES` holds nothing this list does
         // not name — without which a needle added today is unprotected
-        // tomorrow, which is how the list came to cover fourteen of forty.
+        // tomorrow, and the list covers a fraction of the needles.
         let mut declared: Vec<&str> = MUST_STAY.to_vec();
         declared.sort_unstable();
         let mut listed: Vec<&str> = CHANGES.iter().map(|(needle, _)| *needle).collect();
@@ -2472,8 +2454,8 @@ mod tests {
     #[test]
     fn no_needle_is_listed_twice() {
         // Two entries for one needle report the same line twice under two
-        // reasons, which is how a reader learns to skim a gate — and it happened
-        // to `env::vars` the moment the list grew in two places at once.
+        // reasons, which is how a reader learns to skim a gate — and it is what
+        // a list growing in two places at once does to a needle like `env::vars`.
         let mut seen = std::collections::BTreeSet::new();
         for &(needle, _) in CHANGES {
             assert!(seen.insert(needle), "`{needle}` is in CHANGES twice");
@@ -2483,20 +2465,20 @@ mod tests {
 
     /// A machine path is seen however its root is written.
     ///
-    /// **The needle was anchored to the literal's opening quote**, so it spoke
-    /// only for a path written out whole. `format!("{}/etc/machine-id", dir)` —
-    /// the ordinary way a root is joined to a path — was invisible to it, and to
+    /// **Anchored to the literal's opening quote, the needle speaks only for a
+    /// path written out whole.** `format!("{}/etc/machine-id", dir)` — the
+    /// ordinary way a root is joined to a path — is then invisible to it, and to
     /// the absolute-path half too, which needs a `"/` to start at. `/etc/`
-    /// cannot be a relative segment of anything here, so the quote was carrying
-    /// no weight.
+    /// cannot be a relative segment of anything here, so a quote carries no
+    /// weight.
     #[test]
     fn a_machine_path_is_seen_however_its_root_is_written() {
         // **Each row says what it expects, because a disjunction can be paid by
-        // the wrong half.** This was `spoke || !reported.contains("/etc/")`, and
-        // the fourth row holds no `/etc/` at all — so its right-hand half was
-        // true whatever the gate did, and the row decided nothing while the
-        // paragraph above claimed it did. Measured in wave 28: with the
-        // disjunct removed the row fails, and the failure is real.
+        // the wrong half.** As `spoke || !reported.contains("/etc/")`, with the
+        // fourth row holding no `/etc/` at all, the right-hand half is true
+        // whatever the gate does, and the row decides nothing while the
+        // paragraph above claims it does. Measured: asserting the left half
+        // alone, the row fails, and the failure is real.
         //
         // It is real and it is **not a defect in the gate**. `root.join("etc")`
         // is a path into the machine only if `root` is `/`, and `root` is a
@@ -2542,11 +2524,11 @@ mod tests {
     ///
     /// `/etc/machine-id` is the file this whole rule names as its reason, and
     /// three spellings reach it. Written as "the literal begins `..`", the rule
-    /// saw one of them.
+    /// would see one of them.
     #[test]
     fn a_path_that_climbs_out_is_seen_wherever_the_climb_is() {
         for reported in [
-            // The spelling the rule was shown.
+            // The spelling a rule on the opening alone sees.
             r#"read_to_string("../../../etc/machine-id")"#,
             // One character in front of it, opening the same file.
             r#"read_to_string("./../../../etc/machine-id")"#,
@@ -2576,14 +2558,14 @@ mod tests {
             r#"read_to_string("catalog/errors.toml")"#,
             r#"root.join("crates").join("nc-ids")"#,
             // A version range is not a path, and neither is prose that opens
-            // with a full stop — the old rule reported the latter.
+            // with a full stop — a rule on the opening alone reports the latter.
             r#"let range = "1.0..2.0";"#,
             r#"let note = "..and then the digest changes";"#,
             // A doubled slash opens a URL, which the absolute half already
             // excludes for its own reason.
             r#"let home = "https://example.invalid/x";"#,
             // And the emitter's own generated doc comments, which are what the
-            // carve-out was written for. A comment has a space after its
+            // carve-out is for. A comment has a space after its
             // slashes; a path has a name.
             r#"out.push_str("/// The identifier this row names.");"#,
             r#"out.push_str("// generated, do not edit");"#,
@@ -2609,7 +2591,7 @@ mod tests {
         for &(needle, instead) in CHANGES {
             // `mentions` rather than `contains`, for the same reason the gate
             // itself uses it: "a **rand**om number differs on every run" does
-            // not restate the needle `rand`, and a substring test called it one.
+            // not restate the needle `rand`, and a substring test would call it one.
             assert!(
                 !instead.is_empty() && !mentions(instead, needle),
                 "`{needle}`'s fix restates it: {instead}"

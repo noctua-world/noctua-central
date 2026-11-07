@@ -24,11 +24,16 @@ nc-schema.workspace = true
 [dev-dependencies]
 # **Itself, so the documentation gate can read this crate's integration
 # tests.** `cargo doc` documents lib and bin targets only, so a broken
-# intra-doc link in `tests/` shipped with the gate green — and
+# intra-doc link in `tests/` passes it green — and
 # `cargo rustdoc --test` cannot resolve a `use` of the crate under test
 # unless the package depends on itself here. Cargo resolves it to this
 # same unit, so nothing is built twice.
 nc-catalog-compiler = { path = "." }
+# **What this system lists in the order it was made**, which the suite about
+# the order on disk needs and stands aside without, saying so: the one place
+# a system is asked what it has (`NOCTUA.md §2.7`). Its answer is compiled in
+# every build, so none of the test doors is turned on here.
+nc-platform.workspace = true
 
 [lints]
 workspace = true
