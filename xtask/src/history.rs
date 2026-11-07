@@ -1894,30 +1894,48 @@ mod tests {
     }
 
     /// A trailer naming a person who shares the one first name `AGENT_NAMES`
-    /// keeps is refused, whatever its address and its other names.
+    /// keeps is refused, whatever its address and its other names, and passes
+    /// once neither its names nor its address hold that first name as a word.
     ///
     /// **The over-refusal the list pays for, held so it is not lost
     /// quietly**: the name stays because tools sign with it with no address
     /// under an agent's site, and `AGENTS.md` states the price under "What is
-    /// deliberately not claimed". A change that lets these through has to
+    /// deliberately not claimed", with the way out held here too: the
+    /// person's other names, and an address that does not hold the name,
+    /// since the address is read word by word like the rest of the value. A
+    /// change that lets the refusals through, or refuses the way out, has to
     /// change that sentence too.
     #[test]
     fn a_trailer_naming_a_person_who_shares_the_first_name_kept_is_refused() {
         let key = the_coauthor_key();
         let name = an_agent();
+        let lower = name.to_lowercase();
         assert!(
-            super::AGENT_NAMES.contains(&name.to_lowercase().as_str()),
+            super::AGENT_NAMES.contains(&lower.as_str()),
             "the first name kept is no longer in the list"
         );
         for text in [
-            format!(
-                "{key}: {name} Martin <{}.martin@example.org>",
-                name.to_lowercase()
-            ),
+            format!("{key}: {name} Martin <{lower}.martin@example.org>"),
             format!("Reviewed-by: {name} Dupont <cd@example.org>"),
             format!("{key}: Jean-{name} Dubois <jc@example.org>"),
+            // The name dropped and the address kept: still a word of the
+            // value.
+            format!("{key}: Martin <{lower}.martin@example.org>"),
+            format!("{key}: Jean Dubois <jean-{lower}@example.org>"),
         ] {
             found_once_as(&text, "trailer");
+        }
+        // The way out: the other names, and an address without the name.
+        for text in [
+            format!("{key}: Martin <martin@example.org>"),
+            String::from("Reviewed-by: Dupont <cd@example.org>"),
+            format!("{key}: Jean Dubois <jd@example.org>"),
+        ] {
+            assert_eq!(
+                super::credits(&format!("fix: a subject\n\n{text}\n")),
+                Vec::new(),
+                "`{text}` was read as a credit"
+            );
         }
     }
 

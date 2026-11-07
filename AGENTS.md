@@ -2506,8 +2506,9 @@ rather than anything decided for the project, and each is a maintainer's to reop
   first name `AGENT_NAMES` keeps, because tools sign with it with no address under an
   agent's site, so an honest co-author or reviewer of that first name is refused as a
   credit, and so is a Jean-Claude, since a hyphen ends a word. Such a trailer is written
-  with the person's other names. A test holds the refusal, so a change that lets it
-  through changes this sentence too.
+  with the person's other names and an address that does not hold that first name as a
+  word, since the address is read word by word too. A test holds the refusal and the way
+  out, so a change to either changes this sentence too.
 - **A base that moved after the pull request's last run is not covered**: the rulesets
   require the checks with strict status checks off, so a pull request merges on a run
   made against its base as the base was then, and a blob the real merge writes, from a
