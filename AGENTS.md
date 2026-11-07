@@ -2449,8 +2449,7 @@ rather than anything decided for the project, and each is a maintainer's to reop
   in it is refused like any other.
 - **The token action is handed the App's client id from an environment's variable**,
   `RELEASE_APP_CLIENT_ID`, whose value is GitHub's setting: the reader holds the line that
-  names it, never what it holds. The App's numeric id, `RELEASE_APP_ID`, is read by
-  nothing here.
+  names it, never what it holds. No variable holds the App's numeric id.
 - **The toolchain is whatever `stable` is on the day**, installed by the runner image's
   rustup, which reads `rust-toolchain.toml` because no toolchain is named; a rustup that
   needs one named fails that step.
