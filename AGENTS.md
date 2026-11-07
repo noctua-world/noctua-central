@@ -1767,9 +1767,13 @@ where it answers through REST, the merge state `DIRTY` through GraphQL), or refu
 turn auto-merge on for it, the release stops after the tag and the GitHub release and
 says how: make a branch from the branch below, merge the released branch into it, keep
 the released branch's version and CHANGELOG.md wherever the two disagree, run
-`cargo update --workspace`, commit it signed, and open a pull request into the branch
-below. Once that merges, GitHub marks the App's pull request merged, because its head is
-reachable from its base, and a run on the release commit ends `already released`.
+`cargo update --workspace`, commit it signed under a conventional subject such as
+`chore(release): carry v0.1.0 back to staging by hand`, and open a pull request into the
+branch below titled the same. Git's own subject for the merge (`Merge branch …`) is
+refused: the history step judges every commit the pull request's head reaches, merges
+included, and its title, and that subject opens with no type. Once that merges, GitHub
+marks the App's pull request merged, because its head is reachable from its base, and a
+run on the release commit ends `already released`.
 
 **A release the branch below holds already is not carried back again.** A release made
 while an earlier one's pull request back is still open is carried by that one, and once it
@@ -2740,13 +2744,21 @@ deliberately not claimed").
   App's token, enters an environment, or reads a secret or a step's output, and no file
   CI reaches but `release.yml` publishes or stands the release's gate aside ("The release
   job is what `release.yml` says, and the App's token reaches its last step alone").
-- **Every `cargo install` names its crate at an exact version**, `name@X.Y.Z`, in every
-  file CI reaches, read as a command is however its line is written: a crate named with
-  no version, or with a range such as `@0.20`, is whatever crates.io holds on the day,
-  and its code runs in the job that installs it, the release's gate among them.
-  `cargo-deny`'s version is written in five places and moved in one commit: the three
-  installs of `ci.yml`, the gate job of `release.yml`, and `THE_RELEASE_STEPS` in
-  `xtask/src/workflow.rs`, which holds the fourth line for line.
+- **Every `cargo install` is one crate, locked, at an exact version**,
+  `cargo install --locked name@X.Y.Z` and no other word, in every file CI reaches, read
+  as a command is however its line is written: a crate named with no version, or with a
+  range such as `@0.20`, is whatever crates.io holds on the day, and its code runs in the
+  job that installs it, the release's gate among them; a second crate on the line is one
+  no version names, and `--git`, `--path`, `--registry` or `--index` takes the code from
+  where no version on crates.io describes it. `cargo-deny`'s version is written in six
+  places and moved in one commit: the three installs of `ci.yml`, the gate job of
+  `release.yml`, `THE_RELEASE_STEPS` in `xtask/src/workflow.rs`, which holds that line
+  for line, and that line's row in `WHAT_ELSE_THIS_TOOL_SAYS` in `xtask/src/check.rs`,
+  the census of the sentences the tool ships. The rule's test takes its install from
+  `THE_RELEASE_STEPS` and fails when `ci.yml` holds no such line, as the release's own rule
+  fails when `release.yml`'s gate does not; the three lines of `ci.yml` are not held to one
+  another. `deny.toml`'s comment on `unsound` names the version whose default it read, and
+  is read again against the new one.
 - **Actions are an allowlist, not a needle**: an action judging anything of ours is a
   second gate whatever it is called — a linting action such as
   `giraffate/clippy-action@v1` <!-- allow-reference: names `giraffate/clippy-action@v1` — an action this repository does not use -->

@@ -1291,8 +1291,8 @@ pub(crate) fn only_runs_the_gate(root: &Path) -> Result<(Vec<Finding>, usize), S
 /// else; each opens with `permissions: {}` and no job asks for more than
 /// [`THE_ONE_PERMISSION`]; neither runs on an event of
 /// [`WITH_THIS_REPOSITORYS_AUTHORITY`]; every action any file CI reaches uses
-/// is pinned to a full commit, with its release in a comment, and every crate
-/// one installs to an exact version ([`every_install_names_its_version`]); the
+/// is pinned to a full commit, with its release in a comment, and every install
+/// is one crate, locked, at an exact version ([`every_install_names_its_version`]); the
 /// release is made as [`the_release_runs_as_written`] says; no other file CI
 /// reaches holds what makes one ([`nothing_else_holds_the_releases_authority`]);
 /// every key of a file GitHub runs is written out where a rule reads it
@@ -1765,8 +1765,9 @@ fn is_a_commit(reference: &str) -> bool {
             .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
-/// Every `cargo install` a file CI reaches runs names the crate at an exact
-/// version, `name@X.Y.Z`.
+/// Every `cargo install` a file CI reaches runs installs one crate, locked, at
+/// an exact version: `cargo install --locked name@X.Y.Z`, and nothing else on
+/// it ([`one_crate_locked_at_an_exact_version`]).
 ///
 /// **A crate named with no version is whatever crates.io holds on the day**,
 /// and its code runs in the job that installs it, in `release.yml`'s gate as in
@@ -1796,26 +1797,55 @@ fn every_install_names_its_version(root: &Path, findings: &mut Vec<Finding>) {
             }
             for command in cargo_commands(&line) {
                 let mut words = command.split_whitespace().skip(1);
-                if words.next() != Some(INSTALL) || words.any(names_an_exact_version) {
+                if words.next() != Some(INSTALL) {
+                    continue;
+                }
+                // **This install's words, and no further**: what follows a
+                // separator is another command, which is read as one.
+                let installed: Vec<&str> =
+                    words.take_while(|word| !separates_commands(word)).collect();
+                if one_crate_locked_at_an_exact_version(&installed) {
                     continue;
                 }
                 findings.push(Finding {
                     file: relative.clone(),
                     line: index + 1,
                     what: format!(
-                        "`{}` names no crate at an exact version",
+                        "`{}` is not one crate installed locked at an exact version",
                         command.split_whitespace().collect::<Vec<_>>().join(" ")
                     ),
-                    fix: "a crate named with no version, or with a range, is whatever crates.io \
-                          holds on the day, and its code runs in the job that installs it — in \
-                          the release's gate as in every other. Name it as `name@X.Y.Z`, which \
-                          cargo installs exactly, and move the version in every install of it \
-                          at once"
+                    fix: "what an install installs runs in the job that installs it — in the \
+                          release's gate as in every other — so each word of it is named: a \
+                          crate with no version, or with a range, is whatever crates.io holds \
+                          on the day, a second crate is one no version names, and `--git`, \
+                          `--path`, `--registry` or `--index` takes the code from where no \
+                          version on crates.io describes it. Install one crate a line, as \
+                          `cargo install --locked name@X.Y.Z`, which cargo installs exactly \
+                          and builds with the lockfile it was published with, and move the \
+                          version in every place it is written at once"
                         .to_owned(),
                 });
             }
         }
     }
+}
+
+/// Whether the words an install is handed are `--locked` and one crate at an
+/// exact version ([`names_an_exact_version`]), in either order, and nothing
+/// else.
+///
+/// **Every word, and not one of them.** With an install passed by any word
+/// that named a crate at an exact version, the rest of the line went through
+/// unread: measured, `cargo install --locked cargo-deny@0.20.2 cargo-audit` in
+/// `ci.yml` passed, `cargo-audit` installed at whatever crates.io held, and a
+/// `--git`, `--path`, `--registry` or `--index` beside a pinned name would take
+/// that name from somewhere else. **And `--locked`**, so the crate is built
+/// with the lockfile it was published with, not with the newest release of
+/// each of its dependencies on the day.
+fn one_crate_locked_at_an_exact_version(words: &[&str]) -> bool {
+    let (locked, named): (Vec<&str>, Vec<&str>) =
+        words.iter().copied().partition(|word| *word == "--locked");
+    locked.len() == 1 && matches!(named.as_slice(), [named] if names_an_exact_version(named))
 }
 
 /// Whether `word` names a crate at an exact version, `name@X.Y.Z`: a name that
@@ -11966,46 +11996,117 @@ mod tests {
         ]);
     }
 
-    /// Every `cargo install` a file CI reaches runs names its crate at an exact
-    /// version, in both workflows; and the version as shipped passes.
+    /// Every `cargo install` a file CI reaches runs installs one crate, locked,
+    /// at an exact version, in both workflows; and the install as shipped
+    /// passes, in either order and quoted.
+    ///
+    /// **The install as shipped is the one `THE_RELEASE_STEPS` holds**, so a
+    /// version moved there and nowhere else is a case that changes nothing in
+    /// `ci.yml`, which [`once`] refuses.
     #[test]
     fn every_install_names_its_crate_at_an_exact_version() {
-        let pinned = "cargo install --locked cargo-deny@0.20.2";
-        let cases: Vec<(&str, &str, &str)> = vec![
-            ("no-version", WORKFLOW, "cargo install --locked cargo-deny"),
+        let pinned = super::THE_RELEASE_STEPS
+            .iter()
+            .flat_map(|(_, steps)| steps.iter())
+            .find_map(|step| {
+                step.first()?
+                    .strip_prefix("run: ")
+                    .filter(|run| run.starts_with("cargo install "))
+            })
+            .expect("the release's gate installs the auditor");
+        let exact = pinned
+            .rsplit(' ')
+            .next()
+            .expect("the install names its crate last");
+        let name = exact.split('@').next().expect("a crate's name");
+        let cases: Vec<(&str, &str, String)> = vec![
+            (
+                "no-version",
+                WORKFLOW,
+                format!("cargo install --locked {name}"),
+            ),
             (
                 "two-numbers",
                 WORKFLOW,
-                "cargo install --locked cargo-deny@0.20",
+                format!("cargo install --locked {name}@0.20"),
             ),
             (
                 "a-range",
                 WORKFLOW,
-                "cargo install --locked cargo-deny@^0.20.2",
+                format!("cargo install --locked {name}@^0.20.2"),
             ),
             (
                 "a-version-flag",
                 WORKFLOW,
-                "cargo install --locked cargo-deny --version 0.20.2",
+                format!("cargo install --locked {name} --version 0.20.2"),
             ),
             (
                 "in-the-releases-gate",
                 super::RELEASE_WORKFLOW,
-                "cargo install --locked cargo-deny",
+                format!("cargo install --locked {name}"),
+            ),
+            (
+                "a-second-crate-with-no-version",
+                WORKFLOW,
+                format!("{pinned} cargo-audit"),
+            ),
+            (
+                "a-second-crate-at-an-exact-version",
+                WORKFLOW,
+                format!("{pinned} cargo-audit@0.21.2"),
+            ),
+            (
+                "from-git",
+                WORKFLOW,
+                format!("cargo install --locked --git https://example.com/{name} {exact}"),
+            ),
+            (
+                "from-a-path",
+                WORKFLOW,
+                format!("cargo install --locked --path . {exact}"),
+            ),
+            (
+                "from-another-registry",
+                WORKFLOW,
+                format!("cargo install --locked --registry elsewhere {exact}"),
+            ),
+            (
+                "from-another-index",
+                super::RELEASE_WORKFLOW,
+                format!("cargo install --locked --index sparse+https://example.com/ {exact}"),
+            ),
+            ("not-locked", WORKFLOW, format!("cargo install {exact}")),
+            (
+                "another-flag",
+                WORKFLOW,
+                format!("cargo install --locked --force {exact}"),
             ),
         ];
         for (about, file, to) in &cases {
-            let said = format!("`{to}` names no crate at an exact version");
+            let said = format!("`{to}` is not one crate installed locked at an exact version");
             let findings = bounded_after(about, file, |text| once(text, pinned, to));
             assert!(
                 findings.iter().any(|finding| finding.what == said),
                 "{about}: nothing said `{said}`: {findings:#?}"
             );
         }
-        let quoted = bounded_after("quoted", WORKFLOW, |text| {
-            once(text, pinned, "cargo install --locked \"cargo-deny@0.20.2\"")
-        });
-        assert!(quoted.is_empty(), "{quoted:#?}");
+        for (about, to) in [
+            ("quoted", format!("cargo install --locked \"{exact}\"")),
+            ("locked-last", format!("cargo install {exact} --locked")),
+            (
+                "another-command-after-it",
+                format!("{pinned} && cargo xtask check"),
+            ),
+        ] {
+            let findings = bounded_after(about, WORKFLOW, |text| once(text, pinned, &to));
+            assert!(findings.is_empty(), "{about}: {findings:#?}");
+        }
+    }
+
+    /// A word names a crate at an exact version when a name is followed by
+    /// three numbers and nothing else, quoted or not.
+    #[test]
+    fn an_exact_version_is_three_numbers_after_a_name() {
         for word in ["cargo-deny@0.20.2", "'cargo-deny@10.0.0'"] {
             assert!(super::names_an_exact_version(word), "{word}");
         }

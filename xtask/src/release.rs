@@ -2739,17 +2739,22 @@ fn carried_back_as(channel: Channel, version: Version) -> String {
 /// release, and GitHub marks this one merged once its head is reachable from
 /// the branch below. The tag and the GitHub release are made already, because
 /// they come before the pull request back.
+///
+/// **The merge is committed under a conventional subject**, and the pull
+/// request is titled the same: the history step judges every commit a pull
+/// request's head reaches, merges included, and its title, and git's own
+/// subject for a merge, `Merge branch …`, opens with no type.
 fn carried_back_by_hand(channel: Channel, version: Version, number: u64, why: &str) -> String {
-    let (branch, below) = (channel.branch(), channel.below());
+    let (branch, below, tag) = (channel.branch(), channel.below(), version.tag());
     format!(
-        "pull request #{number}, which carries {} back to {below}, cannot be merged on GitHub: \
-         {why}. {} is tagged and released. Carry it back by hand: make a branch from {below}, \
-         merge {branch} into it, keep {branch}'s version and {CHANGELOG} wherever the two \
-         disagree, run `cargo update --workspace`, commit it signed, and open a pull request \
-         into {below}. Once that merges, GitHub marks #{number} merged, because its head is \
-         reachable from {below}",
-        version.tag(),
-        version.tag()
+        "pull request #{number}, which carries {tag} back to {below}, cannot be merged on \
+         GitHub: {why}. {tag} is tagged and released. Carry it back by hand: make a branch \
+         from {below}, merge {branch} into it, keep {branch}'s version and {CHANGELOG} wherever \
+         the two disagree, run `cargo update --workspace`, commit it signed under a \
+         conventional subject such as `chore(release): carry {tag} back to {below} by hand`, \
+         never git's own subject for a merge, which the history step refuses, and open a pull \
+         request into {below} titled the same. Once that merges, GitHub marks #{number} \
+         merged, because its head is reachable from {below}"
     )
 }
 
@@ -7035,7 +7040,7 @@ fn main() {
     /// hooks, or with the required checks passed beside others that failed.
     /// **And one GitHub would not merge now is queued**: behind the branch
     /// below. One in conflict with it is refused, saying how to carry the
-    /// release back by hand (`a_release_that_cannot_be_carried_back_says_how_to_by_hand`).
+    /// release back by hand (`a_pull_request_back_that_cannot_merge_says_how_to_by_hand`).
     fn the_runs_by_merge_state(
         release_commit: &str,
     ) -> Vec<(String, String, Vec<String>, Vec<String>)> {
@@ -7107,9 +7112,12 @@ fn main() {
     /// **A pull request closed under the release's title is refused with the
     /// tree as it was given**, and nothing asked after the question. One open
     /// whose checks had passed is queued, because the release commit moves its
-    /// head and no check has run on that; one merged under the release's title
-    /// carried what the branch held before, so the release opens its own. A
-    /// release commit GitHub answers with no commit stops the release there.
+    /// head and no check has run on that; so is an earlier release's open one
+    /// GitHub said conflicts, because what it said was of the head before, and
+    /// the run the release commit starts asks again; one merged under the
+    /// release's title carried what the branch held before, so the release
+    /// opens its own. A release commit GitHub answers with no commit stops the
+    /// release there.
     #[test]
     fn a_release_made_here_is_judged_before_it_is_written_and_queued_after() {
         let (fake, bin) = a_fake_gh();
@@ -7130,6 +7138,8 @@ fn main() {
             false,
         );
         passed["mergeStateStatus"] = "CLEAN".into();
+        let mut in_conflict = passed.clone();
+        in_conflict["mergeStateStatus"] = "DIRTY".into();
         let mut merged = a_pull_request(
             "chore(release): carry v0.1.0-rc.1 back to dev",
             "MERGED",
@@ -7145,6 +7155,17 @@ fn main() {
             (
                 "an open pull request whose checks had passed",
                 holding_these(None, false, &[passed]),
+                vec![
+                    committed.clone(),
+                    tag.clone(),
+                    release.clone(),
+                    queued.clone(),
+                ],
+                vec!["ReleaseCommit", refs, releases, "AutoMerge"],
+            ),
+            (
+                "an earlier release's pull request, open and in conflict",
+                holding_these(None, false, &[in_conflict]),
                 vec![
                     committed.clone(),
                     tag.clone(),
@@ -7186,11 +7207,21 @@ fn main() {
             repository.git(&["checkout", "-q", "--", "."]);
             std::fs::remove_file(root.join(super::CHANGELOG)).expect("the changelog written");
         }
+        a_release_commit_answered_with_no_commit_stops_the_release(&root, &bin, &fixtures);
+    }
+
+    /// A release commit GitHub answers with no commit stops the release there,
+    /// with nothing asked after it.
+    fn a_release_commit_answered_with_no_commit_stops_the_release(
+        root: &Path,
+        bin: &Path,
+        fixtures: &Path,
+    ) {
         let refused = published_on_staging(
-            &root,
+            root,
             &a_github(
-                &bin,
-                &fixtures,
+                bin,
+                fixtures,
                 &[
                     holding(None, false, None),
                     answered(
@@ -7205,7 +7236,7 @@ fn main() {
             "{refused}"
         );
         assert_eq!(
-            asked(&the_calls(&fixtures)),
+            asked(&the_calls(fixtures)),
             ["WhatGitHubHolds", "ReleaseCommit"]
         );
     }
@@ -7617,7 +7648,8 @@ fn main() {
 
     /// A run carried on from the release commit at `release_commit`, whose pull
     /// request back GitHub says conflicts with the branch below or refuses to
-    /// queue, stops, and says how a person carries the release back.
+    /// queue, stops, and says how a person carries the release back, under a
+    /// subject the history step accepts.
     ///
     /// **Its head is the released branch, which takes nothing but pull requests
     /// and the release App**, so the conflict is resolved on a branch made from
@@ -7669,11 +7701,24 @@ fn main() {
                         "v0.1.0-rc.1 is tagged and released. Carry it back by hand: make a \
                          branch from dev, merge staging into it, keep staging's version and \
                          CHANGELOG.md wherever the two disagree, run `cargo update --workspace`, \
-                         commit it signed, and open a pull request into dev. Once that merges, \
-                         GitHub marks #7 merged",
+                         commit it signed under a conventional subject such as \
+                         `chore(release): carry v0.1.0-rc.1 back to dev by hand`, never git's \
+                         own subject for a merge, which the history step refuses, and open a \
+                         pull request into dev titled the same. Once that merges, GitHub marks \
+                         #7 merged",
                     ),
                 "{what}: {refused}"
             );
+            let suggested = refused
+                .split_once("such as `")
+                .and_then(|(_, rest)| rest.split_once('`'))
+                .map(|(subject, _)| subject)
+                .expect("a subject to commit the merge under");
+            crate::history::subject(suggested).unwrap_or_else(|why| {
+                panic!(
+                    "{what}: the history step refuses the subject suggested, `{suggested}`: {why}"
+                )
+            });
             assert_eq!(
                 asked(&the_calls(fixtures)),
                 expected,

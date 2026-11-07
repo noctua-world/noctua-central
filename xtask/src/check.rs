@@ -7785,7 +7785,7 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1041] = [
     "the {job} job's step {} is {}, where it is {}",
     "turns the release's gate off",
     "reads a variable",
-    "`{}` names no crate at an exact version",
+    "`{}` is not one crate installed locked at an exact version",
     // The release (`xtask/src/release.rs`).
     "--publish publishes to the repository GITHUB_REPOSITORY names, and it is not set. CI's release job sets it; a release is published from there and nowhere else",
     "--publish publishes with the token in GH_TOKEN, and it is not set. CI's release job sets it to the release App's installation token; the workflow's own token is never used, because a pull request it opens starts no checks",
@@ -10989,7 +10989,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 723] = [
     "(indented less than the step) {code}",
     "  client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}",
     "(at another depth) {code}",
-    "a crate named with no version, or with a range, is whatever crates.io holds on the day, and its code runs in the job that installs it — in the release's gate as in every other. Name it as `name@X.Y.Z`, which cargo installs exactly, and move the version in every install of it at once",
+    "what an install installs runs in the job that installs it — in the release's gate as in every other — so each word of it is named: a crate with no version, or with a range, is whatever crates.io holds on the day, a second crate is one no version names, and `--git`, `--path`, `--registry` or `--index` takes the code from where no version on crates.io describes it. Install one crate a line, as `cargo install --locked name@X.Y.Z`, which cargo installs exactly and builds with the lockfile it was published with, and move the version in every place it is written at once",
     "client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}",
     "each job of the release runs what `THE_RELEASE_STEPS` in `xtask/src/workflow.rs` writes for it and nothing else: the gate checks out, installs the toolchain and the auditor, brings the stack up and runs the gate; the release checks out, installs the toolchain, builds the release tool, then mints the App's token and releases. The release job holds the App's key and its token, so the tool is built before the token exists, and the gate is what judges the commit it releases. A step to add is a line there, which is a line in a diff",
     "every job in it runs on the push that releases a channel, and the rules here read `gate` and `release` alone; another is a job nothing holds to the steps, the environment or the token, and a name written twice is one YAML reads one way and a reader another. What it would do belongs in the gate",
@@ -11059,7 +11059,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 723] = [
     "auto-merge is on for #{}, by merge commit",
     "chore(release): carry {} back to {}",
     "GitHub says it conflicts with that branch",
-    "pull request #{number}, which carries {} back to {below}, cannot be merged on GitHub: {why}. {} is tagged and released. Carry it back by hand: make a branch from {below}, merge {branch} into it, keep {branch}'s version and {CHANGELOG} wherever the two disagree, run `cargo update --workspace`, commit it signed, and open a pull request into {below}. Once that merges, GitHub marks #{number} merged, because its head is reachable from {below}",
+    "pull request #{number}, which carries {tag} back to {below}, cannot be merged on GitHub: {why}. {tag} is tagged and released. Carry it back by hand: make a branch from {below}, merge {branch} into it, keep {branch}'s version and {CHANGELOG} wherever the two disagree, run `cargo update --workspace`, commit it signed under a conventional subject such as `chore(release): carry {tag} back to {below} by hand`, never git's own subject for a merge, which the history step refuses, and open a pull request into {below} titled the same. Once that merges, GitHub marks #{number} merged, because its head is reachable from {below}",
     "{problem}. And these could not be put back as HEAD holds them, so each holds what this run wrote: {}. The release began on a clean tree, so `git status` names what it left",
     "{problem}. Every file this run wrote is put back as HEAD holds it",
     "its notes, which are its section of the changelog:",
@@ -18919,7 +18919,7 @@ mod the_frozen_path_rule {
         ("xtask/plugins.rs", 25, 5),
         ("xtask/policy.rs", 57, 5),
         ("xtask/references.rs", 54, 26),
-        ("xtask/release.rs", 234, 13),
+        ("xtask/release.rs", 235, 13),
         ("xtask/sections.rs", 38, 10),
         ("xtask/store.rs", 29, 4),
         ("xtask/the_pages_reach_the_catalog.rs", 37, 20),
@@ -18927,7 +18927,7 @@ mod the_frozen_path_rule {
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 30, 6),
         ("xtask/ui.rs", 52, 12),
         ("xtask/wall.rs", 129, 28),
-        ("xtask/workflow.rs", 276, 23),
+        ("xtask/workflow.rs", 278, 23),
     ];
 
     /// The name an item declaration introduces, for the message below.
@@ -24665,7 +24665,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15093;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15099;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24684,7 +24684,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3069;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3072;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -24701,7 +24701,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1007;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1008;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -24735,7 +24735,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 21279;
+    const THE_REARRANGEMENTS_JUDGED: usize = 21290;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24753,7 +24753,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 460;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 461;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -24789,7 +24789,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **460 of 21,279 are accepted by the first-line
+    /// rules the gates apply: **461 of 21,290 are accepted by the first-line
     /// rule alone, and 237 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -24822,7 +24822,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1007 of
+    /// this tree offers, **1008 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -29766,8 +29766,8 @@ mod the_frozen_path_rule {
         ),
         (
             "workflow.rs",
-            "`{}` names no crate at an exact",
-            "a crate named with no version, or",
+            "`{}` is not one crate installed locked",
+            "what an install installs runs in the",
         ),
         (
             "workflow.rs",
@@ -35717,7 +35717,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1688] = [
+    static OPERATORS: [(&str, &str, &str); 1691] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -36001,6 +36001,11 @@ Options:
             "release",
             "once_the_branch_moved",
             "a pull request whose head this run moved is queued, never merged now",
+        ),
+        (
+            "release",
+            "once_the_branch_moved",
+            "a pull request in conflict before the release commit moved its head is refused after",
         ),
         (
             "release",
@@ -37395,6 +37400,16 @@ Options:
             "workflow",
             "every_install_names_its_version",
             "an install may name no version",
+        ),
+        (
+            "workflow",
+            "one_crate_locked_at_an_exact_version",
+            "a second crate, or another source, beside one at an exact version is installed",
+        ),
+        (
+            "workflow",
+            "one_crate_locked_at_an_exact_version",
+            "an install need not be locked",
         ),
         (
             "workflow",

@@ -161,8 +161,11 @@ jobs:
       # **The auditor at one exact version**, the same in every job and in
       # `release.yml`'s gate: a crate named with no version installs whatever
       # crates.io holds on the day, and that code runs in the job. The gate
-      # refuses a `cargo install` with no exact `@X.Y.Z`, and moving it is one
-      # commit that moves all four lines and `THE_RELEASE_STEPS`.
+      # refuses a `cargo install` that is not one crate, `--locked`, at an exact
+      # `@X.Y.Z`. Moving the version is one commit that moves the three lines
+      # here, the one in `release.yml`'s gate, `THE_RELEASE_STEPS` in
+      # `xtask/src/workflow.rs` and that line's row in `WHAT_ELSE_THIS_TOOL_SAYS`
+      # in `xtask/src/check.rs`.
       - name: cargo deny
         run: cargo install --locked cargo-deny@0.20.2
 
