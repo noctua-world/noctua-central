@@ -2,7 +2,7 @@
 
 What each release of this repository adds, changes, fixes, speeds up, secures and removes, newest first (`NOCTUA.md §22.4`). `cargo xtask release` writes this file whole from the conventional commits between the release tags every time it makes a release, so an edit by hand is gone at the next one.
 
-## v0.1.0-rc.1
+## v0.1.0
 
 ### Added
 

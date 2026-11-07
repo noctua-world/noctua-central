@@ -12,7 +12,7 @@ resolver = "3"
 members = ["crates/*", "plugins/*", "xtask"]
 
 [workspace.package]
-version = "0.1.0-rc.1"
+version = "0.1.0"
 edition = "2024"
 # **1.96, because the kernel's WebAssembly runtime declares it.** `wasmtime`
 # 49 and the `cranelift` it brings both say `rust-version = "1.96.0"`, and this
