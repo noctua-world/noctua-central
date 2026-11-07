@@ -186,12 +186,12 @@ mod tests {
 
     #[test]
     fn the_embedded_files_are_the_files_on_disk_in_both_directions() {
-        // **List by list, not their union.** Found by review: this compared one
-        // map merged from every list, so `realm.cedar` moved from the family's
-        // list into `CORE` left every test green — the family decides over the
-        // same set either way — while `CORE` is compiled into every pack this
-        // crate carries, and the next pack carried would have been decided by
-        // the family's guardian permits.
+        // **List by list, not their union.** Compared as one map merged from
+        // every list, `realm.cedar` moved from the family's list into `CORE`
+        // leaves every test green — the family decides over the same set either
+        // way — while `CORE` is compiled into every pack this crate carries,
+        // and the next pack carried would be decided by the family's guardian
+        // permits.
         let disk = on_disk();
         let held = embedded();
         let empty = BTreeMap::new();

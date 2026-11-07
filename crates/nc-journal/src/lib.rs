@@ -13,57 +13,57 @@
 //! Entries written before the chain existed cannot be hashed into it afterwards
 //! without inventing what they said.
 //!
-//! # The fields were here before anything filled them
+//! # The fields are here before anything fills them
 //!
 //! An [`Entry`] records the realm, which policy decided, the pack version, the
 //! epoch, the grant used and the **actor chain**. The kernel's decision point
-//! fills four of the last five on every entry it writes, from what it asked
-//! `nc-authz` (`crates/nc-kernel/src/dispatch.rs`), and all five were here
-//! before anything set them, because adding a field to a chained structure
-//! later **invalidates every hash before it**. The cost of carrying an empty
-//! column is nothing; the cost of adding one afterwards is a chain that cannot
-//! be verified across the change.
+//! fills four of the last five on every entry it writes, from what it
+//! asked `nc-authz` (`crates/nc-kernel/src/dispatch.rs`), and all five exist
+//! whether or not anything sets them, because adding a field to a chained
+//! structure later **invalidates every hash before it**. The cost of carrying
+//! an empty column is nothing; the cost of adding one afterwards is a chain
+//! that cannot be verified across the change.
 //!
-//! **`actor_chain` is the fifth, and it is still empty.** It is the one
-//! `§14.6` calls load-bearing — *delegation, never impersonation: the log
-//! always shows both* — and `Record::new` sets it to an empty `Vec` on every
-//! entry, which the kernel passes on until agents act (`NOCTUA-PLAN.md`,
-//! Stage 15). Whoever wires that reads this paragraph to learn what is still
-//! empty: measured over a real history,
-//! `actor_chain lengths: [0, 0, 0, 0, 0, 0]`. The hash covers it, so the chain
-//! is not weaker for it; what was missing is that anybody knew.
+//! **`actor_chain` is the fifth, and it is still empty.** It is the one `§14.6`
+//! calls load-bearing — *delegation, never impersonation: the log always shows
+//! both* — and `Record::new` sets it to an empty `Vec` on every entry, which
+//! the kernel passes on until agents act (`NOCTUA-PLAN.md`, Stage 15). Whoever
+//! wires that reads this paragraph to learn what is still empty: measured over
+//! a real history, `actor_chain lengths: [0, 0, 0, 0, 0, 0]`. The hash covers
+//! it, so the chain is not weaker for it; what matters is that anybody knows.
 //!
 //! # A history this code cannot read is not one to extend
 //!
 //! An unreadable row at the tail **stops appends**, and says which row. That is
-//! a deliberate reversal: for a while an undecodable tail fell back to reading
-//! the sequence and hash without parsing the record, on the rule that a foreign
-//! row must not brick an append-only log. Two measurements retired it.
+//! deliberate, against the rule that a foreign row must not brick an
+//! append-only log: falling back to reading the sequence and hash without
+//! parsing the record is measured not to serve that rule.
 //!
-//! It does not achieve that. `head()` parses the hash *column*, and at the time
-//! `hash TEXT` carried no constraint, so one `INSERT` with a non-hex hash
-//! refused there too — the fallback changed which sentence a caller reads, not
-//! whether the append lands. (`0009` constrains the column now, written after
-//! this paragraph and quoting it; the reader's own width guard is kept for the
-//! row that gets past a constraint, and is held from both sides.) And where the
-//! fallback did work, it handed the next honest entry whatever
-//! sixty-four characters the foreign row put in `hash`: measured, *the honest
-//! entry chained onto the attacker's chosen hash*.
+//! It does not achieve it. `head()` parses the hash *column*, so
+//! with `hash TEXT` unconstrained one `INSERT` with a non-hex hash refuses
+//! there too — the fallback changes which sentence a caller reads, not whether
+//! the append lands. (`0009` constrains the column, quoting this paragraph; the
+//! reader's own width guard is kept for the row that gets past a constraint,
+//! and is held from both sides.) And where the fallback does work, it hands the
+//! next honest entry whatever sixty-four characters the foreign row put
+//! in `hash`: measured, *the honest entry chained onto the attacker's chosen
+//! hash*.
 //!
-//! So the choice was between refusing and extending a history this code cannot
-//! read, and `§14.9` decides it — the audit log fails closed. **What an operator
-//! does** is read the named row, decide what it was, and append a new anchor;
-//! the table refuses `DELETE`, so the unreadable row stays where it is and the
-//! decision is recorded above it, with a person in it rather than a default.
+//! So the choice is between refusing and extending a history this code cannot
+//! read, and `§14.9` decides it — the audit log fails closed. **What an
+//! operator does** is read the named row, decide what it was, and append a new
+//! anchor; the table refuses `DELETE`, so the unreadable row stays where it is
+//! and the decision is recorded above it, with a person in it rather than a
+//! default.
 //!
-//! **And that anchor goes in through [`Store`], not through [`Journal`].**
-//! `Journal::append` reads the tail before it writes, so it is the thing
-//! refusing and cannot be the thing that repairs — a paragraph here said
-//! "append a new anchor" without saying which door, and through the only door a
-//! reader would try, it is impossible. `Store::append` does not read the tail;
-//! it hands PostgreSQL a statement whose `WHERE` checks the sequence and the
-//! link against what is actually there, so an operator who has read the
-//! unreadable row and decided what it was writes an entry that chains onto it
+//! **And that anchor goes in through [`Store`], not through
+//! [`Journal`].** `Journal::append` reads the tail before it writes, so it is
+//! the thing refusing and cannot be the thing that repairs — "append a new
+//! anchor" without saying which door is impossible through the only door a
+//! reader would try. `Store::append` does not read the tail; it
+//! hands PostgreSQL a statement whose `WHERE` checks the sequence and the link
+//! against what is actually there, so an operator who has read the unreadable
+//! row and decided what it was writes an entry that chains onto it
 //! deliberately. That is the whole difference between a repair and a forgery:
 //! the link is stated, and refused if it is wrong.
 //!
@@ -87,11 +87,11 @@
 //!     verify:   Ok(4)
 //!     ```
 //!
-//!     `ALTER TABLE … USING` rewrites every row and fires no row trigger, so all
-//!     three `ENABLE ALWAYS` triggers were still in place while the last entry's
-//!     principal and action were replaced. It needs table ownership, which the
-//!     application role must not have; that is a deployment property, not
-//!     something this crate can hold, and it is written here because the
+//!     `ALTER TABLE … USING` rewrites every row and fires no row trigger, so
+//!     all three `ENABLE ALWAYS` triggers are still in place while the last
+//!     entry's principal and action are replaced. It needs table ownership,
+//!     which the application role must not have; that is a deployment property,
+//!     not something this crate can hold, and it is written here because the
 //!     paragraph above would otherwise read as though the chain stopped it.
 //!
 //!     What closes it is an anchor kept somewhere the table's owner cannot
@@ -155,7 +155,7 @@ use nc_ids::{Clock, Minter, OpaqueId, Snowflake, SystemClock};
 /// # Why the methods are asynchronous
 ///
 /// The store that runs is PostgreSQL through `sqlx`, which has no synchronous
-/// API. The alternative was a runtime owned inside the store and a `block_on`
+/// API. The alternative is a runtime owned inside the store and a `block_on`
 /// per call, and that is a trap rather than a compromise: `block_on` panics when
 /// it is called from inside an async context, and the kernel that writes to this
 /// journal on every command **is** an async context.
@@ -183,23 +183,23 @@ pub trait Store {
     /// **And [`Error::Refused`], which every one of these reaches through
     /// `unavailable`.** That function maps SQLSTATE classes 42, 28, 3D and 3F
     /// — a missing `GRANT`, a dropped table, a schema that is not there — to
-    /// `Refused` rather than to `Unavailable`, and only `Store::head` named
-    /// it. `Unavailable` is retryable and `Refused` is not, so a caller
-    /// written against the shorter sentence retries a missing privilege for
-    /// ever. Reached through a call rather than built here, which is why
-    /// `every_errors_section_names_what_its_body_builds` cannot ask for it
-    /// and a reviewer had to.
+    /// `Refused` rather than to `Unavailable`, so every one of them names it.
+    /// `Unavailable` is retryable and `Refused` is not, so a caller written
+    /// against a section naming `Unavailable` alone retries a missing
+    /// privilege for ever. Reached through a call rather than built here, which
+    /// is why `every_errors_section_names_what_its_body_builds` cannot ask for
+    /// it and it is named by hand.
     fn tail(&self) -> impl Future<Output = Result<Option<Entry>, Error>> + Send;
 
     /// What a new entry chains onto: the last sequence and its hash.
     ///
-    /// **Appending must not depend on being able to read the tail's record.**
-    /// A row a second connection inserted — the trigger guards `UPDATE` and
-    /// `DELETE` and says nothing about `INSERT` — made `tail()` fail, and
-    /// `Journal::append` reads the tail before it can chain, so *every future
-    /// write* failed for ever. The table is append-only by design, so the row
-    /// could not be removed either: one `INSERT` made the audit log permanently
-    /// unwritable.
+    /// **Appending must not depend on being able to read the tail's record.** A
+    /// row a second connection inserted — the trigger guards `UPDATE`
+    /// and `DELETE` and says nothing about `INSERT` — would make `tail()` fail,
+    /// and `Journal::append` reads the tail before it can chain, so *every
+    /// future write* would fail for ever. The table is append-only by design,
+    /// so the row could not be removed either: one `INSERT` would make the
+    /// audit log permanently unwritable.
     ///
     /// Chaining needs two values, and neither is the part that fails to decode.
     /// A poisoned row therefore breaks *verification*, which is what
@@ -212,23 +212,21 @@ pub trait Store {
     /// role — and [`Error::Undecodable`] when the row it reads back is one this
     /// code did not write.
     ///
-    /// **The last of those was missing, and it inverts `retryable`.**
-    /// `JournalUnavailable` is retryable and `JournalChainBroken` is not, so a
-    /// caller written against the old sentence retries a poisoned `hash` column
-    /// for ever. `Postgres::head` returns it from four: `try_get("sequence")`,
-    /// the unsigned conversion, `try_get("hash")`, and the digest conversion —
-    /// the body comment at the fourth opens *"the fourth read, which the
-    /// paragraph above said was converted and was not"*, and this sentence said
-    /// three anyway.
+    /// **The last of those inverts `retryable`.** `JournalUnavailable` is
+    /// retryable and `JournalChainBroken` is not, so a caller written against a
+    /// section that left it out retries a poisoned `hash` column for
+    /// ever. `Postgres::head` returns it from four
+    /// places: `try_get("sequence")`, the unsigned
+    /// conversion, `try_get("hash")`, and the digest conversion.
     fn head(&self) -> impl Future<Output = Result<Option<(u64, [u8; 32])>, Error>> + Send;
 
     /// Appends an entry. The caller has already chained it.
     ///
     /// **Every implementation refuses an entry it could not read back**, by
-    /// calling [`readable`] first. The rule used to live in `Journal::append`,
-    /// which is `pub(crate)` — so `Store::append`, which is public and which
-    /// this crate's own tests call directly, walked straight past it and
-    /// reproduced the defect the rule exists to prevent. `postgres.rs`'s own
+    /// calling [`readable`] first. In `Journal::append` alone, which
+    /// is `pub(crate)`, the rule would let `Store::append`, which is public and
+    /// which this crate's own tests call directly, walk straight past it and
+    /// reproduce the defect the rule exists to prevent. `postgres.rs`'s own
     /// module header names that shape: *a rule enforced only where it is
     /// convenient to enforce it is a rule about one code path.*
     ///
@@ -247,49 +245,46 @@ pub trait Store {
     /// onto is a row this code did not write, and [`Error::Contended`] when a
     /// second writer took the sequence between the read and the insert.
     ///
-    /// **Four of those were named by nothing.** A trait method has no body, so
-    /// the section gate counted this one and judged it against nothing —
-    /// measured on 2026-09-08, the link to [`Error::Unstorable`] deleted from
-    /// the paragraph above and `cargo run -q -p xtask -- check` still at
-    /// `check passed`, `ok 1223 test(s)`. The refusals of a trait method are the
-    /// refusals of its implementations, and both of this crate's are read now:
-    /// see `what_an_implementation_builds`. `Contended` is reached through a
-    /// call rather than built in either body, so it is here by hand.
+    /// **A trait method has no body, so its section is judged by its
+    /// implementations.** Counted and judged against nothing, the link to
+    /// [`Error::Unstorable`] deleted from the paragraph above
+    /// leaves `cargo xtask check` at `check passed`. The refusals of a trait
+    /// method are the refusals of its implementations, and both of this crate's
+    /// are read: see `what_an_implementation_builds`. `Contended` is reached
+    /// through a call rather than built in either body, so it is here by hand.
     ///
-    /// **`Unstorable` was missing and it is the commonest of them.** Every
-    /// implementation calls [`readable`] as its first statement, so a caller
-    /// whose entry is malformed gets it before the store is asked at all — and
-    /// this crate's own tampering tests assert exactly that. It is not
-    /// retryable and [`Error::Unavailable`] is, which is the pair
-    /// `NC-JRNL-0005` was added to keep apart.
+    /// **`Unstorable` is the commonest of them.** Every implementation calls
+    /// [`readable`] as its first statement, so a caller whose entry is
+    /// malformed gets it before the store is asked at all — and this crate's
+    /// own tampering tests assert exactly that. It is not retryable and
+    /// [`Error::Unavailable`] is, which is the pair `NC-JRNL-0005` keeps apart.
     fn append(&mut self, entry: Entry) -> impl Future<Output = Result<(), Error>> + Send;
 
     /// Every entry from `sequence` onwards, in order, stopping at a row this
     /// code cannot read.
     ///
-    /// **The rows before a bad one are returned**, and the bad one is named.
-    /// Failing the whole range on the first undecodable row meant one row a
-    /// second connection inserted destroyed reads of every *other* row — so a
-    /// history of ten thousand entries became unreadable because of the last
-    /// one, and the append-only rule meant it could not be removed.
+    /// **The rows before a bad one are returned**, and the bad one is
+    /// named. Failing the whole range on the first undecodable row would let
+    /// one row a second connection inserted destroy reads of every *other* row
+    /// — a history of ten thousand entries unreadable because of the last one,
+    /// and the append-only rule meaning it could not be removed.
     ///
     /// # Errors
     ///
     /// Returns [`Error::Unavailable`] when the store cannot be reached, and
-    /// [`Error::Unstorable`] when `sequence` is past what a store can hold —
-    /// `Postgres::from`'s first statement is that conversion, before any query
-    /// runs, so it is the refusal a caller sees first and this said only the
-    /// other one.
+    /// [`Error::Unstorable`] when `sequence` is past what a store can hold
+    /// — `Postgres::from`'s first statement is that conversion, before any
+    /// query runs, so it is the refusal a caller sees first.
     ///
     /// **And [`Error::Refused`], which every one of these reaches through
     /// `unavailable`.** That function maps SQLSTATE classes 42, 28, 3D and 3F
     /// — a missing `GRANT`, a dropped table, a schema that is not there — to
-    /// `Refused` rather than to `Unavailable`, and only `Store::head` named
-    /// it. `Unavailable` is retryable and `Refused` is not, so a caller
-    /// written against the shorter sentence retries a missing privilege for
-    /// ever. Reached through a call rather than built here, which is why
-    /// `every_errors_section_names_what_its_body_builds` cannot ask for it
-    /// and a reviewer had to.
+    /// `Refused` rather than to `Unavailable`, so every one of them names it.
+    /// `Unavailable` is retryable and `Refused` is not, so a caller written
+    /// against a section naming `Unavailable` alone retries a missing
+    /// privilege for ever. Reached through a call rather than built here, which
+    /// is why `every_errors_section_names_what_its_body_builds` cannot ask for
+    /// it and it is named by hand.
     fn from(&self, sequence: u64) -> impl Future<Output = Result<Read, Error>> + Send;
 
     /// How `realm` closed `unit`: [`Outcome::UnitCommitted`] or
@@ -306,10 +301,10 @@ pub trait Store {
     /// **The first closing bracket, in sequence order.** Every store refuses an
     /// entry for a unit that is already closed, a second closing bracket
     /// included, so there is one — and a second written around that refusal is
-    /// not the bracket that closed the unit. Nothing decided which one answered
-    /// until `how_a_unit_closed_is_its_first_closing_bracket_not_a_later_one`
-    /// and its PostgreSQL twin in `in_postgres.rs` planted a second: both
-    /// stores could answer with the last, every suite green.
+    /// not the bracket that closed the
+    /// unit. `how_a_unit_closed_is_its_first_closing_bracket_not_a_later_one`
+    /// and its PostgreSQL twin in `in_postgres.rs` plant a second, because
+    /// without them both stores could answer with the last, every suite green.
     ///
     /// **What the first-bracket rule does not answer.** A party that can only
     /// `INSERT` can chain the *first* closing bracket onto a unit that is still
@@ -331,33 +326,33 @@ pub trait Store {
     /// in this process.
     ///
     /// **Three reasons this is a store question and not a read of the
-    /// history.** It used to be `from(0)` and a scan, in `Journal::append`, and
-    /// each of the three was measured:
+    /// history.** As `from(0)` and a scan in `Journal::append`, each of the
+    /// three is measured:
     ///
-    /// 1. **A poisoned row hid every bracket behind it.** `from` stops at the
+    /// 1. **A poisoned row hides every bracket behind it.** `from` stops at the
     ///    first row it cannot decode — the row `postgres.rs` documents a second
-    ///    connection as free to `INSERT` — so one such row made every closed
-    ///    unit in the journal open again, and entries landed after their own
-    ///    closing bracket. The columns that answer this question are `realm`,
+    ///    connection as free to `INSERT` — so one such row would make every
+    ///    closed unit in the journal open again, and entries would land after
+    ///    their own closing bracket. The columns that answer this question are `realm`,
     ///    `work_unit`, `action` and `result`; none of them is the part of a row
     ///    that fails to decode, which is the same argument [`Store::head`]
     ///    makes.
     ///
-    ///    **`action` was added and this sentence was not.** Every
-    ///    implementation asks four columns and the contract named three, so a
-    ///    `Store` written to the contract fails this crate's own tests —
+    ///    **`action` is one of the four.** Every implementation asks four
+    ///    columns, so a `Store` written to a contract naming three fails this
+    ///    crate's own tests —
     ///    measured, `a_bracket_is_a_bracket_and_a_unit_is_opened_once` is what
     ///    catches it. `action` is what makes a bracket a bracket: without it an
     ///    ordinary `Write` carrying `Outcome::UnitCommitted` closes somebody
     ///    else's unit, which `memory.rs` records measuring against PostgreSQL.
-    /// 2. **It read the whole table on every write.** Measured at 1200 entries:
+    /// 2. **A scan reads the whole table on every write.** Measured at 1200 entries:
     ///    3.201s inside a work unit against 0.679s outside one, growing
     ///    linearly, on a table that is append-only by design and whose retention
     ///    is a policy-pack property. O(n) per write is O(n²) over a history.
-    /// 3. **It ignored the realm.** A journal opened for `realm-2` refused a
+    /// 3. **A scan ignores the realm.** A journal opened for `realm-2` refused a
     ///    write on the strength of a bracket that exists only in `realm-1`.
     ///    `Journal::append` overwrites `record.realm` precisely so that one
-    ///    realm cannot reach another's history, and the check read all of it.
+    ///    realm cannot reach another's history, and a scan reads all of it.
     ///
     /// # Errors
     ///
@@ -366,12 +361,12 @@ pub trait Store {
     /// **And [`Error::Refused`], which every one of these reaches through
     /// `unavailable`.** That function maps SQLSTATE classes 42, 28, 3D and 3F
     /// — a missing `GRANT`, a dropped table, a schema that is not there — to
-    /// `Refused` rather than to `Unavailable`, and only `Store::head` named
-    /// it. `Unavailable` is retryable and `Refused` is not, so a caller
-    /// written against the shorter sentence retries a missing privilege for
-    /// ever. Reached through a call rather than built here, which is why
-    /// `every_errors_section_names_what_its_body_builds` cannot ask for it
-    /// and a reviewer had to.
+    /// `Refused` rather than to `Unavailable`, so every one of them names it.
+    /// `Unavailable` is retryable and `Refused` is not, so a caller written
+    /// against a section naming `Unavailable` alone retries a missing
+    /// privilege for ever. Reached through a call rather than built here, which
+    /// is why `every_errors_section_names_what_its_body_builds` cannot ask for
+    /// it and it is named by hand.
     fn unit_closing(
         &self,
         realm: &OpaqueId,
@@ -409,10 +404,10 @@ pub trait Store {
 
     /// Whether this realm's history already holds an opening bracket for `unit`.
     ///
-    /// **A unit could be opened twice, and the second one relabelled it.**
-    /// `Record.work_unit` is `pub` and `Journal::record` accepted a hand-set one
-    /// with `Outcome::UnitBegun` while the unit was open — measured against a
-    /// real database:
+    /// **Without this a unit could be opened twice, and the second opening
+    /// relabel it.** `Record.work_unit` is `pub`, and `Journal::record` would
+    /// accept a hand-set one with `Outcome::UnitBegun` while the unit is open —
+    /// measured against a real database:
     ///
     /// ```text
     /// seq 0  kernel          kernel.begin  unit-begun  "a migration"
@@ -422,17 +417,18 @@ pub trait Store {
     /// ```
     ///
     /// `unit.rs`'s `OPENS` exists so that "when did this unit start" finds one
-    /// row. It found two, and the label a person reads is whichever the query
-    /// picks. Asked of the store rather than of a flag, for the reason
-    /// [`Store::unit_closing`] gives: the store is what a second process sees.
+    /// row. It would find two, and the label a person reads would be whichever
+    /// the query picks. Asked of the store rather than of a flag, for the
+    /// reason [`Store::unit_closing`] gives: the store is what a second process
+    /// sees.
     ///
-    /// **The columns are `realm`, `work_unit`, `action` and `result`**, the same
-    /// four its closing twin asks, and this contract named none of them. Every
-    /// one of the four can be switched off in either implementation with
-    /// `cargo xtask check` green — measured, five ways — so a `Store` written
-    /// against this paragraph could satisfy it and let a unit be opened twice.
+    /// **The columns are `realm`, `work_unit`, `action` and `result`**, the
+    /// same four its closing twin asks. Without
     /// `a_bracket_is_a_bracket_and_a_unit_is_opened_once` and
-    /// `a_unit_opened_in_another_realm_is_not_open_here` are what decide them.
+    /// `a_unit_opened_in_another_realm_is_not_open_here`, every one of the four
+    /// can be switched off in either implementation with `cargo xtask check`
+    /// green — measured, five ways — so a `Store` written against a contract
+    /// naming none of them could satisfy it and let a unit be opened twice.
     ///
     /// # Errors
     ///
@@ -441,12 +437,12 @@ pub trait Store {
     /// **And [`Error::Refused`], which every one of these reaches through
     /// `unavailable`.** That function maps SQLSTATE classes 42, 28, 3D and 3F
     /// — a missing `GRANT`, a dropped table, a schema that is not there — to
-    /// `Refused` rather than to `Unavailable`, and only `Store::head` named
-    /// it. `Unavailable` is retryable and `Refused` is not, so a caller
-    /// written against the shorter sentence retries a missing privilege for
-    /// ever. Reached through a call rather than built here, which is why
-    /// `every_errors_section_names_what_its_body_builds` cannot ask for it
-    /// and a reviewer had to.
+    /// `Refused` rather than to `Unavailable`, so every one of them names it.
+    /// `Unavailable` is retryable and `Refused` is not, so a caller written
+    /// against a section naming `Unavailable` alone retries a missing
+    /// privilege for ever. Reached through a call rather than built here, which
+    /// is why `every_errors_section_names_what_its_body_builds` cannot ask for
+    /// it and it is named by hand.
     fn unit_opened(
         &self,
         realm: &nc_ids::OpaqueId,
@@ -474,13 +470,13 @@ pub struct Read {
 
 /// Whether an entry is one this crate could read back, and why not if it is not.
 ///
-/// **The one rule every store enforces.** `nc_canon` writes a value of any depth
-/// and `nc_canon::parse` refuses one past `MAX_DEPTH`, which is harmless
+/// **The one rule every store enforces.** `nc_canon` writes a value of any
+/// depth and `nc_canon::parse` refuses one past `MAX_DEPTH`, which is harmless
 /// everywhere except in a table that is append-only by design: one record past
-/// the bound was accepted, hashed and stored, and from that moment the journal
-/// could not be read, could not be verified at any starting sequence, could not
-/// be appended to — `tail` cannot decode the tail — and could not be repaired,
-/// because the trigger refuses `DELETE`.
+/// the bound, accepted, hashed and stored, would leave the journal from that
+/// moment unreadable, unverifiable at any starting sequence, closed to appends
+/// — `tail` cannot decode the tail — and beyond repair, because the trigger
+/// refuses `DELETE`.
 ///
 /// # Errors
 ///
@@ -489,18 +485,18 @@ pub struct Read {
 /// `sequence` when the number is past what a store can hold, and whatever
 /// [`readable_record`] names.
 ///
-/// **It said `TooDeep` alone**, and the two `Unstorable` refusals above it are
-/// the ones a caller actually meets — `hash` is what a forged entry trips, and
-/// this function exists because `Entry::chain` computes a link that a caller
+/// **Not `TooDeep` alone**: the two `Unstorable` refusals above it are the ones
+/// a caller actually meets — `hash` is what a forged entry trips, and this
+/// function exists because `Entry::chain` computes a link that a caller
 /// supplying one does not.
 pub fn readable(entry: &Entry) -> Result<(), Error> {
     // **And the hash has to be the hash of the contents.** `Entry`'s fields are
-    // all public and this checked depth, NUL bytes and integer range and never
-    // the one thing that makes an entry an entry — so one call to the public
-    // `Store::append` wrote a row `verify` will condemn for ever into an
+    // all public, and checking depth, NUL bytes and integer range without the
+    // one thing that makes an entry an entry lets one call to the public
+    // `Store::append` write a row `verify` will condemn for ever into an
     // append-only table, with no raw SQL and no test-support feature. Both
-    // stores accepted it, and it is the door two of the same round's other
-    // findings were reached through.
+    // stores would accept it, and it is a door other defects are reached
+    // through.
     // **`Unstorable`, not `Undecodable`, because nothing has been stored.**
     // `Undecodable`'s own doc says *"a row is in the table and this code cannot
     // read it — that is tampering, somebody with write access put a row there"*,
@@ -525,9 +521,9 @@ pub fn readable(entry: &Entry) -> Result<(), Error> {
         });
     }
     // **The sequence too, which only the entry has.** `readable_record` guards
-    // `recorded_at` and `policy_epoch` against PostgreSQL's `BIGINT` and could
-    // not guard this one — a `Record` carries no sequence. So the two stores
-    // answered differently for a sequence past `i64::MAX`:
+    // `recorded_at` and `policy_epoch` against PostgreSQL's `BIGINT` and cannot
+    // guard this one — a `Record` carries no sequence. So without this the two
+    // stores answer differently for a sequence past `i64::MAX`:
     //
     // ```text
     // memory   -> OutOfOrder { expected: 0, found: 18446744073709551615 }
@@ -559,13 +555,13 @@ pub fn readable(entry: &Entry) -> Result<(), Error> {
 /// `policy_pack`, and a `recorded_at` or `policy_epoch` past what a store's
 /// signed column can hold.
 pub fn readable_record(record: &Record) -> Result<(), Error> {
-    // **Both numbers on one scale.** This compared `Value::depth()`, which
-    // counts a scalar as 1, against the parser's bound, which starts the
-    // outermost value at 0 — so it refused a resource `nc_canon::parse` accepts,
-    // and said "the record's resource nests 65 deep and the journal reads 64",
-    // two numbers that were not measurements of the same thing. `MAX_NESTING`
-    // is the parser's bound expressed in `depth()`'s units, and `nc-canon` has
-    // the test that keeps the two from drifting.
+    // **Both numbers on one scale.** `Value::depth()`, which counts a scalar as
+    // 1, compared against the parser's bound, which starts the outermost value
+    // at 0, refuses a resource `nc_canon::parse` accepts, and says "the
+    // record's resource nests 65 deep and the journal reads 64", two numbers
+    // that are not measurements of the same thing. `MAX_NESTING` is the
+    // parser's bound expressed in `depth()`'s units, and `nc-canon` has the
+    // test that keeps the two from drifting.
     let depth = record.resource.depth();
     if depth > nc_canon::parse::MAX_NESTING {
         return Err(Error::TooDeep {
@@ -573,20 +569,21 @@ pub fn readable_record(record: &Record) -> Result<(), Error> {
             limit: nc_canon::parse::MAX_NESTING,
         });
     }
-    // **And text the store cannot hold.** This checked the resource's depth and
-    // called itself "the one rule every store enforces", while `action`,
-    // `deciding_policy` and `policy_pack` are plain `String`s with no validation
-    // at all — every principal field is an `OpaqueId` and these three are not.
-    // A NUL is hashed, passes this, and comes back from PostgreSQL as
+    // **And text the store cannot hold.** A rule calling itself "the one rule
+    // every store enforces" checks more than the resource's depth: `action`,
+    // `deciding_policy` and `policy_pack` are plain `String`s with no
+    // validation at all — every principal field is an `OpaqueId` and these
+    // three are not. Unchecked, a NUL is hashed, passes, and comes back from
+    // PostgreSQL as
     //
     // ```text
     // invalid byte sequence for encoding "UTF8": 0x00
     // ```
     //
-    // which was reported as `Error::Unavailable` → `JournalUnavailable`: the
-    // store answered perfectly well and the record was unstorable, and the
-    // sentence sent a responder to PostgreSQL. That is exactly what
-    // `Undecodable`'s own doc was written to avoid, one direction round.
+    // reported as `Error::Unavailable` → `JournalUnavailable`: the store
+    // answered perfectly well and the record was unstorable, and the sentence
+    // sends a responder to PostgreSQL. That is exactly what `Undecodable`'s own
+    // doc avoids, one direction round.
     //
     // The resource is immune and stays out of this: canonical JSON escapes a
     // NUL to `\u0000`, so what reaches the column is printable either way.
@@ -596,11 +593,11 @@ pub fn readable_record(record: &Record) -> Result<(), Error> {
         ("policy_pack", record.policy_pack.as_ref()),
     ] {
         // **Counted in characters, because the sentence says characters.**
-        // `str::find` answers in bytes, so `action = "é😀\0b"` reported the NUL
-        // "at character 6" when it is the third character — a diagnostic
-        // pointing at a place that is not there, which is the `§15.1` shape this
-        // crate distinguishes elsewhere: `nc_canon::HexError` documents its
-        // offset as a character offset and counts with `chars()`.
+        // `str::find` answers in bytes, so `action = "é😀\0b"` would report the
+        // NUL "at character 6" when it is the third character — a diagnostic
+        // pointing at a place that is not there, which is the `§15.1` shape
+        // this crate distinguishes elsewhere: `nc_canon::HexError` documents
+        // its offset as a character offset and counts with `chars()`.
         if let Some(text) = text
             && let Some(at) = text.chars().position(|character| character == '\0')
         {
@@ -615,12 +612,13 @@ pub fn readable_record(record: &Record) -> Result<(), Error> {
     }
     // **And numbers no column can hold.** `recorded_at` is a `u64` and
     // `policy_epoch` an `Option<u64>`, both the caller's, and PostgreSQL's
-    // BIGINT is signed — so anything above `i64::MAX` was accepted here, hashed,
-    // and refused by the PostgreSQL store alone. Two consequences, both the
-    // shape this function exists to prevent: the refusal came back as
-    // `Unavailable` — the store answered nothing, having never been asked — and
-    // the two `Store` implementations disagreed about what a journal accepts,
-    // which is the defect `Postgres::append`'s own comment names.
+    // BIGINT is signed — so unchecked here, anything above `i64::MAX` is
+    // accepted, hashed, and refused by the PostgreSQL store alone. Two
+    // consequences, both the shape this function exists to prevent: the refusal
+    // comes back as `Unavailable` — the store answered nothing, having never
+    // been asked — and the two `Store` implementations disagree about what a
+    // journal accepts, which is the defect `Postgres::append`'s own comment
+    // names.
     //
     // Checked here, so the rule is the journal's rather than one backend's, and
     // so a caller learns before a sequence has been minted.
@@ -658,10 +656,10 @@ pub enum Error {
     /// The store answered and refused: a grant, a schema, a role.
     ///
     /// **Not the store being unavailable, and this is the difference that
-    /// matters during an incident.** A revoked `INSERT`, a dropped table and a
-    /// stopped container all answered `NC-JRNL-0003` — *"the journal store did
-    /// not answer"*, `retryable` — so a responder filtering the log could not
-    /// tell an outage from a missing `GRANT`, and the platform stops either way
+    /// matters during an incident.** Without it, a revoked `INSERT`, a dropped
+    /// table and a stopped container all answer `NC-JRNL-0003` — *"the journal
+    /// store did not answer"*, `retryable` — so a responder filtering the log
+    /// cannot tell an outage from a missing `GRANT`, and the platform stops either way
     /// because `§14.9` makes the journal fail closed.
     Refused(String),
     /// An entry did not follow the tail. Two writers, or a store that moved.
@@ -730,8 +728,8 @@ pub enum Error {
     /// it asks each of them again, and another connection can settle the
     /// disagreement in between — the sequence this caller wanted becomes free
     /// again in no scenario, but a unit that was not yet open when the
-    /// statement ran can be open by the time the question is asked. The arm
-    /// that reported this printed `expected: N` and `found: N` — the same
+    /// statement ran can be open by the time the question is asked. Reported
+    /// as `OutOfOrder`, it prints `expected: N` and `found: N` — the same
     /// number twice, a sentence that says nothing happened — in 11 of 400
     /// contended rounds.
     ///
@@ -766,15 +764,15 @@ impl Error {
             // system to go and look at.
             Self::Refused(_) => ErrorCode::JournalRefused,
             // **A record no store could keep is not the store being down.**
-            // Both of these are refused before any store is asked, and both used
-            // to answer `JournalUnavailable` — the code whose own description is
-            // "the journal store did not answer", and which is `retryable`.
-            // Measured: a record with a NUL in `action` was hashed, passed
-            // `readable_record`, and came back from PostgreSQL as
+            // Both of these are refused before any store is asked, and
+            // `JournalUnavailable` — the code whose own description is "the
+            // journal store did not answer", and which is `retryable` — would
+            // be wrong for both. Measured: a record with a NUL in `action`,
+            // past `readable_record`, comes back from PostgreSQL as
             // `invalid byte sequence for encoding "UTF8": 0x00` reported as the
             // store being unavailable, which sends a responder to PostgreSQL
-            // (§15.1) for a defect in the request. Retrying it produces the same
-            // answer forever, which is what `retryable = false` says.
+            // (§15.1) for a defect in the request. Retrying it produces the
+            // same answer forever, which is what `retryable = false` says.
             // **And a clock before 1970 is a record that cannot be stored**, for
             // the same reason as the two above: it is refused before any store
             // is asked, and the entry it would have written would verify for
@@ -786,23 +784,24 @@ impl Error {
             // "unavailable" — a responder who cannot tell that from a store that
             // did not answer looks in the wrong place first.
             Self::Undecodable { .. } => ErrorCode::JournalChainBroken,
-            // **And `OutOfOrder` is not.** It shared that code, and it is what a
-            // second writer racing this one looks like: both read the tail, both
-            // computed the same next sequence, one landed. Measured with twelve
-            // threads doing the `head()`-then-`append()` this crate itself does,
-            // nine were refused and every one was told the hash chain was broken
-            // — critical, `retryable = false`, about a chain that was intact.
-            // Three quarters of ordinary concurrent commands would lose their
-            // audit entry on an instruction not to retry.
-            // **Contention only in the direction another writer can cause.**
-            // Writing moves the end of the history *forward*, so an entry
-            // numbered past it is nobody else's doing — and that half carried
-            // `JournalContended`, "Another writer took this sequence first",
-            // `retryable = true`. Measured on an empty table with one writer
-            // and nobody racing: `Store::append` at sequence 7 answered it, and
-            // three retries answered the same. The other direction — the tail
-            // moved on while this caller held a stale number — is exactly what
-            // a race looks like, and a retry is exactly what fixes it.
+            // **And `OutOfOrder` is not.** It is what a second writer racing
+            // this one looks like: both read the tail, both computed the same
+            // next sequence, one landed. Measured with twelve threads doing the
+            // `head()`-then-`append()` this crate itself does, under the
+            // chain-broken code: nine are refused and every one is told the
+            // hash chain is broken — critical, `retryable = false`, about a
+            // chain that is intact. Three quarters of ordinary concurrent
+            // commands would lose their audit entry on an instruction not to
+            // retry. **Contention only in the direction another writer can
+            // cause.** Writing moves the end of the history *forward*, so an
+            // entry numbered past it is nobody else's doing — and that half
+            // under `JournalContended`, "Another writer took this sequence
+            // first", `retryable = true`, is measured on an empty table with
+            // one writer and nobody racing: `Store::append` at sequence 7
+            // answers it, and three retries answer the same. The other
+            // direction — the tail moved on while this caller held a stale
+            // number — is exactly what a race looks like, and a retry is
+            // exactly what fixes it.
             Self::OutOfOrder { expected, found } if found > expected => {
                 ErrorCode::JournalSequenceAhead
             }
@@ -811,11 +810,11 @@ impl Error {
             // either, and the sentences are what tell them apart.
             Self::OutOfOrder { .. } | Self::Contended => ErrorCode::JournalContended,
             Self::UnitClosed { .. } => ErrorCode::JournalUnitClosed,
-            // **Its own code, because the other one says the opposite.** These
-            // shared `JournalUnitClosed`, whose description is "a work unit that
-            // was already committed or aborted received an entry" — so one error
-            // said in one line that a unit was open and that it had finished,
-            // and both locales told the reader to start the action again, which
+            // **Its own code, because the other one says the opposite.** Under
+            // `JournalUnitClosed`, whose description is "a work unit that was
+            // already committed or aborted received an entry", one error would
+            // say in one line that a unit was open and that it had finished,
+            // and both locales tell the reader to start the action again, which
             // is the operation that was just refused. Measured: twelve to
             // fifteen of every sixteen concurrent openers of one unit receive
             // this.
@@ -824,10 +823,11 @@ impl Error {
             // say something about a unit that exists — that it finished, that
             // it is under way — and this one does not.
             Self::UnitNeverOpened { .. } => ErrorCode::JournalUnitNeverOpened,
-            // **The inner error's own code, not one of them.** This answered
-            // `IdsClockBackwards` for every minting failure, so a *stuck* clock
-            // — which never clears — was reported as `retryable = true` under a
-            // code about a clock that moved back. `MintError` knows which it is.
+            // **The inner error's own code, not one of them.** Answering
+            // `IdsClockBackwards` for every minting failure would report a
+            // *stuck* clock — which never clears — as `retryable = true` under
+            // a code about a clock that moved back. `MintError` knows which it
+            // is.
             Self::NoIdentifier(error) => error.code(),
         }
     }
@@ -878,10 +878,10 @@ impl core::fmt::Display for Error {
             // **Not "before any store was asked".** That is true of every site
             // that builds this from a value it checked itself, and false of the
             // one that builds it from the store's own answer — a data exception
-            // the statement provoked. Written unconditionally, that arm read
-            // *"The store answered; it is the request it could not take, so this
-            // is not the store being unavailable. It was refused before any
-            // store was asked…"*: the same disclaimer twice, contradicting
+            // the statement provoked. Written unconditionally, that arm would
+            // read *"The store answered; it is the request it could not take,
+            // so this is not the store being unavailable. It was refused before
+            // any store was asked…"*: the same disclaimer twice, contradicting
             // itself in one line. What is true of both is that the record was
             // not storable and the store is not what is broken, and the `why`
             // each site carries says which of the two happened.
@@ -919,21 +919,21 @@ pub struct Broken {
     pub reason: Reason,
     /// What the store said about it, when it said anything.
     ///
-    /// **`verify` was handed a reason and threw it away.** `Read::stopped_at`
-    /// carries why the row would not decode — that is what its own doc is for,
-    /// *"a verdict that says only 'entry 3 is unreadable' sends a reader to the
-    /// row with no idea what to look for"* — and the verdict built from it kept
-    /// only the number. Worse, when the unreadable thing is the `sequence`
-    /// column itself, that number is `u64::MAX`, which the table's own
-    /// `CHECK (sequence >= 0)` and primary key make impossible:
+    /// **`verify` is handed a reason and keeps it.** `Read::stopped_at` carries
+    /// why the row would not decode — that is what its own doc is for, *"a
+    /// verdict that says only 'entry 3 is unreadable' sends a reader to the row
+    /// with no idea what to look for"* — and a verdict built from it that kept
+    /// only the number would be that verdict. Worse, when the unreadable thing
+    /// is the `sequence` column itself, that number is `u64::MAX`, which the
+    /// table's own `CHECK (sequence >= 0)` and primary key make impossible:
     ///
     /// ```text
     /// entry 18446744073709551615 does not verify: it is in the table and this
     ///   code cannot read it, so it was not written here
     /// ```
     ///
-    /// `postgres.rs` had already fixed that sentence where it produces it; the
-    /// only caller discarded the fix.
+    /// `postgres.rs` writes the true sentence where it produces it, and this
+    /// carries it on.
     pub detail: Option<String>,
 }
 
@@ -962,11 +962,12 @@ impl Broken {
 
 /// What was wrong with an entry.
 ///
-/// **Each of these has a sentence, and it used to live inside `Broken`'s
-/// `Display` alone** — so a caller with a `Reason` in hand could not render it:
-/// `error[E0277]: Reason doesn't implement Display`. The sibling enum `Outcome`
-/// carries both `as_str` and `parse` for the same kind of reason, and `Broken`
-/// now writes what `Display` here says rather than a second copy.
+/// **Each of these has a sentence of its own**, not only
+/// inside `Broken`'s `Display` — where a caller with a `Reason` in hand could
+/// not render it: `error[E0277]: Reason doesn't implement Display`. The sibling
+/// enum `Outcome` carries both `as_str` and `parse` for the same kind of
+/// reason, and `Broken` writes what `Display` here says rather than a second
+/// copy.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Reason {
     /// The entry's stored hash is not the hash of the entry. Edited in place.
@@ -1028,11 +1029,11 @@ mod verdict_tests {
 
     /// Every `.rs` file of this crate's source, read from the directory.
     ///
-    /// **It was a hand list of five names, written out twice**, and the two
-    /// counts that are supposed to disagree when one of them narrows both read
-    /// it — so a sixth module was outside both and they agreed about nothing.
-    /// The directory is the ground; a floor keeps a walk that finds nothing from
-    /// reading as a crate with nothing in it.
+    /// **Not a hand list of five names, written out twice**: the two counts
+    /// that are supposed to disagree when one of them narrows would both read
+    /// it — so a sixth module would be outside both and they would agree about
+    /// nothing. The directory is the ground; a floor keeps a walk that finds
+    /// nothing from reading as a crate with nothing in it.
     fn every_source_file() -> Vec<String> {
         let directory = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
         let mut found: Vec<String> = std::fs::read_dir(directory)
@@ -1058,12 +1059,12 @@ mod verdict_tests {
 
     /// Every variant of *this crate's* `Error` a body builds.
     ///
-    /// **`Error::` is not a rare spelling.** The scan matched the bare
-    /// substring, so `sqlx::Error::Database` — a `match` arm over the driver's
-    /// error, in the body of `Postgres::append` — was charged to `Store::append`
-    /// as a refusal this crate builds. A qualifier in front of `Error` is
-    /// another crate's error unless it is this one's, so the word before the
-    /// `::` is read and only `crate`, `self` and `super` are ours.
+    /// **`Error::` is not a rare spelling.** Matching the bare substring
+    /// charges `sqlx::Error::Database` — a `match` arm over the driver's error,
+    /// in the body of `Postgres::append` — to `Store::append` as a refusal this
+    /// crate builds. A qualifier in front of `Error` is another crate's error
+    /// unless it is this one's, so the word before the `::` is read and
+    /// only `crate`, `self` and `super` are ours.
     ///
     /// Written once, because the per-body rule and the per-implementation rule
     /// are one question asked at two scopes.
@@ -1096,16 +1097,15 @@ mod verdict_tests {
 
     /// Every `Error::` variant a trait *implementation* builds, by method name.
     ///
-    /// **A trait method has no body, and its section was therefore counted and
-    /// never judged.** Six of this crate's nineteen `# Errors` sections are
-    /// `Store`'s, and the walk below did `checked += 1` and then `continue`d on
-    /// every one of them — so `checked == sections` reported nineteen inspected
-    /// while six were inspected for nothing. Measured on 2026-09-08,
-    /// the link to [`Error::Unstorable`] deleted from `Store::append`'s section
-    /// — the
-    /// exact variant whose own follow-up paragraph says it *"was missing and it
-    /// is the commonest of them"*: `cargo test --workspace --locked` exit 0 and
-    /// `cargo run -q -p xtask -- check` at `check passed`, `ok 1223 test(s)`.
+    /// **A trait method has no body, so without this its section is counted and
+    /// never judged.** Six of this crate's nineteen `# Errors` sections
+    /// are `Store`'s, and a walk that did `checked += 1` and then `continue`d
+    /// on every one of them would report nineteen inspected while six were
+    /// inspected for nothing. Measured that way, the link to
+    /// [`Error::Unstorable`] deleted from `Store::append`'s section — the exact
+    /// variant whose own follow-up paragraph calls it *"the commonest of
+    /// them"*: `cargo test --workspace --locked` exits 0
+    /// and `cargo xtask check` prints `check passed`.
     ///
     /// The refusals of a trait method are the refusals of the implementations
     /// this crate ships, and both of them are in the files this walk already
@@ -1141,22 +1141,22 @@ mod verdict_tests {
                     .position(|line| *line == closes)
                     .map_or(lines.len(), |by| index + by);
                 // **The state machine beside this, not `split("//")`.** That
-                // knew one spelling of a comment: an ordinary `/* … */`
-                // recording history made this walk report a method as building
-                // a refusal it cannot build. Measured on 2026-09-12, one screen
+                // knows one spelling of a comment: an ordinary `/* … */`
+                // recording history would make this walk report a method as
+                // building a refusal it cannot build — measured, one screen
                 // from the reader written for exactly this in the same crate.
                 let body = super::the_code_without_comments(&lines[index..ends].join("\n"));
                 // **The body, and not one step down the calls it makes.** One
-                // step was tried and it is *too strong*: keyed by name, every
-                // body that so much as mentions `append`, `readable` or `tail`
-                // is charged with everything any function of that name builds,
-                // and the walk demanded `Contended`, `OutOfOrder`, `Unstorable`
-                // and `UnitClosed` from `Store::tail`, `head`, `from`,
+                // step is *too strong*: keyed by name, every body that so much
+                // as mentions `append`, `readable` or `tail` is charged with
+                // everything any function of that name builds, and the walk
+                // demands `Contended`, `OutOfOrder`, `Unstorable` and
+                // `UnitClosed` from `Store::tail`, `head`, `from`,
                 // `unit_closed` and `unit_opened` — none of which any of them
                 // can return. A rule that refuses something legitimate is the
                 // failure this repository calls the worse one. `Unstorable` and
                 // `Refused` are reached through a call and are named by hand in
-                // the sections above, where a reviewer put them.
+                // the sections above.
                 let charged = built.entry(name).or_default();
                 for variant in the_variants_built_in(&body) {
                     if !charged.contains(&variant) {
@@ -1170,13 +1170,14 @@ mod verdict_tests {
 
     /// The readers the two section walks share, driven over text.
     ///
-    /// **Seven clauses in these functions decided nothing on this tree.** A
-    /// reviewer deleted each in turn and the whole suite stayed green: the four
-    /// qualifiers `unsafe`, `const`, `pub(crate)` and `pub(super)`; the `super`
-    /// arm of the `Error::` qualifier; the ` for ` guard on an `impl` block;
-    /// and the attribute skip in the block reader. A clause no case reaches is
-    /// a clause nobody can tell is wrong, and two of these are guards against
-    /// the *other* kind of failure — the rule refusing something legitimate.
+    /// **Seven clauses in these functions decide nothing on this tree
+    /// alone.** Deleted each in turn, each would leave the rest of the suite
+    /// green: the four qualifiers `unsafe`, `const`, `pub(crate)` and
+    /// `pub(super)`; the `super` arm of the `Error::` qualifier; the ` for `
+    /// guard on an `impl` block; and the attribute skip in the block reader. A
+    /// clause no case reaches is a clause nobody can tell is wrong, and two of
+    /// these are guards against the *other* kind of failure — the rule refusing
+    /// something legitimate.
     ///
     /// Written over text rather than over the tree, because a walk that needs
     /// this crate's own source can only be driven by what this crate happens to
@@ -1236,14 +1237,14 @@ mod verdict_tests {
     /// clause is what keeps an inherent method of the same name as a trait's
     /// from being charged with that trait's refusals — the walk above says so
     /// at length and calls the alternative "a rule that refuses something
-    /// legitimate" — and nothing on this tree reached it: seven inherent `impl`
-    /// blocks stand in this crate and the clause could be deleted with the
-    /// whole suite green. The corpus below is what decides it now — and writing
-    /// the corpus found the other half: `starts_with("impl ")` is one spelling,
-    /// so `impl<S: Store> Read for Journal<S>` opened no implementation at all
-    /// and every method in it would have been skipped in silence. This crate
-    /// has no generic trait implementation today, which is exactly why nothing
-    /// noticed.
+    /// legitimate" — and nothing in this tree depends on it: without the
+    /// corpus below, the clause could be deleted with the whole suite green.
+    /// That corpus is what decides it — and the other half too:
+    /// `starts_with("impl ")` is one spelling, so under it
+    /// `impl<S: Store> Read for Journal<S>` opens no implementation at all and
+    /// every method in it would be skipped in silence. This crate has no
+    /// generic trait implementation, which is exactly why nothing else would
+    /// notice.
     fn opens_a_trait_implementation(declaration: &str) -> bool {
         declaration
             .strip_prefix("impl")
@@ -1254,20 +1255,20 @@ mod verdict_tests {
     /// Every declaration with an `# Errors` section, and the refusals its own
     /// body builds that the section does not name.
     ///
-    /// Its own function because the test crossed a hundred lines with it inline.
+    /// Its own function because inline the test would cross a hundred lines.
     /// Returns the misses and how many sections were read, so the caller can
     /// hold the second number against a count taken another way.
     fn the_sections_and_what_they_miss() -> (Vec<String>, usize) {
         let mut silent = Vec::new();
         let mut checked = 0_usize;
         let implementations = what_an_implementation_builds();
-        // **The directory, not a hand list of five names.** Both counts read the
-        // same five spellings, written out twice and tied to the directory by
-        // nothing — so a sixth module, which is the most ordinary change there
-        // is, was outside both and they agreed about nothing. Measured with one
-        // added: a public function whose section names `Unavailable` and whose
-        // body builds `Contended` — every printed count *up*, `953 test(s)`
-        // unchanged, `check passed`.
+        // **The directory, not a hand list of five names.** Two counts reading
+        // the same five spellings, written out twice and tied to the directory
+        // by nothing, leave a sixth module, which is the most ordinary change
+        // there is, outside both, agreeing about nothing. Measured with one
+        // added under such a list: a public function whose section names
+        // `Unavailable` and whose body builds `Contended` — every printed count
+        // *up*, `check passed`.
         for named in every_source_file() {
             let source = std::fs::read_to_string(
                 std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src")).join(&named),
@@ -1276,18 +1277,18 @@ mod verdict_tests {
             let lines: Vec<&str> = source.lines().collect();
             for (index, line) in lines.iter().enumerate() {
                 let declaration = line.trim_start();
-                // **`the_method_declared_by`, not a second copy of it.** The
-                // qualifier loop was written out here as well, and the two
-                // copies had drifted: this one read `pub(crate)` through its
-                // general `pub(` arm and the other through two literals, so
-                // four of the qualifiers between them were reached by nothing
-                // and could each be deleted with the suite green. One reader,
-                // and the corpus below drives every arm of it.
+                // **`the_method_declared_by`, not a second copy of it.** A
+                // qualifier loop written out here as well drifts from it: one
+                // reading `pub(crate)` through a general `pub(` arm and the
+                // other through two literals leaves four of the qualifiers
+                // between them reached by nothing, each deletable with the
+                // suite green. One reader, and the corpus below drives every
+                // arm of it.
                 //
                 // **The section is the signal, not `Result<` on the same
                 // line.** A wrapped declaration puts the return type two lines
                 // down and `impl Future<Output = Result<…>>` puts it inside
-                // another type; requiring it here read thirteen of nineteen. A
+                // another type; requiring it here reads thirteen of nineteen. A
                 // function with an `# Errors` section above it is a function
                 // making a claim about its refusals, whatever its signature
                 // looks like.
@@ -1297,8 +1298,8 @@ mod verdict_tests {
                 let indent = line.len() - declaration.len();
                 // The doc block above it, trimmed — a method's is indented —
                 // past whatever attributes stand between the two. Three of this
-                // crate's sections sit above a `#[doc(hidden)]`, and a walk that
-                // stopped at the first non-`///` line read sixteen of nineteen.
+                // crate's sections sit above a `#[doc(hidden)]`, and a walk
+                // stopping at the first non-`///` line reads sixteen of nineteen.
                 let mut at = super::past_the_attributes(&lines, index);
                 while at > 0 && lines[at - 1].trim_start().starts_with("///") {
                     at -= 1;
@@ -1310,10 +1311,10 @@ mod verdict_tests {
                     .collect::<Vec<_>>()
                     .join("\n");
                 // **A heading, not the words anywhere in the prose.** The other
-                // count reads lines that are exactly `/// # Errors`; a substring
-                // match also caught this test's own doc, which names the heading
-                // in a sentence — so the two readings disagreed by one and the
-                // extra was the reader.
+                // count reads lines that are exactly `/// # Errors`; a
+                // substring match also catches this test's own doc, which names
+                // the heading in a sentence — so the two readings would
+                // disagree by one and the extra would be the reader.
                 let Some(heading) = doc.lines().position(|line| line.trim() == "/// # Errors")
                 else {
                     continue;
@@ -1332,10 +1333,10 @@ mod verdict_tests {
                 if lines[signature_ends].trim_end().ends_with(';')
                     && !lines[signature_ends].contains('{')
                 {
-                    // **A trait method is judged by its implementations**, which
-                    // this crate ships two of and this walk already reads. It
-                    // used to be counted here and judged nowhere; see
-                    // [`what_an_implementation_builds`] for what that cost.
+                    // **A trait method is judged by its implementations**,
+                    // which this crate ships two of and this walk already
+                    // reads, rather than counted here and judged nowhere; see
+                    // [`what_an_implementation_builds`] for what that costs.
                     checked += 1;
                     let Some(name) = super::the_method_declared_by(declaration) else {
                         continue;
@@ -1362,12 +1363,10 @@ mod verdict_tests {
                     .position(|line| *line == closes)
                     .map_or(lines.len(), |by| index + by);
                 // Code, not the prose explaining it: a comment naming a variant
-                // this function *used to* return is history, not a refusal it
-                // builds — `readable_record` carries one.
-                // **The state machine beside this, not `split("//")`.** That
-                // knew one spelling: an ordinary `/* … */` recording history
-                // made this walk report a section as claiming a refusal its
-                // body cannot build.
+                // is not a refusal the function builds. **The state machine
+                // beside this, not `split("//")`.** That knows one spelling: an
+                // ordinary `/* … */` naming a variant would make this walk
+                // report a section as claiming a refusal its body cannot build.
                 let body = super::the_code_without_comments(&lines[index..ends].join("\n"));
                 for name in the_variants_built_in(&body) {
                     if errors.contains(&name) {
@@ -1386,15 +1385,15 @@ mod verdict_tests {
 
     /// Every `# Errors` section names the refusals its own body builds.
     ///
-    /// **Five public entry points named variants the code does not return**, and
-    /// the ones they left out are the ones that invert `retryable`:
-    /// `Store::append` said `Unavailable`, `OutOfOrder`, `TooDeep` while every
-    /// implementation calls `readable` first, so `Unstorable` — not retryable —
-    /// is the commonest refusal a caller meets; `Store::from` said `Unavailable`
-    /// while `Postgres::from`'s first statement is a conversion that returns
-    /// `Unstorable`; `readable` and `readable_record` said `TooDeep` alone.
-    /// A caller written against those retries a caller-side defect for ever,
-    /// which is the failure `NC-JRNL-0005` was added to end.
+    /// **A section names the variants the code returns**, and the ones a
+    /// section leaves out are the ones that invert `retryable`: every
+    /// implementation of `Store::append` calls `readable` first,
+    /// so `Unstorable` — not retryable — is the commonest refusal a caller
+    /// meets; `Postgres::from`'s first statement is a conversion that
+    /// returns `Unstorable`; and `readable` and `readable_record` return more
+    /// than `TooDeep`. A caller written against a shorter section retries a
+    /// caller-side defect for ever, which is the failure `NC-JRNL-0005` exists
+    /// to end.
     ///
     /// This holds the half a source rule can hold: a variant a function builds
     /// *in its own body* is named in its own section. A variant reached through
@@ -1402,14 +1401,15 @@ mod verdict_tests {
     /// following it is a call graph rather than a scan.
     #[test]
     fn every_errors_section_names_what_its_body_builds() {
-        // **Every file of this crate, and every indentation.** This read
-        // `lib.rs` alone and matched `pub fn ` at column zero, so it saw two of
-        // the crate's `# Errors` sections — the count is `grep -rc '/// # Errors'
-        // crates/nc-journal/src`, and its floor was `>= 2`,
-        // which is that number by construction. `Journal::record`, the primary
-        // entry point, was outside it: its section named `Unavailable` alone
-        // while ordinary caller input reaches `Unstorable` and `TooDeep`, and a
-        // planted `return Err(Error::Contended)` in its body left this green.
+        // **Every file of this crate, and every indentation.** Reading `lib.rs`
+        // alone and matching `pub fn ` at column zero sees two of the crate's
+        // `# Errors` sections — the count is
+        // `grep -rc '/// # Errors' crates/nc-journal/src` — and a floor of
+        // `>= 2` is that number by construction. `Journal::record`, the primary
+        // entry point, would be outside it: a section naming `Unavailable`
+        // alone while ordinary caller input reaches `Unstorable` and `TooDeep`,
+        // and a planted `return Err(Error::Contended)` in its body, would leave
+        // such a walk green.
         //
         // A method sits at one level of indentation inside an `impl`, and a
         // trait method at one inside a `trait`, so the declaration is matched
@@ -1417,20 +1417,19 @@ mod verdict_tests {
         // indent.
         let (silent, checked) = the_sections_and_what_they_miss();
         // **The population counted a second way**, because a scan that narrows
-        // still meets a floor it wrote for itself: this read two of them all when
-        // it matched `pub fn ` at column zero, and its floor was `>= 2`. The
-        // other count is the `# Errors` lines themselves — the same ground,
-        // read without the declaration walk — so the two disagree exactly when
-        // one of them stops seeing something.
-        // **Its own walk, because a shared reader is a shared blind spot.**
-        // `checked` and this both read `every_source_file()`, and so did the
-        // floor below — the exact shape this function's own doc says the hand
-        // list was replaced to remove, one level up. Measured: one
-        // `found.retain(|name| name != "unit.rs")` at the end of that walk left
-        // `checked == sections == 16` of 19, `check passed`, and a planted
-        // `return Err(Error::Refused(…))` in `WorkUnit::record` — a public
-        // entry point whose `# Errors` section names `Error::UnitClosed` alone —
-        // went unreported.
+        // still meets a floor it wrote for itself: matching `pub fn ` at column
+        // zero reads two, and a floor of `>= 2` passes. The other count is the
+        // `# Errors` lines themselves — the same ground, read without the
+        // declaration walk — so the two disagree exactly when one of them stops
+        // seeing something. **Its own walk, because a shared reader is a shared
+        // blind spot.** With `checked`, this and the floor below all reading
+        // `every_source_file()` — the shape this function's own doc refuses for
+        // a hand list, one level up — one
+        // `found.retain(|name| name != "unit.rs")` at the end of that walk
+        // leaves `checked == sections == 16` of 19, `check passed`, and a
+        // planted `return Err(Error::Refused(…))` in `WorkUnit::record` — a
+        // public entry point whose `# Errors` section names `Error::UnitClosed`
+        // alone — unreported, measured.
         //
         // Same ground, different code: `read_dir` here, so a narrowing in one
         // cannot narrow the other with it.
@@ -1476,14 +1475,12 @@ mod verdict_tests {
 
     /// Every `Error` reads as what it is.
     ///
-    /// **Two of the thirteen arms were rendered by no test in the workspace.**
-    /// Found by branch instrumentation — markers in 222 branch bodies across
-    /// `nc-canon`, `nc-journal` and `nc-catalog-compiler`, one run, 216 hot.
-    /// Every test that produces `UnitAlreadyOpen` or `NoIdentifier` asserts with
-    /// `matches!(…)` and never calls `to_string()`, so the sentences could say
-    /// anything: reworded to *"work unit {unit} was already **closed**"* — the
-    /// self-contradiction `Error::code`'s own comment records having removed
-    /// once — and to `Unavailable`'s sentence, the whole workspace stayed green.
+    /// **Every arm, rendered.** The tests elsewhere that produce
+    /// `UnitAlreadyOpen` or `NoIdentifier` compare the variant and never call
+    /// `to_string()`, so without this those two sentences could say anything:
+    /// reworded to *"work unit {unit} was already **closed**"* — the
+    /// self-contradiction `Error::code`'s own comment warns of — or to
+    /// `Unavailable`'s sentence, with every one of those tests green.
     ///
     /// Written out rather than derived, for the reason the sibling below gives:
     /// an assertion that read the sentence from the enum it is testing would
@@ -1590,13 +1587,13 @@ mod verdict_tests {
 
     /// Each reason reads as itself, and no two read alike.
     ///
-    /// **The sentence a responder reads was asserted by nobody.** Three tests
+    /// **The sentence a responder reads, asserted.** Three other tests
     /// check `Broken::detail` — the clause after the dash, which is text the
-    /// *row* supplied — and one older test checks `code()`. The clause that
-    /// says what kind of damage this is went unread: replacing five of the six
-    /// with "the printer tray is empty" left the whole `nc-journal` suite
+    /// *row* supplied — and one checks `code()`. Without this the clause that
+    /// says what kind of damage this is goes unread: replacing five of the six
+    /// with "the printer tray is empty" leaves the whole `nc-journal` suite
     /// green, and swapping `EntryIsNotReadable` for `HashDoesNotMatchContents`
-    /// at all three construction sites produced the self-contradictory verdict
+    /// at all three construction sites produces the self-contradictory verdict
     ///
     /// ```text
     /// entry 1 does not verify: its hash is not the hash of its contents —
@@ -1701,15 +1698,14 @@ impl<S: Store, C: Clock> Journal<S, C> {
     /// name a different one per entry would be a journal somebody could write
     /// another realm's history into.
     ///
-    /// **The minter is the caller's**, and that is a correction. This used to
-    /// build one internally from a hardcoded machine flake of zero — so two
-    /// `Journal`s in one process minted the *same* work-unit identifiers, which
-    /// is precisely the hazard `Minter::new` documents as the caller's to
-    /// enforce, under a comment here claiming Snowflakes prevented it. One
-    /// minter per flake per process is a rule only the caller can keep, so the
-    /// type now says so — and a process that keeps the journals of several
-    /// realms on its one flake (`NOCTUA.md §16.2`) gives them one minter
-    /// between them, through [`Journal::sharing`].
+    /// **The minter is the caller's.** Built internally from a hardcoded
+    /// machine flake of zero, two `Journal`s in one process would mint the
+    /// *same* work-unit identifiers, which is precisely the
+    /// hazard `Minter::new` documents as the caller's to enforce. One minter
+    /// per flake per process is a rule only the caller can keep, so the type
+    /// says so — and a process that keeps the journals of several realms on its
+    /// one flake (`NOCTUA.md §16.2`) gives them one minter between them,
+    /// through [`Journal::sharing`].
     pub fn new(store: S, realm: OpaqueId, keeper: OpaqueId, units: Minter<C>) -> Self {
         Self::sharing(store, realm, keeper, Arc::new(Mutex::new(units)))
     }
@@ -1721,11 +1717,10 @@ impl<S: Store, C: Clock> Journal<S, C> {
     /// **One sequence for every realm of the machine.** The kernels of the
     /// realms one person belongs to keep their units in one local file, by
     /// identifier: two journals minting from minters of their own on one flake
-    /// handed out the same identifier in the same millisecond, and a reviewer
-    /// found one realm's write refused as a unit already committed and one
-    /// realm's recovery reverting another's kept unit. Sharing the minter is
-    /// what makes every identifier this machine mints its own, whichever realm
-    /// it brackets.
+    /// hand out the same identifier in the same millisecond — one realm's write
+    /// refused as a unit already committed, and one realm's recovery reverting
+    /// another's kept unit. Sharing the minter is what makes every identifier
+    /// this machine mints its own, whichever realm it brackets.
     pub fn sharing(
         store: S,
         realm: OpaqueId,
@@ -1808,32 +1803,29 @@ impl<S: Store, C: Clock> Journal<S, C> {
     /// writer settled the tail in between, and [`Error::Undecodable`] when the
     /// tail is not what this code wrote.
     ///
-    /// **It named the clock's refusal and could not build it.** This takes its
-    /// instant from the caller's [`Record`]; the one place this crate asks the
-    /// clock is `Journal::bracket`, which `open_unit` and `close_unit` reach —
-    /// and through them `begin`, `commit` and `abort` — and this does not; those
-    /// three named it nowhere. The variant is not
-    /// spelled in this paragraph on purpose: the test below reads the *whole*
-    /// section for it, because a list is not the only place a section can make a
-    /// claim. So a caller
-    /// of the bracket reading its section saw only "whatever the store
-    /// returned", and a wrong machine clock read as the store's fault:
-    /// That refusal is `JournalUnstorable`, **not** retryable, whose
-    /// sentence ends *"this particular error will not clear on its own"*. That
-    /// is the retryable/not-retryable inversion this crate removes at every
-    /// other seam, arriving through the documentation instead of the code.
+    /// **It does not name the clock's refusal, because it cannot build
+    /// it.** This takes its instant from the caller's [`Record`]; the one place
+    /// this crate asks the clock is `Journal::bracket`, which `open_unit`
+    /// and `close_unit` reach — and through them `begin`, `commit` and `abort`
+    /// — and this does not; those three name it. The variant is not spelled in
+    /// this paragraph on purpose: the test below reads the *whole* section for
+    /// it, because a list is not the only place a section can make a
+    /// claim. That refusal is `JournalUnstorable`, **not** retryable, whose
+    /// sentence ends *"this particular error will not clear on its own"*; a
+    /// caller of the bracket whose section said only "whatever the store
+    /// returned" would read a wrong machine clock as the store's fault — the
+    /// retryable/not-retryable inversion this crate removes at every other
+    /// seam, arriving through the documentation instead of the code.
     ///
-    /// [`Journal::verify`]'s own doc records finding and removing this exact
-    /// claim about this exact variant, and says why nothing caught it: the gate
-    /// reads bodies for variants a section does not name, and does not read
-    /// sections for variants no body builds. The unheld half had rotted here
-    /// too, on the crate's primary entry point.
+    /// [`Journal::verify`]'s own doc says why a gate does not catch such a
+    /// claim: it reads bodies for variants a section does not name, and does
+    /// not read sections for variants no body builds.
     ///
-    /// **It said `Unavailable` alone**, and ordinary caller input reaches
-    /// `Unstorable` — a NUL byte in an action — and `TooDeep`. Neither is
-    /// retryable and `Unavailable` is, so a caller written against that sentence
-    /// retries a defect it caused, for ever. `WorkUnit::record` one file over
-    /// carries the honest catch-all this did not.
+    /// **Not `Unavailable` alone**: ordinary caller input reaches `Unstorable`
+    /// — a NUL byte in an action — and `TooDeep`. Neither is retryable
+    /// and `Unavailable` is, so a caller written against that sentence would
+    /// retry a defect it caused, for ever. `WorkUnit::record` one file over
+    /// carries the same catch-all.
     pub async fn record(&mut self, record: Record) -> Result<Entry, Error> {
         self.append(record).await
     }
@@ -1880,9 +1872,10 @@ impl<S: Store, C: Clock> Journal<S, C> {
     /// bracket's resource, and canonical JSON writes a NUL as `\u0000` — the
     /// reason `readable_record` leaves the resource out of its NUL rule — so
     /// both stores take it and the close repeats it as written. The section
-    /// below named a refusal for such a label, which no path through this call
-    /// builds; `a_label_holding_a_nul_is_stored_escaped_in_both_stores` holds
-    /// this paragraph instead.
+    /// below names no refusal for such a label, because no path through this
+    /// call builds
+    /// one; `a_label_holding_a_nul_is_stored_escaped_in_both_stores` holds this
+    /// paragraph.
     ///
     /// # Errors
     ///
@@ -1902,10 +1895,10 @@ impl<S: Store, C: Clock> Journal<S, C> {
     pub async fn open_unit(&mut self, label: impl Into<String> + Send) -> Result<Snowflake, Error> {
         let unit = self.minted().map_err(Error::NoIdentifier)?;
         let label = label.into();
-        // **Only the realm, the keeper and the instant are the journal's.**
-        // The action, the outcome and the label are this call's, and
-        // `bracket` takes them as parameters rather than as a template to be
-        // overwritten — the shape a measured defect removed from `begin` once.
+        // **Only the realm, the keeper and the instant are the journal's.** The
+        // action, the outcome and the label are this call's, and `bracket`
+        // takes them as parameters rather than as a template to be overwritten,
+        // which would be a default a caller must remember to replace.
         let opening = self.bracket(
             crate::unit::OPENS,
             unit,
@@ -1986,45 +1979,46 @@ impl<S: Store, C: Clock> Journal<S, C> {
     /// [`Error::Unstorable`] when `from` is past what a store can hold, which is
     /// `Store::from`'s first statement.
     ///
-    /// **It used to say [`Error::Undecodable`] here, and that is the one case
-    /// this function no longer hands back.** A row that is not one this code
-    /// wrote reaches `tail()` as `Undecodable`, and the body catches exactly
-    /// that and turns it into `Broken { reason: EntryIsNotReadable }` — *a
-    /// verdict, not a failure to answer*, which is what the paragraph beside
-    /// that arm says. The other way in, `store.from(..)?`, is documented at
-    /// [`Store::from`] as `Unavailable`, `Refused` and `Unstorable` only, and
-    /// `Postgres::from` reports a bad row through `stopped_at` rather than
-    /// through its `Err`. So the sentence described a case that cannot happen
-    /// and said the case that *does* happen cannot be described.
+    /// **Not [`Error::Undecodable`], which is the one case this function does
+    /// not hand back.** A row that is not one this code wrote reaches `tail()`
+    /// as `Undecodable`, and the body catches exactly that and turns it
+    /// into `Broken { reason: EntryIsNotReadable }` — *a verdict, not a failure
+    /// to answer*, which is what the paragraph beside that arm says. The other
+    /// way in, `store.from(..)?`, is documented at [`Store::from`]
+    /// as `Unavailable`, `Refused` and `Unstorable` only, and `Postgres::from`
+    /// reports a bad row through `stopped_at` rather than through its `Err`. So
+    /// naming it would describe a case that cannot happen and say the case that
+    /// *does* happen cannot be described.
     ///
     /// The gate beside it reads bodies for variants the section does not name;
-    /// it does not read sections for variants no body builds, and measured on
-    /// 2026-09-08 a line added here naming [`Error::ClockBeforeEpoch`] — which
-    /// `verify` cannot build by any path — left `cargo test --workspace
-    /// --locked` at exit 0. A caller gets a `match` arm that never fires, which
-    /// is milder than a wrong answer and is still prose stating the inverse of
-    /// what the code does.
+    /// it does not read sections for variants no body builds, and measured, a
+    /// line added here naming [`Error::ClockBeforeEpoch`] — which `verify`
+    /// cannot build by any path — leaves `cargo test --workspace --locked` at
+    /// exit 0. A caller gets a `match` arm that never fires, which is milder
+    /// than a wrong answer and is still prose stating the inverse of what the
+    /// code does.
     pub async fn verify(&self, from: u64) -> Result<Result<u64, Broken>, Error> {
         // **The tail first, and the entries after it.** These are two queries
         // and not one transaction, so an append can land between them — and in
-        // the other order the tail was newer than the read, `last != tail`, and
-        // a concurrent write was reported as **tampering**. In this order the
-        // only thing an append can do is put an entry after the tail that was
-        // read, which the comparison below allows for.
-        // **A row this code cannot read is a verdict, not a failure to answer.**
-        // It used to travel up as an error, so `verify` returned *no verdict at
-        // all* at any starting sequence — the one question the caller asked went
-        // unanswered because somebody had put a row in the table. That is
-        // exactly what verification is for.
+        // the other order the tail would be newer than the read,
+        // `last != tail`, and a concurrent write reported as **tampering**. In
+        // this order the only thing an append can do is put an entry after the
+        // tail that was read, which the comparison below allows for. **A row
+        // this code cannot read is a verdict, not a failure to answer.**
+        // Travelling up as an error, it would leave `verify` returning *no
+        // verdict at all* at any starting sequence — the one question the
+        // caller asked unanswered because somebody had put a row in the table.
+        // That is exactly what verification is for.
         //
-        // **And an undecodable tail is held, not returned.** It used to return
-        // at once, and `tail()` decodes the *last* row — so poisoning the last
-        // row hid a forgery anywhere before it: measured, entry 1 rewritten to
+        // **And an undecodable tail is held, not returned.** Returned at once —
+        // `tail()` decodes the *last* row — poisoning the last row would hide a
+        // forgery anywhere before it: measured that way, entry 1 rewritten to
         // `principal='attacker'` and entry 2 given an unknown outcome, and
-        // `verify` answered `Broken { sequence: 2, reason: EntryIsNotReadable }`.
-        // An attacker chose which row a responder would investigate by writing
-        // one further on, and `verify`'s own doc promises "the **first** entry
-        // that does not verify".
+        // `verify` answers
+        // `Broken { sequence: 2, reason: EntryIsNotReadable }`. An attacker
+        // would choose which row a responder investigates by writing one
+        // further on, and `verify`'s own doc promises "the **first** entry that
+        // does not verify".
         let mut unreadable: Option<u64> = None;
         let tail = match self.store.tail().await {
             Ok(tail) => tail,
@@ -2034,12 +2028,13 @@ impl<S: Store, C: Clock> Journal<S, C> {
             }
             Err(other) => return Err(other),
         };
-        // **One entry earlier, when there is one, so the first link is checked.**
-        // `verify(from)`'s doc says it verifies the chain from `sequence`
-        // onwards, and for `from > 0` it did not verify the *first* link at all:
-        // there was no predecessor in the read to compare against, and the head
-        // branch below only fires at `from == 0`. Measured on a six-entry
-        // history with entry 5 relinked to `[0xAA; 32]` and re-hashed:
+        // **One entry earlier, when there is one, so the first link is
+        // checked.** `verify(from)`'s doc says it verifies the chain from
+        // `sequence` onwards, and for `from > 0`, without the anchor, it would
+        // not verify the *first* link at all: there is no predecessor in the
+        // read to compare against, and the head branch below only fires at
+        // `from == 0`. Measured without it, on a six-entry history with entry 5
+        // relinked to `[0xAA; 32]` and re-hashed:
         //
         // ```text
         // verify(0) -> Err(Broken { sequence: 5, reason: LinkDoesNotMatchPredecessor })
@@ -2047,10 +2042,10 @@ impl<S: Store, C: Clock> Journal<S, C> {
         // ```
         //
         // A caller verifying incrementally from a checkpoint — which is what a
-        // `from` other than zero is for — accepted a forged entry at exactly the
-        // checkpoint. Reading one earlier costs one row and gives the anchor;
-        // `anchor` is then split off so every count and every "does it start
-        // here" answer is still about `from`.
+        // `from` other than zero is for — would accept a forged entry at
+        // exactly the checkpoint. Reading one earlier costs one row and gives
+        // the anchor; `anchor` is then split off so every count and every "does
+        // it start here" answer is still about `from`.
         let read = self.store.from(from.saturating_sub(1)).await?;
         let mut entries = read.entries;
         let anchor = if from > 0 && entries.first().is_some_and(|e| e.sequence == from - 1) {
@@ -2059,25 +2054,25 @@ impl<S: Store, C: Clock> Journal<S, C> {
             None
         };
 
-        // **A read that returned nothing is not a clean history.** It used to be
-        // reported as `Ok(0)`, so a caller writing `if verify(0)?.is_ok()`
-        // accepted a wiped table — the `§19.5` failure where the count is
-        // reported and never enforced. An empty journal is only clean when the
-        // store agrees there is nothing in it.
+        // **A read that returned nothing is not a clean history.** Reported as
+        // `Ok(0)`, a caller writing `if verify(0)?.is_ok()` would accept a
+        // wiped table — the `§19.5` failure where the count is reported and
+        // never enforced. An empty journal is only clean when the store agrees
+        // there is nothing in it.
         let Some(tail) = tail else {
             // No tail at all: either the table is empty, or the last row is one
             // this code cannot read. The second is a verdict of its own, and it
             // comes after the loop below — so it is carried past this point
             // rather than answered here.
             //
-            // **And the *first* unreadable row, not the tail.** `unreadable`
-            // is where `tail()` stopped, which is the last row in the table;
+            // **And the *first* unreadable row, not the tail.** `unreadable` is
+            // where `tail()` stopped, which is the last row in the table;
             // `read.stopped_at` is where the read from `from` stopped, which is
             // the first row at or after it that would not decode. With two
-            // unreadable rows — 3 and 4 — this named 4, so an attacker who
-            // appended one *more* unreadable row still chose which row a
-            // responder investigated, which is the promise the ordering above
-            // was written to keep.
+            // unreadable rows — 3 and 4 — the tail would name 4, so an attacker
+            // who appended one *more* unreadable row would still choose which
+            // row a responder investigates, which is the promise the ordering
+            // above keeps.
             if let Some(sequence) = read.stopped_at.as_ref().map(|(at, _)| *at).or(unreadable) {
                 return Ok(Err(verdict_after_checking(
                     &entries,
@@ -2120,26 +2115,27 @@ impl<S: Store, C: Clock> Journal<S, C> {
         anchor: Option<&Entry>,
         stopped_at: Option<&(u64, String)>,
         from: u64,
-        // **Optional, because the one caller that had none wrote the whole
-        // predicate out again.** `verdict_after_checking` is reached when there
-        // is no readable tail, and it was a near-copy of this loop with the
-        // final check dropped — six branches, of which four were reached by no
-        // test in the workspace, so deleting the contiguity, link, genesis-link
-        // and first-row-position blocks from the copy left `cargo test
-        // --workspace` green. Two of the four decide `SequenceIsNotContiguous`
-        // and `LinkDoesNotMatchPredecessor`, and this file's own comment says
-        // those codes exist so a responder knows whether to look at one row or
-        // at the whole history above it. One predicate, one implementation.
+        // **Optional, so the one caller that has no tail need not write the
+        // whole predicate out again.** `verdict_after_checking` is reached when
+        // there is no readable tail, and a near-copy of this loop with the
+        // final check dropped would have six branches, four of them reached by
+        // no test in the workspace: measured, the contiguity, link,
+        // genesis-link and first-row-position blocks deleted from such a copy
+        // leave `cargo test --workspace` green. Two of the four decide
+        // `SequenceIsNotContiguous` and `LinkDoesNotMatchPredecessor`, and this
+        // file's own comment says those codes exist so a responder knows
+        // whether to look at one row or at the whole history above it. One
+        // predicate, one implementation.
         tail: Option<&Entry>,
     ) -> Result<u64, Broken> {
         let Some(first) = entries.first() else {
-            // **A read that stopped at its very first row says so.** This
-            // returned before the `stopped_at` check below it, so when the row
-            // at `from` was the unreadable one the reason was discarded and the
-            // verdict became "the rows before it are gone" — which
+            // **A read that stopped at its very first row says so.** Returning
+            // before the `stopped_at` check below would discard the reason when
+            // the row at `from` is the unreadable one, and the verdict would
+            // become "the rows before it are gone" — which
             // `HistoryDoesNotStartHere`'s own doc says, and which is false: the
-            // row is on disk and was rewritten in place. Measured, one tamper
-            // applied at each position of a five-entry history:
+            // row is on disk and was rewritten in place. Measured that way, one
+            // tamper applied at each position of a five-entry history:
             //
             // ```text
             // position 0 -> HistoryDoesNotStartHere / JournalChainBroken
@@ -2148,9 +2144,8 @@ impl<S: Store, C: Clock> Journal<S, C> {
             //
             // The two codes exist so a responder knows whether to look at one
             // row or at the whole history above it, and the sentence a person
-            // reads differs too. The sibling branch above already consults
-            // `stopped_at` first; the fix existed in one half of this function
-            // and not the other.
+            // reads differs too. The sibling branch above consults `stopped_at`
+            // first as well, so both halves of this function answer alike.
             if let Some((sequence, why)) = stopped_at {
                 return Err(Broken {
                     sequence: *sequence,
@@ -2174,16 +2169,15 @@ impl<S: Store, C: Clock> Journal<S, C> {
                 detail: None,
             });
         }
-        // And the read has to reach the tail the store itself reports. It used
-        // to fetch that tail and discard it, so a store whose read hid entries
-        // in the middle — while still reporting the real last sequence —
-        // verified clean over the ones it did return. The evidence was in hand
-        // and thrown away.
-        // `entries` is non-empty — the check above returns when it is not — so
-        // the fallback is `first`, which is the same entry when there is exactly
-        // one. It used to be `from`, a value no input can produce here, which
-        // left a reader working out when a read could reach this line and start
-        // somewhere other than where it starts.
+        // And the read has to reach the tail the store itself reports. Fetching
+        // that tail and discarding it would let a store whose read hid entries
+        // in the middle — while still reporting the real last sequence — verify
+        // clean over the ones it did return. `entries` is non-empty — the check
+        // above returns when it is not — so the fallback is `first`, which is
+        // the same entry when there is exactly one, and not `from`, a value no
+        // input can produce here, which would leave a reader working out when a
+        // read could reach this line and start somewhere other than where it
+        // starts.
         let last = entries.last().unwrap_or(first).sequence;
         // The entry before `from`, when the read reached one. It is not counted
         // and not re-verified — it is only what the first link is compared
@@ -2195,32 +2189,34 @@ impl<S: Store, C: Clock> Journal<S, C> {
             // fields being verified, so on the path that has just proved the
             // contents were tampered with, reading the position *out of* those
             // contents sends the responder to a row the attacker numbered:
-            // measured, `Broken { sequence: 101 }` for a store holding
+            // measured that way, `Broken { sequence: 101 }` for a store holding
             // sequences 0..8, and `sequence: 1000000` after a renumber. The
-            // unreadable-row path was repaired for exactly this a round ago and
-            // this one was not. `previous` is the last entry this loop trusted,
-            // so its successor is where the break is.
+            // unreadable-row path is held to the same rule. `previous` is the
+            // last entry this loop trusted, so its successor is where the break
+            // is.
             let where_it_is = previous.map_or(from, |before| before.sequence + 1);
             if entry.hash != entry.compute_hash() {
                 return Err(Broken {
                     sequence: where_it_is,
                     reason: Reason::HashDoesNotMatchContents,
-                    // **Both numbers, which this arm alone did not carry.**
-                    // `where_it_is` is the safe position — the successor of the
-                    // last entry this loop trusted — and it is not necessarily a
-                    // row that exists: a tampered entry can be renumbered.
-                    // Measured, entry 1 rewritten and moved to 500000 with the
-                    // tail left readable, so this ordinary path runs:
+                    // **Both numbers, as every arm carries.** `where_it_is` is
+                    // the safe position — the successor of the last entry this
+                    // loop trusted — and it is not necessarily a row that
+                    // exists: a tampered entry can be renumbered. Measured with
+                    // the safe position alone, entry 1 rewritten and moved to
+                    // 500000 with the tail left readable, so this ordinary path
+                    // runs:
                     //
                     // ```text
                     // Err(Broken { sequence: 1, reason: HashDoesNotMatchContents, detail: None })
                     // "entry 1 does not verify: its hash is not the hash of its contents"
                     // ```
                     //
-                    // and there is no row numbered 1 to look at. `verdict_after_checking`
-                    // carries the row's own number for exactly this reason and its
-                    // comment calls the other shape a defect; the contiguity arm
-                    // two lines below carries it too. This one reached first.
+                    // and there is no row numbered 1 to look at.
+                    // `verdict_after_checking` carries the row's own number for
+                    // exactly this reason and its comment calls the other shape
+                    // a defect; the contiguity arm two lines below carries it
+                    // too.
                     detail: Some(format!("the row there is numbered {}", entry.sequence)),
                 });
             }
@@ -2249,12 +2245,12 @@ impl<S: Store, C: Clock> Journal<S, C> {
                 // front of it — the only tampering a chain cannot otherwise see,
                 // because every remaining link is still consistent.
                 //
-                // **This read `from == 0 && …`, and the conjunct was reached.**
+                // **Not `from == 0 && …`, because that conjunct is reached.**
                 // `previous` is `None` here in two ways: `from` is 0, or the
                 // anchor row — the entry at `from - 1` — is absent, which is
                 // what `anchor` returns `None` for. In the second case the
-                // conjunct switched the check off and the first entry's
-                // backward link was compared against nothing:
+                // conjunct would switch the check off and the first entry's
+                // backward link be compared against nothing:
                 //
                 // ```text
                 // remove row 10, then verify(11)
@@ -2263,8 +2259,8 @@ impl<S: Store, C: Clock> Journal<S, C> {
                 //                                 reason: LinkDoesNotMatchPredecessor })
                 // ```
                 //
-                // That is the pre-anchor defect reinstated for exactly the
-                // histories whose boundary row is missing. §15.8 carves the
+                // That would reinstate the missing-anchor defect for exactly
+                // the histories whose boundary row is missing. §15.8 carves the
                 // journal out of row-count pruning, so a predecessor that is
                 // not there was removed, whatever `from` is.
                 return Err(Broken {
@@ -2280,12 +2276,12 @@ impl<S: Store, C: Clock> Journal<S, C> {
         // and is the more useful answer than "the history stops short": the
         // short read is the *consequence*.
         //
-        // **After the loop, which is what the comment here already claimed.**
-        // The `return` was above it, so an entry forged early and a later row
-        // poisoned with an unreadable value made verification name the *later*
-        // one — measured: entry 1 rewritten to `action='Escalate',
-        // principal='attacker'`, entry 4 given an unknown result, and `verify`
-        // answered `Broken { sequence: 4, reason: EntryIsNotReadable }`.
+        // **After the loop.** A `return` above it would make an entry forged
+        // early and a later row poisoned with an unreadable value name the
+        // *later* one — measured that way: entry 1 rewritten to
+        // `action='Escalate', principal='attacker'`, entry 4 given an unknown
+        // result, and `verify` answers
+        // `Broken { sequence: 4, reason: EntryIsNotReadable }`.
         //
         // `verify`'s own doc promises "the **first** entry that does not
         // verify", and `§15.1` asks a diagnostic to point at an exact location.
@@ -2299,21 +2295,21 @@ impl<S: Store, C: Clock> Journal<S, C> {
             });
         }
         // And last, the short read itself. `<`, not `!=`: an entry appended
-        // after the tail was read is not tampering, and under `!=` it was
+        // after the tail was read is not tampering, and under `!=` it would be
         // reported as such. What this catches is the read *falling short* of
-        // what the store says is there — a truncated tail, the one shape a chain
-        // of links cannot see, because every remaining link is still consistent.
+        // what the store says is there — a truncated tail, the one shape a
+        // chain of links cannot see, because every remaining link is still
+        // consistent.
         //
         // **Last of the three**, because it is the most often a consequence: a
-        // row that would not decode makes every read short, and answering
-        // "the history stops at 0" for a poisoned row 1 sends a reader to the
-        // wrong place. Each of these three orderings was wrong once.
-        // **Exact, and the only test of it used a five-row shortfall** — so any
-        // tolerance up to four was invisible: `if last + 4 < tail.sequence` left
-        // `cargo xtask check` green. The comment below says this catches the one
-        // shape a chain of links cannot see, because every remaining link is
-        // still consistent; a tolerance is precisely the thing that must be zero
-        // for that to be true.
+        // row that would not decode makes every read short, and answering "the
+        // history stops at 0" for a poisoned row 1 sends a reader to the wrong
+        // place. **Exact**: against a five-row shortfall alone any tolerance up
+        // to four is invisible — `if last + 4 < tail.sequence` leaves
+        // `cargo xtask check` green without the test that pins it. The comment
+        // below says this catches the one shape a chain of links cannot see,
+        // because every remaining link is still consistent; a tolerance is
+        // precisely the thing that must be zero for that to be true.
         // Only when there is a tail to reach: a caller with no readable tail is
         // asking where the history first breaks, and "it does not reach the
         // tail" is not an answer it can act on.
@@ -2331,11 +2327,10 @@ impl<S: Store, C: Clock> Journal<S, C> {
 
     /// The record a bracket entry for a work unit carries.
     ///
-    /// **One function, and it guesses nothing.** There were two: `template`,
-    /// and a `blank_record` that supplied an action, a resource and an outcome
-    /// which its only caller then overwrote on the next three lines — the same
-    /// defect `WorkUnit::begin` had already been fixed for, one level down.
-    /// A default a caller must remember to replace is a default that will
+    /// **One function, and it guesses nothing.** A `blank_record` supplying an
+    /// action, a resource and an outcome for its caller to overwrite on the
+    /// next three lines would be a default a caller must remember to replace —
+    /// and a default a caller must remember to replace is a default that will
     /// eventually be shipped by somebody who does not.
     ///
     /// What the journal supplies is the keeper — not a user: the kernel opened
@@ -2356,29 +2351,23 @@ impl<S: Store, C: Clock> Journal<S, C> {
 
     /// Chains a record onto the tail and writes it.
     ///
-    /// **Three of the rules here are enforced twice, and two of the outer copies
-    /// are now decided.** This paragraph used to say all three were written down
-    /// rather than tested, and that testing them needed a fake `Store` — "a
-    /// fourth implementation of the trait, written to be wrong". That obstacle
-    /// was disproved in the same crate: a **forged tail** reaches the outer guard
-    /// without any new `Store` at all, and
-    /// `a_closed_unit_is_the_answer_before_the_tail_is_read` and
-    /// `an_open_unit_is_the_answer_before_the_tail_is_read` do it. Measured on
-    /// 2026-09-11, each guard made never to fire is red in its own test, naming
-    /// `Undecodable` where `UnitClosed` and `UnitAlreadyOpen` belong.
+    /// **Three of the rules here are enforced twice, and each outer copy is
+    /// decided.** Testing them needs no fake `Store`: a **forged tail** reaches
+    /// the outer guard without any new `Store` at all,
+    /// and `a_closed_unit_is_the_answer_before_the_tail_is_read`
+    /// and `an_open_unit_is_the_answer_before_the_tail_is_read` do
+    /// it. Measured, each guard made never to fire is red in its own test,
+    /// naming `Undecodable` where `UnitClosed` and `UnitAlreadyOpen` belong.
     ///
-    /// **The third was decided by nothing and is decided now.** It is
-    /// `WorkUnit::record`'s `if self.closed`: made never to fire, the suite used
-    /// to stay green, because both shipped stores re-apply the rule and return
-    /// the same variant, so what that copy decides is the *order* of two
-    /// refusals — observable only through a third-party `Store`, which the
-    /// public trait makes possible. `unit::tests::a_closed_unit_refuses_a_record_the_store_would_have_taken`
+    /// **The third is `WorkUnit::record`'s `if self.closed`.** Both shipped
+    /// stores re-apply the rule and return the same variant, so what that copy
+    /// decides is the *order* of two refusals — observable only through a
+    /// third-party `Store`, which the public trait makes
+    /// possible. `unit::tests::a_closed_unit_refuses_a_record_the_store_would_have_taken`
     /// supplies one that takes anything, and `mutants.py` carries the operator.
     ///
-    /// The paragraph outlived the repair by several rounds, and a reviewer
-    /// found it in round seventy-one. A doc telling the next reader that a live
-    /// guard is untested invites them either to redo the work or to delete the
-    /// guard as redundant.
+    /// A doc telling the next reader that a live guard is untested invites them
+    /// either to redo the work or to delete the guard as redundant.
     ///
     /// Its sibling is tested too:
     /// `a_record_the_caller_wrote_wrong_is_named_before_anything_about_the_store`
@@ -2392,13 +2381,13 @@ impl<S: Store, C: Clock> Journal<S, C> {
         // call is so that the refusal names the caller's own record before a
         // sequence has been minted for it.
         // `nc_canon` writes a value of any depth and `nc_canon::parse` refuses
-        // one past `MAX_DEPTH` — an asymmetry that is harmless everywhere except
-        // here. One record with a resource nested past the bound was accepted,
-        // hashed and stored, and from that moment the journal could not be read
-        // (`from` fails to decode the row), could not be verified (no verdict at
-        // all, at any starting sequence), and could not be appended to (`tail`
+        // one past `MAX_DEPTH` — an asymmetry that is harmless everywhere
+        // except here. One record with a resource nested past the bound,
+        // accepted, hashed and stored, would leave the journal from that moment
+        // unreadable (`from` fails to decode the row), unverifiable (no verdict
+        // at all, at any starting sequence) and closed to appends (`tail`
         // cannot decode the tail) — and the append-only trigger this table is
-        // built around meant the row could not be deleted either. One call,
+        // built around means the row could not be deleted either. One call,
         // permanently, from ordinary input: a payload at exactly the limit,
         // which `parse` accepts, wrapped once under a key.
         if let Some(problem) = readable_record(&record).err() {
@@ -2408,12 +2397,13 @@ impl<S: Store, C: Clock> Journal<S, C> {
         // history through this one.
         record.realm = self.realm.clone();
         // **And a closed unit is closed for every path in.** `WorkUnit::record`
-        // refuses one; `Journal::record` with a hand-set `record.work_unit` did
-        // not — measured, an entry naming a committed unit landed *after* its
-        // own `UnitCommitted` bracket and was inside the group to every SQL
-        // reader, with `verify` answering clean. That is the shape
-        // `postgres.rs`'s own header names: a rule enforced only where it is
-        // convenient to enforce it is a rule about one code path.
+        // refuses one, and so does `Journal::record` with a hand-set
+        // `record.work_unit` — measured without this, an entry naming a
+        // committed unit lands *after* its own `UnitCommitted` bracket and is
+        // inside the group to every SQL reader, with `verify` answering clean.
+        // That is the shape `postgres.rs`'s own header names: a rule enforced
+        // only where it is convenient to enforce it is a rule about one code
+        // path.
         //
         // The question is asked of the store rather than of a flag, because the
         // store is what a second process would also see.
@@ -2429,10 +2419,10 @@ impl<S: Store, C: Clock> Journal<S, C> {
         {
             return Err(Error::UnitClosed { unit });
         }
-        // **And a unit is opened once.** The same door one bracket along: a
-        // hand-set `work_unit` with `Outcome::UnitBegun` wrote a second opening
-        // for an open unit, with a different principal and a different label,
-        // and `verify` called the history clean.
+        // **And a unit is opened once.** The same door one bracket along:
+        // without this, a hand-set `work_unit` with `Outcome::UnitBegun` writes
+        // a second opening for an open unit, with a different principal and a
+        // different label, and `verify` calls the history clean.
         if let Some(unit) = record.work_unit
             && record.action == crate::unit::OPENS
             && record.result == Outcome::UnitBegun
@@ -2440,33 +2430,29 @@ impl<S: Store, C: Clock> Journal<S, C> {
         {
             return Err(Error::UnitAlreadyOpen { unit });
         }
-        // **The tail, and it has to verify.** This read `head()` — the last
+        // **The tail, and it has to verify.** Reading `head()` — the last
         // sequence and its hash, without decoding the row — on the reasoning
-        // that neither is the part that fails to decode. What that also skipped
-        // is whether the row is *its own*: measured, an entry chained onto a
-        // forged tail returned `Ok` with no error at all, because the hash guard
-        // lived only on the refusal path and a tamperer need never provoke a
-        // refusal.
+        // that neither is the part that fails to decode skips whether the row
+        // is *its own*: measured, an entry chained onto a forged tail returns
+        // `Ok` with no error at all, because the hash guard lives only on the
+        // refusal path and a tamperer need never provoke a refusal.
         //
         // Decoding the tail costs one row's parse per append, on a path that
         // already reads it. That is the price of the promise this crate makes,
-        // and an undecodable tail is now a refusal rather than something to
-        // chain onto — you cannot extend a history you cannot read.
-        // **And the fallback this paragraph used to describe is gone.** It read
-        // *"an undecodable tail falls back to `head()`, which reads the sequence
-        // and the hash without parsing the row"*, and cited a rule with two
-        // tests behind it. That is the design this crate deliberately reversed,
-        // and it was left standing between the two paragraphs that say so —
-        // above the `match` a reader meets first. Writing the code it describes
-        // is red in two places: `a_row_this_code_cannot_read_stops_the_unit_
-        // being_closed_and_says_which_row` and `a_row_this_code_did_not_write_
-        // is_a_verdict_rather_than_a_silence`, both of which `expect_err`.
+        // and an undecodable tail is a refusal rather than something to chain
+        // onto — you cannot extend a history you cannot read. **No fallback to
+        // `head()` for an undecodable tail.** Writing that code is red in two
+        // places:
+        // `a_row_this_code_cannot_read_stops_the_unit_being_closed_and_says_which_row`
+        // and
+        // `a_row_this_code_did_not_write_is_a_verdict_rather_than_a_silence`,
+        // both of which `expect_err`.
         //
-        // What the rule it cited was about is still true and is served another
+        // The rule such a fallback serves is still true and is served another
         // way: a foreign unreadable row must not brick an append-only log, and
         // it does not — `verify` reports it and says where, and a *new* journal
-        // whose store holds nothing unreadable appends as it always did. What
-        // changed is that you cannot extend a history you cannot read.
+        // whose store holds nothing unreadable appends normally. You
+        // cannot extend a history you cannot read.
         let (sequence, previous) = match self.store.tail().await {
             Ok(Some(tail)) => {
                 if tail.hash != tail.compute_hash() {
@@ -2482,15 +2468,15 @@ impl<S: Store, C: Clock> Journal<S, C> {
             }
             Ok(None) => (0, None),
             // **A tail this code cannot read is a refusal, not a fallback.**
-            // The fallback read `head()`, which returns the sequence and hash
+            // A fallback reading `head()`, which returns the sequence and hash
             // without parsing the record — on the rule that a foreign
-            // unreadable row must not brick an append-only log. Two things
-            // measured against it:
+            // unreadable row must not brick an append-only log — is measured
+            // twice against that rule:
             //
-            //   * it does not achieve that. `head()` parses the *hash column*,
-            //     and `hash TEXT` carries no constraint, so one `INSERT` with a
-            //     non-hex hash refuses there too — the append is blocked either
-            //     way, and the fallback only changed which sentence says so.
+            //   * it does not achieve it. `head()` parses the *hash column*,
+            //     and without `0009`'s constraint one `INSERT` with a non-hex
+            //     hash refuses there too — the append is blocked either way,
+            //     and the fallback only changes which sentence says so.
             //   * where it does work, it hands the next honest entry whatever
             //     sixty-four characters the foreign row put in `hash`. Measured:
             //     `the honest entry chained onto the attacker's chosen hash`.
@@ -2516,26 +2502,25 @@ fn now_ms() -> Result<u64, Error> {
 
 /// The millisecond an instant names, or the refusal a clock before 1970 earns.
 ///
-/// **Split from its one caller so a test can supply the clock.** The refusal
-/// below was decided by nothing: the assertion that claimed to close it —
-/// `record.recorded_at > 1_700_000_000_000` against the real system clock —
+/// **Split from its one caller so a test can supply the clock.** An assertion
+/// of `record.recorded_at > 1_700_000_000_000` against the real system clock
 /// cannot establish its own premise, because the premise *is* a clock before
-/// the epoch. A reviewer measured that in round seventy-one by replacing the
-/// `map_err` with `unwrap_or_default()`: `cargo xtask check` printed
-/// `check passed` at `ok 1427 test(s)`, clippy was silent, and no census moved.
+/// the epoch: measured with the `map_err` replaced by `unwrap_or_default()`,
+/// such a test leaves `cargo xtask check` printing `check passed`, clippy
+/// silent, and no census moved.
 ///
-/// Taking the instant from the journal's own `C: Clock` does not work and was
-/// tried: `Clock::now_ms` returns a bare `u64` and cannot express the failure,
+/// Taking the instant from the journal's own `C: Clock` does not
+/// work: `Clock::now_ms` returns a bare `u64` and cannot express the failure,
 /// which is why `nc-ids` range-checks the value in `Minter::mint` instead. A
 /// parameter is the smallest seam that can be handed one.
 fn the_instant(now: std::time::SystemTime) -> Result<u64, Error> {
-    // **A clock this cannot read is refused, not rounded to the epoch.** This
-    // was `nc-ids`' `SystemClock::now_ms` with the guards taken off: its
-    // `map_or(0, …)` turns a clock set before 1970 into `recorded_at = 0`, which
-    // is hashed into the chain and stored in a `BIGINT NOT NULL` with no
-    // `CHECK`. `nc-ids` follows the identical expression with `within_range` and
-    // answers `MintError::BeforeEpoch`, for the same reason and about the same
-    // number.
+    // **A clock this cannot read is refused, not rounded to the epoch.**
+    // `nc-ids`' `SystemClock::now_ms` with the guards taken off — its
+    // `map_or(0, …)` — turns a clock set before 1970 into `recorded_at = 0`,
+    // which is hashed into the chain and stored in a `BIGINT NOT NULL` with no
+    // `CHECK`. `nc-ids` follows the identical expression with `within_range`
+    // and answers `MintError::BeforeEpoch`, for the same reason and about the
+    // same number.
     //
     // A journal entry is the one record here that cannot be corrected
     // afterwards: the timestamp is inside the digest, so an entry claiming 1970
@@ -2565,13 +2550,13 @@ fn verdict_after_checking(
     anchor: Option<&Entry>,
     otherwise: Broken,
 ) -> Broken {
-    // **The same predicate, not a second copy of it.** This was the loop above
-    // written out again with the reach-the-tail check dropped, and four of its
-    // six branches were reached by no test in the workspace: deleting the
-    // contiguity, link, genesis-link and first-row-position blocks left
-    // `cargo test --workspace` green. Deleting the *whole* body was caught, so
-    // it was exactly the copied branches that nothing held — which is what a
-    // copy of a predicate is for.
+    // **The same predicate, not a second copy of it.** Written out again with
+    // the reach-the-tail check dropped, the loop above would have four of its
+    // six branches reached by no test in the workspace: measured, deleting the
+    // contiguity, link, genesis-link and first-row-position blocks from such a
+    // copy leaves `cargo test --workspace` green. Deleting the *whole* body is
+    // caught, so it is exactly the copied branches that nothing would hold —
+    // which is what a copy of a predicate is for.
     //
     // The consequence is a wrong diagnosis rather than a missed one: with those
     // branches gone a removed or relinked entry is reported as
@@ -2619,9 +2604,10 @@ mod storable_tests {
 
     /// The depth bound is where the reader's is, not one short of it.
     ///
-    /// **It refused a resource its own reader accepts**, and said so with two
-    /// numbers on different scales: `Value::depth()` counts a scalar as 1 and
-    /// the parser starts the outermost value at 0. Measured:
+    /// **Not one short of it**: one short refuses a resource its own reader
+    /// accepts, and says so with two numbers on different
+    /// scales: `Value::depth()` counts a scalar as 1 and the parser starts the
+    /// outermost value at 0. Measured:
     ///
     /// ```text
     /// PROBE-RT nested 64  REFUSED-ON-WRITE the record's resource nests 65 deep
@@ -2629,9 +2615,9 @@ mod storable_tests {
     /// ```
     ///
     /// against a value `nc_canon::parse` takes — `nc-canon`'s own test asserts
-    /// that exact text parses. The refusal was in the safe direction, and a
-    /// sentence comparing two numbers that do not measure the same thing is the
-    /// `§15.1` shape this repository hunts elsewhere.
+    /// that exact text parses. Such a refusal is in the safe direction, and a
+    /// sentence comparing two numbers that do not measure the same thing is
+    /// the `§15.1` shape this repository hunts elsewhere.
     #[test]
     fn the_deepest_resource_the_reader_takes_is_one_the_journal_stores() {
         // The boundary from below: the deepest value the parser accepts, which
@@ -2662,11 +2648,11 @@ mod storable_tests {
     /// A number no column can hold is refused by the journal, not by one store.
     ///
     /// **`recorded_at` is a `u64` and `policy_epoch` an `Option<u64>`, both the
-    /// caller's, and PostgreSQL's BIGINT is signed.** Anything above `i64::MAX`
-    /// passed this function, was hashed, and was refused by the PostgreSQL store
-    /// alone — as `Unavailable`, the code whose description is "the journal
-    /// store did not answer" and which is `retryable`, for a store that had
-    /// never been asked. Measured:
+    /// caller's, and PostgreSQL's BIGINT is signed.** Without this, anything
+    /// above `i64::MAX` passes, is hashed, and is refused by the PostgreSQL
+    /// store alone — as `Unavailable`, the code whose description is "the
+    /// journal store did not answer" and which is `retryable`, for a store that
+    /// has never been asked. Measured:
     ///
     /// ```text
     /// R8B REFUSED [recorded_at = 2^63] code=JournalUnavailable retryable=true
@@ -2716,11 +2702,12 @@ mod storable_tests {
 
     /// A record no store could keep is refused here, not blamed on the store.
     ///
-    /// **`readable_record` called itself "the one rule every store enforces"
-    /// and checked only the resource's depth.** `action`, `deciding_policy` and
-    /// `policy_pack` are plain `String`s with no validation — every principal
-    /// field is an `OpaqueId` and these three are not — so a NUL was hashed,
-    /// passed this, and came back from PostgreSQL as
+    /// **`readable_record` is "the one rule every store enforces", so it checks
+    /// more than the resource's depth.** `action`, `deciding_policy`
+    /// and `policy_pack` are plain `String`s with no validation — every
+    /// principal field is an `OpaqueId` and these three are not — so, with the
+    /// depth checked alone, a NUL is hashed, passes, and comes back
+    /// from PostgreSQL as
     ///
     /// ```text
     /// PROBE-RT action with a NUL  REFUSED-ON-WRITE the journal store did not answer:
@@ -2729,17 +2716,16 @@ mod storable_tests {
     ///
     /// The store answered perfectly well; the record was unstorable. Reporting
     /// the second as the first sends a responder to PostgreSQL (`§15.1`), which
-    /// is the sentence `Undecodable`'s own doc was written to avoid, one
-    /// direction round.
+    /// is the sentence `Undecodable`'s own doc avoids, one direction round.
     #[test]
     fn text_no_store_could_keep_is_refused_by_name_and_not_called_unavailable() {
         let nul = char::from(0);
-        // **The offset is in characters, and only a non-ASCII case can say so.**
-        // Every fixture here was `a\0b`, `p\0q`, `v\0w` — ASCII, where the byte
-        // offset and the character offset are the same number — so reverting
-        // `chars().position(…)` to `find(…)` was invisible. Measured through the
-        // fix: `ação\0b` is character 4 and byte 6; `é😀\0b` is character 2 and
-        // byte 6.
+        // **The offset is in characters, and only a non-ASCII case can say
+        // so.** Over ASCII fixtures — `a\0b`, `p\0q`, `v\0w` — the byte offset
+        // and the character offset are the same number, so
+        // `chars().position(…)` reverted to `find(…)` is invisible. Measured:
+        // `ação\0b` is character 4 and byte 6; `é😀\0b` is character 2 and byte
+        // 6.
         for (text, at) in [("a\0b", 1), ("ação\0b", 4), ("é😀\0b", 2)] {
             let mut record = record();
             record.action = text.to_owned();
@@ -2810,10 +2796,11 @@ mod code_tests {
     #[test]
     fn the_distinctions_the_codes_claim_are_real() {
         // Both `code` methods carry a comment explaining which failures a
-        // responder must be able to tell apart, and neither had a caller — so
-        // the claim was prose. A store that did not answer and a store that
-        // answered with a broken chain send someone to different places, and so
-        // does an entry edited in place versus a history that moved beneath it.
+        // responder must be able to tell apart, and this is their caller —
+        // without it the claim is prose. A store that did not answer and a
+        // store that answered with a broken chain send someone to different
+        // places, and so does an entry edited in place versus a history that
+        // moved beneath it.
         assert_ne!(
             Error::Unavailable("gone".to_owned()).code(),
             Error::OutOfOrder {
@@ -2837,9 +2824,10 @@ mod code_tests {
 
         // `NoIdentifier` carries a minting failure, so it is reported under the
         // identifier area rather than the journal's: the journal answered, and
-        // the machine's clock did not. It was untestable until `Journal` took a
-        // clock — it fixed `Minter<SystemClock>`, so no test could make `begin`
-        // fail, and the mapping could be repointed anywhere with the suite green.
+        // the machine's clock did not. It is testable because `Journal` takes a
+        // clock — with `Minter<SystemClock>` fixed, no test could make `begin`
+        // fail, and the mapping could be repointed anywhere with the suite
+        // green.
         assert_eq!(
             Error::NoIdentifier(nc_ids::MintError::BeyondRange)
                 .code()
@@ -2901,14 +2889,14 @@ mod the_closed_unit_question {
     /// rule is held here: across every Rust file in this crate, however deep,
     /// the one `fn unit_closed(` is the trait's own.
     ///
-    /// **However deep, because the walk read two directories and not what was
-    /// under them.** A store in a suite's shared module, one directory below
-    /// `tests`, writing its own `unit_closed` as `Ok(false)` — compiled into a
-    /// suite and disagreeing with its `unit_closing` about every unit — left
-    /// this green, reported on 2026-09-28; a shared `support` module is exactly
-    /// where the kernel's tests keep theirs. It walks from the crate's root now,
-    /// and nothing sits there but the manifest, so a walk that stopped
-    /// descending reads no Rust at all.
+    /// **However deep, not two directories and what is directly in them.** A
+    /// store in a suite's shared module, one directory below `tests`, writing
+    /// its own `unit_closed` as `Ok(false)` — compiled into a suite and
+    /// disagreeing with its `unit_closing` about every unit — would leave a
+    /// shallow walk green; a shared `support` module is exactly where the
+    /// kernel's tests keep theirs. It walks from the crate's root, and nothing
+    /// sits there but the manifest, so a walk that stopped descending reads
+    /// no Rust at all.
     ///
     /// The second count is the ground: the trait's declaration and every store
     /// this crate writes answer `unit_closing` — `InMemory`, `Postgres`, the
@@ -2987,10 +2975,9 @@ fn char_literal_at(source: &[char], at: usize) -> Option<usize> {
 
 /// One piece of this crate's source with every comment blanked.
 ///
-/// **`//` is one spelling of a comment.** A rule that counts a needle over
-/// raw text is paid by a `//` line naming the call; a rule that strips only
-/// `//` is paid by a `/* … */`. Both were measured in this tree on
-/// 2026-09-11 and 2026-09-12, in three files each.
+/// **`//` is one spelling of a comment.** A rule that counts a needle over raw
+/// text is paid by a `//` line naming the call; a rule that strips only `//` is
+/// paid by a `/* … */`. Both are measured in this tree, in three files each.
 ///
 /// A state machine rather than a scan of each line: a line comment runs to
 /// its newline, a block comment nests, a raw string ends at its own hash
@@ -3067,14 +3054,13 @@ fn the_code_without_comments(text: &str) -> String {
                 continue;
             }
         }
-        // **A character literal, which is not a quote.** This knew `//`,
-        // `/* */`, raw strings and `"…"` — and `'"'` is a `"` that opens
-        // nothing. One such line turns the stripper off from there on, and
-        // with it every rule that reads what it hands back: measured in
-        // this crate on 2026-09-12, with that line the only difference
-        // between green and red. The longest literal Rust has is
-        // `'\u{10FFFF}'`, at eleven characters; a `'` that closes none of
-        // them is a lifetime and stays where it is.
+        // **A character literal, which is not a quote.** Knowing `//`, `/* */`,
+        // raw strings and `"…"` is not enough: `'"'` is a `"` that opens
+        // nothing. One such line turns a stripper without this off from there
+        // on, and with it every rule that reads what it hands back: measured in
+        // this crate, with that line the only difference between green and red.
+        // The longest literal Rust has is `'\u{10FFFF}'`, at eleven characters;
+        // a `'` that closes none of them is a lifetime and stays where it is.
         if here == '\''
             && let Some(past) = char_literal_at(&source, at)
         {
@@ -3154,9 +3140,9 @@ const fn american_paren_space() -> &'static str {
 /// on a line does not. That is what tells a wrapped attribute's opening from a
 /// line that merely begins `#[`. The same reader in `xtask/src/gates.rs` says
 /// the same sentence — two copies, and the day they disagree is the day one of
-/// them is the narrower — which is why `every_copy_of_the_attribute_walk_reads_
-/// the_same` in `xtask/src/check.rs` now compares all three bodies, this one
-/// included.
+/// them is the narrower — which is
+/// why `every_copy_of_the_attribute_walk_reads_the_same`
+/// in `xtask/src/check.rs` compares all three bodies, this one included.
 ///
 /// Behind `#[cfg(test)]` because its only caller is, and this crate takes no
 /// dead code.
@@ -3175,15 +3161,14 @@ fn more_opens_than_closes(line: &str) -> bool {
 
 /// The line a doc block starts at, walking up past an item's attributes.
 ///
-/// **A wrapped attribute is still one attribute.** Both readers below stepped
-/// over a line beginning `#[` and stopped at anything else — so when rustfmt
-/// breaks a long attribute across lines, as it does and as this tree's own style
-/// produces, the continuation line stops the walk and the doc block above it is
-/// never seen. Measured by a reviewer on 2026-09-13: a `#[doc(alias = …)]` in
-/// the house layout above `pub async fn begin` made two tests fail with messages
-/// that are false — one says the function has no `# Errors` section, and it has
-/// one, untouched. Named by four reviewers over five rounds before it was
-/// planted.
+/// **A wrapped attribute is still one attribute.** A reader that steps over a
+/// line beginning `#[` and stops at anything else is stopped by the
+/// continuation line when rustfmt breaks a long attribute across lines, as it
+/// does and as this tree's own style produces, and the doc block above it is
+/// never seen. Measured with such a reader: a `#[doc(alias = …)]` in the house
+/// layout above `pub async fn begin` makes two tests fail with messages that
+/// are false — one says the function has no `# Errors` section, and it has one,
+/// untouched.
 ///
 /// The last line of a wrapped attribute closes with `]`, and its first begins
 /// `#[`, so a bounded walk back to that first line is what joins the two.
@@ -3199,19 +3184,18 @@ fn past_the_attributes(lines: &[&str], mut at: usize) -> usize {
             at -= 1;
             continue;
         }
-        // **The second copy of this reader, and it was the older one.** Wave 24
-        // repaired the copy in `xtask/src/gates.rs` — a comment ending in `]`
-        // is not a wrapped attribute's last line, and a wrapped attribute's
-        // first line is the one that leaves brackets open — and did not come
-        // here. An intra-doc link ends a doc line in `]`, so this copy walked
-        // out of the item and `the_sections_and_what_they_miss` then read every
-        // `///` line above it as the item's documentation: the first `# Errors`
-        // heading anywhere in the file became the item's section, and the rule
-        // accepted silently. Latent rather than live — measured over all 175
-        // declarations in this crate, the two readers agree today — and latent
-        // is how it would stay until the first item carries such a line. One
-        // rule written twice with the second copy the narrower, found in wave
-        // 25, in the wave after the one that wrote the repair.
+        // **The second copy of this reader, held to the first.** The copy in
+        // `xtask/src/gates.rs` knows that a comment ending in `]` is not a
+        // wrapped attribute's last line, and that a wrapped attribute's first
+        // line is the one that leaves brackets open. An intra-doc link ends a
+        // doc line in `]`, so a copy without that would walk out of the item
+        // and `the_sections_and_what_they_miss` would then read every `///`
+        // line above it as the item's documentation: the first `# Errors`
+        // heading anywhere in the file would become the item's section, and the
+        // rule accept silently. Latent rather than live — measured over all 175
+        // declarations in this crate, the two readers agree — and latent is how
+        // it would stay until the first item carries such a line. One rule
+        // written twice with the second copy the narrower.
         let is_a_comment = |text: &str| text.trim_start().starts_with("//");
         if line.ends_with(']') && !is_a_comment(line) {
             let mut back = at - 1;
@@ -3239,31 +3223,30 @@ fn past_the_attributes(lines: &[&str], mut at: usize) -> usize {
 /// The two fields `Journal::bracket` supplies that no caller can.
 ///
 /// Its own module because what it asks about is the *record a bracket becomes*
-/// rather than what a store does with one, and because the two fields were
-/// asserted by nothing while the function's own doc named them as the reason it
-/// exists.
+/// rather than what a store does with one, and because the function's own doc
+/// names the two fields as the reason it exists.
 #[cfg(test)]
 mod a_bracket_carries_what_no_caller_supplies {
     /// The clock's reader, named once for the two rules that read this file.
     ///
-    /// **A needle written twice is counted twice.** These tests live in the file
-    /// they read, so every spelling of the name here is an occurrence of it —
-    /// which is the vacuous-assertion shape, one line from the rule holding it.
-    /// The census below counts the identifier, so the two literals that used to
-    /// be assembled inline were two of the four it expected; splitting the
-    /// shape rule out of that test would have made a third. One `const` is the
-    /// whole of it, and the count it is held against is three: this line, the
-    /// declaration, and the one call.
+    /// **A needle written twice is counted twice.** These tests live in the
+    /// file they read, so every spelling of the name here is an occurrence of
+    /// it — which is the vacuous-assertion shape, one line from the rule
+    /// holding it. The census below counts the identifier, so two literals
+    /// assembled inline would be two of the occurrences it expects, and a shape
+    /// rule split out of that test a third. One `const` is the whole of it, and
+    /// the count it is held against is three: this line, the declaration, and
+    /// the one call.
     const THE_CLOCK: &str = "now_ms";
 
     /// A wrapped attribute is one attribute, and a stray `]` is not one at all.
     ///
-    /// **The repair had no case, in three copies.** It was written after a plant
-    /// in `nc-journal` on 2026-09-13 and neutered in all three a day later with
-    /// every suite green — `nc-journal` has no multi-line attribute in it, and
-    /// neither does the tree this copy reads, so the branch decided nothing
-    /// anywhere. The bound is what stops a stray `]` above an item walking the
-    /// reader out of the block it is reading, and it is written down here too.
+    /// **The rule, with a case, in three copies.** `nc-journal` has no
+    /// multi-line attribute in it, and neither does the tree this copy reads,
+    /// so without a case the branch decides nothing anywhere and can be
+    /// neutered in all three with every suite green. The bound is what stops a
+    /// stray `]` above an item walking the reader out of the block it is
+    /// reading, and it is written down here too.
     #[test]
     fn a_doc_block_is_found_past_a_wrapped_attribute() {
         fn lines(text: &str) -> Vec<&str> {
@@ -3296,10 +3279,9 @@ mod a_bracket_carries_what_no_caller_supplies {
             super::past_the_attributes(&array, array.len() - 1),
             array.len() - 1
         );
-        // **The case the copy in `xtask/src/gates.rs` was repaired for**, and
-        // which this copy answered the other way for a whole wave: an intra-doc
+        // **The case the copy in `xtask/src/gates.rs` holds too**: an intra-doc
         // link ends a doc line in `]`, and reading it as a wrapped attribute's
-        // last line walks the reader out of the item. Found in wave 25.
+        // last line walks the reader out of the item.
         let held = format!(
             "{}\nfn other() {{}}\n\n/// See [`other`]\nfn item() {{}}",
             ["#", "[inline]"].join("")
@@ -3311,8 +3293,8 @@ mod a_bracket_carries_what_no_caller_supplies {
             "a doc line ending in an intra-doc link walked the reader out of the block \
              it is reading"
         );
-        // And the direction the first repair got wrong: a wrapped attribute
-        // list may hold a blank line, and it must not cost the item its doc.
+        // And the other direction: a wrapped attribute list may hold a blank
+        // line, and it must not cost the item its doc.
         let spaced =
             lines("/// Doc.\n#[doc(\n    alias = \"a\",\n\n    alias = \"b\"\n)]\nfn item() {}");
         assert_eq!(
@@ -3323,14 +3305,13 @@ mod a_bracket_carries_what_no_caller_supplies {
     }
     /// Every function in one file that reaches `Journal::bracket`, in order.
     ///
-    /// **A total over two files is a census of neither.** The reach used to be
-    /// held by one number — the calls to `bracket` in `lib.rs` and in `unit.rs`
-    /// added together — and a sum does not say where its parts are. A caller
-    /// that moved from one file to the other kept it at three; so did a real
-    /// caller added in `lib.rs` while the one call there was deleted, and that
-    /// exchange is the one that matters, because a test's call is not a way
-    /// in. What the reach is made of is *which function* holds each call, so
-    /// that is what is compared.
+    /// **A total over two files is a census of neither.** One number — the
+    /// calls to `bracket` in `lib.rs` and in `unit.rs` added together — does
+    /// not say where its parts are. A caller that moved from one file to the
+    /// other would keep it at three; so would a real caller added in `lib.rs`
+    /// while the one call there was deleted, and that exchange is the one that
+    /// matters, because a test's call is not a way in. What the reach is made
+    /// of is *which function* holds each call, so that is what is compared.
     ///
     /// The enclosing name is the last `fn` declared above the call, where a
     /// declaration is a line whose words before it are visibility and
@@ -3338,11 +3319,10 @@ mod a_bracket_carries_what_no_caller_supplies {
     /// become the answer.
     fn calls_to_bracket_in(text: &str) -> Vec<String> {
         // **Comments off, and `the_method_declared_by` rather than a fourth
-        // copy of it.** This read the raw text, so a `//` line naming the call
-        // paid for one that had gone — the mechanism round 53 closed in three
-        // other files and wrote again here — and its own qualifier check was a
-        // fourth spelling of the loop two screens down, reached by nothing.
-        // Both measured by reviewers on 2026-09-12.
+        // copy of it.** Read as raw text, a `//` line naming the call pays for
+        // one that has gone, and a qualifier check of its own would be a fourth
+        // spelling of the loop two screens down, reached by nothing. Both
+        // measured.
         let code = super::the_code_without_comments(text);
         // Assembled, because one of the two files read is this one.
         let needle = format!(".{}(", "bracket");
@@ -3350,12 +3330,12 @@ mod a_bracket_carries_what_no_caller_supplies {
         // `pub(crate)`, so `Journal::bracket(self.journal, …)` is the ordinary
         // UFCS form of the line above it: legal anywhere in the crate,
         // `cargo fmt`-clean and invisible to a needle that begins with a dot.
-        // Measured by a reviewer on 2026-09-11, in both directions at once: a
-        // *new* reach to the clock written that way left this census at
-        // `["open", "close"]` while the suite went on requiring `record`'s
-        // documentation to stay silent about `ClockBeforeEpoch`; and the live
-        // call rewritten that way — the same call, the same reach — turned the
-        // census red with a message saying a reach had moved.
+        // Measured without it, in both directions at once: a *new* reach to the
+        // clock written that way leaves this census at `["open", "close"]`
+        // while the suite goes on requiring `record`'s documentation to stay
+        // silent about `ClockBeforeEpoch`; and the live call rewritten that way
+        // — the same call, the same reach — turns the census red with a message
+        // saying a reach has moved.
         let qualified = format!("::{}(", "bracket");
         let declaration = format!("fn {}(", "bracket");
         let mut current = String::new();
@@ -3374,21 +3354,21 @@ mod a_bracket_carries_what_no_caller_supplies {
 
     /// The `# Errors` section of one item's own doc block.
     ///
-    /// **This item's own block, and the first heading in it.** The anchor was
-    /// `rfind("# Errors")` — the *last* match above the function — so one
-    /// ordinary sentence containing those eight characters moved it past the
-    /// claim, and a section naming a refusal it cannot build passed. The block
-    /// is the contiguous run of `///` lines immediately above the item; inside
-    /// it, the section runs from the heading to the end.
+    /// **This item's own block, and the first heading in it.** An anchor
+    /// of `rfind("# Errors")` — the *last* match above the function — lets one
+    /// ordinary sentence containing those eight characters move it past the
+    /// claim, so that a section naming a refusal it cannot build passes. The
+    /// block is the contiguous run of `///` lines immediately above the item;
+    /// inside it, the section runs from the heading to the end.
     ///
     /// **The list for what a section promises, the whole section for what it
     /// must not say.** The first paragraph under the heading is the claim; the
-    /// prose below it is why the claim says what it says. But a reviewer
-    /// pointed out that reading only the list makes the negative direction one
-    /// paragraph wide — a second paragraph beginning *"Also [`Error::…`]"* is a
-    /// claim too, and passed. So the two directions read two slices, and the
-    /// paragraph that explains a removal names the variant by description
-    /// rather than by spelling.
+    /// prose below it is why the claim says what it says. But reading only the
+    /// list makes the negative direction one paragraph wide — a second
+    /// paragraph beginning *"Also [`Error::…`]"* is a claim too, and would
+    /// pass. So the two directions read two slices, and the paragraph that
+    /// explains a removal names the variant by description rather than by
+    /// spelling.
     fn section_of(text: &str, name: &str, whole: bool) -> String {
         let at = text
             .find(&format!("pub async fn {name}("))
@@ -3444,14 +3424,14 @@ mod a_bracket_carries_what_no_caller_supplies {
 
     /// A source with the contents of every string literal spent.
     ///
-    /// **Raw strings are not gone before this runs, and the doc here said they
-    /// were.** `the_code_without_comments` is a *comment* stripper: its
+    /// **Raw strings are not gone before this
+    /// runs.** `the_code_without_comments` is a *comment* stripper: its
     /// raw-string branch copies the body through character for character, so it
     /// can tell a `//` inside `r"…"` from a comment without destroying the
-    /// source. A rule that knew only `"` and `\` then met `r"C:\"` — an
-    /// ordinary Windows path — and ate its own closing quote, blanking the code
-    /// after it; and a raw string holding a `"` leaked its body out as code.
-    /// Both directions, measured by a reviewer in round seventy-one wave 10.
+    /// source. A rule that knew only `"` and `\` would meet `r"C:\"` — an
+    /// ordinary Windows path — and eat its own closing quote, blanking the code
+    /// after it; and a raw string holding a `"` would leak its body out as
+    /// code. Both directions, measured.
     ///
     /// So both shapes are spent here. Spending rather than cutting keeps every
     /// offset where it was, which is what the `?` rule beside it reads.
@@ -3507,13 +3487,12 @@ mod a_bracket_carries_what_no_caller_supplies {
                 continue;
             }
             // **A character literal is not a quote.** `'"'` is one `"` that
-            // opens nothing, and this reader opened a string on it — so
-            // everything to the next quote was blanked (a call in that span
-            // invisible) and the literal after it came out as code (a finding
-            // about nothing). Its sibling three hundred lines up carries a
-            // paragraph about exactly this and the helper for it; one rule
-            // written twice, and this was the narrower copy. Named by a
-            // reviewer in wave 11.
+            // opens nothing, and a reader opening a string on it blanks
+            // everything to the next quote (a call in that span invisible) and
+            // lets the literal after it come out as code (a finding about
+            // nothing). Its sibling three hundred lines up carries a paragraph
+            // about exactly this and the helper for it; one rule written twice,
+            // and this copy is held to the same.
             if letters[at] == '\''
                 && let Some(width) = super::char_literal_at(&letters, at)
             {
@@ -3556,9 +3535,9 @@ mod a_bracket_carries_what_no_caller_supplies {
 
     /// Every string literal is spent, in each of the shapes this crate writes.
     ///
-    /// The two the repaired reader was written against are the last two rows: a
-    /// raw string holding a `"` used to leak its body out as code, and one
-    /// ending in a backslash used to eat its closing quote and blank the code
+    /// The last two rows are the two hard shapes: a raw string holding a `"`,
+    /// which a weaker reader leaks out as code, and one ending in a backslash,
+    /// which a weaker reader lets eat its closing quote and blank the code
     /// after it.
     #[test]
     fn a_literal_is_spent_whatever_shape_it_is_written_in() {
@@ -3571,9 +3550,9 @@ mod a_bracket_carries_what_no_caller_supplies {
                 "let it = r#\"     \"#; ok()",
             ),
             ("let it = r\"C:\\\"; ok()", "let it = r\"   \"; ok()"),
-            // **A character literal, which opens nothing.** Its `"` used to
-            // open a string here: everything to the next quote was blanked and
-            // the literal after it came out as code.
+            // **A character literal, which opens nothing.** Read as opening a
+            // string, its `"` would blank everything to the next quote and
+            // bring the literal after it out as code.
             (
                 "let it = '\"'; let s = \"tick()\"; ok()",
                 "let it = '\"'; let s = \"      \"; ok()",
@@ -3587,16 +3566,16 @@ mod a_bracket_carries_what_no_caller_supplies {
     ///
     /// **Split out of the census beside it, which counts and cannot see a
     /// shape.** That rule counts the identifier, so an *added* reader moves a
-    /// number and a *substituted* one does not: `now_ms()?` rewritten to
-    /// `now_ms().unwrap_or_default()` right there in `bracket` leaves
-    /// `asked_in` at its expected pair and every target of this crate green.
-    /// Measured by a reviewer in round seventy-one, with the outcome
-    /// `the_instant`'s own doc argues against at length: on a machine whose
-    /// clock is before 1970 every bracket is stamped `0`, the stamp is inside
-    /// the digest, and the table refuses `UPDATE`.
+    /// number and a *substituted* one does not: `now_ms()?` rewritten
+    /// to `now_ms().unwrap_or_default()` right there in `bracket`
+    /// leaves `asked_in` at its expected pair and, without this test, every
+    /// target of this crate green, measured, with the outcome `the_instant`'s
+    /// own doc argues against at length: on a machine whose clock is before
+    /// 1970 every bracket is stamped `0`, the stamp is inside the digest, and
+    /// the table refuses `UPDATE`.
     ///
-    /// What caught it instead was `clippy::unnecessary_wraps` — `now_ms()?` is
-    /// `bracket`'s only error path, so removing it makes the `Result`
+    /// What else catches it is `clippy::unnecessary_wraps` — `now_ms()?`
+    /// is `bracket`'s only error path, so removing it makes the `Result`
     /// unnecessary and `check`'s `-D warnings` is red. That is a lint about a
     /// signature, not a rule that knows what the signature is holding, and it
     /// disappears the moment `bracket` grows a second error path. The runner
@@ -3625,13 +3604,13 @@ mod a_bracket_carries_what_no_caller_supplies {
             let text = std::fs::read_to_string(&path).expect("a source file is readable");
             // **And its literals, which that reader copies through.** `xtask`'s
             // `blanked` spends the characters inside a `"…"`; the reader this
-            // crate owns removes comments, nesting block comments and raw-string
-            // bodies and leaves an ordinary literal whole — one rule written
-            // twice, and the narrower copy is the one here. Measured in round
-            // seventy-one wave 9: a `const` whose sentence contained the words
-            // `now_ms() and a clock before 1970` was demanded to carry a `?`,
-            // and `shaped > 0` — the only statement that this rule inspected a
-            // call at all — is a floor a string literal can pay.
+            // crate owns removes comments, nesting block comments and
+            // raw-string bodies and leaves an ordinary literal whole — one rule
+            // written twice, and the narrower copy is the one here. Measured:
+            // with literals unspent, a `const` whose sentence contains the
+            // words `now_ms() and a clock before 1970` is demanded to carry a
+            // `?`, and `shaped > 0` — the only statement that this rule
+            // inspected a call at all — is a floor a string literal can pay.
             let code = without_literals(&super::the_code_without_comments(&text));
             let call = format!("{THE_CLOCK}()");
             let call = call.as_str();
@@ -3681,41 +3660,41 @@ mod a_bracket_carries_what_no_caller_supplies {
         // files it reads and a spelled-out literal would count itself. That is
         // the vacuous-assertion shape, one line from the rule it is here to
         // hold.
-        // **The code, not the file.** Round 54 comment-stripped
-        // `calls_to_bracket_in` eight lines below and left these two counting
-        // over raw text — so one ordinary `///` line saying the instant comes
-        // from `now_ms()?` turned the second red with a sentence that is false,
-        // and a second *live* reader spelled `now_ms().unwrap_or_default()`
-        // left both green. Too strong and too weak in the same pair, measured
-        // on 2026-09-12. One reader, and it is the one beside them.
+        // **The code, not the file.** Counting over raw text while
+        // `calls_to_bracket_in` eight lines below is comment-stripped, one
+        // ordinary `///` line saying the instant comes from `now_ms()?` turns
+        // the second red with a sentence that is false, and a second *live*
+        // reader spelled `now_ms().unwrap_or_default()` leaves both green. Too
+        // strong and too weak in the same pair, measured. One reader, and it is
+        // the one beside them.
         let code = super::the_code_without_comments(&here);
         let clock = format!("fn {THE_CLOCK}()");
-        // **The name, not the call.** This counted `now_ms(`, so
+        // **The name, not the call.** Counting `now_ms(` lets
         // `use crate::now_ms as clock;` and `clock()` — the same reader under
-        // another name, in the same method the census was widened for — walked
-        // past it with the whole crate green. Measured by a reviewer on
-        // 2026-09-13. An alias has to name the item it aliases, so counting the
-        // identifier catches the `use` line as well as every call.
+        // another name, in the same method the census is widened for — walk
+        // past it with the whole crate green, measured. An alias has to name
+        // the item it aliases, so counting the identifier catches the `use`
+        // line as well as every call.
         let asked = THE_CLOCK.to_owned();
         assert_eq!(
             code.matches(&clock).count(),
             1,
             "the clock has more than one reader now, so the reach below is not the reach"
         );
-        // **Every way of asking, not the one spelling.** This counted
-        // `now_ms()?`, so `now_ms().unwrap_or_default()` — a second live reader
-        // that swallows the refusal this whole test is about — added nothing.
-        // What is counted is the call.
+        // **Every way of asking, not the one spelling.** Counting `now_ms()?`,
+        // `now_ms().unwrap_or_default()` — a second live reader that swallows
+        // the refusal this whole test is about — adds nothing. What is counted
+        // is the call.
         //
         // **And every file of this crate, not this one.** `now_ms` is private
         // to the crate root, so `crate::now_ms()` is legal in all five modules
         // beneath it, and a count over `lib.rs` alone is a census of one of
-        // them. Measured by a reviewer on 2026-09-12: one
-        // `crate::now_ms().unwrap_or_default()` in `WorkUnit::record` — the
-        // method whose section this same suite requires to stay silent about
-        // the clock — left every target of this crate green and `check passed`,
-        // and the same line in `lib.rs` turned this red. The numbers are per
-        // file now, and a file that asks nothing is not in the list.
+        // them. Measured that way: one `crate::now_ms().unwrap_or_default()` in
+        // `WorkUnit::record` — the method whose section this same suite
+        // requires to stay silent about the clock — leaves every target of this
+        // crate green and `check passed`, and the same line in `lib.rs` turns
+        // this red. The numbers are per file, and a file that asks nothing is
+        // not in the list.
         let mut asked_in: Vec<(String, usize)> = Vec::new();
         let mut sources = 0_usize;
         for entry in std::fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/src"))
@@ -3747,22 +3726,21 @@ mod a_bracket_carries_what_no_caller_supplies {
         );
         assert_eq!(
             asked_in,
-            // **Three, and it was four.** Two of the four were this test's own
-            // needles, assembled inline; they are one `const` now — see
-            // `THE_CLOCK` — so what is left is that line, the declaration and
-            // the one call. The count fell because a spelling of the name went
-            // away, which is the one direction this assertion cannot tell from
-            // a reader going away: the three are named in the paragraph above
-            // so a reader can see which is which.
+            // **Three.** This test's own needle is one `const` — see
+            // `THE_CLOCK` — so what is counted is that line, the declaration
+            // and the one call. A count that falls because a spelling of the
+            // name went away is the one direction this assertion cannot tell
+            // from a reader going away: the three are named in the paragraph
+            // above so a reader can see which is which.
             vec![("lib.rs".to_owned(), 3)],
             "the clock is asked somewhere other than `bracket`, or its own \
              declaration is gone"
         );
-        // **Every file of this crate, not the two that hold a call today.** The
-        // clock's own readers are counted across all five above; the callers of
-        // `bracket` were read in `lib.rs` and `unit.rs` alone, so a third module
-        // reaching it was a census of two files rather than of the crate.
-        // Named by a reviewer on 2026-09-13.
+        // **Every file of this crate, not the two that hold a call.** The
+        // clock's own readers are counted across all five above, and so are the
+        // callers of `bracket`: read in `lib.rs` and `unit.rs` alone, a third
+        // module reaching it would make this a census of two files rather than
+        // of the crate.
         let mut reaching: Vec<(String, Vec<String>)> = Vec::new();
         for entry in std::fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/src"))
             .expect("the crate's sources are readable")
@@ -3807,13 +3785,13 @@ mod a_bracket_carries_what_no_caller_supplies {
     /// **The other half of `every_errors_section_names_what_its_body_builds`,
     /// for the one variant that can be traced by hand.** That gate reads bodies
     /// for variants a section does not name; it does not read sections for
-    /// variants no body builds, and its own doc says so. Measured on
-    /// 2026-09-11: `Journal::record`'s section named `Error::ClockBeforeEpoch`
-    /// and `record` cannot build it — it takes its instant from the caller's
-    /// `Record` — while `begin`, `commit` and `abort`, which reach the clock
-    /// through `Journal::bracket`, named it nowhere. A caller of the bracket read
-    /// "whatever the store returned" and treated a wrong machine clock as
-    /// retryable, which it is not.
+    /// variants no body builds, and its own doc says so. Measured without
+    /// this: `Journal::record`'s section can name `Error::ClockBeforeEpoch`,
+    /// which `record` cannot build — it takes its instant from the
+    /// caller's `Record` — while `begin`, `commit` and `abort`, which reach the
+    /// clock through `Journal::bracket`, name it nowhere. A caller of the
+    /// bracket reading "whatever the store returned" would treat a wrong
+    /// machine clock as retryable, which it is not.
     ///
     /// The general rule — a section naming a variant no body in its call graph
     /// builds — is still unheld, and saying so here is the point.
@@ -3847,7 +3825,8 @@ mod a_bracket_carries_what_no_caller_supplies {
 
         // **The block reader reaches its item past an attribute**, which is
         // the clause three of this crate's `#[doc(hidden)]` sections need and
-        // which no case in the tree reached: deleting it left the suite green.
+        // which, without this case, nothing in the tree reaches: deleting it
+        // leaves the suite green.
         // Driven over text, because the items this file happens to carry are
         // not a corpus.
         let synthetic = concat!(
@@ -3887,13 +3866,13 @@ mod a_bracket_carries_what_no_caller_supplies {
 
     /// A clock before the epoch is refused rather than rounded.
     ///
-    /// **The premise is the test's, not the machine's.** The assertion that used
-    /// to stand for this — `recorded_at > 1_700_000_000_000` against the real
-    /// system clock — closes two of the three plants its doc claims and cannot
-    /// close the third, because the third's premise is a clock set before 1970
-    /// and no test can establish that by reading the clock it is testing. A
-    /// reviewer measured it in round seventy-one: `unwrap_or_default()` in place
-    /// of the refusal left `cargo xtask check` printing `check passed`.
+    /// **The premise is the test's, not the machine's.** An assertion
+    /// of `recorded_at > 1_700_000_000_000` against the real system clock
+    /// closes two of the three plants and cannot close the third, because the
+    /// third's premise is a clock set before 1970 and no test can establish
+    /// that by reading the clock it is testing. Measured: with only that
+    /// assertion, `unwrap_or_default()` in place of the refusal
+    /// leaves `cargo xtask check` printing `check passed`.
     ///
     /// An entry claiming 1970 is an entry that verifies: the timestamp is inside
     /// the digest, and a journal entry is the one record here that cannot be
@@ -3955,21 +3934,21 @@ mod a_bracket_carries_what_no_caller_supplies {
     /// A bracket names the keeper and carries the instant it was written.
     ///
     /// **`Journal::bracket`'s doc says these are the two things it exists to
-    /// supply, and both were asserted by nothing.** `keeper` has exactly one
-    /// reader in this crate — that call — and three plants left the whole gate
+    /// supply, and this asserts both.** `keeper` has exactly one reader in this
+    /// crate — that call — and without this three plants leave the whole gate
     /// green: every bracket naming the realm instead of the kernel, every
     /// bracket stamped `0`, and `now_ms` rounding a failure to `0` instead of
     /// refusing.
     ///
     /// `recorded_at` is inside the digest and the table refuses `UPDATE`, so an
-    /// entry stamped `0` is an entry that **verifies** and cannot be corrected —
-    /// which `now_ms`'s own doc argues at length with nothing behind it.
+    /// entry stamped `0` is an entry that **verifies** and cannot be corrected
+    /// — which `now_ms`'s own doc argues at length, and this stands behind.
     #[tokio::test]
     async fn a_bracket_names_the_keeper_and_the_instant() {
         /// Not a fixed instant — a bound, because the clock is the real one.
         ///
         /// Any stamp before this repository existed is one nothing could have
-        /// written, and `0` is the value the rounding plant produced.
+        /// written, and `0` is the value the rounding plant produces.
         const THIS_REPOSITORY_EXISTED_BY: u64 = 1_700_000_000_000;
 
         let realm = OpaqueId::new("realm-1").expect("a test realm");

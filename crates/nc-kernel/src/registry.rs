@@ -33,8 +33,7 @@
 //!   `[NC-PLUG-0009]`, refused before any of them is judged — a declaration
 //!   refused like every other here, so the person is told the plugin was not
 //!   started, and not `[NC-PLUG-0017]`, whose message says only that a limit
-//!   was reached and nothing of a plugin left unstarted. This said 0017's
-//!   message *says something was kept*, which neither locale's does.
+//!   was reached and nothing of a plugin left unstarted.
 //!
 //! What this answers (`NOCTUA.md §2.4`): command squatting — a plugin cannot
 //! register a command in a namespace it was not given, in one the kernel keeps,
@@ -604,11 +603,10 @@ mod tests {
             assert_eq!(command.action, written.action);
             assert_eq!(command.resource_selector, written.resource_selector);
             assert_eq!(command.mutating, written.mutating);
-            // **Every field, the reversibility included.** Nothing compared it,
-            // and the registry listing every command as a read left every suite
-            // green — measured, with `limits.prune` (the catalog's `write`)
-            // listed as `Read` — while the decision point's irreversible
-            // precondition is what reads it.
+            // **Every field, the reversibility included**: a registry
+            // listing every command as a read — `limits.prune`, the catalog's
+            // `write`, listed as `Read` — fails here, while the decision
+            // point's irreversible precondition is what reads it.
             assert_eq!(
                 command.reversibility,
                 match written.reversibility {
@@ -748,10 +746,10 @@ mod tests {
     /// A command whose name is malformed is named by its position, and its name
     /// is never repeated.
     ///
-    /// **Found by a reviewer.** The test below held only that the sentence
-    /// names the plugin, and a `subject_of` that repeated any name not blank
-    /// left every suite green — a name of 10,000 characters behind a direction
-    /// override was repeated whole, the override raw.
+    /// **What naming the plugin does not hold.** The test below holds only that
+    /// the sentence names the plugin, which a `subject_of` repeating any name
+    /// not blank would pass — a name of 10,000 characters behind a direction
+    /// override repeated whole, the override raw.
     #[test]
     fn a_malformed_name_is_named_by_its_position_and_never_repeated() {
         let problems = refused(
@@ -1062,9 +1060,9 @@ mod tests {
 
     /// The entity type a refused command selects is repeated cut to a bound.
     ///
-    /// **Found by a reviewer.** The type is the plugin's own text — the
+    /// **The plugin's own text, of any length.** The type is the
     /// schema's `x-entity`, which the judge holds to a Cedar type name of any
-    /// length — and was repeated whole: a type of 100,000 characters gave a
+    /// length; repeated whole, a type of 100,000 characters would give a
     /// refusal of 100,090.
     #[test]
     fn an_entity_type_a_refusal_repeats_is_cut_to_a_bound() {
@@ -1183,10 +1181,9 @@ mod tests {
             problems[0].1
         );
         // **And the person shown the code is told the plugin was not started**,
-        // as every other refused load tells them. It carried NC-PLUG-0017, a
+        // as every other refused load tells them — not NC-PLUG-0017, a
         // `warning` whose message says a part reached the most it may keep,
-        // while a load refused here keeps nothing and never starts — found by
-        // a reviewer.
+        // while a load refused here keeps nothing and never starts.
         let code = problems[0].0;
         assert_eq!(code.severity(), nc_catalog::Severity::Error);
         for (locale, says) in [
@@ -1230,8 +1227,8 @@ mod tests {
         assert_eq!(problems.len(), 1, "{problems:?}");
         assert!(problems[0].1.contains("declares 0"), "{}", problems[0].1);
         // **And the person shown the code is told a subscription can be what
-        // was refused.** Its message said a command was, in both locales, while
-        // every refusal above is of a subscription — found by a reviewer.
+        // was refused**, in both locales: every refusal above is of a
+        // subscription, which a message naming a command alone would not say.
         for (locale, says) in [
             (nc_catalog::Locale::En, "subscription"),
             (nc_catalog::Locale::PtBR, "assinatura"),
@@ -1257,10 +1254,9 @@ mod tests {
 
     #[test]
     fn a_well_formed_name_is_repeated_whole_past_what_an_action_is_cut_to() {
-        // **Three comments said every name the registry repeats is held to
-        // sixty-four**, while a command's name is repeated whole up to the
-        // ninety-six a well-formed one may have — found by a reviewer. The
-        // comments now say what this holds.
+        // **Not every name the registry repeats is held to sixty-four**: a
+        // command's name is repeated whole up to the ninety-six a well-formed
+        // one may have.
         let longest = format!("notes.{}", "a".repeat(NAME_MAX - "notes.".len()));
         assert!(longest.len() > super::QUOTED);
         let past = "R".repeat(super::QUOTED + 1);

@@ -192,12 +192,12 @@ enum Hold {
 /// `max_rows` for `store_entries`, `blobs`, `store_writes` and `store_notes`,
 /// and a plugin's manifest may lower its own — which only the kernel knows.
 ///
-/// **Per plugin, because a unit is not.** One number stood here for the whole
-/// commit, and one unit writes for every plugin a nested dispatch reaches — so
-/// whatever the kernel passed judged one of them wrongly. Measured, a unit
-/// writing three keys of `big` (whose quota is three) and two of `small`
-/// (whose manifest lowers it to one): handed one, the commit refused `big`
-/// within its three; handed three, it committed and left `small` holding two.
+/// **Per plugin, because a unit is not.** One unit writes for every plugin a
+/// nested dispatch reaches, so one number for the whole commit would judge one
+/// of them wrongly whatever the kernel passed. Measured, a unit writing three
+/// keys of `big` (whose quota is three) and two of `small` (whose manifest
+/// lowers it to one): handed one, the commit would refuse `big` within its
+/// three; handed three, it would commit and leave `small` holding two.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Quotas {
     /// The keys a plugin may hold when its manifest does not lower the number.
@@ -301,9 +301,9 @@ impl core::fmt::Display for CommitError {
 /// A commit's refusal is an error, as `NOCTUA.md §15.1` says every error type
 /// here is.
 ///
-/// **It was not one**: the store's commit answered a type with no `Display`
-/// and no `Error`, so `?` into a `Box<dyn Error>` did not compile and the
-/// database failure inside it was not its source.
+/// **So `?` carries it into a `Box<dyn Error>`**: without this impl a commit's
+/// refusal would not convert into one, and the database failure inside it
+/// would not be its `source`.
 impl std::error::Error for CommitError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
@@ -397,9 +397,9 @@ impl LocalStore {
         // whose it is. Read-only, so that neither its first read nor its close
         // writes the file (`crate::open::for_judging`); and with the profile
         // held (`crate::open::private_file_in`), so that no other open
-        // migrates it between two of its reads — measured, a history read
-        // after another open's migrations landed was held against a schema
-        // read before them, and refused.
+        // migrates it between two of its reads — measured, a history read after
+        // another open's migrations landed would be held against a schema read
+        // before them, and refused.
         let mut judging = crate::open::for_judging(&file)
             .connect()
             .await
@@ -461,10 +461,10 @@ impl LocalStore {
         // **`run_direct`, which is what `run` calls**, and not `run`: `run`
         // takes anything that can `Acquire` a connection, and the compiler
         // cannot prove that bound for every lifetime a spawned task needs —
-        // so `open`'s future was not `Send`, and neither `tokio::spawn` nor a
-        // `Send`-bound kernel future could hold it ("implementation of
-        // `Acquire` is not general enough"). `sqlx` keeps this door for that
-        // error; `false` is "apply, do not skip".
+        // so through `run`, `open`'s future would not be `Send`, and neither
+        // `tokio::spawn` nor a `Send`-bound kernel future could hold it
+        // ("implementation of `Acquire` is not general enough"). `sqlx` keeps
+        // this door for that error; `false` is "apply, do not skip".
         // `every_call_the_store_offers_runs_in_a_spawned_task` does not compile
         // without it.
         MIGRATOR
@@ -521,9 +521,9 @@ impl LocalStore {
     ///
     /// **A limit of zero is read as one.** A page that holds nothing has no
     /// last key to hand back as where the next begins, and one with no `next`
-    /// says the listing is over — which is what a limit of zero answered over a
-    /// plugin holding keys, measured by a review: `Page { keys: [], next: None }`.
-    /// One key is the smallest page that can say where the rest begins.
+    /// says the listing is over — which is what a limit of zero would answer
+    /// over a plugin holding keys: `Page { keys: [], next: None }`. One key is
+    /// the smallest page that can say where the rest begins.
     ///
     /// # Errors
     ///
@@ -1465,10 +1465,10 @@ fn migrated(error: &sqlx::migrate::MigrateError) -> LocalError {
 /// is held to before the migrator may write it.
 ///
 /// **Everything that reads the file comes before the migrator, which writes
-/// it.** The migrator ran right after the header, so a file one migration
-/// behind had that migration applied before `quick_check` or the list refused
-/// it — measured by a review, both ways — and the message the person read said
-/// nothing was changed.
+/// it.** Run right after the header, the migrator would apply a missing
+/// migration to a file one migration behind before `quick_check` or the list
+/// refused it — measured, both ways — and the message the person reads would
+/// say nothing was changed.
 async fn judged_before_migrating(
     connection: &mut sqlx::SqliteConnection,
 ) -> Result<(), LocalError> {
@@ -1513,7 +1513,7 @@ fn unread(doing: &str, error: &sqlx::Error) -> LocalError {
 /// header is a file that is not the one this build expects, which is what that
 /// code says; `NC-DB-0006` tells the user the folder or the files are not set
 /// up for them alone to read and write, and nothing about a foreign header says
-/// so. It was `NC-DB-0006`, with `AGENTS.md` already promising this code.
+/// so. `AGENTS.md` names `NC-DB-0007` for such a file.
 async fn belongs_here(connection: &mut sqlx::SqliteConnection) -> Result<(), LocalError> {
     let application: i32 = sqlx::query_scalar("PRAGMA main.application_id")
         .fetch_one(&mut *connection)
@@ -1541,9 +1541,8 @@ async fn belongs_here(connection: &mut sqlx::SqliteConnection) -> Result<(), Loc
 ///
 /// **What bounds `store_writes` and `store_notes`.** Their rows live and die
 /// with their unit, so `store_units`' bound is theirs only times what one unit
-/// may make — and nothing held a unit to anything: a review committed one with
-/// 20,000 images and 50,000 notes, under a migration comment that rested the
-/// table's bound on "the writes one unit may make". `catalog/limits.toml`
+/// may make — and without this the store would hold a unit to nothing: one
+/// with 20,000 images and 50,000 notes would commit. `catalog/limits.toml`
 /// counts both tables per unit, and this is the writer refusing at that count.
 /// An `Invalid` and not a quota, because the kernel holds its overlay to the
 /// same number (`units::writes_per_unit` in `crates/nc-kernel`), so a unit past
@@ -2002,9 +2001,9 @@ mod tests {
     /// `a_write_a_trigger_silences_is_refused_and_leaves_nothing`, through a
     /// trigger planted in `main` after the store opened — which the open-time
     /// self-check cannot see, and which a connection of anybody's who can write
-    /// the file can add. This said such a count could not be produced from
-    /// outside; that is true of a temporary trigger, which only its own
-    /// connection holds, and false of one in `main`.
+    /// the file can add. Such a count can be produced from outside: not by a
+    /// temporary trigger, which only its own connection holds, but by one
+    /// in `main`.
     #[test]
     fn a_write_that_changed_the_wrong_number_of_rows_is_refused() {
         let nothing = || Ok(sqlx::sqlite::SqliteQueryResult::default());

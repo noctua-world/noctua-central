@@ -48,10 +48,10 @@
 //! kernel holds each unit whose close it has not heard the journal take, and
 //! each unit whose state that one moves, because the kernels of the realms one
 //! person belongs to share this file and the pruner takes the oldest units of
-//! every realm — and a reviewer found the record of a unit one realm's stopped
-//! process left open taken by another realm's prune, its recovery then closing
-//! the unit as aborted with its writes left in place. A reference of more than
-//! one column is refused rather than read.
+//! every realm — without the hold, the record of a unit one realm's stopped
+//! process left open is taken by another realm's prune, its recovery then
+//! closing the unit as aborted with its writes left in place, measured. A
+//! reference of more than one column is refused rather than read.
 
 use sqlx::Row as _;
 use sqlx::sqlite::SqlitePool;
@@ -256,16 +256,16 @@ async fn reached_by_a_delete_from(
 
 /// A statement's bare words, upper-cased, for reading its shape.
 ///
-/// **What SQLite reads as keywords, and nothing else.** `sqlite_schema` keeps
-/// a trigger's SQL as it was written, comments included, and the reader this
-/// replaced split on whitespace: `AFTER DELETE/**/ON` and `AFTER DELETE --x`
-/// followed by `ON` on the next line held no ` DELETE ON `, and a prune ran
-/// through that trigger and emptied a table it was never asked about —
-/// measured, three bystanders before and none after. So a `--` or `/* … */`
-/// comment, a `'…'` literal and a name quoted with `"…"`, `[…]` or `` `…` `` are
-/// each a gap, and a word is a run of letters, digits, `_` and `$` between
-/// them. A quoted name is never a keyword, which is why it is a gap and not a
-/// word: a trigger called `"on"` is not the word `ON`.
+/// **What SQLite reads as keywords, and nothing else.** `sqlite_schema` keeps a
+/// trigger's SQL as it was written, comments included, and a reader splitting
+/// on whitespace misses `AFTER DELETE/**/ON` and `AFTER DELETE --x` followed
+/// by `ON` on the next line, which hold no ` DELETE ON `, so a prune would run
+/// through that trigger and empty a table it was never asked about — measured,
+/// three bystanders before and none after. So a `--` or `/* … */` comment, a `'…'`
+/// literal and a name quoted with `"…"`, `[…]` or `` `…` `` are each a gap, and
+/// a word is a run of letters, digits, `_` and `$` between them. A quoted name
+/// is never a keyword, which is why it is a gap and not a word: a trigger
+/// called `"on"` is not the word `ON`.
 fn bare_words(sql: &str) -> Vec<String> {
     let characters: Vec<char> = sql.chars().collect();
     let mut found = Vec::new();
@@ -322,11 +322,11 @@ fn gap_until(characters: &[char], from: usize, closing: &[char], doubled: bool) 
 
 /// Whether a table's SQL is a virtual table's.
 ///
-/// **This was a branch nothing entered.** It asked whether the words began
-/// `"CREATE VIRTUAL TABLE "`, and the words it read began with a space — so an
-/// FTS5 table named for a declared one was counted and pruned as an ordinary
-/// table, measured. A virtual table's rows live in its module, and in shadow
-/// tables the catalog names nowhere.
+/// **A branch the words must reach.** Asking whether the words
+/// begin `"CREATE VIRTUAL TABLE "`, when the words read begin with a space,
+/// enters nothing — so an FTS5 table named for a declared one would be counted
+/// and pruned as an ordinary table, measured. A virtual table's rows live in
+/// its module, and in shadow tables the catalog names nowhere.
 fn is_a_virtual_table(sql: &str) -> bool {
     bare_words(sql).starts_with(&[
         "CREATE".to_owned(),

@@ -430,9 +430,9 @@ pub(crate) async fn started_again<E: Environment>(shared: &Shared<E>) {
 ///
 /// **It runs to its end whoever stops waiting for it**, as a top-level
 /// dispatch and a pump do. A release claims the slot before it starts the
-/// plugin, and one dropped while the plugin activated left the slot claimed
-/// for good — measured, every later release answered as released and started
-/// nothing, and every dispatch to the plugin was refused as a quarantined
+/// plugin, and one dropped while the plugin activates would leave the slot
+/// claimed for good — measured, every later release answered as released and
+/// starting nothing, and every dispatch to the plugin refused as a quarantined
 /// one's for as long as the kernel ran.
 ///
 /// # Errors
@@ -517,9 +517,9 @@ pub(crate) async fn release<E: Environment>(
 /// **Held to what the call tree it runs in has left**, for one a kill inside
 /// a tree started at `within` asks for — none for a release and for the next
 /// call tree, each held to its own span as a load is. Its `activate` is a call
-/// of that tree: a reviewer found a tree of thirty seconds that ran
-/// forty-nine, the restart's one read of its store waited on in full, and one
-/// of sixty-eight with two plugins on its stack. A plugin whose `activate` the
+/// of that tree: held to a span of its own, a tree of thirty seconds would run
+/// forty-nine, the restart's one read of its store waited on in full, and
+/// sixty-eight with two plugins on its stack. A plugin whose `activate` the
 /// tree's deadline stopped — one the tree had no time left for among them,
 /// which is stopped at its first host call or tick — is left
 /// [`Slot::Killed`], for the next call tree to start ([`started_again`]): that
@@ -636,8 +636,8 @@ impl std::error::Error for HostCallDeadline {}
 ///
 /// **A tree's time bounds its host calls too.** The epoch callback that
 /// stops a tree past its deadline runs only while the plugin runs, so a host
-/// call held to its own deadline alone ran on past the tree's — measured, a
-/// fetch handed to the transport in a tree whose time was up, and a tree of
+/// call held to its own deadline alone would run on past the tree's — measured,
+/// a fetch handed to the transport in a tree whose time was up, and a tree of
 /// thirty seconds that ran forty-two. So the tree's limit, when it is the
 /// nearer, traps as the tree's ([`TreeDeadline`]), and a call in a tree with
 /// nothing left is never started: nothing of it reaches a store, the blobs or
@@ -943,10 +943,11 @@ mod tests {
     /// Each kill is journaled, logged and said in words of its own.
     ///
     /// The causes it is logged under are the ones the catalog's
-    /// `kernel.plugin_killed` names, read from the catalog. **A verifier found
-    /// the two deadlines' words held by nothing**: the journal could record
-    /// either as `trapped`, and the log the tree's as `trap`, with every suite
-    /// green.
+    /// `kernel.plugin_killed` names, read from the catalog. **The two
+    /// deadlines' words are their own**: with either journaled as `trapped`,
+    /// or the tree's logged as `trap`, a deadline's kill would read as a trap,
+    /// which this and the kill tests of `crates/nc-kernel/tests/isolation.rs`
+    /// refuse.
     #[test]
     fn every_kill_is_journaled_logged_and_said_in_words_of_its_own() {
         let killed = include_str!("../../../catalog/log-events.toml")
@@ -1033,9 +1034,9 @@ mod tests {
     /// many fall inside the window.
     ///
     /// Each is counted as a kill, and the plugin's own kills after them are
-    /// held to the whole budget still. **A verifier found it spent**: a plugin
-    /// whose store answered every read inside its deadline, but slowly, was
-    /// quarantined at its third write.
+    /// held to the whole budget still. **Spent by such kills**, the budget
+    /// would quarantine a plugin whose store answers every read inside its
+    /// deadline, but slowly, at its third write.
     #[test]
     fn a_kill_for_the_trees_deadline_spends_no_budget() {
         let mut supervision = Supervision::default();
@@ -1131,10 +1132,10 @@ mod tests {
     /// that what was sent outside this computer may have arrived, in every
     /// locale (`NOCTUA.md §11.5`: never widen the claim).
     ///
-    /// **A reviewer found every one of them saying nothing was kept** and to
-    /// try again, after a `POST` the kernel's own documents say may have
-    /// reached its host, so a person retrying sent it twice. Every way a
-    /// plugin is killed is matched here, so a new one is a message judged too.
+    /// **Never that nothing was kept, and to try again**: after a `POST` the
+    /// kernel's own documents say may have reached its host, a person told so
+    /// retries and sends it twice. Every way a plugin is killed is matched
+    /// here, so a new one is a message judged too.
     #[test]
     fn a_kill_or_an_abort_promises_a_person_only_what_noctua_reverses() {
         use nc_catalog::i18n::{Locale, message};
@@ -1182,11 +1183,11 @@ mod tests {
     /// A call is given its own share of the epoch, and none of the time the
     /// host answered a call before it.
     ///
-    /// **Written by a reviewer (wave 5, isolation).** With the host's account
-    /// carried from one call into the next, every suite of this crate stayed
-    /// green: a plugin that waited on the host in earlier calls ran that much
-    /// longer than its share in a later one — up to its tree's deadline, the
-    /// kill that spends no budget.
+    /// **The account starts empty at each call.** With the host's account
+    /// carried from one call into the next, this fails: a plugin that waited
+    /// on the host in earlier calls would run that much longer than its share
+    /// in a later one — up to its tree's deadline, the kill that spends no
+    /// budget.
     #[test]
     fn a_call_is_given_none_of_the_host_time_of_the_call_before_it() {
         let mut running = Running::default();
@@ -1211,9 +1212,9 @@ mod tests {
     /// The crossings are wasmtime's around a host call that answers a string:
     /// into the host, a wait, into the plugin's allocator, and into the host
     /// again at the epoch check at its entry, where the deadline is asked.
-    /// **This case found a real bug**: an account that only a call into the
-    /// host opened was opened again at that check, and the wait was counted
-    /// as the plugin's.
+    /// **The case an account opened only by a call into the host would get
+    /// wrong**: opened again at that check, it would count the wait as the
+    /// plugin's.
     #[test]
     fn the_plugins_allocator_inside_a_host_call_leaves_the_wait_to_the_host() {
         let mut running = Running::default();
@@ -1309,10 +1310,9 @@ mod tests {
     /// nearer deadline, trapping as the tree's, and one in a tree with nothing
     /// left is never started.
     ///
-    /// **A reviewer found a real bug with this**: the call was held to its own
-    /// deadline alone, so a fetch in a tree whose time was up was handed to
-    /// the transport and waited on for as long as the host call's deadline
-    /// allowed.
+    /// **Not its own deadline alone**: held to that, a fetch in a tree whose
+    /// time is up would be handed to the transport and waited on for as long
+    /// as the host call's deadline allows.
     #[tokio::test(start_paused = true)]
     async fn a_host_call_is_held_to_what_its_tree_has_left() {
         let left = Duration::from_millis(KERNEL.host_call_deadline_ms / 2);
@@ -1392,11 +1392,12 @@ mod tests {
     ///
     /// Quarantined, being started again by a release, running already, or
     /// unloaded: each is answered as what it is, and stands as it stood — an
-    /// unloaded plugin with no status at all. **A verifier
-    /// found the quarantined case held by nothing**: the slot was written busy
-    /// and then put back, and with the put-back deleted it stayed busy for
-    /// good with every suite green, because the decision point asks whether a
-    /// plugin is stopped before it ever checks one out.
+    /// unloaded plugin with no status at all. **The quarantined case is asked
+    /// of the check-out directly**: the decision point asks whether a plugin
+    /// is stopped before it checks one out, so a dispatch to a quarantined
+    /// plugin is refused before any check-out. A check-out that wrote the slot
+    /// busy and missed putting it back would leave a quarantined slot busy for
+    /// good.
     #[tokio::test]
     async fn a_check_out_leaves_a_slot_that_holds_no_store_as_it_was() {
         let (kernel, slot) = loaded().await;

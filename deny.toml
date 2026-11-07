@@ -19,16 +19,16 @@ all-features = true
 # "triage it later" would be a habit built for a problem it does not have.
 yanked = "deny"
 
-# **`unsound` defaults to the workspace and nobody chose that.** cargo-deny
-# 0.20.2's default is `Scope::Workspace`, which reports an unsound advisory only
-# when a *direct* dependent is a workspace member. This tree's direct
-# dependencies are a small part of the graph (`cargo metadata --format-version 1`
-# lists them, and the dependency step of `cargo xtask check` prints how many
-# crates it read), so an unsound advisory against anything deep inside `sqlx` or
-# `cedar-policy` — or against `libc`, `ring`, `hashbrown` — was silently
-# dropped. `unmaintained` is fine at its own
-# default of `all`; this was the one that was off, and the default is a decision
-# somebody has to make on purpose.
+# **`unsound` defaults to the workspace, which is a choice this file does not
+# leave to the default.** cargo-deny 0.20.2's default is `Scope::Workspace`,
+# which reports an unsound advisory only when a *direct* dependent is a
+# workspace member. This tree's direct dependencies are a small part of the
+# graph (`cargo metadata --format-version 1` lists them, and the dependency step
+# of `cargo xtask check` prints how many crates it read), so at that default an
+# unsound advisory against anything deep inside `sqlx` or `cedar-policy` — or
+# against `libc`, `ring`, `hashbrown` — is silently dropped. `unmaintained` is
+# fine at its own default of `all`; `unsound` is the one that is off, and a
+# default is a decision somebody has to make on purpose.
 unsound = "all"
 ignore = []
 
@@ -41,7 +41,7 @@ ignore = []
 # **No copyleft, not even file-level.** MPL-2.0 is deliberately absent: modifying
 # a covered file obliges publishing that file's source, which is not satisfied by
 # shipping a notice — and this repository carries no licence of its own
-# (`NOCTUA.md §5.10`), so inheriting an obligation in passing is exactly
+# (`NOCTUA.md §10.12`), so inheriting an obligation in passing is exactly
 # what not to do. If something genuinely needs it, that is a conversation, not a
 # line added here.
 #
@@ -87,43 +87,43 @@ allow = [
 ]
 confidence-threshold = 0.9
 
-# **Dev-dependency licences, which were not checked.** cargo-deny's default is
-# `include-dev = false`, so twenty crates — `proptest` and everything it brings —
-# were outside the licence audit entirely. Measured: 252 crates checked without
-# it, 272 with. None of the twenty violates the list *today*, so the audit was
+# **Dev-dependency licences, which the default does not check.** cargo-deny's
+# default is `include-dev = false`, which leaves twenty crates — `proptest` and
+# everything it brings — outside the licence audit entirely. Measured: 252
+# crates checked without it, 272 with. None of the twenty violates the list *today*, so an audit without it is
 # clean by luck rather than by check, and this file's own reason for excluding
 # MPL-2.0 — not inheriting a copyleft obligation in passing, in a repository
-# with no licence of its own (`NOCTUA.md §5.10`) — applies to a test dependency exactly as it does to a
+# with no licence of its own (`NOCTUA.md §10.12`) — applies to a test dependency exactly as it does to a
 # runtime one. Test sources ship from this repository like any other file.
 include-dev = true
 # This repository's own crates carry no `license` key: `noctua-central` has no
-# licence (`NOCTUA.md §5.10`). Every crate here is `publish = false`, so this exempts exactly those.
+# licence (`NOCTUA.md §10.12`). Every crate here is `publish = false`, so this exempts exactly those.
 private = { ignore = true }
 
 [bans]
 # A duplicated version is worth knowing about and is not always worth failing
 # over: it can mean two dependencies disagree about a transitive minor, which is
-# somebody else's release to make. When it is *our* pin that disagrees — this
-# repository had `anstream 0.6` beside `clap`'s `anstream 1.0` on the first day —
-# the warning is the thing that says so, and the fix is one line.
+# somebody else's release to make. When it is *our* pin that disagrees — an
+# `anstream 0.6` of ours beside `clap`'s `anstream 1.0`, say — the warning is
+# the thing that says so, and the fix is one line.
 multiple-versions = "warn"
 
-# **And dev-dependency duplicates, which were not counted.** The exact sibling of
-# the `include-dev` fix in `[licenses]`, left open one section down:
-# cargo-deny's default is `false`, so `proptest`'s tree was outside duplicate
-# detection entirely. Turning it on, on the day it was turned on, surfaced five
-# crates at more than one version that the audit had never seen, and
-# `xtask/src/check.rs` treats every cargo-deny *warning* as a build failure, so
-# this one key was hiding five findings. Which crates are duplicated today is
+# **And dev-dependency duplicates, which the default does not count.** The
+# sibling of `include-dev` in `[licenses]`, one section down: cargo-deny's
+# default is `false`, which leaves `proptest`'s tree outside duplicate detection
+# entirely. Measured, turning it on surfaced five crates at more than one
+# version that the audit without it does not see, and `xtask/src/check.rs`
+# treats every cargo-deny *warning* as a build failure, so without this key
+# findings like those never reach the gate. Which crates are duplicated today is
 # the `skip` list below, held to the graph both ways — cargo-deny warns on a
 # duplicate it does not name and on an entry that matches nothing — and
 # `cargo tree --locked -d --target all -e normal,build,dev` shows who brings
 # each.
 multiple-versions-include-dev = true
 # **And every duplicate that exists today is named here.** Acceptance criterion 1
-# is "no failures **and** no warnings", and nineteen of these printed on a clean
-# tree — a wall of noise that trains a reader to skip the line, which is exactly
-# how the twentieth would arrive unnoticed. Naming them makes the current set a
+# is "no failures **and** no warnings", and unnamed, these print on a clean tree
+# as a wall of noise that trains a reader to skip the line — which is exactly
+# how a new one would arrive unnoticed. Naming them makes the current set a
 # decision and any *new* one a warning again.
 #
 # Every entry below is somebody else's transitive disagreement, not a pin of
@@ -132,14 +132,6 @@ multiple-versions-include-dev = true
 # *is* ours belongs in a fix, not in this list. `cargo tree --locked -i
 # <crate>@<version> --target all -e all` names who brings each version, and it
 # is the command to run before believing a comment here.
-#
-# **`toml` and `toml_datetime` were in this list and were ours.**
-# `crates/nc-policy/Cargo.toml` pinned `toml = "0.9"` directly while the
-# workspace declared `1.1`, so both were linked into the same `xtask` binary —
-# a duplicate this comment says belongs in a fix, silenced by the list that says
-# it does not hold any. The fix was one line: `toml.workspace = true`. Both
-# entries are gone from here, so the day a real second `toml` appears it is a
-# warning again.
 skip = [
     "arrayvec",
     "cpufeatures",
@@ -171,16 +163,18 @@ skip = [
     # when `sqlx` moves.
     "base64",
     # `windows-sys` 0.52 is `ring`'s, under `rustls`, and 0.61 is `tokio`'s,
-    # under `mio` — the bindings each was written against, compiled only for a
-    # Windows target, which no build of this tree is. They unify when `ring`
-    # moves.
+    # under `mio`, and `nc-platform`'s own, for its Windows half — the bindings
+    # each was written against, compiled only for a Windows target, which the
+    # Windows job of the workflow builds. They unify when `ring` moves.
     "windows-sys",
     # Two randomness stacks: `proptest`'s, dev-only, on `rand` 0.9, and the
     # one `sqlx-postgres` draws SCRAM's nonce from, on `rand` 0.10 — each with
-    # its own `rand_core`, `getrandom` and, for UEFI, `r-efi`. They arrived
-    # with `multiple-versions-include-dev`, when `proptest`'s side was the only
-    # one; skipped by name like the rest, so a *new* duplicate is still a
-    # finding.
+    # its own `rand_core`, `getrandom` and, for UEFI, `r-efi`. `rand`,
+    # `rand_core` and `r-efi` are duplicates only because
+    # `multiple-versions-include-dev` reads `proptest`'s dev-only side;
+    # `getrandom` is one without it as well, since `ring` brings 0.2 beside the
+    # 0.4 under `rand` 0.10. Skipped by name like the rest, so a *new* duplicate
+    # is still a finding.
     "getrandom",
     "r-efi",
     "rand",
@@ -200,8 +194,8 @@ allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 
 # **What a build script is allowed to run.** Every crate in the graph may have a
 # `build.rs` — `cargo metadata --format-version 1` lists them, as the
-# `custom-build` targets of its `packages` — and nothing looked at what those
-# scripts contain. An allow-list of them is a list that changes with every
+# `custom-build` targets of its `packages` — and without this section nothing
+# looks at what those scripts contain. An allow-list of them is a list that changes with every
 # dependency bump and buys little: `serde`, `libc` and `proc-macro2` having build scripts is not the
 # hazard. What is the hazard is a *precompiled binary* shipped inside a crate and
 # run from its build script, which is the shape a supply-chain compromise takes

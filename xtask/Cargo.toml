@@ -28,6 +28,12 @@ tokio.workspace = true
 # open cannot disagree about what `local-migrations/` must build. It does not
 # reach `nc-log`, so taking it keeps this tool outside the log's wall.
 nc-local.workspace = true
+# **What this system has that a suite needs**, read by the test step to name,
+# beside its count and its verdict, each suite this system stands aside: the
+# one place a system is asked what it has (`NOCTUA.md §2.7`). In this tool's
+# graph already, under `nc-local`, so it adds no package; the test doors stay
+# behind `test-support`, which only the dev-dependency below turns on.
+nc-platform.workspace = true
 
 # The alarms in `AGENTS.md` are copied verbatim from `NOCTUA.md §3.6` and are
 # printed when `NOCTUA.md` cannot be reached, so they cannot be compared against
@@ -49,13 +55,13 @@ clap.workspace = true
 # is the only thing that prints.
 anstream = "1.0"
 anstyle = "1.0"
-# **A manifest is TOML, and the type wall's scope gate used to read it as text.**
-# `can_log` enumerated the spellings it knew — `nc-log `, `nc-log=`,
-# `nc-log.workspace`, `[dependencies.nc-log]` — and cargo accepts more:
-# `[target.'cfg(unix)'.dependencies.nc-log]` and the quoted key
-# `"nc-log".workspace = true` both compile and both walked past it, switching the
-# gate off for a crate that really does log. A parser answers for every spelling
-# there is, and this one is already the workspace's.
+# **A manifest is TOML, and a gate that reads one as text misses spellings cargo
+# accepts.** A reader of text enumerates the spellings it knows — `nc-log `,
+# `nc-log=`, `nc-log.workspace`, `[dependencies.nc-log]` — and cargo accepts
+# more: `[target.'cfg(unix)'.dependencies.nc-log]` and the quoted key
+# `"nc-log".workspace = true` both compile and both walk past such a list, so a
+# gate scoped by one is switched off for a crate that really does log. A parser
+# answers for every spelling there is, and this one is already the workspace's.
 toml.workspace = true
 # **What turns a plugin into a component**, and the reason it is a dependency of
 # the gate rather than a tool somebody installs: `cargo xtask check` builds every
@@ -72,13 +78,21 @@ wit-component.workspace = true
 # under `wit-component`.
 wit-parser.workspace = true
 # **Cargo's own answer to who is in this workspace and what each depends on.**
-# `check` read the manifests itself and got both questions wrong for manifests
-# cargo accepts: a dependency renamed through `[workspace.dependencies]` hid the
+# A reader of the manifests would get both questions wrong for manifests cargo
+# accepts: a dependency renamed through `[workspace.dependencies]` would hide the
 # log from the type wall's scope, and a path dependency inside the workspace
 # directory is a member cargo builds without being listed in `members`. Both are
 # resolution rules, and re-deriving them is writing a second cargo. `cargo
 # metadata` answers in JSON; this is the deserialiser the tree already uses.
 serde_json.workspace = true
+
+[dev-dependencies]
+# **A link, made the way this system makes one**, for the tests that drive the
+# checkout script through one: a symbolic link on Unix, and on Windows a
+# symbolic link to a file and a junction to a directory, through the test doors
+# of the crate where each system's answer is written. Already in this tool's
+# graph under `nc-local`, so it adds no package.
+nc-platform = { workspace = true, features = ["test-support"] }
 
 [lints]
 workspace = true

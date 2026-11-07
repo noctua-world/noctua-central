@@ -3,20 +3,14 @@
 //
 // That file is **normative and outranks `NOCTUA.md`** (`§0.4`), so this is a
 // transcription rather than a design. Every entity, attribute and action below
-// appears there, and the transcription is now whole.
+// appears there, and this file departs from it in nothing — the declarations
+// Cedar forces included: `entity Grant`, `entity Folder`, `context.quorum_met`
+// and `context.grant` are declared in §4 too, by the developer's decision that
+// the reference says what it requires.
 //
-// **It was not.** Four declarations Cedar forces stood here and not in the
-// reference — `entity Grant`, `entity Folder`, `context.quorum_met` and
-// `context.grant` — each marked as an addition and each carrying its reason.
-// Two of them the reference already required in prose without declaring: it
-// describes every relation tuple as a `Grant` with provenance, and it writes
-// `Content in [Folder, …]` without a `Folder` to be in. The developer decided
-// the reference should say what it required, so §4 now declares all four and
-// this file departs from it in nothing.
-//
-// The rule that leaves behind: where this file and the reference disagree, the
-// reference is what changes, because it is the one that outranks. A departure
-// marked here is a decision deferred, not a decision taken.
+// Where this file and the reference disagree, the reference is what changes,
+// because it is the one that outranks. A departure marked here is a decision
+// deferred, not a decision taken.
 //
 // It is what the decision point in `crates/nc-authz` builds every request on,
 // and a request it refuses is denied before any policy runs. `§14.4` also says
@@ -78,10 +72,9 @@ entity Content in [Folder, Feature, Realm] = {
   "encrypted": Bool,
 };
 
-// The reference named `Folder` as a parent of `Content` and, for a while, never
-// as an entity of its own — so Cedar had to be told it exists before
-// `Content in [Realm, Folder]` would validate. It carries no attributes, which
-// is why it was easy to miss. §4 declares it now.
+// A parent of `Content`, and an entity of its own: Cedar has to be told it
+// exists before `Content in [Realm, Folder]` validates. It carries no
+// attributes, and §4 declares it.
 entity Folder in [Realm];
 
 // The reference keeps grants as PostgreSQL relation tuples, and a Cedar policy

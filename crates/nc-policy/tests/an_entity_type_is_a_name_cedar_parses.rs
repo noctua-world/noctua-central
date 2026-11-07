@@ -12,9 +12,10 @@
 //! can never be built. A name Cedar parses and the schema refuses fails closed
 //! when the command is declared; each such name is written down below.
 //!
-//! Found by review: seven of the nine reserved words could be dropped from
-//! `nc-schema`'s list with every suite green, and `then` dropped from it
-//! compiled `"x-entity": "then"`, which Cedar refuses.
+//! Each word Cedar reserves is asked of both sides here, bare and as either
+//! segment of a namespaced name, so a word dropped from `nc-schema`'s list
+//! fails this file: `then` dropped from it compiles `"x-entity": "then"`,
+//! which Cedar refuses.
 
 use std::str::FromStr;
 

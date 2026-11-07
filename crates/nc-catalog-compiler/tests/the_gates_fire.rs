@@ -10,13 +10,12 @@
 //! **the check that fired is the one the test names**, and that the message
 //! names the offending key, code or table.
 //!
-//! **The second of those was a finding.** An earlier version matched a substring
-//! of the message against either field, so a test could be satisfied by a
-//! completely different check that happened to mention the same word — one of
-//! them was, and stayed green with the check it named switched off entirely.
-//! `Problem::check` is a stable identity per check, and asserting on it is what
-//! makes "this failed for the reason claimed" an assertion rather than a
-//! coincidence.
+//! **The second of those is what makes the first mean something.** A test that
+//! matches a substring of the message against either field can be satisfied by
+//! a completely different check that happens to mention the same word, and stay
+//! green with the check it names switched off entirely. `Problem::check` is a
+//! stable identity per check, and asserting on it is what makes "this failed
+//! for the reason claimed" an assertion rather than a coincidence.
 
 use std::path::{Path, PathBuf};
 
@@ -50,7 +49,7 @@ impl Scratch {
     /// `§19.5`'s vacuous assertion arriving through the fixture rather than
     /// through the assertion.
     ///
-    /// **And the message says where to look, which it did not.** Every fixture
+    /// **And the message says where to look.** Every fixture
     /// here edits a copy of the repository's own `catalog/`, so a needle that
     /// stops matching means the *shipped registry* changed — a value weakened,
     /// a key renamed, a budget rewritten. Read as "this test proves nothing" it
@@ -130,12 +129,11 @@ impl Scratch {
 
     /// The file and line a diagnostic reports, with the line's text.
     ///
-    /// **Eleven line numbers and nothing read one.** Every located diagnostic in
-    /// this compiler carries a line, and no test in any suite ever opened the
-    /// file and looked: measured in round sixty-two, each of six diagnostics'
-    /// line expression replaced by the constant `1` survived
-    /// `cargo test -p nc-catalog-compiler`. A line number nothing reads back is
-    /// a number, not a location.
+    /// **A line number nothing reads back is a number, not a location.** Every
+    /// located diagnostic in this compiler carries a line, and without a test
+    /// that opens the file and looks, each of six diagnostics' line expression
+    /// replaced by the constant `1` survives `cargo test -p
+    /// nc-catalog-compiler`.
     ///
     /// The two callers below assert a line *computed from the file*, never a
     /// number written down here — a pinned number is the same defect one layer
@@ -169,7 +167,7 @@ impl Scratch {
     /// The group is the keys sharing this one's prefix, and the *last* of them
     /// is the insertion point — the first of them, or the end of the file, both
     /// file a newcomer's key in the wrong block, which is what `where_to_write`
-    /// exists to stop and what nothing was checking.
+    /// exists to stop.
     fn points_after_the_group_of(&self, check: &str, key: &str) {
         let (file, at, line) = self.reported(check);
         let text = std::fs::read_to_string(self.root.join(&file)).expect("readable");
@@ -226,9 +224,9 @@ impl Scratch {
 
     fn refused(&self, check: &str, naming: &str, names: Names) {
         // **An empty name is refused, not accepted.** `what.contains("")` is
-        // true, so passing `""` here silently switched off the second assertion
-        // below — and four cases did exactly that, under a module header
-        // promising every message names what broke.
+        // true, so passing `""` here would silently switch off the second
+        // assertion below, under a module header promising every message
+        // names what broke.
         assert!(
             !naming.is_empty(),
             "`{check}` was checked without saying what its message must name"
@@ -282,12 +280,12 @@ impl Drop for Scratch {
 
 /// Where a diagnostic has to name what broke.
 ///
-/// **`naming` was satisfied by the file path, and six rows paid for it.**
+/// **`naming` is not satisfied by the file path alone.**
 /// `problem.what.contains(naming) || problem.file.contains(naming)` is the
 /// right question when `naming` is a path — a problem about a whole file names
 /// it in `file` and has nothing to repeat in `what` — and the wrong one when
-/// `naming` is a *datum the sentence computed*. Measured, three data corrupted
-/// and no path touched:
+/// `naming` is a *datum the sentence computed*. Measured with that question,
+/// three data corrupted and no path touched:
 ///
 /// ```text
 /// load.rs   floor(…, "emails")   -> "areas"   34 suites, 0 failures
@@ -296,10 +294,10 @@ impl Drop for Scratch {
 ///                                             34 suites, 0 failures
 /// ```
 ///
-/// `catalog/emails.toml` then reported *"declares no areas"* and
-/// `denial-was-not-a-missing-permit` named no case, with every suite green:
-/// `"emails"` is a substring of `catalog/emails.toml`, so the file path was
-/// answering for the sentence.
+/// `catalog/emails.toml` then reports *"declares no areas"*
+/// and `denial-was-not-a-missing-permit` names no case, with every suite
+/// green: `"emails"` is a substring of `catalog/emails.toml`, so the file path
+/// answers for the sentence.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Names {
     /// Anywhere a reader looks — the sentence or the file it is filed under.
@@ -344,14 +342,12 @@ fn the_real_catalog_compiles() {
 
 #[test]
 fn a_diagnostic_about_something_present_in_a_file_says_which_line() {
-    // §15.1 asks for the exact location. Three classes of i18n diagnostic used
-    // to carry none, although the key was physically present in the file being
-    // reported on.
+    // §15.1 asks for the exact location, and an i18n diagnostic about a key
+    // physically present in the file being reported on can carry it.
     //
-    // The name used to claim *every* diagnostic and this checked one class. The
-    // rule cannot be "every diagnostic carries a line" — `missing-key` is about
-    // a key that is **not** in the file, and there is no line to point at — so
-    // what is asserted is the rule that can be true: a diagnostic naming
+    // The rule cannot be "every diagnostic carries a line" — `missing-key` is
+    // about a key that is **not** in the file, and there is no line to point at
+    // — so what is asserted is the rule that can be true: a diagnostic naming
     // something the file contains says where it is.
     let scratch = Scratch::new("located");
     scratch.edit("catalog/i18n/pt-BR.toml", |mut text| {
@@ -391,20 +387,19 @@ fn a_diagnostic_about_something_present_in_a_file_says_which_line() {
 
 /// A key that is present and says nothing is refused.
 ///
-/// **`""` and `"   "` passed every rule in `messages.rs`.** The completeness
-/// guarantee is about a key's presence, never about it having a sentence: the
-/// empty string was caught downstream by a generated-crate assertion, and the
-/// whitespace one only by a Markdown cell that happens to trim — so an ordinary
-/// tidy-up to that comparison would have shipped a blank translation with
-/// `check passed`. Asked of the source locale too, because an empty English
-/// sentence is a page with a gap in it.
+/// **Without this rule, `""` and `" "` pass every rule in `messages.rs`.** The
+/// completeness guarantee is about a key's presence, never about it having a
+/// sentence: the empty string is caught downstream by a generated-crate
+/// assertion, and the whitespace one only by a Markdown cell that happens to
+/// trim — so an ordinary tidy-up to that comparison would ship a blank
+/// translation with `check passed`. Asked of the source locale too, because an
+/// empty English sentence is a page with a gap in it.
 #[test]
 fn a_key_that_says_nothing_fails_the_build() {
-    // **Both locale files, because the check was asked of only one.** This
-    // test's own doc claimed the source locale was covered while its body
-    // edited `pt-BR.toml` alone — and the call site sat past the `continue`
-    // that skips the source. Retargeting this loop is what measured it: a blank
-    // English sentence was accepted with no problem reported at all.
+    // **Both locale files, because the doc claims both.** A body editing
+    // `pt-BR.toml` alone cannot see a call site past the `continue` that skips
+    // the source; with the call there, a blank English sentence is accepted
+    // with no problem reported at all.
     for file in ["catalog/i18n/pt-BR.toml", "catalog/i18n/en.toml"] {
         for blank in ["\"\"", "\"   \""] {
             let scratch = Scratch::new("blank");
@@ -455,7 +450,7 @@ fn a_key_that_says_nothing_fails_the_build() {
 
 #[test]
 fn every_diagnostic_is_english() {
-    // A developer's build log used to read "Português do Brasil is missing …",
+    // A developer's build log must not read "Português do Brasil is missing …",
     // in a repository whose every artifact is English (§2.1).
     let scratch = Scratch::new("english");
     scratch.edit("catalog/i18n/pt-BR.toml", |text| {
@@ -465,11 +460,11 @@ fn every_diagnostic_is_english() {
             .join("\n")
     });
     // **The loop is the whole test, so an empty one asserts nothing.** This
-    // bypasses `must_fail`, which is what every sibling here uses to require the
-    // check to have fired at all: measured, with the `missing-key` push deleted
-    // from `messages.rs`, its two named canaries went red and this printed `ok`
-    // over zero diagnostics. A `for` over an empty collection is `§19.5`'s
-    // vacuous assertion in its plainest form.
+    // bypasses `must_fail`, which is what every sibling here uses to require
+    // the check to have fired at all: measured without the floor, with the
+    // `missing-key` push deleted from `messages.rs`, its two named canaries go
+    // red and this prints `ok` over zero diagnostics. A `for` over an empty
+    // collection is `§19.5`'s vacuous assertion in its plainest form.
     let problems = scratch.problems();
     assert!(
         !problems.is_empty(),
@@ -500,13 +495,14 @@ fn a_key_missing_from_one_locale_fails_the_build_and_the_error_names_it() {
 
 /// A locale file is one whatever case its extension is written in.
 ///
-/// **The rule reads the extension case-insensitively and nothing drove that.**
-/// Written `== "toml"`, a file named `fr.TOML` stops being a locale — it is not
-/// read, so it is not in any completeness check, and a locale missing every key
-/// in the catalog passes the build in silence. The whole suite stayed green
-/// under that narrowing, which is what makes it worth a fixture: the repair
-/// exists because a translator's editor, or a case-insensitive filesystem, can
-/// produce that name without anyone choosing it.
+/// **The rule reads the extension case-insensitively, and this drives
+/// that.** Written `== "toml"`, a file named `fr.TOML` stops being a locale —
+/// it is not read, so it is not in any completeness check, and a locale missing
+/// every key in the catalog passes the build in silence. Without this fixture
+/// the whole suite stays green under that narrowing, which is what makes it
+/// worth one: the rule exists because a translator's editor, or a
+/// case-insensitive filesystem, can produce that name without anyone choosing
+/// it.
 ///
 /// The fixture removes a key from the renamed file, so the failure is the
 /// completeness rule firing — proof the file was *read*, not merely present.
@@ -567,9 +563,9 @@ fn a_locale_file_whose_tag_disagrees_with_its_name_fails_the_build() {
 #[test]
 fn a_registry_entry_pointing_at_a_key_nobody_wrote_fails_the_build() {
     // Through a **notification**, not an error. Pointing an error at a missing
-    // key also repoints its ledger reservation, and the earlier version of this
-    // test was satisfied entirely by the ledger's diagnostic — it stayed green
-    // with the check it names disabled.
+    // key also repoints its ledger reservation, so a test through an error that
+    // matched a substring of the message would be satisfied entirely by the
+    // ledger's diagnostic — green with the check it names disabled.
     let scratch = Scratch::new("dangling-key");
     scratch.edit("catalog/notifications.toml", |text| {
         text.replace(
@@ -594,10 +590,9 @@ fn a_sentence_that_uses_what_nothing_declares_fails_the_build() {
 
 #[test]
 fn a_title_is_checked_and_not_only_a_body() {
-    // The hole this check had: an entry governs **two** messages and only the
-    // body was compared, under a comment promising both were. A subject or a
-    // title could interpolate anything at all and the build stayed green, and
-    // the reader would see the braces.
+    // An entry governs **two** messages, and with only the body compared a
+    // subject or a title could interpolate anything at all with the build
+    // green, and the reader would see the braces.
     //
     // Edited in both locales, so `placeholders-differ` cannot be what fires and
     // this cannot pass for the wrong reason.
@@ -751,24 +746,25 @@ fn repointing_a_code_at_a_different_error_fails_the_build() {
 
 #[test]
 fn deleting_the_ledger_does_not_free_a_single_code() {
-    // `rm catalog/errors.reserved.toml` used to free every code in the
-    // repository, and the next build blessed whatever renumbering followed.
+    // Without the refusal, `rm catalog/errors.reserved.toml` frees every code
+    // in the repository, and the next build blesses whatever renumbering
+    // follows.
     let scratch = Scratch::new("no-ledger");
     std::fs::remove_file(scratch.root.join("catalog/errors.reserved.toml")).expect("removable");
-    // **The file, not a word of the sentence.** These asserted `"missing"` and
+    // **The file, not a word of the sentence.** Asserting `"missing"` and
     // `"checksum"` against templates that always print `is missing` and
-    // `checksum`, so the second half of `must_fail` — the half the module header
-    // calls "the message names the offending key, code or table" — could not
-    // fail while the check fired. The `!naming.is_empty()` guard closes only the
-    // empty string. A file-wide diagnostic names its file.
+    // `checksum` leaves the second half of `must_fail` — the half the module
+    // header calls "the message names the offending key, code or table" —
+    // unable to fail while the check fires. The `!naming.is_empty()` guard
+    // closes only the empty string. A file-wide diagnostic names its file.
     scratch.must_fail("ledger-missing", "errors.reserved.toml");
 }
 
 #[test]
 fn clearing_the_ledgers_checksum_does_not_free_a_code() {
-    // The door the first fix left open: keep the reservations, drop the
-    // checksum, repoint a code — and `cargo xtask check` reported `check passed`
-    // on a catalog whose error code had silently changed meaning.
+    // The door a blank checksum would open: keep the reservations, drop the
+    // checksum, repoint a code — and `cargo xtask check` would report
+    // `check passed` on a catalog whose error code has silently changed meaning.
     let scratch = Scratch::new("cleared-checksum");
     scratch.edit("catalog/errors.reserved.toml", |text| {
         text.lines()
@@ -787,8 +783,8 @@ fn clearing_the_ledgers_checksum_does_not_free_a_code() {
 
 #[test]
 fn hand_editing_the_ledger_does_not_ratify_itself() {
-    // It used to: the ledger was generated output compared against output
-    // derived from the ledger, so `check` reported "in sync" after a hand edit.
+    // A ledger emitted as generated output and compared against output derived
+    // from it would: `check` would report "in sync" after a hand edit.
     let scratch = Scratch::new("edited-ledger");
     scratch.edit("catalog/errors.reserved.toml", |text| {
         text.lines()
@@ -801,20 +797,20 @@ fn hand_editing_the_ledger_does_not_ratify_itself() {
 
 #[test]
 fn an_event_may_not_declare_an_identifier_field_while_5_1_is_open() {
-    // **The twelfth way into the type wall**, and the registry itself offered
-    // it. `type = "id"` generates a field of type `nc_ids::OpaqueId`, and
+    // **A way into the type wall that the registry itself offers.**
+    // `type = "id"` generates a field of type `nc_ids::OpaqueId`, and
     // `OpaqueId::new` accepts any 1..=128 bytes of `[A-Za-z0-9._:-]` — a
     // username, a document number, a phone number, an email local-part.
-    // Measured: one registry line, an ordinary call site with no `format!`, no
-    // `to_string()`, no leak and no macro, and
-    // `{"actor":"ana.paula.silva.123.456.789-00"}` reached the store with all
-    // eleven compile-fail fixtures green and `check passed`.
+    // Measured without this refusal: one registry line, an ordinary call site
+    // with no `format!`, no `to_string()`, no leak and no macro, and
+    // `{"actor":"ana.paula.silva.123.456.789-00"}` reaches the store with every
+    // compile-fail fixture green and `check passed`.
     //
     // None of the fixtures refuses it because none of them can: the field is
     // generated, the value is a legitimate `OpaqueId`, and every type involved
-    // is exactly what the registry asked for. The wall's guarantee rested on the
-    // *contents of the registry* rather than on the types, which is not what
-    // `§15.4` claims.
+    // is exactly what the registry asked for. The wall's guarantee would rest
+    // on the *contents of the registry* rather than on the types, which is not
+    // what `§15.4` claims.
     let scratch = Scratch::new("field-kind-id");
     scratch.edit("catalog/log-events.toml", |text| {
         text.replace(
@@ -836,17 +832,17 @@ fn an_event_may_not_declare_an_identifier_field_while_5_1_is_open() {
             )
         });
         let problems = allowed.problems();
-        // **Empty, not merely free of one check.** `!any(…)` over an empty
-        // list is true whatever the compiler did, and an iterator probe over the
-        // whole suite measured this closure never seeing an element. A kind the
-        // registry declares has to compile *clean*, which is the assertion.
+        // **Empty, not merely free of one check.** `!any(…)` over an empty list
+        // is true whatever the compiler did, and an iterator probe over the
+        // whole suite measures such a closure never seeing an element. A kind
+        // the registry declares has to compile *clean*, which is the assertion.
         assert!(problems.is_empty(), "`{kind}` was refused: {problems:#?}");
     }
 }
 
 #[test]
 fn an_event_may_not_declare_a_field_the_log_writes_itself() {
-    // They collided in one map and the event's won, so a line could carry a
+    // In one map they collide and the event's wins, so a line can carry a
     // level its event does not have and a service it did not come from. The
     // ordering in `nc-log` is one half; refusing the name here is the other, and
     // it is the half a reader meets when they write the field.
@@ -873,15 +869,17 @@ fn the_pages_carry_values_the_shipped_registry_happens_not_to_use() {
     //
     // * `cell()`, "the only thing between a translator's sentence and a table
     //   that renders as garbage" — no message in either locale contains a `|`,
-    //   so replacing it with the identity function left everything green;
+    //   so over the shipped catalog alone the identity function in its place
+    //   would leave everything green;
     // * `parameters()`'s populated branch — the one email declares none;
     // * `"It carries no fields."` — all the events have fields.
     //
     // And two columns of `commands.md` that the generated-source twin below
-    // covers and the page side did not: **no command declares a keybinding**, so
-    // the page's `—` was a constant, and **both declare the same resource
-    // selector**, so `realm` was one too. Those are the two facts a dispatcher
-    // and a keyboard user each read first.
+    // covers only in the source: **no command declares a keybinding**, so over
+    // the shipped catalog a page that never published the row would pass, and
+    // **every command declares the same resource selector**, so a constant
+    // `realm` would pass too. Those are the two facts a dispatcher and a
+    // keyboard user each read first.
     //
     // Driven over a copy that does carry them, rather than by inventing product
     // decisions in the registry that ships.
@@ -898,14 +896,15 @@ fn the_pages_carry_values_the_shipped_registry_happens_not_to_use() {
         text.replace("params = []", "params = [\"who\"]")
     });
     // **The notification's severity**, which the shipped registry has only one
-    // value of: publishing a literal `info` produced a byte-identical page and
-    // everything green. The generated-source twin covers this; the page side
-    // did not.
+    // value of: over that registry alone, publishing a literal `info` would
+    // produce a byte-identical page and everything green. The generated-source
+    // twin covers the source; this covers the page.
     scratch.edit("catalog/notifications.toml", |text| {
         text.replace("severity = \"info\"", "severity = \"warning\"")
     });
-    // One command differs and the other does not, so a constant fails whichever
-    // value it is: `—` misses the declared key, `C-c C-v` misses the absent one.
+    // One command differs and the others do not, so a constant fails whichever
+    // value it is: never writing the row misses the declared key, always
+    // writing `C-c C-v` misses the absent one.
     // The selector reads an argument the schema has to back — declared,
     // required, a bounded string naming its entity type — so the schema grows
     // the argument it selects.
@@ -955,10 +954,10 @@ fn the_pages_carry_values_the_shipped_registry_happens_not_to_use() {
     // command that declares them publishes them; the section of the one that
     // does not publishes no keybinding row at all.
     //
-    // **`Keybinding | — |` was on every row of the shipped page**, because no
-    // command declares one — a column of em-dashes a reader has to look at
-    // twice to learn it says nothing. The row appears when there is a binding
-    // and not otherwise, and this test drives both halves.
+    // **No `Keybinding | — |` on every row of the shipped page**: no command
+    // declares one, and such a column of em-dashes is one a reader has to look
+    // at twice to learn it says nothing. The row appears when there is a
+    // binding and not otherwise, and this test drives both halves.
     let commands = page("commands.md");
     let section = |name: &str| -> String {
         let opening = format!("## `{name}`\n");
@@ -1026,9 +1025,9 @@ fn the_emitter_carries_values_the_shipped_registry_happens_not_to_use() {
     // fields in `xtask/tests/the_registry_reaches_the_code.rs` are compared
     // against a registry that has exactly one value for each, so an emitter
     // writing that value as a constant passes: no command declares a keybinding,
-    // both declare the same resource selector, the one email declares no
-    // parameters, and the one notification is `info`. The `Some(…)` branch of
-    // `keybinding` was dead code with no test at all.
+    // every command declares the same resource selector, the one email declares
+    // no parameters, and the one notification is `info`. Against that registry
+    // alone, the `Some(…)` branch of `keybinding` would be dead code.
     //
     // Rather than invent product decisions in the shipped registry, this drives
     // the emitter over a copy that does differ, and asserts each value reaches
@@ -1038,9 +1037,8 @@ fn the_emitter_carries_values_the_shipped_registry_happens_not_to_use() {
     scratch.edit("catalog/notifications.toml", |text| {
         text.replace("severity = \"info\"", "severity = \"warning\"")
     });
-    // The one this test named and did not touch: it edited commands and
-    // notifications and asserted on their modules, never on an email. Replacing
-    // the email's params with a constant `&[]` was green.
+    // The email too: were only commands and notifications edited and asserted
+    // on, replacing the email's params with a constant `&[]` would stay green.
     scratch.edit("catalog/emails.toml", |text| {
         text.replace("params = []", "params = [\"who\"]")
     });
@@ -1080,10 +1078,11 @@ fn the_emitter_carries_values_the_shipped_registry_happens_not_to_use() {
         notifications.contents.contains("Severity::Warning"),
         "a notification's severity did not reach the generated source"
     );
-    // And the writing direction, which both shipped locales share — so emitting
-    // a constant `"ltr"` produced a byte-identical file and nothing went red. On
-    // the day an RTL locale arrives, `<html dir>` would be wrong platform-wide
-    // (`§10.9`) and this is the only thing that would say so.
+    // And the writing direction, which both shipped locales share — so over
+    // them alone a constant `"ltr"` would produce a byte-identical file and
+    // nothing would go red. On the day an RTL locale arrives, `<html dir>`
+    // would be wrong platform-wide (`§10.9`), and the assertion below is what
+    // says so.
     let locales = compiled
         .files
         .iter()
@@ -1109,9 +1108,9 @@ fn the_emitter_carries_values_the_shipped_registry_happens_not_to_use() {
 fn every_file_the_emitter_writes_is_somewhere_the_stale_check_walks() {
     // `GENERATED_DIRECTORIES` is what `cargo xtask check` walks looking for a
     // file that carries the generated header and that nothing emits any more.
-    // Nothing tied it to what the emitter actually writes, so an emitter that
-    // began writing outside those directories would leave the leftovers there
-    // invisible — and `build` never deletes.
+    // This ties it to what the emitter actually writes: otherwise an emitter
+    // that began writing outside those directories would leave the leftovers
+    // there invisible — and `build` never deletes.
     //
     // A later stage that emits into a hand-written crate cannot simply add its
     // directory here: `GENERATED_DIRECTORIES` means *every* file under it is
@@ -1146,8 +1145,8 @@ fn every_file_the_emitter_writes_is_somewhere_the_stale_check_walks() {
 
 #[test]
 fn a_locale_that_cannot_be_read_is_reported_as_such() {
-    // The one check identity of fifty-odd that nothing exercised, found by
-    // suppressing each in turn and seeing which left the suite green.
+    // `locale-unreadable` is named by this test and by no other, so this is
+    // where suppressing that check identity is caught.
     //
     // Reached with a **directory** named like a locale rather than with
     // permissions: `chmod 0` does nothing when the tests run as root, which they
@@ -1162,13 +1161,15 @@ fn a_locale_that_cannot_be_read_is_reported_as_such() {
 
 #[test]
 fn the_remedy_code_repointed_prescribes_actually_works() {
-    // `code-repointed`'s fix used to end "rename it in both places at once — the
-    // ledger follows a rename when the code and the sentence move together". The
-    // ledger follows nothing: renaming the key alone repeats the same error for
-    // ever, and hand-editing the ledger as well fails its checksum. A remedy that
-    // sends the reader in a circle is worse than none, because they trust it.
+    // `code-repointed`'s fix must not say "rename it in both places at once —
+    // the ledger follows a rename when the code and the sentence move
+    // together". The ledger follows nothing: renaming the key alone repeats the
+    // same error for ever, and hand-editing the ledger as well fails its
+    // checksum. A remedy that sends the reader in a circle is worse than none,
+    // because they trust it.
     //
-    // This walks the remedy that replaced it and asserts the build comes back.
+    // This walks the remedy the diagnostic prints and asserts the build comes
+    // back.
     let scratch = Scratch::new("repoint-remedy");
     for file in [
         "catalog/errors.toml",
@@ -1182,11 +1183,11 @@ fn the_remedy_code_repointed_prescribes_actually_works() {
     // Renaming the key alone is refused, which is the half that must not change.
     scratch.must_fail("code-repointed", "NC-DB-0003");
 
-    // **And the remedy this walks is the remedy the diagnostic prints.** Without
-    // this the test hard-codes a procedure and asserts that procedure works,
-    // which stays green while the text goes back to prescribing something that
-    // does not — the exact defect it was written for. Restoring the old wording
-    // has to turn this red.
+    // **And the remedy this walks is the remedy the diagnostic prints.**
+    // Without this the test hard-codes a procedure and asserts that procedure
+    // works, which stays green while the text goes back to prescribing
+    // something that does not — the exact defect it is written for. A wording
+    // that prescribes the circle has to turn this red.
     let problems = scratch.problems();
     let repointed = problems
         .iter()
@@ -1301,8 +1302,8 @@ fn an_empty_description_fails_the_build() {
 
 #[test]
 fn a_name_that_is_not_a_rust_identifier_fails_here_rather_than_inside_rustc() {
-    // `2fa.enabled` used to reach rustfmt, whose error names a byte offset into
-    // a stream the developer cannot open.
+    // `2fa.enabled` would otherwise reach rustfmt, whose error names a byte
+    // offset into a stream the developer cannot open.
     let scratch = Scratch::new("identifier");
     scratch.edit("catalog/notifications.toml", |text| {
         text.replace("id = \"catalog.mechanism\"", "id = \"2fa.enabled\"")
@@ -1313,7 +1314,8 @@ fn a_name_that_is_not_a_rust_identifier_fails_here_rather_than_inside_rustc() {
 #[test]
 fn two_names_that_differ_only_in_a_hyphen_collide() {
     // `camel` maps `-` and `_` identically, so `prune-failed` and
-    // `prune_failed` become one variant. Nothing said so until rustc did.
+    // `prune_failed` become one variant. Without this, nothing says so until
+    // rustc does.
     let scratch = Scratch::new("collision");
     scratch.edit("catalog/log-events.toml", |mut text| {
         text.push_str(
@@ -1362,13 +1364,13 @@ const A_TYPO_REFUSED: [(&str, &str, &str, &str, &str); 20] = [
         "optionall = true",
         "optionall",
     ),
-    // **And one per registry, because twenty attributes were decided by
-    // three.** `model.rs` carries `deny_unknown_fields` on twenty structs
-    // and the rows above reach `limits.toml` and `log-events.toml` only:
-    // measured by a reviewer on 2026-09-13, the attribute deleted from
-    // `ErrorEntry` left the whole tree green, and a `note = "…"` added to
-    // `catalog/errors.toml` was then silently dropped instead of failing
-    // the build.
+    // **And one per registry, because the rows for one file cannot decide the
+    // attribute on another's structs.** `model.rs` carries
+    // `deny_unknown_fields` on every struct a registry is read into, and the
+    // rows above reach `limits.toml` and `log-events.toml` only: with those
+    // alone, the attribute deleted from `ErrorEntry` leaves the whole tree
+    // green, and a `note = "…"` added to `catalog/errors.toml` is then silently
+    // dropped instead of failing the build.
     (
         "error-typo",
         "catalog/errors.toml",
@@ -1390,30 +1392,30 @@ const A_TYPO_REFUSED: [(&str, &str, &str, &str, &str); 20] = [
         "subjekt = \"email.catalog.mechanism.subject\"",
         "subjekt",
     ),
-    // **A registry file is not a struct.** The rows above reach one struct
-    // per file and `limits.toml` alone has seven; deleting the attribute
-    // from `TableLimit` left the whole compiler suite green — measured by a
-    // reviewer on 2026-09-13, with `retention_days = 30` on a PostgreSQL
-    // table silently dropped instead of refused by name. These reach the
-    // nested tables inside each file.
-    // **And the nested tables inside each file.** Round 58 added a row per
-    // registry and reached eight of the twenty structs that carry the
-    // attribute; a reviewer swept all twenty on 2026-09-14 and twelve
-    // survived — including the one `check.rs` delegates a rule to by name.
+    // **A registry file is not a struct.** The rows above reach one or two
+    // structs per file, and `limits.toml` alone has seven below its top;
+    // without these, deleting the attribute from `TableLimit` leaves the whole
+    // compiler suite green, with `retention_days = 30` on a PostgreSQL table
+    // silently dropped instead of refused by name.
     //
-    // **Three of the seven below reach a struct an earlier row already had**,
-    // and the sentence here used to claim each reached a different one: the
-    // event-field row lands where `optional-typo` does, the hashing row where
-    // `memory-typo` does, and the rate-limit row where the two budget rows do.
-    // They are kept because a second field of one struct is a second thing that
-    // can be typed wrongly, and the three structs they were *meant* for have
-    // rows of their own at the end of this list. Reported on 2026-09-14.
+    // **And the nested tables inside each file.** A row per registry reaches
+    // one struct of each, and most of the structs that carry the attribute are
+    // nested tables such a row does not reach, so the attribute deleted from
+    // any of those would leave such a list green. The rows below reach them.
     //
-    // **And one of them was answered by the wrong diagnostic.** `typ` is
+    // **Three of the seven below reach a struct an earlier row already
+    // reaches**: the event-field row lands where
+    // `optional-typo` does, the hashing row where `memory-typo` does, and the
+    // rate-limit row where the two budget rows do. They are kept because a
+    // second field of one struct is a second thing that can be typed wrongly,
+    // and the three structs they might be *meant* for have rows of their own
+    // further down this list.
+    //
+    // **And none is answered by the wrong diagnostic.** `typ` is
     // `type` with a character taken off, so with the attribute deleted serde
     // says `missing field \`type\`` — which holds the string `typ` and
-    // satisfied the assertion that the refusal names it. The typo is longer
-    // than the field now, which no missing-field message can contain.
+    // would satisfy the assertion that the refusal names it. The typo is longer
+    // than the field, which no missing-field message can contain.
     (
         "locale-meta-typo",
         "catalog/i18n/en.toml",
@@ -1463,12 +1465,12 @@ const A_TYPO_REFUSED: [(&str, &str, &str, &str, &str); 20] = [
         "titel = \"notification.catalog.mechanism.title\"",
         "titel",
     ),
-    // **And the three the sweep found still standing.** Round 60 deleted each of
-    // the twenty attributes in turn and ran this suite: twelve survived. Seven
-    // of those are file-level structs, which the test below reaches; these are
-    // the three inner ones no row named — the two rate-limit budgets' container,
-    // an event's own fields as against a field's, and the pair of Argon2id
-    // configurations as against one configuration's parameters.
+    // **And the three inner ones the rows above leave standing.** The
+    // file-level structs every row misses are reached by the test below; these
+    // are the three inner ones no other row names — the two rate-limit
+    // budgets' container, an event's own fields as against a field's, and the
+    // pair of Argon2id configurations as against one configuration's
+    // parameters.
     (
         "rate-limit-container-typo",
         "catalog/limits.toml",
@@ -1515,21 +1517,19 @@ const A_TYPO_REFUSED: [(&str, &str, &str, &str, &str); 20] = [
     ),
 ];
 
-/// The registry files, each of whose file-level struct no typo row reached.
+/// The registry files, each of whose file-level struct no typo row reaches.
 ///
-/// **A rename is two refusals and the weaker one answers first.** Every row
-/// above renames a key, so without `deny_unknown_fields` serde reports the
-/// *missing* field instead — and where the typo is the real name with a
-/// character taken off, the diagnostic naming the *missing* `max_disk_bytes`
-/// holds the string `max_disk_byte` and satisfied the assertion that the
-/// refusal names it. Two
-/// rows were passing that way, measured on 2026-09-14 by deleting all twenty
-/// attributes one at a time.
+/// **A rename is two refusals and the weaker one answers first.** Most rows
+/// above rename a key, so without `deny_unknown_fields` serde reports the
+/// *missing* field instead — and a typo that is the real name with a character
+/// taken off would let the diagnostic naming the *missing* `max_disk_bytes`
+/// hold the string `max_disk_byte` and satisfy the assertion that the refusal
+/// names it, which is why no typo above is contained in the name it replaces.
 ///
 /// A key *added* cannot be answered by a missing-field message, because nothing
 /// is missing. That is what this list is: one unknown key at the top of each
-/// registry, where the top is the file-level struct — the seven that survived
-/// the same sweep, among them the one `check.rs` delegates a rule to by name.
+/// registry, where the top is the file-level struct that no row above reaches,
+/// among them `LocaleFile`, the one `check.rs` delegates a rule to by name.
 const AN_UNKNOWN_KEY_AT_THE_TOP: [(&str, &str); 8] = [
     ("errors", "catalog/errors.toml"),
     ("notifications", "catalog/notifications.toml"),
@@ -1543,8 +1543,8 @@ const AN_UNKNOWN_KEY_AT_THE_TOP: [(&str, &str); 8] = [
 
 #[test]
 fn a_typo_in_a_field_name_fails_the_build_rather_than_disabling_a_control() {
-    // Every one of these used to compile clean. `on_lockut` left the device PIN
-    // never wiping its credential, which §10.6 requires.
+    // Without the attribute, every one of these compiles clean. `on_lockut`
+    // leaves the device PIN never wiping its credential, which §10.6 requires.
     for (name, file, from, to, naming) in A_TYPO_REFUSED {
         let scratch = Scratch::new(name);
         scratch.edit(file, |text| text.replace(from, to));
@@ -1557,11 +1557,12 @@ fn a_typo_in_a_field_name_fails_the_build_rather_than_disabling_a_control() {
 /// A key no struct declares at the top of a registry fails the build.
 ///
 /// The file-level struct of each registry — `ErrorFile`, `Limits`, `LocaleFile`
-/// and the rest — carries `deny_unknown_fields` and was decided by nothing: a
-/// sweep that deleted all twenty of those attributes one at a time left the
-/// whole suite green for seven of them. A key at the top of the file is what
-/// reaches exactly that struct, and adding one rather than renaming one is what
-/// keeps a missing-field message from answering in its place.
+/// and the rest — carries `deny_unknown_fields`, and the rows of
+/// `A_TYPO_REFUSED` rename or add keys inside a file's tables, which never
+/// reach that struct: without this, the attribute deleted from one of them
+/// leaves the whole suite green. A key at the top of the file is what reaches
+/// exactly that struct, and adding one rather than renaming one is what keeps a
+/// missing-field message from answering in its place.
 #[test]
 fn an_unknown_key_at_the_top_of_a_registry_fails_the_build() {
     for (label, file) in AN_UNKNOWN_KEY_AT_THE_TOP {
@@ -1573,16 +1574,16 @@ fn an_unknown_key_at_the_top_of_a_registry_fails_the_build() {
 
 #[test]
 fn two_defects_of_different_kinds_are_both_reported() {
-    // **`compile` returned on `load`'s problems**, so a catalog with an i18n
-    // defect *and* a renumbered code reported only the first kind — while the
-    // function's own doc promised "every problem found … rather than the first".
-    // A developer fixed one, ran the build again, and met the other; the whole
-    // reason `check` accumulates is that being shown one problem at a time is a
-    // miserable loop.
+    // **`compile` does not return on `load`'s problems**: if it did, a catalog
+    // with an i18n defect *and* a renumbered code would report only the first
+    // kind — while the function's own doc promises "every problem found …
+    // rather than the first". A developer would fix one, run the build again,
+    // and meet the other; the whole reason `check` accumulates is that being
+    // shown one problem at a time is a miserable loop.
     //
-    // The two here are found by different passes: `unreferenced-key` comes out
-    // of `load`, and `code-repointed` out of the ledger reconcile that used to
-    // sit behind an early return.
+    // The two here are found by different passes:
+    // `unreferenced-key` comes out of `load`, and `code-repointed` out of the
+    // ledger reconcile.
     let scratch = Scratch::new("two-kinds");
     scratch.edit("catalog/i18n/en.toml", |text| {
         format!("{text}\n\"error.db.ghost\" = \"A ghost sentence nothing points at.\"\n")
@@ -1611,10 +1612,10 @@ fn two_defects_of_different_kinds_are_both_reported() {
 
 #[test]
 fn a_sentence_no_registry_points_at_is_refused() {
-    // **The direction nothing asked.** `messages.rs` checked source→locale,
-    // locale→source, placeholders, and registry→locale — every direction but
-    // this one. A key present in both locales that no entry references
-    // compiled, landed in `KEYS` and `MESSAGES`, and appeared on no page:
+    // **The direction the other four do not ask.** `messages.rs` checks
+    // source→locale, locale→source, placeholders, and registry→locale, and
+    // without this rule a key present in both locales that no entry references
+    // compiles, lands in `KEYS` and `MESSAGES`, and appears on no page:
     //
     // ```text
     // echo '"error.db.ghost" = "A ghost sentence nothing points at."' >> en.toml
@@ -1637,10 +1638,10 @@ fn a_sentence_no_registry_points_at_is_refused() {
 
 #[test]
 fn a_message_key_may_not_be_owned_by_two_registries() {
-    // **The check that stopped at the registry boundary.** `check_errors`
-    // refuses two error codes sharing one message key, because the key is a
-    // code's identity in the ledger — and nothing said the same across
-    // registries. Pointing a notification's title at an error's key compiled:
+    // **The check across the registry boundary.** `check_errors` refuses two
+    // error codes sharing one message key, because the key is a code's identity
+    // in the ledger — and this says the same across registries. Without it,
+    // pointing a notification's title at an error's key compiles:
     //
     // ```text
     // title = "error.db.unreachable"
@@ -1663,12 +1664,13 @@ fn a_message_key_may_not_be_owned_by_two_registries() {
 
 #[test]
 fn one_entry_may_not_point_two_slots_at_one_key() {
-    // **The dedup was on the owner's name.** A notification whose `title` and
-    // `body` are the same key had one owner and never tripped the gate — while
-    // its own reasoning applies unchanged: rewording that sentence for the
-    // title silently rewords the body, and neither slot can be edited for its
-    // own purpose. It surfaced only by accident, as the abandoned key becoming
-    // an orphan, and a *new* entry written that way trips nothing at all.
+    // **Not deduped on the owner's name.** That way a notification whose
+    // `title` and `body` are the same key has one owner and never trips the
+    // gate — while its own reasoning applies unchanged: rewording that sentence
+    // for the title silently rewords the body, and neither slot can be edited
+    // for its own purpose. It would surface only by accident, as the abandoned
+    // key becoming an orphan, and a *new* entry written that way would trip
+    // nothing at all.
     let scratch = Scratch::new("one-entry-two-slots");
     scratch.edit("catalog/notifications.toml", |text| {
         let at = text.find("body = \"").expect("the notification has a body");
@@ -1691,10 +1693,10 @@ fn a_table_bounded_by_the_pack_may_not_also_name_a_row_limit() {
     // policy pack promised (`NOCTUA.md §15.8`).
     //
     // **One at a time, because both at once cannot tell the halves apart.**
-    // The fixture set `max_rows` and `prune_batch` together, so either disjunct
-    // deleted left the other firing and the whole suite green — and
-    // `prune_batch` has no second net anywhere in the tree, so that half was
-    // held by nothing at all.
+    // With `max_rows` and `prune_batch` set together, either disjunct deleted
+    // leaves the other firing and the whole suite green — and `prune_batch` has
+    // no second net anywhere in the tree, so that half would be held by nothing
+    // at all.
     for (which, added) in [
         (
             "max_rows",
@@ -1715,11 +1717,12 @@ fn a_table_bounded_by_the_pack_may_not_also_name_a_row_limit() {
 
 #[test]
 fn a_table_exempt_from_the_row_limit_has_to_say_why() {
-    // **The escape hatch that had no reason, no census entry and no test.**
+    // **The escape hatch, held to a reason and a test.**
     // `strategy = "policy-pack"` satisfies the unbounded-table gate without
-    // declaring a bound and the pruner then never touches the table — so an
-    // unbounded, never-pruned table entered the tree with three lines of TOML
-    // and nothing written anywhere a parser reads:
+    // declaring a bound and the pruner then never touches the table — so
+    // without a required reason an unbounded, never-pruned table enters the
+    // tree with three lines of TOML and nothing written anywhere a parser
+    // reads:
     //
     // ```toml
     // [tables.login_attempts]
@@ -1728,8 +1731,8 @@ fn a_table_exempt_from_the_row_limit_has_to_say_why() {
     // ```
     //
     // `2 table(s) created in the migrations were checked`, `check passed`. Its
-    // sibling `nc:bounded:` has required a non-empty reason from the first day,
-    // is tested for the bare-marker case, and is counted in the census line.
+    // sibling `nc:bounded:` requires a non-empty reason, is tested for the
+    // bare-marker case, and is counted in the census line.
     let scratch = Scratch::new("pack-no-reason");
     scratch.edit("catalog/limits.toml", |text| {
         let at = text
@@ -1744,14 +1747,13 @@ fn a_table_exempt_from_the_row_limit_has_to_say_why() {
 
 #[test]
 fn a_blank_reason_is_not_a_reason() {
-    // **The `trim().is_empty()` half was tested by nothing.** The test above
-    // deletes the whole `pack_reason` block, so only the `None` arm ran, and
-    // weakening the predicate to a bare `is_none()` left 100 tests and
-    // `check passed` green — with `pack_reason = ""` and `pack_reason = "   "`
+    // **The `trim().is_empty()` half, tested.** The test above deletes the
+    // whole `pack_reason` block, so only the `None` arm runs there, and without
+    // this weakening the predicate to a bare `is_none()` leaves every test and
+    // `check passed` green — with `pack_reason = ""` and `pack_reason = " "`
     // both buying the exemption from `§15.8`'s row-limit gate.
     //
-    // Its sibling `nc:bounded:` has had the bare-marker test from the first
-    // day. That is the one of its three properties this fix did not copy.
+    // Its sibling `nc:bounded:` has the bare-marker test too.
     for blank in ["\"\"", "\"   \"", "\"\\n\""] {
         let scratch = Scratch::new("pack-blank-reason");
         scratch.edit("catalog/limits.toml", |text| {
@@ -1802,14 +1804,14 @@ fn a_batch_larger_than_the_limit_fails_the_build() {
 
 /// `§15.8` says prune in *large* batches, and the batch has a floor.
 ///
-/// **The sentence was `[CLOSED]` and enforced by nothing.** The two rules beside
-/// this one bound the batch at zero and from above; `prune_batch = 1` against
-/// `max_rows = 500_000` was a legal catalog that passed the whole gate, and on a
-/// table receiving writes that never converges while every tick reports `Ok`.
-/// The four things that objected when it was measured were all `assert_ne!`
+/// **The sentence is `[CLOSED]`, and this enforces it.** The two rules beside
+/// this one bound the batch at zero and from above; with those
+/// alone `prune_batch = 1` against `max_rows = 500_000` is a legal catalog that
+/// passes the whole gate, and on a table receiving writes that never converges
+/// while every tick reports `Ok`. What else would object to it is only `assert_ne!`
 /// drift guards whose needle is the literal `prune_batch = 50_000`, and whose
 /// own message tells a reader to update the fixture — which is the shape this
-/// tree already caught once for the journal, one field along.
+/// tree names for the journal, one field along.
 #[test]
 fn a_batch_that_is_row_by_row_at_this_scale_fails_the_build() {
     for batch in ["1", "4_999"] {
@@ -2226,18 +2228,18 @@ fn a_capability_sentence_is_held_to_the_locale_rules() {
 
 #[test]
 fn hashing_parameters_below_the_floor_fail_the_build() {
-    // **Ten cells, and this exercised one.** `check_hashing` is a two-row table
-    // — `password` and `device_pin` — crossed with five parameters, and the one
-    // case written here set the *password*'s `memory_kib` to 64. Two holes came
-    // with that. The device PIN's row was driven by nothing at all, and the
-    // value 64 is so far under every floor that it also proves nothing about
-    // where the floor is: dropping the PIN's floor from `65_536` to the
-    // password's `19_456`, with `catalog/limits.toml`'s own `memory_kib` moved
-    // to `20_480` beside it, left `cargo xtask build` green, the generations
-    // byte-identical and the ledger's md5 unchanged — while the derivation
-    // guarding an enumerable four-to-eight-digit secret fell from 64 MiB to 20
-    // MiB per guess, against a registry comment that says per-guess cost is the
-    // only defence that scales.
+    // **Ten cells, each exercised.** `check_hashing` is a two-row table —
+    // `password` and `device_pin` — crossed with five parameters. One case
+    // setting the *password*'s `memory_kib` to 64 leaves two holes: the device
+    // PIN's row is driven by nothing at all, and the value 64 is so far under
+    // every floor that it proves nothing about where the floor is: dropping the
+    // PIN's floor from `65_536` to the password's `19_456`, with
+    // `catalog/limits.toml`'s own `memory_kib` moved to `20_480` beside it,
+    // leaves `cargo xtask build` green, the generations byte-identical and the
+    // ledger's md5 unchanged — while the derivation guarding an enumerable
+    // four-to-eight-digit secret falls from 64 MiB to 20 MiB per guess, against
+    // a registry comment that says per-guess cost is the only defence that
+    // scales.
     //
     // So each cell is broken at exactly `floor - 1`. A value far below the
     // floor proves only that *some* floor exists; one step below it is what
@@ -2254,7 +2256,8 @@ fn hashing_parameters_below_the_floor_fail_the_build() {
         ("password", "parallelism", 1),
         ("password", "output_length", 16),
         ("password", "salt_length", 16),
-        // Deliberately harder than the password's, and the row nothing reached.
+        // Deliberately harder than the password's, and the row a password-only
+        // case would leave undriven.
         ("device_pin", "memory_kib", 65_536),
         ("device_pin", "iterations", 1),
         ("device_pin", "parallelism", 1),
@@ -2313,14 +2316,13 @@ fn just_under(text: &str, which: &str, key: &str, value: u32) -> String {
 
 #[test]
 fn a_delay_curve_that_falls_fails_the_build() {
-    // §15.5 requires an *escalating* delay. The gate used to check only that the
-    // curve was non-empty, while its own message said "escalating".
+    // §15.5 requires an *escalating* delay; checking only that the curve is
+    // non-empty, under a message saying "escalating", does not ask that.
     //
-    // **This was called `a_flat_delay_curve_fails_the_build` and plants a
-    // *descending* one.** A flat curve is the case the rule beside it was
-    // accepting, and the fixture named for it drove the other rule — so the one
-    // shape §15.5's sentence is about was exercised by nothing at all. The name
-    // is what it plants now, and the flat case is the fixture below.
+    // **This plants a *descending* curve, and is named for it.** A flat curve
+    // is the case the rule beside it accepts, and that is the fixture below —
+    // so the one shape §15.5's sentence is about is driven by a fixture named
+    // for it.
     let scratch = Scratch::new("falling-curve");
     scratch.edit("catalog/limits.toml", |text| {
         text.replace(
@@ -2333,11 +2335,11 @@ fn a_delay_curve_that_falls_fails_the_build() {
 
 #[test]
 fn a_delay_curve_that_never_rises_fails_the_build() {
-    // The case `curve-descends` accepts and §15.5 asks about. Measured on
-    // 2026-09-08 before this rule existed: `email_confirmation`'s per-identifier
-    // curve as `[1_000, 1_000, 1_000, 1_000, 1_000]` gave
+    // The case `curve-descends` accepts and §15.5 asks about. Measured without
+    // this rule: `email_confirmation`'s per-identifier curve as
+    // `[1_000, 1_000, 1_000, 1_000, 1_000]` gives
     // `ok 15 generated file(s), 2 rewritten` and `check passed` with no warn
-    // line, and `docs/limits.md` republished it four lines under its own
+    // line, and `docs/limits.md` republishes it four lines under its own
     // sentence saying the curve escalates.
     let scratch = Scratch::new("flat-curve");
     scratch.edit("catalog/limits.toml", |text| {
@@ -2373,12 +2375,13 @@ fn a_lockout_that_can_never_be_reached_fails_the_build() {
 
 /// A name the generated file already imports is refused before it is written.
 ///
-/// **`cargo xtask build` said `ok` and wrote source that does not compile.** The
-/// name check held each event against the *other events*, and
-/// `crates/nc-log/src/events.rs` opens with imports of its own — so an event
-/// called `field` generated `pub struct Field` beside `use crate::{Event, Field,
-/// LogValue as _};`, the build reported `15 generated file(s), 3 rewritten`, and
-/// the next `cargo build` failed inside a file whose header forbids editing it:
+/// **Otherwise `cargo xtask build` says `ok` and writes source that does not
+/// compile.** Held only against the *other events*, a name misses the
+/// imports `crates/nc-log/src/events.rs` opens with — so an event
+/// called `field` generates `pub struct Field`
+/// beside `use crate::{Event, Field, LogValue as _};`, the build
+/// reports `15 generated file(s), 3 rewritten`, and the next `cargo build`
+/// fails inside a file whose header forbids editing it:
 ///
 /// ```text
 /// error[E0255]: the name `Field` is defined multiple times
@@ -2395,14 +2398,14 @@ fn an_event_named_after_an_import_fails_the_build() {
     // knows the prelude — `a_field_named_after_a_keyword_fails_the_build` covers
     // those. These three are names the *file* holds and Rust does not.
     //
-    // **`log_value` was a fourth and it is not a collision.** The preamble
-    // imports `LogValue as _`, which brings the trait in for method resolution
-    // and binds no name, so a generated `pub struct LogValue` compiles —
-    // measured on 2026-09-08 by appending exactly that to
-    // `crates/nc-log/src/events.rs`: `cargo build -p nc-log` finished and
-    // clippy said nothing, while `pub struct Field` on the same line gives
-    // `error[E0255]: the name `Field` is defined multiple times`. This loop
-    // drove the *rule* — that the compiler refuses these four — which is a
+    // **`log_value` is not among them, because it is not a collision.** The
+    // preamble imports `LogValue as _`, which brings the trait in for method
+    // resolution and binds no name, so a generated `pub struct LogValue`
+    // compiles — measured by appending exactly that to
+    // `crates/nc-log/src/events.rs`: `cargo build -p nc-log` finishes and
+    // clippy says nothing, while `pub struct Field` on the same line gives
+    // `error[E0255]: the name `Field` is defined multiple times`. A loop that
+    // drives the *rule* — that the compiler refuses these names — is a
     // restatement of the constant rather than a claim about what rustc needs.
     // The hole is held by `every_import_here_is_a_name_the_preamble_binds`,
     // which reads the emitter's preamble.
@@ -2417,11 +2420,11 @@ fn an_event_named_after_an_import_fails_the_build() {
         scratch.must_fail("name-collision", generated);
 
         // **And the line it reports is the line the name is on.** `must_fail`
-        // reads the check, the sentence and the file, and never `problem.line`
-        // — measured, the whole locator replaced by `None` left the entire
-        // workspace green. The name was located by a bare substring, so
-        // `level`, `event` and `field` each reported a line inside an entry the
-        // author never touched, a hundred lines above the one they added.
+        // reads the check, the sentence and the file, and never `problem.line`,
+        // so a locator replaced by `None` would pass it; this asserts the line.
+        // Located by a bare substring, `level`, `event`
+        // and `field` would each report a line inside an entry the author never
+        // touched, a hundred lines above the one they added.
         //
         // The line moves whenever an entry is added above it, so the number is
         // not the subject: the correspondence is.
@@ -2447,19 +2450,19 @@ fn an_event_named_after_an_import_fails_the_build() {
 
 /// A field named after a Rust keyword is refused, with the registry line.
 ///
-/// **The keyword list held six names and five of them are not keywords.** It was
-/// written for `camel`-cased type names, compared case-sensitively, while
-/// `identifier()` has a second caller that hands it a *snake*-cased field name —
-/// so `type`, `ref`, `match` and `in` all reached the emitter and the build died
-/// inside rustfmt, at an offset into a stream:
+/// **The keyword list is Rust's, in both cases.** A list written
+/// for `camel`-cased type names, compared case-sensitively,
+/// misses `identifier()`'s second caller, which hands it a *snake*-cased field
+/// name — so `type`, `ref`, `match` and `in` all reach the emitter and the
+/// build dies inside rustfmt, at an offset into a stream:
 ///
 /// ```text
 /// error rustfmt refused the emitted source: expected identifier, found keyword `type`
 ///          --> <stdin>:170:9
 /// ```
 ///
-/// Nothing shipped broken — but the author was sent to a stream offset instead
-/// of to the three lines of registry that caused it, which is the whole reason
+/// Nothing ships broken — but the author is sent to a stream offset instead of
+/// to the three lines of registry that caused it, which is the whole reason
 /// this check exists.
 #[test]
 fn a_field_named_after_a_keyword_fails_the_build() {
@@ -2477,8 +2480,7 @@ fn a_field_named_after_a_keyword_fails_the_build() {
         scratch.must_fail("name-not-an-identifier", name);
     }
     // An event name is `camel`-cased, so what it can collide with is the
-    // prelude — the other half of the same list, and the half the old six-entry
-    // list was reaching for with `Box`.
+    // prelude — the other half of the same list, and the half `Box` stands for.
     for name in ["option", "vec", "result", "string", "box"] {
         let scratch = Scratch::new(&format!("prelude-event-{name}"));
         scratch.edit("catalog/log-events.toml", |text| {
@@ -2494,9 +2496,9 @@ fn a_field_named_after_a_keyword_fails_the_build() {
 /// An area `NOCTUA.md §15.1` names can carry a code, and a key nobody could use
 /// is refused where it is declared.
 ///
-/// **`P2P` was declared, published as available, and unusable.** `area_of`
-/// required every byte of the area to be `is_ascii_uppercase`, and `b'2'` is
-/// not — so the first peer-to-peer code was refused as *malformed*:
+/// **`P2P` is declared, published as available, and usable.** Requiring every
+/// byte of the area to be `is_ascii_uppercase` refuses the first peer-to-peer
+/// code as *malformed*, because `b'2'` is not uppercase:
 ///
 /// ```text
 /// error catalog/errors.toml:414 — NC-P2P-0001 is not of the form NC-<AREA>-<NNNN>
@@ -2504,9 +2506,9 @@ fn a_field_named_after_a_keyword_fails_the_build() {
 ///       exactly four digits — such as NC-AUTH-0031
 /// ```
 ///
-/// while `P2P` sat thirty lines above in `[areas]` and `docs/errors.md`
-/// published it. Nothing validated the keys of that table, so the two halves of
-/// one rule could disagree in silence — which is why the second half is here
+/// while `P2P` sits thirty lines above in `[areas]` and `docs/errors.md`
+/// publishes it. With nothing validating the keys of that table, the two halves
+/// of one rule could disagree in silence — which is why the second half is here
 /// too.
 ///
 /// In a scratch copy, deliberately: a code declared in the real tree is
@@ -2585,20 +2587,19 @@ fn a_field_name_the_generated_struct_cannot_carry_fails_the_build() {
     }
 }
 
-/// Five values that were accepted and should not have been.
+/// Five values that reach generated output saying nothing, refused.
 ///
-/// Each was measured reaching generated output with no diagnostic: a
-/// description of three spaces ("the only English an operator reading the log
-/// gets"), a command with no name (which is how a command is invoked, how its
-/// page titles the section, and the key `nc_catalog::command()` takes), an area
-/// that says nothing about what it covers on a page whose column exists to say
-/// it, a locale whose `dir` is neither `ltr` nor `rtl`, and a `bcp47` that is
-/// not an identifier — the one generated name `load.rs`'s own header promises to
-/// check and did not.
+/// Each, without its rule, is measured reaching generated output with no
+/// diagnostic: a description of three spaces ("the only English an operator
+/// reading the log gets"), a command with no name (which is how a command is
+/// invoked, how its page titles the section, and the
+/// key `nc_catalog::command()` takes), an area that says nothing about what it
+/// covers on a page whose column exists to say it, a locale whose `dir` is
+/// neither `ltr` nor `rtl`, and a `bcp47` that is not an identifier — one
+/// generated name `load.rs`'s own header promises to check.
 ///
-/// **Nine now, and the four that arrived are a character that shows nothing.**
-/// The sites this drives asked `trim().is_empty()`, which sees `""` and `"   "`
-/// and not `U+2063`; the rows for those are in
+/// **And the rows for a character that shows nothing.** `trim().is_empty()`
+/// sees `""` and `" "` and not `U+2063`; the rows for those are in
 /// [`a_value_showing_nothing_is_refused_too`], which is a function of its own
 /// because this one is at clippy's line limit.
 #[test]
@@ -2621,12 +2622,12 @@ fn a_value_that_says_nothing_is_refused_where_it_is_written() {
 
     a_value_showing_nothing_is_refused_too();
 
-    // **And the surface a rate limit is looked up by**, which had no rule at
-    // all. Measured on 2026-09-08 with `surface = ""`: `cargo xtask build`
-    // reported `ok 15 generated file(s), 2 rewritten`, `check --offline` exited
-    // 0, and `docs/limits.md` carried two budget rows for a surface with no
-    // name while `nc_catalog::rate_limit("")` answered `Some`. It is the same
-    // role `name` plays for a command, one registry over.
+    // **And the surface a rate limit is looked up by.** Measured without its
+    // rule, with `surface = ""`: `cargo xtask build` reports
+    // `ok 15 generated file(s), 2 rewritten`, `check --offline` exits 0, and
+    // `docs/limits.md` carries two budget rows for a surface with no name while
+    // `nc_catalog::rate_limit("")` answers `Some`. It is the same role `name`
+    // plays for a command, one registry over.
     let nameless = Scratch::new("rate-limit-unnamed");
     nameless.replacing(
         "catalog/limits.toml",
@@ -2634,10 +2635,10 @@ fn a_value_that_says_nothing_is_refused_where_it_is_written() {
         "surface = \"\"",
     );
     nameless.must_fail("rate-limit-unnamed", "limits.toml");
-    // **Once, and located.** The rule was written twice byte for byte, so one
-    // nameless surface produced the same sentence twice and the second copy
-    // decided nothing; and its anchor read `[[rate_limits]]` while the table is
-    // `[[rate_limit]]`, so `line_of` never matched and the message reached a
+    // **Once, and located.** Written twice byte for byte, one nameless surface
+    // would produce the same sentence twice and the second copy would decide
+    // nothing; and anchored at `[[rate_limits]]` while the table is
+    // `[[rate_limit]]`, `line_of` never matches and the message reaches a
     // developer as a bare filename in a 196-line file holding five of these
     // blocks. Every sibling rule in that file is located, and
     // `a_diagnostic_about_something_present_in_a_file_says_which_line` is the
@@ -2669,8 +2670,7 @@ fn a_value_that_says_nothing_is_refused_where_it_is_written() {
         said[0]
     );
 
-    // And one space, which is the half the two rules below this were missing:
-    // both trimmed and neither was ever handed whitespace.
+    // And one space, so the trim in the two rules below is handed whitespace.
     let spaced = Scratch::new("rate-limit-spaced");
     spaced.replacing(
         "catalog/limits.toml",
@@ -2688,11 +2688,10 @@ fn a_value_that_says_nothing_is_refused_where_it_is_written() {
     quiet.must_fail("area-undescribed", "CANON");
 
     // **One space, not the empty string.** Both this rule and
-    // `store-enforced-by-nobody` trim before they test, and both were driven
-    // with `""` alone — so the trim was decided by nothing and deleting it from
-    // either left the whole workspace suite green. `check_errors`' own comment
-    // records that regression being repaired once already; the repair went in
-    // with no test under it.
+    // `store-enforced-by-nobody` trim before they test, and driven with `""`
+    // alone the trim is decided by nothing: deleting it from either leaves the
+    // whole workspace suite green. `check_errors`' own comment makes the same
+    // argument; this is the test under it.
     let spaced_area = Scratch::new("area-undescribed-spaced");
     spaced_area.edit("catalog/errors.toml", |text| {
         let at = text.find("CANON = \"").expect("the area is declared");
@@ -2702,9 +2701,9 @@ fn a_value_that_says_nothing_is_refused_where_it_is_written() {
     spaced_area.must_fail("area-undescribed", "CANON");
 
     // **The endonym, the third field of `[meta]`.** It reaches the generated
-    // `///` line and `Locale::name()`, and nothing checked it: blank made the
-    // build say `ok` and rustc fail inside a file nobody may edit, and a dash
-    // shipped green with the switcher entry naming nothing.
+    // `///` line and `Locale::name()`, and without this nothing checks it:
+    // blank makes the build say `ok` and rustc fail inside a file nobody may
+    // edit, and a dash ships green with the switcher entry naming nothing.
     for said in ["\"\"", "\"   \"", "\"-\"", "\"--\"", "\"0\""] {
         let unnamed = Scratch::new(&format!("locale-unnamed-{}", said.len()));
         unnamed.replacing(
@@ -2733,15 +2732,14 @@ fn a_value_that_says_nothing_is_refused_where_it_is_written() {
 /// Its own function because the caller is at clippy's line limit — the same
 /// reason three of its neighbours are functions.
 fn a_value_showing_nothing_is_refused_too() {
-    // **The three spellings of the same absence, at the sites that only had
-    // one.** These rules asked `trim().is_empty()`, which sees `""` and `"   "`
-    // and not a character that shows nothing — and this test drove only the
-    // first two, at four of the seven sites. Measured on 2026-09-11, one value
-    // at a time replaced by a single `U+2063 INVISIBLE SEPARATOR` against the
-    // shipped catalog: the error area's description, a command's name, a
-    // limit's `surface`, a store's `enforced_by` and a log event's description
-    // were **all accepted with no problem at all**, and `surface` carried
-    // through to two published budget rows for a surface with no name.
+    // **The three spellings of the same absence, at every site.**
+    // `trim().is_empty()` sees `""` and `" "` and not a character that shows
+    // nothing. Measured with that question asked, one value at a time replaced
+    // by a single `U+2063 INVISIBLE SEPARATOR` against the shipped catalog: the
+    // error area's description, a command's name, a limit's `surface`, a
+    // store's `enforced_by` and a log event's description are **all accepted
+    // with no problem at all**, and `surface` carries through to two published
+    // budget rows for a surface with no name.
     for (what, file, from, to, check, naming) in [
         (
             "an error area described by nothing a reader sees",
@@ -2775,14 +2773,14 @@ fn a_value_showing_nothing_is_refused_too() {
             "store-enforced-by-nobody",
             "limits.toml",
         ),
-        // **The five this corpus's own prose named and did not drive.** Each
-        // site asks `says_nothing`, and each could be put back to
-        // `trim().is_empty()` with all 101 tests in this crate green: measured
-        // one at a time, the error description, the ordering column, a
-        // command's action, its resource selector and a log event's
-        // description. A value made of invisible separators is accepted by
-        // `trim`, published as an empty cell, and — for the ordering column —
-        // handed to the pruner as the column to sort by.
+        // **The five this corpus's own prose names, driven.** Each site asks
+        // `says_nothing`, and without these rows each could be put back to
+        // `trim().is_empty()` with every test in this crate green: measured one
+        // at a time, the error description, the ordering column, a command's
+        // action, its resource selector and a log event's description. A value
+        // made of invisible separators is accepted by `trim`, published as an
+        // empty cell, and — for the ordering column — handed to the pruner as
+        // the column to sort by.
         (
             "an error described by nothing a reader sees",
             "catalog/errors.toml",
@@ -2853,11 +2851,12 @@ fn a_field_the_store_reserves_fails_the_build() {
 #[test]
 fn a_curve_that_ends_at_a_millisecond_fails_the_build() {
     // `curve-ends-free` refuses a final `0` because the last value repeats for
-    // ever. A final `1` repeats just as freely and satisfied it: measured,
-    // `login` — whose own comment says the escalating delay is what carries that
-    // surface — given `[0, 0, 0, 0, 0, 0, 1]`, with `cargo xtask check` green
-    // and the curve republished on `docs/limits.md`. Ten attempts free and then
-    // a millisecond each is an unlimited surface with a table about it.
+    // ever. A final `1` repeats just as freely and satisfies it: measured
+    // without this rule, `login` — whose own comment says the escalating delay
+    // is what carries that surface — given `[0, 0, 0, 0, 0, 0, 1]`, with
+    // `cargo xtask check` green and the curve republished on `docs/limits.md`.
+    // Ten attempts free and then a millisecond each is an unlimited surface
+    // with a table about it.
     let scratch = Scratch::new("cheap-curve");
     scratch.replacing(
         "catalog/limits.toml",
@@ -2869,13 +2868,14 @@ fn a_curve_that_ends_at_a_millisecond_fails_the_build() {
 
 /// A lockout exempts a cheap curve only if it arrives before the tail repeats.
 ///
-/// **The exemption was `lockout_after.is_none()`** — so any lockout at all
-/// bought it, however far away. `login` given `delay_ms = [0, 0, 0, 0, 0, 0, 1]`
-/// and `lockout_after = 1_000_000` passed the whole gate and republished the
-/// curve on `docs/limits.md`: a million tries at a millisecond each is about
-/// seventeen minutes of unthrottled guessing before the surface locks, on the
-/// one surface whose own comment in `catalog/limits.toml` says the escalating
-/// delay is what carries it.
+/// **The exemption is not `lockout_after.is_none()`** — that way any lockout at
+/// all buys it, however far away. `login`
+/// given `delay_ms = [0, 0, 0, 0, 0, 0, 1]` and `lockout_after = 1_000_000`
+/// then passes the whole gate and republishes the curve on `docs/limits.md`: a
+/// million tries at a millisecond each is about seventeen minutes of
+/// unthrottled guessing before the surface locks, on the one surface whose own
+/// comment in `catalog/limits.toml` says the escalating delay is what carries
+/// it.
 ///
 /// The hole and the rule are both asserted here, because an exemption is a gate
 /// switched off for a named case and only the case can say whether it was the
@@ -2906,14 +2906,14 @@ fn a_lockout_inside_the_curve_excuses_a_cheap_one() {
         "per_identifier = { window_seconds = 900, max_attempts = 6, delay_ms = [0, 0, 0, 0, 0, 0, 1], lockout_after = 7 }",
     );
     let problems = scratch.problems();
-    // **`is_empty`, not "no `curve-ends-cheap` among them".** `problems` was
-    // empty, so `.all(…)` was true of nothing — the assertion this test exists
-    // for passed by having no elements. It also could not tell "accepted" from
-    // "refused for some other reason": with a probe refusal added to
-    // `check_budget` that fires on this very fixture, seven tests in this file
-    // went red and this one stayed green, which is the opposite of what a
-    // positive control is for. The three sibling positive controls in this file
-    // all spell it this way.
+    // **`is_empty`, not "no `curve-ends-cheap` among them".** `problems` is
+    // empty, so `.all(…)` would be true of nothing — the assertion this test
+    // exists for passing by having no elements. Nor could that tell "accepted"
+    // from "refused for some other reason": with a probe refusal added to
+    // `check_budget` that fires on this very fixture, the tests in this file
+    // that build it go red and such a control stays green, which is the
+    // opposite of what a positive control is for. The three sibling positive
+    // controls in this file all spell it this way.
     assert!(
         problems.is_empty(),
         "a lockout that fires at the last delay leaves nothing repeating: {}",
@@ -2923,12 +2923,12 @@ fn a_lockout_inside_the_curve_excuses_a_cheap_one() {
 
 /// An English sentence with the punctuation nudged is still an English sentence.
 ///
-/// **`untranslated` compared bytes**, so the rule was one keystroke wide: the
-/// same text with a trailing space, a different capital, or a doubled space
-/// passed as a translation, and every gate downstream — presence, placeholders,
-/// and both test floors phrased as fractions — then reads it as translated. The
-/// published page shows one sentence in two language columns, which is the exact
-/// failure the byte comparison exists to catch.
+/// **Comparing bytes, `untranslated` would be one keystroke wide**: the same
+/// text with a trailing space, a different capital, or a doubled space passes
+/// as a translation, and every gate downstream — presence, placeholders, and
+/// both test floors phrased as fractions — then reads it as translated. The
+/// published page shows one sentence in two language columns, which is the
+/// exact failure the byte comparison exists to catch.
 #[test]
 fn a_translation_that_only_moves_punctuation_fails_the_build() {
     const KEY: &str = "\"error.db.migration-failed\"";
@@ -2947,21 +2947,22 @@ fn a_translation_that_only_moves_punctuation_fails_the_build() {
         .trim()
         .trim_matches('"')
         .to_owned();
-    // The copy-paste, and the four things somebody changes without thinking:
-    // a doubled space, a full stop dropped, a space left on the end, and the
-    // capital at the front. Each one alone made this pass as a translation.
+    // The copy-paste, and the four things somebody changes without thinking: a
+    // doubled space, a full stop dropped, a space left on the end, and the
+    // capital at the front. Each one alone makes a byte comparison pass this as
+    // a translation.
     //
-    // **Case was absent, and `the_same_sentence` folds on it.** The comment
-    // listed three and the fold does three-plus-one, so `text.to_lowercase()`
-    // could be reverted to `text.to_owned()` with the crate suite and the whole
-    // gate green: the other two thirds of the same rule are what caught every
-    // plant. A rule normalised on three things needs three cases.
-    // **One mark, and the set names seven.** The fixture trimmed a full stop and
-    // nothing else, so `!`, `?`, `:`, `;`, `,` and `…` were decided by no input
-    // — measured, the whole set narrowed to `matches!(character, '.')` and the
-    // crate suite and the gate both green. An English sentence pasted into a
-    // translation with its `!` adjusted then passes as a translation. Every mark
-    // in the set is trimmed in turn.
+    // **Case too, because `the_same_sentence` folds on it.** Without a case for
+    // it, `text.to_lowercase()` could be reverted to `text.to_owned()` with the
+    // crate suite and the whole gate green, the other two thirds of the same
+    // rule catching every plant. A rule normalised on three things needs three
+    // cases. **Every mark, because the set names seven.** A fixture trimming a
+    // full stop and nothing else leaves `!`, `?`, `:`, `;`, `,` and `…` decided
+    // by no input — measured with such a fixture, the whole set narrowed to
+    // `matches!(character, '.')` leaves the crate suite and the gate both
+    // green. An English sentence pasted into a translation with its `!`
+    // adjusted then passes as a translation. Every mark in the set is trimmed
+    // in turn.
     for mark in ['.', '!', '?', ':', ';', ',', '…'] {
         let one = format!("{}{mark}", value.trim_end_matches(mark));
         assert!(
@@ -2985,16 +2986,17 @@ fn a_translation_that_only_moves_punctuation_fails_the_build() {
 
 /// An error whose message key is outside the `error.` namespace.
 ///
-/// **A live branch nothing reached.** `emit::error_variant` stripped `error.`
-/// from the message key and camelled what was left, with an `unwrap_or` for a
-/// key outside that namespace — and no rule required one. Measured, a code whose
-/// message key is `probe.p2p.thing`: `ACCEPTED, 0 problem(s)`, and the generated
-/// crate grew `ErrorCode::ProbeP2pThing` — a public name for something that does
-/// not read as an error, decided by a fallback no test entered.
+/// **So no branch is live that nothing reaches.** `emit::error_variant`
+/// strips `error.` from the message key and camels what is left; with
+/// an `unwrap_or` for a key outside that namespace and no rule requiring one, a
+/// code whose message key is `probe.p2p.thing`
+/// measures `ACCEPTED, 0 problem(s)`, and the generated crate
+/// grows `ErrorCode::ProbeP2pThing` — a public name for something that does not
+/// read as an error, decided by a fallback no test enters.
 ///
-/// Refused at the registry rather than tested at the emitter, which is
-/// `load.rs`'s own rule: every generated name is decided where it is written.
-/// The `unwrap_or` is gone, so the emitter says what is true.
+/// Refused at the registry rather than tested at the emitter, which
+/// is `load.rs`'s own rule: every generated name is decided where it is
+/// written. The emitter has no `unwrap_or`, so it says what is true.
 #[test]
 fn an_error_message_key_outside_its_namespace_fails_the_build() {
     let scratch = Scratch::new("error-message-namespace");
@@ -3017,16 +3019,15 @@ fn an_error_message_key_outside_its_namespace_fails_the_build() {
 /// Every description reaches `docs/` through `cell`, which spends the invisible
 /// class; the schema goes into a fenced JSON block verbatim, because a caller is
 /// validated against exactly these bytes and the pages test requires the page to
-/// hold them as written. Measured, a schema carrying `U+202E` and `U+202C`:
-/// accepted, and both reached `docs/commands.md` raw while
-/// `crates/nc-catalog/src/commands.rs` held neither.
+/// hold them as written. Measured without this rule, a schema carrying
+/// `U+202E` and `U+202C`: accepted, and both reach `docs/commands.md` raw while
+/// `crates/nc-catalog/src/commands.rs` holds neither.
 ///
 /// `catalog/commands.toml`'s own header says the schema is what exposes a
 /// command to an AI agent, and `INVISIBLE_RANGES`' comment names the tag block
 /// for that reason — text that reads one way to a person and another to whatever
-/// consumes it. The repair that closed this class for descriptions closed it at
-/// `cell`, and the one value that does not go through `cell` is the one the
-/// comment is about.
+/// consumes it. This class is closed for descriptions at `cell`, and the one
+/// value that does not go through `cell` is the one the comment is about.
 ///
 /// The first half is the too-strong control: JSON's own whitespace is exempt, so
 /// a pretty-printed multi-line schema still compiles. `\n` is inside
@@ -3065,15 +3066,16 @@ fn a_schema_a_reader_cannot_see_all_of_fails_the_build() {
 
 /// A translation that is the English sentence with a space written invisibly.
 ///
-/// **The normaliser and the writer disagreed about what a reader sees.**
-/// `the_same_sentence`'s `plainly` *deleted* every character `INVISIBLE_RANGES`
-/// holds; `printable` — which writes every `///` line and every published cell —
-/// replaces the same characters with a space. So the English sentence with one
-/// of its spaces written `U+200D` normalised to `oldrecords` for this rule and
-/// published as `Old records` on the page: measured, filed as the pt-BR value,
-/// `ACCEPTED, 0 problem(s)`, and `docs/errors.md` then carried the identical
-/// English sentence in *both* language columns — the exact failure this rule
-/// exists to catch, arriving through the one transformation nobody had compared.
+/// **The normaliser and the writer agree about what a reader
+/// sees.** A `plainly` that *deletes* every character `INVISIBLE_RANGES` holds,
+/// beside `printable` — which writes every `///` line and every published cell
+/// — replacing the same characters with a space, normalises the English
+/// sentence with one of its spaces written `U+200D` to `oldrecords` for this
+/// rule while it is published as `Old records` on the page: measured, filed as
+/// the pt-BR value, `ACCEPTED, 0 problem(s)`, and `docs/errors.md` then carries
+/// the identical English sentence in *both* language columns — the exact
+/// failure this rule exists to catch, arriving through a transformation nothing
+/// else compares.
 ///
 /// Clippy cannot see it either: `quoted` writes the character as the ASCII
 /// escape `\u{200d}`.
@@ -3111,13 +3113,13 @@ fn a_translation_that_is_the_source_sentence_with_a_space_written_invisibly_fail
 
 /// A sentence made only of characters a reader sees nothing of.
 ///
-/// **`no_key_is_blank` asked `char::is_whitespace` where the rest of the file
-/// asks `shows_nothing`.** Its own doc says it exists because `""` and `"   "`
-/// both passed every rule here; a value of three `U+2063 INVISIBLE SEPARATOR`
-/// characters did too — and unlike the first two, nothing downstream catches it.
-/// The published cell is empty and `nc_catalog::message` hands a caller a string
-/// a reader sees nothing of. The control one predicate away, `"   "`, was
-/// refused as `blank-message` throughout.
+/// **`no_key_is_blank` asks `shows_nothing`, like the rest of the file, and
+/// not `char::is_whitespace`.** Its own doc says it exists because `""`
+/// and `" "` would pass every other rule here; a value of three
+/// `U+2063 INVISIBLE SEPARATOR` characters would too. The published cell is
+/// empty and `nc_catalog::message` hands a caller a string a reader sees
+/// nothing of. The control one predicate away, `" "`, is refused as `blank-message`
+/// throughout.
 #[test]
 fn a_sentence_a_reader_sees_nothing_of_fails_the_build() {
     const KEY: &str = "\"error.db.unreachable\"";
@@ -3134,9 +3136,9 @@ fn a_sentence_a_reader_sees_nothing_of_fails_the_build() {
 
 #[test]
 fn a_code_that_changes_retryability_fails_the_build() {
-    // `retryable` was outside the recorded meaning, so `NC-DB-0002` — "a
-    // migration failed to apply", `critical` — could go from `false` to `true`
-    // with the whole gate green, its ledger line unchanged, `docs/errors.md`
+    // Outside the recorded meaning, `retryable` would let `NC-DB-0002` — "a
+    // migration failed to apply", `critical` — go from `false` to `true` with
+    // the whole gate green, its ledger line unchanged, `docs/errors.md`
     // republishing it as retryable and `ErrorCode::retryable()` returning
     // `true`. A scheduler keyed on that field then retries a failed migration
     // for ever, and logs from before and after are indistinguishable — which is
@@ -3157,12 +3159,12 @@ fn a_code_that_changes_retryability_fails_the_build() {
 
 #[test]
 fn a_locale_value_that_is_the_source_sentence_fails_the_build() {
-    // Every i18n rule was about a key's presence and its placeholders, and none
-    // about what the value says: seven pt-BR sentences replaced verbatim with
-    // their English text compiled, generated, and published both language
-    // columns of `docs/errors.md` identical, with `check passed`. The only
-    // bounds were two test floors phrased as fractions, which a handful of
-    // untranslated strings satisfies comfortably.
+    // Without this rule every i18n rule is about a key's presence and its
+    // placeholders, and none about what the value says: seven pt-BR sentences
+    // replaced verbatim with their English text compile, generate, and publish
+    // both language columns of `docs/errors.md` identical, with `check passed`.
+    // Test floors phrased as fractions are satisfied comfortably by a handful
+    // of untranslated strings.
     let scratch = Scratch::new("untranslated");
     scratch.edit("catalog/i18n/pt-BR.toml", |text| {
         let english = std::fs::read_to_string(repository().join("catalog/i18n/en.toml"))
@@ -3214,10 +3216,10 @@ fn a_code_that_changes_severity_fails_the_build() {
 
 #[test]
 fn a_store_that_keeps_nothing_fails_the_build() {
-    // `[stores.*]` had no validation function at all: it was counted and never
-    // read, while `[tables.*]` is validated seven ways. The two numbers here are
-    // what `cargo xtask check` compares the running log store's flags against,
-    // so a zero is a bound the gate then certifies the store as honouring.
+    // `[stores.*]` is validated as `[tables.*]` is, rather than counted and
+    // never read. The two numbers here are what `cargo xtask check` compares
+    // the running log store's flags against, so a zero is a bound the gate then
+    // certifies the store as honouring.
     let scratch = Scratch::new("store-keeps-nothing");
     scratch.replacing(
         "catalog/limits.toml",
@@ -3252,11 +3254,11 @@ fn a_store_nothing_enforces_fails_the_build() {
     );
     scratch.must_fail("store-enforced-by-nobody", "central_log");
 
-    // **And one space**, which is what the rule's `trim` is for and what nothing
-    // handed it: deleting the trim left the whole workspace suite green, and the
-    // suite that reads this sentence would then be given three spaces to look
-    // for an enforcer in. `check_errors`' own comment records the same
-    // regression being repaired once, with no test put under the repair.
+    // **And one space**, which is what the rule's `trim` is for: without this,
+    // deleting the trim leaves the whole workspace suite green, and the suite
+    // that reads this sentence would then be given three spaces to look for an
+    // enforcer in. `check_errors`' own comment makes the same argument, and
+    // this is the test under it.
     let spaced = Scratch::new("store-enforced-by-spaces");
     spaced.replacing(
         "catalog/limits.toml",
@@ -3268,12 +3270,12 @@ fn a_store_nothing_enforces_fails_the_build() {
 
 #[test]
 fn a_window_of_no_length_fails_the_build() {
-    // **Every other number in a budget is a count inside the window, and the
-    // window itself was checked by nothing.** `max_attempts`, the delay curve
-    // and `lockout_after` are all "in `window_seconds`", so zero empties all
-    // three at once — and nine budgets shipped with nothing able to say so.
-    // What the page then publishes is `Window 0s` beside an attempt count,
-    // which reads as a limit and is not one.
+    // **Every other number in a budget is a count inside the window, so the
+    // window itself is checked.** `max_attempts`, the delay curve and
+    // `lockout_after` are all "in `window_seconds`", so zero empties all three
+    // at once, in any budget the catalog ships. What the page then publishes is
+    // `Window 0s` beside an attempt count, which reads as a limit and is not
+    // one.
     let scratch = Scratch::new("zero-window");
     scratch.replacing(
         "catalog/limits.toml",
@@ -3287,8 +3289,8 @@ fn a_window_of_no_length_fails_the_build() {
 fn a_cumulative_count_with_no_lockout_fails_the_build() {
     // `cumulative`'s own documentation is "whether the lockout count survives
     // the window", so with no lockout there is no count to survive — the same
-    // shape as `on_lockout` without `lockout_after`, which has been refused
-    // since it was written. Set on a budget that never locks out it reads, in
+    // shape as `on_lockout` without `lockout_after`, which is refused. Set on a
+    // budget that never locks out it reads, in
     // the registry and on the generated page, as a defence that is not there.
     let scratch = Scratch::new("cumulative-without-lockout");
     scratch.replacing(
@@ -3350,11 +3352,12 @@ fn a_command_with_no_action_fails_the_build() {
     scratch.must_fail("command-unauthorizable", "journal.verify");
 }
 
-/// The other half of the same rule, which no fixture drove.
+/// The other half of the same rule, driven by a fixture of its own.
 ///
-/// **`says_nothing(action) || says_nothing(resource_selector)`** — and only the
-/// action half had a fixture, so the selector disjunct could be deleted with
-/// every test in the tree green. A command with no selector is one the policy
+/// **`says_nothing(action) || says_nothing(resource_selector)`** — and with
+/// only the action half given a fixture, the selector disjunct could be deleted
+/// with every test in the tree green. A command with no selector is one the
+/// policy
 /// decision point has nothing to evaluate against, which `NOCTUA.md §11.7`
 /// says is rejected at activation: the build is where that has to be caught,
 /// because a command that reaches activation has already shipped.
@@ -3474,11 +3477,11 @@ fn a_selector_the_grammar_or_the_schema_does_not_back_fails_the_build() {
 
 /// A selector reaching the realm through an argument is refused.
 ///
-/// Found by review: the judge accepted `argument:<name>` over a property whose
-/// `x-entity` is `Realm`, so a command could hand the decision point a realm id
-/// its caller wrote — and the rule that keeps a mutating realm-wide selector
-/// off a plugin is written against `realm`. The remedy differs from the other
-/// selector refusals: nothing in the schema fixes it, and `realm` does.
+/// Accepted, `argument:<name>` over a property whose `x-entity` is `Realm` lets
+/// a command hand the decision point a realm id its caller wrote — and the rule
+/// that keeps a mutating realm-wide selector off a plugin is written
+/// against `realm`. The remedy differs from the other selector refusals:
+/// nothing in the schema fixes it, and `realm` does.
 #[test]
 fn a_selector_reaching_the_realm_through_an_argument_fails_the_build() {
     let scratch = Scratch::new("selector-realm-argument");
@@ -3513,10 +3516,10 @@ fn a_command_name_outside_the_grammar_fails_the_build() {
 
 /// Every problem the judge finds in one command is reported, not the first.
 ///
-/// Found by review: every other command case here breaks one field, so the
-/// compiler could keep the judge's first problem and drop the rest with every
-/// suite green — against its own promise that an author learns every defect in
-/// one build. This breaks two fields of one command and asks for both.
+/// Every other command case here breaks one field, so without this the compiler
+/// could keep the judge's first problem and drop the rest with every suite
+/// green — against its own promise that an author learns every defect in one
+/// build. This breaks two fields of one command and asks for both.
 #[test]
 fn every_problem_in_one_command_is_reported_rather_than_the_first() {
     let scratch = Scratch::new("two-problems");
@@ -3612,7 +3615,7 @@ fn a_duplicate_event_field_fails_the_build() {
 fn a_field_type_the_wall_does_not_have_fails_the_build() {
     // The type wall's registry cannot name a dynamic string, and the refusal is
     // at catalog-parse time rather than at compile time — which is earlier and
-    // better, and is what the registry's comment now says.
+    // better, and is what the registry's comment says.
     let scratch = Scratch::new("field-type");
     scratch.edit("catalog/log-events.toml", |text| {
         text.replace(
@@ -3627,20 +3630,20 @@ fn a_field_type_the_wall_does_not_have_fails_the_build() {
 
 #[test]
 fn an_empty_registry_fails_the_build() {
-    // Emptying four registries used to leave the catalog step green at "0
-    // notification(s), 0 email(s), 0 command(s), 0 log event(s)". §19.3's first
-    // rule is that a count of zero is not a pass.
+    // Without the floors, emptying four registries leaves the catalog step
+    // green at "0 notification(s), 0 email(s), 0 command(s), 0 log event(s)".
+    // §19.3's first rule is that a count of zero is not a pass.
     //
-    // **Four of ten, and the other six arrived with no case.** `floor` is called
-    // from ten places; this table named the four from the original incident.
-    // Measured with the other six replaced by `let _ = …len();`: the whole
-    // workspace green. Three of them are the only thing between
-    // `catalog/limits.toml` and an empty registry — with the floors gone and
-    // every `[[rate_limit]]` deleted, `cargo xtask build` then `cargo xtask
-    // check` printed `ok 15 generated file(s) match the catalog` and
+    // **Every call site, not four.** `floor` has one call site per row of
+    // this table, and with only four of them here — measured with the others
+    // replaced by `let _ = …len();` — the whole workspace stays green. Three of
+    // them stand between `catalog/limits.toml` and an empty registry — with
+    // the floors gone and every `[[rate_limit]]` deleted, `cargo xtask build`
+    // then `cargo xtask check` print
+    // `ok 15 generated file(s) match the catalog` and
     // `pub const RATE_LIMITS: &[RateLimit] = &[];`, so every §15.5 escalation
-    // rule quantified over nothing and `docs/limits.md` published an empty table
-    // under prose describing curves.
+    // rule quantifies over nothing and `docs/limits.md` publishes an empty
+    // table under prose describing curves.
     for (name, file, what) in [
         (
             "empty-notifications",
@@ -3748,15 +3751,15 @@ fn an_empty_registry_fails_the_build() {
 
 #[test]
 fn a_missing_registry_fails_the_build() {
-    // **Every registry, each naming its own path.** This removed one file and
-    // asserted the message said `"read"` — which is a word of the template
-    // (`"could not be read: {error}"`) and therefore true of the diagnostic
-    // whatever path it was handed. `load::read` is given `relative` and builds
+    // **Every registry, each naming its own path.** Removing one file and
+    // asserting the message says `"read"` asks for a word of the template
+    // (`"could not be read: {error}"`), true of the diagnostic whatever path it
+    // is handed. `load::read` is given `relative` and builds
     // `Problem::in_file(relative, …)`; replacing that argument with any
     // hard-coded path — so that a developer who deleted `catalog/limits.toml`
-    // was sent to look at `catalog/errors.toml` — left this test green, under a
-    // module header promising "the message names the offending key, code or
-    // table" and against criterion 6, which is *the error names it*.
+    // is sent to look at `catalog/errors.toml` — leaves such a test green,
+    // under a module header promising "the message names the offending key,
+    // code or table" and against criterion 6, which is *the error names it*.
     //
     // One fixture cannot catch that: a constant satisfies the one path it
     // happens to equal. Six do, because a constant can be at most one of them.
@@ -3782,7 +3785,7 @@ fn a_missing_registry_fails_the_build() {
 
 #[test]
 fn a_malformed_registry_produces_a_located_error() {
-    // `NOCTUA-PLAN.md` Stage 10 asks for exactly this and it had no test.
+    // `NOCTUA-PLAN.md` Stage 10 asks for exactly this.
     let scratch = Scratch::new("malformed");
     scratch.edit("catalog/errors.toml", |mut text| {
         text.push_str("\n[[error]\ncode = \"NC-DB-0005\"\n");
@@ -3801,8 +3804,9 @@ fn a_malformed_registry_produces_a_located_error() {
 
 #[test]
 fn a_duplicate_name_in_every_registry_that_has_one_fails_the_build() {
-    // Four sibling `duplicate-*` checks were tested and four were not, which is
-    // how a family of checks loses half its coverage without anyone noticing.
+    // Every sibling `duplicate-*` check is tested, because testing four of
+    // eight is how a family of checks loses half its coverage without anyone
+    // noticing.
     for (name, file, addition, check, naming) in [
         (
             "dup-notification",
@@ -3871,14 +3875,14 @@ fn a_command_that_mutates_and_says_it_does_not_fails_the_build() {
 #[test]
 fn a_command_whose_schema_is_not_an_object_fails_the_build() {
     // **Both arms, because `schema-not-an-object` is pushed from two.**
-    // `{"type":"array"}` *is* a JSON object and reaches only the first — the one
-    // that reads the `type` key — so the second, for a schema that is not an
-    // object at all, was the fourth instance of the shape
-    // `the_second_call_site_of_each_shared_check_fires_too` exists for. Removing
-    // it left the whole workspace green while `[]`, `"hello"` and `42` all
-    // compiled through as argument schemas, and `commands.toml`'s own fix text
-    // says what that costs: this is what exposes the command to an AI agent, so
-    // a malformed one silently removes the tool.
+    // `{"type":"array"}` *is* a JSON object and reaches only the first — the
+    // one that reads the `type` key — so the second, for a schema that is not
+    // an object at all, is the fourth instance of the shape
+    // `the_second_call_site_of_each_shared_check_fires_too` exists for. Without
+    // this, removing it leaves the whole workspace green while `[]`, `"hello"`
+    // and `42` all compile through as argument schemas, and `commands.toml`'s
+    // own fix text says what that costs: this is what exposes the command to an
+    // AI agent, so a malformed one silently removes the tool.
     for shape in [r#"{"type":"array"}"#, "[]", r#""hello""#, "42", "null"] {
         let scratch = Scratch::new(&format!("schema-shape-{}", shape.len()));
         scratch.edit("catalog/commands.toml", |text| {
@@ -3893,11 +3897,11 @@ fn a_command_whose_schema_is_not_an_object_fails_the_build() {
 
 #[test]
 fn a_budget_with_no_curve_or_no_attempts_fails_the_build() {
-    // Each case names the surface it breaks. It used to pass `""` as the name,
-    // and `what.contains("")` is true — so half of `must_fail` was switched off
-    // for these four, and a diagnostic saying only "something is wrong" would
-    // have satisfied all of them while the module header promised every message
-    // names the offending key.
+    // Each case names the surface it breaks. Passing
+    // `""` as the name would make `what.contains("")` true — half of `must_fail`
+    // switched off for these four, and a diagnostic saying only "something is
+    // wrong" satisfying all of them while the module header promises every
+    // message names the offending key.
     for (name, from, to, check, naming) in [
         (
             "no-curve",
@@ -3967,14 +3971,13 @@ fn removing_the_source_locale_fails_the_build() {
 
 /// Every control character a registry can hold is escaped on its way into Rust.
 ///
-/// **The arm that does it was reached by no test.** Five control characters were
-/// handled by name and the rest went through as themselves: a NUL written as a
-/// `\u0000` escape in `catalog/i18n/` reached the generated table as a raw NUL
-/// byte, and a `\u0007` as a raw BEL. rustc accepts both, so it was never a
-/// build break — it was a NUL in a sentence shown to a user and in the Markdown
-/// page beside it. The fix has a paragraph recording all of that and no test, so
-/// deleting the arm left `cargo xtask check` green over 829 tests, with the raw
-/// bytes present in the generated source.
+/// **The arm that does it is reached by this test.** Passed through as
+/// themselves, a NUL written as a `\u0000` escape in `catalog/i18n/` reaches
+/// the generated table as a raw NUL byte, and a `\u0007` as a raw BEL. rustc
+/// accepts both, so it is never a build break — it is a NUL in a sentence shown
+/// to a user and in the Markdown page beside it. Without this, deleting the arm
+/// leaves `cargo xtask check` green, with the raw bytes present in the
+/// generated source.
 ///
 /// Asserted on the output bytes rather than on the escape's spelling: what must
 /// not happen is a control character *reaching* the generated file, and there is
@@ -4028,11 +4031,11 @@ fn no_control_character_reaches_the_generated_source() {
 /// `empty-description`, `name-not-an-identifier` and `name-collision` is pushed
 /// from two places in `load.rs`, and the cases beside this one break the first
 /// of each: the errors registry, `notifications.toml`, and a duplicated event
-/// name. The second of each fired in no test at all, so all three could be
-/// deleted with `cargo xtask check` green over 829 tests.
+/// name. Without this test the second of each fires in no test, so all three
+/// can be deleted with `cargo xtask check` green.
 ///
-/// The shared name is what made the gap invisible to review — the string is in
-/// the test file, so the guard looks tested. What each of these lets through:
+/// The shared name is what hides the gap — the string is in the test file, so
+/// the guard looks tested. What each of these lets through:
 /// a log event with an empty description, a log-event field whose snake-case
 /// form is not an identifier, and two locales whose BCP-47 tags camel-case to
 /// one enum variant.
@@ -4075,14 +4078,15 @@ fn the_second_call_site_of_each_shared_check_fires_too() {
     );
     scratch.must_fail("name-collision", "PtBR");
 
-    // **`registry-unreadable`'s second site, which said something never true.**
+    // **`registry-unreadable`'s second site, and what it must not say.**
     // `compile` re-reads `catalog/errors.toml` after `load` has already opened
-    // it, and on failure it built a *fresh* vector holding one problem —
-    // discarding everything `load` found, three lines under a comment promising
-    // "every problem found … rather than the first" — with the sentence "it was
-    // read a moment ago, so something changed the tree mid-build". `load` opens
-    // that file first, so the sentence is false for every input that reaches it:
-    // a developer with a missing file was sent to look for a concurrent writer.
+    // it. A *fresh* vector holding one problem on failure would discard
+    // everything `load` found, three lines under a comment promising "every
+    // problem found … rather than the first" — and a sentence such as "it was
+    // read a moment ago, so something changed the tree mid-build" is false for
+    // every input that reaches it, because `load` opens that file first: a
+    // developer with a missing file would be sent to look for a concurrent
+    // writer.
     //
     // Both halves are asserted: the wording is `load`'s, and the other problems
     // survive.
@@ -4109,11 +4113,11 @@ fn the_second_call_site_of_each_shared_check_fires_too() {
         "the refusal still tells a reader something changed the tree while the build ran, \
          which is never true of a file `load` opens first: {problems:#?}"
     );
-    // **Exactly one, and it is `load`'s.** The assertion was `len() > 1` under a
-    // message about the locale defect surviving — and it passed on a *duplicate*
-    // while that defect really was gone: `load` returns the moment a registry
-    // cannot be read, so its i18n checks never run. A test that names one thing
-    // and is satisfied by another is a test that agrees with the next defect too.
+    // **Exactly one, and it is `load`'s.** An assertion of `len() > 1` under a
+    // message about the locale defect surviving passes on a *duplicate* while
+    // that defect really is gone: `load` returns the moment a registry cannot
+    // be read, so its i18n checks never run. A test that names one thing and is
+    // satisfied by another is a test that agrees with the next defect too.
     let said = problems
         .iter()
         .filter(|problem| problem.check == "registry-unreadable")
@@ -4128,17 +4132,17 @@ fn the_second_call_site_of_each_shared_check_fires_too() {
 
 /// The characters that are not invisible and still break out of a line.
 ///
-/// Split out because the sweep it belongs to crossed a hundred lines. Takes a
-/// counter so a caller can prove it ran rather than trusting that it was called.
+/// Split out because the sweep it belongs to would cross a hundred lines. Takes
+/// a counter so a caller can prove it ran rather than trusting that it was
+/// called.
 fn the_visible_escapes_are_made(checked: &mut usize) {
-    // Both escapers grew these arms after measured incidents — `<version>` in a
-    // registry description made `RUSTDOCFLAGS=-D warnings` refuse the generated
-    // crate with `unclosed HTML tag`, and `Ask <your administrator>` in a locale
-    // put raw HTML in a published table — and neither arm was reached by any
-    // test: the sweep above passes only control characters and direction marks,
-    // and nothing in the shipped catalog holds one of these, so the drift check
-    // cannot see them either. Reducing `doc` to `out.push(character)` left the
-    // whole workspace green.
+    // Both escapers carry these arms because of measured incidents — unescaped,
+    // `<version>` in a registry description makes `RUSTDOCFLAGS=-D warnings`
+    // refuse the generated crate with `unclosed HTML tag`, and
+    // `Ask <your administrator>` in a locale puts raw HTML in a published table.
+    // The sweep above passes only control characters and direction marks, and
+    // nothing in the shipped catalog holds one of these, so neither it nor the
+    // drift check can see them; this hands each escaper both.
     for (character, escaped) in [('<', "&lt;"), ('>', "&gt;")] {
         let line = nc_catalog_compiler::doc(&format!("before{character}after"));
         assert_eq!(
@@ -4175,13 +4179,14 @@ fn the_visible_escapes_are_made(checked: &mut usize) {
 
 /// A doc line and a Markdown cell carry no character that changes how they read.
 ///
-/// **`quoted`'s repair covered string literals and not this.** The same
-/// `\u0000` that `quoted`'s paragraph records reaching the generated table went
-/// on reaching every `///` line and every Markdown cell, because `doc` replaced
-/// `\n` and `\r` and nothing else. And `is_control()` is category `Cc`, which
+/// **`quoted` covers string literals, and this covers the rest.** The same
+/// `\u0000` that `quoted`'s paragraph records reaching the generated table
+/// would reach every `///` line and every Markdown cell if `doc` replaced `\n`
+/// and `\r` and nothing else. And `is_control()` is category `Cc`, which
 /// does not include the bidirectional overrides — those rustc *denies* inside a
-/// literal, so a translator pasting one into `catalog/i18n/` produced a
-/// workspace that would not compile, pointing at a generated file nobody edited.
+/// literal, so with `is_control()` alone a translator pasting one into
+/// `catalog/i18n/` would produce a workspace that does not compile, pointing at
+/// a generated file nobody edited.
 ///
 /// Swept rather than listed, and asserted on the output bytes: what must not
 /// happen is such a character *reaching* a generated file.
@@ -4189,32 +4194,33 @@ fn the_visible_escapes_are_made(checked: &mut usize) {
 fn no_doc_line_or_cell_carries_an_invisible_character() {
     let mut checked = 0_usize;
     let mut above = 0_usize;
-    // **One list, iterated — there used to be three, and they disagreed.** The
-    // set was transcribed here a second time and swept over a third set of
-    // ranges, and none of the three reached `U+110BD`/`U+110CD`, `U+00AD`,
-    // `U+180E`, `U+FFF9`–`U+FFFB` or `U+1D17B`–`U+1D182`: five clauses of
-    // `shows_nothing`, fifteen code points, decided by nothing. Measured, all
-    // five deleted from `crates/nc-catalog-compiler/src/lib.rs` and this crate
-    // stayed green at 48, 90 and 3 passed — and with the Kaithi pair gone, the
-    // English sentence plus `U+110BD` filed as the pt-BR translation of
-    // `NC-JRNL-0001` gave `check passed` with both language columns identical.
+    // **One list, iterated, because three lists disagree.** Transcribed here a
+    // second time and swept over a third set of ranges, the set would have gaps
+    // none of the three reaches — `U+110BD`/`U+110CD`, `U+00AD`, `U+180E`,
+    // `U+FFF9`–`U+FFFB` and `U+1D17B`–`U+1D182`: five clauses of
+    // `shows_nothing`, fifteen code points, decided by nothing. Measured that
+    // way, all five deleted from `crates/nc-catalog-compiler/src/lib.rs` leave
+    // this crate green — and with the Kaithi pair gone, the English sentence
+    // plus `U+110BD` filed as the pt-BR translation of `NC-JRNL-0001` gives
+    // `check passed` with both language columns identical.
     //
-    // **The filter used to be the predicate under test**, so every code point
-    // the predicate did not name was enumerated here and never asserted — the
-    // range was decoration. Measured: `U+2063 INVISIBLE SEPARATOR` sat inside
-    // `0x200B..=0x206F`, was skipped by that line, and let the English sentence
-    // be published in the pt-BR column of `NC-JRNL-0001`. There is no filter
-    // now, because there is nothing to filter: the ranges *are* the set, so no
-    // point can be enumerated and then excused, and none of them holds a
-    // character a reader can see. Sweeping a wide range instead is the other
-    // error — `U+2010` is a hyphen and has to survive.
+    // **The filter is not the predicate under test**: if it were, every code
+    // point the predicate did not name would be enumerated here and never
+    // asserted, and the range would be decoration. Measured:
+    // `U+2063 INVISIBLE SEPARATOR` inside `0x200B..=0x206F` is skipped by such
+    // a line, and lets the English sentence be published in the pt-BR column of
+    // `NC-JRNL-0001`. There is no filter, because there is nothing to filter:
+    // the ranges *are* the set, so no point can be enumerated and then excused,
+    // and none of them holds a character a reader can see. Sweeping a wide
+    // range instead is the other error — `U+2010` is a hyphen and has to
+    // survive.
     //
-    // **And above the basic plane**, which nothing swept for a round: `Cc` tops
-    // out at `U+009F` and the direction marks used to top out at `U+FEFF`, so
-    // `as_toml`'s `\UXXXXXXXX` arm — the one written for a character that needs
-    // eight digits — was unreachable. `U+E0020`–`U+E007F` is the tag block:
-    // invisible everywhere and spelling out ASCII, which matters because
-    // `commands.toml`'s descriptions are what expose a command to an AI agent.
+    // **And above the basic plane**: `Cc` tops out at `U+009F`, and with
+    // direction marks topping out at `U+FEFF`, `as_toml`'s `\UXXXXXXXX` arm —
+    // the one written for a character that needs eight digits — would be
+    // unreachable. `U+E0020`–`U+E007F` is the tag block: invisible everywhere
+    // and spelling out ASCII, which matters because `commands.toml`'s
+    // descriptions are what expose a command to an AI agent.
     for point in nc_catalog_compiler::INVISIBLE_RANGES
         .into_iter()
         .flat_map(|(first, last)| first..=last)
@@ -4223,16 +4229,16 @@ fn no_doc_line_or_cell_carries_an_invisible_character() {
             continue;
         };
         checked += 1;
-        // **The character itself, not the predicate under test.** Every
-        // assertion in this sweep asked whether the output still held anything
-        // `is_control() || is_a_direction_mark()` answered for — the same
-        // predicate the escapers consult — so shrinking the predicate shrank the
-        // expectation with it and the assertion could not fail for any input.
-        // Measured, `'\u{202a}'..='\u{202e}'` narrowed to `'\u{202a}'..='\u{202b}'`,
+        // **The character itself, not the predicate under test.** An assertion
+        // asking whether the output still holds anything
+        // `is_control() || is_a_direction_mark()` answers for — the same
+        // predicate the escapers consult — shrinks its expectation with the
+        // predicate, and cannot fail for any input. Measured that way,
+        // `'\u{202a}'..='\u{202e}'` narrowed to `'\u{202a}'..='\u{202b}'`,
         // which drops POP DIRECTIONAL FORMATTING, LEFT-TO-RIGHT OVERRIDE and
         // RIGHT-TO-LEFT OVERRIDE from all four escapers at once:
-        // `check passed`, 1082 tests. Only the astral arm was independent, which
-        // is why a plant above the BMP died and every one inside it lived.
+        // `check passed`. Only an astral arm is independent of it, so a plant
+        // above the BMP dies and every one inside it lives.
         //
         // What is asserted is that the character is not in the output, which is
         // a fact about the character.
@@ -4246,17 +4252,18 @@ fn no_doc_line_or_cell_carries_an_invisible_character() {
             line.starts_with("/// before") && line.trim_end().ends_with("after"),
             "`U+{point:04X}` was not written through at all: {line:?}"
         );
-        // And the literal escaper covers the same set, which it did not: the
-        // direction marks passed `is_control()` and went through verbatim.
+        // And the literal escaper covers the same set: the direction marks pass
+        // `is_control()`, so a test of that alone lets them through verbatim.
         let written = nc_catalog_compiler::quoted(&format!("before{character}after"));
         assert!(
             !written.chars().any(|held| held == character),
             "`U+{point:04X}` reached a string literal as itself: {written:?}"
         );
-        // And a published table cell, which `printable` claims to write and did
-        // not: `cell` was not one of its callers, so a control character or a
-        // bidi override in a registry value reached every generated page raw
-        // while the generated *code* beside it was correctly escaped.
+        // And a published table cell, which
+        // `printable` claims to write: were `cell` not one of its callers, a
+        // control character or a bidi override in a registry value would reach
+        // every generated page raw while the generated *code* beside it was
+        // correctly escaped.
         let published = nc_catalog_compiler::cell_for_tests(&format!("before{character}after"));
         assert!(
             !published.chars().any(|held| held == character),
@@ -4303,15 +4310,13 @@ fn no_doc_line_or_cell_carries_an_invisible_character() {
 /// The one list both readers take holds only characters a reader cannot see,
 /// and holds all of them.
 ///
-/// **The sweep above cannot ask this.** It iterates `INVISIBLE_RANGES` and
-/// `shows_nothing` answers from the same array — which is the repair: the
-/// predicate and the expectation were two hand lists that disagreed, and neither
-/// reached `U+110BD`/`U+110CD`, `U+00AD`, `U+180E`, `U+FFF9`–`U+FFFB` or
-/// `U+1D17B`–`U+1D182`. Measured before the array existed: those five clauses
-/// deleted together, fifteen code points, and
-/// `cargo test -p nc-catalog-compiler` green at 48, 90 and 3 passed. One array
-/// means they can no longer disagree, and it also means a range deleted from it
-/// is a range the sweep stops asking about.
+/// **The sweep above cannot ask this.** It iterates `INVISIBLE_RANGES`
+/// and `shows_nothing` answers from the same array, so the predicate and the
+/// expectation cannot disagree. Two hand lists can: measured with
+/// two, `U+110BD`/`U+110CD`, `U+00AD`, `U+180E`, `U+FFF9`–`U+FFFB`
+/// and `U+1D17B`–`U+1D182` — five clauses, fifteen code points — deleted
+/// together leave `cargo test -p nc-catalog-compiler` green. One array also
+/// means a range deleted from it is a range the sweep stops asking about.
 ///
 /// So the array is held from outside itself, by three things none of which is
 /// another transcription of it: its own frozen size, `char::is_control` and
@@ -4360,7 +4365,7 @@ fn the_invisible_ranges_hold_only_characters_a_reader_cannot_see() {
         };
         // The two narrower predicates are floors under the array: `is_control`
         // is std's own `Cc` table, and the direction marks are what four
-        // escapers were built around.
+        // escapers are built around.
         if character.is_control() || nc_catalog_compiler::is_a_direction_mark(character) {
             assert!(
                 nc_catalog_compiler::shows_nothing(character),
@@ -4416,17 +4421,18 @@ fn the_escapers_leave_it_alone(character: char, point: u32) {
 
 /// The blank set is a second set, and nothing that writes a file reads it.
 ///
-/// **One array was answering two questions.** `INVISIBLE_RANGES` decides what
-/// four escapers replace with a space, and it also decided whether two sentences
-/// are the same sentence — and those are not the same question. Measured before
-/// the split, the English sentence plus one `U+3164 HANGUL FILLER` filed as the
+/// **One array cannot answer two questions.** `INVISIBLE_RANGES` decides what
+/// four escapers replace with a space, and whether two sentences are the same
+/// sentence is not the same question. Measured with one array answering both,
+/// the English sentence plus one `U+3164 HANGUL FILLER` filed as the
 /// pt-BR `error.journal.chain-broken`: `Ok, 0 problem(s)`, and `docs/errors.md`
 /// publishing that English sentence in the pt-BR column of `NC-JRNL-0001`.
 ///
-/// **And no gate objects to merging them back**, which is why this one exists.
-/// Measured, all 27 points inserted into `INVISIBLE_RANGES` in order with its
-/// length at 33 and the frozen count below moved to 4271: the whole crate suite
-/// passes, `char::escape_debug` declines to print every one of the 27, and
+/// **And no other gate objects to merging them back**, which is why this one
+/// exists. Measured without this, all 27 points inserted into
+/// `INVISIBLE_RANGES` in order with its length at 33 and the frozen count below
+/// moved to 4271: the rest of the crate suite passes, `char::escape_debug`
+/// declines to print every one of the 27, and
 /// `⚠\u{FE0F} the disk is full` comes out of `doc` as `⚠  the disk is full`
 /// while `한\u{3164}국` comes out of a cell as `한 국`. So each point is asserted
 /// on both sides — that the escapers leave it where it stands, and that the
@@ -4517,10 +4523,11 @@ fn the_blank_set_is_a_second_set_and_no_escaper_reads_it() {
 
 /// An English sentence with a character drawn as nothing added is still English.
 ///
-/// The plant that produced the split, run against the real compiler over a copy
-/// of the repository's own catalog: `U+3164` appended to the source sentence and
-/// filed as the pt-BR translation of `NC-JRNL-0001` — `critical`, non-retryable,
-/// the journal-tampering message. It compiled clean before the repair.
+/// The plant that shows why the blank set is its own, run against the real
+/// compiler over a copy of the repository's own catalog: `U+3164` appended to
+/// the source sentence and filed as the pt-BR translation of `NC-JRNL-0001`
+/// — `critical`, non-retryable, the journal-tampering message. With one set, it
+/// compiles clean.
 #[test]
 fn a_source_sentence_with_a_blank_character_added_fails_the_build() {
     let scratch = Scratch::new("untranslated-blank");
@@ -4560,13 +4567,13 @@ fn a_source_sentence_with_a_blank_character_added_fails_the_build() {
 
 /// The guard removes its directory when it is dropped.
 ///
-/// **What this type does was decided by its name.** `BUILDS_A_SCRATCH` in
-/// `xtask/src/check.rs` counts a site as guarded when the body around it names a
-/// type from `REMOVES_ITS_SCRATCH_ON_THE_WAY_OUT`, and `Scratch` is on that
-/// list — so gutting this `Drop` left the census reporting every site in this
-/// file as removed however the test leaves, while one run of this suite left 85
-/// directories in the temporary directory. Reported on 2026-09-14, with the
-/// whole gate green.
+/// **What this type does is otherwise decided by its name.** `BUILDS_A_SCRATCH`
+/// in `xtask/src/check.rs` counts a site as guarded when the body around it
+/// names a type from `REMOVES_ITS_SCRATCH_ON_THE_WAY_OUT`, and `Scratch` is on
+/// that list — so with this `Drop` gutted and this test gone, the census would
+/// still report every site in this file as removed however the test leaves,
+/// while one run of this suite leaves 85 directories in the temporary
+/// directory, with the whole gate green.
 ///
 /// A name is not a guarantee. This is.
 #[test]

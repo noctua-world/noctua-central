@@ -6,11 +6,11 @@
 #
 # **Each frozen status is decided on every kind of resource a permit lets that
 # account reach.** A floor is about the account, whatever it asks for, and the
-# runner mutates conjuncts and comparisons, not disjuncts. When this file put
-# `suspended` only on `Content` and `deceased` only on a `Realm`, a floor
-# narrowed to one kind of resource inside its `when` kept every check green.
-# Measured: `(principal.status == "suspended" && resource is Content)` gave a
-# suspended account back its undo and redo. The gate now refuses a type test
+# runner mutates conjuncts and comparisons, not disjuncts. With `suspended`
+# decided only on `Content` and `deceased` only on a `Realm`, a floor narrowed
+# to one kind of resource inside its `when` keeps every check green. Measured:
+# `(principal.status == "suspended" && resource is Content)` gives a suspended
+# account back its undo and redo. The gate refuses a type test
 # that guards no read in a floor's condition, and these cases stand behind the
 # shape it still excuses. So a suspended member is refused here on `Content`,
 # the `Realm` and her own `User`. A guardian who has died is refused on those
@@ -59,7 +59,7 @@ because = "family.a_frozen_account_acts_on_nothing"
 # **The other status the rule names, decided by a case of its own.** The rule
 # is a disjunction and the runner mutates conjuncts and comparisons, not
 # disjuncts — so with only a suspended account in the world, deleting the
-# `deceased` half left every check green. Elias is still in
+# `deceased` half leaves every check green. Elias is still in
 # `Group::"role.guardian"`, which is the state `NOCTUA.md §14.7` leaves an
 # account in until its roles migrate, and the prune permit would reach him.
 name = "a guardian who has died prunes nothing, before his roles have migrated"
@@ -99,9 +99,10 @@ because = "family.a_frozen_account_acts_on_nothing"
 
 [[case]]
 # **A status this pack does not know is frozen too.** Nothing checks `status`
-# against the five values `§14.7` names. While the rule listed the frozen
-# ones, any other value was allowed by the account permit: `archived` here,
-# and a typo, a different case or a state a later stage adds just the same.
+# against the five values `§14.7` names. A rule listing the frozen ones would
+# leave any other value to the account permit, which allows it: `archived`
+# here, and a typo, a different case or a state a later stage adds just the
+# same.
 # Deny by default: the rule names the states that may act.
 name = "an account in a state this pack does not know reads nothing, not even itself"
 principal = 'User::"hugo"'
@@ -137,7 +138,7 @@ because = "family.a_member_reads_shared_content"
 # resource and never the principal — so every other device reads it.
 #
 # **Decided on `Content` because that is all a device can reach.** The one
-# permit over the realm a device could once pass, the undo and redo of
+# permit over the realm a device would otherwise pass, the undo and redo of
 # `family.a_member_steps_through_their_own_history`, says `principal is User`,
 # and its own cases in `realm.toml` pin that. A case asking this floor about
 # the realm would be refused with the floor removed as well, which the runner

@@ -8,11 +8,6 @@
 # **no string type at all**. A dynamic string, the shape every accidental leak of
 # personal data takes, cannot compile into one of these.
 #
-# This paragraph described the wall as `&'static str` for a while and the one
-# below already said why that was torn down. The registry is this deliverable's
-# front door; two descriptions of the same wall, twelve lines apart, is how a
-# reader learns to trust neither.
-#
 # The `type` of every field below is checked **when this file is read** — there
 # is no `text` kind to name, so a field that wanted one fails the build here,
 # with a line, rather than later inside generated source. The types themselves
@@ -22,7 +17,7 @@
 #
 # **The guarantee has a second half, and it is built.** A leaked string is a real
 # `&'static str` — `String::leak` and `Box::leak` both make one out of anything —
-# so the trait no longer accepts a bare `&'static str` at all. A `literal`
+# so the trait does not accept a bare `&'static str` at all. A `literal`
 # field is `nc_log::Literal`, whose contents are private and whose only
 # constructor is a macro matching a literal *token*: a leaked value is not one,
 # and does not compile.
@@ -33,7 +28,7 @@
 # they must produce, so a fixture that stops proving its shape fails rather than
 # passing quietly.
 #
-# Where the registry lives is `[DERIVED]`, and `NOCTUA.md §15.2` and `§15.4` now
+# Where the registry lives is `[DERIVED]`, and `NOCTUA.md §15.2` and `§15.4`
 # both name this file. It is here, with the other registries, because a second
 # mechanism for the same shape of data is exactly what the catalog exists to
 # prevent — and because the developer surfaces will document log events for free
@@ -57,13 +52,13 @@
 #   enum                      a variant of an enum the platform declares — the
 #                             state of a state machine, never a name
 #
-# `id` is a kind the compiler still knows and **refuses**, and this list offered
-# it for a while — so the obvious pick for an identifier was a kind a third
-# source rejects, and a newcomer found that out from the refusal rather than from
-# here. It generates a field of `nc_ids::OpaqueId`, whose constructor accepts any
+# `id` is a kind the compiler knows and **refuses**, so this list does not offer
+# it: the obvious pick for an identifier would be a kind the compiler rejects,
+# and a newcomer would find that out from the refusal rather than from here.
+# It generates a field of `nc_ids::OpaqueId`, whose constructor accepts any
 # 1..=128 bytes of `[A-Za-z0-9._:-]`: a username, a document number, an email
 # local-part. What an opaque identifier may hold is `NOCTUA.md §5.1` and it is
-# [OPEN]; the stage that closes it deletes the refusal and puts `id` back on this
+# [OPEN]; the stage that closes it deletes the refusal and adds `id` to this
 # list. Until then, `snowflake` for a minted identifier and `literal` for a name
 # written in the source.
 
@@ -75,8 +70,8 @@ description = "An entry was appended to the chain"
 level = "debug"
 fields = [
   { name = "sequence", type = "u64" },
-  # A Snowflake, because that is what `Record::work_unit` holds. It was `id`,
-  # so logging one meant converting it through `OpaqueId::new` — the one
+  # A Snowflake, because that is what `Record::work_unit` holds. As `id`,
+  # logging one would mean converting it through `OpaqueId::new` — the one
   # constructor in this crate that accepts arbitrary text.
   { name = "work_unit", type = "snowflake", optional = true },
 ]
@@ -87,9 +82,9 @@ description = "The chain verified from the entry `from` names to its last, and h
 level = "info"
 fields = [
   { name = "entries", type = "u64" },
-  # Where the verification began. It was not here, and the description said
-  # *end to end* of a verification asked to start further on: a log reader
-  # told the whole chain held when only its tail had been read.
+  # Where the verification began, so that one asked to start further on does
+  # not read as *end to end*: without it, a log reader is told the whole chain
+  # held when only its tail was read.
   { name = "from", type = "u64" },
   { name = "took", type = "duration" },
 ]

@@ -1,11 +1,11 @@
 //! Who is in this workspace, and which of them can reach the log.
 //!
-//! **Both questions were answered by reading manifests, and both answers were
-//! wrong for manifests cargo accepts.** They are resolution questions — cargo
-//! decides them from the workspace table, the member globs, the path
-//! dependencies and the target-specific tables together — and a reader that
-//! works from one manifest at a time cannot see the other files the answer
-//! depends on. Two measured misses, each switching a gate off in silence:
+//! **Both questions, answered by reading manifests, come out wrong for
+//! manifests cargo accepts.** They are resolution questions — cargo decides
+//! them from the workspace table, the member globs, the path dependencies and
+//! the target-specific tables together — and a reader that works from one
+//! manifest at a time cannot see the other files the answer depends on. Two
+//! measured misses of such a reader, each switching a gate off in silence:
 //!
 //! ```text
 //! [workspace.dependencies] mylog = { package = "nc-log", … }
@@ -18,15 +18,15 @@
 //! ```
 //!
 //! So this asks cargo. `cargo metadata` lists exactly the workspace members and
-//! resolves the whole dependency graph, which is the fact both gates wanted and
-//! neither could compute. **The graph and not the declarations**: a crate that
-//! writes `pub use nc_log;` hands the log to everything depending on *it*, and
-//! the consumer's own manifest never spells it — so reaching the log is a
-//! question about the graph, and only cargo has the graph.
+//! resolves the whole dependency graph, which is the fact both gates want and a
+//! manifest reader cannot compute. **The graph and not the declarations**: a
+//! crate that writes `pub use nc_log;` hands the log to everything depending on
+//! *it*, and the consumer's own manifest never spells it — so reaching the log
+//! is a question about the graph, and only cargo has the graph.
 //!
 //! It is not a silent fallback. A `cargo metadata` that does not run is
 //! reported, because a scope that collapses quietly is the defect this module
-//! was written to close, one level up.
+//! exists to close, one level up.
 
 use std::path::Path;
 
@@ -53,10 +53,10 @@ pub(crate) struct Member {
     pub(crate) can_log: bool,
     /// Every source root cargo compiles for it, relative to the workspace.
     ///
-    /// **A number the walk cannot fake, and finer than one per member.** The
-    /// floor that reads this asked only that *some* source file sit under each
-    /// member directory, so a walk that lost 99% of its files still reported
-    /// "across all 9 member(s)". Cargo knows every target's `src_path` — one
+    /// **A number the walk cannot fake, and finer than one per member.** A
+    /// floor that asks only that *some* source file sit under each member
+    /// directory lets a walk that lost 99% of its files still report
+    /// "across all … member(s)". Cargo knows every target's `src_path` — one
     /// per library, binary and integration test, and `cargo xtask check` prints
     /// how many — and a walk that reaches all of those has reached the tree's
     /// own entry points.
@@ -74,11 +74,12 @@ pub(crate) struct Member {
     /// is what a manifest sets, so a set derived from it agrees with the
     /// manifest by construction and can say nothing about it: `[lib] doc =
     /// false` takes the library out of the run *and* out of the expectation, and
-    /// the step reads `ok` over a crate rustdoc never opened. Measured, exactly
-    /// that pair — a broken intra-doc link in `crates/nc-prune/src/lib.rs` with
-    /// `doc = false` beside it — gave `rustdoc` exit 0, `ok documentation`, and
-    /// `check passed` with every number unmoved. A kind cannot be switched off
-    /// in a manifest, so the expectation stands where the flag falls.
+    /// the step reads `ok` over a crate rustdoc never opened. Measured with such
+    /// a set, exactly that pair — a broken intra-doc link in
+    /// `crates/nc-prune/src/lib.rs` with `doc = false` beside it — gives
+    /// `rustdoc` exit 0, `ok documentation`, and `check passed` with every
+    /// number unmoved. A kind cannot be switched off in a manifest, so the
+    /// expectation stands where the flag falls.
     pub(crate) documented: Vec<String>,
 }
 
@@ -96,9 +97,9 @@ pub(crate) fn members(root: &Path) -> Result<Vec<Member>, String> {
     // crates/nc-user    can_log=false   <- and it calls the log through the re-export
     // ```
     //
-    // `nc-user`'s whole source was outside the type wall's source gate. The
-    // graph costs about a third of a second here, and it answers reachability —
-    // which is the question the scope is asking.
+    // With `--no-deps`, `nc-user`'s whole source is outside the type wall's
+    // source gate. The graph costs about a third of a second here, and it
+    // answers reachability — which is the question the scope is asking.
     // **Every feature, because a feature is not a boundary.** `cargo metadata`
     // resolves *default* features, so an optional dependency behind one that is
     // off is absent from the graph entirely. Measured, with `nc-log` made
@@ -113,12 +114,9 @@ pub(crate) fn members(root: &Path) -> Result<Vec<Member>, String> {
     // the tree either way — the gate reads text, not a build plan. Control: the
     // same dependency non-optional gives `can_log=true`.
     //
-    // **Through [`metadata`], because this had its own copy of the invocation.**
-    // That function's doc already said it was "the same invocation `members`
-    // makes, lifted out so the two readers of the resolved graph cannot ask
-    // cargo two different questions" — and `members` went on asking cargo
-    // itself, so the lifting was a sentence rather than a fact and the two
-    // argument lists could drift a flag apart with nothing to say so.
+    // **Through [`metadata`], so the invocation has one copy.** Two argument
+    // lists can drift a flag apart with nothing to say so, and a doc saying
+    // they are one is then a sentence rather than a fact.
     from_metadata(&metadata(root)?)
 }
 
@@ -127,12 +125,12 @@ pub(crate) fn members(root: &Path) -> Result<Vec<Member>, String> {
 /// The one invocation, which [`members`] and every other reader of the resolved
 /// graph go through, so they cannot ask cargo two different questions.
 ///
-/// **`members` used to keep its own copy of the argument list**, under a doc
-/// here claiming it did not. `--all-features` is load-bearing — an optional
-/// dependency behind an off-by-default feature is absent from the graph, and the
-/// crate that takes it was outside the type wall's scope entirely — so a flag
-/// present in one list and missing from the other is a gate switched off for
-/// some crates and not others, with both numbers still printed.
+/// **One copy of the argument list, because a second one drifts.**
+/// `--all-features` is load-bearing — an optional dependency behind an
+/// off-by-default feature is absent from the graph, and the crate that takes it
+/// is then outside the type wall's scope entirely — so a flag present in one
+/// list and missing from the other is a gate switched off for some crates and
+/// not others, with both numbers still printed.
 fn metadata(root: &Path) -> Result<serde_json::Value, String> {
     #[expect(
         clippy::disallowed_methods,
@@ -150,21 +148,42 @@ fn metadata(root: &Path) -> Result<serde_json::Value, String> {
         .output()
         .map_err(|error| format!("`cargo metadata` did not run: {error}"))?;
     if !output.status.success() {
-        return Err(format!(
-            "`cargo metadata` failed: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        ));
+        return Err(what_a_failed_graph_says(&String::from_utf8_lossy(
+            &output.stderr,
+        )));
     }
     serde_json::from_slice(&output.stdout)
         .map_err(|error| format!("`cargo metadata` did not answer in JSON: {error}"))
 }
 
+/// Why `cargo metadata` failed, and the fix where cargo's own words point to it.
+///
+/// **`--offline` asks for a package that is not on this machine.** A fresh
+/// clone holds only what its first build fetched, and cargo's answer then names
+/// a package and offline mode — `no matching package named … found`, `offline
+/// mode (via --offline) can sometimes cause surprising resolution failures` —
+/// and never the command that fixes it. So the refusal names it: `cargo xtask
+/// check` without `--offline` fetches every package the lockfile names before it
+/// asks for the graph.
+fn what_a_failed_graph_says(stderr: &str) -> String {
+    let said = stderr.trim();
+    if said.contains("offline") {
+        format!(
+            "`cargo metadata` failed: {said}\nA package the lockfile names is not on this \
+             machine. `cargo fetch --locked` downloads every one of them, and `cargo xtask \
+             check` without `--offline` runs it before anything reads the graph"
+        )
+    } else {
+        format!("`cargo metadata` failed: {said}")
+    }
+}
+
 /// Every package the build resolves from a path outside this repository.
 ///
-/// Returns `(name, manifest path)` for each. **`from_metadata` already had this
-/// and threw it away**: it keeps only packages whose manifest sits under
-/// `workspace_root` and silently drops the rest, so a dependency reaching
-/// outside the tree was absent from the member list every gate is scoped by.
+/// Returns `(name, manifest path)` for each. **`from_metadata` drops these**: it
+/// keeps only packages whose manifest sits under `workspace_root` and silently
+/// drops the rest, so a dependency reaching outside the tree is absent from the
+/// member list every gate is scoped by, and this is where it is named.
 ///
 /// # Errors
 ///
@@ -263,8 +282,11 @@ fn built_from_in(parsed: &serde_json::Value, package: &str) -> Result<Vec<String
         .iter()
         .filter(|candidate| id(candidate).is_some_and(|found| reached.contains(&found)))
         .filter_map(|candidate| candidate.get("manifest_path")?.as_str())
-        .filter_map(|manifest| inside_the_root(workspace, manifest)?.strip_suffix("/Cargo.toml"))
-        .map(str::to_owned)
+        .filter_map(|manifest| {
+            inside_the_root(workspace, manifest)?
+                .strip_suffix("/Cargo.toml")
+                .map(str::to_owned)
+        })
         .collect();
     directories.sort();
     Ok(directories)
@@ -329,31 +351,45 @@ mod built_from_tests {
 /// A path's place under a root, or nothing when it only shares a prefix with it.
 ///
 /// **A prefix is not a directory.** `/w-vendor` starts with `/w` and is a
-/// sibling of it: measured, such a package was admitted as a member with the
-/// nonsense relative path `-vendor`, and three pinned counts then failed for a
-/// reason that named the wrong thing. What makes a path *inside* another is a
-/// separator after it.
+/// sibling of it: measured, a textual prefix admits such a package as a member
+/// with the nonsense relative path `-vendor`, and three pinned counts then fail
+/// for a reason that names the wrong thing. What makes a path *inside* another
+/// is a separator after it.
 ///
-/// **One copy, because there were three.** The rule was written out at each of
-/// the three places that needed it, and a reviewer driving the first two found
-/// the third — on a target's `src_path` — decided by nothing: deleting its
-/// separator test changed no verdict anywhere, and `Member::sources` is the
-/// floor under the type wall's count of source roots. Round fifty-four's shape
-/// exactly, found again in round sixty-two. A rule with one copy has one test.
-fn inside_the_root<'a>(root: &str, path: &'a str) -> Option<&'a str> {
-    path.strip_prefix(root)
+/// **One copy, for the three places that need it.** Written out at each, a copy
+/// can be decided by nothing: on a target's `src_path`, deleting such a copy's
+/// separator test would change no verdict anywhere, and `Member::sources` is
+/// the floor under the type wall's count of source roots. A rule with one copy
+/// has one test.
+///
+/// **And either separator, answered with `/`, under a root in Windows'
+/// spelling.** On Windows cargo writes every manifest path with a backslash,
+/// under a root written the same way, so read with `/` alone no member is
+/// found there, and every gate scoped by the members fails for having nothing
+/// to judge. There both are turned into `/` before they are compared, which is
+/// the form every list here is written in. Under a root that holds a `/`, a
+/// backslash is part of a name, as [`crate::in_windows_spelling`] measures:
+/// read as a separator there, a sibling named with one after the root's last
+/// name is a member, and `outside_of` drops the package that is not.
+fn inside_the_root(root: &str, path: &str) -> Option<String> {
+    let (root, path) = if crate::in_windows_spelling(root) {
+        (root.replace('\\', "/"), path.replace('\\', "/"))
+    } else {
+        (root.to_owned(), path.to_owned())
+    };
+    path.strip_prefix(&root)
         .filter(|rest| rest.starts_with('/'))
-        .map(|rest| rest.trim_start_matches('/'))
+        .map(|rest| rest.trim_start_matches('/').to_owned())
 }
 
 /// The same question, asked of an answer that is already parsed.
 ///
 /// Split out so it can be driven: the writer of this list — the one `if` that
-/// decides whether a package outside the tree is reported — was cold to the
-/// whole suite, and deleting it left `cargo xtask check` printing
-/// `nothing is built from outside this repository, of 0 path package(s)` with
-/// nothing able to notice. It is cold for an ordinary reason: this workspace has
-/// no such package, so in a clean tree the branch has never once been taken.
+/// decides whether a package outside the tree is reported — is cold in a clean
+/// tree, so deleting it leaves `cargo xtask check` printing
+/// `nothing is built from outside this repository, of 0 path package(s)`
+/// exactly as before. It is cold for an ordinary reason: this workspace has no
+/// such package, so in a clean tree the branch is never taken.
 /// A gate that has never had anything to judge is one nobody knows is wired up.
 ///
 /// # Errors
@@ -443,9 +479,10 @@ mod outside_tests {
 
     /// A prefix is not a directory.
     ///
-    /// `/w-vendor` starts with `/w` and is a sibling, not a child. Measured by a
-    /// reviewer: it was admitted as a member with the nonsense relative path
-    /// `-vendor`, and three pinned counts failed for the wrong reason.
+    /// `/w-vendor` starts with `/w` and is a sibling, not a child. Measured: read
+    /// as a textual prefix, it is admitted as a member with the nonsense
+    /// relative path `-vendor`, and three pinned counts fail for the wrong
+    /// reason.
     #[test]
     fn a_sibling_whose_name_begins_with_the_roots_is_outside() {
         let answer = serde_json::json!({
@@ -461,6 +498,35 @@ mod outside_tests {
             "`/w-vendor` is a sibling of `/w`, not a directory inside it"
         );
     }
+
+    /// A backslash in a name under a root written with `/` is part of the
+    /// name, and not a separator.
+    ///
+    /// The shape `cargo metadata` gives on Linux for a path dependency on a
+    /// sibling named with one, as [`crate::in_windows_spelling`] records.
+    /// Read with both separators, the sibling is inside the root, and the
+    /// package built from outside this repository is dropped from the report
+    /// of what is.
+    #[test]
+    fn a_sibling_whose_name_holds_a_backslash_is_outside() {
+        let answer = serde_json::json!({
+            "workspace_root": "/w",
+            "packages": [
+                { "name": "nc-vendored", "source": null,
+                  "manifest_path": "/w\\vendor/nc-vendored/Cargo.toml" },
+            ]
+        });
+        assert_eq!(
+            super::outside_of(&answer).expect("the answer parses").len(),
+            1,
+            "a name holding a backslash beside `/w` is a sibling of it"
+        );
+        assert_eq!(
+            super::inside_the_root("D:\\w", "D:\\w\\vendor\\Cargo.toml").as_deref(),
+            Some("vendor/Cargo.toml"),
+            "under a root in Windows' spelling, a backslash still separates"
+        );
+    }
 }
 
 /// Every package id from which `nc-log` is reachable, itself excluded.
@@ -471,7 +537,7 @@ mod outside_tests {
 /// resolved graph is where that is written.
 ///
 /// Empty when the answer carries no `resolve` — which is what `--no-deps`
-/// produces, and is why this function's caller stopped passing it.
+/// produces, and is why this function's caller does not pass it.
 fn reaching_the_log(parsed: &serde_json::Value, packages: &[serde_json::Value]) -> Vec<String> {
     let log: Vec<&str> = packages
         .iter()
@@ -534,9 +600,9 @@ const OPENS_SQLITE: [&str; 5] = [
 /// **`any` too, whatever it is asked for beside it.** `AnyPool` connects to a
 /// `sqlite:` URL through the driver any crate of the build registered, and
 /// `nc-local` is in every build that holds the kernel, which turns on the
-/// `any` feature of `sqlx-sqlite`: a reviewer gave `nc-journal` `sqlx` with
-/// `any` alone, dropped a trigger of the user's file through it, and every
-/// gate stayed green, the member read by neither list.
+/// `any` feature of `sqlx-sqlite`: with `any` unread, `nc-journal` given `sqlx`
+/// with `any` alone could drop a trigger of the user's file through it with
+/// every gate green, the member read by neither list.
 ///
 /// **The declaration, not the graph, and cargo's reading of it.** The graph
 /// unifies features across the workspace, so every crate that takes `sqlx` for
@@ -583,8 +649,10 @@ fn opening_the_local_database_in(parsed: &serde_json::Value) -> Result<Vec<Strin
             .get("manifest_path")
             .and_then(serde_json::Value::as_str)
             .and_then(|manifest| inside_the_root(root, manifest))
-            .and_then(|rest| rest.strip_suffix("Cargo.toml"))
-            .map(|directory| directory.trim_end_matches('/'));
+            .and_then(|rest| {
+                rest.strip_suffix("Cargo.toml")
+                    .map(|directory| directory.trim_end_matches('/').to_owned())
+            });
         let (true, Some(directory)) = (is_a_member, directory) else {
             continue;
         };
@@ -593,7 +661,7 @@ fn opening_the_local_database_in(parsed: &serde_json::Value) -> Result<Vec<Strin
             .and_then(serde_json::Value::as_array)
             .is_some_and(|dependencies| dependencies.iter().any(hands_over_sqlite));
         if opens {
-            found.push(directory.to_owned());
+            found.push(directory);
         }
     }
     found.sort();
@@ -693,11 +761,10 @@ fn is_documented(target: &serde_json::Value) -> bool {
             kinds
                 .iter()
                 .filter_map(serde_json::Value::as_str)
-                // **And the two `cargo doc` also builds.** `cdylib` and
-                // `staticlib` were missing, so a member that ships one would
-                // drop out of the only floor under the documentation step.
-                // Reported on 2026-09-13, measured outside this tree because no
-                // member ships either today.
+                // **And the two `cargo doc` also builds.** Without `cdylib` and
+                // `staticlib`, a member that ships one drops out of the only
+                // floor under the documentation step — measured outside this
+                // tree, because no member ships either today.
                 .any(|kind| {
                     matches!(
                         kind,
@@ -712,7 +779,7 @@ fn is_documented(target: &serde_json::Value) -> bool {
 /// Split from the call so the shape can be tested without a workspace on disk,
 /// and so a metadata answer this cannot read is a stated error rather than an
 /// empty list — an empty list is a scope that covers nothing, which is what
-/// both defects above looked like from the outside.
+/// both misses in this module's header look like from the outside.
 fn from_metadata(parsed: &serde_json::Value) -> Result<Vec<Member>, String> {
     let root = parsed
         .get("workspace_root")
@@ -736,23 +803,23 @@ fn from_metadata(parsed: &serde_json::Value) -> Result<Vec<Member>, String> {
         // The root package itself, whose manifest is `<root>/Cargo.toml`, has an
         // empty directory and is the workspace — kept, because a root package
         // that logs is a crate that logs.
-        // **And a prefix is not a directory here either.** `outside_of`, forty
-        // lines up, was taught that `/w-vendor` is a sibling of `/w` and not a
-        // child of it; this function — the one that decides the scope of every
-        // member-keyed gate in the tree — kept the bare textual prefix. A
-        // package at `/w-vendor/nc-vendored/Cargo.toml` was admitted with the
-        // relative path `-vendor/nc-vendored`, so the lint walk, the source walk and the type-wall scope all judged a manifest outside the repository and counted it among the members. <!-- allow-reference: `-vendor/nc-vendored` is the nonsense path the defect produced, in a fixture workspace at `/w` -->
-        // One rule, written twice, and the second copy proved by nothing.
-        let Some(relative) = inside_the_root(root, manifest)
-            .and_then(|rest| rest.strip_suffix("Cargo.toml"))
-            .map(|directory| directory.trim_end_matches('/'))
-        else {
+        // **And a prefix is not a directory here either.** `outside_of` knows
+        // that `/w-vendor` is a sibling of `/w` and not a child of it, and this
+        // function — the one that decides the scope of every member-keyed gate
+        // in the tree — has to know it too. With the bare textual prefix, a
+        // package at `/w-vendor/nc-vendored/Cargo.toml` is
+        // admitted with the relative path `-vendor/nc-vendored`, so the lint walk, the source walk and the type-wall scope all judge a manifest outside the repository and count it among the members. <!-- allow-reference: `-vendor/nc-vendored` is the nonsense path the defect produced, in a fixture workspace at `/w` -->
+        // A second copy of one rule is a copy proved by nothing.
+        let Some(relative) = inside_the_root(root, manifest).and_then(|rest| {
+            rest.strip_suffix("Cargo.toml")
+                .map(|directory| directory.trim_end_matches('/').to_owned())
+        }) else {
             continue;
         };
         // **Reaches the log, at any depth.** `cargo metadata` has already
         // resolved `mylog = { package = "nc-log" }` and the workspace
         // inheritance behind it, and the graph below resolves a re-export's
-        // consumer too. Asking a manifest for its own keys missed both.
+        // consumer too. Asking a manifest for its own keys misses both.
         let can_log = package
             .get("id")
             .and_then(serde_json::Value::as_str)
@@ -767,8 +834,7 @@ fn from_metadata(parsed: &serde_json::Value) -> Result<Vec<Member>, String> {
                         let relative = target
                             .get("src_path")
                             .and_then(serde_json::Value::as_str)
-                            .and_then(|path| inside_the_root(root, path))
-                            .map(str::to_owned)?;
+                            .and_then(|path| inside_the_root(root, path))?;
                         Some((relative, is_documented(target)))
                     })
                     .collect::<Vec<(String, bool)>>()
@@ -785,7 +851,7 @@ fn from_metadata(parsed: &serde_json::Value) -> Result<Vec<Member>, String> {
             continue;
         };
         found.push(Member {
-            path: relative.to_owned(),
+            path: relative,
             name: name.to_owned(),
             can_log,
             sources,
@@ -811,12 +877,12 @@ mod tests {
     /// The kernel's HTTP client is built with no decoder, no transcoding and
     /// no cookie jar, in any build of this workspace.
     ///
-    /// **A reviewer found nothing holding it**: one word in ureq's features —
-    /// or a crate built beside the kernel taking ureq's defaults — compiles in
-    /// `gzip`, whose decoder sits outside the limit the response body is read
-    /// to, so one answer at the bound inflates past it a thousandfold, with
-    /// every gate green. `cookies` would keep one jar for every plugin's
-    /// requests, and `charset` turns bytes into text the kernel never asks for.
+    /// **What this holds**: one word in ureq's features — or a crate built
+    /// beside the kernel taking ureq's defaults — compiles in `gzip`, whose
+    /// decoder sits outside the limit the response body is read to, so one
+    /// answer at the bound inflates past it a thousandfold. `cookies` would
+    /// keep one jar for every plugin's requests, and `charset` turns bytes into
+    /// text the kernel never asks for.
     #[test]
     fn the_kernels_http_client_is_built_with_no_decoder_and_no_cookie_jar() {
         let features = super::resolved_features(root(), "ureq").expect("cargo metadata");
@@ -937,12 +1003,11 @@ mod tests {
 
     /// Every target kind `cargo doc` builds, and the ones it does not.
     ///
-    /// **Three of the five names decided nothing.** This workspace has `lib` and
-    /// `bin` targets and no `rlib`, `dylib` or `proc-macro`, so those arms were
-    /// reached by no input at all — measured by a reviewer on 2026-09-13, who
-    /// deleted them and watched the tree stay green. A crate that gains a
-    /// procedural macro tomorrow is documented or not by a clause nobody has
-    /// ever run.
+    /// **Three of the five names decide nothing in this tree.** This workspace
+    /// has `lib` and `bin` targets and no `rlib`, `dylib` or `proc-macro`, so
+    /// no member reaches those arms, and this test hands each of them a target.
+    /// Without it, a crate that gains a procedural macro would be documented or
+    /// not by a clause nobody had run.
     #[test]
     fn every_kind_cargo_documents_is_named_and_the_others_are_not() {
         let target = |kind: &str| serde_json::json!({ "kind": [kind] });
@@ -978,9 +1043,9 @@ mod tests {
             paths.contains(&"crates/nc-log") && paths.contains(&"xtask"),
             "{paths:?}"
         );
-        // The floor is a real number, not `> 0`: this workspace has fifteen
+        // The floor is a real number, not `> 0`: this workspace has sixteen
         // members and a resolution that lost one is the defect being closed.
-        assert_eq!(found.len(), 15, "{paths:?}");
+        assert_eq!(found.len(), 16, "{paths:?}");
         // And `nc-log` does not depend on itself, so the consumer count this
         // feeds cannot be inflated by the log's own manifest.
         assert!(
@@ -993,15 +1058,14 @@ mod tests {
 
     /// Every spelling that gives a crate the log, asked of cargo itself.
     ///
-    /// **Twice this question was answered by a hand-written manifest reader and
-    /// twice the reader was short**, each time switching the type wall's source
-    /// gate off for a crate holding a real logging call site, with
-    /// `check passed`. So the spellings are written out here and the answer
-    /// comes from `cargo metadata` — one real workspace on disk, one call, and
-    /// cargo deciding what a dependency is.
+    /// **A hand-written manifest reader answers this question short**, switching
+    /// the type wall's source gate off for a crate holding a real logging call
+    /// site, with `check passed`. So the spellings are written out here and the
+    /// answer comes from `cargo metadata` — one real workspace on disk, one
+    /// call, and cargo deciding what a dependency is.
     ///
-    /// The last two rows are the ones that got through: a dependency renamed in
-    /// `[workspace.dependencies]`, which no member's own manifest names, and a
+    /// The last two rows are the ones such a reader misses: a dependency renamed
+    /// in `[workspace.dependencies]`, which no member's own manifest names, and a
     /// path dependency inside the workspace directory, which is a member cargo
     /// builds without `members` listing it.
     #[test]
@@ -1144,9 +1208,9 @@ mod tests {
 
     /// A rename is resolved, and a member cargo infers is listed.
     ///
-    /// Both of these were measured switching the type-wall scope off with
-    /// `check passed`, and neither is visible in the manifest the old reader
-    /// opened: the rename is declared in the workspace table two directories
+    /// Both of these switch the type-wall scope off under a manifest reader, with
+    /// `check passed`, and neither is visible in the manifest such a reader
+    /// opens: the rename is declared in the workspace table two directories
     /// up, and the inferred member is named in a *sibling's* dependency list.
     #[test]
     fn a_renamed_dependency_and_an_inferred_member_are_both_resolved() {
@@ -1176,7 +1240,7 @@ mod tests {
     /// An answer this cannot read is an error, never an empty scope.
     ///
     /// An empty list would read as "no crate may log", which is precisely how
-    /// both defects above presented — a gate reporting `ok` about nothing.
+    /// both misses above present — a gate reporting `ok` about nothing.
     #[test]
     fn an_unreadable_answer_is_said_rather_than_returned_as_no_members() {
         for unreadable in [
@@ -1191,12 +1255,36 @@ mod tests {
         }
     }
 
+    /// A graph that failed for a package not on this machine names the fetch,
+    /// and one that failed for anything else does not.
+    ///
+    /// The first case is cargo's answer on a clone whose cargo home holds
+    /// nothing, measured with `CARGO_HOME` pointed at an empty directory.
+    #[test]
+    fn a_package_missing_offline_is_answered_with_the_fetch() {
+        let missing = "error: no matching package named `cedar-policy` found\nlocation \
+                       searched: crates.io index\nnote: offline mode (via `--offline`) can \
+                       sometimes cause surprising resolution failures\n";
+        let said = super::what_a_failed_graph_says(missing);
+        assert!(
+            said.contains("no matching package named `cedar-policy`")
+                && said.contains("`cargo fetch --locked`"),
+            "a graph that failed for a package not downloaded did not name the fetch: {said}"
+        );
+        let broken = "error: failed to parse manifest at `/w/Cargo.toml`\n";
+        let said = super::what_a_failed_graph_says(broken);
+        assert!(
+            said.contains("failed to parse manifest") && !said.contains("cargo fetch"),
+            "a manifest cargo could not parse was answered with a download: {said}"
+        );
+    }
+
     /// A sibling of the root is not a member of it.
     ///
     /// The same measurement as `a_sibling_whose_name_begins_with_the_roots_is_outside`,
     /// against the function beside it: `/w-vendor` starts with `/w`, and this is
-    /// the reader whose answer is the scope of every member-keyed gate. It
-    /// admitted the package with the relative path `-vendor/nc-vendored`, and `crates/nc-log`'s own source list would take a `src_path` from there too. <!-- allow-reference: `-vendor/nc-vendored` is the nonsense path the defect produced -->
+    /// the reader whose answer is the scope of every member-keyed gate. Read as a
+    /// textual prefix, it admits the package with the relative path `-vendor/nc-vendored`, and `crates/nc-log`'s own source list would take a `src_path` from there too. <!-- allow-reference: `-vendor/nc-vendored` is the nonsense path the defect produced -->
     #[test]
     fn a_sibling_of_the_root_is_not_a_member() {
         let answer = serde_json::json!({
@@ -1217,22 +1305,56 @@ mod tests {
         );
     }
 
+    /// A member cargo names with Windows' separator is a member, written with `/`.
+    ///
+    /// The answer on a Windows runner, in the shape it came: read with `/` as
+    /// the only separator, no package in it is inside the root and the walk
+    /// answers that cargo lists no member at all. A sibling is still outside
+    /// with either separator, because what decides inside is still a separator
+    /// after the root.
+    #[test]
+    fn a_member_cargo_names_with_backslashes_is_a_member() {
+        let answer = serde_json::json!({
+            "workspace_root": "D:\\w",
+            "packages": [
+                {"name": "nc-log", "id": "log",
+                 "manifest_path": "D:\\w\\crates\\nc-log\\Cargo.toml",
+                 "targets": [{"src_path": "D:\\w\\crates\\nc-log\\src\\lib.rs", "kind": ["lib"]}]},
+                {"name": "nc-vendored", "id": "vendored",
+                 "manifest_path": "D:\\w-vendor\\nc-vendored\\Cargo.toml"},
+            ],
+        });
+        let found = from_metadata(&answer).expect("a readable answer");
+        let read: Vec<(&str, &[String])> = found
+            .iter()
+            .map(|member| (member.path.as_str(), member.sources.as_slice()))
+            .collect();
+        assert_eq!(
+            read,
+            vec![(
+                "crates/nc-log",
+                &["crates/nc-log/src/lib.rs".to_owned()][..]
+            )],
+            "a Windows answer is read as the members it names, with `/`, and its sibling \
+             is not one of them"
+        );
+    }
+
     /// Cargo is asked for the resolved graph in exactly one place, with these
     /// five arguments.
     ///
-    /// **It was asked in two, under a doc saying it was one.** `members` and
-    /// `metadata` each carried the argument list, and `--all-features` decides
+    /// **Two copies of the argument list drift.** `--all-features` decides
     /// whether an optional dependency is in the graph at all — so a flag added
-    /// to one and not the other silently scopes half the gates differently.
+    /// to one copy and not the other silently scopes half the gates
+    /// differently.
     ///
-    /// **And the rule that replaced that was wrong in both directions at
-    /// once.** It counted one *spelling* — `"metadata",` and
-    /// `"--all-features",` adjacent, at twelve spaces of indentation — so a
-    /// second reader asking cargo a different question added no match and
-    /// passed, which is the exact drift its own message named; while reordering
-    /// the same two flags, which cargo cannot tell apart, took the count to
-    /// zero and failed saying the graph is asked for in **0** places. Both
-    /// measured on 2026-09-11.
+    /// **And counting one spelling is wrong in both directions at once.** A rule
+    /// that counts `"metadata",` and `"--all-features",` adjacent, at twelve
+    /// spaces of indentation, lets a second reader asking cargo a different
+    /// question add no match and pass, which is the exact drift such a rule
+    /// names; while reordering the same two flags, which cargo cannot tell
+    /// apart, takes the count to zero and fails saying the graph is asked for in
+    /// **0** places.
     ///
     /// So it is two questions about the thing itself. How many times this file
     /// starts cargo — once — and what that one invocation asks for, as a

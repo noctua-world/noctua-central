@@ -37,12 +37,13 @@ fn value() -> impl Strategy<Value = Value> {
 
 /// Object keys, including the ones that must be escaped.
 ///
-/// **This generator is a finding.** It was `[a-zA-Z\u{e000}\u{10000}]{1,6}`,
-/// which cannot draw a quote, a backslash or a control character — so nothing
-/// tested that a key is escaped at all. Replacing `write_string(key, out)` with
-/// raw quoting left the whole suite green, and under that mutation the key
-/// `a\nb` put a **raw newline inside a canonical rendering**, defeating the one
-/// property that exists so a value cannot forge a log line.
+/// **This generator draws what must be escaped.** One such as
+/// `[a-zA-Z\u{e000}\u{10000}]{1,6}` cannot draw a quote, a backslash or a
+/// control character — so nothing would test that a key is escaped at all.
+/// Under one, replacing `write_string(key, out)` with raw quoting would leave
+/// the whole suite green, and under that mutation the key `a\nb` puts a **raw
+/// newline inside a canonical rendering**, defeating the one property that
+/// exists so a value cannot forge a log line.
 ///
 /// Such keys are reachable: `parse(r#"{"a\"b":1}"#)` produces one, and any
 /// caller may hand one to `Value::object`.
@@ -75,8 +76,7 @@ proptest! {
     /// once` identically — a function compared with itself, the shape `§19.5`
     /// names. It is kept because it states the law a reader looks for, and the
     /// law is held by `canonical_bytes_come_back_as_themselves` below, which
-    /// starts from *bytes* rather than from a value this crate built. Named by a
-    /// reviewer in round seventy-one wave 13.
+    /// starts from *bytes* rather than from a value this crate built.
     #[test]
     fn canonical_form_is_a_fixed_point(value in value()) {
         let once = value.to_canonical();
@@ -89,7 +89,7 @@ proptest! {
     /// **Not "whatever order they were built in", which this cannot show.**
     /// `parse` returns a `BTreeMap`, so the rebuilt object's insertion order is
     /// whatever `parse` chose — the generator has no way to vary it, and the
-    /// claim was untestable through it. The order property is the test below.
+    /// claim is untestable through it. The order property is the test below.
     #[test]
     fn a_value_hashes_the_same_after_a_round_trip(value in value()) {
         let rebuilt = parse(&value.to_canonical()).expect("parses");
@@ -100,9 +100,9 @@ proptest! {
     /// itself.**
     ///
     /// `Value::object` collects into a `BTreeMap`, so an object built forwards
-    /// and one built backwards are *the same value* — and comparing them was
+    /// and one built backwards are *the same value* — and comparing them is
     /// `f(x) == f(x)`, true of any `f`. Measured: reversing the writer's key
-    /// sort turned three other tests red and this one passed.
+    /// sort turns three other tests red and such a comparison passes.
     ///
     /// What the journal actually rests on is the written order, so that is what
     /// this reads: the keys as they appear in the canonical bytes must be the
@@ -169,9 +169,6 @@ proptest! {
     /// is exactly what this must not do: the canonical bytes are what the
     /// journal hashes, so a rendering that differs from every other conforming
     /// implementation produces a chain only this code can verify (`§16.4`).
-    ///
-    /// This test previously asserted the opposite — that they never appear —
-    /// and passed only because the generator could not produce one.
     #[test]
     fn the_unicode_line_separators_are_emitted_raw_because_the_format_says_so(
         text in "[\\u{85}\\u{2028}\\u{2029}]{1,3}"
@@ -193,10 +190,10 @@ proptest! {
 
 /// Two documents are equal only when they hold the same keys, not the same count.
 ///
-/// **The arm that says so was reached by no test in the workspace.** Deleting
+/// **Without this, the arm that says so is reached by no test.** Deleting
 /// `None => return false` from the object case of `PartialEq` — keeping the walk,
-/// so `{"a":1}` and `{"b":1}` simply share no pairs to compare — left
-/// `cargo xtask check` green over 829 tests:
+/// so `{"a":1}` and `{"b":1}` simply share no pairs to compare — leaves
+/// `cargo xtask check` green:
 ///
 /// ```text
 /// a.to_canonical() = {"a":1}
@@ -208,7 +205,7 @@ proptest! {
 /// `Value` is the `payload` type this platform carries and the thing the journal
 /// chain hashes (`§14.9`, `§16.4`). Two readers agreeing on one document is the
 /// whole reason it exists, and `Eq` is derived from this — so `BTreeSet`,
-/// `assert_eq!` and every `contains` inherit it. Nothing compared two objects of
+/// `assert_eq!` and every `contains` inherit it. This compares two objects of
 /// equal size with different keys.
 ///
 /// The hash is asserted beside the equality, because the two must not be able to
@@ -242,9 +239,9 @@ fn objects_of_the_same_size_with_different_keys_are_not_equal() {
     assert_ne!(two, two_other);
 
     // **And containers of *different* size, in both directions.** Everything
-    // above is written at equal size — deliberately, and it left the two
-    // `left.len() == right.len()` guards in `PartialEq` dead to the whole
-    // suite. Removing both is green at `865 test(s)`, after which:
+    // above is written at equal size — deliberately — so all of it still
+    // passes with the two `left.len() == right.len()` guards in `PartialEq`
+    // removed, after which:
     //
     // ```text
     // {"a":1} == {"a":1,"b":2}   ->  true
@@ -297,9 +294,9 @@ fn objects_of_the_same_size_with_different_keys_are_not_equal() {
 
 /// Every shape of malformed JSON this parser has a sentence for is refused.
 ///
-/// **Nine of its rejection arms were reached by no test.** Turning eight of them
-/// into acceptances left `cargo test --workspace` green, and the parser then
-/// took five documents it exists to refuse:
+/// **Without it, nine of its rejection arms are reached by no test.** Turning
+/// eight of them into acceptances would leave `cargo test --workspace` green,
+/// and the parser would then take five documents it exists to refuse:
 ///
 /// ```text
 ///          {"a" 1} -> Ok("{\"a\":1}")          no `:` between key and value
@@ -309,11 +306,12 @@ fn objects_of_the_same_size_with_different_keys_are_not_equal() {
 ///                  -> Ok("null")               empty input is a value
 /// ```
 ///
-/// The other three survived only by accident: the trailing-garbage check caught
-/// them, not the arm written for them — so `expected ',' or ']'` and
-/// `expected 'null'` were unreachable prose. Each of these is a document the
-/// platform would otherwise accept, canonicalise and hash as if it had been
-/// well-formed, which is the one thing a canonical form must not do.
+/// Turned into acceptances, the other three are still refused, by the
+/// trailing-garbage check rather than by the arm written for them — so a test
+/// of the refusal alone would leave `expected ',' or ']'` and `expected 'null'`
+/// unreachable prose. Each of these is a document the platform would otherwise
+/// accept, canonicalise and hash as if it had been well-formed, which is the
+/// one thing a canonical form must not do.
 ///
 /// Asserted on the message as well as the refusal, because an arm that stops
 /// being reachable still refuses — from somewhere else, saying something else —
@@ -330,8 +328,8 @@ fn every_malformed_shape_is_refused_by_the_rule_written_for_it() {
         (r#""unterminated"#, "ended inside a string"),
         // An escape JSON does not define.
         (r#""\q""#, "not an escape JSON defines"),
-        // Literals cut short, which is the arm the trailing-garbage check was
-        // covering for — so these three sentences were unreachable prose.
+        // Literals cut short, the arm the trailing-garbage check would otherwise
+        // cover for — leaving these three sentences unreachable prose.
         ("nul", "expected `null`"),
         ("tru", "expected `true`"),
         ("fals", "expected `false`"),
@@ -344,8 +342,8 @@ fn every_malformed_shape_is_refused_by_the_rule_written_for_it() {
         // string ending and not the escape being malformed. The bound is
         // `self.at + 4 > len`, and written `>=` it answers *"an escape needs
         // four hex digits"* for an escape that has exactly four — measured,
-        // `"\u0041` (unterminated) came back `at byte 3: an escape needs four
-        // hex digits` where the text had run out at byte 7. A refusal that
+        // `"\u0041` (unterminated) comes back `at byte 3: an escape needs four
+        // hex digits` where the text has run out at byte 7. A refusal that
         // names the wrong rule sends a reader to look at bytes that are
         // correct, which is the direction this whole list exists to hold.
         (r#""\u0041"#, "ended inside a string"),
@@ -381,21 +379,22 @@ fn every_malformed_shape_is_refused_by_the_rule_written_for_it() {
 
 /// Every refusal carries an offset a caller can slice at, and the rule that fits.
 ///
-/// **Two defects in the same function, both about which rule answers.**
+/// **Two places in the same function, both about which rule answers.**
 ///
 /// `ParseError.stopped_at()` is documented as a byte offset and rendered as `at byte N`,
-/// so `&text[..error.stopped_at()]` is the ordinary thing to do with one. The escape rule
-/// stepped one *byte* forward before deciding, so a backslash followed by a
-/// two-byte character reported the middle of that character — and that slice
-/// panics, in the crate whose job is to absorb hostile input. Over 400,000
-/// malformed inputs it was the only rule producing a non-boundary offset, 186
-/// times.
+/// so `&text[..error.stopped_at()]` is the ordinary thing to do with one. An escape rule
+/// that steps one *byte* forward before deciding reports, for a backslash
+/// followed by a two-byte character, the middle of that character — and that
+/// slice panics, in the crate whose job is to absorb hostile input. Measured
+/// over 400,000 malformed inputs, that step would be the only rule producing a
+/// non-boundary offset, 186 times.
 ///
-/// And the number rules ran in the wrong order: a sign followed by `.` or `e`
-/// holds no digit at all and was told *"this model holds whole numbers only …
-/// carry it as a scaled integer"* — advice about a value the sender does not
-/// have, under `CanonNumber` rather than `CanonUnparsable`. The digit rule was
-/// written to stop that misdirection and ran second.
+/// And the number rules have an order: a sign followed by `.` or `e` holds no
+/// digit at all, and asked about the fraction first it is told *"this model
+/// holds whole numbers only … carry it as a scaled integer"* — advice about a
+/// value the sender does not have, under `CanonNumber` rather than
+/// `CanonUnparsable`. The digit rule stops that misdirection by running
+/// first.
 #[test]
 fn every_refusal_can_be_sliced_at_and_names_the_rule_that_fits() {
     use nc_catalog::ErrorCode;
@@ -431,9 +430,9 @@ fn every_refusal_can_be_sliced_at_and_names_the_rule_that_fits() {
 
     // **And the offset points at the offender, not merely at a boundary.** The
     // corpus above holds no duplicate key and no number, and the assertion over
-    // it asks only that a slice there would not panic — so three refusals could
-    // be given any offset at all. Measured: each of the three rewound to the
-    // wrong place and the whole workspace stayed green.
+    // it asks only that a slice there would not panic — so over that corpus
+    // alone, three refusals could be given any offset at all, and each could
+    // be rewound to the wrong place with it still green.
     //
     // Each case names where the text goes wrong, so an offset that is merely
     // *legal* is not enough to pass.
@@ -476,7 +475,8 @@ fn every_refusal_can_be_sliced_at_and_names_the_rule_that_fits() {
     }
 
     // The floor in the other direction: a real fractional number still gets the
-    // rule written for it, so the reorder did not simply move every case.
+    // rule written for it, so asking for a digit first does not simply move
+    // every case.
     for text in ["1.5", "-2.5", "1e5", "-3E2", "0.0"] {
         let refused = parse(text).expect_err("this model holds whole numbers only");
         assert!(
@@ -528,11 +528,12 @@ fn debug_orders_an_object_the_way_the_canonical_form_does() {
 
 /// A consumer can take a value's contents without cloning them.
 ///
-/// **`Value` implements `Drop`, so nothing could be moved out of one.**
+/// **`Value` implements `Drop`, so nothing can be moved out of one.**
 /// `match value { Value::Text(held) => held, … }` is `error[E0509]: cannot move
 /// out of type Value, which implements the Drop trait`, and the `Drop` is
-/// deliberate — it dismantles a deep value without recursing. So every consumer
-/// was obliged to `clone()`, and nothing said so or offered a way not to.
+/// deliberate — it dismantles a deep value without recursing. Without the
+/// methods that take the contents, every consumer is obliged to `clone()`, and
+/// nothing says so or offers a way not to.
 #[test]
 fn a_consumer_can_take_what_a_value_holds() {
     assert_eq!(

@@ -17,23 +17,22 @@ use crate::ui;
 
 /// The tables whose protections this gate inspects, named once.
 ///
-/// **Eleven hand-written lists said these two names and nothing tied any of
-/// them to the tables the migrations create.** `check.rs`'s `SHAPES` held the
-/// pair, and the ten `IN (…)` lists below held it again — so
-/// `the_tables_are_the_shape_they_were_made` filtered its answer with the
-/// predicate it was testing: [`table_shapes`] returns rows for these two names,
-/// and the assertion then looked those two names up in what came back.
+/// **Named once, because a hand-written list of these two names ties nothing
+/// to the tables the migrations create.** [`table_shapes`] returns rows for the
+/// names here, and `the_tables_are_the_shape_they_were_made` then looks the
+/// names in `check.rs`'s `SHAPES` up in what came back — so that check filters
+/// its answer with the predicate it is testing, and what says the predicate is
+/// the right one is the identity asserted below.
 ///
 /// **What is out of scope, written down rather than left silent.** A third
 /// table added by a migration fails the unbounded-table gate, which is about
-/// *rows*. Nothing else here would see it: its columns, its triggers, its
-/// constraints, its indexes, its rules and its grants would be inspected by
-/// nobody, under `ok  44 protection(s) on the journal and the access records`.
-/// Measured — `CREATE TABLE tenant_numbers` added to
-/// `migrations/0002_access_records.sql` with a matching `[tables.*]` entry and
-/// the catalog regenerated — `cargo test -p xtask --bins` reported
-/// `411 passed; 0 failed`, and the only line in `xtask/src/` naming the table
-/// was a comment about a sequence.
+/// *rows*, and no query here would inspect it: its columns, its triggers, its
+/// constraints, its indexes, its rules and its grants would be read by nobody,
+/// under `ok  44 protection(s) on the journal and the access records`.
+/// `CREATE TABLE tenant_numbers` added to `migrations/0002_access_records.sql`,
+/// with a matching `[tables.*]` entry and the catalog regenerated, satisfies
+/// the unbounded-table gate, while the inspections here ask only about the
+/// tables this list names.
 ///
 /// Closing that generally is not a gate's decision: what protections a new
 /// table deserves is a judgement, and an append-only trigger belongs on an
@@ -73,22 +72,21 @@ fn asking_about_the_protected_tables(sql: &str) -> String {
 
 /// Where the local stack puts PostgreSQL.
 ///
-/// **The same four variables `cargo xtask dev` reads, with the same defaults**,
-/// which is a correction: this hardcoded the url, so
-/// `POSTGRES_PORT=5433 cargo xtask dev` succeeded and
-/// `POSTGRES_PORT=5433 cargo xtask check` then told the developer to run
-/// `cargo xtask dev` — the command they had just run. `dev.rs` names the rule:
-/// a stack whose operator variables the tool that brings it up does not read is
-/// a stack with two configurations. The tool that was not reading them was this
-/// one.
+/// **The same four variables `cargo xtask dev` reads, with the same
+/// defaults.** With the url hardcoded, `POSTGRES_PORT=5433 cargo xtask dev`
+/// succeeds and `POSTGRES_PORT=5433 cargo xtask check` then tells the developer
+/// to run `cargo xtask dev` — the command they have just run. `dev.rs` names
+/// the rule: a stack whose operator variables the tool that brings it up does
+/// not read is a stack with two configurations, and this is one of the tools
+/// that has to read them.
 ///
 /// `DATABASE_URL` still wins when it is set, because a developer pointing the
 /// gate at another server is saying so explicitly.
 fn default_url() -> String {
     // **The stack's own table**, rather than a fourth copy of these four
-    // literals. The paragraph above says "the same defaults" and nothing made
-    // that true: `POSTGRES_DB` changed in `dev.rs` alone left `check passed`
-    // and broke `cargo xtask dev`.
+    // literals. With a copy, "the same defaults" in the paragraph above is a
+    // sentence and not a fact: `POSTGRES_DB` changed in `dev.rs` alone leaves
+    // `check passed` and breaks `cargo xtask dev`.
     let user = crate::dev::setting(crate::dev::POSTGRES_USER);
     let password = crate::dev::setting(crate::dev::POSTGRES_PASSWORD);
     let database = crate::dev::setting(crate::dev::POSTGRES_DB);
@@ -157,12 +155,24 @@ fn redacted(url: &str) -> String {
 }
 
 /// Reports what the gate decided about the database.
-pub(crate) fn report(offline: bool, failures: &mut Vec<String>) -> Option<String> {
+///
+/// **A database is required only where the stack runs.** Off Linux there is
+/// none to require, so the requirement is not applicable and says so, and the
+/// PostgreSQL suites are told the same through `NC_NO_STACK`; on Linux it is
+/// required unless `--offline` asked for it not to be.
+pub(crate) fn report(stack: crate::check::Stack, failures: &mut Vec<String>) -> Option<String> {
     ui::heading("database");
-    if offline {
-        ui::warn("skipped: --offline, and the journal's PostgreSQL tests need one");
-        ui::detail("CI never passes --offline, so those tests always run there");
-        return None;
+    match stack {
+        crate::check::Stack::Asked => {}
+        crate::check::Stack::Offline => {
+            ui::warn("skipped: --offline, and the journal's PostgreSQL tests need one");
+            ui::detail("CI never passes --offline, so those tests always run there");
+            return None;
+        }
+        crate::check::Stack::NotApplicable => {
+            ui::not_applicable("running the PostgreSQL tests against a database");
+            return None;
+        }
     }
     match url() {
         Ok(url) => {
@@ -180,14 +190,14 @@ pub(crate) fn report(offline: bool, failures: &mut Vec<String>) -> Option<String
 /// The checksum sqlx computes for each migration **as it is on disk now**.
 ///
 /// **The other half of `what ran is what the file says`.** The database records
-/// a checksum for every migration it applied and the gate read past it, so an
-/// applied migration could be rewritten with the run green. This is the same
+/// a checksum for every migration it applied, and a gate that reads past it
+/// lets an applied migration be rewritten with the run green. This is the same
 /// arithmetic on the other side, so no hash function has to be chosen here.
 ///
-/// **From the tree, not from the binary.** It read `sqlx::migrate!`, which
-/// embeds the files at *compile* time, and cargo decides what to rebuild by
-/// mtime — so the gate compared a database against a build artifact and both
-/// directions were wrong:
+/// **From the tree, not from the binary.** `sqlx::migrate!` embeds the files at
+/// *compile* time, and cargo decides what to rebuild by mtime — so reading it
+/// compares a database against a build artifact, and both directions are
+/// wrong:
 ///
 /// ```text
 /// edit 0003, then `touch -r` its original mtime
@@ -237,21 +247,22 @@ pub(crate) fn on_disk_checksums_in(
 
 /// Every migration version this database has applied, with its description.
 ///
-/// **Which ones, not how many.** This returned a count and the caller compared
-/// it with the number of files, so any deletion compensated by an addition
-/// passed: renaming a migration so a rebase's file took its number left
-/// `ok 3 migration(s)` and `check passed`, with the database still recording
-/// that version as the constraint that had gone. A count cannot say which one
-/// went, and which one went is the whole question.
+/// **Which ones, not how many.** A count compared with the number of files
+/// passes any deletion compensated by an addition: renaming a migration so a
+/// rebase's file takes its number leaves `ok 3 migration(s)` and
+/// `check passed`, with the database still recording that version as the
+/// constraint that has gone. A count cannot say which one went, and which one
+/// went is the whole question.
 ///
-/// **The one thing outside the tree that remembers.** There is no git in this
-/// repository (`NOCTUA.md §5.3`), so nothing *in* it recalls what was there
-/// yesterday — both sides of a tree-derived comparison shrink together.
+/// **The one thing outside the tree that remembers.** No step compares the tree
+/// with what it held before, so nothing it reads *in* the tree recalls what was
+/// there yesterday — both sides of a tree-derived comparison shrink together.
 /// `_sqlx_migrations` holds a row per migration this database has run.
 ///
-/// Empty when the stack has never been brought up, which is every CI run: an
-/// empty answer is "nothing to corroborate", not "nothing was applied wrongly",
-/// and the caller says which.
+/// Empty when nothing has applied the migrations to this database — a stack
+/// never brought up, or one brought up and never migrated: an empty answer is
+/// "nothing to corroborate", not "nothing was applied wrongly", and the caller
+/// says which.
 ///
 /// # Errors
 ///
@@ -267,46 +278,47 @@ pub(crate) fn applied(url: &str) -> Result<Vec<(i64, String, Vec<u8>)>, String> 
             .connect(url)
             .await
             .map_err(|error| format!("the database did not answer: {error}"))?;
-        // **A missing table is not a failed read.** This ended
-        // `.unwrap_or_default()`, so a permission error, a wrong `search_path`
-        // and a table that has never existed all answered "none applied" — the
-        // floor turned itself off silently, and could not say it had.
+        // **A missing table is not a failed read.** Ended with
+        // `.unwrap_or_default()`, this read would answer "none applied" to a
+        // permission error, a wrong `search_path` and a table that has never
+        // existed alike — the floor would turn itself off silently, and could
+        // not say it had.
         // **And the path pinned first, for the reason `function_paths` gives.**
-        // `to_regclass` resolves through this connection's `search_path`, so a
-        // schema named after the connecting role holding a *copy* of the record
-        // answered for it — measured, one row deleted from the copy gave
-        // `11 of them are recorded applied` with the real table holding twelve,
-        // which redirects the checksum corroboration that makes an applied
-        // migration un-rewritable.
+        // `to_regclass` resolves through this connection's `search_path`, so
+        // unpinned, a schema named after the connecting role holding a *copy* of
+        // the record answers for it — measured, one row deleted from the copy
+        // gives `11 of them are recorded applied` with the real table holding
+        // twelve, which redirects the checksum corroboration that makes an
+        // applied migration un-rewritable.
         sqlx::query("SET search_path = pg_catalog, pg_temp")
             .execute(&pool)
             .await
             .map_err(|error| format!("the search path could not be pinned: {error}"))?;
         // **In the schema the string names, not the lowest-oid one anywhere.**
-        // `function_paths` sixty lines below carries the paragraph that says
-        // "neither guess is the answer; the string is" — and that fix was applied
-        // there and not here, which is where the applied record and the checksum
-        // corroboration that makes an applied migration un-rewritable are read.
-        // Measured: `app` recording six and `public` twelve, this reported twelve
-        // and took its checksums from a table the connection's path never
-        // reaches, while the half beside it inspected `app`.
+        // `function_paths` below carries the paragraph that says
+        // "neither guess is the answer; the string is" — and the rule holds here
+        // too, which is where the applied record and the checksum corroboration
+        // that makes an applied migration un-rewritable are read. Measured with
+        // the lowest-oid guess: `app` recording six and `public` twelve, such a
+        // reader reports twelve and takes its checksums from a table the
+        // connection's path never reaches, while the half beside it inspects
+        // `app`.
         let exists: Option<String> = sqlx::query_scalar(
             "SELECT c.oid::regclass::text FROM pg_class c \
              WHERE c.relname = '_sqlx_migrations' AND c.relkind = 'r' \
                AND c.relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = $1)",
         )
         .bind(configured_schema(url))
-        // **`fetch_optional`, because zero rows is the ordinary case.**
-        // `fetch_one` turns "no such table" into `RowNotFound`, so the
-        // `is_none()` branch below was dead code and the paragraph above it — "an
-        // empty answer is nothing to corroborate, which is every CI run" —
-        // described a path nothing could reach. Measured against exactly what CI
-        // gives this: a fresh `postgres:18-alpine` service with an empty database
-        // and no migrations applied, `check` reported `error the migration record
-        // could not be looked for: no rows returned by a query that expected to
-        // return at least one row` and `check failed`. The workflow runs
-        // `cargo xtask check` and nothing applies the migrations first, so the
-        // gate could not pass on the database its own CI hands it.
+        // **`fetch_optional`, because zero rows is a case the gate meets.**
+        // `fetch_one` turns "no such table" into `RowNotFound`, which makes the
+        // `is_none()` branch below dead code and the paragraph above it — "an
+        // empty answer is nothing to corroborate" — a path nothing can reach.
+        // Measured on a database with no migrations applied: on a fresh
+        // `postgres:18-alpine` with an empty database, `fetch_one` makes `check`
+        // report `error the migration record could not be looked for: no rows
+        // returned by a query that expected to return at least one row` and
+        // `check failed`. So with `fetch_one` the gate could not pass on a
+        // database nothing has migrated yet, which is an ordinary one to hand it.
         .fetch_optional(&pool)
         .await
         .map_err(|error| format!("the migration record could not be looked for: {error}"))?
@@ -320,19 +332,19 @@ pub(crate) fn applied(url: &str) -> Result<Vec<(i64, String, Vec<u8>)>, String> 
         // Nothing here interpolates anything a caller supplied — the value comes
         // from `pg_class` — and the alternative, resolving by path, is the defect
         // this pinning exists to close.
-        // **And the checksum, which nothing read.** It is in the row — 48 bytes
-        // of SHA-384, for every one of them — and the gate SELECTed past it. So
-        // an *applied* migration could be rewritten and `check` stayed green:
-        // `0003`'s `CHECK (sequence >= 0)` gutted to `>= -9223372036854775808`
-        // still printed `ok 6 migration(s), numbered once each and in order`.
+        // **And the checksum.** It is in the row — 48 bytes of SHA-384, for
+        // every one of them — and a gate that SELECTs past it lets an *applied*
+        // migration be rewritten with `check` green: `0003`'s
+        // `CHECK (sequence >= 0)` gutted to `>= -9223372036854775808` still
+        // prints `ok N migration(s), numbered once each and in order`.
         // sqlx refuses a changed migration when it *applies* one, and CI applies
         // to a fresh database where nothing is recorded, so that refusal never
         // runs there. The record is what remembers, and this is what reads it.
-        // **Read from the table that was found, by name.** Every name here is
-        // unqualified and the path is pinned to `pg_catalog` above, so this asked
-        // for a table it had just decided not to resolve by path. `exists` holds
-        // the qualified name `oid::regclass` printed, which is the one table this
-        // function is about.
+        // **Read from the table that was found, by name.** The path is pinned
+        // to `pg_catalog` above, so an unqualified `_sqlx_migrations` here would
+        // ask for a table this has just decided not to resolve by path. `exists`
+        // holds the qualified name `oid::regclass` printed, which is the one
+        // table this function is about.
         let named = exists.unwrap_or_default();
         let rows: Vec<(i64, String, Vec<u8>)> = sqlx::query_as(sqlx::AssertSqlSafe(format!(
             "SELECT version, description, checksum FROM {named} WHERE success \
@@ -359,24 +371,25 @@ pub(crate) fn applied(url: &str) -> Result<Vec<(i64, String, Vec<u8>)>, String> 
 /// create their tables, and a deployment that puts them elsewhere says so in the
 /// string it already writes.
 pub(crate) fn configured_schema(url: &str) -> String {
-    // **Percent-decoded, because sqlx decodes and this did not.** sqlx builds its
-    // connection from `query_pairs()`, and the canonical spelling of this option
-    // writes `%3D` for the `=` and `%20` for the space — so the connection went
-    // to one schema and this read another:
+    // **Percent-decoded, because sqlx decodes.** sqlx builds its connection from
+    // `query_pairs()`, and the canonical spelling of this option writes `%3D`
+    // for the `=` and `%20` for the space — so a reader that does not decode
+    // sends the connection to one schema and reads another:
     //
     // ```text
-    // ?options=-csearch_path%3Dapp    sqlx -> "app"   this -> "public"
-    // ?options=-c%20search_path%3Dapp sqlx -> "app"   this -> "public"
-    // ?options=-csearch_path=app      sqlx -> "app"   this -> "app"
+    // ?options=-csearch_path%3Dapp    sqlx -> "app"   undecoded -> "public"
+    // ?options=-c%20search_path%3Dapp sqlx -> "app"   undecoded -> "public"
+    // ?options=-csearch_path=app      sqlx -> "app"   undecoded -> "app"
     // ```
     //
-    // Measured end to end: with the encoded form, three unpinned functions in
-    // `app` and three honest ones in `public`, the gate reported `ok 3 migrated
-    // function(s) search pg_temp last` and a foreign row went to the top of the
-    // journal's range.
+    // Measured end to end with an undecoded reader: with the encoded form,
+    // three unpinned functions in `app` and three honest ones in `public`, the
+    // gate reports `ok 3 migrated function(s) search pg_temp last` and a
+    // foreign row goes to the top of the journal's range.
     //
-    // **And split on `-c` as a token, not as a substring.** `?options=-c
-    // search_path=my-cool` truncated at the `-c` inside the schema's own name.
+    // **And split on `-c` as a token, not as a substring.** A substring split
+    // truncates `?options=-c search_path=my-cool` at the `-c` inside the
+    // schema's own name.
     let Some(query) = url.split_once('?').map(|(_, query)| query) else {
         return "public".to_owned();
     };
@@ -460,9 +473,9 @@ const THE_SHAPES: &str = "SELECT c.relname::text, \
 
 /// The columns each protected table holds, as the live database describes them.
 ///
-/// **The third thing the migrations create that nothing checked.** After the
-/// triggers and the constraints, the columns themselves: `ALTER TABLE
-/// journal_entries ALTER COLUMN hash DROP NOT NULL` left `check passed`, and a
+/// **The third thing the migrations create.** After the triggers and the
+/// constraints, the columns themselves: without this, `ALTER TABLE
+/// journal_entries ALTER COLUMN hash DROP NOT NULL` leaves `check passed`, and a
 /// journal row with no hash is a row `verify` cannot read and the append-only
 /// trigger will not let anyone remove.
 ///
@@ -498,14 +511,14 @@ pub(crate) fn table_shapes(url: &str) -> Result<Vec<(String, String)>, String> {
 
 /// How this database sorts and encodes, as it was actually initialised.
 ///
-/// **`POSTGRES_INITDB_ARGS` applies once, and nothing looked afterwards.**
+/// **`POSTGRES_INITDB_ARGS` applies once, so this looks afterwards.**
 /// `docker-compose.yml` passes `--locale=C --encoding=UTF8` so that `ORDER BY`
 /// answers the same on two machines, and the comment beside it says a mismatch
 /// "surfaces as one failing test nobody can reproduce". The argument is read by
 /// `initdb`, which runs only when the data directory is empty — so a volume
 /// created before that line existed, or by a `docker run` without it, keeps the
 /// host's locale forever while the file goes on saying otherwise. The file is
-/// now checked; this is the database.
+/// checked elsewhere; this is the database.
 ///
 /// Returns `(collate, ctype, encoding, provider, settings)` for the database
 /// the connection names.
@@ -533,8 +546,9 @@ pub(crate) fn table_shapes(url: &str) -> Result<Vec<(String, String)>, String> {
 /// writes `postgresql.auto.conf` inside the data volume and is neither a role
 /// setting nor a trigger, a constraint, an index or a rule — measured,
 /// `ALTER SYSTEM SET synchronous_commit = off` followed by `pg_reload_conf()`
-/// left the subquery here empty, `SHOW synchronous_commit` answering `off`, and
-/// `check passed` printing that the database "carries no stored setting". A
+/// leaves a `pg_db_role_setting` subquery empty, `SHOW synchronous_commit`
+/// answering `off`, and a gate reading only that subquery prints
+/// `check passed` and that the database "carries no stored setting". A
 /// setting's `sourcefile` is what tells the two apart: the image's own
 /// configuration is `postgresql.conf`, and everything `ALTER SYSTEM` has ever
 /// written is in the file beside it.
@@ -548,12 +562,13 @@ pub(crate) fn table_shapes(url: &str) -> Result<Vec<(String, String)>, String> {
 ///
 /// **The file, not the effective value, and only when this role can see it.**
 /// `pg_settings.sourcefile` is populated once a setting has been *applied*, so
-/// `ALTER SYSTEM SET …` without `pg_reload_conf()` left the subquery empty while
-/// `postgresql.auto.conf` on disk already said otherwise — and the next restart
-/// would apply it. `pg_file_settings` answers the question actually being asked:
+/// `ALTER SYSTEM SET …` without `pg_reload_conf()` leaves a subquery on it
+/// empty while `postgresql.auto.conf` on disk already says otherwise — and the
+/// next restart applies it. `pg_file_settings` answers the question actually being asked:
 /// what is written down. Both views also hide their contents from a role without
-/// `pg_read_all_settings`, and they hide them as a *silent empty result*, so the
-/// gate reported "carries no stored setting" about a database it could not read.
+/// `pg_read_all_settings`, and they hide them as a *silent empty result*, so a
+/// gate that does not ask reports "carries no stored setting" about a database
+/// it cannot read.
 /// The role is asked first, so an unreadable answer is a failure rather than a
 /// pass — `default_url` takes `POSTGRES_USER` from the environment and this
 /// module documents pointing the gate at another server, which is exactly where
@@ -616,9 +631,9 @@ pub(crate) fn how_it_sorts(url: &str) -> Result<(String, String, String, String,
 }
 /// The one query that asks what protects the journal and the access records.
 ///
-/// **`AND a.grantee <> 0` is gone from the `writers=` count, and `0` is
-/// `PUBLIC`.** That clause filtered out the one grant shape that reaches every
-/// role, present and future. Measured on a live stack:
+/// **The `writers=` count has no `AND a.grantee <> 0`, and `0` is
+/// `PUBLIC`.** That clause filters out the one grant shape that reaches every
+/// role, present and future. Measured on a live stack with the clause:
 ///
 /// ```text
 /// GRANT UPDATE, DELETE, TRUNCATE ON journal_entries TO PUBLIC;
@@ -635,16 +650,16 @@ pub(crate) fn how_it_sorts(url: &str) -> Result<(String, String, String, String,
 /// reads, and states the property as "no role other than the owner holds
 /// `UPDATE`, `DELETE` or `TRUNCATE`" — both false for exactly the shape the
 /// first one names in its own parenthesis. The triggers still refuse the
-/// statement, so this was a hole in the second line of defence; `writers=`
-/// exists because the first line can be disabled by its owner.
+/// statement, so the clause would be a hole in the second line of defence;
+/// `writers=` exists because the first line can be disabled by its owner.
 /// `a.grantee <> c.relowner` already covers the `acldefault` fallback, so the
-/// clause bought nothing.
+/// clause buys nothing.
 ///
 /// **And `relacl` is one of four places a write can be granted from.** The
-/// property `AGENTS.md` states is about who can write the table; `writers=` was
-/// a statement about `pg_class.relacl` alone, and `access_records` has no
+/// property `AGENTS.md` states is about who can write the table; `writers=`
+/// alone is a statement about `pg_class.relacl`, and `access_records` has no
 /// append-only trigger, so it is that table's only guard. Two ordinary shapes
-/// walked past it, both measured on a live stack:
+/// walk past `relacl`, both measured on a live stack:
 ///
 /// ```text
 /// GRANT UPDATE (outcome, masked) ON public.access_records TO PUBLIC;
@@ -657,22 +672,22 @@ pub(crate) fn how_it_sorts(url: &str) -> Result<(String, String, String, String,
 ///                                      and emptied the table
 /// ```
 ///
-/// So the row now carries `colwriters=` from `pg_attribute.attacl`, `writeall=`
+/// So the row carries `colwriters=` from `pg_attribute.attacl`, `writeall=`
 /// for the membership of the predefined write-everything role, and
 /// `superusers=`, which is the fourth door and the one no grant on the table can
 /// close. Column privileges in PostgreSQL are `SELECT`, `INSERT`, `UPDATE` and
 /// `REFERENCES` — there is no column-level `DELETE`.
 ///
-/// **`UPDATE` alone, and counting `INSERT` here contradicted the row beside
-/// it.** `writers=` deliberately omits `INSERT`: the paragraph in `AGENTS.md`
+/// **`UPDATE` alone, because counting `INSERT` here would contradict the row
+/// beside it.** `writers=` deliberately omits `INSERT`: the paragraph in `AGENTS.md`
 /// naming this property says a list pinning *no grants ever* "broke permanently
 /// the first time an application role was given `INSERT`", so a role that may
 /// insert is the ordinary case this census has to survive. Counting it at the
-/// *column* level made the narrower grant the refused one — measured on a live
-/// stack: `GRANT INSERT ON journal_entries` to a scratch role left `check
-/// passed` with a transcript identical to a clean run, while
+/// *column* level makes the narrower grant the refused one — measured on a live
+/// stack with it counted: `GRANT INSERT ON journal_entries` to a scratch role
+/// leaves `check passed` with a transcript identical to a clean run, while
 /// `GRANT INSERT (id, realm, principal, occurred_at, outcome, masked) ON
-/// access_records` — the same permission, least-privilege — failed the run with
+/// access_records` — the same permission, least-privilege — fails the run with
 /// `colwriters=6`. A gate that refuses the safer of two spellings teaches the
 /// wider one.
 ///
@@ -680,12 +695,12 @@ pub(crate) fn how_it_sorts(url: &str) -> Result<(String, String, String, String,
 /// the table-level row cannot see: `GRANT UPDATE (outcome, masked)` moves this
 /// to 2 and `relacl` does not move at all.
 ///
-/// **And `owners=`, which is the shortest door of the four.** The census counted
-/// two role memberships and omitted the one that confers ownership. Measured on
-/// a live stack: `GRANT noctua TO <an ordinary login>` moved no number — the row
-/// came back byte-identical — and an ordinary `UPDATE` as that role was still
-/// refused by the trigger, so the row looked right and read right. Then, as that
-/// role, in one batch:
+/// **And `owners=`, which is the shortest door of the four: the role
+/// membership that confers ownership.** Measured on a live stack without it:
+/// `GRANT noctua TO <an ordinary login>` moves no number — the row comes back
+/// byte-identical — and an ordinary `UPDATE` as that role is still refused by
+/// the trigger, so the row looks right and reads right. Then, as that role, in
+/// one batch:
 ///
 /// ```text
 /// SET ROLE noctua;
@@ -698,30 +713,30 @@ pub(crate) fn how_it_sorts(url: &str) -> Result<(String, String, String, String,
 ///
 /// `migrations/0001_journal.sql` scopes ownership out as "a privilege question,
 /// not a schema one" — but this row already answers privilege questions: it
-/// counts `pg_write_all_data` members and superusers. It counted two
-/// memberships and left out the one that is a rewritten audit log in three
-/// statements.
+/// counts `pg_write_all_data` members and superusers, and the membership that
+/// confers ownership is a rewritten audit log in three statements.
 ///
 /// Held apart from the function so that adding a catalog to it is not also a
 /// reason for `clippy::too_many_lines` to ask that the *function* be split —
 /// which would put the query in two places, which is how a list of favourites
 /// grows in the first place.
 ///
-/// **And the sequence branch is anchored like every other one.** It filtered on
-/// the schema alone while the eight branches around it name the two tables, so
+/// **And the sequence branch is anchored like every other one.** Filtered on
+/// the schema alone, while the eight branches around it name the two tables,
 /// any sequence in `public` — the next `BIGSERIAL` or identity column on any
-/// unrelated table — arrived as an unexplained row and was reported as *"a rule,
+/// unrelated table — arrives as an unexplained row and is reported as *"a rule,
 /// an index or a trigger that was not in the migrations is one nobody has
 /// read"*, followed by the paragraph about `UPDATE`, `DELETE` and `TRUNCATE` on
-/// the audit log. Measured with one `CREATE SEQUENCE tenant_numbers`: 45 rows
-/// where the list holds 44, and a step whose subject is the journal failing over
-/// a table that has nothing to do with it. In an incident that is the wrong
-/// place to send a reader. `pg_depend` is what ties a sequence to the table it
-/// belongs to, and the two protected tables are what this step is about.
+/// the audit log. Measured with one `CREATE SEQUENCE tenant_numbers` and the
+/// schema-only filter: 45 rows where the list holds 44, and a step whose
+/// subject is the journal failing over a table that has nothing to do with it.
+/// In an incident that is the wrong place to send a reader. `pg_depend` is
+/// what ties a sequence to the table it belongs to, and the two protected
+/// tables are what this step is about.
 ///
-/// **And `agrees=` is gone, because it was a claim about a clock.** It asserted
-/// that the database's own `recorded` order agrees with the *text* order of
-/// `id` — a client-generated Snowflake — and two ordinary rows break it: two
+/// **And there is no `agrees=`, because it would be a claim about a clock.**
+/// Asserting that the database's own `recorded` order agrees with the *text*
+/// order of `id` — a client-generated Snowflake — fails on two ordinary rows: two
 /// nodes writing in the same millisecond with different machine flakes, the
 /// higher-flake one committing first. Measured, no DDL, two `INSERT`s:
 ///
@@ -738,23 +753,24 @@ pub(crate) fn how_it_sorts(url: &str) -> Result<(String, String, String, String,
 /// same writer's clock. It also expires: `nc-ids` grows identifiers from twelve
 /// characters to thirteen in 2034, after which an alphabetical sort stops
 /// matching a chronological one and the assertion is false unconditionally. And
-/// it was the one branch here that reads *rows* rather than catalog, so on a
-/// table at its 500,000-row bound every `check` sorted it twice.
+/// it would be the one branch here that reads *rows* rather than catalog, so on
+/// a table at its 500,000-row bound every `check` would sort it twice.
 ///
-/// `distinct=` stays: that `recorded` is unique is what the sequence default and
-/// the trigger actually guarantee.
+/// `distinct=` is what holds: that `recorded` is unique is what the sequence
+/// default and the trigger actually guarantee.
 ///
 /// **And `ahead=`, which is the half `distinct=` is not.** Uniqueness is not
 /// monotonicity, and the six `pg_sequence` columns above are the sequence's
 /// *declaration* — `ALTER SEQUENCE … RESTART` writes none of them. Measured, one
-/// statement and two ordinary inserts: the two newest rows carried `recorded` 1
-/// and 2 while the oldest carried 4 and 5, every value distinct, every
-/// `pg_sequence` column identical, `ok 44 protection(s) in force` and `check
-/// passed` — and `delete_oldest("access_records", "recorded", 2)` then answered
-/// `Ok(2)` having removed **the two newest rows**. The pruner's whole promise is
+/// statement and two ordinary inserts: the two newest rows carry `recorded` 1
+/// and 2 while the oldest carry 4 and 5, every value distinct, every
+/// `pg_sequence` column identical, and without `ahead=` the run reads `ok 44
+/// protection(s) in force` and `check passed` — and
+/// `delete_oldest("access_records", "recorded", 2)` then answers `Ok(2)` having
+/// removed **the two newest rows**. The pruner's whole promise is
 /// that it takes the oldest.
 ///
-/// The fact is clock-free, which is what `agrees=` was not: every value in the
+/// The fact is clock-free, which a comparison with `id` is not: every value in the
 /// column came from `nextval`, so the sequence is at or above the largest of
 /// them, in every database, for ever. It reads the sequence's *value* rather
 /// than its declaration, and it reads no rows the row above did not already
@@ -762,11 +778,11 @@ pub(crate) fn how_it_sorts(url: &str) -> Result<(String, String, String, String,
 ///
 /// It names the table the way the half beside it does — unqualified, through
 /// the path this connection pins before it asks anything. Written `$1`-qualified
-/// instead, the two halves of one row can name two different relations, and the
-/// first thing that happened is that they did: the unit test below drives this
-/// statement with a scratch schema in `$1` and no `search_path` set, so
-/// `distinct=` read the developer's own table while the qualified name found a
-/// scratch table with no such column. One row, one relation.
+/// instead, the two halves of one row can name two different relations: on a
+/// connection whose `search_path` does not reach the schema in `$1`, a scratch
+/// schema with no path set, `distinct=` reads the developer's own table while
+/// the qualified name finds a scratch table with no such column. One row, one
+/// relation, which is why the unit test below pins its connection's path.
 ///
 const THE_PROTECTIONS: &str = "SELECT t.tgname::text, \
                     'trigger ' || t.tgenabled::text || ' ' \
@@ -908,12 +924,12 @@ pub(crate) fn quoted_identifier(name: &str) -> String {
 mod quoting_tests {
     /// A quote inside a name is doubled, so the name cannot be split.
     ///
-    /// **Decided by no test.** The live path only ever passes `public`, so the
-    /// gate can never notice — measured on 2026-09-08, the doubling removed:
-    /// `cargo test -p xtask --bin xtask` green at 481 with the stack up. What it
-    /// buys is that a schema whose name holds a quote is one identifier to
-    /// PostgreSQL rather than two, which is the difference between a name and an
-    /// injection.
+    /// **Decided here, because the live path cannot decide it.** The live path
+    /// only ever passes `public`, which holds no quote, so a run of the gate
+    /// cannot tell the doubling from its absence; with the doubling removed,
+    /// the third assertion below fails. What it buys is that a schema whose
+    /// name holds a quote is one identifier to PostgreSQL rather than two,
+    /// which is the difference between a name and an injection.
     #[test]
     fn a_quote_inside_a_name_is_doubled() {
         assert_eq!(super::quoted_identifier("public"), "\"public\"");
@@ -934,11 +950,10 @@ mod quoting_tests {
 
 /// The journal's own protections, as the live database holds them today.
 ///
-/// **`check` corroborated that the migrations were *applied* and never that what
-/// they created is still in force.** Nothing in `xtask/` read `pg_trigger` at
-/// all — measured, `grep -rn pg_trigger xtask/src/` was empty — and a table's
-/// owner can always disable its own triggers, which the role this stack ships
-/// with is. One statement:
+/// **That the migrations were *applied* is not that what they created is still
+/// in force.** A table's owner can always disable its own triggers, which the
+/// role this stack ships with is. One statement, against a gate reading only
+/// the migration record:
 ///
 /// ```text
 /// ALTER TABLE journal_entries DISABLE TRIGGER USER;
@@ -947,8 +962,8 @@ mod quoting_tests {
 /// cargo xtask check   ->   check passed
 /// ```
 ///
-/// The row read `Escalate` where it had read `Read`, every append-only trigger
-/// was `D`, and the gate had no opinion. That is acceptance criterion 3 and the
+/// The row then reads `Escalate` where it had read `Read`, every append-only
+/// trigger is `D`, and that gate has no opinion. That is acceptance criterion 3 and the
 /// reason `the plan's ordering rule` puts the journal before anything that can write to it: audit
 /// cannot be retrofitted, and a guarantee nobody checks is one that has already
 /// stopped holding somewhere.
@@ -975,57 +990,59 @@ pub(crate) fn journal_protections(url: &str) -> Result<Vec<(String, String)>, St
             .map_err(|error| format!("the database could not be reached: {error}"))?;
         // **The path this connection resolves names by, pinned before it asks
         // anything.** Every catalog branch below is anchored `n.nspname = $1`;
-        // the one branch that reads a *table* was not, and an unqualified name
-        // resolves through `search_path`, which begins `"$user"`. So one
-        // `CREATE SCHEMA` named after the connecting role — a schema that role
-        // may create, and which `configured_schema` deliberately skips because
-        // `$user` is not a schema name — put an empty copy of `access_records`
-        // in front of the real one, and the gate read the copy: measured,
+        // the one branch that reads a *table* is not, and an unqualified name
+        // resolves through `search_path`, which begins `"$user"`. So, unpinned,
+        // one `CREATE SCHEMA` named after the connecting role — a schema that
+        // role may create, and which `configured_schema` deliberately skips
+        // because `$user` is not a schema name — puts an empty copy of
+        // `access_records` in front of the real one, and the gate reads the
+        // copy: measured,
         // `ordering distinct=true` from the gate's own SQL and
         // `distinct=false` from `public.access_records` in the same instant,
         // with `check passed`.
         //
         // `nc-journal` and `nc-prune` both pin their connection's path for this
-        // reason and say so; the gate that checks their tables did not.
+        // reason and say so, and the gate that checks their tables does too.
         // `pg_temp` last, for the reason `NOCTUA.md §14.9` gives.
         //
-        // **Built by the one function that writes this statement**, because it
-        // was written here a second time and only the other copy had a test.
+        // **Built by the one function that writes this statement**, because a
+        // second copy here would be one without a test.
         // That test says in as many words that the path must not name
         // `pg_catalog` — naming it moves the system catalogue *behind* a schema
         // the connecting role owns — and this query reads fifteen catalogue
-        // relations unqualified. Measured: the catalogue appended to the
-        // argument rather than to the literal left `ok 44 protection(s) …` and
-        // `check passed`, byte-identical to a clean run, because the sentence
-        // census reads the format string and the format string had not moved.
+        // relations unqualified. Measured on such a copy: the catalogue appended
+        // to the argument rather than to the literal leaves `ok 44 protection(s)
+        // …` and `check passed`, byte-identical to a clean run, because the
+        // sentence census reads the format string and the format string has not
+        // moved.
         sqlx::query(sqlx::AssertSqlSafe(crate::dev::path_statement(&schema)))
             .execute(&pool)
             .await
             .map_err(|error| {
                 format!("the connection's search path could not be pinned: {error}")
             })?;
-        // **The definition, not the name.** The first version of this asked
-        // `pg_trigger` for `tgname` and `pg_constraint` for `conname` and
-        // nothing else — so six independent tampers passed with `check passed`
-        // and ten rows byte-identical to the expectation:
+        // **The definition, not the name.** Asking `pg_trigger` for `tgname`
+        // and `pg_constraint` for `conname` and nothing else lets six
+        // independent tampers pass with `check passed` and ten rows
+        // byte-identical to the expectation:
         //
         //   * the trigger *function body* replaced with `RETURN COALESCE(NEW,
-        //     OLD)`, which the migrations' own paragraph documents as the attack
-        //     and believed closed by a test that builds its own schema and never
-        //     looks at the deployed one;
+        //     OLD)`, which the migrations' own paragraph documents as the attack,
+        //     and which a test that builds its own schema never looks for in the
+        //     deployed one;
         //   * a constraint dropped and re-added under the same name as
         //     `CHECK (true)`;
         //   * an index dropped;
         //   * `CREATE RULE … DO INSTEAD NOTHING`, which discards every append
         //     silently;
         //   * row-level security switched on;
-        //   * and a *fifth* trigger the list simply forgot.
+        //   * and a *fifth* trigger the list does not name.
         //
-        // After those seven statements the journal accepted `UPDATE`, `DELETE`
-        // and `TRUNCATE`, an honest append vanished, and the gate said
-        // `10 protection(s) … every trigger ENABLE ALWAYS`.
+        // After those seven statements the journal accepts `UPDATE`, `DELETE`
+        // and `TRUNCATE`, an honest append vanishes, and a gate reading names
+        // says `10 protection(s) … every trigger ENABLE ALWAYS`.
         //
-        // So each row now carries what the object *is*: a trigger its events,
+        // So each row carries what the object *is*: a trigger its events,
         // its enabled state, the function it calls and a digest of that
         // function's body; a constraint and an index their rendered definition;
         // and the two table-level settings that turn the whole apparatus off.
@@ -1092,19 +1109,21 @@ pub(crate) fn function_paths(url: &str) -> Result<Vec<(String, Option<String>, b
         // integration tests migrate into a schema of their own, so `public` is
         // wrong — and `current_schema()` is wrong in the way that matters: it is
         // the *first existing* schema on this connection's path, so one
-        // `CREATE SCHEMA` named after the connecting role moved it, this query
-        // returned nothing, and the step reported "nothing to corroborate" while
-        // the journal it was guarding held a foreign row. One statement both
-        // landed the row and switched off the gate that would have caught it.
+        // `CREATE SCHEMA` named after the connecting role would move it, this
+        // query would return nothing, and the step would report "nothing to
+        // corroborate" while the journal it is guarding holds a foreign row. One
+        // statement would both land the row and switch off the gate that would
+        // have caught it.
         //
-        // `_sqlx_migrations` is where the migrations actually went, and
-        // `to_regclass` finds it by the same path resolution the migrator used.
+        // The migrations went where the connection string sends them, so the
+        // schema it names is the one read below — by name, not by resolving a
+        // path.
         //
         // **Every language, not `plpgsql` alone.** A `LANGUAGE sql` function
         // resolves a relation name through `search_path` exactly as a plpgsql one
-        // does, and the filter made it invisible here — while the static half
-        // could not bracket its bodyless definition either, so both halves of the
-        // gate missed the same shape at once.
+        // does, and a `plpgsql` filter makes it invisible here. The static half
+        // has to bracket that bodyless definition too, or both halves of the
+        // gate miss the same shape at once.
         // **Pinned before anything is asked.** `to_regclass` and every other
         // unqualified name below resolve through *this connection's*
         // `search_path`, which is the identical re-expansion the twelfth
@@ -1116,11 +1135,11 @@ pub(crate) fn function_paths(url: &str) -> Result<Vec<(String, Option<String>, b
         // CREATE TABLE noctua._sqlx_migrations AS SELECT * FROM public._sqlx_migrations;
         // ```
         //
-        // — moved `to_regclass` onto the copy, and a single decoy function in
-        // that schema then answered for the whole gate: `ok 1 migrated
+        // — move an unpinned `to_regclass` onto the copy, and a single decoy
+        // function in that schema then answers for the whole gate: `ok 1 migrated
         // function(s) search pg_temp last`, while the three real ones — one of
         // them freshly unpinned, having just admitted a foreign row at the top of
-        // the journal's range — were never inspected. The same two statements
+        // the journal's range — are never inspected. The same two statements
         // redirect the applied-migration record, so the checksum corroboration
         // that makes an applied migration un-rewritable goes with it.
         //
@@ -1130,21 +1149,20 @@ pub(crate) fn function_paths(url: &str) -> Result<Vec<(String, Option<String>, b
         // **Read from the URL, because asking the connection asks `$user`.**
         // `(current_schemas(false))[1]` is `current_schema()` spelled differently
         // — both return the first *existing* schema on the path and both expand
-        // `"$user"` — so the fix that replaced one with the other changed
-        // nothing. Measured: with a schema named after the connecting role
-        // holding three decoy functions and the two real triggers in `public`
-        // unpinned, this gate reported `ok 3 migrated function(s) search pg_temp
-        // last` over a journal that had just taken a foreign row at the top of
+        // `"$user"` — so replacing one with the other changes nothing. Measured
+        // with either: with a schema named after the connecting role holding
+        // three decoy functions and the two real triggers in `public` unpinned,
+        // a gate asking either reports `ok 3 migrated function(s) search pg_temp
+        // last` over a journal that has just taken a foreign row at the top of
         // its range.
         //
         // The schema a deployment means is the one it wrote down, and it wrote it
         // in the connection string. Nothing here asks the database to guess.
         //
-        // The earlier version picked the lowest-oid `_sqlx_migrations`, which
-        // chose arbitrarily among whatever schemas existed — a developer's
-        // database holding 139 leftover test schemas had this reporting two
-        // unpinned functions out of one of *those*. Neither guess is the answer;
-        // the string is.
+        // Picking the lowest-oid `_sqlx_migrations` chooses arbitrarily among
+        // whatever schemas exist — on a developer's database holding 139
+        // leftover test schemas, that reports two unpinned functions out of one
+        // of *those*. Neither guess is the answer; the string is.
         let intended = configured_schema(url);
         sqlx::query("SET search_path = pg_catalog, pg_temp")
             .execute(&pool)
@@ -1156,10 +1174,11 @@ pub(crate) fn function_paths(url: &str) -> Result<Vec<(String, Option<String>, b
         // not exist resolves at `pg_temp` exactly as an empty path does — the
         // very case the migrations call "the recipe usually given, which leaves
         // the hole wide open". Measured, a migration pinning the journal's
-        // trigger to a schema a later migration was going to create: both halves
-        // of the gate green, and one `CREATE TEMP TABLE journal_entries` from an
-        // ordinary session put a foreign row at the top of the range. No attacker
-        // is needed — a typo, or two migrations written out of order, does it.
+        // trigger to a schema a later migration was going to create: without
+        // this check, both halves of the gate stay green, and one `CREATE TEMP
+        // TABLE journal_entries` from an ordinary session puts a foreign row at
+        // the top of the range. No attacker is needed — a typo, or two
+        // migrations written out of order, does it.
         //
         // **And `USAGE`, because PostgreSQL ignores a schema the role cannot
         // enter exactly as it ignores one that is absent.** Measured on 18.6, the
@@ -1170,7 +1189,7 @@ pub(crate) fn function_paths(url: &str) -> Result<Vec<(String, Option<String>, b
         // as a role without USAGE on it      -> 424242   (the planted temp table)
         // ```
         //
-        // `EXISTS (… pg_namespace)` answered `true` in both. What the rule is
+        // `EXISTS (… pg_namespace)` answers `true` in both. What the rule is
         // about is whether the path *reaches* the relation, and existence is only
         // half of that.
         //
@@ -1250,8 +1269,8 @@ mod tests {
 
     /// Every list of tables in a query is the one constant, spliced in.
     ///
-    /// **Ten `IN (…)` literals became one name, and a splice that silently does
-    /// not happen is a syntax error no offline run can see.** The two statements
+    /// **The `IN (…)` lists are one name, and a splice that silently does not
+    /// happen is a syntax error no offline run can see.** The two statements
     /// here are `String`s by the time sqlx reads them; if the placeholder in
     /// them and [`super::THE_PROTECTED_TABLES`] ever stop being the same text,
     /// `asking_about_the_protected_tables` hands back the template unchanged and
@@ -1312,17 +1331,16 @@ mod tests {
 
     /// The two doors a role opens, and the one that cannot be given a control.
     ///
-    /// Its own function because the test it belongs to crossed a hundred lines
-    /// with it inline.
+    /// Its own function because the test it belongs to would cross a hundred
+    /// lines with it inline.
     async fn the_role_doors_move(pool: &sqlx::PgPool, schema: &str) {
-        // **The other two doors, which were watched at their passing value
-        // alone.** `writeall=` was asserted `0` before any grant and never
-        // moved, so one character — `pg_write_all_data` misspelled
-        // `pg_write_all_dat` — left `cargo xtask check` byte-identical to
-        // baseline. `owners=` is the shortest door of the four and was not
-        // counted at all until a reviewer used it: `GRANT <owner> TO <an
-        // ordinary login>` moves no other number, and that role can disable
-        // the triggers and rewrite the audit log.
+        // **The other two doors, each moved off its passing value.** Asserted
+        // `0` before any grant and never moved, `writeall=` would let one
+        // character — `pg_write_all_data` misspelled `pg_write_all_dat` — leave
+        // `cargo xtask check` byte-identical to baseline. `owners=` is the
+        // shortest door of the four: `GRANT <owner> TO <an ordinary login>`
+        // moves no other number, and that role can disable the triggers and
+        // rewrite the audit log.
         //
         // The role is named for this process, because a role is
         // cluster-global, and it is dropped on the way out of this block.
@@ -1388,18 +1406,20 @@ mod tests {
 
     /// The four write doors are counted, and each one moves its own number.
     ///
-    /// **The passing value is `0`, so nothing was testing the clause.** Every
-    /// number in the `row security` row reads zero on a correct database, which
-    /// means re-adding `AND a.grantee <> 0` — the filter that hid every grant to
-    /// `PUBLIC` — left the whole suite green. A measurement whose only observed
+    /// **The passing value is `0`, so a correct database tests no clause.**
+    /// Every number in the `row security` row reads zero on a correct database,
+    /// so re-adding `AND a.grantee <> 0` — the filter that hides every grant to
+    /// `PUBLIC` — changes nothing a correct database can show, and the grants
+    /// this test makes are what can see it. A measurement whose only observed
     /// value is the passing one is a measurement nobody has watched work.
     ///
-    /// Two of the four were also *wrong*, measured on a live stack before this
-    /// existed: `GRANT UPDATE (outcome, masked) ON access_records TO PUBLIC`
+    /// Two of the four doors are also invisible to `relacl`, measured on a live
+    /// stack: `GRANT UPDATE (outcome, masked) ON access_records TO PUBLIC`
     /// leaves `relacl` NULL and lands in `pg_attribute.attacl`, and
     /// `GRANT pg_write_all_data TO <role>` is a membership rather than an ACL —
-    /// a non-owner then ran `UPDATE` and `DELETE` against the audit log, which
-    /// has no append-only trigger, with `writers=0` and `check passed`.
+    /// and with `relacl` alone a non-owner can then run `UPDATE` and `DELETE`
+    /// against the audit log, which has no append-only trigger, with `writers=0`
+    /// and `check passed`.
     ///
     /// Run against a scratch schema of this test's own, never `public`: the
     /// grants below are real grants, and the developer's tables are not the
@@ -1410,30 +1430,30 @@ mod tests {
         // **`--offline` is the flag, and `url()` does not read it.** `url()`
         // falls back to `postgres://…@127.0.0.1:${POSTGRES_PORT:-5432}/noctua`
         // and probes the port, so under the environment `cargo xtask check
-        // --offline` hands the test binary — `DATABASE_URL` removed, `NC_OFFLINE`
-        // set — this connected anyway and issued `CREATE SCHEMA`, two `GRANT`s
-        // and `DROP SCHEMA … CASCADE` against whatever was listening, which by
-        // default is the developer's own stack. Measured:
-        // `env -u DATABASE_URL NC_OFFLINE=1 POSTGRES_DB=nc_no_such_db` panicked
-        // with SQLSTATE `3D000`, which is a real connection.
+        // --offline` hands the test binary — `DATABASE_URL` removed, `NC_NO_STACK`
+        // set — a test that asks only `url()` connects anyway and issues
+        // `CREATE SCHEMA`, two `GRANT`s and `DROP SCHEMA … CASCADE` against
+        // whatever is listening, which by default is the developer's own stack.
+        // Measured: `env -u DATABASE_URL NC_NO_STACK=--offline POSTGRES_DB=nc_no_such_db`
+        // panics there with SQLSTATE `3D000`, which is a real connection.
         //
         // `nc-journal`'s and `nc-prune`'s integration suites both read
-        // `NC_OFFLINE`; this did not.
-        if std::env::var_os("NC_OFFLINE").is_some() {
+        // `NC_NO_STACK`, and so does this.
+        if std::env::var_os("NC_NO_STACK").is_some() {
             // **And it says so.** A control that returns in silence is counted
-            // by cargo as a test that passed, and `check --offline` printed its
-            // usual total with this one never run — the same hazard the three
-            // suites in `ANNOUNCES_NO_DATABASE` announce for. Reported on
-            // 2026-09-14 by a reviewer reading what stands aside without a word.
-            println!("xtask database: skipped, no database (NC_OFFLINE)");
+            // by cargo as a test that passed, and `check --offline` would print
+            // its usual total with this one never run — the same hazard the other
+            // suites in `ANNOUNCES_NO_DATABASE` announce for.
+            let why = std::env::var("NC_NO_STACK").unwrap_or_default();
+            println!("xtask database: skipped, no database: {why}");
             return;
         }
         // **And no database is a failure, not a skip.** This module's header
         // calls a silent skip "the `NOCTUA.md §19.3` hazard in its purest form",
-        // and `eprintln!` is captured by libtest — so on a machine with no stack
-        // the control that proves the five write doors are watched did not run,
-        // the printed total stayed at its usual number, and it was not one of
-        // the announced `--offline` skips either. Every other database test in
+        // and `eprintln!` is captured by libtest — so a skip on a machine with
+        // no stack leaves the control that proves the five write doors are
+        // watched unrun, the printed total at its usual number, and nothing
+        // among the announced `--offline` skips either. Every other database test in
         // this tree fails rather than skips.
         let url = super::url().unwrap_or_else(|why| {
             panic!(
@@ -1471,10 +1491,11 @@ mod tests {
 
             // **Every leftover probe role, not this pid's.** A role is cluster-global
             // and `writeall=`/`owners=` are cluster-wide counts folded into the row
-            // `PROTECTIONS` pins — so one red run that left a role behind made
-            // `cargo xtask check` fail *permanently*, with four errors naming the
-            // migrations and none naming a role. Measured: a weakening fired this
-            // control, the role survived, and the reverted tree then reported
+            // `PROTECTIONS` pins — so without a sweep, one red run that leaves a
+            // role behind makes `cargo xtask check` fail *permanently*, with four
+            // errors naming the migrations and none naming a role. Measured with
+            // a sweep of this pid's role alone: a weakening fires this control,
+            // the role survives, and the reverted tree then reports
             // `access_records row security … writeall=1 … nothing here declares it`.
             // A sweep that names only the running pid can never clear it.
             for stale in sqlx::query_scalar::<_, String>(
@@ -1513,14 +1534,13 @@ mod tests {
                  ACL at all, and this is what the query said: {column}"
             );
 
-            // **And the grant this must *not* count, which is the one it used
-            // to.** A role that may insert is the ordinary case — `writers=`
-            // omits `INSERT` for exactly that reason — so counting it at the
-            // column level made the narrower, least-privilege spelling the
-            // refused one: measured on a live stack, `GRANT INSERT ON
-            // journal_entries` left the run identical to a clean one and
-            // `GRANT INSERT (…six columns…) ON access_records` failed it with
-            // `colwriters=6`.
+            // **And the grant this must *not* count.** A role that may insert is
+            // the ordinary case — `writers=` omits `INSERT` for exactly that
+            // reason — so counting it at the column level makes the narrower,
+            // least-privilege spelling the refused one: measured on a live stack,
+            // `GRANT INSERT ON journal_entries` leaves the run identical to a
+            // clean one and `GRANT INSERT (…six columns…) ON access_records`
+            // fails it with `colwriters=6`.
             sqlx::query(sqlx::AssertSqlSafe(format!(
                 "GRANT INSERT (outcome, masked) ON {quoted}.access_records TO PUBLIC"
             )))
@@ -1562,10 +1582,11 @@ mod tests {
     /// **`distinct=` is uniqueness, and uniqueness is not order.** The six
     /// `pg_sequence` columns beside it are the sequence's *declaration*, and
     /// `ALTER SEQUENCE … RESTART` writes none of them — so one statement and two
-    /// ordinary inserts left every value in the column distinct, every pinned
-    /// column identical, `ok 44 protection(s) in force` and `check passed`, with
-    /// the two newest rows carrying the two lowest values. `nc-prune` takes the
-    /// oldest by that column, so it would have taken them.
+    /// ordinary inserts leave every value in the column distinct and every
+    /// pinned column identical, with the two newest rows carrying the two lowest
+    /// values; without `ahead=` the run reads `ok 44 protection(s) in force` and
+    /// `check passed`. `nc-prune` takes the oldest by that column, so it would
+    /// take them.
     ///
     /// It is measured here rather than against the developer's own table because
     /// that one is empty on a fresh stack: with no rows there is no largest
@@ -1573,8 +1594,9 @@ mod tests {
     /// whatever the query said.
     #[test]
     fn a_rewound_sequence_under_the_ordering_column_is_read() {
-        if std::env::var_os("NC_OFFLINE").is_some() {
-            println!("xtask database: skipped, no database (NC_OFFLINE)");
+        if std::env::var_os("NC_NO_STACK").is_some() {
+            let why = std::env::var("NC_NO_STACK").unwrap_or_default();
+            println!("xtask database: skipped, no database: {why}");
             return;
         }
         let url = super::url().unwrap_or_else(|why| {
@@ -1686,14 +1708,11 @@ mod the_schema_comes_from_the_string {
 
     /// The schema is read the way sqlx reads it, encoding and all.
     ///
-    /// **`configured_schema` had no test, and everything now depends on it.**
-    /// It did `strip_prefix` on the raw URL while sqlx builds its connection from
-    /// `query_pairs()`, which percent-decodes — so the canonical spelling of this
-    /// option connected to one schema and was read as another, and the whole
-    /// search-path gate reported `ok` over a journal in a schema it never looked
-    /// at. The `the_frozen_path_rule` module's own doc says `pg_temp_is_last`
-    /// "had no test at all"; this function was added the round after and had
-    /// none either.
+    /// **Everything depends on `configured_schema`.** A `strip_prefix` on the
+    /// raw URL, while sqlx builds its connection from `query_pairs()`, which
+    /// percent-decodes, connects the canonical spelling of this option to one
+    /// schema and reads it as another — and the whole search-path gate then
+    /// reports `ok` over a journal in a schema it never looked at.
     #[test]
     fn every_spelling_of_the_option_reads_the_same_schema() {
         let base = "postgres://u:p@h:5432/d";
@@ -1702,7 +1721,7 @@ mod the_schema_comes_from_the_string {
             ("?options=-csearch_path=app", "app"),
             ("?options=-csearch_path%3Dapp", "app"),
             ("?options=-c%20search_path%3Dapp", "app"),
-            // A schema whose name holds the two characters the old split cut on.
+            // A schema whose name holds the two characters a substring split cuts on.
             ("?options=-c%20search_path%3Dmy-cool", "my-cool"),
             // Quoted, and with the temporary schema written out.
             ("?options=-csearch_path%3D%22Prod%22,pg_temp", "Prod"),

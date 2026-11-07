@@ -6,8 +6,8 @@ tree by file extension. *Not* every gate: see below.
 
 **Which gate, and therefore which directory.** A canary has to live inside the
 scope of the gate it proves. The blanket-allow walk and the two citation gates
-read the whole tree, so their canaries are here. The §15.1 walk reads `crates/`
-and `migrations/` and never opens `xtask/` at all, so its canary is
+read the whole tree, so their canaries are here. The §15.1 walk reads the
+crates, the plugins and the migrations and never opens `xtask/`, so its canary is
 `crates/nc-canon/canaries/a_code_written_by_hand.rs` — put here, it would be a
 file no gate ever reads and a green run that proves nothing.
 
@@ -17,10 +17,10 @@ asserts the gate **found it**, and then drops that finding from what it reports.
 ## The review loop, deliverable by deliverable
 
 `NOCTUA-PLAN.md` Stage 10 is ten deliverables. Each one ends the same way: its
-own tests, then `cargo xtask check` green, then a **fresh reviewer agent** — one
-that did not write the code — audits it and every finding is fixed and proved by
-planting the defect. The loop ends for a deliverable when a full pass over it
-returns nothing.
+own tests, then `cargo xtask check` green, then an audit by someone who did not
+write the code, with every finding fixed and proved by planting the defect. The
+loop ends for a deliverable when two independent full passes over it return
+nothing, for the reason given below.
 
 | | Deliverable | Scope items | Acceptance criteria it carries |
 |---|---|---|---|
@@ -36,9 +36,9 @@ returns nothing.
 | D10 | Documents across the workspace, and the stage closed | `NOCTUA-PLAN.md` §P0.2.5, §P0.5 | — |
 
 **Each criterion is a command, and the command is what is written down.** A
-result pasted here is a measurement of the day it was pasted — this file has been
-wrong about a mutation tally three times that way. Run these; do not trust a
-transcript of them.
+result pasted here is a measurement of the day it was pasted, and a mutation
+tally pasted here goes wrong that way. Run these; do not trust a transcript of
+them.
 
 | | What it proves | Command |
 |---|---|---|
@@ -47,7 +47,7 @@ transcript of them.
 | 2 | a compile-fail fixture refuses **for the stated reason** | `cargo xtask check`, the `fixture(s) refuse to compile` line |
 | 3 | the chain breaks at **every** position of a synthetic history | `cargo test -p nc-journal --test tampering` |
 | 4 | two generations are byte-identical | `cargo xtask check`, the `two generations` line; and the CI job that builds twice and diffs |
-| 5 | a table with no bound fails, and the error names it | `cargo test -p xtask the_unbounded_table_predicate_decides_every_clause` (both halves: the driver now requires the refusal to quote a table the migration wrote) |
+| 5 | a table with no bound fails, and the error names it | `cargo test -p xtask the_unbounded_table_predicate_decides_every_clause` (both halves: the driver requires the refusal to quote a table the migration wrote) |
 | 6 | a key missing from one locale fails, and the error names it | `cargo test --workspace a_key_missing_from_one_locale_fails_the_build_and_the_error_names_it` |
 | 7 | a renumbered, repointed or removed code is refused | `cargo test --workspace ledger::tests` |
 | 8 | `parse(build(x)) == x` under property test | `cargo test -p nc-ids --test properties` |
@@ -59,44 +59,27 @@ Criteria 5, 6 and 7 are proven by **making the failure happen** inside a test th
 restores the tree afterwards. A gate nobody has watched fire is a gate nobody
 knows is wired up.
 
-**No round has yet returned nothing**, which is why the loop is still running.
-What each round costs and finds is the argument for continuing it:
+Three things hold about how such an audit behaves, and each is a rule for
+running one.
 
-| Round | Subjects | Findings | Sharpest |
-|---|---|---|---|
-| 46–49 | whole tree, one reviewer per round | 13, 21, 15, 28 | CI could never have passed; a green gate compatible with the journal's protections never being read |
-| 49c | the corpus and its meta-gate | 28 | the verdict behind ten corpus drivers was decided by nothing |
-| 50 | catalog+journal / gates+surface / runtime crates | 29 | one attribute switched off the log's type wall |
-| 51 | the same three subjects, fresh reviewers | 28 | `check` could not pass on a bare checkout, which is what CI has |
-| 52 | per deliverable, with a verdict asked of each | 14 | a live guard with no case, in the crate whose job is proving rules refuse |
-| 53 | the six unclean, plus a confirming pass on the three clean | 20 | **two of the three "finished" deliverables failed the confirming pass** |
-| 54 | all nine, three reviewers, a verdict asked of each | 22 | a field added to `Entry` is outside the hash, and criterion 3 is false for it |
-| 55 | the same nine, fresh reviewers | 16 | **eight of the sixteen were defects in round 54's repairs** |
+**Independent auditors converge on the same defect.** Two of them, from
+different subsystems and neither looking for it, report the same first finding
+— because both ran the baseline before planting anything, which is the first
+thing an audit does.
 
-Two things are worth recording about how the rounds behave.
+**A repair is where the next defect hides.** A floor calibrated on the wrong
+tree, a shared reader that makes two counters agree about nothing, a doc comment
+that changes owner in the edit that adds the ratchet against doc comments
+changing owner, a gate narrower than it claims, a scan reading the wrong text
+for most of the bodies it inspects — each is a defect a repair introduces, and
+an audit of the original code alone finds none of them. That is the argument
+for a *new* auditor rather than a second pass by the same one.
 
-**The reviewers converge on the same defect independently.** Round 51's first
-finding was reported by two of the three, from different subsystems, neither
-looking for it — both ran the baseline before planting anything, which is the
-first thing the brief asks for.
-
-**A repair is where the next defect hides.** Round 51 found three defects
-introduced by round 50's repairs: a floor calibrated on the wrong tree, a shared
-reader that made two counters agree about nothing, and a doc comment that changed
-owner twice in the edit that added the ratchet against doc comments changing
-owner. Round 52 found six gates written hours earlier, each narrower than it
-claimed. Round 53 found four more, including a scan reading the wrong text for
-363 of the 382 bodies it inspected. A round that reviewed only the original code
-would have found none of them, which is the argument for a *new* reviewer rather
-than a second pass by the same one.
-
-**And one clean pass is evidence, not proof.** Round 52 reached "a full pass
-returned nothing" on `nc-ids`, `nc-log` and `nc-prune`. Round 53 pointed a
-different reviewer at all three: `nc-log` held, and the other two each carried a
-defect that would have shipped — a `critical` error code raised for a fault that
-was not that fault, and a one-line repair, closing a measured exploit, that could
-be reverted with the whole gate green. A deliverable is settled by two
-independent clean passes, not one.
+**And one clean pass is evidence, not proof.** A deliverable that one full pass
+returned nothing on can still carry a defect a different auditor finds — a
+`critical` error code raised for a fault that is not that fault, and a one-line
+repair, closing a measured exploit, that can be reverted with the whole gate
+green. A deliverable is settled by two independent clean passes, not one.
 
 ## Why a count could not do this
 
@@ -122,7 +105,7 @@ A canary is not a number, and it answers a different question: a count says how
 much a walk *believes* it read, and a canary says whether the walk actually
 reached one known file and the rule actually fired on it.
 
-**It is not a replacement for a floor, and this file said it was.** A filter
+**It is not a replacement for a floor.** A filter
 expressed over *all* lines hides the canary too. A filter expressed over a
 *subset* — `if relative.starts_with("crates/nc-journal/")`, `if index > 10`,
 `if !path.contains("/canaries/")` — leaves the canary reported and the rest of
@@ -133,10 +116,9 @@ So both are kept, and neither is load-bearing alone: the line floors catch a wal
 that stops early, and the canaries catch a walk that reads nothing it is supposed
 to judge.
 
-**And a filter shaped to slip between them was written, in one line, four
-times.** This file used to end by saying such a filter "has to be written on
-purpose and read like one in a diff", as though that were a defence. It is not
-one, and it is not even hard: both counters sit above the judgement, so
+**And a filter shaped to slip between them takes one line, four times.** That
+such a filter "has to be written on purpose and read like one in a diff" is no
+defence, and it is not even hard: both counters sit above the judgement, so
 
 ```rust
 read += 1;
@@ -217,7 +199,7 @@ that finding. Six walks are driven over it. The §15.1 one asks the gate's own
 `in_the_error_code_scope` which directories it is allowed to skip, and asserts
 both directions: every directory inside the scope is reached, and every
 directory the exclusion list names is not judged. That is also what keeps the
-exclusion list honest, and why `check.rs`'s `scoped_out()` is now derived from
+exclusion list honest, and why `check.rs`'s `scoped_out()` is derived from
 `OUTSIDE_THE_ERROR_CODE_SCOPE` rather than being a second hand-kept copy of it.
 
 ## The generated surface, swept by hand
@@ -261,14 +243,14 @@ text — one plausible way to write that field — produces a collision the mome
 is applied, between *an actor chain of two* and *a principal spelling the same
 pair*.
 
-Two smaller results from the same pass, recorded because a pass that reports only
+Two smaller results of the same sweep, recorded because a sweep that reports only
 what it found reads as one that looked only where it found something: the log
 store's retention flags **are** held against the catalog's declaration, and every
 published port **is** held to loopback — both by
-`xtask/tests/the_stack_enforces_the_declared_bounds.rs`, which I did not know
-about until I tried to break them.
+`xtask/tests/the_stack_enforces_the_declared_bounds.rs`, which an attempt to
+break them finds.
 
-### Two things this pass looked for and did not find
+### Two things this sweep looks for and does not find
 
 Recorded because a pass that reports only what it found reads as a pass that
 looked only where it found something.
@@ -310,20 +292,21 @@ the append-only trigger refuses the `DELETE`, so the constraint can never be put
 back. One statement leaves the table permanently in a state its own migrations
 forbid.
 
-`check` now reads both catalogues and holds eight protections — four triggers on
-the journal, one on the access records, three `CHECK` constraints — against the
-state the migrations left them in. The names are **written out, not read from the
-migrations**: a list derived from the files agrees with whatever the files say,
-and `0008` drops one of the five constraints on purpose, so the files declare
-five where the database must hold four.
+`check` reads both catalogues and holds every protection `PROTECTIONS` in
+`xtask/src/check.rs` names — the journal's and the access records' triggers and
+`CHECK` constraints among them — against the state the migrations left them in.
+The names are **written out, not read from the migrations**: a list derived from
+the files agrees with whatever the files say, and `0008` drops one of the five
+constraints on purpose, so the files declare five where the database must hold
+four.
 
-Asking the same question at each level found three more the first version
-missed. **Primary keys**: `journal_entries_pkey` is what stops two rows sharing
+Asking the same question at each level finds three more. **Primary keys**:
+`journal_entries_pkey` is what stops two rows sharing
 a sequence — the chain reads one row per position and `Store::append` relies on
 the collision to notice a racing writer — and dropping it left `check passed`.
 **Columns**: `ALTER COLUMN hash DROP NOT NULL` left `check passed`, and a
 journal row with no hash is one `verify` cannot read and the append-only trigger
-will not let anybody remove. The whole column shape is pinned now — name, type,
+will not let anybody remove. The whole column shape is pinned — name, type,
 nullability, in order — rather than a few favourites, because picking favourites
 is how a list of favourites grows.
 
@@ -336,7 +319,7 @@ migrations left it A:23`.
 
 ## What none of them can see
 
-Five mechanisms at the time this was written, and all but the last answer the
+Five mechanisms precede this section, and all but the last answer the
 same question: **did the walk reach the line?** A sixth is below, and it answers
 a third one — whether the guard is still there at all. A canary says a known file was read. A floor says the walk did
 not stop early. A two-counter identity says nothing was skipped between the
@@ -346,8 +329,8 @@ filter was written around a real one — **and that sentence was read for more
 than it says.** A real directory is not a real name: every file those fixtures
 planted was called `f{n}.rs` or `k{n}.{kind}`, which this repository wears
 nowhere, so a clause keyed on a name the tree really has, or on a real relative
-path, walked past all of them. Measured in wave 40, each with the previous
-wave's repair in the tree: `!relative.ends_with("parse.rs")` hid a hand-written
+path, walked past all of them. Measured, each against such fixtures:
+`!relative.ends_with("parse.rs")` hid a hand-written
 `NC-KERN-4242` in `crates/nc-canon` from §15.1's walk with the transcript
 byte-identical, and one clause naming the policy schema by its real path took
 eighteen live citations out of the section gate. The fixtures plant under the
@@ -363,7 +346,7 @@ above baseline:
   and `crates/nc-prune` shipped a hand-written `NC-DB-0004`. Both committed
   fixtures used area `KERN`, which the registry declares no code for, so the
   branch was never exercised from the declared side. That specific hole is
-  closed: the fixture now plants one of each. The *shape* is not.
+  closed: the fixture plants one of each. The *shape* is not.
 * **An iterator adapter.** `joined.lines().enumerate().filter(…)` — the skip
   happens before the loop body, so both counters agree and the floor's quantity
   was fixed before the loop opened.
@@ -373,11 +356,10 @@ above baseline:
 * **A different judgement.** `if holds_an_environment(name) && !path.contains(…)`
   on the `.env` walk is not a skipped path; it is a path that was looked at and
   cleared.
-* **A branch no test reaches, found by instrumenting every branch.** Not a
-  mechanism this repository had. A reviewer appended a marker to each of ~90
-  branches across four source files, ran the suite, and diffed markers-inserted
-  against markers-fired — which named, exactly, the arms nothing drives. Nine
-  followed, and the two worst were guards that a previous round had *added*:
+* **A branch no test reaches, found by instrumenting every branch.** A marker
+  appended to each of ~90 branches across four source files, the suite run, and
+  markers-inserted diffed against markers-fired names, exactly, the arms nothing
+  drives. Nine followed, and the two worst were guards a repair had *added*:
   `Pruned::code()`'s refusal arm (put back to `None`, workspace green) and the
   `readable()` hash check standing in front of a permanent, unrepairable row in
   an append-only table (deleted, workspace green). A fix without a test is a
@@ -411,7 +393,7 @@ above baseline:
   deleting them left the workspace green while a removed or relinked entry got
   the wrong diagnosis. Deleting the *whole* body was caught; exactly the copied
   branches were not. The fix is not a test per branch, it is one predicate: the
-  copy now delegates, and the main path's tests cover all six.
+  copy delegates, and the main path's tests cover all six.
 * **The mechanisms themselves are a list, and nothing enumerated it.** Deleting
   the four lines of a fixture test that plant for one walk moves **no test
   count** — removing statements from a body removes no `#[test]` attribute — so
@@ -423,7 +405,7 @@ above baseline:
   together when a file of tests goes. `mutants.py` is not run by `check` at all,
   so the meta-gate then had nothing to run against.
 
-  Both are now written down and checked against the source:
+  Both are written down and checked against the source:
   `REACHED_BY_THE_PLANTED_FIXTURE` names the walks whose fixture call must
   exist, and `the_corpus_still_decides_every_predicate_it_is_written_for` names
   every table and every driver. **Hand lists on purpose** — deriving either from
@@ -441,16 +423,15 @@ above baseline:
   One `continue` below it compiled a canary — a file holding a real registry
   code and a blanket allow *by design* — into `libnc_canon.rlib`, with every
   printed number **up** and `check passed`. The list of walks a mechanism covers
-  is itself a list, and nothing enumerated it. Both are now driven by the
-  every-real-directory fixture.
+  is itself a list, and one that nothing else enumerates hides the walk it
+  leaves off. Both are driven by the every-real-directory fixture.
 * **A test whose fixture models the wrong call.** The journal's race test read
   `head()` and threw away the hash, passing `None` — so a racer reading late
   built an entry linking to nothing, which the store correctly refused as a
   broken chain while the test called that a defect. It was red about a quarter
   of the time on an untouched tree, in *the* gate, and its own doc claimed it
   did "exactly what `Journal::append` does". A nondeterministic gate is the
-  finding that hides every other finding: three reviewers reported it before
-  anything else they found.
+  finding that hides every other finding.
 * **A helper that ignores the argument it was given.** The release test passed
   two scratch file names and the helper called the one-file wrapper, which reads
   the shipped list — so every assertion about the first file being restored was
@@ -496,45 +477,42 @@ The predicates, chosen by what ships if the verdict is wrong — the table is th
 | `caret_uses` → the compile-fail gate | criterion 2: a fixture that names the door and fails for something else, with the type wall deleted underneath it |
 | `claim` → the rotting-count gate | a stated count that has drifted, in the documents an agent is told to read first |
 
-**The last two were added because a repair went in without one.** Both
-predicates were written to close a finding — the caret rule after two fixtures
-were rewritten to fail for unrelated reasons, the counting rule after every
-digit form of every countable noun fell through — and neither had a corpus
-entry, so `mutants.py` reported five weakenings of them SURVIVED. A repair is a
-predicate too, and the corpus is where a predicate is decided.
+**The last two are repairs, and a repair is a predicate too.** The caret rule
+answers a fixture rewritten to fail for an unrelated reason, and the counting
+rule a count written in digits before a countable noun; with no corpus entry,
+`mutants.py` reports five weakenings of them SURVIVED, measured. The corpus is
+where a predicate is decided.
 
 One driver per predicate — `grep -c 'decides_every_clause'
 xtask/src/corpus.rs` answers how many, and `cargo test -p xtask --bin xtask corpus::`
-runs them. The number of *cases* is deliberately not written here: it said
-**191**, which was the sum of the fixed arrays and therefore counted a ninth
-subject that has no row in the table above while missing the twenty-eight image
-and referent cases, which are built by functions rather than declared. A count
-assembled from two different places is one nobody can keep true. One case per
-clause and one per element of each name list, because a list is a clause per
-element. Each drives the **real** function over a scratch tree rather
+runs them. The number of *cases* is deliberately not written here: the sum of
+the fixed arrays counts subjects that have no row in the table above and misses
+the image and referent cases, which are built by functions rather than
+declared. A count assembled from two different places is one nobody can keep
+true. One case per clause and one per element of each name list, because a list
+is a clause per element. Each drives the **real** function over a scratch tree rather
 than a re-expressed copy of the judgement, so the walk's scope, the attribute
 accumulator and the name lists are all inside what is tested.
 
 **The number is not written here.** `python3 xtask/mutants.py` prints it, and
-this paragraph has been wrong about it three times — a transcript pasted into a
+a number written here goes wrong the same way — a transcript pasted into a
 document is a measurement of the day it was pasted. What the runner enforces is
 the survivor *set*, against the `EQUIVALENT` list at the bottom of `mutants.py`
 where each entry carries its argument; a survivor that is not one of them fails
 the run, and an entry that stops surviving fails it too.
 
-The arguments live there rather than here for the same reason: a reviewer
+The arguments live there rather than here for the same reason: a reader
 checking whether an equivalence still holds needs the operator beside it.
 
-**Two of those arguments were dead code wearing an argument's clothes.** "The
-`Option` cannot be `None` past the guard above it" and "the filter can never
-shorten a name the three dot guards let through" are both true, and both say the
-same thing: the clause decides nothing. `holds_an_environment` states the shape
-once now — `matches!(parts.as_slice(), ["env", last] if …)` over unfiltered parts
-— and with it went an empty-part filter, three dot guards and a length test, all
-five of which `mutants.py` had reported as weakenings no input distinguishes.
-Both forms were driven over 54,240 generated names before the removal, with no
-disagreement. **When the argument for an equivalence is "the code says this
-twice", the answer is to say it once.**
+**An argument that a clause decides nothing is dead code wearing an argument's
+clothes.** "The `Option` cannot be `None` past the guard above it" and "the
+filter can never shorten a name the three dot guards let through" are both of
+that kind. `holds_an_environment` states the shape once —
+`matches!(parts.as_slice(), ["env", last] if …)` over unfiltered parts — with no
+empty-part filter, dot guards or length test beside it: deleting any of those is
+a weakening no input distinguishes, and the filtered and unfiltered forms agree
+over 54,240 generated names, measured. **When the argument for an equivalence
+is "the code says this twice", the answer is to say it once.**
 
 Five earlier survivors were real, and none of them was a corpus gap of the same
 kind. One was an unsatisfiable clause of `is_a_build_key`, deleted rather than
@@ -545,21 +523,20 @@ decided by any input; the normalisation moved back to the predicate, where a
 corpus can judge it. Two were ordinary gaps and are closed. That is the mechanism
 doing its job rather than an argument that it works.
 
-**The verdict is the survivor *set*, not its size.** `killed != sum(...)` made a
+**The verdict is the survivor *set*, not its size.** `killed != sum(...)` makes a
 clean tree exit 1 for ever, because some mutants are known-equivalent and always
-survive — so the exit code said the same thing whether those survived or
-thirty real ones did, and the only real signal was a person diffing the printed
-list against this paragraph. A gate whose verdict cannot change is not a gate.
+survive — so the exit code says the same thing whether those survive or thirty
+real ones do, and the only real signal is a person diffing the printed list
+against a paragraph. A gate whose verdict cannot change is not a gate.
 The equivalents are written into the runner with their arguments, and a survivor
 that is not one of them fails the run — as does an entry that stops surviving,
 which is how one of them was found to be no equivalence at all.
 
-**`not applicable` is a failure too, and it used to be free.** An operator whose
-text no longer matches the source is a clause with **no reported coverage**, and
-the run still exited 0 — so four of them rotted unnoticed while this file went on
-recording a tally nobody had re-measured, and it was a reviewer who found the
-drift rather than the meta-gate. A weakening that cannot be applied is neither
-survived nor killed: it is a hole.
+**`not applicable` is a failure too.** An operator whose text no longer matches
+the source is a clause with **no reported coverage**, and a run that still exits
+0 lets operators rot unnoticed, with a reader rather than the meta-gate finding
+the drift. A weakening that cannot be applied is neither survived nor killed: it
+is a hole.
 
 The runner edits every file in its own `SOURCES` — `gates.rs`, `limits.rs`,
 `wall.rs`, `counts.rs`, `dev.rs`, `determinism.rs`, `check.rs`, `references.rs`,
@@ -573,12 +550,13 @@ and `problem.rs`, which decides the line every pack refusal names, and its
 `store.rs`, which reads what the log store is running with, `main.rs`, whose
 five lines hand each verb its flags, `build.rs`, which performs this tree's one
 irreversible write, `members.rs`, which says what the workspace is, and the six
-crate sources two reviewers named as uncovered — the compiler's `problem.rs`,
+crate sources with clauses no other operator reaches — the compiler's `problem.rs`,
 `messages.rs` and `model.rs`, the policy pack's `cases.rs` and `value.rs`, and
 the log's own `lib.rs`,
 and
 the two stores that need a database — `nc-journal`'s `postgres.rs` and
-`nc-prune`'s `postgres.rs` — the release verb's `release.rs`, the console's `ui.rs`, the
+`nc-prune`'s `postgres.rs` — the release verb's `release.rs`, the history step's
+`history.rs`, the console's `ui.rs`, the
 documentation step's `docs.rs`, one integration test,
 `the_registry_reaches_the_code.rs`, which is the only place a generated limit is
 held against the file it came from, the journal's own `lib.rs`, `entry.rs`,
@@ -603,7 +581,9 @@ what a plugin announces, is woken by and shows, `events.rs`,
 `timers.rs` and `ui.rs`, and what the kernel does between call trees,
 `pump.rs`, the reference plugin's `lib.rs`, `behaviour.rs` and `adapter.rs`, `plugins.rs`,
 which builds that plugin into what the kernel loads, the local database's
-`lib.rs`, `open.rs`, `schema.rs` and `store.rs`, `nc-prune`'s `sqlite.rs`, and
+`lib.rs`, `open.rs`, `schema.rs` and `store.rs`, what makes that database's
+files private on the system it runs on — `nc-platform`'s `lib.rs`, `unix.rs`
+and the test doors `testing.rs` — `nc-prune`'s `sqlite.rs`, and
 `local.rs`, which builds that database's schema from its migrations, and restores **all of them** before each mutation: its first multi-file version
 restored only the one it was editing, so sixteen weakenings were reported killed
 by a corpus that had not seen them.
@@ -611,40 +591,40 @@ by a corpus that had not seen them.
 **And the component the kernel's suites read, which no source write puts back.**
 An operator over the plugin's sources is judged by building the plugin from the
 weakening, and the kernel's suites panic on a component its sources no longer
-build — a panic the runner counted as a kill. Measured by a reviewer: a run
-restored the sources and left the component built from its last weakening, and
-the next run called every operator over the kernel killed with no weakening on
-disk. So the runner builds every plugin from the tree as handed before its first
+build — a panic the runner counts as a kill. Measured: a run that restores the
+sources and leaves the component built from its last weakening makes the next
+run call every operator over the kernel killed with no weakening on disk. So
+the runner builds every plugin from the tree as handed before its first
 edit, again after each operator whose command built one from a weakening, and
 again after its last, and refuses a run in which a suite says its component is
 stale, the way it refuses one that cannot reach its database. The middle build
-is the newest: the plugin's operators are not the last in the runner's table,
-and the first kernel operator written below them read their last component.
+is the one most easily forgotten: the plugin's operators are not the last in the
+runner's table, so without it a kernel operator written below them reads their
+last component.
 
 **And a suite that fails with no weakening on disk, which a failure counts as a
 kill.** Every command an operator is judged by runs on the tree as handed
 before the first edit, and again on the tree put back after the last, and a
-run in which one fails is refused: a reviewer drove the runner with one editor
-swap file in `xtask/src/`, which a rule of `check::` refuses, and a weakening of
-a comment came back `killed`, the run exiting 0. The second control is what
+run in which one fails is refused: measured, the runner driven with one editor
+swap file in `xtask/src/`, which a rule of `check::` refuses, reports a
+weakening of a comment as `killed`, the run exiting 0. The second control is what
 says a suite started failing part-way through, which makes every kill since
 the first one worth nothing.
 
-**And what holds it compared base names as a set, which was weaker than it
-read.** `the_canaries_name_every_source_the_meta_gate_edits` takes the file name
-of each entry in `SOURCES`, and `lib.rs` alone stands for six of them — so while
-the comparison was a *set*, a source whose base name was already in it added
-nothing at all: one extra `crates/nc-log/src/lib.rs` in `SOURCES` left the whole
-tree green with the runner announcing "over 39 file(s)". Measured on 2026-09-13.
-The two sides are multisets now, so this sentence has to name each file as many
-times as the runner edits one, and the elisions that made it readable —
-"`nc-prune`'s", with the filename left to the reader — had to go. The sentence
+**And what holds it compares base names as multisets, not as a set.**
+`the_canaries_name_every_source_the_meta_gate_edits` takes the file name of each
+entry in `SOURCES`, and `lib.rs` alone stands for several of them — so compared
+as a *set*, a source whose base name is already in it adds nothing at all:
+measured, one extra `crates/nc-log/src/lib.rs` in `SOURCES` left the whole tree
+green with the runner announcing "over 39 file(s)". As multisets, this sentence
+has to name each file as many times as the runner edits one, with no elision
+like "`nc-prune`'s" leaving the filename to the reader. The sentence
 above names the crate for each, which is what
 a reader needs; the test does not, and saying so is better than reading the pass
 as more than it is.
 
-This sentence said *four source files* and *restores **both***, which was true of
-the two-file version and of nothing since. It is now held to `SOURCES` by
+A count of source files written here goes stale with the next source, so this
+sentence is held to `SOURCES` by
 `the_canaries_name_every_source_the_meta_gate_edits`, because the list is the
 runner's and a second copy of it in prose is a copy that only agrees on the day
 it is written. `counts.rs` cannot reach this class: the noun is answered by a
@@ -658,20 +638,19 @@ per operator**, so what it costs is that suite times the number of operators —
 minutes, and more on a machine already busy. It is run when a predicate changes,
 and its survivor list belongs in this file.
 
-**No duration is written here on purpose.** This said *about 45 seconds* while
-`mutants.py` said *about forty minutes* two files away, and both were a
-measurement of one machine on one day recorded as though it were a property of
-the runner. A measured pass on 2026-09-04, on a machine running five other
-builds, took 271 s. The rule — one corpus run per operator — is the part that
-does not rot.
+**No duration is written here on purpose.** A duration is a measurement of one
+machine on one day recorded as though it were a property of the runner, and two
+files stating two of them disagree by an order of magnitude. A measured pass, on
+a machine running five other builds, took 271 s. The rule — one corpus run per
+operator — is the part that does not rot.
 
 **What it still does not cover.** Six predicates of the dozen this suite has, and
 one weakening operator table written by hand — a real mutation engine enumerates
 more operators and costs proportionally more. And an operator only covers the
 clause it is aimed at: four of them rotted into no-ops when the source they name
-was reworded, which is why `not applicable` now fails the run.
+was reworded, which is why `not applicable` fails the run.
 
-And two shapes it cannot reach at all, both found after it was built:
+And two shapes it cannot reach at all:
 
 * **A file kind the walk *and its floor* both exclude.** `include!("x.in")` put a
   hand-written code into a compiled crate with both sides narrowing together and
@@ -731,7 +710,7 @@ And two shapes it cannot reach at all, both found after it was built:
   mechanism by construction. Plant `read += 1; if index > 0 { continue; }` in a
   walk and the count, the floor and the two-counter identity all stay exactly
   where they were while the walk judges one line per file. Measured in three
-  separate gates this round — the static-string scan, the written-count gate, and
+  separate gates — the static-string scan, the written-count gate, and
   the migration-function gate — each time byte-identical to baseline with a real
   defect planted underneath.
 
@@ -741,28 +720,27 @@ And two shapes it cannot reach at all, both found after it was built:
   1549` — and cannot catch the same walk reading all 1549 and judging ten.
 
   What answers it is not a counter at all but **a defect at a position a filter
-  cannot be written around** — and the first attempt at that was wrong in a way
-  worth recording. The four fixtures placed their defect at `pid % k + c`, which
-  is not an unpredictable position but a **window of `k` lines, with `k` printed
-  in the test**: 97, 40, 60 and 30. A filter carrying any constant above its
-  window is invisible to it and turns the gate off for everything else, and
-  `if index > 300` — the same line as `index > 40` with a different digit —
-  passed all four with a real blanket allow in criterion 3's own suite and every
-  count up.
+  cannot be written around** — and a defect at `pid % k + c`, measured in four
+  fixtures, is not an unpredictable position but a **window of `k` lines, with
+  `k` printed in the test**: 97, 40, 60 and 30. A filter carrying any constant
+  above its window is invisible to it and turns the gate off for everything
+  else, and `if index > 300` — the same line as `index > 40` with a different
+  digit — passes all four with a real blanket allow in criterion 3's own suite
+  and every count up.
 
-  The fixtures now plant past **the longest file the suite reads**, measured
+  The fixtures plant past **the longest file the suite reads**, measured
   rather than guessed, and assert that relationship. A filter that lets any real
   file's tail through lets the fixture's defect through too, so the test fails.
   That is the property "unpredictable" was standing in for, and it is a
   comparison rather than a hope.
 
-* **A counter placed above the rule it guards, once more.** Three of the gates
-  repaired for the shape above were repaired only halfway: the counter moved
-  *into* the loop and stayed above the body. `asked += 1` as the first line of
+* **A counter placed above the rule it guards, inside the loop.** A counter
+  moved *into* the loop and kept above the body repairs the shape above only
+  halfway, measured in three gates: `asked += 1` as the first line of
   `nc-policy`'s coverage loop, `read += 1` at the head of the leak scan's line
   loop, `judged += 1` before the counts gate's paragraph rule — each leaves a
   `continue` anywhere below it invisible, and each printed an exact number over a
-  gate that had examined less. The rule is now the same everywhere: **the counter
+  gate that had examined less. The rule is the same everywhere: **the counter
   is the last statement a verdict reaches**, not the first statement of the body.
 
 * **An exclusion whose widening moves no number, and a count that cannot fix
@@ -796,15 +774,15 @@ And two shapes it cannot reach at all, both found after it was built:
   tree, because some mutants are known-equivalent and always survive — so the
   exit code said the same thing whether those survived or thirty real ones did,
   and the only real signal was a person diffing a printed list against a
-  paragraph here. The runner now judges the survivor *set* against the list
+  paragraph here. The runner judges the survivor *set* against the list
   written into it with their arguments; a survivor that is not one of them
   fails, and neither the count nor the members are restated in this file.
 
-* **A fixture whose window is a number in the source — and its second attempt.**
+* **A fixture whose window is a number in the source, and one planted past the wrong tree.**
   Placing a defect at `pid % k + c` is a *window of `k`*, with `k` printed in the
   test, so a filter carrying a constant above it is invisible. The replacement
-  plants past the longest file the suite reads — and the first version of *that*
-  measured the wrong tree: the citation and count gates read the workspace
+  plants past the longest file the suite reads — and measured against the
+  repository alone *that* is the wrong tree: the citation and count gates read the workspace
   documents above the repository, and `NOCTUA.md` is 308 lines longer than
   anything in it, so the fixtures planted inside a gap a filter could still be
   written in. Measured: `if index > 5200` with a dangling citation at line 5352
@@ -847,7 +825,7 @@ And two shapes it cannot reach at all, both found after it was built:
   substituted, so a mutation this code could not *build* still raised it:
   measured, with every proposed variant made unparseable, the pinned-clause count
   stayed at 28 with **zero** evaluated — and that number is the only thing behind
-  the two findings with no negative test. Unbuildable variants are now reported
+  the two findings with no negative test. Unbuildable variants are reported
   rather than absorbed, and the count fell to 20 under the same sabotage.
 
 * **A shared counter read as an absolute while another test moves it.** The log
@@ -871,7 +849,7 @@ And two shapes it cannot reach at all, both found after it was built:
   while the audit log received nothing; and the pruner refused *every* bounded
   table for ever behind a code that says retrying will not help.
 
-  **The schema is a value now, in all four.** The store and the pruner are told
+  **The schema is a value, in all four.** The store and the pruner are told
   (`in_schema`, defaulting to `public`); `xtask` reads it out of the connection
   string. A deployment that puts its tables elsewhere says so once, where it
   already writes everything else about the connection. Nothing infers it.
@@ -880,10 +858,10 @@ And two shapes it cannot reach at all, both found after it was built:
   dropped `current_schema()` — the first *existing* schema on the path, not the
   one the pool asked for — so on a pool whose path resolved elsewhere it dropped
   the developer's `public` schema, twice, taking the journal, the access records
-  and the migration record with it. The first repair was a prefix list, and it
-  grew by one on each run: `nc_test`, then `head_undecodable`, then
-  `recorded_is_assigned`. An exclusion list keeping a destructive command honest
-  is the shape this repository refuses everywhere else; what it uses now is the
+  and the migration record with it. A prefix list grows by one on each run —
+  `nc_test`, then `head_undecodable`, then `recorded_is_assigned`, measured. An
+  exclusion list keeping a destructive command honest
+  is the shape this repository refuses everywhere else; what it uses is the
   one property every schema the run creates has and nothing shared does — the
   process id.
 
@@ -925,7 +903,7 @@ And two shapes it cannot reach at all, both found after it was built:
 
   over eight real clippy violations in criterion 3's own suite, and it demotes
   `unsafe_code = "forbid"` too. No predicate weakened, no walk narrowed, every
-  canary found. The gate now permits one table and refuses the rest, and reads
+  canary found. The gate permits one table and refuses the rest, and reads
   `RUSTFLAGS` from the environment for the same reason.
 
 * **An exemption that protects nothing and hides a class.** `sections.rs` skipped
@@ -939,10 +917,10 @@ And two shapes it cannot reach at all, both found after it was built:
   An exemption whose removal changes no verdict was never protecting anything.
 
 All of these are written here because the next one of their kind will not be
-found by any of the mechanisms either. Most of the last few were found by asking
-what a *counter* was counting rather than what a predicate decided — and the
+found by any of the mechanisms either. Asking what a *counter* counts, rather
+than what a predicate decides, is what reaches most of them — and the
 general answer to that whole family is the unpredictably-placed fixture, which is
-now used by four gates rather than one.
+used by four gates rather than one.
 
 One smaller thing, also said rather than assumed: the `.env` walk judges a
 *path* and not a line, so its visitor keeps one counter and a planted secret is
@@ -950,19 +928,19 @@ what proves it arrived.
 
 The static canaries stay. They read well in a diff, they survive in a tree with
 no `git` to compare against, and they are what says the *shipped* run reached a
-real file rather than a scratch one. What they cannot do alone is now written
+real file rather than a scratch one. What they cannot do alone is written
 here rather than argued away.
 
 ## The sixth mechanism: the gate can only say what is written down
 
 The five above ask whether a walk arrived and whether a verdict is the rule. None
-of them asks whether the **guard is still there**, and that turned out to be the
-largest hole any single pass has found here.
+of them asks whether the **guard is still there**, and that is the largest hole
+measured here.
 
-A reviewer instrumented every branch body in nine source files, ran the whole
-suite plus `check`, `check --offline`, `build`, `docs` and `release --dry-run`,
-and diffed the markers inserted against the markers fired. Then it deleted, in
-one edit, the twenty-six guards that had never fired — sixteen floors and error
+Measured: every branch body in nine source files instrumented, the whole suite
+run plus `check`, `check --offline`, `build`, `docs` and `release --dry-run`, and
+the markers inserted diffed against the markers fired. Then, in one edit, the
+twenty-six guards that had never fired deleted — sixteen floors and error
 reports in `xtask/src/check.rs`, two enumerate-versus-judge floors in
 `xtask/src/gates.rs`, and eight branches of the CI-workflow readers — preserving
 each condition as `let _ = <cond>;` so nothing else moved:
@@ -979,19 +957,19 @@ check passed
 ```
 
 The same five lines, the same test count, the same last line. Every one of those
-guards had been added after a measured incident and none had arrived with a test,
-so the mechanism this repository leans on hardest — a floor under a walk — was
-the one thing nothing was watching. One of them, the edited-migration report, is
-the only reader of `_sqlx_migrations` for that case and there is no git here to
-ask instead: with it gone, a migration edited after it was applied passed the
-gate.
+guards answers a measured incident, and a guard with no test of its own leaves
+the mechanism this repository leans on hardest — a floor under a walk — the one
+thing none of the five mechanisms above watches. One of them, the edited-migration report, is
+the only reader of `_sqlx_migrations` for that case, and no step compares the tree
+with what it held before: with it gone, a migration edited after it was applied
+passed the gate.
 
 **What answers it is not another counter or another fixture.** It is a list of
 every sentence the gate is able to say — `WHAT_THE_GATE_CAN_SAY` in
 `xtask/src/check.rs` — read out of the source by a walk over `xtask/src/` and
 compared against a written list. Deleting a guard removes a sentence.
 
-Four things make it hold, each of which was wrong in a draft:
+Four things make it hold, and each is the easy one to get wrong:
 
 * **Both populations.** A verdict name (`failures.push`) is what `check failed:`
   prints; a finding's `what` is the line a developer reads. Sixteen of the
@@ -1000,11 +978,11 @@ Four things make it hold, each of which was wrong in a draft:
 * **A multiset, not a set.** Five names are pushed from two places each. A set
   reports the pair as intact after one of them goes.
 * **Both directions.** A one-way comparison lets a new guard arrive unpinned,
-  which is how a list stops being a record of what is there. It fired for real
-  twice while the round was still running.
+  which is how a list stops being a record of what is there, and it fires for
+  real.
 * **A statement, not a substring.** The reader's own needle is written in its own
-  source, so the first version found itself and reported two fragments of itself
-  as unwritten sentences — the same shape as a test that greps its own file. A
+  source, so a reader that searches for it finds itself and reports fragments of
+  itself as unwritten sentences — the same shape as a test that greps its own file. A
   real push begins a statement: nothing but indentation stands between it and the
   start of its line, or a match arm's `=>`, which is where eight of the seventy
   findings are pushed from and where a rule saying "indentation only" read none of
@@ -1017,8 +995,8 @@ asking.
 
 **And what it still cannot see**, because these were the branches left over after
 it: a filter or a parser branch reports nothing, so deleting one changes no
-sentence. Those need a case that decides them — five such functions were closed
-this round with tables of `(input, expected)` driven through the real function.
+sentence. Those need a case that decides them — tables of `(input, expected)`
+driven through the real function.
 The one to remember is `matching` in `xtask/src/workflow.rs`, whose guard against
 a `*` in the directory half of a pattern is **unobservable** from any plausible
 input: `one/*/a.yml` returns nothing either way, because `read_dir` simply fails
@@ -1045,15 +1023,16 @@ the rest of its life while the file goes on saying `--locale=C`.
 All three are closed by asking the running thing: `pg_trigger`, `pg_constraint`,
 `pg_index`, `pg_rules` and `pg_attribute` for the journal; `GET /flags` for the
 store; `pg_database` for the collation. Each reads a **definition** rather than a
-name — the first version of the journal check compared trigger *names*, and every
-one of the six tampers preserved the name.
+name — a journal check comparing trigger *names* is passed by every one of the
+six tampers, because each preserves the name.
 
 The generalisation, and the one to carry forward: **a guarantee held outside the
 source tree cannot be checked by reading the source tree.** Ask what the platform
 depends on that is not a file here, and then ask what would happen if it were
 wrong.
 
-**A second pass at the same question found six more, and they were one defect.**
+**Asked of those queries' own lists, the same question names one defect many
+times over.**
 The protections query was a hand-kept list of five system catalogs and the shape
 query a hand-kept list of three column attributes — while `xtask/src/check.rs`
 says, about those very columns, that *"picking favourites is how a list of
@@ -1099,22 +1078,21 @@ attributes, constraint types, package sources — ask what decided the set. If t
 answer is "the things somebody had been bitten by", the set is a list of
 favourites and the next defect is in what it omits.
 
-## The same question again, and it kept paying
+## What decided this set?
 
-Three reviewers asked "what decided this set?" of everything they could find,
-and between them it produced twenty findings in one round. The five that are
-worth remembering as *shapes* rather than as incidents:
+"What decided this set?", asked of everything that holds one, has found defects
+of these five *shapes*:
 
 * **A definition is not the fields somebody happened to need.** The protection
   query rendered a trigger as `tgenabled:tgtype proname:md5(prosrc)` — four
-  fields, each added the round it was missed — and `pg_trigger` has more.
+  fields, each added when it was found missing — and `pg_trigger` has more.
   `tgqual` holds the `WHEN` clause: a trigger dropped and re-created with the
   same name, events, function and body, plus `WHEN (OLD.realm = '…never…')`,
   renders **byte-identically**, and the journal was then editable and deletable
   with `ok 41 protection(s) … every trigger's body` printed over it.
   `pg_get_triggerdef` is what constraints and indexes were already using two
-  clauses below. The same round found `pg_index.indisvalid`/`indisready`, which
-  `pg_get_indexdef` does not render: one `UPDATE pg_index SET indisready = false`
+  clauses below. `pg_index.indisvalid`/`indisready` are the same shape, and
+  `pg_get_indexdef` does not render them: one `UPDATE pg_index SET indisready = false`
   and a primary key stops being enforced without its *definition* changing at
   all — measured, two rows under one key.
 
@@ -1123,7 +1101,7 @@ worth remembering as *shapes* rather than as incidents:
   list will ever have — a type argument is not a path segment. And the
   `OnceLock` promotion has no spelling at all: it never says "leak". What the
   two have in common is not a call, it is a *shape* — a non-`const` function
-  handing back a `&'static str` it was not given. The rule is now the shape, and
+  handing back a `&'static str` it was not given. The rule is the shape, and
   the twelve functions that legitimately had it became `const fn`.
 
 * **A vocabulary that only grows by being bitten.** `docker-compose.yml` was
@@ -1137,7 +1115,7 @@ worth remembering as *shapes* rather than as incidents:
 * **A gate that skips more than it says.** `--offline` skipped `cargo deny`
   entirely, and three of its four checks read nothing but the lockfile. A flag
   whose description is vaguer than its behaviour is a flag people misjudge; the
-  three that need no network run under it now.
+  three that need no network run under it.
 
 * **And the census of what a gate can say has to include every way it says it.**
   `WHAT_THE_GATE_CAN_SAY` scanned `failures.push` and `Finding { what: … }` —
@@ -1146,7 +1124,7 @@ worth remembering as *shapes* rather than as incidents:
   reader of `OFFLINE_SKIPS`, the constant four documents quote, and it could be
   deleted with the console identical. `ui::warn` was a fourth way and was free
   in unlimited quantity: a `return` behind a new `skipped:` line turns any step
-  off and exits 0. Four populations now, and the two guard clauses that were
+  off and exits 0. Four populations, and the two guard clauses that were
   meant to skip a type signature were comparing a *trimmed* string against
   needles ending in a space — unconditionally false, so five entries were
   captures of the wrong literal.
@@ -1157,15 +1135,15 @@ count, whatever verb precedes it. The corpus refused it in one run —
 `Stage 10 migrations were written for it` touches the noun too, and so do
 `page 12`, `Issue 5` and `Round 3`. Closing that class needs a list of every
 word that can *identify*, which is the direction this repository has already
-recorded failing. The whitelist grew by seven words instead, and stays the weak
+recorded failing. So the whitelist is extended word by word instead, and stays the weak
 half on purpose: a word it lacks is a miss, and a gate that is wrong the other
 way is worse than no gate. **Not every list of favourites can be closed**, and
 the ones that cannot should say which failure they have chosen.
 
 ## A scanner narrower than the language it scans
 
-Round 44 found the same defect four times in four unrelated files, and it is
-worth naming as a shape: **a hand-maintained list whose only tie to reality is a
+The same defect turns up in unrelated files, and it is worth naming as a shape:
+**a hand-maintained list whose only tie to reality is a
 source scanner that reads less of Rust than Rust writes.** The floor is
 satisfied, the count printed by `check` is large and plausible, and the thing
 the list exists to catch walks past.
@@ -1206,25 +1184,25 @@ through `wrong.push`, `problems.push`, `missing.push`, `unhealthy.push`,
 `outside.push`, `caveats.push` or `ui::detail` was outside it, and a
 branch-coverage sweep found 395 cold branch bodies and thirty guards deletable
 with an identical console. The receiver is a local variable's name; it was never
-the rule. Six populations now, matched receiver-agnostically, and the list
+the rule. Six populations, matched receiver-agnostically, and the list
 is `WHAT_THE_GATE_CAN_SAY` in `xtask/src/check.rs` — its length is the count, and
 writing that number here is how this paragraph came to be 37 short of it.
 
 **What a census still cannot see, and this is the honest boundary.** A guard
 whose whole verdict is control flow — `return false`, `continue`,
 `outside.push((name, path))` with no sentence in it — says nothing, so nothing
-can notice it stop. Those need a case each, and round 44 wrote five: the
-`$user` element in a frozen search path (whose two existing cases were both
-refused by the *previous* rule, so the clause under test never decided them),
+can notice it stop. Those need a case each, and these have one: the
+`$user` element in a frozen search path (where cases a narrower rule already
+refuses leave the clause under test deciding nothing),
 the writer of the outside-package list, both halves of the rename rule, the
 `guard-unprovable` policy check, and the two fixture-quality floors. When a
 guard reports nothing, the only mechanism left is a test that makes it fire.
 
 ## One reader for one rule
 
-The other lesson of round 44, and the cheapest to act on. `code_without_text`
-re-implemented Rust's char-literal rule beside `char_literal_at`, which already
-had it right, and got one offset wrong: for `'\''` the search began at the
+The cheapest lesson to act on. A `code_without_text` re-implementing Rust's
+char-literal rule beside `char_literal_at`, which has it right, got one offset
+wrong: for `'\''` the search began at the
 *escaped* quote, so the literal closed a character early and every subsequent
 quote was one out of phase. Two lines then defeated the fixture-coverage guard
 outright —
@@ -1241,7 +1219,8 @@ same window missed `'\u{100}'` and every longer escape, which were emitted whole
 as *code*.
 
 A rule written twice is a rule with two answers, and the second copy is the one
-nobody tests. `char_literal_at` is now the only reader of it.
+nobody tests. In `gates.rs`, `code_without_text` asks `char_literal_at` rather
+than keeping a reading of its own.
 
 ## The output nobody compared: prose
 
@@ -1265,7 +1244,7 @@ not drift-checked: rewritten to *"Advisory only: a line here may be edited or
 deleted by hand"*, the file that exists to make "never reuse a code"
 enforceable shipped instructions to reuse one.
 
-Both are pinned now, the way `WHAT_THE_GATE_CAN_SAY` and `PROTECTIONS` are: 91
+Both are pinned, the way `WHAT_THE_GATE_CAN_SAY` and `PROTECTIONS` are: 91
 lines of page prose and every line of ledger header, written down, because there is
 nothing in the registry to derive them from. **A generated file is not only the
 values it interpolates.**
@@ -1284,7 +1263,7 @@ login: delay_ms = [0, 0, 0, 0, 0, 0, 1], lockout_after = 1_000_000
 
 A million tries at a millisecond each is about seventeen minutes of unthrottled
 guessing, on the surface whose own comment in `catalog/limits.toml` says the
-escalating delay is what carries it. The exemption now requires the lockout to
+escalating delay is what carries it. The exemption requires the lockout to
 fire within the curve's own length, and **both halves are tested**: the case the
 exemption covers, and the case it must not. An exemption with no test for its
 hole is an exclusion list, which this file has a section about already.
@@ -1320,11 +1299,10 @@ language's spelling was used for another's, and only the round trip can tell.
 `build`'s ledger counter incremented once per *write of the ledger file* and its
 sentence announced `1 appended … which is permanent`. Editing a comment in
 `ledger.rs` and rebuilding therefore announced a permanent reservation, twice,
-with the reservation set unchanged at 28 both times. In a tree with no history to
-check it against, a developer told a number was burned goes and tries to take it
-back.
+with the reservation set unchanged at 28 both times. A developer told a number
+was burned goes and tries to take it back.
 
-The count now comes from `newly_reserved`, the same list the lines above it are
+The count comes from `newly_reserved`, the same list the lines above it are
 printed from, so the count and the names cannot disagree — and a rewrite that
 reserves nothing says exactly that.
 
@@ -1334,13 +1312,13 @@ _ledger_write_was(&reserved))` has no literal at the call site, so
 `each_audit_says_what_it_ran` was written for. A sentence built away from its
 call site needs a test that spells it out.
 
-## A rule written twice, again
+## A rule written twice
 
-Round 44 closed on this and round 45 opened on it. `outside_of` was taught that
-`/w-vendor` is a sibling of `/w` and not a child of it; `from_metadata`, forty
-lines below it in the same file — the function whose answer is the scope of
-every member-keyed gate in the tree — still stripped the root as a bare textual
-prefix and admitted the package with the relative path `-vendor/nc-vendored`. <!-- allow-reference: `-vendor/nc-vendored` is the nonsense path the defect produced -->
+The same rule, in a second place. `outside_of` knows that
+`/w-vendor` is a sibling of `/w` and not a child of it; `from_metadata`, further
+down the same file — the function whose answer is the scope of
+every member-keyed gate in the tree — has to know it too, because stripping the
+root as a bare textual prefix there admits the package with the relative path `-vendor/nc-vendored`. <!-- allow-reference: `-vendor/nc-vendored` is the nonsense path the defect produced -->
 
 The lesson is not "check for siblings". It is that a fix applied where a defect
 was *found* is not applied where the defect *is*: when a rule turns out to be
@@ -1364,7 +1342,7 @@ two guards, and each needs its own case.**
 
 `OFFLINE_SKIPS` exists because the count of steps `--offline` skips was a
 literal in one file and prose in three others, and all four had rotted.
-`the_documents_agree_about_what_offline_skips` now holds `README.md`,
+`the_documents_agree_about_what_offline_skips` holds `README.md`,
 `AGENTS.md`, the `justfile` and `--help` to that one number, and every one of
 them says *eight*.
 
@@ -1383,7 +1361,7 @@ collation the database was initialised with. A reader skimming the alias they
 actually type is told eight and shown five, and the three missing are the ones
 they are most likely to assume were checked.
 
-Held now by anchors that are tied to what the gate prints: each anchor must
+Held by anchors that are tied to what the gate prints: each anchor must
 appear in exactly one `skipped: --offline` sentence of `WHAT_THE_GATE_CAN_SAY`,
 every such sentence must be claimed by exactly one anchor, and the number of
 those sentences must equal `OFFLINE_SKIPS`. **Pinning a count is not pinning
@@ -1417,7 +1395,7 @@ thirty lines of measurement about, in a file nothing held to it.
 
 **The rule was comparing the wrong thing.** Images are what the two files have in
 common; what CI needed was the *stack*, which only `docker compose` can produce.
-The `check` job now runs `cargo xtask dev` and declares no services, and the gate
+The `linux` job runs `cargo xtask dev` and declares no services, and the gate
 asks exactly that: no image named in the workflow, and `cargo xtask dev` before
 `cargo xtask check` — read from the job's *commands*, because the block
 explaining why it is there would otherwise satisfy the rule that requires it.
@@ -1432,7 +1410,7 @@ which is every CI run" — so the shape of a broken workflow had become the
 justification for a gate that reports nothing.
 
 `--offline` is how a developer asks for those steps not to run. An empty database
-is not a way of asking; it is a database to migrate. All three are failures now,
+is not a way of asking; it is a database to migrate. All three are failures,
 and each says `cargo xtask dev`. The states are a named enum rather than two
 bools, because *unreachable* and *empty* need different sentences: "this database
 has applied no migration" is a claim about a database, and saying it of one that
@@ -1467,7 +1445,7 @@ DROP ROLE app;                                    relacl -> {noctua=…}
 so the first time anyone granted the application role `INSERT`, every run
 afterwards reported an audit-log breach that had not happened, permanently.
 
-The field now says `writers=`: how many roles other than the owner hold `UPDATE`,
+The field says `writers=`: how many roles other than the owner hold `UPDATE`,
 `DELETE` or `TRUNCATE`, over `aclexplode(COALESCE(relacl, acldefault(…)))`.
 Measured: `GRANT INSERT, SELECT` passes, `GRANT UPDATE` fails, `REVOKE` passes
 again. **Pin the property, not the configuration that happens to have it.**
@@ -1518,7 +1496,7 @@ in scope at all matched `#[path` at the start of a line, so the second one was
 invisible to it — the same `cfg_attr` lesson `gates.rs` records for the canary
 walk, fixed there and never carried across.
 
-Scope now comes from the module tree the caller already resolves. **A rule about
+Scope comes from the module tree the caller already resolves. **A rule about
 a crate cannot be spelled as a directory.**
 
 ## The generated file has names of its own
@@ -1535,7 +1513,7 @@ which five are not Rust keywords, compared case-sensitively — and a second cal
 hands it *snake*-cased field names, so `type`, `ref`, `match` and `in` all passed
 and the build died in rustfmt at an offset into a stream.
 
-Two lists now, one per cause: what Rust reserves and the prelude names, and what
+Two lists, one per cause: what Rust reserves and the prelude names, and what
 this particular generated file imports. **A name check that only compares the
 registry against itself has not met the file it writes into.**
 
@@ -1550,18 +1528,18 @@ was never mentioned. Nothing validated the keys of `[areas]` at all.
 
 The fix is not a judgement call: the document had already made it. Where the code
 and `NOCTUA.md` disagree about a rule the document states, the document is right
-— and both halves of the rule now read the same alphabet, so they cannot disagree
+— and both halves of the rule read the same alphabet, so they cannot disagree
 in silence again.
 
 ## The class a gate that checks a pack against itself cannot report
 
-Round 47's policy pass found five defects and every one of them was a **rule that
-is absent**, not a rule that is wrong. The gate around `policy/` is unusually
+A sweep of the policy pack has found defects that are each a **rule that is
+absent**, not a rule that is wrong. The gate around `policy/` is unusually
 strong — a conjunct-and-branch mutation engine, a written `PINNED` count, a
 denial case per policy, and a sweep that deletes each policy and requires its own
-case to go red. A reviewer ran that sweep with the written rule lists deliberately
-switched off, and every one of the fourteen policies was still caught by its own
-case. Nothing in that machinery can notice a request nobody thought to ask about.
+case to go red. Measured with the written rule lists deliberately switched off,
+every one of the policies is still caught by its own case. Nothing in that
+machinery can notice a request nobody thought to ask about.
 
 The two that mattered:
 
@@ -1604,7 +1582,7 @@ cargo xtask build --reserve
 `reconcile` re-derives every truncated-away line from `catalog/errors.toml` *as it
 reads today*, so a meaning change the previous build had refused was ratified in
 silence — and the build that gets interrupted is normally the one run *because*
-the catalog was just edited. The ledger is written to a sibling and renamed now,
+the catalog was just edited. The ledger is written to a sibling and renamed,
 so the state cannot arise from an interruption; the diagnostic no longer blames a
 person for it, and says what `--reserve` actually does before offering it.
 
@@ -1623,8 +1601,8 @@ the write loop. Measured with one generated file made read-only: the line printe
 the build failed, and `grep -c NC-VAL-0002 catalog/errors.reserved.toml` answered
 `0`. `AGENTS.md` states the contract in as many words — "announces each code it
 reserves, **on the line it reserves it**" — and a developer told a number was
-burned, in a tree with no history to check against, goes looking for the undo,
-whose first step is blanking the ledger's checksum.
+burned goes looking for the undo, whose first step is blanking the ledger's
+checksum.
 
 The same failure said only which file it could not write. It says how many were
 already rewritten now, because a tree part-way through a build is a state the
@@ -1636,7 +1614,7 @@ person in front of it is in.
 no healthcheck. `dev` read empty as `"starting"` — a transient — and waited the
 full 120 s for a permanent state to change, then printed a diagnosis about
 PostgreSQL data directories. Measured twice, `2:00.48 total` each time. It is a
-failure at the first poll now, naming the service and what it lacks.
+failure at the first poll, naming the service and what it lacks.
 
 Its neighbour: `--down` printed `the stack is down and its volumes are gone` over
 compose's own `Warning: No resource found to remove`. That matters when it is run
@@ -1646,18 +1624,17 @@ the ports.
 
 ## Prose describes a behaviour, and the behaviour changed
 
-Round 46 made an empty database three failures instead of three skips. `README.md`
-and `AGENTS.md` went on describing the old shape as the intended one, transcript
-and all — "**five** announcements and a pass" — which is a document telling a
-reader to restore the hole. A reviewer following that reproduction gets a red run
+An empty database is three failures, not three skips, so a document describing
+the skips as the intended shape, transcript
+and all — "**five** announcements and a pass" — is a document telling a
+reader to restore the hole. A reader following that reproduction gets a red run
 and concludes their copy is broken.
 
 That is the cost of a measurement written into prose: it is a claim with a date on
-it and no gate. Three more in the same pass — `41 protections` where the list
-holds 44, `401 sentences` where it holds 445, and `--offline adds its own three`
-where it skips eight — and the last of those sat in a file the number's own gate
-already opens, in a sentence shape it did not match. That shape is in the list
-now. **Where a number can be read from the tree, say the command and not the
+it and no gate. A count of protections, of sentences, of what `--offline` skips
+— each written into prose drifts from the list it counts, and one sat in a file
+the number's own gate already opens, in a sentence shape it did not match. That
+shape is in the list. **Where a number can be read from the tree, say the command and not the
 value.**
 
 ## A row's address is not the row
@@ -1680,8 +1657,8 @@ the same row surviving, every run reporting `Ok`. `§15.8`'s only enforced bound
 stops converging in silence. The `UPDATE` is not hypothetical: `§15.6` fills in a
 city on an access record after the fact.
 
-The first fix was `SELECT … FOR UPDATE`, and it is worse than the defect: it
-needs the `UPDATE` privilege — measured, the suite's probe role holding
+`SELECT … FOR UPDATE` is worse than the defect: it needs the `UPDATE`
+privilege — measured, the suite's probe role holding
 `SELECT, DELETE` was refused outright — and granting the pruner `UPDATE` on
 `journal_entries` is the one privilege the append-only design exists to withhold.
 A **primary key** does not move: the re-check compares the new tuple's key
@@ -1753,7 +1730,7 @@ its `map_or(0, …)` turns a clock set before 1970 into `recorded_at = 0`, hashe
 into the chain and stored in a `BIGINT NOT NULL` with no `CHECK`, where `nc-ids`
 follows the identical expression with `within_range` and answers
 `MintError::BeforeEpoch`. A journal entry's timestamp is inside its digest, so an
-entry claiming 1970 is an entry that verifies for ever. It is a refusal now, with
+entry claiming 1970 is an entry that verifies for ever. It is a refusal, with
 a code and a sentence. **Copied code keeps the shape and loses the reason.**
 
 ## A gap left open on purpose: two `xtask` runs
@@ -1761,12 +1738,12 @@ a code and a sentence. **Copied code keeps the shape and loses the reason.**
 Nothing in `xtask` takes a cross-process lock. Cargo's own build lock is released
 before a verb starts, so two `cargo xtask build` runs can write the same
 generated files, and a `check` can compile from a `target/` a `build` is
-rewriting. The ledger's temp file was one shared path until this round; it is
-named for the process now.
+rewriting. The ledger's temp file is named for the process rather than one
+shared path.
 
-**Not closed, and this is the argument.** A reviewer could not produce a
-corrupted tree: two builds render identical bytes, so the overlap has no visible
-effect unless `catalog/errors.toml` changes between them. A lock file would trade
+**Not closed, and this is the argument.** An attempt to produce a corrupted
+tree this way fails, measured: two builds render identical bytes, so the overlap
+has no visible effect unless `catalog/errors.toml` changes between them. A lock file would trade
 that for a failure mode that is worse for the person in front of it — a stale
 lock after a crash, in a repository whose whole command surface is five verbs and
 whose recovery instructions cannot assume a sixth. If a build ever does interleave
@@ -1774,8 +1751,8 @@ visibly, the fix is a lock and this paragraph is where the decision was made.
 
 ## The eighth mechanism: instrument the tests, then run them once
 
-Every mechanism above judges the *subject*. Round 48's third reviewer judged the
-**tests**, and did it mechanically rather than by suspicion: a marker in the body
+Every mechanism above judges the *subject*. This one judges the **tests**, and
+does it mechanically rather than by suspicion: a marker in the body
 of all 398 `for` loops in test code, and one inside all 214 `.all(`/`.any(`
 closures, then one run of the suite.
 
@@ -1790,7 +1767,7 @@ are the kind nothing else here can see. An assertion over an empty collection is
 from "reported something else" — and the sharpest instance was in a `§15.8` test:
 `Rows::with("journal_entries", …)` leaves every other table at zero and the
 journal is `PolicyPack`, so the "end to end" half was satisfied by a `run()` that
-pruned nothing. It seeds a second table now, and asserts that something *was*
+pruned nothing. It seeds a second table, and asserts that something *was*
 pruned before asserting what was not.
 
 **What the sweep costs is one run.** What it replaces is a person guessing which
@@ -1810,7 +1787,7 @@ the edit labelled "grant_used" edits record.action instead
 
 Every test that loops over `edits()` asks only whether *something* changed, so
 "any mutation of any field" was proved as "some mutation of some field". Each
-edit is now applied to a fresh record and the field that moved in the canonical
+edit is applied to a fresh record and the field that moved in the canonical
 form has to be the one the label names. (The property itself survived — dropping
 three fields from `hashed_form` alongside the relabel went red on the golden
 vector — so this was a false claim in a test name rather than a hole in the
@@ -1838,7 +1815,7 @@ hash: both are guarded by something upstream — the reach guards refuse every
 inherited relation, and `0009`'s constraint refuses a hash that is not 64 hex —
 so neither arm runs, and both mutations survived. That is not a reason to leave
 them undecided: the repository already answers this with a *source* assertion
-(`the_over_deletion_guard_runs_before_the_commit`), and both now have one.
+(`the_over_deletion_guard_runs_before_the_commit`), and both have one.
 
 A source assertion is weaker than a behavioural one and stronger than nothing. It
 says: the clause is still written where the decision is made.
@@ -1862,10 +1839,9 @@ over.
 
 ## The consumer nobody had been
 
-Every round so far read this repository as its author. Round 49's first reviewer
-read it as **Stage 11's kernel** — a crate that takes `nc-catalog` as a
-dependency and writes against what it offers — and the two findings that matter
-are both about what a consumer is *told*.
+Read as its author reads it, this repository misses what a consumer is *told*.
+Read as the kernel — a crate that takes `nc-catalog` as a dependency and writes
+against what it offers — it has shown two defects, both about that.
 
 ```rust
 /// Changes state the kernel can reverse.
@@ -1875,8 +1851,8 @@ Write,
 That is `crates/nc-catalog/src/commands.rs`, generated. The page generated from
 the same enum says *"not automatically — it changes state and nothing here
 reverses it"*, and `docs.rs`'s own comment calls the first sentence "a safety
-claim nothing supports". `AGENTS.md` says it plainly: a destructive command in
-this tree has no undo. The guard written for exactly this read **the page**, and
+claim nothing supports": `limits.prune` carries `write` and deletes with no
+tombstone and no copy. The guard written for exactly this read **the page**, and
 its needle did not match the crate's wording anyway.
 
 The second: `render` was the one public item the crate root did not re-export,
@@ -1904,14 +1880,14 @@ Command { action: "Read", mutating: false }  over a Delete command
 The third is the sharpest: `entry.rs`'s own header says a `Record` "cannot carry
 a sequence number or a hash, so no caller can place an entry anywhere but the end
 or claim a link it did not compute" — and `Entry`, which `Store::append` takes,
-carries both. All four are `#[non_exhaustive]` now, with accessors where a
+carries both. All four are `#[non_exhaustive]`, with accessors where a
 consumer legitimately reads them and one `forged_for_tests` door named for what
 it does.
 
 `TableLimit` deliberately keeps its literal, and the reason is written where the
 decision was made: twelve fixtures in `nc-prune` build one, and those fixtures
-are the tests that keep `the_catalog_disagrees` — the runtime guard written after
-a reviewer emptied `access_records` through that very door — honest.
+are the tests that keep `the_catalog_disagrees` — the runtime guard against
+emptying `access_records` through that very door — honest.
 
 ## "Did not answer" and "answered, and refused" are different systems
 
@@ -1933,7 +1909,7 @@ drawn this line since it was written (`NC-DB-0005`: "refused, and retrying will
 not change it"); the journal had not, while its own file states the rule three
 times.
 
-`NC-JRNL-0009` exists now, reserved deliberately and permanently, for the
+`NC-JRNL-0009` exists, reserved deliberately and permanently, for the
 SQLSTATE classes that mean the store answered: `42` access rule, `28`
 authorization, `3D` catalog, `3F` schema. **The code is what the log is queried
 by, so two conditions sharing one code are one condition to everybody who reads
@@ -1983,32 +1959,29 @@ counts newlines. Two implementations of one arithmetic, and only one of them had
 been taught.
 
 
-## The measuring instrument was never measured
+## The measuring instrument, measured
 
 `mutants.py` weakens one clause at a time and reports how many the suite stops.
-Round 49 pointed it at the file that answers "is the verdict the rule" —
-`xtask/src/corpus.rs` — and every one of that file's came back `killed`. That
-verdict is produced by exactly one line:
+Pointed at the file that answers "is the verdict the rule" —
+`xtask/src/corpus.rs` — it reports what that file kills, and every kill it
+reports there comes from exactly one line:
 
-**The counts are not written here, and this paragraph used to carry two.** It
-said the same number twice, and both were wrong by the time anyone read them:
-`python3 xtask/mutants.py --list` answers how many there are and the run's last
-line answers how many died. The survivors are *required* to survive — `EQUIVALENT` at the foot of
-`mutants.py` holds them by name and fails a run if the set that survived is not
-that set, in either direction, so "every one came back killed" was false by
-construction as well as by arithmetic. This sentence said **two** and the set
-holds **three**, and it said "if either stops surviving" of a comparison that is
-between sets rather than between a pair — a count and a mechanism both restated
-rather than read, in the paragraph whose subject is a number restated rather
-than read. Found in wave 34. Five hundred lines
-above, this same file says why: *a transcript pasted into a document is a
+**The counts are not written here.** A number written here is wrong by the time
+anyone reads it: `python3 xtask/mutants.py --list` answers how many there are
+and the run's last line answers how many died. The survivors are *required* to
+survive — `EQUIVALENT` at the foot of `mutants.py` holds them by name and fails
+a run if the set that survived is not that set, in either direction — so
+"every one comes back killed" is false by construction as well as by
+arithmetic, and the comparison is between sets rather than between a pair.
+Above, this same file says why: *a transcript pasted into a document is a
 measurement of the day it was pasted*. `COUNTABLE` does not hold "clauses", so
-nothing judged it — and the number is no longer written here to rot. `OPERATORS`
+`counts.rs` would not judge such a number — and it is not written here to rot.
+`OPERATORS`
 in `xtask/src/check.rs` names every weakening by its source, its predicate and
 its label, and `the_meta_gate` holds `WEAKENINGS` against that list on every run
-of the gate. What stood there before was `operators.len() >= 70`, which any
-seventy of them satisfy: the rest could be deleted with the gate green and the
-run reporting fewer killed.
+of the gate. A floor such as `operators.len() >= 70` is satisfied by any
+seventy of them: the rest could be deleted with the gate green and the run
+reporting fewer killed.
 
 ```rust
 assert!(wrong.is_empty(), "…decided differently from what it is written to decide…");
@@ -2023,9 +1996,10 @@ Widen it to `wrong.len() < 100`, change nothing else, and:
 check passed
 ```
 
-Ten drivers rest on that function. Two more — `claim` and `caret_uses` — carried
-a verbatim copy of the same assertion, so all twelve corpora went quiet together.
-Nothing anywhere had ever handed the verdict a case that decided wrongly.
+Most drivers rest on that function, and two more — `claim` and `caret_uses` —
+carry a verbatim copy of the same assertion, so a weakening of it is invisible
+in every corpus at once unless something hands the verdict a case that decides
+wrongly.
 
 `the_corpus_reports_a_case_that_decided_wrongly` does, to all three, in the shape
 the gates themselves are held to. **A tally is worth what its assertion is worth,
@@ -2042,14 +2016,15 @@ One definition, one call, the answer discarded. `dead_code` sees a call and says
 nothing; inverting the function's predicate — `==` to `!=` — changed no test
 anywhere. What it was written for was the second half of a sentence the comment
 above it already made: the finding is about *this* file, and the resolved pass
-labels every finding it makes `docker-compose.yml`. It compares now, and the
+labels every finding it makes `docker-compose.yml`. It compares, and the
 inversion fails.
 
 ## One rule, written four times, with two answers
 
-The question "is this HTTP status line a 2xx" is asked in four places: twice in
-`xtask/src/store.rs`, once in `dev.rs`, once in `nc-log`'s shipper. Each carried
-a comment saying it was "the same shape" as the others. Three of them were:
+Measured with the question "is this HTTP status line a 2xx" asked in four places
+— twice in `xtask/src/store.rs`, once in `dev.rs`, once in `nc-log`'s shipper —
+each under a comment saying it was "the same shape" as the others, three of them
+were:
 
 ```rust
 status.starts_with("HTTP/")
@@ -2062,15 +2037,14 @@ and only the shipper also required `code.chars().all(is_ascii_digit)`. So
 and `ok the log store answers /health` to `cargo xtask dev`, on the same answer
 from the same store.
 
-The copies are one function per crate now, and both read
+The copies are one function per crate, and both read
 `xtask/canaries/status-lines.tsv` — status lines with their verdicts, in a
 file rather than in a sentence. A case added to it is answered by both suites.
 `the_two_xx_rule_is_written_twice_and_no_more` walks the tree for a third copy,
 assembling its needle at run time so the scanner is not one.
 
-**A comment claiming two things are the same is not a mechanism.** Four of this
-round's findings were that exact sentence written above four different pieces of
-code:
+**A comment claiming two things are the same is not a mechanism.** Written above
+four different pieces of code, that exact sentence has been measured false of each:
 
 ```text
 members.rs   "the same invocation `members` makes, lifted out so the two readers
@@ -2164,7 +2138,7 @@ failures=200 of 200
 
 The fix is not a lock every printing test has to remember to take — that is a
 rule the next test breaks. `ok`, `failure`, `warn` and `detail` take a reentrant
-hold themselves in test builds, and `every_printer_aligns_what_it_is_given` now
+hold themselves in test builds, and `every_printer_aligns_what_it_is_given`
 requires each of them to.
 
 ## The census read characters and sliced bytes
@@ -2172,7 +2146,7 @@ requires each of them to.
 `the_literal_at` walked `text.chars().collect()` and returned the index into
 *that* vector; the caller added it to a byte offset and sliced. These files are
 full of `§`, `—` and `…`, so the two units differ by hundreds of bytes over one
-file. It was latent — until a needle reached further into the file:
+file. It is latent until a needle reaches further into the file:
 
 ```text
 start byte index 165653 is not a char boundary; it is inside '§'
@@ -2196,7 +2170,7 @@ inserted above it, and `inspected_all` lost its `# Errors` section to a function
 whose own doc links to it.
 
 `UNDOCUMENTED` is the ratchet: the items that carry no doc today,
-compared for **equality**, so it cannot grow without a reviewer seeing the line
+compared for **equality**, so it cannot grow without a reader seeing the line
 and documenting one means deleting its entry in the same edit. Planted:
 
 ```text
@@ -2262,20 +2236,15 @@ above**, so the number was 1643 for a developer and 365 for CI, and the floor
 `> 500` was written in the first state and asserted in the second.
 
 How many documents that is comes off the run's own `ok … document(s)` line and
-is not written here. This sentence said seven while the walk was already opening
-eight: the change that pulled `xtask/canaries/README.md` out of the `NOT_READ`
-hole made that file the eighth document the gate reads, and did not come back
-here.
+is not written here: taking a file out of the `NOT_READ` hole changes that
+number without touching this sentence.
 
 Four sibling tests that need the workspace carry the guard; two of them are in
 the same module. This one did not.
 
 **A floor is calibrated against what the run in front of it can see.** The number
-is now "at least ten blocks per document opened" — true of every document in this
+is "at least ten blocks per document opened" — true of every document in this
 tree, false of a counter that stopped, and independent of which tree it is.
-
-Two reviewers found it in the same round, from two different subsystems. Neither
-was looking for it; both ran the baseline first.
 
 ## The counter that was the first statement of the body
 
@@ -2289,8 +2258,8 @@ nc-policy guards   32 constraint(s) … pinned, identical   §14.6, unasked
 
 The second is the sharper one: `core.an_agent_never_impersonates` flipped to its
 fail-open form is `guard-fails-open` and two red tests, and with the filter added
-the policy step is byte-identical to a clean run. The rule had been written for
-this crate's *coverage* loop one round earlier and not carried across to the
+the policy step is byte-identical to a clean run. The rule is written for this
+crate's *coverage* loop, and a rule written for one loop does not reach the
 proof loop beside it.
 
 **A rule stated in a document is not a rule applied.** What applies it is a case
@@ -2359,7 +2328,7 @@ keywords was right. Putting the *same reader* in both was not:
 
 `found != creates` is the one thing standing between a partial parse and a green
 run, and it could no longer disagree about anything that reader decides. The
-floor walks tokens now — different code, same rule — and shares only the comment
+floor walks tokens — different code, same rule — and shares only the comment
 stripper, deliberately: a shared normalisation of the input is not a shared
 judgement of it.
 
@@ -2401,11 +2370,10 @@ pair `NC-JRNL-0005` exists to keep apart.
 `every_errors_section_names_what_its_body_builds` holds the half a scan can hold:
 a variant a function builds in its own body is named in its own section.
 
-## Two deliverables that were finished, and were not
+## Two deliverables a clean pass does not settle
 
-Round 52 reached "a full pass returned nothing" on `nc-ids` and on `nc-prune`.
-Round 53 pointed a different reviewer at both, and each held a defect that would
-have shipped.
+Each of `nc-ids` and `nc-prune` can pass a full audit clean while holding a defect
+that would ship:
 
 **A clock that dips and comes back.** One memo, two conclusions:
 
@@ -2419,8 +2387,7 @@ that reads it raised `ClockStuck` whatever had been concluded. `NC-IDS-0007` say
 *"the clock has stopped, so no more identifiers can be minted on this machine"*
 about a clock that had moved. Every shipped fixture scripts a clock that stays
 down, so the memo they exercise is only ever the stopped one — the fixture that
-distinguishes the repair from the defect is one whose clock **returns**, and
-nobody had written it.
+distinguishes the repair from the defect is one whose clock **returns**.
 
 **A repair that closed a measured exploit, with no test.** `nc-prune`'s
 schema-qualified-alias clause:
@@ -2435,14 +2402,14 @@ twenty rows of the access log gone, ordered by a column the catalog documents as
 *not* chronological, reported as an ordinary success, with the whole gate green
 at the baseline test count.
 `the_catalog_decides_the_whole_entry_and_not_one_field_of_it` covers the journal
-under a qualified name and the other table under its bare one; the cross of the
-two was the case nobody wrote.
+under a qualified name and the other table under its bare one, and the cross of
+the two is a case of its own.
 
-**A repair is a claim, and a claim needs a case.** Both of these were written to
-close a defect a reviewer had measured, and both were written without the test
-that would notice them being undone. That is now the shape this loop finds most.
+**A repair is a claim, and a claim needs a case.** Both of these close a measured
+defect, and a repair written without the test that would notice it being undone
+is the shape an audit finds most.
 
-## A gate that read the wrong text for 363 of 382 bodies
+## A gate that slices by bytes what it counted in chars
 
 `without_string_contents` replaces each *char* inside a literal with one *byte*
 of space — char-count-preserving, not byte-count-preserving, and `gates.rs` says
@@ -2456,8 +2423,8 @@ gates.rs   299802 against 299670
 ```
 
 Measured with one probe — a `#[test]` reading `warnings() - skips()` with no hold
-— reported in `database.rs` and invisible in `gates.rs`. Every offset now comes
-from one string.
+— reported in `database.rs` and invisible in `gates.rs`. Every offset comes from
+one string.
 
 **Two strings that differ in length are two coordinate systems.** Blanking,
 stripping and normalising all produce one; mixing offsets between them is a bug
@@ -2500,76 +2467,75 @@ standing, and every printed count went *up*. A pin over a set enumerates the set
 
 ## Thirty-eight thousand directories
 
-Two tests called `remove_dir_all` before writing their scratch tree and never
-after. `/tmp` held 38,176 of them. Both remove at the end now.
+A test calling `remove_dir_all` before writing its scratch tree and never after
+fills `/tmp`: measured, 38,176 of them. Tests here remove at the end.
 
 A test that cleans up on the way in is a test that leaves one behind every run,
 and nothing counts them.
 
-## Round 54: what a reviewer found in nine deliverables
+## Shapes an audit of every deliverable finds
 
-Three reviewers, one verdict each, twenty-two findings. Six sections, because
-six of them are shapes rather than incidents.
+Six sections, because each of these is a shape rather than an incident.
 
 ### A ratchet that reads column zero reads a tenth of the tree
 
-`every_item_in_this_crate_is_documented` matched `openers` against `*line`
-**untrimmed**, so every one of its 101 entries is a column-zero item and no
-method inside an `impl`, and no test inside a `mod tests`, was ever visible. It
-walked `src/` alone, so no integration suite was either. What shipped past it:
+`every_item_in_this_crate_is_documented`, matching `openers` against `*line`
+**untrimmed**, sees only column-zero items: no method inside an `impl`, and no
+test inside a `mod tests`, is visible to it. Walking `src/` alone, it sees no
+integration suite either. What a ratchet of that shape lets past, measured:
 `only_for`'s documentation — the `ONLY `/`INHERIT` argument, which is the reason
 the inheritance exploit is closed — sitting on `primary_key_of` with `only_for`
 carrying none; `nc-ids`' epoch memo on a test whose body asserts two widths are
 equal; and one block in `the_registry_reaches_the_code.rs` holding the
 documentation of **four** separate tests, each rendering with none.
 
-Pointing it at indented items takes the list from 96 entries to 343, which is
-bookkeeping nobody reads. So the list stays a list of `src/`, and the new ratchet
-is a **count**: doc blocks per file, over `src/` and `tests/`, compared for
+Pointing it at indented items makes the list several times longer, which is
+bookkeeping nobody reads. So the list stays a list of `src/`, and the second
+ratchet is a **count**: doc blocks per file, over `src/` and `tests/`, compared for
 equality. A merge turns two blocks into one, so the number falls and the file is
 named — one line to update when a documented item is genuinely added, unmoved by
 the 675 undocumented helpers a list would have been swamped by.
 
-Both readers now share one definition of "documented", because they had two: a
-plain `//` line between a block and its item is not a detachment in Rust, and one
-of them thought it was. Five items were listed as undocumented while rustdoc
-rendered their prose.
+Both readers share one definition of "documented", because two definitions
+disagree: a plain `//` line between a block and its item is not a detachment in
+Rust, and a reader that treats it as one lists items as undocumented while
+rustdoc renders their prose.
 
 ### A whitelist of files cannot hold a rule
 
 `the_two_xx_rule_is_written_twice_and_no_more` has fourteen needles for the
-spelling of a 2xx test and allows two files to hold one. Round 54's third
-classifier was `code.as_bytes().first().copied() == Some(50)` — `50` is ASCII
-`2` — and it matched none of them, both scans reported the same two files, and
+spelling of a 2xx test and allows two files to hold one. A third classifier,
+`code.as_bytes().first().copied() == Some(50)` — `50` is ASCII `2` — matches
+none of them: measured, both scans reported the same two files, and
 `cargo xtask dev` printed `the log store answers /health` for
 `HTTP/1.1 2ab Invented`. The needle list is an arms race the scanner loses.
 
 `the_health_check_answers_the_shared_table` stands a listener up for every row of
 `status-lines.tsv` and requires `the_log_store_is_serving` to agree with the
-table. Measured: the same third classifier now fails on `HTTP/1.1 2 whatever`.
+table. Measured: the same third classifier fails on `HTTP/1.1 2 whatever`.
 
-### The counter outside the loop, again — this time in criterion 2
+### The counter outside the loop, in criterion 2
 
-`compile_fail` returned `fixtures.len()`, computed from the *directory listing*
-before anything was compiled. `inspected_all`, the printed line and
-`the_wall_holds_and_the_proof_actually_ran` all read that one number. Three lines
-in the loop body — `if name.contains("string") { continue; }` — turned the whole
-compile-fail gate off with `11 fixture(s) refuse to compile` and `955 test(s)`
+A `compile_fail` returning `fixtures.len()`, computed from the *directory
+listing* before anything is compiled, hands `inspected_all`, the printed line and
+`the_wall_holds_and_the_proof_actually_ran` one number to read. Measured, three
+lines in the loop body — `if name.contains("string") { continue; }` — turned the
+whole compile-fail gate off with `11 fixture(s) refuse to compile`
 byte-identical to a clean run, while `impl LogValue for String` shipped.
 
-`corpus.rs`'s `ASKED` names the walks that carry a two-counter identity, and this
-walk was not one of them. It is now.
+`corpus.rs`'s `ASKED` names the walks that carry a two-counter identity, and
+this walk is one of them.
 
 ### A function body can be emptied, and the assertion over it is true
 
 `verdict(&wrong, …)` is `assert!(wrong.is_empty())`. `image_cases()` and
-`referent_cases()` are built by functions, which is why the corpus meta-gate
-wrote itself an exemption from them — so `referent_cases()` returning
-`Vec::new()`, with `one_of_them_is` weakened back to the substring test that let
-PostgreSQL 16.14 run under the tag `18-alpine`, gave `955 test(s)` and
-`check passed`. Deleting statements deletes no `#[test]` attribute.
+`referent_cases()` are built by functions, which the corpus meta-gate does not
+read as tables — so `referent_cases()` returning `Vec::new()`, with
+`one_of_them_is` weakened to a substring test that lets PostgreSQL 16.14 run
+under the tag `18-alpine`, gave `check passed`, measured. Deleting statements
+deletes no `#[test]` attribute.
 
-Each returns a fixed-size array now, so emptying it is a compile error, and the
+Each returns a fixed-size array, so emptying it is a compile error, and the
 constant it is sized by is pinned with its value.
 
 ### Four doors, and the measurement watched one
@@ -2579,31 +2545,29 @@ masked) … TO PUBLIC` leaves `relacl` NULL and lands in `pg_attribute.attacl`;
 `GRANT pg_write_all_data TO <role>` is a membership. Both were measured on a live
 stack: a non-owner changed a row's `outcome` from `deny` to `allow`, and another
 emptied the table, with `writers=0` and `check passed`. `access_records` has no
-append-only trigger, so this was its only guard.
+append-only trigger, so this is its only guard.
 
-And the passing value is zero, so nothing was watching the clause at all —
-re-adding the `AND a.grantee <> 0` that hid every grant to `PUBLIC` left every
-test green. A test now grants each shape in a scratch schema of its own and
-requires the number to move.
+And the passing value is zero, so a clause nothing moves is watched by nothing —
+an `AND a.grantee <> 0` hiding every grant to `PUBLIC` leaves every other test
+green. A test grants each shape in a scratch schema of its own and requires the
+number to move.
 
-### A repair with no test, three more times
+### A repair with no test
 
-`--dry-run` promises to change nothing and the whole write half of `release` was
-executed by no test: deleting the `if dry_run { … } else { … }` arm left
-`11 passed` and then wrote the manifest under the line saying nothing was
-written. `every_printer_aligns_what_it_is_given` floors the *files* it reads and
-not the 383 bodies every finding it can make is read out of. And CI's determinism
-job rested on one `cd -`.
+`--dry-run` promises to change nothing, and without a test of the write half of
+`release`, deleting the `if dry_run { … } else { … }` arm left `11 passed` and
+then wrote the manifest under the line saying nothing was written, measured. A
+printer check that floors the *files* it reads and not the bodies every finding
+it can make is read out of floors the wrong thing. And a CI determinism job
+resting on one `cd -` rests on one line.
 
-## Round 55: the repairs were the defects
+## A repair is where the next defect hides
 
-Sixteen findings, and **eight of them were in what round 54 had just repaired**
-— the highest proportion of any round so far. Two deliverables (`nc-ids`, and
-the catalog compiler) held against everything three reviewers tried.
+Each shape below is a defect in a repair rather than in the code it repaired.
 
 ### The excuse and the danger are the same thing
 
-Round 54 closed the `Entry`-outside-the-hash defect with an exhaustive
+The `Entry`-outside-the-hash defect is closed with an exhaustive
 `let Self { … }` and a list — `NOT_HASHED_DIRECTLY` — of the fields the
 destructure may discard. Adding a third name to that list is one token. The same
 `pub decided_by`, threaded through `chain`, `forged_for_tests` and the store's
@@ -2611,43 +2575,43 @@ row reader and then excused, gave `check passed` with **the golden digest vector
 still matching**, which is itself the proof the field was outside the hash.
 
 What makes a field dangerous is that the store persists it, so the store's
-`INSERT` is now the second reader. A column it names has to be under the digest,
+`INSERT` is the second reader. A column it names has to be under the digest,
 and the excuse list cannot buy one.
 
 ### A door is watched by moving it
 
-Round 54 added `writeall=` and `superusers=` to the write-door census and gave
-the row a positive control. The control grants a column privilege and a table
-privilege; it asserts `writeall=0` *before* any grant and never grants that one.
-So `pg_write_all_data` spelled `pg_write_all_dat` — one character — left the
-whole gate byte-identical to baseline.
+`writeall=` and `superusers=` are in the write-door census, and the row has a
+positive control. A control that grants a column privilege and a table privilege
+and asserts `writeall=0` *before* any grant, never granting that one, lets
+`pg_write_all_data` spelled `pg_write_all_dat` — one character — leave the whole
+gate byte-identical to baseline, measured.
 
-And the census was still a door short. `GRANT <owner> TO <an ordinary login>`
+And a census without `owners=` is a door short. `GRANT <owner> TO <an ordinary login>`
 moves no number in that row, and an ordinary `UPDATE` as that role is still
 refused by the trigger — so the row looks right and reads right. Three statements
 later, with `ALTER TABLE … DISABLE TRIGGER USER` between them, the audit log is
-rewritten and `check passed`. `owners=` counts it now, and every door in the row
-is granted and required to move.
+rewritten and `check passed`. `owners=` counts it, and every door in the row is
+granted and required to move.
 
 ### The control that connects under `--offline`
 
-That same control read `url()`, which falls back to
-`postgres://…@127.0.0.1:${POSTGRES_PORT:-5432}/noctua` and probes the port — so
-under the environment `cargo xtask check --offline` hands the test binary it
-connected anyway and issued `CREATE SCHEMA`, two `GRANT`s and
-`DROP SCHEMA … CASCADE` against whatever was listening, which by default is the
-developer's own stack. `NC_OFFLINE` is the flag, and two sibling suites already
-read it.
+A control reading `url()`, which falls back to
+`postgres://…@127.0.0.1:${POSTGRES_PORT:-5432}/noctua` and probes the port,
+connects anyway under the environment `cargo xtask check --offline` hands the
+test binary, and issues `CREATE SCHEMA`, two `GRANT`s and
+`DROP SCHEMA … CASCADE` against whatever is listening, which by default is the
+developer's own stack. `NC_NO_STACK` is the flag, and its sibling suites read it
+too.
 
 ### Two tallies are not a pairing
 
-Round 54 anchored both operands of CI's determinism diffs and added a gate
-"counting anchored operands against `diff` invocations". It counted `diff ` lines
-and counted `$GITHUB_WORKSPACE` anywhere in the job body, and required the second
-to be at least the first — so a *comment* paid the budget while three of the four
-diffs compared the second checkout with itself, with all 27 workflow tests green.
+Both operands of CI's determinism diffs are anchored, and a gate "counting
+anchored operands against `diff` invocations" — `diff ` lines against
+`$GITHUB_WORKSPACE` anywhere in the job body, the second at least the first —
+lets a *comment* pay the budget while three of the four diffs compare the second
+checkout with itself, with every workflow test green, measured.
 
-### A repair with no test, four more times
+### A repair with no test, measured by undoing it
 
 `without_string_contents`'s char-literal clause (revert it: `327 passed`);
 `release`'s write half, which `a_dry_run_writes_nothing` does not reach because
@@ -2661,10 +2625,10 @@ that stops a `forbid` being credited with a denial test.
 
 ### The ratchet that pinned a defect
 
-Round 54's doc-block count was baselined by reading the tree as it stood, and one
-of its numbers was measuring a file where a helper's documentation sat on the
-function above it. Repairing the tree made the ratchet fail. Worse, the count is
-blind to half its subject: a merge takes two blocks to one and the number falls,
-but an *insertion* conserves it. Each file pins two numbers now — blocks, and
-items carrying none.
+A doc-block count baselined by reading the tree as it stands pins whatever is
+wrong in it: one of its numbers measured a file where a helper's documentation
+sat on the function above it, so repairing the tree made the ratchet fail. And
+the count is blind to half its subject: a merge takes two blocks to one and the
+number falls, but an *insertion* conserves it. Each file pins two numbers —
+blocks, and items carrying none.
 

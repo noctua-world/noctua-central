@@ -656,10 +656,11 @@ async fn an_event_published_inside_an_aborted_unit_is_never_delivered() {
 
 #[tokio::test]
 async fn a_nested_command_that_published_or_set_a_timer_and_failed_dooms_its_unit() {
-    // **A review found this unguarded.** A nested command that failed having
-    // published, set or cancelled — and only held them, writing nothing — left
-    // the unit to a caller that went on, and the caller's commit queued the
-    // event, armed the timer and applied the cancel of a command that failed.
+    // **The guard this holds.** Without it, a nested command that failed
+    // having published, set or cancelled — and only held them, writing nothing
+    // — would leave the unit to a caller that went on, and the caller's commit
+    // would queue the event, arm the timer and apply the cancel of a command
+    // that failed.
     let fixture = opened().await;
     let fails = [("then", Value::text("fail"))];
     let kept = timers_set(
@@ -816,8 +817,8 @@ async fn an_events_callback_only_reads_and_what_it_dispatches_is_journaled_as_th
 
 #[tokio::test]
 async fn what_a_callback_is_refused_is_logged_once_it_returns_for_the_plugin_it_called() {
-    // **A review found this unguarded**: no test noticed the callback's frame
-    // never taken back, and what it was refused never logged.
+    // **What a callback was refused, logged once its frame is taken back**: a
+    // frame never taken back logs nothing, and fails here.
     let fixture = opened().await;
     let fetch = Value::object([("then", Value::text("fetch"))]).to_canonical();
     fixture
@@ -1381,9 +1382,9 @@ async fn a_timer_whose_setter_lost_the_authority_is_cancelled_and_journaled() {
 
 #[tokio::test]
 async fn a_timer_set_where_only_reading_is_allowed_fires_where_only_reading_is() {
-    // **A review found this.** Every timer's callback could change state, so
-    // a read — or an event's callback, which only reads — set a timer whose
-    // callback wrote another plugin's note as the person a millisecond later:
+    // **Not every timer's callback may change state.** If every one could, a
+    // read — or an event's callback, which only reads — could set a timer whose
+    // callback writes another plugin's note as the person a millisecond later:
     // the frame that would have refused the write, got around by putting the
     // write off.
     let fixture = opened().await;
@@ -1527,9 +1528,9 @@ async fn a_timers_callback_keeps_what_it_dispatches_in_a_unit_it_began_as_one_st
 
 #[tokio::test]
 async fn a_timers_callback_killed_in_the_unit_it_began_lets_the_unit_go() {
-    // **A review found this untested.** A callback killed after its `begin`
-    // could leave its unit open in the journal, unlogged, and the bytes of a
-    // blob made in it on disk, and no test would have said so.
+    // **What a kill after `begin` must not leave.** A callback killed after its
+    // `begin` could leave its unit open in the journal, unlogged, and the bytes
+    // of a blob made in it on disk; this test reads all three.
     let fixture = opened().await;
     fixture
         .ana(
@@ -1641,10 +1642,10 @@ async fn a_callbacks_begin_whose_journal_stalls_is_killed_and_lets_the_pump_go()
 /// would have waited as long, and lets the pump go within its tree's
 /// deadline — nothing of the step kept, and nothing killed for it.
 ///
-/// **A reviewer found a real bug with it**: the dispatch nested in the
-/// callback waited on the journal with no bound, so the pump — and the bus
-/// every call tree takes — was held for as long as the journal stalled, past
-/// the callback's tree's deadline, the plugin never stopped for it.
+/// **The wait is bounded**: unbounded, the dispatch nested in the callback
+/// would wait on the journal, holding the pump — and the bus every call tree
+/// takes — for as long as the journal stalled, past the callback's tree's
+/// deadline, the plugin never stopped for it.
 #[tokio::test]
 async fn a_callbacks_dispatch_whose_journal_stalls_lets_the_pump_go_within_its_trees_deadline() {
     let fixture = opened().await;
@@ -1975,8 +1976,8 @@ async fn plugin_log_lines_stay_in_the_ring() {
     ])
     .to_canonical();
     // **And nowhere else, in any form**: the central log is held to the lines
-    // it had before each write. A review found the scan below vacuous — it
-    // read a central log that held no line at all.
+    // it had before each write, not only scanned for the text — a scan passes
+    // vacuously over a central log that holds no line at all.
     fixture.logged_by_the_plugin(&written).await;
     let log = fixture
         .kernel
@@ -2084,11 +2085,11 @@ async fn the_pump_holds_the_local_tables_to_their_bounds_with_the_one_pruner() {
 
 #[tokio::test]
 async fn a_table_another_writer_holds_is_reported_left_alone_with_its_code() {
-    // **A review found this untested.** The pump reads the code of a table
-    // the pruner left alone from the tables a run answers, and only a run
-    // that left none alone, or one that could not ask at all, was ever
-    // pumped: a pump that said nothing was left alone while a table stayed
-    // past its bound kept every test green.
+    // **A run that left a table alone, pumped.** The pump reads the code of a
+    // table the pruner left alone from the tables a run answers, and the run
+    // here leaves one alone: a pump that said nothing was left alone while a
+    // table stayed past its bound would pass a run that left none alone, or
+    // one that could not ask at all, and fails this.
     //
     // **Over a file**, because the database held in memory is one connection
     // and a second writer there is a wait for the pool, not a lock.
@@ -2174,9 +2175,9 @@ async fn count_units(store: &LocalStore) -> u64 {
 /// the refusal of a read: the command it names declares that it changes
 /// nothing.
 ///
-/// **A reviewer found a real bug with it**: every refusal at fire time or at
-/// an event's delivery was logged as one of a command that changes state,
-/// which the log's field says is the one a person may be waiting on.
+/// **What it holds against**: every refusal at fire time or at an event's
+/// delivery logged as one of a command that changes state, which the log's
+/// field says is the one a person may be waiting on.
 #[tokio::test]
 async fn a_read_refused_again_at_fire_is_logged_as_a_read() {
     let fixture = opened().await;
@@ -2211,11 +2212,9 @@ async fn a_read_refused_again_at_fire_is_logged_as_a_read() {
 /// published is still heard — and neither undo says anything of its step left
 /// the machine, which is what `beyond_reach` counts.
 ///
-/// **From a reviewer's probe (wave 5, units)**, which found the published
-/// sentence saying undo stops at a step that did anything else with no
-/// compensation registered, while it undoes past one that armed a timer. The
-/// sentence says what undo does now (`docs/commands.md`), and this holds undo
-/// to it.
+/// **What the published sentence says** (`docs/commands.md`): undo does not
+/// stop at a step that armed a timer with no compensation registered, and this
+/// holds undo to it.
 #[tokio::test]
 async fn an_undo_leaves_what_its_step_set_going_as_it_is() {
     let fixture = opened().await;

@@ -31,9 +31,9 @@ const WORLD: &str = include_str!("../../../policy/world.json");
 ///
 /// **Two realms, because a filter is only tested by what it leaves out.** With
 /// one realm and every unit a step, a store that listed and forgot a person's
-/// units in every realm, and one that recorded each redo as an undo, answered
-/// every script and every sequence here as the local database does — measured,
-/// both planted, every suite green.
+/// units in every realm, and one that recorded each redo as an undo, would
+/// answer every script and every sequence here as the local database does,
+/// both planted at once — measured.
 struct Fixture {
     realm: OpaqueId,
     office: OpaqueId,
@@ -525,11 +525,11 @@ fn lowered_to_two() -> Quotas {
 /// holds, and is refused a new key until it is back within the bound.
 ///
 /// **Only a new key counts against a quota**, and every other script and
-/// sequence held a plugin to one number from its first commit, so no plugin
-/// ever held more than its quota — which a manifest lowering `store_entries`
-/// below what its plugin holds makes. Measured, either store counting a
-/// rewrite as a new key: every suite green, while the two stores answered a
-/// rewrite over the bound one with a refusal and the other with a commit.
+/// sequence holds a plugin to one number from its first commit, so no plugin
+/// there holds more than its quota — which a manifest lowering `store_entries`
+/// below what its plugin holds makes. With either store counting a rewrite as
+/// a new key, the two would answer a rewrite over the bound one with a refusal
+/// and the other with a commit — measured — which this script tells apart.
 async fn over_a_lowered_quota(store: &impl StoreBackend, fixture: &Fixture, said: &mut Transcript) {
     let held = ["a", "b", "c", "d"].map(|key| put("p", key, "1", Expect::Absent));
     said.said(
@@ -1225,9 +1225,9 @@ async fn forgetting_past_a_held_unit(
 
 /// Forgetting past a unit still held is refused alike by both stores.
 ///
-/// **A reviewer found the two stores answering otherwise**: the store in
-/// memory forgot the unit the file's `ON DELETE RESTRICT` keeps, and held it
-/// from the pruner afterwards though it had no such unit.
+/// **What it holds against**: a store in memory that forgets the unit the
+/// file's `ON DELETE RESTRICT` keeps, and holds it from the pruner afterwards
+/// though it has no such unit.
 #[tokio::test]
 async fn forgetting_past_a_held_unit_is_answered_alike_in_both_stores() {
     through_both!(forgetting_past_a_held_unit, 2);

@@ -1,32 +1,55 @@
-# The gate, in CI.
+# The gate, in CI, on Linux, macOS and Windows (`NOCTUA.md §22.2`).
 #
-# **This workflow has never run, and that is stated rather than implied.**
-# `noctua-central` has no git repository yet, by the decision in `NOCTUA.md
-# §5.3`, so there is no GitHub to run it. A workflow nobody has watched run is a
-# claim, not a result — and the first push is where it will be found wrong.
+# §19.4 says the command surface does not grow, and the way that stops being
+# true is a CI file that quietly learns to run `cargo fmt` and `cargo clippy`
+# and `cargo test` as separate steps. Then the gate a developer runs and the
+# gate CI runs are two different gates, and the one that matters is whichever
+# is stricter that week. `xtask/src/workflow.rs` parses this file and fails the
+# build on any cargo invocation that is not `cargo xtask <verb>` or the
+# `cargo install` the gate needs — however it is spelled, including through a
+# script a step runs, an alias, or an action whose job is to run cargo. It also
+# checks that each job still runs what its name says: `linux`, `macos` and
+# `windows` each run the gate on the system they are named for, `linux` brings
+# the stack up before it, and the `deterministic` job builds **twice**, in the
+# order that makes the second generation a second process.
 #
-# It is committed now anyway, for one reason: §19.4 says the command surface does
-# not grow, and the way that stops being true is a CI file that quietly learns to
-# run `cargo fmt` and `cargo clippy` and `cargo test` as separate steps. Then the
-# gate a developer runs and the gate CI runs are two different gates, and the one
-# that matters is whichever is stricter that week. `xtask/src/workflow.rs` parses
-# this file and fails the build on any cargo invocation that is not
-# `cargo xtask <verb>` or the `cargo install` the gate needs — however it is
-# spelled, including through a script a step runs, an alias, or an action whose
-# job is to run cargo. It also checks that each job still runs what its name
-# says: the `deterministic` job has to build **twice**, in the order that makes
-# the second generation a second process. (Not "the job below" — the job below
-# this comment is `check`, which builds once.)
+# The rule is not a limit on how many cargo commands this file carries: it
+# carries several, and every one of them is the gate or what the gate needs.
 #
-# Not "fails if it grows a second cargo command", which this line used to say and
-# which was never the rule: the file already carries several, and every one of
-# them is the gate.
+# Beside it, `release.yml` makes a release on a push to `staging` or `main`, and
+# nothing else sits under `.github/`. Both files open with no permission, and
+# every action either runs is pinned to a commit, with its release in a comment.
+# This file, and every file it reaches, mints no token, enters no environment,
+# reads no secret and no step's output, publishes nothing and turns no
+# release's gate off: those are `release.yml`'s alone, because this workflow
+# runs on a push to `staging` and `main` as well. The gate refuses the first
+# four in every other file GitHub runs, this one and a composite action, and a
+# publish and the flag that turns the release's gate off in every other file CI
+# reaches, scripts and the justfile among them. It reads both files a line at a
+# time, so each line ends at a line feed and is spaced with spaces and tabs
+# alone, each key is a word before its colon, and each quote and bracket closes
+# on the line that opens it. It reads a step's `name:` as a label and a shell
+# reads it as a command, so no step runs either file, or a composite action's,
+# as a script.
 
 name: check
 
+# **Every push, and every pull request as it is opened, pushed to, reopened or
+# edited.** The `types:` list widens the events, never narrows them: it is
+# GitHub's default types and `edited`. Without `edited`, a title or a body
+# changed after the last run starts no run, and the merge commit takes a title
+# and a body the history step never judged. `workflow.rs` refuses any other
+# line under either event, a filter that would narrow them among them.
 on:
   push:
   pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+# **No permission for this workflow's own token, unless a job asks.** Each job
+# below asks for reading the tree and nothing more, so a step that runs
+# something it should not holds a token that changes nothing. A job added
+# without asking holds none.
+permissions: {}
 
 # One in flight per branch. A queue of identical gate runs tells nobody anything
 # the newest one does not.
@@ -36,12 +59,12 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  # **No `RUSTFLAGS` here.** This set `-D warnings` at workflow scope so a
-  # dependency's new lint could not arrive as noise nobody reads — and the gate
+  # **No `RUSTFLAGS` here.** Setting `-D warnings` at workflow scope would keep
+  # a dependency's new lint from arriving as noise nobody reads — but the gate
   # refuses to run with `RUSTFLAGS` set, on the grounds that cargo passes it to
   # rustc alongside whatever `.cargo/config.toml` says, so a run with it set is
-  # not the run CI makes. Those two rules cannot both hold: this workflow could
-  # never have gone green, and its only step is the gate.
+  # not the run CI makes. Those two rules cannot both hold: with it set here this
+  # workflow can never go green, and its only step is the gate.
   #
   #     error .cargo/config.toml:1 — `RUSTFLAGS` is set in this environment,
   #           to `-D warnings`
@@ -49,17 +72,20 @@ env:
   # It is also redundant. The gate runs `cargo clippy --workspace --all-targets
   # --locked -- -D warnings` itself, which is where that rule belongs: warnings
   # are errors at the gate and nowhere else, so an ordinary `cargo build` while
-  # editing still compiles. Setting it here made it true of every step.
+  # editing still compiles. Setting it here would make it true of every step.
   #
   # The gate reads the *process* environment, never this block, so it is silent
-  # on a developer's machine and fires only here — which is why nothing found
-  # it until somebody ran the gate with CI's own environment exported.
+  # on a developer's machine and fires only here — which is why only a run of
+  # the gate with CI's own environment exported shows it.
 
 jobs:
-  check:
+  # **The whole gate, the stack included.** Linux is the one system whose
+  # runner brings the container stack up, so every step runs here and nothing
+  # is not applicable (`NOCTUA.md §22.2`).
+  linux:
     runs-on: ubuntu-latest
-    # **No `services:` block, and that is the finding it came from.** A GitHub
-    # service container takes an image, an environment, ports and `docker create`
+    # **No `services:` block, because a service container cannot run the stack.**
+    # A GitHub service container takes an image, an environment, ports and `docker create`
     # options — it cannot set the container's *command*, and the log store takes
     # its bounds as a command:
     #
@@ -85,59 +111,84 @@ jobs:
     # That step is one of the steps `--offline` skips — measured,
     # `warn skipped: --offline, and only the running log store states its own bounds`
     # — and the gate that holds those anchors reads `README.md`, `AGENTS.md` and
-    # the `justfile`, never this file. **This is written in the past tense on
-    # purpose**: the workflow it describes had no log store and never passed the
-    # flag, so its `check` job could not have gone green on any runner. The step
-    # at the bottom of this file is what retired it, and a reader who takes this
-    # paragraph for the present state reads a fixed defect as a live one. The
-    # number of skips is deliberately not written here either: four documents
+    # the `justfile`, never this file. A `linux` job whose log store is a service
+    # container, and which never passes the flag, cannot go green on any runner;
+    # the `cargo xtask dev` step below is what gives it a store started with its
+    # bounds. The number of skips is deliberately not written here either: four documents
     # state it and a gate holds all four, and a fifth copy in a file that gate
     # does not read is a copy that only agrees on the day it is written.
     #
-    # **And nothing migrated the database.** `cargo xtask check` does not apply
-    # migrations and a service container has no way to; three steps then reported
-    # a skip and the run passed, so a green CI run was compatible with the
-    # journal's protections never being read. Both are now failures — see
-    # `Record` in `xtask/src/check.rs` — which would have turned this workflow
-    # red rather than quiet.
+    # **And a service container cannot migrate the database.** `cargo xtask
+    # check` does not apply migrations either. If the steps that read a migrated
+    # database reported a skip against an empty one, a green CI run would be
+    # compatible with the journal's protections never being read; so each of
+    # them fails on an empty database instead — see `Record` in
+    # `xtask/src/check.rs` — which turns such a workflow red rather than quiet.
     #
     # The stack a developer runs is the stack CI runs. `cargo xtask dev` brings
     # up `docker-compose.yml`, waits for the health checks written there, and
-    # applies the migrations — one definition of the stack instead of two, which
-    # is also what retires the third defect here: this job's health command was
-    # `psql -h 127.0.0.1`, and `initdb` writes `host all all 127.0.0.1/32 trust`
-    # above the entrypoint's scram line. Measured inside the container, with a
-    # deliberately wrong password: `-h 127.0.0.1` returned a row and exit 0,
-    # while the compose file's `-h "$(hostname -i …)"` was refused. A wrong
-    # `POSTGRES_PASSWORD` left CI healthy and every application connection
-    # failing — the shape `docker-compose.yml` carries thirty lines against, in a
-    # file nothing held to it.
+    # applies the migrations — one definition of the stack instead of two, so the
+    # health command is the compose file's too. A health command of
+    # `psql -h 127.0.0.1` here would pass with any password: `initdb` writes
+    # `host all all 127.0.0.1/32 trust` above the entrypoint's scram line.
+    # Measured inside the container, with a deliberately wrong password:
+    # `-h 127.0.0.1` returns a row and exit 0, while the compose file's
+    # `-h "$(hostname -i …)"` is refused. A wrong `POSTGRES_PASSWORD` would leave
+    # CI healthy and every application connection failing — the shape
+    # `docker-compose.yml`'s own health check is written against.
     env:
-      # The URL `cargo xtask dev` prints, against the stack it brings up.
-      # `localhost` resolved to the runner's own loopback and the compose file
-      # binds `127.0.0.1` explicitly, so they agreed by luck rather than by
-      # being the same string.
+      # The URL `cargo xtask dev` prints, against the stack it brings up, and
+      # the address the compose file binds written as the same string:
+      # `localhost` would agree with `127.0.0.1` only by resolving to the
+      # runner's own loopback.
       DATABASE_URL: postgres://noctua:noctua@127.0.0.1:5432/noctua
+    # Reading the tree, which the checkout needs, and nothing else.
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      # **Room on the runner's disk, before anything is written to it.** This
+      # job holds the restored cache, every build and test the gate makes, and
+      # the stack's images on one disk, and a Linux runner ran out of it with a
+      # cache of 1416 MB restored. Trimming the cache would only move the limit,
+      # and every run rebuilt from cold would cost its time on every push, so
+      # the job deletes toolchains its image ships and nothing here uses —
+      # Android's SDK, .NET, Swift, Haskell's and CodeQL's — and prints what is
+      # left. A directory an image no longer ships is no error to `rm -f`.
+      - name: room on the disk
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /usr/share/swift \
+            /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
 
-      # **This does not read `rust-toolchain.toml`**, which this comment said and
-      # that file's own header records as the sentence it contradicted: the action
-      # below resolves `stable` itself, and no rustup runs here. `@stable` is the
-      # version this names, and the only reason it agrees with the repository is
-      # that `rust-toolchain.toml` names the same moving channel.
-      #
-      # **And the plugins' target, for the same reason as the components.** The
-      # gate builds every plugin for `wasm32-unknown-unknown` before the tests,
-      # and a toolchain the action installed without it fails that step.
-      - uses: dtolnay/rust-toolchain@stable
+      # The whole history, because a gate that reads it needs more than the
+      # tip, and no credential left in the checkout's git configuration, where
+      # every build script and test the gate runs could read it. Every job
+      # checks out the same way.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          components: rustfmt, clippy
-          targets: wasm32-unknown-unknown
+          fetch-depth: 0
+          persist-credentials: false
 
-      - uses: Swatinem/rust-cache@v2
+      # **The toolchain `rust-toolchain.toml` names, read from that file.** With
+      # no toolchain named, rustup installs the one the file pins, with its
+      # components and the plugins' target, so the channel, `rustfmt`, `clippy`
+      # and `wasm32-unknown-unknown` are written down once and CI installs what
+      # a developer's rustup installs. `--no-self-update` leaves the runner's
+      # rustup as its image ships it.
+      - name: the toolchain rust-toolchain.toml names
+        run: rustup toolchain install --no-self-update
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      # **The auditor at one exact version**, the same in every job and in
+      # `release.yml`'s gate: a crate named with no version installs whatever
+      # crates.io holds on the day, and that code runs in the job. The gate
+      # refuses a `cargo install` that is not one crate, `--locked`, at an exact
+      # `@X.Y.Z`. Moving the version is one commit that moves the three lines
+      # here, the one in `release.yml`'s gate, `THE_RELEASE_STEPS` in
+      # `xtask/src/workflow.rs` and that line's row in `WHAT_ELSE_THIS_TOOL_SAYS`
+      # in `xtask/src/check.rs`.
       - name: cargo deny
-        run: cargo install --locked cargo-deny
+        run: cargo install --locked cargo-deny@0.20.2
 
       # **The stack, before the gate that needs it.** Everything the gate asks a
       # running database and a running log store — the journal's forty-four
@@ -157,46 +208,96 @@ jobs:
       - name: cargo xtask check
         run: cargo xtask check
 
+  # **The gate on macOS, with no stack.** No runner but Linux's brings the
+  # container stack up, so each step that needs it says it is not applicable
+  # here, by name, and the `linux` job is what runs it (`NOCTUA.md §22.2`).
+  # Nothing in this job brings a stack up: `workflow.rs` refuses
+  # `cargo xtask dev` here, and an image named anywhere in this file.
+  macos:
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # The same toolchain, from the same file, as the `linux` job.
+      - name: the toolchain rust-toolchain.toml names
+        run: rustup toolchain install --no-self-update
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: cargo deny
+        run: cargo install --locked cargo-deny@0.20.2
+      - name: cargo xtask check
+        run: cargo xtask check
+
+  # **The gate on Windows, with no stack**, as the `macos` job above.
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      # **Before the checkout**, because git on Windows refuses a path longer
+      # than the system's old limit unless told otherwise, and the checkout is
+      # what writes the paths.
+      - name: long paths
+        run: git config --global core.longpaths true
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: the toolchain rust-toolchain.toml names
+        run: rustup toolchain install --no-self-update
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - name: cargo deny
+        run: cargo install --locked cargo-deny@0.20.2
+      - name: cargo xtask check
+        run: cargo xtask check
+
   # Determinism across *processes*, which the in-process check cannot prove: two
   # generations inside one run share an allocator and a heap layout. This builds
   # twice in two processes and compares the bytes.
   #
-  # **Not from cold**, and the comment said so for a while: both builds are in
-  # this one job and share one `rust-cache`. Claiming a guarantee nobody had
-  # arranged is the failure `counts.rs` exists to catch, one file over.
+  # **Not from cold**: both builds are in this one job and share one
+  # `rust-cache`. Claiming a guarantee nobody arranged is the failure
+  # `counts.rs` exists to catch, one file over.
   deterministic:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      # **With the components, because this job runs the emitter.**
-      # `cargo xtask build` pipes every generated file through `rustfmt` from
-      # `PATH`, and this job's only step runs it twice. It asked for the
-      # toolchain without asking for rustfmt while the `check` job beside it
-      # does — a difference invisible until the first push. Measured with
-      # rustfmt off `PATH`: `error rustfmt is what turns the emitted source
-      # into the bytes that reach disk, and it is not here`.
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
-      # **Everything the build writes, not one directory of it.** This diffed
-      # `crates/nc-catalog/src` alone, so the `docs/` pages and the generated
-      # log-event structs — a third of what `cargo xtask build` emits — were
-      # outside the only cross-process determinism check there is.
+          fetch-depth: 0
+          persist-credentials: false
+      # **From the same file, because this job runs the emitter.**
+      # `cargo xtask build` pipes every generated file through `rustfmt` from
+      # `PATH`, and this job's only step runs it twice; `rust-toolchain.toml`
+      # names `rustfmt` as a component, so this job has the formatter the
+      # `linux` job has. With rustfmt off `PATH` the build refuses: `error
+      # rustfmt is what turns the emitted source into the bytes that reach
+      # disk, and it is not here`.
+      - name: the toolchain rust-toolchain.toml names
+        run: rustup toolchain install --no-self-update
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      # **Everything the build writes, not one directory of it.** A diff of
+      # `crates/nc-catalog/src` alone leaves the `docs/` pages and the generated
+      # log-event structs — a third of what `cargo xtask build` emits — outside
+      # the only cross-process determinism check there is.
       # **From a second copy in a second directory, not twice in this one.**
-      # Both builds ran in one checkout, so they shared the working directory,
-      # the filesystem and the order `read_dir` returns — which is the one thing
-      # a cross-process check is for. `catalog/i18n/` is read with `read_dir`,
+      # Two builds in one checkout share the working directory, the filesystem
+      # and the order `read_dir` returns — which is the one thing a
+      # cross-process check is for. `catalog/i18n/` is read with `read_dir`,
       # and locale order decides `Locale::ALL`, every column of `MESSAGES` and
       # four `docs/` pages; a second run in the same directory agrees with the
       # first about all of it whatever the emitter does.
       #
-      # **Both operands are absolute.** Every right-hand side was relative, so
-      # the whole comparison rested on one `cd -` that nothing read: deleting
-      # that line made each `diff` compare the second checkout against itself,
-      # and `cargo test -p xtask --bin xtask workflow::` stayed at
-      # `27 passed; 0 failed` with `check passed` over it. A diff whose meaning
-      # is a working directory is a diff one line can turn into a tautology.
+      # **Both operands are absolute.** With relative right-hand sides the whole
+      # comparison rests on one `cd -` that nothing reads: deleting that line
+      # makes each `diff` compare the second checkout against itself, with
+      # `cargo test -p xtask --bin xtask workflow::` green and `check passed`
+      # over it. A diff whose meaning is a working directory is a diff one line
+      # can turn into a tautology.
       #
       # The copy is laid down in a different order (`cp -r` follows this
       # checkout's order, `find | sort -r` the reverse), on a path of a different

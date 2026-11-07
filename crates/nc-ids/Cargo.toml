@@ -12,9 +12,9 @@ description = "Snowflake identifiers, the machine flake, opaque identifiers, and
 blake3.workspace = true
 nc-catalog.workspace = true
 # **One escaper, for the diagnostics as well as for the wire.** Several refusals
-# here exist because a control character would forge a line or a field, and each
-# of them wrote that character out raw — so the one place naming it was the one
-# place it appeared. `nc-canon` is already the crate whose job is that a value
+# here exist because a control character would forge a line or a field, and one
+# that wrote that character out raw would make the one place naming it the one
+# place it appears. `nc-canon` is already the crate whose job is that a value
 # cannot end the line it is on; a second copy of the rule here would be a second
 # set of edge cases. No cycle: `nc-canon` depends on nothing of ours.
 nc-canon.workspace = true
@@ -22,7 +22,7 @@ nc-canon.workspace = true
 [dev-dependencies]
 # **Itself, so the documentation gate can read this crate's integration
 # tests.** `cargo doc` documents lib and bin targets only, so a broken
-# intra-doc link in `tests/` shipped with the gate green — and
+# intra-doc link in `tests/` passes it green — and
 # `cargo rustdoc --test` cannot resolve a `use` of the crate under test
 # unless the package depends on itself here. Cargo resolves it to this
 # same unit, so nothing is built twice.

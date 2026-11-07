@@ -4,8 +4,7 @@
 //! reason the drift check means anything. [`artifacts`] loads and emits entirely
 //! in memory, touching nothing; [`run`] writes. A `check` that regenerated
 //! before comparing would compare the output to itself and report "in sync"
-//! immediately after a hand edit — `noctua-colors` shipped exactly that for a
-//! milestone.
+//! immediately after a hand edit.
 //!
 //! **rustfmt runs as part of generation, not after it.** `cargo fmt --all`
 //! reformats a generated crate that is a workspace member, so the emitter's
@@ -81,31 +80,29 @@ pub(crate) fn run(root: &Path, reserve: bool) -> Result<(), String> {
     // **What this build reserves, said on the line it reserves it.** A code
     // added to `catalog/errors.toml` is appended to the ledger by an ordinary
     // `cargo xtask build`, permanently, and the run said `15 generated file(s),
-    // 4 rewritten` — an irreversible write announced as a file count, in a tree
-    // with no history to restore from. A newcomer trying out a number learns
+    // 4 rewritten` — an irreversible write announced as a file count. A
+    // newcomer trying out a number learns
     // what happened one build later, when renumbering it is refused.
     //
     // **And the reading is inside the write, because it is a reading of the
-    // before-state.** This was `let reserved = newly_reserved(…)` on the line
-    // above the call, and the two statements could be swapped: a reviewer did
-    // exactly that in round seventy-one and the whole suite stayed green, with
-    // every build that burned a code then announcing *"reserving nothing new"*
-    // and naming none of them — because the ledger on disk **is** the ledger
-    // just written, so a check inspecting its own fresh output can only ever
-    // find nothing. `run` is reached by no test at all, so nothing said so.
-    // There is no statement to move now.
+    // before-state.** As `let reserved = newly_reserved(…)` on the line above
+    // the call, the two statements can be swapped with the whole suite green,
+    // and every build that burns a code then announces *"reserving nothing
+    // new"* and names none of them — because the ledger on disk **is** the
+    // ledger just written, so a check inspecting its own fresh output can only
+    // ever find nothing. `run` is reached by no test at all, so nothing would
+    // say so. Inside the write there is no statement to move.
     let (written, reserved) = write_what_changed(root, &compiled.files, &compiled.ledger)?;
     ui::ok(&what_a_run_wrote(compiled.files.len(), written));
     if let Some(reserved) = reserved {
-        // **After the write, because it is a claim about a write.** This ran
-        // before the loop, so a build that then failed — a generated file made
-        // read-only is enough — printed `reserved NC-VAL-0002 — permanently`
-        // and reserved nothing: measured, `grep -c NC-VAL-0002
-        // catalog/errors.reserved.toml` came back `0`. `AGENTS.md` states the
+        // **After the write, because it is a claim about a write.** Run before
+        // the loop, a build that then fails — a generated file made read-only
+        // is enough — prints `reserved NC-VAL-0002 — permanently` and reserves
+        // nothing: measured, `grep -c NC-VAL-0002
+        // catalog/errors.reserved.toml` comes back `0`. `AGENTS.md` states the
         // contract in as many words: "announces each code it reserves, **on the
-        // line it reserves it**". A developer told a number was burned, in a
-        // tree with no history to check it against, goes looking for the undo —
-        // which begins by blanking the ledger's checksum.
+        // line it reserves it**". A developer told a number was burned goes
+        // looking for the undo — which begins by blanking the ledger's checksum.
         for code in &reserved {
             ui::ok(&format!("reserved {code} — permanently"));
             ui::detail(
@@ -122,11 +119,11 @@ pub(crate) fn run(root: &Path, reserve: bool) -> Result<(), String> {
 
 /// What to say about a run that rewrote `catalog/errors.reserved.toml`.
 ///
-/// **The counter said `1 appended … which is permanent` for a write that
-/// appended nothing.** It counted *writes of the ledger file*, and the ledger
-/// holds a header as well as its reservations — so editing a comment in
-/// `ledger.rs` and rebuilding announced a permanent reservation, twice, with
-/// the set of codes unchanged at 28 both times. Measured:
+/// **A count of ledger writes says `1 appended … which is permanent` for a
+/// write that appends nothing.** The ledger holds a header as well as its
+/// reservations — so with such a counter, editing a comment in `ledger.rs` and
+/// rebuilding announces a permanent reservation, twice, with the set of codes
+/// unchanged both times. Measured with such a counter, on a ledger of 28 codes:
 ///
 /// ```text
 /// cargo xtask build   ->  ok  15 generated file(s), 0 rewritten
@@ -134,12 +131,12 @@ pub(crate) fn run(root: &Path, reserve: bool) -> Result<(), String> {
 /// grep -c '^"NC-' catalog/errors.reserved.toml   ->  28   (28 before, 28 after)
 /// ```
 ///
-/// A developer reading that has been told a number was burned. In a tree with
-/// no history to check it against, the next thing they do is try to take it
-/// back — and the refusal they get names a code this run never reserved.
+/// A developer reading that has been told a number was burned. The next thing
+/// they do is try to take it back — and the refusal they get names a code this
+/// run never reserved.
 ///
 /// Phrased from `newly_reserved`, which is the same list the lines above are
-/// printed from, so the count and the names can no longer disagree.
+/// printed from, so the count and the names cannot disagree.
 fn what_the_ledger_write_was(reserved: &[String]) -> String {
     if reserved.is_empty() {
         "and catalog/errors.reserved.toml was rewritten, reserving nothing new".to_owned()
@@ -158,19 +155,19 @@ fn what_the_ledger_write_was(reserved: &[String]) -> String {
 /// and a TOML round trip would be a second opinion about a file the compiler
 /// already rendered.
 ///
-/// **A clause no input could decide, and a corpus that did not decide the
-/// other.** The filter read `starts_with('"') && line.contains(" = ")`, and a
-/// reviewer swept both halves on 2026-09-14: deleting either left the suite
-/// green. The quote half cannot be decided by anything, because the condition
-/// under which it is false is exactly the condition under which the
-/// `strip_prefix('"')` below drops the line — one rule written twice, two lines
-/// apart, with the second copy doing the work. It is gone.
+/// **One clause, because a second could be decided by no input.** A quote half
+/// beside it, as in `starts_with('"') && line.contains(" = ")`, cannot be
+/// decided by anything, because the condition under which it is false is
+/// exactly the condition under which the `strip_prefix('"')` below drops the
+/// line — one rule written twice, two lines apart, with the second copy doing
+/// the work. Measured on that two-clause filter against a corpus with no
+/// quoted line lacking a ` = `, deleting either half leaves the suite green.
 ///
-/// What is left is the clause that does decide: a quoted line with no ` = ` is
+/// The clause here is the one that does decide: a quoted line with no ` = ` is
 /// not a key and a build must not make it permanent. `next = 30` and
-/// `# a note = with an equals in it` never reached this filter at all — they
-/// have no leading quote — so the corpus below drives the surviving half with a
-/// line that does.
+/// `# a note = with an equals in it` are not decided by it — they have no
+/// leading quote, so `strip_prefix('"')` drops them whatever it says — so the
+/// corpus below drives it with a line that does.
 fn the_codes_reserved_in(text: &str) -> Vec<String> {
     text.lines()
         .map(str::trim)
@@ -215,23 +212,24 @@ fn report(problems: &[Problem]) -> String {
 /// manifest for rustfmt to infer it from; without it a 2024 construct is
 /// reformatted as 2015 or refused.
 ///
-/// **And it runs *in the repository*, which it did not.** rustfmt discovers its
-/// configuration by walking up from its working directory, and this child
-/// inherited whoever's shell started `xtask` — while `xtask` itself takes its
-/// root from the manifest, deliberately, so the two disagreed the moment
-/// somebody ran the verb from anywhere else. `check`'s
-/// `the_formatter_config_stops_here` asks whether `rustfmt.toml` is at the root;
-/// it is, and the walk was not starting there. Measured, same binary, same tree,
-/// a `rustfmt.toml` with `max_width = 60` one directory above the workspace:
+/// **And it runs *in the repository*.** rustfmt discovers its configuration by
+/// walking up from its working directory, and a child left where it is
+/// inherits whoever's shell started `xtask` — while `xtask` itself takes its
+/// root from the manifest, deliberately, so the two disagree the moment
+/// somebody runs the verb from anywhere else. `check`'s
+/// `the_formatter_config_stops_here` asks whether `rustfmt.toml` is at the root,
+/// which says nothing about where the walk starts. Measured with the child not
+/// moved, same binary, same tree, a `rustfmt.toml` with `max_width = 60` one
+/// directory above the workspace:
 ///
 /// ```text
 /// from the repository root  ->  ok  15 generated file(s), 0 rewritten
 /// from /tmp                 ->  ok  15 generated file(s), 6 rewritten
 /// ```
 ///
-/// With `newline_style = "Windows"` instead, nine files were rewritten to CRLF
-/// and `cargo fmt --all --check` passed — rustfmt's default is `Auto`, which
-/// preserves what a file already has. None of the three determinism gates saw
+/// With `newline_style = "Windows"` instead, nine files are rewritten to CRLF
+/// and `cargo fmt --all --check` passes — rustfmt's default is `Auto`, which
+/// preserves what a file already has. None of the three determinism gates sees
 /// either one: they compare two generations *in the same process*, in the same
 /// directory.
 fn rustfmt(root: &Path, source: &str) -> Result<checked::Formatted, String> {
@@ -260,9 +258,9 @@ fn rustfmt(root: &Path, source: &str) -> Result<checked::Formatted, String> {
         // **Two sentences, because there are two failures.** rustfmt refuses
         // either because the emitted source will not parse, or because it is not
         // installed — and the second is not the emitter's fault at all. Written
-        // as one, the message ended with the *parse* advice after a refusal that
-        // had nothing to do with positions, and rustfmt's own stderr was
-        // concatenated onto a sentence that then opened with a bare `.`:
+        // as one, the message ends with the *parse* advice after a refusal that
+        // has nothing to do with positions, and rustfmt's own stderr is
+        // concatenated onto a sentence that then opens with a bare `.`:
         //
         // ```text
         // error rustfmt refused the emitted source: error: 'rustfmt' is not
@@ -270,11 +268,11 @@ fn rustfmt(root: &Path, source: &str) -> Result<checked::Formatted, String> {
         //       . Its positions are offsets into a stream, not into a file — …
         // ```
         //
-        // Measured with rustfmt off `PATH`, which is the state
-        // `.github/workflows/ci.yml`'s `deterministic` job was in: it installs
-        // the toolchain without `components: rustfmt, clippy`, and this runs
-        // rustfmt from `PATH` on every generated file. `AGENTS.md` requires a
-        // refusal to end with its fix, and one of these two did not have one.
+        // Measured with rustfmt off `PATH`, which is the state a CI job is in
+        // when it installs the toolchain without `components: rustfmt, clippy`
+        // — and this runs rustfmt from `PATH` on every generated file.
+        // `AGENTS.md` requires a refusal to end with its fix, and a single
+        // sentence gives one of these two none.
         // Two early returns rather than one `Err(if … {} else {})`, because a
         // sentence built inside a conditional expression is one
         // `WHAT_THE_GATE_CAN_SAY` cannot read: its reader takes the literal that
@@ -297,13 +295,12 @@ fn rustfmt(root: &Path, source: &str) -> Result<checked::Formatted, String> {
     }
     let formatted = String::from_utf8(output.stdout)
         .map_err(|error| format!("rustfmt returned invalid UTF-8: {error}"))?;
-    // **The checked source is the only source there is.** This was
+    // **The checked source is the only source there is.** Written as
     // `check_formatted(&formatted)?;` on its own line above an `Ok(formatted)`,
-    // and a `?` on a line of its own is discardable: `let _ = check_formatted(…)`
-    // compiles, changes no verdict anywhere, and hands every caller rustfmt's
-    // output unread. Measured in round sixty-two by a reviewer sweeping the
-    // clauses no mutation operator reaches — the guard had three unit tests and
-    // its call site had none.
+    // the check is discardable: `let _ = check_formatted(…)` compiles, changes
+    // no verdict anywhere, and hands every caller rustfmt's output unread — and
+    // unit tests of the guard cannot tell, because they do not reach its call
+    // site.
     //
     // Handing the string back *through* the check is not a better-tested version
     // of the same shape; it is a different shape. There is no `formatted` to
@@ -315,10 +312,10 @@ fn rustfmt(root: &Path, source: &str) -> Result<checked::Formatted, String> {
 /// Whether what is on disk is already these bytes.
 ///
 /// **Named so it can be driven.** Written inline in the loop it guards, the
-/// decision was reachable by nothing: a reviewer replaced the `continue` with a
-/// `false` in round sixty-two and every suite stayed green, because what it
-/// costs is a modification time rather than a wrong byte. That is a real cost —
-/// an identical rewrite wakes a file watcher, and a watcher woken by its own
+/// decision would be reachable by nothing: the `continue` replaced with a
+/// `false` would leave every suite green, because what it costs is a
+/// modification time rather than a wrong byte. That is a real cost — an
+/// identical rewrite wakes a file watcher, and a watcher woken by its own
 /// tool's writes is a loop that never settles — and it is the kind a test has to
 /// be written for on purpose, because nothing else will notice.
 ///
@@ -332,22 +329,19 @@ fn already_written(path: &Path, contents: &str) -> bool {
 /// Write the generated files that differ, put the ledger in place, and say how
 /// many of each.
 ///
-/// **Lifted because nothing drives [`run`], so nothing decided any of this.**
-/// The write loop lived in `run`, `run` has one caller and no test, and `check`
-/// reaches only [`artifacts`] — so every clause here was held by reading alone.
-/// Measured on 2026-09-15, each alone, with the whole suite and `cargo xtask
-/// check` green after every one: the ledger counted among the generated files
-/// (`written += 1` beside its branch, the arithmetic this function's own history
-/// records going wrong twice before); the announcement made to read a
-/// hand-tallied counter instead of the list; and the list of files to write
-/// emptied outright, so a run would report nothing rewritten and write nothing.
-/// Three defects, `598 passed` for all three.
+/// **Lifted because nothing drives [`run`].** `run` has one caller and no test,
+/// and `check` reaches only [`artifacts`] — so a write loop inside `run` would
+/// be held by reading alone. Measured with the loop inside `run`, each alone,
+/// with the whole suite and `cargo xtask check` green after every one: the
+/// ledger counted among the generated files (`written += 1` beside its
+/// branch); the announcement made to read a hand-tallied counter instead of
+/// the list; and the list of files to write emptied outright, so a run would
+/// report nothing rewritten and write nothing.
 ///
-/// A structural repair was tried first and measured **not** to work: computing
-/// the count from the list rather than tallying it left all three plants green,
-/// because the problem was never which expression the number came from — it was
-/// that no test reaches the function at all. What closes it is a seam a test can
-/// hold, which is this.
+/// Computing the count from the list rather than tallying it, inside `run`,
+/// leaves all three green, because the problem there is not which expression
+/// the number comes from — it is that no test reaches the function at all.
+/// What closes it is a seam a test can hold, which is this.
 ///
 /// The two counts are returned rather than printed, because a number a function
 /// prints is a number only a person can check.
@@ -359,8 +353,9 @@ fn write_what_changed(
     let mut written = 0_usize;
     for file in files {
         // See [`what_a_run_would_write`]: this decision is the one that says
-        // whether the verb writes anything, and inverted it wrote nothing with
-        // a full `check` green.
+        // whether the verb writes anything, and inverted it writes nothing —
+        // and the counts `the_ledger_is_counted_apart_from_the_generated_files`
+        // asserts then fail.
         if what_a_run_would_write(root, [(file.path.as_str(), file.contents.as_str())]).is_empty() {
             // An identical rewrite bumps the modification time, which is enough
             // to wake a file watcher and start a loop that never settles.
@@ -371,9 +366,9 @@ fn write_what_changed(
         std::fs::write(&path, &file.contents).map_err(|error| {
             // **The clause only when it is true.** `written` counts files
             // actually rewritten, so when the first differing file is the one
-            // that fails the sentence asserted an intermediate state that does
-            // not exist — at the moment a developer is deciding whether it is
-            // safe to stop.
+            // that fails, an unconditional clause asserts an intermediate state
+            // that does not exist — at the moment a developer is deciding
+            // whether it is safe to stop.
             let part_way = if written > 0 {
                 format!(
                     " — {written} generated file(s) were rewritten before it, so this \
@@ -390,22 +385,21 @@ fn write_what_changed(
         })?;
         written += 1;
     }
-    // **The ledger after them, and counted apart.** The loop used to chain it
-    // onto the generated files and branch inside, so one counter answered two
-    // questions — a run that rewrote everything printed one more rewritten than
-    // there are files, and a run that rewrote only the ledger printed `1
-    // rewritten` with all fifteen byte-identical. Both measured. The second is
-    // the one that matters: an append to the append-only ledger, permanent and
-    // the one write here that cannot be undone, announced as a generated file
+    // **The ledger after them, and counted apart.** Chained onto the generated
+    // files with a branch inside, one counter answers two questions — a run
+    // that rewrites everything prints one more rewritten than there are files,
+    // and a run that rewrites only the ledger prints `1 rewritten` with every
+    // generated file byte-identical. Both measured. The second is the one that
+    // matters: an append to the append-only ledger, permanent and the one
+    // write here that cannot be undone, announced as a generated file
     // changing.
     if what_a_run_would_write(root, [(ledger.path.as_str(), ledger.contents.as_str())]).is_empty() {
         return Ok((written, None));
     }
     // **Read here, one statement above the write it is a reading of.** Which
     // codes this run makes permanent is a fact about the ledger *before* it is
-    // replaced, and the caller used to read it — so the read and the write were
-    // two statements a reordering could swap, which is what round seventy-one
-    // planted. Inside, there is nothing to reorder.
+    // replaced, and read by the caller, the read and the write would be two
+    // statements a reordering can swap. Inside, there is nothing to reorder.
     let reserved = newly_reserved(root, ledger);
     let path = root.join(&ledger.path);
     make_room_for(&path)?;
@@ -430,7 +424,7 @@ fn make_room_for(path: &Path) -> Result<(), String> {
 /// produces: 4096 bytes of 5090, 22 reservations of 28, and *no error line at
 /// all*, the process having taken the signal.
 ///
-/// What follows from that is the whole finding. The next run reports `does not
+/// What follows from that is the hazard. The next run reports `does not
 /// match its own checksum, so it was edited outside the compiler` — blaming a
 /// person for the tool's own interrupted write — and offers `--reserve` as the
 /// remedy. Following it verbatim, `reconcile` re-derives every truncated-away
@@ -448,16 +442,16 @@ fn make_room_for(path: &Path) -> Result<(), String> {
 /// has no visible effect until `catalog/errors.toml` changes between them; a
 /// name of this process's own costs nothing and removes the question.
 ///
-/// **And the temp file goes with the failure.** A partial write left a truncated
-/// `errors.reserved.toml.writing.<pid>` beside the real ledger — measured under
-/// `ulimit -f`, 4096 bytes of 5088 — and nothing removed it: the next build
-/// makes a new name, `check` printed `check passed` with it there, and
-/// `.gitignore` had no pattern for it. A syntactically plausible half-ledger
-/// sitting next to the real one is the worst litter this directory can hold.
+/// **And the temp file goes with the failure.** A partial write leaves a
+/// truncated `errors.reserved.toml.writing.<pid>` beside the real ledger —
+/// measured under `ulimit -f`, 4096 bytes of 5088 — and left there, it is never
+/// reused: the next build makes a new name beside it. A syntactically
+/// plausible half-ledger sitting next to the real one is the worst litter this
+/// directory can hold.
 ///
-/// The messages are about the ledger, too. They named the temp path — absolute,
-/// in a run whose every other line is repository-relative, for a file the reader
-/// has never seen and which no longer exists.
+/// The messages are about the ledger, too, and not the temp path — which is
+/// absolute, in a run whose every other line is repository-relative, for a file
+/// the reader has never seen and which no longer exists.
 fn put_the_ledger_in_place(path: &Path, contents: &str, named: &str) -> Result<(), String> {
     let beside = path.with_extension(format!("toml.writing.{}", std::process::id())); // allow-nondeterminism: `process::id` names the temp file the ledger is renamed from, and reaches no output
     if let Err(error) = std::fs::write(&beside, contents) {
@@ -477,26 +471,25 @@ fn put_the_ledger_in_place(path: &Path, contents: &str, named: &str) -> Result<(
 
 /// What a run wrote, as the sentence the console shows.
 ///
-/// **Two numbers that are different things, and nothing told them apart.** The
-/// sentence is "N generated file(s), M rewritten": the first is how many the
-/// compiler produced, the second how many reached disk. Substituting the
-/// second for the first — so a run that rewrote nothing reports zero generated
-/// files, and a full rewrite reports both the same — left the whole suite and a
-/// full `check` green, measured in round sixty-seven. A reader watching for
-/// drift reads the gap between them.
+/// **Two numbers that are different things.** The sentence is
+/// "N generated file(s), M rewritten": the first is how many the compiler
+/// produced, the second how many reached disk. Substituting the second for the
+/// first — so a run that rewrote nothing reports zero generated files, and a
+/// full rewrite reports both the same — fails
+/// `a_run_says_what_it_generated_and_what_it_rewrote`, and nothing a live run
+/// prints would show it. A reader watching for drift reads the gap between
+/// them.
 fn what_a_run_wrote(files: usize, written: usize) -> String {
     format!("{files} generated file(s), {written} rewritten")
 }
 
 /// Which of `files` a run would write, by workspace-relative path.
 ///
-/// **The polarity of the skip, which nothing could reach.** `already_written`
-/// carries its own unit test — round sixty-two emptied it and every suite
-/// stayed green, and the repair was to name it and drive it. The `continue` it
-/// guards got nothing: inverted, `cargo xtask build` writes **nothing at all**,
-/// and a full `check` said `check passed`. That is strictly worse than the
-/// defect the repair was made for. Measured in round sixty-seven, in a file no
-/// mutation operator reached.
+/// **The polarity of the skip, which a test of the predicate cannot reach.**
+/// `already_written` carries its own unit test, which passes whichever way the
+/// `continue` it guards is turned; that is a second decision: inverted,
+/// `cargo xtask build` writes **nothing at all** — strictly worse than a
+/// predicate that answers wrong.
 ///
 /// Lifted so a test can hand it a directory holding one of three files and read
 /// back which are left to write.
@@ -513,18 +506,17 @@ fn what_a_run_would_write<'a>(
 
 /// Source that has been through the header check, and no other source.
 ///
-/// **A `?` on a line of its own is discardable.** The check used to sit above an
-/// `Ok(formatted)` as a statement, so `let _ = check_formatted(…)` compiled,
-/// changed no verdict anywhere, and handed every caller rustfmt's output unread
-/// — on the guard whose own paragraph records a stub `rustfmt` emptying every
-/// committed generated file to zero bytes while `build` reported `8 rewritten`.
-/// It had three unit tests; its call site had none. Measured in round sixty-two.
+/// **A `?` on a line of its own is discardable.** As a statement above an
+/// `Ok(formatted)`, `let _ = check_formatted(…)` compiles, changes no verdict
+/// anywhere, and hands every caller rustfmt's output unread — on the guard
+/// whose own paragraph records a stub `rustfmt` emptying every committed
+/// generated file to zero bytes while `build` reports them rewritten. Unit
+/// tests of the guard cannot tell, because they do not reach its call site.
 ///
-/// Returning the string *through* the check closes the shape the reviewer
-/// planted and leaves `check_formatted(formatted.clone())` beside it. A private
-/// field in a module of its own closes the question instead: nothing outside
-/// these few lines can build a [`checked::Formatted`], so the only value
-/// [`rustfmt`] has
+/// Returning the string *through* the check closes the `let _` shape and
+/// leaves `check_formatted(formatted.clone())` beside it. A private field in a
+/// module of its own closes the question instead: nothing outside these few
+/// lines can build a [`checked::Formatted`], so the only value [`rustfmt`] has
 /// to give back is the one the check handed it, and a caller that drops the
 /// verdict has nothing to return and does not compile.
 mod checked {
@@ -541,9 +533,8 @@ mod checked {
         /// **Trusting a zero exit is not enough**, and this is measured rather
         /// than argued: a `rustfmt` earlier in `PATH` that exits zero and prints
         /// nothing — a stub, a wrapper, a shim, a `rustfmt` from a broken
-        /// toolchain — made `build` report `ok, 8 generated file(s), 8
-        /// rewritten` while emptying every committed generated file to zero
-        /// bytes.
+        /// toolchain — trusted on its exit alone, makes `build` report every
+        /// generated file rewritten while emptying each to zero bytes.
         pub(super) fn new(formatted: String) -> Result<Self, String> {
             if formatted.contains(nc_catalog_compiler::GENERATED) {
                 return Ok(Self(formatted));
@@ -568,18 +559,18 @@ mod checked {
 mod tests {
     /// The write loop counts the generated files and the ledger apart.
     ///
-    /// **Nothing drove any of this.** `write_what_changed` was the body of
-    /// [`super::run`], `run` has one caller and no test, and `check` reaches only
-    /// [`super::artifacts`] — so three defects planted one at a time each left
-    /// `598 passed` and `cargo xtask check` green: the ledger counted among the
-    /// generated files, the announcement reading a hand-tallied counter, and the
-    /// list of files to write emptied outright.
+    /// **What [`super::run`] cannot drive.** With the loop inside `run` — one
+    /// caller and no test, with `check` reaching only [`super::artifacts`] —
+    /// three defects planted one at a time each leave the suite and
+    /// `cargo xtask check` green: the ledger counted among the generated files,
+    /// the announcement reading a hand-tallied counter, and the list of files
+    /// to write emptied outright.
     ///
     /// Driven over a scratch root, because the seam is what makes it drivable at
-    /// all — a structural repair inside `run` was measured first and changed none
-    /// of the three. That the ledger arrives by a *rename* rather than by a write
-    /// over the file is [`the_ledger_is_placed_by_a_rename_and_not_a_write_over`]
-    /// and [`the_ledger_is_written_beside_itself_first`]: the three are apart
+    /// all — a structural repair inside `run` changes none of the three. That
+    /// the ledger arrives by a *rename* rather than by a write over the file is
+    /// [`the_ledger_is_placed_by_a_rename_and_not_a_write_over`] and
+    /// [`the_ledger_is_written_beside_itself_first`]: the three are apart
     /// because they fail for different causes and a reader should be told which.
     #[test]
     fn the_ledger_is_counted_apart_from_the_generated_files() {
@@ -591,10 +582,10 @@ mod tests {
             path: format!("crates/nc-catalog/src/{name}"),
             contents: body.to_owned(),
         };
-        // **The fixture holds reservations, not a comment.** It held `# one`,
-        // so every reading of *which codes this run makes permanent* was an
-        // empty list whatever the code did — a test baselined where it cannot
-        // fail, one step from the seam that now carries the reading.
+        // **The fixture holds reservations, not a comment.** A fixture of
+        // `# one` makes every reading of *which codes this run makes permanent*
+        // an empty list whatever the code does — a test baselined where it
+        // cannot fail, one step from the seam that carries the reading.
         let ledger = EmittedFile {
             path: "catalog/errors.reserved.toml".to_owned(),
             contents: "[reserved]\n\"NC-CAT-0001\" = \"one — the first\"\n".to_owned(),
@@ -618,22 +609,22 @@ mod tests {
             "a second build over identical bytes reported {said:?}"
         );
 
-        // **The ledger alone.** This is the count that was wrong twice: a run
-        // that appends to the append-only ledger and rewrites no generated file
-        // must say so, and a counter shared between the two cannot.
+        // **The ledger alone.** A run that appends to the append-only ledger and
+        // rewrites no generated file must say so, and a counter shared between
+        // the two cannot.
         let moved = EmittedFile {
             contents: "[reserved]\n\"NC-CAT-0001\" = \"one — the first\"\n\"NC-CAT-0002\" = \"two — the second\"\n"
                 .to_owned(),
             ..ledger.clone()
         };
         let said = super::write_what_changed(&scratch, &files, &moved).expect("writable");
-        // **And the names are the ones this run made permanent**, which is the
-        // reading the caller used to do one statement earlier. Planted in round
-        // seventy-one by swapping those two statements: the whole suite stayed
-        // green while every build that burned a code announced *reserving
-        // nothing new*, because the ledger on disk is the ledger just written.
-        // The reading is inside the write now, and this is what holds it: a
-        // reading taken after the write can only answer `Some([])` here.
+        // **And the names are the ones this run made permanent.** Read by the
+        // caller one statement apart from the write, the two statements could
+        // be swapped with the whole suite green while every build that burns a
+        // code announces *reserving nothing new*, because the ledger on disk is
+        // the ledger just written. The reading is inside the write, and this is
+        // what holds it: a reading taken after the write can only answer
+        // `Some([])` here.
         assert_eq!(
             said,
             (0, Some(vec!["NC-CAT-0002".to_owned()])),
@@ -657,16 +648,16 @@ mod tests {
             "a build that rewrote one generated file and no ledger reported {said:?}"
         );
 
-        // **The part-way clause, which nothing decided.** `written > 0` is what
-        // tells a developer whether the tree is mid-build at the moment they are
-        // deciding whether it is safe to stop, and no test drove a *failing*
-        // generated-file write — the readonly directory in the test beside this
-        // one fails inside `put_the_ledger_in_place`, after the loop has written
-        // nothing. So the condition could become `written > files.len()`, never
-        // true, and every interrupted build would say the tree is as it was
-        // however many files it had already rewritten. Measured on F1's seventh
-        // pass: green, and green again under the two censuses that pin the
-        // sentences, because they pin the literals and not the branch.
+        // **The part-way clause, driven.** `written > 0` is what tells a
+        // developer whether the tree is mid-build at the moment they are
+        // deciding whether it is safe to stop, and the readonly directory in the
+        // test beside this one fails inside `put_the_ledger_in_place`, after the
+        // loop has written nothing. A test with no *failing* generated-file
+        // write cannot tell the condition from `written > files.len()`, never
+        // true, under which every interrupted build says the tree is as it was
+        // however many files it had already rewritten; nor can the two censuses
+        // that pin the sentences, because they pin the literals and not the
+        // branch.
         //
         // Driven here by making the *second* file unwritable, so the first is
         // rewritten before the failure.
@@ -695,13 +686,12 @@ mod tests {
 
     /// A sibling write that fails takes the sibling with it too.
     ///
-    /// **Of the two cleanups, only one was covered, and it was not the one the
-    /// hazard was measured on.** The test below reaches the *rename* failure —
-    /// the sibling is written fine there — so deleting
-    /// `let _ = remove_file(&beside)` from the `fs::write` branch left the whole
-    /// suite green, measured by a reviewer in round seventy-one. That branch is
-    /// exactly the one `put_the_ledger_in_place`'s paragraph measures under
-    /// `ulimit -f`: the write fails **after** creating the file and leaves a
+    /// **The cleanup the hazard is measured on.** The test below reaches the
+    /// *rename* failure — the sibling is written fine there — so it never takes
+    /// the `fs::write` branch, and deleting `let _ = remove_file(&beside)` from
+    /// that branch fails this test instead. That branch is exactly the one
+    /// `put_the_ledger_in_place`'s paragraph measures under `ulimit -f`: the
+    /// write fails **after** creating the file and leaves a
     /// truncated `errors.reserved.toml.writing.<pid>` — 4096 bytes of 5088 —
     /// beside the real ledger.
     ///
@@ -752,14 +742,13 @@ mod tests {
 
     /// A placement that fails takes its half-written sibling with it.
     ///
-    /// **"The temp file goes with the failure" was decided by nothing.** Both
-    /// `let _ = std::fs::remove_file(&beside)` lines could be deleted with the
-    /// whole suite green, measured in round seventy-one: the test beside this
-    /// one asserts nothing is left beside the ledger only after a *successful*
-    /// run, where the rename consumed the sibling and the cleanup never ran —
-    /// and in its failing case the sibling was never created, so the cleanup is
-    /// a no-op there too. No test ever reached a state where a sibling exists
-    /// **and** the placement fails.
+    /// **"The temp file goes with the failure", driven.**
+    /// [`the_ledger_is_written_beside_itself_first`] asserts nothing is left
+    /// beside the ledger only after a *successful* run, where the rename
+    /// consumes the sibling and the cleanup never runs — and in its failing case
+    /// the sibling is never created, so the cleanup is a no-op there too. This
+    /// reaches a state where a sibling exists **and** the placement fails, so
+    /// deleting the cleanup on the rename's failure path fails it.
     ///
     /// That state is made here by putting a directory where the ledger goes:
     /// the sibling is written normally and `rename` refuses to replace a
@@ -769,9 +758,9 @@ mod tests {
     /// **And what it cannot cover is said rather than implied.** The paragraph
     /// on `put_the_ledger_in_place` measures the hazard under `ulimit -f`,
     /// where the process takes `SIGXFSZ` — and a cleanup on an error-return path
-    /// does not run when the process dies, nor on `^C`, nor under the OOM killer
-    /// this machine has used in this campaign. For those a stale sibling has to
-    /// be *found* rather than prevented, and it is:
+    /// does not run when the process dies, nor on `^C`, nor under the OOM
+    /// killer. For those a stale sibling has to be *found* rather than
+    /// prevented, and it is:
     /// `nothing_unnamed_sits_in_the_catalog` refuses a name the catalog does not
     /// declare, and the kind walk allows only `toml` under `catalog/`.
     #[test]
@@ -818,11 +807,11 @@ mod tests {
     ///
     /// **A rename replaces a directory entry; a write mutates an inode.** That
     /// is the difference the sibling-and-rename exists for, and it is the one
-    /// thing no test read: the neighbour below proves only that a *new* file is
-    /// created beside the ledger, and `check`'s rule proves only that two byte
-    /// sequences appear in the source. A reviewer moved the placement onto a
-    /// branch production never leaves — write-over when the ledger exists,
-    /// rename when it does not — and everything stayed green.
+    /// thing the neighbour below cannot read: it proves only that a *new* file
+    /// is created beside the ledger, and `check`'s rule proves only that two
+    /// byte sequences appear in the source. A placement moved onto a branch
+    /// production never leaves — write-over when the ledger exists, rename when
+    /// it does not — leaves both green.
     ///
     /// So the inode is what is asked. A second name is hard-linked onto the
     /// ledger before a build that changes it; after a rename that link still
@@ -884,25 +873,24 @@ mod tests {
     /// The ledger is written beside its own path first.
     ///
     /// **What this proves is that the ledger is written *beside* itself, and
-    /// that is all it proves.** Its own paragraph below said "the rename must
-    /// fail and leave the ledger exactly as it was", and a reviewer measured in
-    /// round seventy-one that the rename is never reached: a directory at mode
-    /// 0555 refuses a *new* file with `EACCES` while a truncating write onto the
-    /// ledger already in it succeeds, so what fails here is the
-    /// `fs::write(&beside, …)` one line above. A placement moved onto a branch
+    /// that is all it proves.** The rename is never reached here: a directory at
+    /// mode 0555 refuses a *new* file with `EACCES` while a truncating write onto
+    /// the ledger already in it succeeds, so what fails here is the
+    /// `fs::write(&beside, …)` that `put_the_ledger_in_place` runs before the
+    /// rename. A placement moved onto a branch
     /// production never leaves — write-over when the ledger exists, rename when
-    /// it does not — left this green and left `check`'s text rule green too,
+    /// it does not — leaves this green and leaves `check`'s text rule green too,
     /// because a `contains` cannot tell a live call from a dead branch.
     ///
-    /// So the two halves are two tests now, and
-    /// [`the_ledger_is_placed_by_a_rename_and_not_a_write_over`] is the one that
-    /// reads the placement.
+    /// So the two halves are two tests, and
+    /// [`the_ledger_is_placed_by_a_rename_and_not_a_write_over`] is the one
+    /// that reads the placement.
     ///
     /// **A rename told apart from its absence, which counting temp files cannot
     /// do.** "The rename left nothing beside it" is satisfied *harder* by never
-    /// making a temp file at all — so a reviewer replaced the sequence with
-    /// `fs::write(path, …)` straight onto the ledger and both halves of this
-    /// file's guard stayed green. Measured on F1's sixth pass.
+    /// making a temp file at all — the sequence replaced with
+    /// `fs::write(path, …)` straight onto the ledger leaves a count of temp
+    /// files green.
     ///
     /// What separates them is a directory that will not take a *new* file while
     /// the file already in it can still be truncated: creating
@@ -930,7 +918,7 @@ mod tests {
 
         // **The rename left nothing beside it.** A truncated
         // `…toml.writing.<pid>` next to the real ledger is the worst litter this
-        // directory can hold, and nothing used to remove it.
+        // directory can hold.
         let beside: Vec<String> = std::fs::read_dir(scratch.join("catalog")) // allow-nondeterminism: this `read_dir` lists a scratch directory to prove the rename left no temp file, and reaches no generated output
             .expect("readable")
             .filter_map(|entry| Some(entry.ok()?.file_name().to_str()?.to_owned()))
@@ -942,10 +930,11 @@ mod tests {
         );
 
         // The directory takes no new file; the ledger in it is still writable.
-        let was = std::fs::metadata(scratch.join("catalog")).expect("the directory is there");
-        let mut shut = was.permissions();
-        shut.set_readonly(true);
-        std::fs::set_permissions(scratch.join("catalog"), shut).expect("writable");
+        // **Through the door each system shuts a directory with.** A read-only
+        // mark is a mode on Unix and an attribute Windows ignores on a
+        // directory, so there the mark shuts nothing, and the build would
+        // write its sibling and rename it as though nothing were in the way.
+        nc_platform::testing::shut_its_owner_out(&scratch.join("catalog")).expect("shut");
         let refused = super::write_what_changed(
             &scratch,
             &files,
@@ -954,7 +943,7 @@ mod tests {
                 ..ledger.clone()
             },
         );
-        std::fs::set_permissions(scratch.join("catalog"), was.permissions()).expect("writable");
+        nc_platform::testing::make_private(&scratch.join("catalog")).expect("opened again");
         assert!(
             refused.is_err(),
             "the ledger's directory would take no new file and the build reported \
@@ -973,17 +962,14 @@ mod tests {
     /// A run says how many files it generated and how many it rewrote.
     ///
     /// Two numbers, and the sentence is the only place a reader sees the gap
-    /// between them. Substituting one for the other was invisible to the suite
-    /// and to a live run; this asks for both, with values that cannot be
-    /// confused.
+    /// between them. Substituting one for the other is invisible to a live run;
+    /// this asks for both, with values that cannot be confused.
     ///
-    /// **Its paragraph was displaced and the census was paid to match.** The
-    /// edit that lifted `write_what_changed` out of `run` put the new test
-    /// between this block and the function it was written for, so rustdoc
-    /// rendered it as the *other* test's summary and this one had none — and the
-    /// per-file ratchet was then bumped to the damaged numbers rather than the
-    /// shape being read. It was the doc-block rule beside it, not a reviewer,
-    /// that caught it. Anchor an insertion on the doc block, never on the `fn`.
+    /// **Anchor an insertion on the doc block, never on the `fn`.** A test
+    /// inserted between this block and the function it was written for makes
+    /// rustdoc render it as the *other* test's summary and leaves this one with
+    /// none — and a per-file ratchet bumped to match then pins the damaged
+    /// shape. The doc-block rule beside it is what reads the shape.
     #[test]
     fn a_run_says_what_it_generated_and_what_it_rewrote() {
         assert_eq!(
@@ -1000,11 +986,10 @@ mod tests {
 
     /// A run writes the files that are not already on disk, and only those.
     ///
-    /// **The decision, not the predicate.** Round sixty-two emptied
-    /// `already_written` with every suite green and repaired it by naming and
-    /// unit-testing it; the `continue` it guards was still reachable by
-    /// nothing, so inverting that one condition made `cargo xtask build` write
-    /// nothing at all and a whole `check` pass. Reported in round sixty-seven.
+    /// **The decision, not the predicate.** `already_written` is named and
+    /// unit-tested; the skip it guards is a second decision, and inverting that
+    /// one condition, which makes `cargo xtask build` write nothing at all,
+    /// fails this test.
     ///
     /// Both directions: skipping what must be written is a generated crate that
     /// stops tracking the registry, and writing what is already there bumps a
@@ -1046,15 +1031,15 @@ mod tests {
 
     /// A reservation is a quoted code **with a value beside it**.
     ///
-    /// **The row that was meant to decide this decided nothing.** `next = 30`
-    /// and `# a note = with an equals in it` were written to drive the quote
-    /// half of the filter, and neither reaches it: both are dropped by the
-    /// `strip_prefix('"')` two lines below, whatever the filter says. A reviewer
-    /// swept the filter on 2026-09-14 and found both halves green when deleted.
+    /// **`next = 30` and `# a note = with an equals in it` decide nothing
+    /// here.** Whatever the filter says, both are dropped by the
+    /// `strip_prefix('"')` in `the_codes_reserved_in`, so a corpus of only
+    /// those two rows cannot tell either half of a two-clause filter from its
+    /// absence.
     ///
-    /// The quote half is gone, and the row below drives what is left: a quoted
-    /// code on a line of its own is not a key, and read as one it makes that
-    /// code permanent in a ledger `AGENTS.md` says is append-only.
+    /// The row below drives the filter: a quoted code on a line of its own is
+    /// not a key, and read as one it makes that code permanent in a ledger
+    /// `AGENTS.md` says is append-only.
     #[test]
     fn only_a_quoted_line_reserves_a_code() {
         let ledger = concat!(
@@ -1076,15 +1061,15 @@ mod tests {
     /// What a build makes permanent is the codes the ledger did not already hold.
     ///
     /// **`AGENTS.md` states the contract as "announces each code it reserves, on
-    /// the line it reserves it", and which codes those are was decided by no
-    /// test.** Measured on 2026-09-08, the filter narrowed to
+    /// the line it reserves it", and which codes those are is decided
+    /// here.** Measured on 2026-09-08, the filter narrowed to
     /// `!already.contains(code) && !code.starts_with("NC")` — which is every code
     /// this catalog has: `cargo test -p xtask --bin xtask` green at 481, and the
     /// run would then say *"reserving nothing new"* while
-    /// `catalog/errors.reserved.toml` grew, permanently, in a tree with no git.
+    /// `catalog/errors.reserved.toml` grew, permanently.
     ///
     /// `what_the_ledger_write_was` — the sentence *chooser* — has a test; the
-    /// list it chooses from did not.
+    /// list it chooses from needs one too.
     #[test]
     fn a_build_reserves_the_codes_the_ledger_did_not_hold() {
         let held = crate::check::LeavesNothingBehind::new("scratch");
@@ -1173,8 +1158,9 @@ mod tests {
 
     #[test]
     fn nothing_coming_back_is_refused_and_the_message_says_what_to_check() {
-        // The exact failure a stub `rustfmt` produced: exit zero, no output, and
-        // every generated file truncated to nothing while `build` said "ok".
+        // The exact answer a stub `rustfmt` gives: exit zero and no output,
+        // which, trusted, would truncate every generated file to nothing while
+        // `build` said "ok".
         let error =
             Formatted::new(String::new()).expect_err("an empty result is not formatted source");
         assert!(error.contains("rustfmt"), "{error}");
@@ -1188,11 +1174,11 @@ mod tests {
 
     /// A ledger write with no new code does not claim a permanent reservation.
     ///
-    /// The counter this replaced incremented once per *write of the file*, and
-    /// the ledger holds a header above its reservations — so a comment edited in
-    /// `ledger.rs` announced `1 appended … which is permanent` with the code set
-    /// unchanged at 28. Both sentences are asserted, because the bug was not
-    /// that one was missing: it was that the wrong one was printed.
+    /// A counter incremented once per *write of the file*, with a header above
+    /// the ledger's reservations, makes a comment edited in `ledger.rs` announce
+    /// `1 appended … which is permanent` with the code set unchanged. Both
+    /// sentences are asserted, because the failure is not that one is missing:
+    /// it is that the wrong one is printed.
     #[test]
     fn a_ledger_rewrite_that_reserves_nothing_says_so() {
         // Written out in full, the way `each_audit_says_what_it_ran` pins the

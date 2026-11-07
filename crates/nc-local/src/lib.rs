@@ -13,9 +13,12 @@
 //!
 //! # What opening does, in order
 //!
-//! 1. **The directory is private.** Created `0700` when it is missing; when it
+//! 1. **The directory is private.** Created private when it is missing; when it
 //!    exists it must be a directory and not a link to one, owned by this
-//!    process's user, with no group or other bits and every owner bit. Anything
+//!    process's user, reachable by nobody else, and giving its owner
+//!    everything. What each of those is on each system is `nc_platform`'s:
+//!    `0700`, no group or other bit and every owner bit on Unix; on Windows an
+//!    owner the token names and an access list naming that user alone. Anything
 //!    else is refused — [`LocalError::Refused`], `NC-DB-0006`, whose message
 //!    says the folder or the files are not set up for this user alone to read
 //!    and write — and nothing is created in it. A path the filesystem cannot
@@ -25,15 +28,17 @@
 //!    exclusive lock every other open of the profile waits on until this one
 //!    has migrated the file: SQLite refuses two connections turning a new
 //!    file's journal into a write-ahead log at once, and `sqlx` takes no lock
-//!    around a migration.
-//! 2. **The file is created by this crate, `0600`, before SQLite sees it.**
-//!    SQLite would create it `0644` less the umask, and its `-wal` and `-shm`
-//!    companions take the database file's mode rather than the umask, so the
-//!    mode of all three is decided here. `create_new` is `O_CREAT | O_EXCL`,
-//!    which does not follow a link at the last component. A file that exists is
-//!    held to the same owner, mode and not-a-link rule — read and write for its
-//!    owner, nothing for anybody else — and so are the companions when they are
-//!    there.
+//!    around a migration. On Windows, which locks no directory, the lock is a
+//!    private file beside the database, [`LOCK_NAME`].
+//! 2. **The file is created by this crate, private, before SQLite sees it.**
+//!    On Unix SQLite would create it `0644` less the umask, and its `-wal` and
+//!    `-shm` companions take the database file's mode rather than the umask, so
+//!    the mode of all three is decided here; on Windows the companions inherit
+//!    the directory's one entry. Created new, never through a link — on Unix
+//!    `create_new` is `O_CREAT | O_EXCL`, which does not follow one at the last
+//!    component. A file that exists is held to the same owner, reach and
+//!    not-a-link rule — read and write for its owner, nothing for anybody else
+//!    — and so are the companions when they are there.
 //! 3. **The pragmas are the connection's, not the schema's**, set through
 //!    `SqliteConnectOptions` on every connection the pool opens:
 //!    `journal_mode = WAL`, `synchronous = FULL`, `foreign_keys = ON`,
@@ -41,12 +46,13 @@
 //!    and `fullfsync = ON` on macOS. **The file is judged first, on a
 //!    connection of its own, read-only, that sets all of them but
 //!    `journal_mode`**, the one that writes the file: it converts a database
-//!    in another journal mode on the first connection that asks, and another
-//!    application's file was converted, measured, before it was refused as
-//!    another application's. Read-only because a connection that may write
-//!    writes on its own as well — the last to close a file checkpoints its
-//!    `-wal` into it, and the first to read one rolls a hot journal back — and
-//!    a hot journal, which this build never leaves, is `NC-DB-0007`.
+//!    in another journal mode on the first connection that asks, and set on
+//!    the judging one it would convert another application's file, measured,
+//!    before refusing it as another application's. Read-only because a
+//!    connection that may write writes on its own as well — the last to close
+//!    a file checkpoints its `-wal` into it, and the first to read one rolls a
+//!    hot journal back — and a hot journal, which this build never leaves, is
+//!    `NC-DB-0007`.
 //! 4. **The file says whose it is.** Its header's `application_id` must be this
 //!    platform's before anything is migrated — or zero on a file that holds no
 //!    table yet, which is one this crate just created. `0001_plugin_store.sql`
@@ -75,18 +81,18 @@
 //! then closed in the journal must still be there, so this is `FULL`. Measured
 //! on this machine (ZFS, `sync=standard`, so the fsyncs are real): a
 //! single-row commit takes a median of 0.26–0.33 ms under `FULL` and
-//! 0.03–0.05 ms under `NORMAL`, measured on 2026-09-28 as 200 single-row
-//! autocommit `INSERT`s into a WAL database under each setting, timed one by
-//! one, median taken. That procedure is what to repeat on another disk, because
-//! the number is the disk's and not this crate's.
+//! 0.03–0.05 ms under `NORMAL`, measured as 200 single-row autocommit `INSERT`s
+//! into a WAL database under each setting, timed one by one, median taken. That
+//! procedure is what to repeat on another disk, because the number is the
+//! disk's and not this crate's.
 //!
 //! # Every statement names `main.`, and every write counts what it changed
 //!
 //! A `TEMP` table shadows a `main` table of the same name for unqualified
 //! names on the connection that made it, so every statement here writes
 //! `main.`. That does not stop a `TEMP` *trigger* on a `main` table: measured,
-//! `BEFORE UPDATE … RAISE(IGNORE)` turned the append-only refusal into success
-//! with no row changed, and `BEFORE INSERT … RAISE(IGNORE)` made an insert
+//! `BEFORE UPDATE … RAISE(IGNORE)` turns the append-only refusal into success
+//! with no row changed, and `BEFORE INSERT … RAISE(IGNORE)` makes an insert
 //! report success having written nothing. So every write checks that
 //! `rows_affected()` is the number it had to be, and every transaction begins
 //! by checking `temp.sqlite_schema` is empty; either failing is
@@ -98,8 +104,9 @@
 //! # What this answers (`§2.4`)
 //!
 //! Another account on the machine reading or rewriting the plugin store: the
-//! directory is `0700` and every file `0600`, and a link or a foreign owner
-//! anywhere in that is refused rather than opened. A plugin reaching another
+//! directory and every file are this user's alone — `0700` and `0600` on Unix,
+//! an access list naming the user alone on Windows — and a link or a foreign
+//! owner anywhere in that is refused rather than opened. A plugin reaching another
 //! plugin's keys: every read and write names the plugin, which the kernel binds
 //! from the manifest, and no plugin ever supplies SQL — and the realm, so the
 //! kernels of two realms on one machine never read or write each other's,
@@ -118,9 +125,10 @@
 //! anchor of the journal off this machine is a later stage's, which `NOCTUA.md
 //! §14.9` leaves to choose. SQLite's `DEFENSIVE`
 //! flag and an authorizer are not reachable through `sqlx`'s safe API, and
-//! nothing here runs SQL anybody but this repository wrote. **Unix only**: the
-//! modes and owners above are read through `std::os::unix`, and a build for
-//! another family does not compile rather than opening a file it cannot judge.
+//! nothing here runs SQL anybody but this repository wrote. On Windows, the
+//! Administrators group, `SYSTEM` and a process holding the backup or the
+//! take-ownership privilege read and take whatever an access list says,
+//! as root does on Unix.
 
 #![deny(clippy::print_stdout, clippy::print_stderr, clippy::dbg_macro)]
 // Every doctest of this crate forbids `unsafe` as the crate does: a
@@ -141,6 +149,14 @@ use nc_catalog::ErrorCode;
 
 /// The database file's name inside the directory [`LocalStore::open`] is given.
 pub const FILE_NAME: &str = "local.sqlite3";
+
+/// The name of the file that holds a profile for one open, where the lock
+/// needs a file.
+///
+/// That is Windows, which locks no directory ([`nc_platform::hold`]). **Beside
+/// the database and named after it**, so nothing else in the directory is
+/// taken for it; where the directory itself is locked, no file has this name.
+pub const LOCK_NAME: &str = "local.sqlite3-lock";
 
 /// Why the local database could not be used.
 ///
@@ -237,10 +253,10 @@ pub fn is_a_trigger_refusal(error: &sqlx::Error) -> bool {
 ///
 /// **`SQLITE_READONLY` is a file this process may not write**, which is a
 /// read-only mount or a mode changed under an open store — the filesystem's
-/// answer, as a missing parent is. It was `NC-DB-0007`, measured: a file made
-/// `0400` opened, and the next commit told the user their data was not what
-/// this version expects. The open refuses such a file now; this is what a
-/// write meets when the mode changes after it.
+/// answer, as a missing parent is, and not `NC-DB-0007`, which would tell the
+/// user of a file made `0400` that their data is not what this version
+/// expects. The open refuses such a file; this is what a write meets when the
+/// mode changes after it.
 pub(crate) fn said(doing: &str, error: &sqlx::Error) -> LocalError {
     let Some(database) = error.as_database_error() else {
         return LocalError::Unavailable(format!("{doing}: {error}"));

@@ -358,9 +358,9 @@ impl<E: Environment> Kernel<E> {
     /// runs on a task of its own, to its end. One stopped part-way leaves its
     /// unit open in the journal, which then opens no other, and its plugin's
     /// store dropped in the middle of a call — measured, with the tree awaited
-    /// here, every later dispatch to that plugin was refused as a dispatch into
-    /// itself, for as long as the kernel ran. What a caller who gave up loses is
-    /// the answer; the journal still has it.
+    /// here, every later dispatch to that plugin would be refused as a dispatch
+    /// into itself, for as long as the kernel runs. What a caller who gave up
+    /// loses is the answer; the journal still has it.
     ///
     /// # Errors
     ///
@@ -468,11 +468,11 @@ impl<E: Environment> Kernel<E> {
             )
             .map_err(|problems| LoadError { problems })?;
         plugins.registry.register(admitted);
-        // **What `activate` was refused is logged once the plugin has a slot
-        // to be named by**, as what a command is refused is once it returns. A
-        // reviewer found a real bug with it: a capability the plugin was
-        // denied in `activate` was logged on the return of a later, unrelated
-        // call, or never, for a plugin nothing dispatched.
+        // **What `activate` was refused is logged once the plugin has a slot to
+        // be named by**, as what a command is refused is once it returns. Left
+        // for later, a capability the plugin was denied in `activate` would be
+        // logged on the return of a later, unrelated call, or never, for a
+        // plugin nothing dispatches.
         dispatch::left(&self.shared, slot, &mut activated.instance);
         plugins.loaded.push(Loaded {
             manifest,
@@ -855,10 +855,11 @@ impl<E: Environment> Plugins<E> {
 /// A sentence, where the registry holds an action, an entity type or a topic
 /// to sixty-four and repeats a command's name only when it is well formed, and
 /// bounded for the same reason: the plugin wrote it, and the refusal is the
-/// kernel's — measured, a plugin seeded to refuse with a million characters was
-/// repeated whole, a sentence of 1,000,157 characters. wasmtime's sentence
-/// quotes the component's own names, and a component importing a function
-/// named with 100,000 characters was refused in one of 100,185.
+/// kernel's — measured, unbounded, a plugin seeded to refuse with a million
+/// characters would be repeated whole, a sentence of 1,000,157 characters.
+/// wasmtime's sentence quotes the component's own names, and a component
+/// importing a function named with 100,000 characters would be refused in one
+/// of 100,185.
 const REFUSAL_QUOTED: usize = 256;
 
 /// Where a loaded plugin sits in its kernel: its place in the order plugins
@@ -1027,11 +1028,11 @@ pub fn component_for_tests(name: &str) -> Vec<u8> {
 ///
 /// The kernel's own type, because the generated record stays inside the
 /// private `bindings` module, which says why. **Every field, not the name.** A
-/// suite that held only the names passed a component whose adapter declared its
-/// read as mutating, under an empty action and with the other reversibility —
-/// measured, all three planted in `plugins/reference/src/adapter.rs`, the
-/// component built, and `cargo test -p nc-kernel` green — because the adapter
-/// is compiled for `wasm32` alone and no host test reads it.
+/// suite that held only the names would pass a component whose adapter
+/// declared its read as mutating, under an empty action and with the other
+/// reversibility — measured, all three planted in
+/// `plugins/reference/src/adapter.rs` and the component built — because no
+/// host test reads the adapter, which is compiled for `wasm32` alone.
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 #[derive(Debug, Clone, PartialEq, Eq)]

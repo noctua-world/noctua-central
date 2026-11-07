@@ -90,7 +90,7 @@ looks complete is one nobody checks against the reference again.
 `pack.toml` holds the pack's version and nothing else. A realm whose profile is
 `family` pins it as `family@<version>` in its `policy_pack` (`NOCTUA.md §14.4`),
 and `cargo xtask check` refuses a realm in `policy/world.json` that pins any
-other. Nothing here remembers what a policy said before it changed
-(`NOCTUA.md §5.3`), so no gate raises the version for you: raising it, with
-every such realm's pin in the same edit, is the reviewed migration §14.4 asks
-for.
+other. No gate compares a policy with what it said before it changed — the
+pull request's diff shows that to a reviewer — so no gate raises the version
+for you: raising it, with every such realm's pin in the same edit, is the
+reviewed migration §14.4 asks for.

@@ -77,9 +77,9 @@
 //! `family.giving_out_encrypted_content_needs_quorum` asks one of a `Share` or
 //! a `Grant` of private content, so a compensation that shares the diary is
 //! registered and refused at every undo while the diary stays private
-//! (`[NC-KERN-0014]`), its step one no undo reaches past. A reviewer found
-//! this said otherwise: that the registration refused every compensation
-//! needing a quorum's approval.
+//! (`[NC-KERN-0014]`), its step one no undo reaches past. The registration does
+//! not refuse every compensation needing a quorum's approval: only one the
+//! core's rules hold to it on every resource.
 //!
 //! What this answers (`NOCTUA.md §2.4`): undo used as escalation — only a
 //! person's own steps, only with the authority they hold now, held to what
@@ -592,8 +592,8 @@ pub(crate) fn owner_of<E: Environment>(
 /// **And of the plugin that registered it, as it is now.** Registering
 /// another plugin's command asks `commands.dispatch`, because the undo
 /// dispatches it as the person; a plugin loaded again without the grant would
-/// otherwise have it dispatched all the same — a reviewer found it so, and the
-/// undo then also lifted the barrier the step's request would have been.
+/// otherwise have it dispatched all the same, and the undo would then also lift
+/// the barrier the step's request would have been.
 ///
 /// # Errors
 ///
@@ -653,8 +653,8 @@ fn store_failed(failed: &LocalError) -> Failure {
 /// The person's newest steps in this realm, as far back as an undo looks.
 ///
 /// **Steps, and not every unit**: counted among their undos and redos, a step
-/// redone and undone often enough fell past the bound and was nothing to
-/// undo, though it was the person's newest.
+/// redone and undone often enough would fall past the bound and be nothing to
+/// undo, though it is the person's newest.
 async fn steps_of<E: Environment>(
     shared: &Shared<E>,
     principal: &Principal,
@@ -999,14 +999,14 @@ pub(crate) async fn undo<E: Environment>(
 /// compensation made them — holds the blob, and a blob held before the step
 /// is held now only while its holder is: the unit that first made its row,
 /// still committed, holds it whether or not it kept a note of it. Asked of the
-/// note alone, a blob two people's steps made kept its pin once both were
-/// undone, and the sweep never took it.
+/// note alone, a blob two people's steps made would keep its pin once both
+/// were undone, and the sweep would never take it.
 ///
 /// **And a holder the pruner took holds it for good.** The pruner deletes a
 /// unit's notes with it, and a unit it took is one no undo reaches any more,
-/// so what it made stays: a reviewer found the bytes of such a step swept once
-/// a later step that made them again was undone, nothing being left to say
-/// who held them.
+/// so what it made stays: otherwise the bytes of such a step would be swept
+/// once a later step that made them again was undone, nothing being left to
+/// say who held them.
 async fn unpinned<E: Environment>(
     shared: &Shared<E>,
     step: Snowflake,
@@ -1150,8 +1150,8 @@ async fn newest_undo<E: Environment>(
                 if row.state == UnitState::Committed && row.meta.label != units::REVERSAL_LABEL =>
             {
                 // **A step the pruner took is beyond reach**, as the migration
-                // says a target that is gone is read: a reviewer found it
-                // answered as a store holding a row it did not write.
+                // says a target that is gone is read — never answered as a
+                // store holding a row it did not write.
                 let Some(step) = shared
                     .store
                     .unit(target)
@@ -1176,8 +1176,8 @@ async fn newest_undo<E: Environment>(
 /// itself by the redo, and the step put back holds the blob again. A blob
 /// pinned now is held already, and is not one this redo pinned — so the
 /// redo's reversal, which takes off what it records, leaves that pin. Asked of
-/// the undo's notes alone, a step redone after another person's undo was
-/// committed with its blob unpinned, and the sweep deleted the bytes.
+/// the undo's notes alone, a step redone after another person's undo would be
+/// committed with its blob unpinned, and the sweep would delete the bytes.
 ///
 /// # Errors
 ///
@@ -1309,10 +1309,10 @@ mod tests {
             r#"{"action":"Write","entity":{"id":"photo"},"note":"authorized"}"#,
             r#"{"action":"Write","entity":{"id":"p","type":"C","x":1},"note":"authorized"}"#,
             r#"{"command":"a.b","note":"compensation"}"#,
-            // **Whole but for the field beside its own**, so that field is
-            // what refuses it. Found by the mutation run: this case lacked
-            // `by` since the note gained it, was refused for that, and a
-            // reader keeping a field beside its own was decided by nothing.
+            // **Whole but for the field beside its own**, so that field is what
+            // refuses it. A case lacking `by` as well would be refused for
+            // that, and a reader keeping a field beside its own then decided by
+            // nothing.
             r#"{"args":{},"by":"p:r","command":"a.b","extra":1,"note":"compensation","owner":"p:q"}"#,
             r#"{"compensations":1,"extra":1,"note":"compensations_ran"}"#,
             r#"{"args":{},"command":"a.b","note":"compensation"}"#,

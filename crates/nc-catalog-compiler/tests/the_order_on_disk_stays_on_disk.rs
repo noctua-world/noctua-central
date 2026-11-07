@@ -5,8 +5,7 @@
 //! same order twice and the comparison is blind to a dependency on it. The
 //! drift check compares against a disk written by a build on this machine, so it
 //! agrees for the same reason. The `deterministic` job in CI builds twice in one
-//! checkout on one runner, so it shares the directory order too — and by that
-//! file's own opening comment, it has never run.
+//! checkout on one runner, so it shares the directory order too.
 //!
 //! What sits behind all three: `catalog/i18n/` is read with `read_dir`, and
 //! locale *order* is load-bearing output. `Locale::ALL`, the enum's variant
@@ -14,8 +13,9 @@
 //! `crates/nc-catalog/src/i18n.rs` come from it, along with four `docs/*.md`
 //! pages. One `sort_by` in `locale_files` is what makes that order independent
 //! of the filesystem, and the `allow-nondeterminism:` marker beside the
-//! `read_dir` call asserts that sort exists — while nothing checked the
-//! assertion. Deleting the sort and leaving the marker as committed:
+//! `read_dir` call asserts that sort exists — and without this file nothing
+//! would check the assertion. Measured that way, the sort deleted and the
+//! marker left as committed:
 //!
 //! ```text
 //! cargo xtask build   ->  ok  15 generated file(s), 5 rewritten
@@ -34,6 +34,28 @@ use std::path::{Path, PathBuf};
 
 fn root() -> PathBuf {
     Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../..")).to_path_buf()
+}
+
+/// A scratch directory under the temporary directory, removed however the
+/// test leaves.
+struct Scratch(PathBuf);
+
+/// Removes the directory, however much of it the test made.
+impl Drop for Scratch {
+    /// Whatever the test left, and on whichever path it left by.
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+/// Where a scratch is made.
+impl Scratch {
+    /// A directory of this process's own, for the catalog the bar is put in.
+    fn new() -> Self {
+        let root = std::env::temp_dir().join(format!("nc-cell-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        Self(root)
+    }
 }
 
 /// Copies `catalog/` into `into`, creating the locale files in `first` order.
@@ -102,11 +124,24 @@ fn as_the_filesystem_gives_them(directory: &Path) -> Vec<String> {
 
 #[test]
 fn two_directory_orders_produce_the_same_bytes() {
+    // **Only where a directory lists in the order it was made.** macOS's APFS
+    // lists by a hash of the name and Windows' NTFS by the name, so there both
+    // layouts below come back in one order and there is nothing to compare: the
+    // suite says so, by the system's name, and the Linux job runs it.
+    if nc_platform::system::LISTED_AS_MADE.is_none() {
+        println!(
+            "skipped, not applicable on {}: no directory here lists its entries in the \
+             order they were made, and the Linux job runs it",
+            std::env::consts::OS
+        );
+        return;
+    }
     // tmpfs returns entries in creation order, which is what makes the two
     // layouts below actually differ. A filesystem that sorts or hashes would
     // make this test vacuous, so the orders are compared before they are relied
     // on and a run that cannot produce two of them fails rather than passes.
-    let base = Path::new("/dev/shm").join(format!("nc-order-{}", std::process::id()));
+    let base = Path::new(nc_platform::system::LISTED_AS_MADE.expect("asked above"))
+        .join(format!("nc-order-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&base);
     let en_first = base.join("en-first");
     let pt_first = base.join("pt-first");
@@ -119,7 +154,7 @@ fn two_directory_orders_produce_the_same_bytes() {
         one, other,
         "both layouts came back in the same order, so this test would pass \
          whatever the emitter does with it — it needs a filesystem that returns \
-         creation order, which /dev/shm is"
+         creation order, which `LISTED_AS_MADE` names"
     );
 
     let first =
@@ -158,12 +193,12 @@ fn two_directory_orders_produce_the_same_bytes() {
 
 /// Every page's sections are in the order the generated crate uses.
 ///
-/// **Four pages walked their registry in file order** while `emit.rs` sorts
-/// before it writes the Rust, so `docs/log-events.md` opened at
-/// `journal.appended` and `crates/nc-catalog/src/events.rs` opened at
-/// `db.migrated` — and `docs.rs`'s own comment, one table over, says "every
-/// other table on every page sorts". Measured on the committed tree, no
-/// mutation:
+/// **Not in file order.** `emit.rs` sorts before it writes the Rust, so a page
+/// walking its registry in file order opens `docs/log-events.md`
+/// at `journal.appended` while `crates/nc-catalog/src/events.rs` opens
+/// at `db.migrated` — and `docs.rs`'s own comment, one table over, says "every
+/// other table on every page sorts". Measured on a tree whose pages walk in
+/// file order, no mutation:
 ///
 /// ```text
 /// docs/log-events.md   ## `journal.appended`  ## `journal.verified`  ## `journal.broken` …
@@ -228,57 +263,57 @@ fn every_page_lists_its_entries_in_order() {
 
 /// Every value a registry supplies to a table row is escaped for one.
 ///
-/// **It was applied to the translated sentences and to nothing else.**
-/// `commands.toml`'s `action` and `resource_selector` and `limits.toml`'s
-/// `order_by` were written into their rows raw, and only their non-emptiness is
-/// checked — so a value holding a `|` wrote a row with an extra cell in it:
+/// **Applied to every value, not only to the translated
+/// sentences.** `commands.toml`'s `action` and `resource_selector`
+/// and `limits.toml`'s `order_by` are checked only for non-emptiness — so
+/// written into their rows raw, a value holding a `|` writes a row with an
+/// extra cell in it:
 ///
 /// ```text
 /// | Resource selector | `realm | anything` |
 /// ```
 ///
-/// and the compiler said nothing. The page's own test caught the wreckage and
-/// reported it against the page, which sends a reader to the generated file
+/// and the compiler says nothing. The page's own test catches the wreckage and
+/// reports it against the page, which sends a reader to the generated file
 /// rather than to the registry line that caused it.
 ///
-/// Driven through `compile` rather than through `cell`, because what was wrong
-/// was the call site and not the function.
+/// Driven through `compile` rather than through `cell`, because what matters is
+/// the call site and not the function.
 #[test]
 fn a_bar_in_a_registry_value_does_not_end_its_cell() {
-    let base = Path::new("/dev/shm").join(format!("nc-cell-{}", std::process::id()));
-    let _ = std::fs::remove_dir_all(&base);
+    let scratch = Scratch::new();
+    let base = scratch.0.clone();
     lay_out(&base, "en");
-    // **A hand list of three, and `docs.rs` wrote five values raw.** Two of the
-    // other three were reachable: the message-key column of every registry's
-    // sentence table, and `limit.surface` in the rate-limit table. Adding either
-    // to this list turned it red, which is the definition of an exclusion list
-    // that had switched a gate off:
+    // **Not a hand list of three.** Of the other values `docs.rs` writes, two
+    // are reachable: the message-key column of every registry's sentence table,
+    // and `limit.surface` in the rate-limit table. Adding either to an
+    // exclusion list that excused them turns it red, which is the definition of
+    // an exclusion list that switches a gate off:
     //
     // ```text
     // `docs/limits.md` has a row of 10 cells under a header of 9
     // `docs/notifications.md` has a row of 6 cells under a header of 5
     // ```
     //
-    // **And the reason the remaining three were excused was false of two of
-    // them.** It said all three *"pass through `load::identifier()`, which
-    // refuses anything outside `[A-Za-z0-9_]`, so a bar cannot reach them"* —
-    // and nothing calls `identifier()` on a `limits.tables` key or a
-    // `limits.stores` key. `check_tables` never touches the name at all, and
-    // `docs.rs` wrote both raw while every neighbouring value on the same two
-    // rows went through `cell()`. Adding either to this list turned it red at
-    // once:
+    // **And an excuse has to be true of what it excuses.** Saying all three
+    // *"pass through `load::identifier()`, which refuses anything outside
+    // `[A-Za-z0-9_]`, so a bar cannot reach them"* is false of two: nothing
+    // calls `identifier()` on a `limits.tables` key or a `limits.stores` key,
+    // and `check_tables` never touches the name at all. Written raw while every
+    // neighbouring value on the same two rows goes through `cell()`, either one
+    // added to this list turns it red at once:
     //
     // ```text
     // `docs/limits.md` has a row of 8 cells under a header of 7:
     // | `access | records` | `oldest-first` | `recorded` | 500000 | 50000 | — |
     // ```
     //
-    // Both are escaped now and both are in the sweep below. What is left
-    // excused is a *parameter name*, which really is identifier-checked, and the
-    // resource selector, which is held to its grammar — `realm` or
-    // `argument:<name>` — by the judge the kernel shares, so the catalog is
-    // refused before a page is rendered. That is why this is a list and not a
-    // sweep, and each entry says which surface it stands for.
+    // Both are escaped and both are in the sweep below. What is left excused is
+    // a *parameter name*, which really is identifier-checked, and the resource
+    // selector, which is held to its grammar — `realm` or `argument:<name>` —
+    // by the judge the kernel shares, so the catalog is refused before a page
+    // is rendered. That is why this is a list and not a sweep, and each entry
+    // says which surface it stands for.
     //
     // **The selector's excuse is asserted rather than assumed**, on this same
     // copy and before anything else is changed in it.
@@ -300,8 +335,8 @@ fn a_bar_in_a_registry_value_does_not_end_its_cell() {
             "surface = \"login\"",
             "surface = \"log | in\"",
         ),
-        // The first column of the table limits, and of the store limits: the two
-        // the comment above excused on a reason that was not true of them.
+        // The first column of the table limits, and of the store limits: the
+        // two an identifier excuse would not be true of.
         (
             "catalog/limits.toml",
             "[tables.access_records]",
@@ -386,16 +421,15 @@ fn a_bar_in_a_registry_value_does_not_end_its_cell() {
     // And then the floor on what is in them: a page set with no tables would
     // satisfy the loop by never entering it.
     assert!(rows > 20, "only {rows} table row(s) were read");
-
-    let _ = std::fs::remove_dir_all(&base);
+    drop(scratch);
 }
 
 /// A selector holding a bar is refused by name, so its row is never written.
 ///
-/// The half of [`a_bar_in_a_registry_value_does_not_end_its_cell`] that
-/// excuses the selector column, run on that test's own copy of the catalog
-/// and leaving it as it found it. Its own function because the caller crossed
-/// clippy's line limit with it inline.
+/// The half of [`a_bar_in_a_registry_value_does_not_end_its_cell`] that excuses
+/// the selector column, run on that test's own copy of the catalog and leaving
+/// it as it found it. Its own function because inline it would cross the
+/// caller's clippy line limit.
 fn a_bar_never_reaches_the_selector_column(base: &Path) {
     let commands = base.join("catalog/commands.toml");
     let shipped = std::fs::read_to_string(&commands).expect("readable");

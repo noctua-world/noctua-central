@@ -3,19 +3,18 @@
 //! The parent module's tests prove the arithmetic — when to run, how many to
 //! take, what to report — against a target that holds numbers.
 //!
-//! **They did not prove the first of the three, and this sentence said they
-//! did.** Whether to prune at all is arithmetic over two numbers and needs no
-//! database, and it was decided only here: `before <= max_rows` weakened to
-//! `before == max_rows` left `cargo test -p nc-prune --lib` at 23 passed and
-//! `cargo xtask check --offline` at `check passed`, with a pruner that removes
-//! a batch from every table *below* its limit. CI never passes `--offline`, so
-//! it was not a live hole there; what it was is a claim about the parent module
-//! that the parent module did not keep.
-//! `a_table_below_or_at_its_limit_is_left_alone` is where it is kept now. **They cannot see
-//! whether the statement is SQL.** `DELETE … ORDER BY … LIMIT` is not something
-//! PostgreSQL accepts, and a pruner that removes the *newest* rows instead of the
-//! oldest satisfies every in-memory assertion there is: the count goes down by
-//! the right amount either way.
+//! **Whether to prune at all is the parent module's to prove**, and it does: it
+//! is arithmetic over two numbers and needs no database. Were it decided only
+//! here, `before <= max_rows` weakened to `before == max_rows` would leave
+//! `cargo test -p nc-prune --lib` green and `cargo xtask check --offline` at
+//! `check passed`, with a pruner that removes a batch from every table *below*
+//! its limit — CI never passes `--offline`, but the parent module would be
+//! claiming what it does not keep.
+//! `a_table_below_or_at_its_limit_is_left_alone` is where it is kept. **They
+//! cannot see whether the statement is SQL.** `DELETE … ORDER BY … LIMIT` is
+//! not something PostgreSQL accepts, and a pruner that removes the *newest*
+//! rows instead of the oldest satisfies every in-memory assertion there is: the
+//! count goes down by the right amount either way.
 //!
 //! So this asserts on which rows survive, not on how many. It needs
 //! `DATABASE_URL`; `cargo xtask dev` sets the stack up and prints it.
@@ -26,10 +25,10 @@ use nc_prune::{Request, Target as _, postgres::Postgres};
 /// This file's own tables, pruned by this file's own limits.
 ///
 /// **`prune_these` refuses a name `nc_catalog::TABLES` does not declare, and
-/// refuses a name it does declare unless the entry is handed over exactly as the
-/// catalog wrote it.** That is what "the catalog decides what this crate may
-/// touch" has to mean — a reviewer emptied three tables through a guard that
-/// compared one field — and it makes `rows_over_time`, which this file creates
+/// refuses a name it does declare unless the entry is handed over exactly as
+/// the catalog wrote it.** That is what "the catalog decides what this crate
+/// may touch" has to mean — a guard comparing one field lets three tables be
+/// emptied through it — and it makes `rows_over_time`, which this file creates
 /// and drops itself, not something `prune_these` will act on.
 ///
 /// So these tests say which limits they mean. They are the authority for the
@@ -54,9 +53,9 @@ use sqlx::postgres::PgPoolOptions;
 
 /// A pruner on `pool`, in the schema `pool` was opened for.
 ///
-/// **The pruner is told its schema now.** It used to refuse any resolved path
-/// with a comma in it, which is the server default the moment a schema named
-/// after the connecting role exists — see `Postgres::in_schema`.
+/// **The pruner is told its schema.** Refusing any resolved path with a comma
+/// in it fails on the server default the moment a schema named after the
+/// connecting role exists — see `Postgres::in_schema`.
 fn pruner(pool: &sqlx::PgPool, schema: &str) -> Postgres {
     Postgres::in_schema(pool.clone(), &format!("{schema}_{}", std::process::id()))
 }
@@ -70,13 +69,14 @@ fn pruner(pool: &sqlx::PgPool, schema: &str) -> Postgres {
 ///
 /// **Fail-closed.** An absent `DATABASE_URL` is a panic, not a skip: a skipped
 /// test counts as passed, so returning `None` would let this file prove nothing
-/// while `check` printed a test count that had gone up.
+/// while `check` prints a test count that has gone up.
 async fn pool(schema: &str) -> Option<sqlx::PgPool> {
     let schema = &format!("{schema}_{}", std::process::id());
     let url = match std::env::var("DATABASE_URL").ok() {
         Some(url) => url,
-        None if std::env::var_os("NC_OFFLINE").is_some() => {
-            println!("nc-prune: skipped, no database (NC_OFFLINE)");
+        None if std::env::var_os("NC_NO_STACK").is_some() => {
+            let why = std::env::var("NC_NO_STACK").unwrap_or_default();
+            println!("nc-prune: skipped, no database: {why}");
             return None;
         }
         None => panic!(
@@ -123,32 +123,31 @@ async fn pool(schema: &str) -> Option<sqlx::PgPool> {
 
 /// Drops the test's schema and closes its pool.
 ///
-/// **Nothing dropped one, and they accumulated.** `pool` drops and recreates the
-/// schema it is *handed*, at setup, and every schema name carries the process
-/// id — so two runs never collided and no run ever cleaned up. Measured on the
-/// developer's stack: **1170** schemas from dozens of runs, in the shared
+/// **Without this, nothing drops one, and they accumulate.** `pool` drops and
+/// recreates the schema it is *handed*, at setup, and every schema name carries
+/// the process id — so two runs never collide and no run cleans up. Measured on
+/// a developer's stack: **1170** schemas from dozens of runs, in the shared
 /// database, in the stage whose subject is that records do not grow without
-/// bound. The suite was the unbounded thing.
+/// bound — the suite itself the unbounded thing.
 ///
 /// Called at the end of each test instead of in a `Drop`, because dropping a
 /// schema is a query and `Drop` cannot await one. A test that **panics** leaves
 /// its schema behind, and that is deliberate: a failing run's rows are what a
 /// developer wants to look at, and `cargo xtask dev --down` removes the volume.
 async fn finish(pool: sqlx::PgPool) {
-    // **Never `public`, and never anything this suite did not name.** The
-    // comment this replaces said `current_schema()` "cannot drop somebody
-    // else's". It can: `current_schema()` is the first *existing* schema on the
-    // path, not the one the pool asked for — so on a pool whose path resolves
-    // elsewhere it drops whatever is there. `nc-journal`'s sibling helper took
-    // the developer's `public` schema **twice** that way, with the journal, the
-    // access records and the migration record in it, and was fixed; this one is
-    // the same helper against the same database and was not changed with it.
+    // **Never `public`, and never anything this suite did not name.**
+    // `current_schema()` can drop somebody else's: it is the first *existing*
+    // schema on the path, not the one the pool asked for — so on a pool whose
+    // path resolves elsewhere it drops whatever is there, the developer's
+    // `public` schema included, with the journal, the access records and the
+    // migration record in it. `nc-journal`'s sibling helper is the same helper
+    // against the same database, and carries the same guard.
     //
     // The process id is the one thing every schema this suite makes carries and
-    // no shared schema does. A prefix list was tried there first and grew by one
-    // on each run, which is an exclusion list keeping a destructive command
-    // honest — the shape this repository refuses everywhere else. A
-    // `DROP SCHEMA` in a shared database that guesses has no undo.
+    // no shared schema does. A prefix list grows by one on each run, which is an
+    // exclusion list keeping a destructive command honest — the shape this
+    // repository refuses everywhere else. A `DROP SCHEMA` in a shared database
+    // that guesses has no undo.
     //
     // Asked here rather than in a `DO` block, because a `DO` block takes no
     // parameters and the alternative is interpolating the answer into the
@@ -170,12 +169,12 @@ async fn finish(pool: sqlx::PgPool) {
     )
     .execute(&pool)
     .await;
-    // **Asserted, because a message here is invisible.** This reported with
-    // `eprintln!` on the reasoning that a test which has made its point should
-    // not fail on the tidying — and cargo swallows a passing test's output, so a
-    // drop that stopped working left schemas behind and said nothing. Two were
-    // found on a developer's database dated to runs whose processes were long
-    // gone. The tidying *is* part of the point: this file claims to leave
+    // **Asserted, because a message here is invisible.** Reported with
+    // `eprintln!`, on the reasoning that a test which has made its point should
+    // not fail on the tidying, a drop that stops working leaves schemas behind
+    // and says nothing, because cargo swallows a passing test's output.
+    // Measured on a developer's database: two left behind, dated to runs whose
+    // processes were long gone. The tidying *is* part of the point: this file claims to leave
     // nothing behind, and a claim nothing checks is what this repository is
     // built against.
     pool.close().await;
@@ -242,17 +241,17 @@ async fn the_oldest_rows_are_the_ones_that_go() {
 
 /// The column the catalog names is what orders the delete.
 ///
-/// **Every fixture in this file wrote `at` ascending with `id`**, so the
-/// physical order of the table and the order the catalog declares agreed
-/// everywhere — and a pruner that had stopped reading `order_by` altogether was
-/// indistinguishable from one that read it. The header above says this file
+/// **The other fixtures in this file write `at` ascending with `id`**, so the
+/// physical order of the table and the order the catalog declares agree there
+/// — and a pruner that stops reading `order_by` altogether is
+/// indistinguishable from one that reads it. The header above says this file
 /// asserts on *which rows survive* rather than on how many, precisely because
 /// removing the newest satisfies every count; it does, and over a table whose
 /// two orders agree that assertion is satisfied by insertion order too.
 ///
-/// Measured, with the statement's `ORDER BY {order_by} ASC` replaced by
-/// `WHERE {order_by} IS NOT NULL ORDER BY ctid ASC` — the column still
-/// mentioned, so the lints and the source gates stay quiet:
+/// Measured without this, with the statement's `ORDER BY {order_by} ASC`
+/// replaced by `WHERE {order_by} IS NOT NULL ORDER BY ctid ASC` — the column
+/// still mentioned, so the lints and the source gates stay quiet:
 ///
 /// ```text
 /// cargo test -p nc-prune   ->  ok. 28 passed; 0 failed
@@ -362,20 +361,20 @@ async fn one_row_over_the_limit_takes_a_whole_batch() {
 
 #[tokio::test]
 async fn a_table_below_its_limit_is_left_alone() {
-    // **The mirror of the boundary above, and the half nothing held.** Every
-    // `prune_these` fixture in this file was over the limit — 11, 14 or 20 rows
-    // against a `max_rows` of 10 — and the two below-limit fixtures call
-    // `delete_oldest` directly, which bypasses the arithmetic entirely. So the
-    // clause that decides whether to prune at all was covered on one side only:
-    // measured, `if before <= max_rows` weakened to `if before == max_rows`
-    // left all 33 tests in this file green, and the whole `nc-prune` crate
-    // green, while a table of seven rows under a limit of ten lost four of them
-    // and reported an ordinary `Pruned`. `access_records` is `max_rows =
-    // 500_000, prune_batch = 50_000`, so that shape empties a live table
-    // 50_000 rows at a time with every run answering `Ok`.
+    // **The mirror of the boundary above.** Every other `prune_these` fixture
+    // in this file is over the limit — 11, 14 or 20 rows against a `max_rows`
+    // of 10 — and the two below-limit fixtures call `delete_oldest` directly,
+    // which bypasses the arithmetic entirely. Without this the clause that
+    // decides whether to prune at all is covered on one side only in this
+    // file: measured, `if before <= max_rows` weakened to
+    // `if before == max_rows` leaves every other test here green, while a table
+    // of seven rows under a limit of ten loses four of them and reports an
+    // ordinary `Pruned`. `access_records` is
+    // `max_rows = 500_000, prune_batch = 50_000`, so that shape empties a live
+    // table 50_000 rows at a time with every run answering `Ok`.
     //
-    // `would_remove` is asserted as well as `removed`, because the dry-run
-    // number on the untaken path was pinned by nothing either.
+    // `would_remove` is asserted as well as `removed`, because nothing else
+    // pins the dry-run number on the untaken path either.
     let Some(pool) = pool("prune_under").await else {
         return;
     };
@@ -420,15 +419,15 @@ async fn a_batch_larger_than_the_table_takes_what_is_there() {
 
 #[tokio::test]
 async fn a_partitioned_table_is_refused_rather_than_pruned() {
-    // **Every table above is one physical table**, and that is what hid the
+    // **Every table above is one physical table**, and that is what hides the
     // defect: `ctid` is a row's address *within* a physical table, so on a
-    // partitioned one `WHERE ctid IN (…)` matched a row in every partition that
-    // shared an address with a chosen row. Measured before the fix, asking for
-    // four: `DELETE 8`, and the four newest rows among the eight.
+    // partitioned one `WHERE ctid IN (…)` matches a row in every partition that
+    // shares an address with a chosen row. Measured with a `ctid` delete,
+    // asking for four: `DELETE 8`, and the four newest rows among the eight.
     //
     // Partitioning by time is the ordinary thing to do to a table bounded at
-    // half a million rows, so this was waiting for the first table that grew —
-    // and the two failures it produces are exactly the two this file exists to
+    // half a million rows, so this waits for the first table that grows — and
+    // the two failures it produces are exactly the two this file exists to
     // catch.
     let Some(pool) = pool("prune_partitioned").await else {
         return;
@@ -459,13 +458,13 @@ async fn a_partitioned_table_is_refused_rather_than_pruned() {
             .expect("a new row");
     }
 
-    // **Refused, not pruned.** This asserted that a partitioned table loses
-    // exactly its batch — and that is what made a partition a door: two DDL
-    // statements that copy no data, `CREATE TABLE access_records … PARTITION BY
-    // RANGE` and `ALTER TABLE … ATTACH PARTITION victim`, put an ordinary heap
-    // table under a catalog name and 50 000 of its rows were deleted through the
-    // shipped entry point. `access_records` carries no DELETE trigger; the
-    // journal survived only through its own, which this crate says in as many
+    // **Refused, not pruned.** Asserting that a partitioned table loses exactly
+    // its batch makes a partition a door: two DDL statements that copy no data,
+    // `CREATE TABLE access_records … PARTITION BY RANGE` and
+    // `ALTER TABLE … ATTACH PARTITION victim`, put an ordinary heap table under
+    // a catalog name and 50 000 of its rows are deleted through the shipped
+    // entry point, measured. `access_records` carries no DELETE trigger; the
+    // journal survives only through its own, which this crate says in as many
     // words it does not rely on.
     //
     // A partition is a table the catalog does not name, so what pruning one
@@ -486,16 +485,16 @@ async fn a_partitioned_table_is_refused_rather_than_pruned() {
         .expect("the rows read back");
     assert_eq!(survivors, 14, "rows went from a table that was refused");
 
-    // **And the partition itself, which is a different arm and had no test.**
-    // The refusal above is `relkind = 'p'` — the parent. A *child* is an
-    // ordinary heap table that happens to be attached, and the arm that names it
-    // (`c.relispartition`) could be deleted with `cargo test -p nc-prune` and
+    // **And the partition itself, which is a different arm.** The refusal above
+    // is `relkind = 'p'` — the parent. A *child* is an ordinary heap table that
+    // happens to be attached, and without this the arm that names it
+    // (`c.relispartition`) can be deleted with `cargo test -p nc-prune` and
     // `cargo xtask check` both green: the `pg_inherits WHERE inhrelid` arm two
-    // lines below catches the same table and says something else. Which sentence
-    // a developer is shown is what the arm decides, and *"part of a table this
-    // catalog does not name"* is the true one — attaching a partition is two DDL
-    // statements that copy no data, which is how an ordinary table gets under a
-    // catalog name in the first place.
+    // lines below catches the same table and says something else. Which
+    // sentence a developer is shown is what the arm decides, and *"part of a
+    // table this catalog does not name"* is the true one — attaching a
+    // partition is two DDL statements that copy no data, which is how an
+    // ordinary table gets under a catalog name in the first place.
     let refused = target
         .delete_oldest("parted_old", "at", 4)
         .await
@@ -516,13 +515,14 @@ async fn a_partitioned_table_is_refused_rather_than_pruned() {
 
 /// A key that is not one column is refused, and so is no key at all.
 ///
-/// **Both arms were decided by nothing.** Every `CREATE TABLE` in this file is
-/// `(id BIGINT PRIMARY KEY, …)`, so `[only] => …` widened to `[only, ..] => …`
-/// and `[] => Ok("\"id\"")` each left 21 + 32 tests green. The first is the one
-/// that matters: with a composite key the delete addresses rows by its *first*
-/// column alone, so `DELETE … WHERE {key} IN (SELECT {key} … LIMIT n)` removes
-/// every row sharing those values rather than the `n` the batch chose — and
-/// `over_deleted` only notices when the overshoot exceeds the batch.
+/// **Both arms, decided here.** Every other `CREATE TABLE` in this file
+/// is `(id BIGINT PRIMARY KEY, …)`, so `[only] => …` widened
+/// to `[only, ..] => …` and `[] => Ok("\"id\"")` each leave the other tests
+/// green. The first is the one that matters: with a composite key the delete
+/// addresses rows by its *first* column alone,
+/// so `DELETE … WHERE {key} IN (SELECT {key} … LIMIT n)` removes every row
+/// sharing those values rather than the `n` the batch chose —
+/// and `over_deleted` only notices when the overshoot exceeds the batch.
 #[tokio::test]
 async fn a_key_this_pruner_cannot_address_is_refused() {
     let Some(pool) = pool("prune_keys").await else {
@@ -610,7 +610,7 @@ async fn an_inherited_table_is_refused_too() {
 
 /// A row another transaction is updating is still pruned.
 ///
-/// **The delete addressed rows by `ctid`, and a `ctid` is where a row sits.** An
+/// **A delete addressing rows by `ctid` addresses where a row sits.** An
 /// `UPDATE` committed against a chosen row between the subselect's snapshot and
 /// the delete's row lock moves it, so PostgreSQL re-checks the new tuple, finds
 /// its address is not in the list, and skips it. Measured with no injected delay
@@ -695,7 +695,7 @@ async fn a_table_named_after_a_reserved_word_is_counted_and_pruned() {
     // the bare word as the `USER` function, so a bounded table called `user` —
     // an unremarkable name in a platform whose own Cedar schema declares
     // `entity User` — would report one row for ever, never cross `max_rows`, and
-    // never be pruned, with every gate green. The shape guard admitted it
+    // never be pruned, with every gate green. The shape guard admits it,
     // because `[a-z_][a-z0-9_]*` admits every reserved word there is.
     let Some(pool) = pool("prune_reserved").await else {
         return;
@@ -752,7 +752,7 @@ async fn a_name_the_catalog_did_not_write_never_reaches_the_database() {
     assert_eq!(surviving(&pool).await, (1..=5).collect::<Vec<_>>());
 
     // The order-by column too, which is the second identifier written into the
-    // statement and was the one with no guard in the first draft.
+    // statement.
     let refused = target
         .delete_oldest("rows_over_time", "at DESC", 1)
         .await
@@ -765,13 +765,13 @@ async fn a_name_the_catalog_did_not_write_never_reaches_the_database() {
 
 #[tokio::test]
 async fn a_request_can_be_built_from_outside_this_crate() {
-    // **`#[non_exhaustive]` with no constructor made `Request` unbuildable
+    // **`#[non_exhaustive]` with no constructor makes `Request` unbuildable
     // here**: `Request { table: Some(x), dry_run: true }` is
     // `error[E0639]: cannot create non-exhaustive struct using struct
-    // expression`, and the only expression available was `Request::default()` —
-    // every table, for real. The drift test lives inside the crate and could not
-    // see it, so the declared `limits.prune` surface was not reachable in the
-    // form a dispatcher would write.
+    // expression`, and without one the only expression available is
+    // `Request::default()` — every table, for real. The drift test lives inside
+    // the crate and cannot see that, so the declared `limits.prune` surface
+    // would not be reachable in the form a dispatcher would write.
     //
     // This file is outside the crate, which is what makes the assertion mean
     // something: it compiles, or the surface is still unreachable.
@@ -794,9 +794,9 @@ async fn a_request_can_be_built_from_outside_this_crate() {
 
 #[tokio::test]
 async fn a_dry_run_checks_the_names_it_would_write_into_the_statement() {
-    // **A dry run returned before `delete_oldest`**, which is the only place the
-    // identifier guard and the `ORDER BY` column are exercised — so it predicted
-    // `would_remove: 50000` for a run that then failed with `column "id" does
+    // **A dry run that returns before `delete_oldest`** skips the only place the
+    // identifier guard and the `ORDER BY` column are exercised — so it predicts
+    // `would_remove: 50000` for a run that then fails with `column "id" does
     // not exist`. A rehearsal that cannot fail where the real thing fails is not
     // a rehearsal.
     let Some(pool) = pool("prune_rehearsal").await else {
@@ -847,17 +847,17 @@ async fn a_dry_run_checks_the_names_it_would_write_into_the_statement() {
 
 /// A caller cannot re-declare a table's retention on the way in.
 ///
-/// **The carve-out lived in one migration, and this crate claimed it.**
-/// `prune_these` takes a `&[TableLimit]`, every field of `TableLimit` is `pub`,
-/// and only `run` reads `nc_catalog::TABLES` — so a consumer could hand the
-/// crate whose header says of the journal *"this must not touch it"* a
-/// `TableLimit { name: "journal_entries", strategy: OldestFirst, max_rows:
-/// Some(0), … }`. The tree's own tests build `TableLimit` exactly that way, so
-/// the shape is reachable from outside the crate.
+/// **The carve-out is this crate's to enforce, not one migration's alone.**
+/// `prune_these` takes a `&[TableLimit]` and every field of `TableLimit` is
+/// `pub`, so a consumer can hand the crate whose header says of the journal
+/// *"this must not touch it"* a `TableLimit { name: "journal_entries",
+/// strategy: OldestFirst, max_rows: Some(0), … }`. The tree's own tests build
+/// `TableLimit` exactly that way, so the shape is reachable from outside the
+/// crate.
 ///
 /// The trigger does hold — `ERROR: the journal is append-only: DELETE on
 /// journal_entries was refused`, measured — but a guarantee that lives in the
-/// database should not be claimed by a crate that was not enforcing it.
+/// database should not be claimed by a crate that does not enforce it.
 #[tokio::test]
 async fn a_caller_cannot_hand_this_crate_another_strategy() {
     const SCHEMA: &str = "nc_prune_restrategy";
@@ -883,9 +883,9 @@ async fn a_caller_cannot_hand_this_crate_another_strategy() {
     );
 
     // And a table that is not the journal, disagreeing with the catalog in a
-    // field that is not `strategy`, is refused too — the guard compared one
-    // field, and a reviewer emptied `access_records` through it by putting back
-    // the `order_by` column the catalog had just stopped using.
+    // field that is not `strategy`, is refused too — a guard comparing one
+    // field lets `access_records` be emptied through it by putting back the
+    // `order_by` column the catalog has just stopped using.
     let declared = nc_catalog::TABLES
         .iter()
         .find(|table| table.name == "access_records")
@@ -923,15 +923,17 @@ async fn a_caller_cannot_hand_this_crate_another_strategy() {
     finish(pool).await;
 }
 
-/// The refusals nothing drove, each made to happen.
+/// The refusals a store can be driven into, each made to happen.
 ///
-/// **Five of six error branches in this crate were dead to the suite.** Each of
-/// these was deleted or inverted and `cargo test -p nc-prune --all-targets`
-/// stayed green — including the `removed > batch` guard, which *is* the fix for
-/// the `ctid` defect and whose own comment says a pruner that has taken rows it
-/// was not asked for cannot undo it. By this repository's rule — "the branch
-/// that cannot be reached in normal operation is exactly the branch that needs a
-/// test of its own" — every one of them was a gate wired to nothing.
+/// **A branch normal operation never reaches still needs a test of its own.**
+/// This drives two through a real store: a batch past what PostgreSQL can be
+/// asked for, and an oldest-first table that names no limit. The conversions
+/// no query can drive, and the `removed > batch` guard — which *is* the answer
+/// to the `ctid` defect, and whose own comment says a pruner that has taken
+/// rows it was not asked for cannot undo it — are driven by `postgres.rs`'s
+/// unit tests. By this repository's rule — "the branch that cannot be reached
+/// in normal operation is exactly the branch that needs a test of its own" — a
+/// refusal no test drives is a gate wired to nothing.
 #[tokio::test]
 async fn every_refusal_this_crate_can_answer_is_driven() {
     const SCHEMA: &str = "nc_prune_refusals";
@@ -970,8 +972,9 @@ async fn every_refusal_this_crate_can_answer_is_driven() {
 
 /// A statement that cannot take its lock gives up rather than waiting for ever.
 ///
-/// **Nothing in the tree bounded this.** `grep` for `lock_timeout` found no
-/// match in any crate, migration, manifest or workflow. Measured with another
+/// **Nothing else in the tree bounds this.** `grep` for `lock_timeout` outside
+/// this crate finds no crate, migration, manifest or workflow that sets one.
+/// Measured with another
 /// session holding `ACCESS EXCLUSIVE`, which is what a migration or a
 /// `VACUUM FULL` does:
 ///
@@ -1012,11 +1015,11 @@ async fn a_locked_table_ends_the_run_rather_than_holding_it() {
     // **And that it was the *lock* bound that ended it.** The two assertions
     // above are `is_err()` and a 30 s ceiling over a 5 s constant, and neither
     // asks which timeout fired: measured, `lock_timeout` changed to
-    // `statement_timeout` left the whole gate green — after which a lock wait is
-    // unbounded, which is the "scheduled run that never reports" case the
-    // constant exists for, *and* every legitimate long `DELETE` is cancelled.
-    // `55P03` is the lock timeout; `57014` is the statement timeout, and this
-    // crate classifies both as "waited".
+    // `statement_timeout` leaves the whole gate green without this — after
+    // which a lock wait is unbounded, which is the "scheduled run that never
+    // reports" case the constant exists for, *and* every legitimate long
+    // `DELETE` is cancelled. `55P03` is the lock timeout; `57014` is the
+    // statement timeout, and this crate classifies both as "waited".
     let why = format!("{refused:?}");
     assert!(
         why.contains("lock timeout") || why.contains("55P03"),
@@ -1059,9 +1062,9 @@ async fn the_journal_is_not_pruned_by_this() {
         done[0].left_alone.is_some(),
         "the journal was pruned by a global constant"
     );
-    // It was never even counted, which is what "does not touch it" means: the
-    // table does not exist in this schema, and a run that had queried it would
-    // have failed rather than reported.
+    // It is never even counted, which is what "does not touch it" means: the
+    // table does not exist in this schema, and a run that queried it would fail
+    // rather than report.
     assert_eq!(done[0].before, None);
 
     finish(pool).await;
@@ -1081,10 +1084,11 @@ async fn the_journal_is_not_pruned_by_this() {
 /// access_records now 5 rows
 /// ```
 ///
-/// The whole-entry comparison that guard uses exists *because* a reviewer once
-/// emptied `access_records` through it; naming a parent walked past it. The
-/// journal survived only through the migration's trigger, which this crate says
-/// in as many words it does not rely on.
+/// The whole-entry comparison that guard uses exists because a one-field guard
+/// lets `access_records` be emptied through it; naming a parent walks past a
+/// whole-entry comparison too. The journal survives only through the
+/// migration's trigger, which this crate says in as many words it does not rely
+/// on.
 #[tokio::test]
 async fn a_decoy_parent_is_not_a_door_into_the_table_that_inherits_from_it() {
     const SCHEMA: &str = "nc_prune_decoy";
@@ -1117,11 +1121,11 @@ async fn a_decoy_parent_is_not_a_door_into_the_table_that_inherits_from_it() {
         max_rows: Some(5),
         prune_batch: Some(5),
     };
-    // **Refused outright now.** The first version of this asserted that the
-    // decoy's own rows are none, so nothing is pruned — true, and it left the
-    // decision to `ONLY`. A partition and a rule both walked past `ONLY`
-    // afterwards, so the question moved earlier: a table something else can be
-    // reached through is refused before any statement runs.
+    // **Refused outright.** Asserting that the decoy's own rows are none, so
+    // nothing is pruned, is true and leaves the decision to `ONLY` — and a
+    // partition and a rule both walk past `ONLY`, so the question is asked
+    // earlier: a table something else can be reached through is refused before
+    // any statement runs.
     let refused = nc_prune::prune_these_declared_by(&mut target, &[decoy], &[decoy], false)
         .await
         .expect_err("a table something inherits from is refused");
@@ -1143,7 +1147,7 @@ async fn a_decoy_parent_is_not_a_door_into_the_table_that_inherits_from_it() {
 
 /// A `DELETE` that can reach another table is refused before it runs.
 ///
-/// **Three shapes walked past `DELETE FROM ONLY`**, each measured against the
+/// **Three shapes walk past `DELETE FROM ONLY`**, each measured against the
 /// real database through the shipped entry point:
 ///
 /// ```text
@@ -1223,7 +1227,8 @@ async fn a_delete_that_could_reach_another_table_is_refused() {
 /// A view standing where a table's name resolves is refused, not pruned.
 ///
 /// **Every branch of the reach guard is keyed on the named relation's oid, and a
-/// view matches none of them.** `relkind = 'v'` fell through to "safe", and an
+/// view matches none of them.** Without an arm of its own, `relkind = 'v'`
+/// falls through to "safe", and an
 /// auto-updatable view satisfies the statement `delete_oldest` issues. Measured,
 /// a view named `ledger` over the journal:
 ///
@@ -1233,9 +1238,9 @@ async fn a_delete_that_could_reach_another_table_is_refused() {
 /// journal_entries before=20 after=14
 /// ```
 ///
-/// With a cascade and an `AFTER DELETE` trigger behind it, a third table went
-/// from 100 rows to 0 while the run reported `removed: 6`. Every protection the
-/// guard's other branches claim reopened behind one view — including the
+/// With a cascade and an `AFTER DELETE` trigger behind it, a third table goes
+/// from 100 rows to 0 while the run reports `removed: 6`. Every protection the
+/// guard's other branches claim reopens behind one view — including the
 /// carve-out that refuses `journal_entries` by name, because the view is not
 /// called that.
 #[tokio::test]
@@ -1265,13 +1270,14 @@ async fn a_view_standing_in_for_a_table_is_refused() {
         "a view was pruned: {refused:?}"
     );
 
-    // **And a partition child, which matched none of the guard's branches.** It
-    // is `relkind = 'r'` and an `inhrelid`, not an `inhparent`, so the guard
-    // refused the parent and passed the child: measured, `parted` refused and
-    // `parted_a` pruned, with all five of the parent's rows gone through it.
-    // `migrations/0001_journal.sql` names partitioning as the journal's own
-    // retention plan and the carve-out compares the bare name, so a partition
-    // of the journal would not have been carved out either.
+    // **And a partition child, which no branch about a parent matches.** It
+    // is `relkind = 'r'` and an `inhrelid`, not an `inhparent`, so a guard
+    // asking only about parents refuses the parent and passes the child:
+    // measured, `parted` refused and `parted_a` pruned, with all five of the
+    // parent's rows gone through it. `migrations/0001_journal.sql` names
+    // partitioning as the journal's own retention plan and the carve-out
+    // compares the bare name, so a partition of the journal would not be
+    // carved out either.
     sqlx::query("CREATE TABLE parted (at BIGINT NOT NULL) PARTITION BY RANGE (at)")
         .execute(&pool)
         .await
@@ -1301,9 +1307,9 @@ async fn a_view_standing_in_for_a_table_is_refused() {
 /// A database that is not there is not a table that refuses.
 ///
 /// **`waited` is read from a SQLSTATE, and a transport failure carries none.**
-/// So a pool timeout, a refused connection and a DNS failure all reached
-/// `Failure::code()` as `waited: false` — which it reads as a permanent refusal.
-/// Measured against a closed port:
+/// So with that alone, a pool timeout, a refused connection and a DNS failure
+/// all reach `Failure::code()` as `waited: false` — which it reads as a
+/// permanent refusal. Measured against a closed port:
 ///
 /// ```text
 /// why  = pool timed out while waiting for an open connection
@@ -1314,8 +1320,7 @@ async fn a_view_standing_in_for_a_table_is_refused() {
 ///
 /// for a database that will be back in a minute, while the table grows past its
 /// limit. `NC-DB-0001` — *"The database did not answer"*, `critical`,
-/// `retryable` — exists for exactly this and was reachable from nowhere in this
-/// crate.
+/// `retryable` — is the code this path reaches instead.
 #[tokio::test]
 async fn a_database_that_is_not_there_says_so() {
     // A port nothing is listening on, and a pool that gives up quickly so this
@@ -1360,7 +1365,7 @@ async fn a_database_that_is_not_there_says_so() {
 
     // **And the whole-catalog run says so too.** `journal_entries` is pushed
     // without the database being touched — it is bounded by the pack — so
-    // `done` was never empty and `verdict` took the `Ok` branch: measured with
+    // judged on `done` alone, `verdict` takes the `Ok` branch: measured with
     // the store unreachable, `run(Request::every())` answered `Ok` with two
     // rows while `run(Request::just("access_records"))` answered `Err` for the
     // same fault. One outage, two shapes, decided by the request.
@@ -1372,14 +1377,14 @@ async fn a_database_that_is_not_there_says_so() {
     );
 }
 
-/// The default constructor reaches `public`, and it had no caller at all.
+/// The default constructor reaches `public`, and this is its
+/// caller.
 ///
-/// **`Postgres::new` is what a deployment uses**, and every test in this file
-/// builds a store with `in_schema` so it can have a scratch schema of its own —
-/// so `Self::in_schema(pool, "public")` could name any schema at all and the
-/// suite stayed green. Measured with `"nowhere"`: `cargo xtask check` printed
-/// `check passed`. A systematic scan found this the only public function in the
-/// crate with no caller anywhere.
+/// **`Postgres::new` is what a deployment uses**, and every other test in this
+/// file builds a store with `in_schema` so it can have a scratch schema of its
+/// own — so without this `Self::in_schema(pool, "public")` could name any
+/// schema at all with the suite green: measured with `"nowhere"`,
+/// `check passed`.
 ///
 /// Asked by *counting*, because counting writes nothing: `access_records` is a
 /// table the migrations put in `public`, and a store aimed anywhere else answers
@@ -1401,9 +1406,9 @@ async fn the_default_store_reaches_the_public_schema() {
 
 /// A caller's own authority cannot redescribe a table the catalog declares.
 ///
-/// **The comparison was against the authority the caller handed over.** So
-/// passing one forged entry as *both* sides was vacuous, and the shipped `pub`
-/// seam emptied the access log:
+/// **Compared against the authority the caller hands over**, passing one
+/// forged entry as *both* sides would be vacuous, and the shipped `pub` seam
+/// would empty the access log — measured that way:
 ///
 /// ```text
 /// prune_these_declared_by(&mut target, &[mine], &[mine], false)
@@ -1414,8 +1419,8 @@ async fn the_default_store_reaches_the_public_schema() {
 ///
 /// Twenty of twenty rows, newest-first by a column
 /// `migrations/0002_access_records.sql` documents as *not* creation order,
-/// against a catalog limit of 500 000, reported as an ordinary success. The
-/// journal was carved out by name; nothing else was.
+/// against a catalog limit of 500 000, reported as an ordinary success. A
+/// carve-out of the journal by name protects nothing else.
 #[tokio::test]
 async fn a_caller_cannot_be_its_own_authority_for_a_catalog_table() {
     const SCHEMA: &str = "nc_prune_own_authority";
@@ -1439,11 +1444,11 @@ async fn a_caller_cannot_be_its_own_authority_for_a_catalog_table() {
         "a caller was its own authority for a table the catalog declares: {refused:?}"
     );
 
-    // **And under a schema-qualified alias**, which is the case the repair was
-    // written for and which nothing drove. `<schema>.access_records` is a legal
-    // name for the same table; matched on the whole string it was not "a table
-    // the catalog declares", so the caller stayed its own authority. Measured
-    // with `|| known.name == bare` deleted from that one line:
+    // **And under a schema-qualified alias**, the case the bare comparison
+    // exists for. `<schema>.access_records` is a legal name for the same table;
+    // matched on the whole string it is not "a table the catalog declares", so
+    // the caller stays its own authority. Measured with `|| known.name == bare`
+    // deleted from that one line:
     //
     // ```text
     // Ok([Pruned { table: "public.access_records", before: Some(20),
@@ -1455,8 +1460,8 @@ async fn a_caller_cannot_be_its_own_authority_for_a_catalog_table() {
     //
     // Twenty of twenty rows, ordered by `id` — the column
     // `migrations/0002_access_records.sql` documents as *not* creation order —
-    // reported as an ordinary success, with the whole gate green. The journal
-    // was carved out by bare name and the other declared table was not; this is
+    // reported as an ordinary success, with the whole gate green. A carve-out
+    // of the journal by bare name leaves the other declared table out; this is
     // the cross of the two cases the sibling assertions cover one at a time.
     let qualified = nc_catalog::TableLimit {
         name: "public.access_records",
@@ -1500,8 +1505,9 @@ async fn a_caller_cannot_be_its_own_authority_for_a_catalog_table() {
 
 /// The door that issues the `DELETE` asks the catalog too.
 ///
-/// **`Target` is public and the catalog check lived one layer up.** So the
-/// method that actually deletes never asked a catalog anything:
+/// **`Target` is public, so a catalog check one layer up is not enough.** With
+/// the check there alone, the method that actually deletes asks a catalog
+/// nothing:
 ///
 /// ```text
 /// delete_oldest("access_records", "occurred_at", 3) -> Ok(3)
@@ -1515,7 +1521,7 @@ async fn a_caller_cannot_be_its_own_authority_for_a_catalog_table() {
 /// `journal_entries` carrying `0001`'s shape without the trigger migrations: a
 /// restored dump, or a second deployment mid-migration. `lib.rs` says of the
 /// journal that "the database refuses the `DELETE` as well, and this crate does
-/// not rely on that" — through this door it did.
+/// not rely on that" — through this door, unchecked, it would.
 #[tokio::test]
 async fn the_delete_door_orders_a_catalog_table_the_catalog_way() {
     const SCHEMA: &str = "nc_prune_delete_door";
@@ -1534,14 +1540,14 @@ async fn the_delete_door_orders_a_catalog_table_the_catalog_way() {
         "the access log was ordered by a column the catalog does not declare: {refused:?}"
     );
 
-    // **And schema-qualified, which is how the catalog's own guard is reached.**
-    // `the_catalog_orders_its_own_tables` compares the *bare* name — `let bare =
-    // table.rsplit('.').next()` — and every case here handed it a bare one, so
-    // dropping that line left the whole suite green while
-    // `delete_oldest("public.access_records", "occurred_at", …)` found no catalog
-    // entry, returned `Ok`, and deleted by the caller's column. That is the
-    // inversion this function's own doc says `0006` exists to prevent, reached
-    // by writing the schema in front of the name.
+    // **And schema-qualified, which is how the catalog's own guard is
+    // reached.** `the_catalog_orders_its_own_tables` compares the *bare* name —
+    // `let bare = table.rsplit('.').next()` — and with only bare names handed
+    // to it, dropping that line leaves the whole suite green while
+    // `delete_oldest("public.access_records", "occurred_at", …)` finds no
+    // catalog entry, returns `Ok`, and deletes by the caller's column. That is
+    // the inversion this function's own doc says `0006` exists to prevent,
+    // reached by writing the schema in front of the name.
     let refused = target
         .delete_oldest("public.access_records", "occurred_at", 3)
         .await;
@@ -1648,10 +1654,10 @@ async fn a_temporary_table_of_the_same_name_is_refused() {
             .expect("a temporary table is ours to make");
     }
 
-    // **Pruned, not refused — and that is the stronger answer.** The pruner now
+    // **Pruned, not refused — and that is the stronger answer.** The pruner
     // pins its own path with `pg_temp` last, so a temporary table of the same
-    // name is not what an unqualified name resolves to at all: the real table is
-    // counted and pruned, and the shadow is simply not in the way. The
+    // name is not what an unqualified name resolves to at all: the real table
+    // is counted and pruned, and the shadow is simply not in the way. The
     // `relpersistence` arm below is still the guard for a caller who pins
     // `pg_temp` in front on purpose, and it is checked directly.
     let mut target = pruner(&alone, "prune_temp_shadow");
@@ -1673,12 +1679,12 @@ async fn a_temporary_table_of_the_same_name_is_refused() {
 
 /// Row-level security is judged by whether this role sees every row.
 ///
-/// **The test was `rolbypassrls` alone.** `CREATE ROLE … SUPERUSER` leaves that
-/// column `false` and a superuser bypasses RLS regardless, so the one role that
-/// *can* see every row was told it could not — with `NC-DB-0005`, which says
-/// retrying will not help. A bounded table under RLS was then permanently
-/// unprunable on a superuser deployment, behind a sentence naming a condition
-/// that did not hold:
+/// **Not by `rolbypassrls` alone.** `CREATE ROLE … SUPERUSER` leaves that
+/// column `false` and a superuser bypasses RLS regardless, so asked that way,
+/// the one role that *can* see every row is told it cannot — with
+/// `NC-DB-0005`, which says retrying will not help. A bounded table under RLS
+/// is then permanently unprunable on a superuser deployment, behind a sentence
+/// naming a condition that does not hold:
 ///
 /// ```text
 /// plain  rolsuper=false  sees  2 of 20  ->  refused
@@ -1730,17 +1736,17 @@ async fn row_security_is_refused_only_when_this_role_cannot_see_past_it() {
     // superuser, and `rolbypassrls` false. PostgreSQL 18.6 sets the flag along
     // with `SUPERUSER`, so the role has to say `NOBYPASSRLS` — an ordinary thing
     // to write, and measured: it still reads every row.
-    // It bypasses RLS and the gate said it could not, with
-    // `NC-DB-0005` — *retrying will not change it* — so a bounded table under RLS
-    // was permanently unprunable on a superuser deployment.
+    // It bypasses RLS, and a gate reading `rolbypassrls` alone says it cannot,
+    // with `NC-DB-0005` — *retrying will not change it* — so a bounded table
+    // under RLS is permanently unprunable on a superuser deployment.
     if sees_everything {
         // **Any this suite left behind first.** A role is cluster-global and
         // survives the schema its test made: a run that panics between creating
-        // one and dropping it leaves it for ever, and twenty-five accumulated on
-        // a developer's cluster that way. The pid in the name is what says whose
-        // it is, and a pid no longer running is nobody's — so this sweeps those
-        // and leaves a concurrent run's alone, which a bare `nc_prune_probe_%`
-        // sweep could not do.
+        // one and dropping it leaves it for ever, and twenty-five accumulate on
+        // a developer's cluster that way, measured. The pid in the name is what
+        // says whose it is, and a pid no longer running is nobody's — so this
+        // sweeps those and leaves a concurrent run's alone, which a bare
+        // `nc_prune_probe_%` sweep could not do.
         sweep_dead_probe_roles(&pool).await;
         let named = &format!("nc_prune_probe_super_{}", std::process::id());
         for statement in [
@@ -1753,9 +1759,9 @@ async fn row_security_is_refused_only_when_this_role_cannot_see_past_it() {
                 .expect("a scratch role is ours to make on our own stack");
         }
         // **One connection, because `SET ROLE` is session state.** The shared
-        // pool hands out two, so the `SET ROLE` landed on one and every later
-        // statement asked the other — which still answered as the original role,
-        // and the assertion below caught it.
+        // pool hands out two, so through it the `SET ROLE` lands on one and
+        // every later statement asks the other — which still answers as the
+        // original role, and the assertion below catches it.
         let options: sqlx::postgres::PgConnectOptions = std::env::var("DATABASE_URL")
             .expect("checked by pool()")
             .parse()
@@ -1782,13 +1788,13 @@ async fn row_security_is_refused_only_when_this_role_cannot_see_past_it() {
         let done = prune_these(&mut as_super, &[LIMIT]).await;
         alone.close().await;
 
-        // **And the role this half made goes with it**, which the split into two
-        // functions lost: the drop moved into the other half with the role it
-        // was written beside, and this one's outlived every run. A role is
-        // cluster-global, so "outlives" means for ever.
+        // **And the role this half made goes with it**, here and not in the
+        // other half: a drop written beside the other half's role leaves this
+        // one to outlive every run. A role is cluster-global, so "outlives"
+        // means for ever.
         //
-        // **Before the assertions, not after them.** Every drop here was on the
-        // success path, so a run that failed one of these assertions left a
+        // **Before the assertions, not after them.** With every drop on the
+        // success path, a run that fails one of these assertions leaves a
         // `SUPERUSER` role behind — and the next `cargo xtask check` then fails
         // its journal and access-record protection step with `superusers=1`
         // against a declared `0`, which reads as a defect in the database rather
@@ -1832,11 +1838,11 @@ async fn row_security_is_refused_only_when_this_role_cannot_see_past_it() {
 
 /// Each half of the row-security question is decided by a case of its own.
 ///
-/// **The arm has three clauses and one test, and the test decided their
-/// disjunction.** Its probe role is `SUPERUSER NOBYPASSRLS`, and a superuser
+/// **The arm has three clauses, and one test would decide only their
+/// disjunction.** A probe role that is `SUPERUSER NOBYPASSRLS`
 /// satisfies `pg_has_role(current_user, relowner, 'USAGE')` as surely as it
-/// satisfies `rolsuper` — so each clause was the other's alibi. Measured on
-/// 2026-09-10, each deleted alone:
+/// satisfies `rolsuper` — so each clause is the other's alibi. Measured
+/// against the sibling test only, each deleted alone:
 ///
 /// ```text
 /// the owner clause deleted        cargo test -p nc-prune  SURVIVED, check passed
@@ -1845,8 +1851,8 @@ async fn row_security_is_refused_only_when_this_role_cannot_see_past_it() {
 /// ```
 ///
 /// The owner clause's own paragraph describes a plain `NOSUPERUSER NOBYPASSRLS`
-/// owner of an RLS table without `FORCE`, which reads every row — and that
-/// arrangement was exercised by nothing. With the clause gone it is refused with
+/// owner of an RLS table without `FORCE`, which reads every row — and without
+/// this, nothing exercises that arrangement. With the clause gone it is refused with
 /// `NC-DB-0005`, *retrying will not help*, for ever.
 ///
 /// So each case makes the role that isolates one clause:
@@ -2003,11 +2009,12 @@ async fn as_role(named: &str, schema: &str) -> Result<Vec<nc_prune::Pruned>, Str
 
 /// Every SQLSTATE the pruner treats as "waited, not refused" is named by a test.
 ///
-/// **`WAITED_RATHER_THAN_REFUSED` was referenced nowhere else in the workspace.**
-/// Deleting the `40001` entry — the one its own doc says was added because its
-/// absence ended a prune run and left every later table unlooked-at — left
-/// `cargo test -p nc-prune` fully green. A list nothing reads back is a list that
-/// shrinks quietly.
+/// **`WAITED_RATHER_THAN_REFUSED` is read back here, code by code, through
+/// `waited_for_tests`.** Deleting the `40001` entry — whose own paragraph says
+/// its absence ends a prune run and leaves every later table unlooked-at —
+/// fails this test, and `the_codes_a_run_waited_for_are_the_ones_written_down`
+/// holds the whole list from inside its own file. A list nothing reads back is
+/// a list that shrinks quietly.
 #[tokio::test]
 async fn a_lock_this_run_waited_for_is_not_a_refusal() {
     let Some(pool) = pool("prune_waited").await else {
@@ -2042,13 +2049,11 @@ async fn a_lock_this_run_waited_for_is_not_a_refusal() {
     }
     // And the eight the list names, by name, so removing one fails here.
     //
-    // **Eight, not four.** The number was written when the list held four and
-    // stayed while it grew — and three of the codes it grew by had picked up the
-    // *next* entry's label, because one comment was written above its code
-    // rather than beside it and shifted the three below it along. A reader
-    // checking `55P03` against `query_canceled` finds a disagreement with
-    // PostgreSQL and has no way to tell which half is wrong.
-    // **The operator-intervention class, which was missing.** A restart
+    // **Each label beside its own code.** A comment written above its code
+    // rather than beside it shifts every label below it along by one, and a
+    // reader checking `55P03` against `query_canceled` then finds a
+    // disagreement with PostgreSQL and has no way to tell which half is wrong.
+    // **The operator-intervention class among them.** A restart
     // delivers `57P01` on the connection that is already open, so it arrives as
     // a `sqlx::Error::Database`, takes `answered = true`, and a code absent from
     // the list then reads as `NC-DB-0005` — *trying again will not help* — for a
@@ -2074,11 +2079,12 @@ async fn a_lock_this_run_waited_for_is_not_a_refusal() {
 
 /// A schema named after the connecting role does not disable the pruner.
 ///
-/// **The guard used to refuse any resolved path with a comma in it**, and the
-/// server default is `"$user", public` — so one `CREATE SCHEMA` named after the
-/// connecting role made every bounded table permanently unprunable behind
-/// `NC-DB-0005`, which says retrying will not help, with `prune_these_with`
-/// returning on the first table. Measured through the shipped entry point:
+/// **A guard refusing any resolved path with a comma in it** fails on the
+/// server default, `"$user", public` — one `CREATE SCHEMA` named after the
+/// connecting role makes every bounded table permanently unprunable
+/// behind `NC-DB-0005`, which says retrying will not help,
+/// with `prune_these_with` returning on the first table. Measured through the
+/// shipped entry point:
 ///
 /// ```text
 /// before: current_schemas(false) = {public}          -> Ok([Pruned { … }])
@@ -2099,10 +2105,10 @@ async fn a_schema_named_after_the_role_does_not_disable_the_pruner() {
     // **A role of this run's own, not the connecting one.** Naming the decoy
     // after `current_user` and then dropping it `CASCADE` destroys whatever a
     // deployment keeps there — measured, a pre-existing `noctua.keepme` holding
-    // three rows was gone after one run — and two concurrent runs collided on it
-    // in three rounds of five. `finish`'s own paragraph records a guessing
-    // `DROP SCHEMA` taking the developer's `public` schema twice, and says every
-    // schema this suite makes carries the process id. These two did not.
+    // three rows is gone after one run — and two concurrent runs collide on it
+    // in three rounds of five. `finish`'s own paragraph says a guessing
+    // `DROP SCHEMA` has no undo and that every schema this suite makes carries
+    // the process id; this role and its schema carry it too.
     //
     // `SET ROLE` makes `"$user"` resolve to this name for the length of the
     // session, which is the condition the test needs, without touching a name
@@ -2150,10 +2156,10 @@ async fn a_schema_named_after_the_role_does_not_disable_the_pruner() {
         .connect(&std::env::var("DATABASE_URL").expect("checked by pool()"))
         .await
         .expect("connects");
-    // **The condition is established, not asserted about the caller.** This read
-    // the *server default* and failed when `DATABASE_URL` named a schema — the
-    // very form `in_schema` was added to support — so `cargo xtask check` could
-    // not pass against it. `SET ROLE` makes `"$user"` resolve to the scratch role
+    // **The condition is established, not asserted about the caller.** Reading
+    // the *server default* fails when `DATABASE_URL` names a schema — the very
+    // form `in_schema` exists to support — so `cargo xtask check` could not
+    // pass against it. `SET ROLE` makes `"$user"` resolve to the scratch role
     // this run created, which is what puts two schemas on the resolved path.
     for statement in [
         "SET search_path TO \"$user\", public",
@@ -2201,16 +2207,15 @@ async fn a_schema_named_after_the_role_does_not_disable_the_pruner() {
 
 /// A schema whose name needs quoting is still a schema this crate can prune.
 ///
-/// **`identifier` — the *table*-name validator — was used on it**, and it admits
-/// only `[a-z_][a-z0-9_]*`. So `"Prod"` or `audit-vault`, both legal PostgreSQL
-/// schemas, made every bounded table permanently unprunable behind
+/// **Not through `identifier`, the *table*-name validator**, which admits
+/// only `[a-z_][a-z0-9_]*`. Through it, `"Prod"` or `audit-vault`, both legal
+/// PostgreSQL schemas, make every bounded table permanently unprunable behind
 /// `NC-DB-0005` and a sentence blaming `catalog/limits.toml`, which never
-/// mentions the schema at all. `prune_these_with` returns on the first error, so
-/// `§15.8`'s only enforced bound went off for every table.
+/// mentions the schema at all. Every bounded table sits in that schema, so
+/// `§15.8`'s only enforced bound goes off for every table.
 ///
-/// That is the same shape as the comma guard removed a round earlier: a rule
-/// refusing an ordinary arrangement. `nc-journal` binds its schema and lets
-/// `quote_ident` handle any name.
+/// That is a rule refusing an ordinary arrangement. `nc-journal` binds its
+/// schema and lets `quote_ident` handle any name.
 #[tokio::test]
 async fn a_schema_whose_name_needs_quoting_is_pruned_like_any_other() {
     let Some(pool) = pool("prune_quoted").await else {
@@ -2253,15 +2258,15 @@ async fn a_schema_whose_name_needs_quoting_is_pruned_like_any_other() {
 
 /// A foreign key with `ON DELETE CASCADE` pointing at the table is a refusal.
 ///
-/// **The arm existed and nothing drove it.** `a_delete_that_could_reach_another_
-/// table_is_refused` drives the rule arm and the trigger arm, which sit on
-/// either side of it in the same `CASE`, and the cascade arm between them was
-/// held by its own text. It is the one of the three that needs no code at all to
-/// arm: a plain `REFERENCES … ON DELETE CASCADE` in another table's definition
-/// is enough, which makes it the likeliest of the three to be met in practice
-/// and the one whose loss would be quietest — `rows_affected` counts the rows
-/// this crate deleted and not the rows the cascade took with them, so a run
-/// would report `removed: 4` while eight rows went.
+/// **The arm, driven.** `a_delete_that_could_reach_another_table_is_refused`
+/// drives the rule arm and the trigger arm, which sit on either side of it in
+/// the same `CASE`, and without this the cascade arm between them is held by
+/// its own text. It is the one of the three that needs no code at all to arm: a
+/// plain `REFERENCES … ON DELETE CASCADE` in another table's definition is
+/// enough, which makes it the likeliest of the three to be met in practice and
+/// the one whose loss would be quietest — `rows_affected` counts the rows this
+/// crate deleted and not the rows the cascade took with them, so a run would
+/// report `removed: 4` while eight rows went.
 ///
 /// All three of `'c'`, `'n'` and `'d'` are driven, because the arm names three
 /// `confdeltype` values and a test of one holds the other two by spelling.
@@ -2304,8 +2309,8 @@ async fn a_cascade_pointing_at_the_table_is_refused() {
             "a permanent refusal was reported as a wait: {refused:?}"
         );
 
-        // The floor for this round: nothing went from either table while the
-        // constraint stood. Dropped afterwards so the next `confdeltype` is the
+        // The floor for this constraint: nothing went from either table while
+        // it stood. Dropped afterwards so the next `confdeltype` is the
         // only one in place and is what the refusal is answering.
         assert_eq!(surviving(&pool).await, (1..=20).collect::<Vec<_>>());
         sqlx::query(sqlx::AssertSqlSafe(format!("DROP TABLE {child}")))
@@ -2329,12 +2334,12 @@ async fn a_cascade_pointing_at_the_table_is_refused() {
 
 /// The five exemptions inside the refusals are what keep an ordinary table prunable.
 ///
-/// **Every arm of `only_for`'s `CASE` was driven from the refusing side only.**
-/// The rule arm asks `ev_type = '4' AND rulename <> '_RETURN'`, the constraint
-/// arm `confdeltype IN ('c','n','d')`, the trigger arm `NOT tgisinternal AND
-/// tgenabled <> 'D'` — five clauses whose whole job is to *let* an ordinary
-/// arrangement through, and no test asked any of them to. Measured on
-/// 2026-09-08, all five removed at once:
+/// **Every arm of `only_for`'s `CASE`, driven from the accepting side
+/// too.** The rule arm asks `ev_type = '4' AND rulename <> '_RETURN'`, the
+/// constraint arm `confdeltype IN ('c','n','d')`, the trigger
+/// arm `NOT tgisinternal AND tgenabled <> 'D'` — five clauses whose whole job
+/// is to *let* an ordinary arrangement through. Measured with no test asking
+/// any of them to, all five removed at once:
 ///
 /// ```text
 /// cargo test -p nc-prune  ->  27 passed / 34 passed
@@ -2345,11 +2350,13 @@ async fn a_cascade_pointing_at_the_table_is_refused() {
 /// delete_oldest(t_rule)     -> "a rule rewrites DELETE on it"
 /// ```
 ///
-/// Each sentence is false about the table it refuses. `ALTER TABLE … DISABLE
-/// TRIGGER`, a plain `REFERENCES … ON DELETE NO ACTION` and an `ON INSERT … DO
-/// ALSO NOTHING` rule are ordinary things, and behind `NC-DB-0005` — which says
-/// retrying will not help — the table then grows for ever with the gate green.
-/// This crate has been repaired for that direction twice already.
+/// Each sentence is false about the table it
+/// refuses. `ALTER TABLE … DISABLE TRIGGER`, a
+/// plain `REFERENCES … ON DELETE NO ACTION` and
+/// an `ON INSERT … DO ALSO NOTHING` rule are ordinary things, and
+/// behind `NC-DB-0005` — which says retrying will not help — the table then
+/// grows for ever with the gate green. This is the direction that is easy to
+/// get wrong.
 #[tokio::test]
 async fn an_ordinary_arrangement_is_pruned_rather_than_refused() {
     let Some(pool) = pool("prune_exempt").await else {
@@ -2414,14 +2421,14 @@ async fn an_ordinary_arrangement_is_pruned_rather_than_refused() {
 
 /// A table that inherits from another is refused, which is the arm's own half.
 ///
-/// **Three tests name this arm and all three drive the one above it.**
-/// `an_inherited_table_is_refused_too` prunes the *parent*, the decoy-parent
-/// test prunes the decoy parent, and the view test prunes a *partition* child,
-/// which `relispartition` answers. So `inhrelid = c.oid` — the clause added
-/// because *"a partition child is `relkind = 'r'` and an `inhrelid`, not an
-/// `inhparent`"* — was decided by nothing. Measured on 2026-09-08 with
-/// `inhrelid = 0` planted: `cargo test -p nc-prune` green at 27 / 34,
-/// `check passed`, and a child table pruned four rows deep.
+/// **Three other tests name this arm and all three drive the one above
+/// it.** `an_inherited_table_is_refused_too` prunes the *parent*, the
+/// decoy-parent test prunes the decoy parent, and the view test prunes a
+/// *partition* child, which `relispartition` answers. So `inhrelid = c.oid` —
+/// the clause that exists because *"a partition child is `relkind = 'r'` and
+/// an `inhrelid`, not an `inhparent`"* — is decided by this alone. Measured
+/// with `inhrelid = 0` planted and this absent: `cargo test -p nc-prune`
+/// green, `check passed`, and a child table pruned four rows deep.
 #[tokio::test]
 async fn a_table_that_inherits_from_another_is_refused() {
     let Some(pool) = pool("prune_child").await else {
@@ -2456,12 +2463,12 @@ async fn a_table_that_inherits_from_another_is_refused() {
 
 /// A caller who pins `pg_temp` in front reaches the temporary table, and is refused.
 ///
-/// **The arm's own test stopped driving it.** `a_temporary_table_of_the_same_
-/// name_is_refused` was written when `bounded()` left the path alone; it now
-/// pins the configured schema with `pg_temp` last, so that test measures the
-/// *real* table being pruned and the shadow being left alone — the stronger
-/// answer, and no longer a test of `relpersistence` at all. Its own comment says
-/// the arm "is checked directly", and nothing checked it.
+/// **The arm's own test does not drive
+/// it.** `a_temporary_table_of_the_same_name_is_refused` runs against
+/// a `bounded()` that pins the configured schema with `pg_temp` last, so that
+/// test measures the *real* table being pruned and the shadow being left alone
+/// — the stronger answer, and not a test of `relpersistence` at all. Its own
+/// comment says the arm "is checked directly", and this is where.
 ///
 /// This is the route that remains: a store told its schema is `pg_temp`. The
 /// pinned path is then `pg_temp, pg_temp` and an unqualified name resolves to the
@@ -2535,17 +2542,16 @@ async fn a_store_pinned_to_the_temporary_schema_is_refused() {
 /// So the assertion is on the connection after the run, not on the run. A single
 /// connection, because a pooled borrow is what carries the leak.
 ///
-/// **And `lock_timeout`, which is the same statement one line up and had no
-/// test.** `bounded()` writes two things onto its transaction — the bound and
-/// the path — and only the path was held here. Measured on 2026-09-08,
-/// `SET LOCAL lock_timeout = '5s'` replaced by `SET lock_timeout = '5s'`:
-/// `cargo run --quiet -p xtask -- check` at `check passed`, `ok 1219 test(s)`,
-/// console byte-identical to a clean run, with the connection carrying `5s` back
-/// to the pool — there is no `after_release` hook anywhere in this workspace.
-/// The next borrower of it then has every lock wait cancelled at five seconds
-/// with `55P03`, which `nc-journal` maps to a *retryable* `Unavailable`: an
-/// audit append reported as a transient outage, and a migration taking
-/// `ACCESS EXCLUSIVE` simply aborting.
+/// **And `lock_timeout`, which is the same statement one line up.** `bounded()`
+/// writes two things onto its transaction — the bound and the path — and both
+/// are held here. Measured without this, `SET LOCAL lock_timeout = '5s'`
+/// replaced by `SET lock_timeout = '5s'`: `cargo run --quiet -p xtask -- check`
+/// at `check passed`, console byte-identical to a clean run, with the
+/// connection carrying `5s` back to the pool — there is no `after_release` hook
+/// anywhere in this workspace. The next borrower of it then has every lock wait
+/// cancelled at five seconds with `55P03`, which `nc-journal` maps to a
+/// *retryable* `Unavailable`: an audit append reported as a transient outage,
+/// and a migration taking `ACCESS EXCLUSIVE` simply aborting.
 ///
 /// `a_locked_table_ends_the_run_rather_than_holding_it` proves the bound
 /// *fires*; this is the half that proves it *ends*.
@@ -2624,31 +2630,31 @@ async fn what_this_crate_sets_does_not_outlive_its_transaction() {
 
 /// The half of the RLS arm the shipped stack cannot otherwise reach.
 ///
-/// **Its own function because the two halves crossed the line limit**, and
+/// **Its own function because the two halves would cross the line limit**, and
 /// because they are two questions: above, that a role which sees every row is
-/// *not* refused; here, that a role which sees two of twenty is. The refusal was
-/// driven only on a deployment whose connecting role is neither `rolsuper` nor
-/// `rolbypassrls`, and this stack's `noctua` is both — measured `t|t` — so the
-/// `else` at the bottom of the caller has never run here and deleting the whole
-/// arm left `cargo xtask check` green.
+/// *not* refused; here, that a role which sees two of twenty is. The refusal is
+/// driven only on a deployment whose connecting role is neither `rolsuper`
+/// nor `rolbypassrls`, and this stack's `noctua` is both — measured `t|t` — so
+/// without this the `else` at the bottom of the caller never runs here and
+/// deleting the whole arm leaves `cargo xtask check` green.
 async fn the_refusal_side_too(pool: &sqlx::PgPool) {
     // **And the other side of the arm, which this stack cannot otherwise
     // reach.** Everything above proves the gate does *not* refuse a role that
     // sees every row. The refusal itself — the sentence the arm carries, and
-    // the reason the arm exists — was driven only on a deployment whose
-    // connecting role is neither `rolsuper` nor `rolbypassrls`, and the
+    // the reason the arm exists — is otherwise driven only on a deployment
+    // whose connecting role is neither `rolsuper` nor `rolbypassrls`, and the
     // shipped stack's `noctua` is both: measured `t|t`, so the `else` at the
-    // bottom of this test has never run here. Deleting the whole RLS arm left
-    // `cargo xtask check` green.
+    // bottom of this test never runs here. Without this, deleting the whole RLS
+    // arm leaves `cargo xtask check` green.
     //
     // So the plain role is made too. It is not the table's owner and not a
     // member of the owner's role, which is what the arm's third clause asks,
     // and the policy above lets it see two rows of twenty.
     // **The process id, because a role is cluster-global.** A schema is
-    // suffixed everywhere in this file for exactly this reason; the two
-    // probe roles were not, so two concurrent runs of the suite dropped
-    // each other's — and a run that died holding privileges left a role
-    // the next run could not drop.
+    // suffixed everywhere in this file for exactly this reason; unsuffixed,
+    // two concurrent runs of the suite drop each other's probe roles — and a
+    // run that dies holding privileges leaves a role the next run cannot
+    // drop.
     let plain = &format!("nc_prune_probe_plain_{}", std::process::id());
     // **The table put back first.** The prune above took the four oldest
     // rows, and the policy is `id < 3` — so the plain role would see none of
@@ -2712,8 +2718,8 @@ async fn the_refusal_side_too(pool: &sqlx::PgPool) {
     // whether row security *hides* anything, because answering that means
     // comparing what this role sees with what is there, and that is the
     // privilege it lacks. So a role under a permissive `USING (true)` policy is
-    // refused as well — measured, seeing 20 of 20 — and the sentence told it
-    // "neither of which is the table the catalog bounds", which was untrue.
+    // refused as well — measured, seeing 20 of 20 — and a sentence telling it
+    // "neither of which is the table the catalog bounds" would be untrue.
     // Refusing is the safe direction; claiming to know why is not.
     assert!(
         refused.contains("cannot establish"),
@@ -2771,21 +2777,22 @@ async fn the_refusal_side_too(pool: &sqlx::PgPool) {
 
 /// A refused table carries the refusal's own code, and a locked one carries a retryable code.
 ///
-/// **Two verdicts a scheduler reads, and both were held by nothing.**
+/// **Two verdicts a scheduler reads, held here.**
 ///
 /// `Pruned::code()`'s `ItWasRefused` arm — the one variant carrying a hard
-/// failure — returned `None` before a previous round fixed it, and the fix has
-/// no test: replacing the arm with `Some(Untouched::ItWasRefused(_)) => None`
+/// failure — must not return `None`, and without this nothing says so:
+/// replacing the arm with `Some(Untouched::ItWasRefused(_)) => None`
 /// leaves `cargo test --workspace` green, and the arm's own comment says it
-/// exists because *"a scheduler filtering on `code().is_some()` saw every lock
-/// skip and missed every refusal"*. `the_code_reaches_whoever_reads_the_result`
-/// asserts the lock arm and the `None` arm and never builds a refusal.
+/// exists because in the catch-all *"a scheduler filtering
+/// on `code().is_some()` would see every lock skip and miss every
+/// refusal"*. `the_code_reaches_whoever_reads_the_result` asserts the lock arm
+/// and the `None` arm and never builds a refusal.
 ///
 /// `said()`'s SQLSTATE lookup — the thing that decides retryable from permanent
-/// — is asserted only through `waited_for_tests`, a second function reading the
-/// same list. Nothing said the shipped path still consults it: `let waited =
-/// false;` in `said()` is green across the workspace, and the run then flips
-/// from a skip row to an error:
+/// — is otherwise asserted only through `waited_for_tests`, a second function
+/// reading the same list. Without this, nothing would say the shipped path
+/// still consults it: `let waited = false;` in `said()` would be green across
+/// the workspace, and the run then flips from a skip row to an error:
 ///
 /// ```text
 /// pristine:  Ok   left_alone = SomethingElseHeldALock
@@ -2902,13 +2909,12 @@ async fn a_skip_and_a_refusal_each_carry_the_code_a_scheduler_reads() {
 
 /// Every prefix a role of this suite begins with, as a `LIKE` pattern.
 ///
-/// **One prefix was swept and this file writes two**, which is the schema half
-/// of this file's own history repeating on the role half: the sweep asked for
-/// `nc\_prune\_probe\_%` and this file also creates `nc_role_probe_<pid>`, a
-/// cluster-global name outside that pattern. A failing test skips `finish`, so
-/// the role stays for ever in a cluster the developer shares — and RULE ZERO's
-/// own instruction is that a scratch role is dropped on the way in and on the
-/// way out. Named by a reviewer in wave 17.
+/// **Every prefix this file writes is swept.** A sweep asking
+/// for `nc\_prune\_probe\_%` misses `nc_role_probe_<pid>`, a cluster-global
+/// name this file also creates. A failing test skips `finish`, so the role
+/// would stay for ever in a cluster the developer shares — and RULE ZERO's own
+/// instruction is that a scratch role is dropped on the way in and on the way
+/// out.
 ///
 /// `\_` matters: unescaped, `_` is `LIKE`'s any-character wildcard, so
 /// `nc\_prune\_probe\_` also matches a name belonging to something else.
@@ -2919,18 +2925,15 @@ const THE_ROLES_THIS_SUITE_MAKES: [&str; 2] = ["nc\\_prune\\_probe\\_", "nc\\_ro
 /// The liveness question is asked here rather than in SQL, because the database
 /// cannot ask it — and asking it is what separates a leftover from a concurrent
 /// run's role. `DROP OWNED BY` first: a role holding a grant cannot be dropped,
-/// which is how the first leftover became one that could not be cleaned up.
+/// so without it a leftover is one that cannot be cleaned up.
 async fn sweep_dead_probe_roles(pool: &sqlx::PgPool) {
-    // **Every prefix the list carries, and the list is what decides.** Wave 17
-    // named the defect that this asked for one prefix while the file writes two,
-    // wrote `THE_ROLES_THIS_SUITE_MAKES`, wrote the test that holds the names
-    // against it — and left the query hard-coded, so the constant's only reader
-    // was the test and `every_role_this_suite_makes_is_one_the_sweep_reaches`
-    // asserted something the sweep did not do. The record of that wave says
-    // "both prefixes now" and was wrong. Its sibling `pool()` had done it right
-    // all along: `for prefix in THE_SCHEMAS_THIS_SUITE_MAKES`. One rule, two
-    // copies, and the narrow copy was the one that ran. Named by a reviewer in
-    // wave 18.
+    // **Every prefix the list carries, and the list is what decides.** A query
+    // with the prefix hard-coded beside `THE_ROLES_THIS_SUITE_MAKES` makes the
+    // test that holds the names against the constant its only reader, so
+    // `every_role_this_suite_makes_is_one_the_sweep_reaches` would assert
+    // something the sweep does not do. Its sibling `pool()` does it right:
+    // `for prefix in THE_SCHEMAS_THIS_SUITE_MAKES`. One rule, two copies, and
+    // the copy that runs has to be the wide one.
     let mut left: Vec<String> = Vec::new();
     for prefix in THE_ROLES_THIS_SUITE_MAKES {
         let found: Vec<String> =
@@ -2942,16 +2945,15 @@ async fn sweep_dead_probe_roles(pool: &sqlx::PgPool) {
         left.extend(found);
     }
     for role in left {
-        // **A role carrying this process's own pid is not a leftover.** The
-        // liveness question was asked with `filter(|pid| *pid != mine)` in front
-        // of it, which answers "not running" for exactly the roles this run
-        // owns — harmless while one test in this file made them, and a
-        // concurrent sibling's roles dropped out from under it the moment a
-        // second one did. Measured: `SET ROLE nc_prune_probe_owner_<pid>` came
-        // back *role does not exist*, from a role created eleven lines earlier
-        // in the same test.
+        // **A role carrying this process's own pid is not a leftover.** Asked
+        // with `filter(|pid| *pid != mine)` in front of it, the liveness
+        // question answers "not running" for exactly the roles this run owns —
+        // harmless with one test in this file making them, and a concurrent
+        // sibling's roles drop out from under it the moment a second one does.
+        // Measured: `SET ROLE nc_prune_probe_owner_<pid>` comes back *role does
+        // not exist*, from a role created eleven lines earlier in the same test.
         //
-        // What that filter was for is a pid reused by a later process, and the
+        // What such a filter is for is a pid reused by a later process, and the
         // `DROP ROLE IF EXISTS` every creator here runs immediately before its
         // `CREATE ROLE` already covers that — by name, rather than by sweeping
         // names another test may be using.
@@ -2976,17 +2978,15 @@ async fn sweep_dead_probe_roles(pool: &sqlx::PgPool) {
 
 /// Every prefix a schema of this suite begins with, as a `LIKE` pattern.
 ///
-/// **One prefix was swept and this file writes two.** `sweep_schemas_from_dead_runs`
-/// ran with `prune_` alone, and eight of this file's tests name their schema
-/// `nc_prune_…` — so for those eight the leak the sweep exists to end was still
-/// open. Measured by a reviewer in round seventy-one: three schemas planted from
-/// pids that are not running, a full green run, and the two `nc_prune_` ones
-/// still standing afterwards. A leaked schema is not a red test, which is why
-/// nothing noticed.
+/// **Every prefix this file writes is swept.** With `prune_` alone, the eight
+/// tests here that name their schema `nc_prune_…` leave open the leak the sweep
+/// exists to end — measured: three schemas planted from pids that are not
+/// running, a full green run, and the two `nc_prune_` ones still standing
+/// afterwards. A leaked schema is not a red test, which is why it needs this.
 ///
-/// The sibling sweep in this file, `sweep_dead_probe_roles`, had the prefix
-/// right *and* escaped its underscores — so one file held two spellings of one
-/// rule, and the second copy was the narrower. `\_` matters: unescaped, `_` is
+/// The sibling sweep in this file, `sweep_dead_probe_roles`, escapes its
+/// underscores, and this one does too: one rule in one file has one spelling.
+/// `\_` matters: unescaped, `_` is
 /// `LIKE`'s any-character wildcard, so `prune_` also matches `prunes…` and a
 /// schema belonging to something else.
 ///
@@ -2996,12 +2996,11 @@ async fn sweep_dead_probe_roles(pool: &sqlx::PgPool) {
 const THE_SCHEMAS_THIS_SUITE_MAKES: [&str; 4] = [
     "prune\\_",
     "nc\\_prune\\_",
-    // **And the two this file builds with `format!`, which the scan below could
-    // not see.** `Prune-Quoted <pid>` and `nc_role_probe_<pid>` are named in
-    // `format!` calls rather than written whole, so the two literal openers the
-    // scan read went past them — and a reviewer measured the leak live in round
-    // seventy-one wave 9: five schemas planted from a dead pid, one green run,
-    // and these two still standing afterwards.
+    // **And the two this file builds with `format!`, which a scan of literal
+    // openers cannot see.** `Prune-Quoted <pid>` and `nc_role_probe_<pid>` are
+    // named in `format!` calls rather than written whole, so the two literal
+    // openers the scan reads go past them — measured live: five schemas planted
+    // from a dead pid, one green run, and these two still standing afterwards.
     "Prune-Quoted ",
     "nc\\_role\\_probe\\_",
 ];
@@ -3021,24 +3020,24 @@ const THE_STATEMENT_THAT_USES_IT: &str = concat!("format!(\"CREATE ", "SCHEMA {s
 
 /// Whether the name with no head of its own is **the** one, by exact text.
 ///
-/// **A name with an empty head has to be excused by something, and four waves
-/// of rules were all the wrong kind of something.** `format!("{schema}_{pid}")`
+/// **A name with an empty head has to be excused by something, and only one
+/// kind of something holds.** `format!("{schema}_{pid}")`
 /// begins with a placeholder, so there is no literal head to match a swept
 /// prefix against. It is legitimate exactly once, in the function every test
 /// calls to get its pool, because the head is the argument — and the arguments
 /// are the literals the loop below reads and already requires to be swept.
 ///
-/// Wave 11 excused *any* binding whose `format!` opened with a placeholder.
-/// Wave 12 narrowed it to a self-shadowing binding inside `pool`, found by that
-/// function's name and the first `\n}\n` after it. Wave 13 broke wave 12's in
-/// both directions at once. Wave 13's replacement asked four structural
-/// questions — the enclosing item, the opener list, the parameter, the first
-/// binding — and wave 14 broke *that* in both directions too: three lines of
-/// raw string holding a column-zero line that reads `async fn pool(leak: &str)`
-/// **are** a function header to a rule that reads the file as text, and three
-/// of its four conjuncts turned out to be decided by nothing.
+/// Excusing *any* binding whose `format!` opens with a placeholder turns the
+/// rule off for a whole spelling. Narrowing it to a self-shadowing binding
+/// inside `pool`, found by that function's name and the first `\n}\n` after it,
+/// breaks in both directions at once. Four structural questions — the enclosing
+/// item, the opener list, the parameter, the first binding — break in both
+/// directions too: three lines of raw string holding a column-zero line that
+/// reads `async fn pool(leak: &str)` **are** a function header to a rule that
+/// reads the file as text, and three of its four conjuncts would be decided by
+/// nothing.
 ///
-/// **So it is not a rule any more. It is a pin.** An excuse is a hole in a
+/// **So it is a pin, not a rule.** An excuse is a hole in a
 /// gate, and a hole must fail closed: the one pair this file actually needs is
 /// named by its exact text, each half required to occur exactly **once**, and
 /// every other shape — a second copy of either, a variant spelling, the
@@ -3047,9 +3046,9 @@ const THE_STATEMENT_THAT_USES_IT: &str = concat!("format!(\"CREATE ", "SCHEMA {s
 /// too-weak direction at all; what it costs is that editing `pool`'s binding
 /// turns this red, which is the loud half of the trade and the one to take.
 ///
-/// Four conjuncts and no fifth: `bound < at` was written and removed, because
-/// the caller finds the binding with `source[..at].rfind`, so it cannot be
-/// false. A conjunct nothing can decide is the defect this pin replaces.
+/// Four conjuncts and no fifth: `bound < at` is left out, because the caller
+/// finds the binding with `source[..at].rfind`, so it cannot be false. A
+/// conjunct nothing can decide is the defect this pin replaces.
 fn the_head_is_an_argument_already_read(source: &str, at: usize, bound: usize) -> bool {
     let opens = "format!(\"".len();
     source.matches(THE_STATEMENT_THAT_USES_IT).count() == 1
@@ -3066,14 +3065,13 @@ fn the_head_is_an_argument_already_read(source: &str, at: usize, bound: usize) -
 
 /// Each way the pin can be missed, decided by a source that misses it.
 ///
-/// **Three of the four conjuncts the wave-13 rule carried were decided by
-/// nothing**, measured by a reviewer in wave 14: each could be deleted with the
-/// whole file green, because this file holds one name with an empty head and it
-/// satisfied every clause at once. The first draft of *this* test had the same
-/// defect one level down — it computed `at` and `bound` with the same `find`
-/// the rule uses, so the two conjuncts comparing them could not fail. It finds
-/// them the way the **caller** does instead: `at` from a statement the walk
-/// reached, `bound` from `source[..at].rfind`.
+/// **Conjuncts this file satisfies all at once decide nothing**: measured, each
+/// of three can be deleted with the rest of the file green, because this file
+/// holds one name with an empty head and it satisfies every clause at once. A
+/// test that computes `at` and `bound` with the same `find` the rule uses has
+/// the same defect one level down — the two conjuncts comparing them cannot
+/// fail. This one finds them the way the **caller** does instead: `at` from a
+/// statement the walk reached, `bound` from `source[..at].rfind`.
 #[test]
 fn the_pin_decides_each_way_it_can_be_missed() {
     let binding = THE_BINDING_WHOSE_HEAD_IS_AN_ARGUMENT;
@@ -3196,11 +3194,10 @@ fn the_literal_heads_of(body: &str, variable: &str) -> Vec<String> {
 
 /// Every role this file names begins with a prefix the sweep reaches.
 ///
-/// **The schema half of this rule has existed since round seventy-one wave 9
-/// and the role half did not.** Its sibling paragraph names this sweep as the
-/// one that "had the prefix right *and* escaped its underscores" — and it had
-/// *a* prefix right: `nc_role_probe_<pid>`, a cluster-global role this file
-/// creates, is outside `nc\_prune\_probe\_%`, so a red run left it for ever in a
+/// **The role half of this rule, beside the schema half.** A role sweep with
+/// *a* prefix right is not enough: `nc_role_probe_<pid>`, a cluster-global
+/// role this file creates, is outside `nc\_prune\_probe\_%`, so swept by that
+/// prefix alone a red run would leave it for ever in a
 /// cluster the developer shares. A prefix list is a list of spellings, and this
 /// is the rule that makes it untrustworthy: the names are read out of this file
 /// and each one is required to be swept.
@@ -3222,13 +3219,12 @@ fn every_role_this_suite_makes_is_one_the_sweep_reaches() {
         sites += 1;
         let tail = source[at + creates.len()..].trim_start_matches(['\\', '"']);
         // **Resolved inside the function it is written in, and no further.**
-        // Wave 17 took the nearest `let <variable> = ` above and then the first
-        // `format!("` from there to the end of the file — so a `for`-loop
-        // binding, which has no `let` near it at all, resolved to a binding of
-        // the same name 151 lines up in a different test and validated three
-        // roles it knew nothing about. Renaming those three to genuinely
-        // unswept names left the test green, measured by a reviewer in wave 18:
-        // the schema half of this file's own recorded history, repeated here.
+        // Taking the nearest `let <variable> = ` above and then the first
+        // `format!("` from there to the end of the file resolves a `for`-loop
+        // binding, which has no `let` near it at all, to a binding of the same
+        // name in a different test further up, validating three roles it knows
+        // nothing about — measured that way, renaming those three to genuinely
+        // unswept names leaves the test green.
         //
         // The binding has to be in the same function, and a `for` names the
         // collection it walks, which is the second hop this file needs and the
@@ -3318,13 +3314,13 @@ fn every_schema_this_suite_makes_is_one_the_sweep_reaches() {
          ever, in a database the developer shares"
     );
 
-    // **And every `CREATE SCHEMA` this file writes.** The two openers above read
-    // only the names written whole; two of this file's schemas are built with
-    // `format!` and were invisible to them — measured live in round seventy-one
-    // wave 9, both still standing after a full green run. Each statement names a
-    // variable, and the variable is resolved to the literal head of the
-    // `format!` that built it. **A site this cannot resolve fails**, so a third
-    // shape is a red test rather than a silent leak.
+    // **And every `CREATE SCHEMA` this file writes.** The two openers above
+    // read only the names written whole; two of this file's schemas are built
+    // with `format!` and are invisible to them — measured live, both still
+    // standing after a full green run. Each statement names a variable, and the
+    // variable is resolved to the literal head of the `format!` that built it.
+    // **A site this cannot resolve fails**, so a third shape is a red test
+    // rather than a silent leak.
     //
     // The needle is assembled, because this test lives in the file it reads.
     let creates = concat!("CREATE ", "SCHEMA ");
@@ -3348,16 +3344,16 @@ fn every_schema_this_suite_makes_is_one_the_sweep_reaches() {
                     &tail[..tail.len().min(40)]
                 )
             });
-        // **The binding above this statement, not the file's first.** This read
-        // `source.split_once("let <variable> = ")`, which is whichever binding
-        // comes first in the file — and `pool`'s own `let schema = &format!(
-        // "{schema}_{}", …)` is at the top, with an empty head that the skip
-        // below waves through as pool's shape. So any later `CREATE SCHEMA
-        // {schema}` resolved to that one whatever it actually built: a reviewer
-        // measured it in wave 10 by taking a leaking plant the control had
-        // caught and renaming its variable to `schema`, nothing else, and the
-        // rule went quiet. A rule written to make a name list untrustworthy was
-        // itself keyed on a name.
+        // **The binding above this statement, not the file's first.**
+        // `source.split_once("let <variable> = ")` finds whichever binding
+        // comes first in the file — and `pool`'s own
+        // `let schema = &format!("{schema}_{}", …)` is at the top, with an
+        // empty head that the skip below waves through as pool's shape. So any
+        // later `CREATE SCHEMA {schema}` would resolve to that one whatever it
+        // actually built: measured by taking a leaking plant the control
+        // catches and renaming its variable to `schema`, nothing else, and the
+        // rule goes quiet. A rule written to make a name list untrustworthy
+        // cannot itself be keyed on a name.
         let binding = format!("let {variable} = ");
         let Some((bound, built)) = source[..at].rfind(&binding).and_then(|bound| {
             source[bound..]
@@ -3373,31 +3369,32 @@ fn every_schema_this_suite_makes_is_one_the_sweep_reaches() {
         // An empty head is `pool`'s own `{schema}_{pid}`, whose prefixes are the
         // arguments the loop above already read.
         //
-        // **And it has to be that one.** The condition tested was only *this
-        // `format!` begins with a placeholder*, which is true of any name built
-        // as `format!("{…}…")` by any binding — so the rule written to make the
-        // prefix list untrustworthy was turned off for a whole spelling.
-        // Measured by a reviewer in wave 11: `let leaked = format!("{}_leaks",
-        // pid)` with a `CREATE SCHEMA {leaked}` beside it passed, while the same
-        // leak written `format!("leaks_{}", pid)` was caught. Pool's shape
+        // **And it has to be that one.** Testing only *this `format!` begins
+        // with a placeholder*, which is true of any name built as
+        // `format!("{…}…")` by any binding, turns the rule off for a whole
+        // spelling. Measured with that test alone:
+        // `let leaked = format!("{}_leaks", pid)` with a `CREATE SCHEMA {leaked}`
+        // beside it passes, while the same leak written
+        // `format!("leaks_{}", pid)` is caught. Pool's shape
         // interpolates *the name it is binding*; anything else with an empty
         // head is a leak this rule cannot see, and is a failure rather than a
         // skip.
         if head.is_empty() {
-            // **Pool's binding, by where it is, not by what it looks like.**
-            // The assertion held a *shape* — the format starts with
-            // `{<this variable>}_` — and any binding that shadows itself
-            // satisfies it exactly: `let zz = "zz_leak"; let zz =
-            // format!("{zz}_{}", pid);` was measured green in wave 12 while the
-            // identical leak written head-first was caught. A rule written to
-            // make a name list untrustworthy cannot be keyed on a name.
+            // **Pool's binding, by where it is, not by what it looks like.** An
+            // assertion holding a *shape* — the format starts with
+            // `{<this variable>}_` — is satisfied exactly by any binding that
+            // shadows itself:
+            // `let zz = "zz_leak"; let zz = format!("{zz}_{}", pid);` passes
+            // such an assertion, measured, while the identical leak written
+            // head-first is caught. A rule written to make a name list
+            // untrustworthy cannot be keyed on a name.
             //
             // There is one binding this skip is for, and what makes it that one
             // is not where it sits but **where its head comes from**: a
             // parameter of the function whose call sites the loop above already
-            // read. Wave 12 asked the position question with `pool`'s name and
-            // the first `\n}\n` after it, and wave 13 broke it in both
-            // directions at once — see `the_head_is_an_argument_already_read`.
+            // read. Asking the position question with `pool`'s name and the
+            // first `\n}\n` after it breaks in both directions at once — see
+            // `the_head_is_an_argument_already_read`.
             assert!(
                 the_head_is_an_argument_already_read(source, at, bound),
                 "`{variable}` is a schema name built from a placeholder this rule cannot \
@@ -3432,8 +3429,8 @@ fn every_schema_this_suite_makes_is_one_the_sweep_reaches() {
 ///
 /// The liveness question is asked here rather than in SQL, because the database
 /// cannot ask it — and asking it is what separates a leftover from a concurrent
-/// run's schema. A `DROP SCHEMA` that guesses has no undo, and the sibling
-/// helper in this file took the developer's `public` schema twice by guessing.
+/// run's schema. A `DROP SCHEMA` that guesses has no undo, and `finish`'s own
+/// paragraph says what a guess reaches: the developer's `public` schema.
 async fn sweep_schemas_from_dead_runs(pool: &sqlx::PgPool, prefix: &str) {
     let left: Vec<String> =
         sqlx::query_scalar("SELECT nspname::text FROM pg_namespace WHERE nspname LIKE $1 || '%'")
@@ -3446,8 +3443,8 @@ async fn sweep_schemas_from_dead_runs(pool: &sqlx::PgPool, prefix: &str) {
         // **The trailing digits, not the last `_`-separated part.** One of this
         // file's own schemas is `Prune-Quoted <pid>`, where the pid is separated
         // by a space — `rsplit('_')` hands back the whole name, which parses as
-        // no number, so the sweep stepped over it even once its prefix was
-        // swept. What names a run is the number at the end, whatever stands in
+        // no number, so a sweep reading it that way steps over it even once its
+        // prefix is swept. What names a run is the number at the end, whatever stands in
         // front of it.
         let digits: String = schema
             .chars()

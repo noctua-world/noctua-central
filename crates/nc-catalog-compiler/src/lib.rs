@@ -35,9 +35,9 @@ mod emit;
 
 /// The enum variant the generated error crate gives one message key.
 ///
-/// **Exported so a gate can ask where a doc line stands.** The rule that holds
-/// each code's `///` line asked whether the file *contained* it, which a
-/// permutation satisfies; asking where it stands needs the variant the emitter
+/// **Exported so a gate can ask where a doc line stands.** Asking whether the
+/// file *contains* each code's `///` line is satisfied by a permutation; asking
+/// where it stands needs the variant the emitter
 /// derived, and deriving it a second time in the test would be the
 /// compare-against-your-own-output shape this tree refuses.
 pub use emit::error_variant;
@@ -126,9 +126,9 @@ pub struct Compiled {
     pub files: Vec<EmittedFile>,
     /// The reservation ledger.
     ///
-    /// **Deliberately not one of `files`.** It used to be, and the drift check
-    /// then compared it against output derived from it — so a hand edit
-    /// ratified itself and `check` reported "in sync". It is verified instead by
+    /// **Deliberately not one of `files`.** As one, the drift check would
+    /// compare it against output derived from it — so a hand edit would ratify
+    /// itself and `check` report "in sync". It is verified instead by
     /// being *read* during compilation: its checksum has to match its contents,
     /// and its contents have to reconcile with `catalog/errors.toml`. Those are
     /// two independent files, which is what a check needs.
@@ -149,12 +149,12 @@ pub struct Compiled {
 /// renumbered error code, an edited ledger — located and sorted, rather than the
 /// first.
 pub fn compile(root: &Path, bootstrap: ledger::Bootstrap) -> Result<Compiled, Vec<Problem>> {
-    // **Both classes, not the first one found.** This returned on `load`'s
-    // problems, so a catalog with an i18n defect *and* a renumbered code
-    // reported only the i18n one — while this function's own doc promised
-    // "every problem found … rather than the first". Reproduced: repointing a
-    // code's message key at a name no locale declares reported
-    // `dangling-message-key`, and the `code-repointed` that was equally true was
+    // **Both classes, not the first one found.** Returning on `load`'s
+    // problems would make a catalog with an i18n defect *and* a renumbered code
+    // report only the i18n one — while this function's own doc promises "every
+    // problem found … rather than the first". Reproduced that way: repointing a
+    // code's message key at a name no locale declares reports
+    // `dangling-message-key`, and the `code-repointed` that is equally true is
     // never computed.
     //
     // The catalog `load` returns alongside its problems is best-effort, which is
@@ -162,23 +162,22 @@ pub fn compile(root: &Path, bootstrap: ledger::Bootstrap) -> Result<Compiled, Ve
     // it — and nothing is written while any problem stands.
     let (catalog, mut problems) = load::load(root);
 
-    // **Pushed, not `?`-returned, and it says what `load` says.** This built a
-    // *fresh* vector holding one problem and returned it — three lines under a
-    // comment promising "every problem found … rather than the first" — so every
-    // defect `load` had already reported was discarded. And its sentence, "it
-    // was read a moment ago, so something changed the tree mid-build", is never
-    // true: `load` opens this file first, so an absent or unreadable one has
-    // already failed there. Measured with the file removed and a locale key also
-    // removed: one problem, the wrong sentence, and the locale defect gone.
+    // **Pushed, not `?`-returned, and it says what `load` says.** A *fresh*
+    // vector holding one problem, returned three lines under a comment promising
+    // "every problem found … rather than the first", would discard every defect
+    // `load` has already reported. And a sentence such as "it was read a moment
+    // ago, so something changed the tree mid-build" is never true: `load` opens
+    // this file first, so an absent or unreadable one has already failed there.
+    // Measured that way with the file removed and a locale key also removed:
+    // one problem, the wrong sentence, and the locale defect gone.
     //
-    // The reader is sent to look for a concurrent writer that does not exist,
-    // which is worse than silence — `AGENTS.md` calls a diagnostic a set of
-    // instructions, and every part of it either true where the reader stands or
-    // worse than nothing.
-    // **`load` has already said this, so nothing is said twice.** The repair
-    // that stopped this call site discarding `load`'s problems went on to *push*
-    // a diagnostic `load::read` builds word for word — same file, same sentence,
-    // same fix, same check name — so a missing registry printed it twice:
+    // Such a reader is sent to look for a concurrent writer that does not
+    // exist, which is worse than silence — `AGENTS.md` calls a diagnostic a set
+    // of instructions, and every part of it either true where the reader stands
+    // or worse than nothing.
+    // **`load` has already said this, so nothing is said twice.** Pushing a
+    // diagnostic `load::read` builds word for word — same file, same sentence,
+    // same fix, same check name — makes a missing registry print it twice:
     //
     // ```text
     // error catalog/errors.toml — could not be read: No such file or directory (os error 2)
@@ -186,14 +185,13 @@ pub fn compile(root: &Path, bootstrap: ledger::Bootstrap) -> Result<Compiled, Ve
     // error the catalog has 2 problem(s)
     // ```
     //
-    // And the case guarding it asserted `problems.len() > 1` under a message
-    // about a *locale* defect surviving — which passed on the duplicate while
-    // that defect really was gone, because `load` returns the moment a registry
-    // cannot be read and its i18n checks never run.
+    // And a case asserting `problems.len() > 1` under a message about a
+    // *locale* defect surviving passes on the duplicate while that defect really
+    // is gone, because `load` returns the moment a registry cannot be read and
+    // its i18n checks never run.
     //
-    // The sort happens here too: this was the one exit from `compile` that
-    // skipped it, so the one path that returns several problems returned them
-    // unordered.
+    // The sort happens here too, so the one path that returns several problems
+    // from this exit returns them ordered like every other.
     let Ok(errors_text) = std::fs::read_to_string(root.join("catalog/errors.toml")) else {
         problems.sort_by(|a, b| (&a.file, a.line).cmp(&(&b.file, b.line)));
         return Err(problems);
@@ -309,14 +307,14 @@ pub fn quoted(text: &str) -> String {
             '\n' => out.push_str("\\n"),
             '\r' => out.push_str("\\r"),
             '\t' => out.push_str("\\t"),
-            // **Every other control character, written as an escape.** Five were
-            // handled and the rest went through as themselves: a `\u0000` in
-            // `catalog/i18n/` reached the generated table as a raw NUL, and a
-            // `\u0007` as a BEL — rustc accepts both, so this was never a build
-            // break, it was a NUL in a sentence shown to a user and in the
-            // Markdown page beside it. `nc-canon` has a whole doctrine that a
-            // message naming a control character must not contain one; the
-            // emitter, whose input is prose somebody writes freely, had none.
+            // **Every other control character, written as an escape.** Passed
+            // through as themselves, a `\u0000` in `catalog/i18n/` reaches the
+            // generated table as a raw NUL, and a `\u0007` as a BEL — rustc
+            // accepts both, so this is never a build break, it is a NUL in a
+            // sentence shown to a user and in the Markdown page beside it.
+            // `nc-canon` has a whole doctrine that a message naming a control
+            // character must not contain one; the emitter, whose input is prose
+            // somebody writes freely, needs the same.
             control if shows_nothing(control) => {
                 let _ = write!(out, "\\u{{{:x}}}", control as u32);
             }
@@ -330,8 +328,8 @@ pub fn quoted(text: &str) -> String {
 /// A doc comment line, with anything that would break out of it removed and
 /// anything rustdoc would read as markup neutralised.
 ///
-/// **The repair was made as wide as rustc's denials and not as wide as the
-/// gate's.** `printable` stops a control character or a bidi override from
+/// **As wide as the gate's denials, not only rustc's.** `printable` stops a
+/// control character or a bidi override from
 /// reaching a `///`; what reaches it here is a developer's prose, and a doc
 /// comment is *Markdown*. `cargo xtask check` runs `cargo doc` with
 /// `RUSTDOCFLAGS=-D warnings`, so an ordinary description ends the build inside
@@ -370,14 +368,13 @@ pub fn doc(text: &str) -> String {
 
 /// Every character that would break out of a line, replaced by a space.
 ///
-/// **`quoted`'s repair covered string literals and not doc comments.** That
-/// function's own paragraph records a `\u0000` in `catalog/i18n/` reaching the
-/// generated table as a raw NUL — and the fix went into the escaper for string
-/// literals only, while the function twelve lines below it, which writes every
-/// `///` line the compiler emits and every Markdown cell, replaced `\n` and
-/// `\r` and nothing else. Measured, the same NUL through `compile()` over a copy
-/// of the real catalog: escaped correctly in `crates/nc-catalog/src/events.rs`,
-/// and raw in the `///` line of `crates/nc-log/src/events.rs`.
+/// **`quoted` covers string literals and not doc comments.** That function's
+/// own paragraph records a `\u0000` in `catalog/i18n/` reaching the generated
+/// table as a raw NUL; this is the same rule for every `///` line the compiler
+/// emits and every Markdown cell. Replacing `\n` and `\r` and nothing else is
+/// not it — measured, the same NUL through `compile()` over a copy of the real
+/// catalog is then escaped correctly in `crates/nc-catalog/src/events.rs`, and
+/// raw in the `///` line of `crates/nc-log/src/events.rs`.
 ///
 /// **And `is_control()` is category `Cc`, which is not the dangerous set.** The
 /// bidirectional overrides — `U+202E` and its family, category `Cf` — pass it,
@@ -411,11 +408,11 @@ pub fn printable(text: &str) -> String {
 /// `Cf` in Unicode's terms, plus the two separators. `is_control()` does not
 /// cover any of them, and rustc denies the first eight inside a literal.
 ///
-/// **And `Cf` does not stop at the basic plane.** Every character here used to
-/// be below `U+FFFF`, which left `as_toml`'s `\UXXXXXXXX` arm — written for a
-/// character above it — unreachable: `Cc` tops out at `U+009F` and this topped
-/// out at `U+FEFF`, so nothing could take the branch. A clause nothing can
-/// decide is not a defence, it is a reason to think there is one, and there was.
+/// **And `Cf` does not stop at the basic plane.** With every character here
+/// below `U+FFFF`, `as_toml`'s `\UXXXXXXXX` arm — written for a character above
+/// it — would be unreachable: `Cc` tops out at `U+009F`, and a set topping out
+/// at `U+FEFF` leaves nothing able to take the branch. A clause nothing can
+/// decide is not a defence, it is a reason to think there is one.
 /// The tag block is the sharp end: `U+E0001` and `U+E0020`–`U+E007F` are
 /// invisible everywhere and spell out ASCII, and `commands.toml`'s descriptions
 /// are what expose a command to an AI agent — so a description carrying tag
@@ -443,22 +440,23 @@ pub const fn is_a_direction_mark(character: char) -> bool {
 /// **One table, held where a command's argument schema is refused by it.**
 /// `nc-schema` refuses a schema or a title holding any of these — for the
 /// catalog here and for a plugin at `activate`, through one judge — so the
-/// table moved there, and this crate's escapers read it through this line
-/// rather than through a copy. Its doc there carries the incidents that
-/// shaped it.
+/// table lives there, and this crate's escapers read it through this line
+/// rather than through a copy. Its doc there carries the measurements behind
+/// it.
 pub use nc_schema::{BLANK_RANGES, INVISIBLE_RANGES, shows_nothing};
 /// Whether `reason` is a reason to exempt `table`, rather than a character.
 ///
-/// **Both hatches out of `NOCTUA.md §15.8` tested that a reason was non-empty,
-/// and nothing else.** Measured on the shipped catalog: `pack_reason = "x"`
-/// compiled clean, and so did `"TODO"`, `"policy-pack"` — the mechanism restated
-/// — `"pack_reason"` — the field name written back — and `"access_records"`,
-/// which is a *different declared table*. What that buys is not a warning: a
-/// table with `strategy = "policy-pack"` is counted as declared without a bound
-/// and the pruner returns `bounded_by_a_pack` for it, so it is unbounded and
-/// unpruned permanently. The sibling hatch `nc:bounded:` had the same shape one
-/// step further along — it required the reason to name the table, so
-/// `nc:bounded: login_attempts` passed with the name and nothing else.
+/// **Both hatches out of `NOCTUA.md §15.8` need more than a non-empty reason.**
+/// Measured on the shipped catalog with only non-emptiness asked:
+/// `pack_reason = "x"` compiles clean, and so do `"TODO"`, `"policy-pack"` —
+/// the mechanism restated — `"pack_reason"` — the field name written back — and
+/// `"access_records"`, which is a *different declared table*. What that buys is
+/// not a warning: a table with `strategy = "policy-pack"` is counted as
+/// declared without a bound and the pruner returns `bounded_by_a_pack` for it,
+/// so it is unbounded and unpruned permanently. The sibling hatch
+/// `nc:bounded:` has the same shape one step further along if it only requires
+/// the reason to name the table: `nc:bounded: login_attempts` would pass with
+/// the name and nothing else.
 ///
 /// So the rule is two halves, and each catches what the other cannot:
 ///
@@ -469,15 +467,15 @@ pub use nc_schema::{BLANK_RANGES, INVISIBLE_RANGES, shows_nothing};
 ///    after the name is taken out — so the name alone, the name with `TODO`,
 ///    and the mechanism restated are all refused. **Counted once each**: both
 ///    halves read the *distinct* words, because a token written five times was
-///    written once. Counting every occurrence made the marker itself into
-///    prose — a marker, the table's name, and then the marker four more times
-///    is four words and thirty-six letters, and it excused an unbounded table,
-///    which is this list's own third case reached by repetition. (The marker is
+///    written once. Counting every occurrence would make the marker itself
+///    into prose — a marker, the table's name, and then the marker four more
+///    times is four words and thirty-six letters, enough to excuse an unbounded
+///    table, which is this list's own third case reached by repetition. (The marker is
 ///    not spelled here: a line of prose that writes one is counted by the hatch
 ///    census as a hatch, and this paragraph is about the rule, not a use of it.)
 ///
-/// The floor in the second half is low on purpose, and it was measured down to
-/// here rather than chosen: at four words the corpus refused
+/// The floor in the second half is low on purpose, and it is measured down to
+/// here rather than chosen: at four words the corpus refuses
 /// `nc:bounded: login_attempts holds one row`, which is a true reason about a
 /// real table written the way this repository writes them. A rule that refuses
 /// that is wrong in the direction that is harder to notice, because the tree
@@ -502,27 +500,26 @@ pub fn a_reason_names_what_it_exempts(table: &str, reason: &str) -> Result<(), S
              somebody checks"
         ));
     }
-    // **Every occurrence, not the first.** Removing one left the name paying
-    // for the rule the second time it was written: measured through criterion
+    // **Every occurrence, not the first.** Removing one leaves the name paying
+    // for the rule the second time it is written: measured through criterion
     // 5's own gate, `nc:bounded: login_attempts login_attempts x` and
-    // `nc:bounded: login_attempts TODO login_attempts` were both **excused**,
+    // `nc:bounded: login_attempts TODO login_attempts` are then both **excused**,
     // and the second is the exact string the paragraph above names as the
     // defect, with the name repeated. A name repeated is still a name standing
     // in for the reason.
     // **Folded, because PostgreSQL folds.** `replace` is case-sensitive and an
-    // unquoted identifier is not: `nc:bounded: login_attempts LOGIN_ATTEMPTS
-    // TODO` handed the name back in the case SQL resolves it from and the
-    // second half read it as prose — the very string the paragraph above names
+    // unquoted identifier is not: unfolded, `nc:bounded: login_attempts LOGIN_ATTEMPTS
+    // TODO` hands the name back in the case SQL resolves it from and the
+    // second half reads it as prose — the very string the paragraph above names
     // as the defect, one shift key away. `xtask/src/limits.rs` lowercases for
-    // exactly this reason where it resolves a name; this did not.
+    // exactly this reason where it resolves a name, and so does this.
     let rest = reason.to_lowercase().replace(&table.to_lowercase(), " ");
-    // **A word repeated is one word.** Both counts below were over every word
-    // the reason held, so writing one token again and again bought as much
-    // prose as anybody needed: the marker, the table's name, and then the
-    // marker four more times is four words and thirty-six letters, and it
-    // excused an unbounded table — the mechanism restated, which is the third
-    // thing this function's own doc says it refuses. Measured in round
-    // sixty-four through criterion 5's own driver.
+    // **A word repeated is one word.** Counted over every word the reason
+    // holds, writing one token again and again buys as much prose as anybody
+    // needs: the marker, the table's name, and then the marker four more times
+    // is four words and thirty-six letters, and it excuses an unbounded table —
+    // the mechanism restated, which is the third thing this function's own doc
+    // says it refuses. Measured through criterion 5's own driver.
     //
     // The rule that closes it names no token: a reason is what somebody wrote,
     // and a thing written five times was written once. Both halves read the
@@ -530,12 +527,12 @@ pub fn a_reason_names_what_it_exempts(table: &str, reason: &str) -> Result<(), S
     // each worth exactly one whatever their multiplicity.
     //
     // **And a word is a run of letters and digits, not a run of non-spaces.**
-    // Splitting on whitespace left the punctuation attached, so one comma and
-    // one full stop made three distinct words out of one: the marker, the
+    // Splitting on whitespace leaves the punctuation attached, so one comma and
+    // one full stop make three distinct words out of one: the marker, the
     // table's name, and then the marker again with a comma and again with a
-    // stop cleared both floors and excused an unbounded table — the same
-    // defect as the repetition above, wearing two characters. Measured in
-    // round sixty-five. Splitting on everything that is not a letter or a digit
+    // stop clear both floors and excuse an unbounded table — the same defect as
+    // the repetition above, wearing two characters. Measured through the same
+    // driver. Splitting on everything that is not a letter or a digit
     // leaves the words themselves, so a token cannot be multiplied by dressing
     // it.
     let mut distinct: Vec<&str> = Vec::new();
@@ -553,26 +550,26 @@ pub fn a_reason_names_what_it_exempts(table: &str, reason: &str) -> Result<(), S
         .iter()
         .filter(|word| word.chars().any(char::is_alphabetic))
         .count();
-    // **Letters and digits, not every character that is not a space.** This
-    // measured `rest.trim()` first, which counts the runs of spaces between the
-    // words — so ten spaces satisfied "ten characters of prose". Counting
-    // non-whitespace instead let punctuation pay: `nc:bounded: login_attempts
-    // ---------- x` is two words and eleven characters, and it excused an
-    // unbounded table. The rule is about a sentence somebody wrote, and a rule
-    // of hyphens is not one — which is the shape this function's own doc calls
-    // "a length on its own is a count standing in for a property".
-    // **Letters, not characters that happen to be alphanumeric.** This counted
-    // alphanumerics so that a rule of punctuation — `----------` — could not
-    // pass for a sentence; digits then paid for prose, and `nc:bounded:
-    // login_attempts 0000000000 0` satisfied both halves of the rule with
+    // **Letters and digits, not every character that is not a space.**
+    // `rest.trim()` counts the runs of spaces between the words — so ten spaces
+    // would satisfy "ten characters of prose". Counting non-whitespace instead
+    // lets punctuation pay: `nc:bounded: login_attempts ---------- x` is two
+    // words and eleven characters, and it would excuse an unbounded table. The
+    // rule is about a sentence somebody wrote, and a rule of hyphens is not one
+    // — which is the shape this function's own doc calls "a length on its own
+    // is a count standing in for a property".
+    // **Letters, not characters that happen to be alphanumeric.** Counted as
+    // alphanumerics, so that a rule of punctuation — `----------` — cannot pass
+    // for a sentence, digits pay for prose instead: `nc:bounded:
+    // login_attempts 0000000000 0` satisfies both halves of the rule with
     // nothing written in it. A reason is a sentence a reader can act on, and a
     // sentence is made of letters.
-    // **And digits count toward the length, now that they cannot count as a
-    // word.** Counting letters alone refused a marker naming the table and
-    // then `at most 1 row` — nine letters — which is a true, precise bound written the
-    // way a bound is written, and the diagnostic then blamed the word count,
-    // which was fine. Measured in round sixty-five: the second way of being
-    // wrong, in the one place this function's own doc has a paragraph about it.
+    // **And digits count toward the length, since they cannot count as a
+    // word.** Counting letters alone refuses a marker naming the table and then
+    // `at most 1 row` — nine letters — which is a true, precise bound written
+    // the way a bound is written, and the diagnostic then blames the word
+    // count, which is fine. That is the second way of being wrong, in the one
+    // place this function's own doc has a paragraph about it.
     let written: usize = distinct.iter().map(|word| word.chars().count()).sum();
     if words < 2 || written < 10 {
         return Err(format!(
@@ -594,13 +591,12 @@ fn names(reason: &str, table: &str) -> bool {
     // **Folded, because PostgreSQL folds and `limits.rs` folds with it.** An
     // unquoted identifier resolves in one case whatever the migration spells it
     // as, and `Token::resolved` lowercases for exactly that reason — so the
-    // table is `login_attempts` even where the file says `LOGIN_ATTEMPTS`. This
-    // half stayed case-sensitive while the half below it was folded, so a true
-    // marker written in the migration's *own* case was refused, and the refusal
-    // quoted a name that appears nowhere in the file: criterion 5 is "a table
-    // with no bound fails **and the error names it**", and the one
-    // transformation the gate performs on every name it reads had never been
-    // tried against it.
+    // table is `login_attempts` even where the file says `LOGIN_ATTEMPTS`. With
+    // this half case-sensitive and the half below it folded, a true marker
+    // written in the migration's *own* case is refused, and the refusal quotes
+    // a name that appears nowhere in the file: criterion 5 is "a table with no
+    // bound fails **and the error names it**", and this is the one
+    // transformation the gate performs on every name it reads.
     //
     // Folded once, into owned values, because the offsets below index the
     // folded text and a `to_lowercase` can change a string's length.
@@ -610,12 +606,12 @@ fn names(reason: &str, table: &str) -> bool {
     // `LOGIN_ATTEMPTS` is about `login_attempts` and must excuse it. A *quoted*
     // one is not folded and is a different relation: `something_unbounded` and
     // `"SOMETHING_UNBOUNDED"` both exist, side by side, on a real server.
-    // Folding both sides unconditionally excused the second with a reason about
+    // Folding both sides unconditionally excuses the second with a reason about
     // the first — measured through the shipped gate, one migration creating both
-    // and one marker naming the lower-case one gave
-    // `excused=["SOMETHING_UNBOUNDED"]` in the same run that reported
+    // and one marker naming the lower-case one gives
+    // `excused=["SOMETHING_UNBOUNDED"]` in the same run that reports
     // `` `something_unbounded` has no entry in catalog/limits.toml ``. The
-    // excuse drifted onto a table it says nothing about, which is the one thing
+    // excuse drifts onto a table it says nothing about, which is the one thing
     // this whole predicate exists to stop.
     //
     // So the table decides: a name that carries no upper case reached here
@@ -639,10 +635,10 @@ fn names(reason: &str, table: &str) -> bool {
     // `INVISIBLE_RANGES`, whose own doc says the membership test is *not* "a
     // reader sees nothing of it" but "removing it cannot damage the words around
     // it" — `Cc` and `Cf`. A variation selector and a combining mark are neither,
-    // and render as nothing here: measured by a reviewer in round seventy-one,
-    // `archive.<U+FE0F>login_attempts` was excused where
+    // and render as nothing here: measured through `shows_nothing` alone,
+    // `archive.<U+FE0F>login_attempts` is excused where
     // `archive.<U+200B>login_attempts` is refused, and `archive.<U+E0100>` —
-    // the same kind of character one plane up — was refused, because the tag
+    // the same kind of character one plane up — is refused, because the tag
     // plane happens to sit in an array written for a different purpose.
     //
     // So this file asks its own question here. Widening `INVISIBLE_RANGES`
@@ -658,14 +654,14 @@ fn names(reason: &str, table: &str) -> bool {
     // characters, the variation selectors and the combining marks, which is
     // every class a reason can carry between a dot and a name without a reader
     // seeing it.
-    // **std's own Unicode tables, not a table written beside them.** This was
-    // eleven hand-written `Mn`/`Me` ranges — eight blocks of a category with
-    // about sixty — and a reviewer walked straight past them in round
-    // seventy-one with a Mongolian free variation selector (`U+180B`, whose
-    // *neighbour* `U+180E` was in the array) and a Devanagari stress mark. The
-    // repair for that is not a twelfth range: the array beside this one already
-    // records the lesson, which is that a character table is held honest by
-    // asking `char::escape_debug`, which reads the tables the compiler ships.
+    // **std's own Unicode tables, not a table written beside them.** Eleven
+    // hand-written `Mn`/`Me` ranges cover eight blocks of a category with about
+    // sixty, and a Mongolian free variation selector (`U+180B`, whose
+    // *neighbour* `U+180E` such an array holds) and a Devanagari stress mark
+    // walk straight past them. The answer is not a twelfth range: the array
+    // beside this one already records the rule, which is that a character
+    // table is held honest by asking `char::escape_debug`, which reads the
+    // tables the compiler ships.
     //
     // A character renders as nothing here when std escapes it in debug output —
     // that is exactly its "not printable, or grapheme-extending" question — and
@@ -680,39 +676,38 @@ fn names(reason: &str, table: &str) -> bool {
             && !matches!(c, '"' | '\'' | '\\')
             && c.escape_debug().to_string() != c.to_string()
     };
-    // **And it is a boundary rule as well as a trim rule.** Round seventy-one
-    // taught the qualifier clause about invisible characters and left the two
-    // word-boundary clauses beside it reading the raw character — so
+    // **And it is a boundary rule as well as a trim rule.** With the
+    // qualifier clause taught about invisible characters and the two
+    // word-boundary clauses beside it reading the raw character,
     // `old_<U+200B>login_attempts`, which renders exactly like a reason about a
-    // different table, excused this one. The very code point the corpus pins as
-    // refused before the dot walked through in front of a word.
+    // different table, excuses this one. The very code point the corpus pins as
+    // refused before the dot would walk through in front of a word.
     let boundary = |c: Option<char>| {
         c.is_none_or(|c| !c.is_alphanumeric() && c != '_' && !renders_as_nothing(c))
     };
     reason.match_indices(&table).any(|(at, _)| {
-        // **A qualifier however SQL writes it.** This asked whether the
-        // character before the name was a `.`, which sees
-        // `archive.login_attempts` and misses `"archive"."login_attempts"`,
-        // `archive."login_attempts"` and `archive . login_attempts` — the same
-        // qualified name in the spellings PostgreSQL prints and accepts. A
-        // reason naming *another schema's* table then excused an unbounded one
-        // in `public`, which is the defect this clause was written for, arriving
-        // through a pair of quotes.
+        // **A qualifier however SQL writes it.** Asking whether the character
+        // before the name is a `.` sees `archive.login_attempts` and misses
+        // `"archive"."login_attempts"`, `archive."login_attempts"` and
+        // `archive . login_attempts` — the same qualified name in the spellings
+        // PostgreSQL prints and accepts. A reason naming *another schema's*
+        // table would then excuse an unbounded one in `public`, which is the
+        // defect this clause is written for, arriving through a pair of quotes.
         // **Quotes are part of a name's spelling; whitespace is not.** That is
-        // the decision, taken on 2026-09-15, and it is what tells a qualifier
-        // from a sentence: **a `.` with nothing between it and the name is a
-        // qualifier; a `.` followed by a space is the end of a sentence.**
+        // the decision, and it is what tells a qualifier from a sentence: **a
+        // `.` with nothing between it and the name is a qualifier; a `.`
+        // followed by a space is the end of a sentence.**
         //
-        // This trimmed whitespace and quotes alike, to a fixed point, so
-        // `schema. table` and `sentence. table` were the same string — and a
-        // reason that is *true and about this table*, `the installer writes it
-        // once and never again. login_attempts holds at most one row`, was read
+        // Trimming whitespace and quotes alike, to a fixed point, makes
+        // `schema. table` and `sentence. table` the same string — and a reason
+        // that is *true and about this table*, `the installer writes it once
+        // and never again. login_attempts holds at most one row`, is then read
         // as naming another schema's and refused. Refusing a correct marker
         // pushes its author toward a wider suppression, which is the way of
         // being wrong this file's own doc says costs most.
         //
         // **What the decision gives up, with the measurement.** Three spellings
-        // the corpus pinned in round sixty-six now read as naming this table:
+        // the corpus pins read as naming this table:
         // `archive . login_attempts`, `archive . "login_attempts"` and
         // `"archive" . "login_attempts"`. For one of them to excuse an
         // unbounded table wrongly, somebody has to write a qualified name with
@@ -721,40 +716,39 @@ fn names(reason: &str, table: &str) -> bool {
         // an honest reason about another schema's table is written tight, and
         // `archive.login_attempts`, `archive."login_attempts"` and
         // `"archive"."login_attempts"` are all still refused, which is the half
-        // of round sixty-six's finding that was about how SQL is actually
+        // of the quoted-qualifier case that is about how SQL is actually
         // written. The other half is given up on purpose, and this is where it
         // says so.
         // **And a character a reader sees nothing of is not a character.** The
-        // decision above is *what stands between the dot and the name*, and this
-        // asked only whether that character was a dot — so anything that is not
-        // one excused the table, including three this crate already classifies
-        // as showing nothing. Measured by a reviewer in round seventy-one
-        // through criterion 5's own driver: `archive.<U+200B>login_attempts`
-        // gives `unbounded=0` where `archive.login_attempts` gives 1, and the
-        // two **render identically**. A reader reviewing the migration sees the
-        // spelling the corpus pins as refused, and the gate excuses the table.
+        // decision above is *what stands between the dot and the name*, and
+        // asking only whether that character is a dot lets anything that is not
+        // one excuse the table, including three this crate already classifies
+        // as showing nothing. Measured through criterion 5's own driver that way:
+        // `archive.<U+200B>login_attempts` gives `unbounded=0` where
+        // `archive.login_attempts` gives 1, and the two **render identically**.
+        // A reader reviewing the migration sees the spelling the corpus pins as
+        // refused, and the gate excuses the table.
         //
         // A no-break space is left alone on purpose: it *renders* as a space, so
         // it reads as the end of a sentence, which is what the decision says a
         // space is.
         // **Whitespace wins, whatever else it is.** `shows_nothing` answers from
         // `INVISIBLE_RANGES`, whose first entry is the whole C0 block — so a tab
-        // and a newline were classified with the zero-width space when by this
-        // rule's own criterion, *what a reader sees*, they belong with the
-        // space: a tab renders as a gap and a newline as a line break. A
-        // reviewer measured the cost in round seventy-one — `the installer
-        // writes it once and never again.<TAB>login_attempts holds at most one
-        // row` was refused, which is character for character the sentence round
-        // sixty-six's decision was taken to rescue — and the shipped
+        // and a newline would be classified with the zero-width space when by
+        // this rule's own criterion, *what a reader sees*, they belong with the
+        // space: a tab renders as a gap and a newline as a line break. The cost,
+        // measured: `the installer writes it once and never again.<TAB>login_attempts
+        // holds at most one row` is refused, which is character for character
+        // the sentence the decision above exists to rescue — and the shipped
         // `pack_reason` is a TOML `"""` string whose continuations are one
         // backslash from putting a newline exactly there.
         //
-        // **And the quotes prose actually uses.** The trim knew PostgreSQL's
-        // `"`, and this repository quotes an identifier in prose with a
-        // backtick, everywhere, including this function's own doc block. A
-        // backtick is neither a quote nor invisible, so `archive.`login_attempts`
-        // walked past the whole rule — round sixty-six's finding, one character
-        // over. `'` and `[` come along because they dress an identifier in the
+        // **And the quotes prose actually uses.** Beside PostgreSQL's `"`, this
+        // repository quotes an identifier in prose with a backtick, everywhere,
+        // including this function's own doc block. A backtick is neither a
+        // quote nor invisible, so without it `archive.`login_attempts` walks
+        // past the whole rule — the quoted-qualifier case, one character over.
+        // `'` and `[` come along because they dress an identifier in the
         // dialects a reason may be copied from.
         let head = reason[..at].trim_end_matches(|it: char| {
             matches!(it, '"' | '`' | '\'' | '[') || renders_as_nothing(it)
@@ -763,25 +757,24 @@ fn names(reason: &str, table: &str) -> bool {
         // **`public.` is the one qualifier that cannot denote another relation,
         // and refusing it is the way of being wrong this file says costs most.**
         // `public.login_attempts holds one row per install` is what `psql`'s
-        // `\d` and `pg_dump` print, and it was refused with a message saying the
-        // reason *does not name* the table it names in the most explicit way SQL
-        // offers — which pushes its author toward a wider suppression.
+        // `\d` and `pg_dump` print, and refusing it says the reason *does not
+        // name* the table it names in the most explicit way SQL offers — which
+        // pushes its author toward a wider suppression.
         //
         // It cannot drift onto another relation: the scanner records a
         // schema-qualified table under its own qualifier, so a `public.` marker
-        // can only ever match a table the migration declared bare. Measured by a
-        // reviewer in round seventy-one, with the mirror driven as a corpus row.
+        // can only ever match a table the migration declared bare. Measured with
+        // the mirror driven as a corpus row.
         // The cost, stated rather than glossed: migration 0012 sets the search
         // path from `current_schema()` and the integration suites migrate into a
         // schema of their own, so a bare `CREATE TABLE` does not always land in
         // `public` — accepting this blesses a claim that is specific and
         // sometimes false, where a bare marker is merely unspecific.
         // **The whole qualifier, not its last word.** `rsplit` on non-word
-        // characters took the tail of whatever preceded the dot, and a quoted
-        // identifier may hold hyphens, dots and spaces — so
+        // characters takes the tail of whatever precedes the dot, and a quoted
+        // identifier may hold hyphens, dots and spaces — so under it
         // `"archive-public".login_attempts`, `"my.public".` and
-        // `[archive-public].` were all read as the `public` schema. Measured by
-        // a reviewer in round seventy-one.
+        // `[archive-public].` are all read as the `public` schema. Measured.
         let public = head.strip_suffix('.').is_some_and(|it| {
             // Whitespace comes off too: the reason arrives with the space that
             // follows the marker, and a space around a qualifier is not part of
@@ -791,8 +784,8 @@ fn names(reason: &str, table: &str) -> bool {
             // **The quotes come off as a pair; what is inside them does not get
             // trimmed.** A quoted identifier's name is exactly what stands
             // between its quotes — `"public "` and `"public<U+200B>"` are other
-            // relations — and trimming the inside read both as the `public`
-            // schema. Measured by a reviewer in round seventy-one. The outer
+            // relations — and trimming the inside reads both as the `public`
+            // schema, measured. The outer
             // whitespace *is* trimmed, because the reason arrives with the space
             // that follows the marker.
             let named = it.trim();
@@ -810,8 +803,8 @@ fn names(reason: &str, table: &str) -> bool {
 
 /// Whether this character can make two sentences into different ones.
 ///
-/// **The untranslated rule was asking [`shows_nothing`], which is the escapers'
-/// question and not this one.** A character is taken out of a generated file —
+/// **Not [`shows_nothing`], which is the escapers' question and not this one.**
+/// A character is taken out of a generated file —
 /// and replaced by a space — when leaving it there would change how the file
 /// reads; a character is ignored here when a reader would see no difference
 /// between a sentence with it and the same sentence without. `U+3164 HANGUL
@@ -830,15 +823,16 @@ pub fn tells_two_sentences_apart(character: char) -> bool {
 /// Whether two sentences are the same once the untranslated rule has normalised
 /// them.
 ///
-/// **Exposed so the set it normalises on can be driven mark by mark.** The one
-/// fixture that exercised it trimmed a full stop and nothing else, so six of the
-/// seven punctuation marks were decided by no input: measured, the whole set
-/// narrowed to `matches!(character, '.')` and both the crate suite and the gate
-/// stayed green. `placeholders_for_tests` beside it exists for the same reason.
+/// **Exposed so the set it normalises on can be driven mark by mark.** A
+/// fixture that trims a full stop and nothing else leaves six of the seven
+/// punctuation marks decided by no input: measured with such a fixture, the
+/// whole set narrowed to `matches!(character, '.')` leaves both the crate
+/// suite and the gate green.
+/// `placeholders_for_tests` beside it exists for the same reason.
 ///
-/// **A door, and now marked as one.** Every other `_for_tests` in this tree
-/// carries `#[doc(hidden)]`; this one did not, and a door that reads as ordinary
-/// public API is the shape a reader copies rather than reaches through.
+/// **A door, and marked as one.** Every `_for_tests` in this tree carries
+/// `#[doc(hidden)]`, because a door that reads as ordinary public API is the
+/// shape a reader copies rather than reaches through.
 #[doc(hidden)]
 #[must_use]
 pub fn the_same_sentence_for_tests(ours: &str, theirs: &str) -> bool {

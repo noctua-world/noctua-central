@@ -193,11 +193,11 @@ async fn a_declared_cascade_takes_the_children_of_what_went() {
 /// pruner's to take: the oldest rows no reference holds go in its place, and
 /// it goes once nothing holds it.
 ///
-/// **A reviewer found a real bug with it**: the kernels of the realms one
-/// person belongs to share the local file, and the prune of one took the
+/// **A real bug of this shape**: the kernels of the realms one person belongs
+/// to share the local file, and without a hold the prune of one takes the
 /// record of a unit another's stopped process left open, which that realm's
-/// recovery reverts from — `nc-local`'s `store_unit_holds` holds it now, and
-/// this is the selection that honours it.
+/// recovery reverts from — `nc-local`'s `store_unit_holds` holds it, and this
+/// is the selection that honours it.
 #[tokio::test]
 async fn a_row_another_table_holds_is_left_and_the_next_oldest_go() {
     let scratch = Scratch::new("held");
@@ -258,12 +258,13 @@ async fn a_row_another_table_holds_is_left_and_the_next_oldest_go() {
 
 /// Each way a `DELETE` could reach past its table is refused, and nothing goes.
 ///
-/// **Two of these walked through**, measured. A virtual table was meant to be
-/// refused and the test for it never matched, so an FTS5 table under a declared
-/// name was counted and pruned. And `sqlite_schema` keeps a trigger's SQL with
-/// its comments, so `AFTER DELETE/**/ON` and `AFTER DELETE --x` with `ON` on
-/// the next line were not read as firing on `DELETE`: the prune ran through
-/// the trigger, and a table nobody asked about lost every row.
+/// **Two of these walk through a weaker reader**, measured. A virtual-table
+/// test that never matches lets an FTS5 table under a declared name be counted
+/// and pruned. And `sqlite_schema` keeps a trigger's SQL with its comments, so
+/// a reader that does not skip them does not read `AFTER DELETE/**/ON` and
+/// `AFTER DELETE --x` with `ON` on the next line as firing on `DELETE`: the
+/// prune would run through the trigger, and a table nobody asked about would
+/// lose every row.
 #[tokio::test]
 async fn a_table_a_delete_could_reach_past_is_refused() {
     let cases: [(&str, &[&'static str], &str); 8] = [
@@ -373,12 +374,12 @@ async fn the_family_counted(pool: &SqlitePool) -> (i64, i64, i64) {
 /// A `DELETE` reaches every table a declared cascade takes rows from, and each
 /// way past one of those is refused as it is on the table itself.
 ///
-/// **Measured before the guard followed the cascade**: with `children`
-/// cascading from `parents` and `AFTER DELETE ON children BEGIN DELETE FROM
-/// bystanders; END`, the prune of `parents` returned `Ok` with `bystanders`
-/// emptied — rows outside the table it counted, deleted without a refusal. A
-/// temporary trigger on a child and a table referencing a child with
-/// `ON DELETE SET NULL` walked past the same way.
+/// **Measured with a guard that does not follow the cascade**: with `children`
+/// cascading from `parents` and
+/// `AFTER DELETE ON children BEGIN DELETE FROM bystanders; END`, the prune of
+/// `parents` returned `Ok` with `bystanders` emptied — rows outside the table
+/// it counted, deleted without a refusal. A temporary trigger on a child and a
+/// table referencing a child with `ON DELETE SET NULL` walk past the same way.
 #[tokio::test]
 async fn a_table_a_cascade_reaches_past_is_refused() {
     let cases: [(&str, &[&'static str], &str); 4] = [

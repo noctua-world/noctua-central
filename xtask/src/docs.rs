@@ -27,11 +27,12 @@ use crate::ui;
 /// The pages this verb writes, or why there are none.
 ///
 /// **Named so it can be driven, because the call site cannot be.** `run`
-/// compiles the whole catalog first, so neither of this verb's two decisions had
-/// a test — measured on 2026-09-08, `if pages.is_empty()` replaced by
-/// `if false`: `cargo test -p xtask --bin xtask` green at 481. The refusal
-/// exists because *"this verb wrote nothing and would have reported success for
-/// it"*, and a verb that reports success for nothing is `§19.3`'s first shape.
+/// compiles the whole catalog first, so a test through `run` reaches neither of
+/// this verb's two decisions; `a_run_that_would_write_no_page_is_a_refusal`
+/// hands this one no page, and `if pages.is_empty()` replaced by `if false`
+/// fails it. The refusal exists because a verb that wrote nothing would
+/// otherwise report success for it, and a verb that reports success for
+/// nothing is `§19.3`'s first shape.
 fn the_pages_of(
     files: &[nc_catalog_compiler::EmittedFile],
 ) -> Result<Vec<&nc_catalog_compiler::EmittedFile>, String> {
@@ -54,24 +55,24 @@ fn the_pages_of(
 /// An identical rewrite bumps the modification time, which is enough to wake a
 /// file watcher and start a loop that never settles.
 ///
-/// **The other decision no test drove.** Replaced by `true` — the verb writing
-/// nothing, ever — the suite stayed green at 481, and driven for real against a
-/// stale page: `cargo xtask docs` printed `ok 6 page(s), 0 rewritten`, exited 0,
-/// and left the stale line on disk.
+/// **The other decision a test through `run` cannot reach.** Replaced by
+/// `true` — the verb writing nothing, ever — it fails
+/// `a_page_is_rewritten_when_it_differs_and_not_otherwise`, and driven for real
+/// against a stale page, `cargo xtask docs` reports `0 rewritten`, exits 0, and
+/// leaves the stale line on disk.
 fn already_there(path: &Path, contents: &str) -> bool {
     std::fs::read_to_string(path).is_ok_and(|on_disk| on_disk == contents)
 }
 
 /// Which of `pages` a run would write, by workspace-relative path.
 ///
-/// **The polarity of the skip, which nothing could reach.** The loop below
-/// asked `if already_there(…) { continue; }` inline, so inverting that one
-/// condition made `cargo xtask docs` write **nothing at all** — every page it
-/// was about to write skipped, every page it had nothing to do with attempted —
-/// and the whole suite and a full `check` stayed green. Measured in round
-/// sixty-seven. `already_there` itself has a unit test and one mutation
-/// operator; its *use* had neither, which is the shape round sixty-six found
-/// four times over and this is the fifth.
+/// **The polarity of the skip, which a test of the predicate cannot reach.**
+/// Asked inline in the loop as `if already_there(…) { continue; }`, the skip is
+/// a condition whose inversion makes `cargo xtask docs` write **nothing at
+/// all** — every page it is about to write skipped, every page it has nothing
+/// to do with attempted — while a test of `already_there` passes either way.
+/// `already_there` itself has a unit test and one mutation operator; its *use*
+/// is a second decision, and needs a reader of its own.
 ///
 /// Lifted so a test can hand it a directory holding one of two pages and read
 /// back which one is left to write.
@@ -104,8 +105,8 @@ pub(crate) fn run(root: &Path) -> Result<(), String> {
     for page in &pages {
         let path = root.join(&page.path);
         // See [`what_a_run_would_write`]: this decision is the one that says
-        // whether the verb writes anything, and inverted it wrote nothing with
-        // everything green.
+        // whether the verb writes anything, and inverted it writes nothing; what
+        // decides it is lifted into that function so that a test can reach it.
         if what_a_run_would_write(root, [(page.path.as_str(), page.contents.as_str())]).is_empty() {
             continue;
         }
@@ -135,12 +136,13 @@ pub(crate) fn run(root: &Path) -> Result<(), String> {
     }
 
     // **And whether a page now documents a code the ledger has never heard of.**
-    // `docs` compiles the catalog and writes the pages; it does not reserve, and
-    // it did not say so — so a new code went straight onto `docs/errors.md`,
-    // exit 0, `ok 6 page(s), 1 rewritten`, while `catalog/errors.reserved.toml`
-    // held nothing about it. `check` catches the drift afterwards, which makes
-    // this a confusing intermediate state rather than a lasting one; saying it
-    // here costs one line and removes the confusion.
+    // `docs` compiles the catalog and writes the pages; it does not reserve, so
+    // a new code goes straight onto `docs/errors.md`, exit 0, `1 rewritten`,
+    // while `catalog/errors.reserved.toml` holds nothing about it — and without
+    // this warning nothing in the run says so. `check` catches the
+    // drift afterwards, which makes this a confusing intermediate state rather
+    // than a lasting one; saying it here costs one line and removes the
+    // confusion.
     let unreserved = codes_no_ledger_holds(root, &compiled);
     ui::ok(&format!("{} page(s), {written} rewritten", pages.len()));
     if !unreserved.is_empty() {
@@ -182,9 +184,9 @@ mod tests {
     /// A run writes the pages that are not already there, and only those.
     ///
     /// **The decision, not the predicate.** `already_there` has a unit test and
-    /// a mutation operator; the `continue` it guards had neither, so inverting
-    /// that one condition made `cargo xtask docs` write nothing at all with the
-    /// whole suite and a full `check` green. Reported in round sixty-seven.
+    /// a mutation operator; the skip it guards is a decision of its own, and
+    /// inverting that one condition, which makes `cargo xtask docs` write
+    /// nothing at all, fails this test.
     /// Both directions, because inverted it is wrong both ways: it skips what
     /// it should write and attempts what it should skip.
     #[test]
@@ -215,12 +217,11 @@ mod tests {
 
     /// This verb refuses to report success for writing nothing.
     ///
-    /// **Neither of its two decisions was driven by any test**, because `run`
-    /// compiles the whole catalog before it reaches them. Measured on
-    /// 2026-09-08, `if pages.is_empty()` replaced by `if false`:
-    /// `cargo test -p xtask --bin xtask` green at 481, and the verb would then
-    /// print `ok 0 page(s), 0 rewritten` and exit 0 for a catalog that produced
-    /// no page at all — `§19.3`'s first shape, in one of the five verbs
+    /// **Neither of its two decisions is reached through `run`**, because `run`
+    /// compiles the whole catalog before it reaches them. With
+    /// `if pages.is_empty()` replaced by `if false`, this test fails, and the
+    /// verb prints `ok 0 page(s), 0 rewritten` and exits 0 for a catalog that
+    /// produced no page at all — `§19.3`'s first shape, in one of the five verbs
     /// `NOCTUA.md §10.2` fixes.
     #[test]
     fn a_run_that_would_write_no_page_is_a_refusal() {
@@ -253,10 +254,11 @@ mod tests {
 
     /// A page already on disk is left alone, and a stale one is not.
     ///
-    /// **The other decision no test drove.** Replaced by `true` — the verb
-    /// writing nothing, ever — the suite stayed green at 481, and driven for
-    /// real against a page with a line appended: `cargo xtask docs` printed
-    /// `ok 6 page(s), 0 rewritten`, exited 0, and left the stale line there.
+    /// **The other decision a test through `run` cannot reach.** Replaced by
+    /// `true` — the verb writing nothing, ever — `already_there` fails this
+    /// test, and driven for real against a page with a line appended,
+    /// `cargo xtask docs` reports `0 rewritten`, exits 0, and leaves the stale
+    /// line there.
     /// An identical rewrite is what this rule exists to avoid, because it bumps
     /// the modification time and wakes a file watcher that never settles.
     #[test]

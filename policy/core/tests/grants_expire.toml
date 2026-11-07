@@ -49,9 +49,10 @@ context = { grant = { entity = 'Grant::"g.by_policy"' } }
 [[case]]
 # **The boundary the comparison decides.** `valid_until <= context.now` and
 # `valid_until < context.now` differ on exactly one instant — a grant expiring
-# *now* — and every case above used a date well in the past, so the whole suite
-# stayed green with `<=` changed to `<`. A permission that has just run out
-# would then still be honoured, for as long as the clock reads that instant.
+# *now* — and every case above uses a date well in the past, so without this
+# one the whole suite stays green with `<=` changed to `<`. A permission that
+# has just run out would then still be honoured, for as long as the clock reads
+# that instant.
 name = "a grant expiring at this very instant has expired"
 principal = 'User::"ana"'
 action = "Read"
@@ -61,14 +62,14 @@ because = "core.grant_not_expired"
 context = { grant = { entity = 'Grant::"g.expiring_now"' } }
 
 [[case]]
-# **The near end's own boundary, and it was held by nothing.** `valid_until <=
-# now` has `g.expiring_now` sitting on the instant it decides; `now <
-# valid_from` had no such grant — `g.not_yet` opens ten months out and
-# `g.current` opened eight months back, so `<` could be widened to `<=` with the
-# whole suite green and a grant that opens *this instant* refused. The file's
-# own prose says the rule is the window and not one end of it; the coverage was
-# one end of it. `inside_a_conjunct` proposes `==`/`!=` only, so no mutation
-# operator reaches an ordering comparison: a case or nothing.
+# **The near end's own boundary.** `valid_until <= now` has `g.expiring_now`
+# sitting on the instant it decides, and `now < valid_from` needs a grant of its
+# own there: `g.not_yet` opens ten months out and `g.current` opened eight
+# months back, so without this case `<` could be widened to `<=` with the whole
+# suite green and a grant that opens *this instant* refused. The rule is the
+# window and not one end of it, and so is the coverage. `inside_a_conjunct`
+# proposes `==`/`!=` only, so no mutation operator reaches an ordering
+# comparison: a case or nothing.
 name = "a grant whose window opens at this very instant has begun"
 principal = 'User::"ana"'
 action = "Read"
@@ -78,10 +79,10 @@ because = "family.a_member_reads_shared_content"
 context = { grant = { entity = 'Grant::"g.beginning_now"' } }
 
 [[case]]
-# **The near end of the window, which nothing read.** `valid_from` is required by
-# the reference's own provenance list and appeared in no `.cedar` expression at
-# all — so a grant written for a visit next June authorized this morning, while
-# the identical grant that ran out last January was refused. The two cases sit
+# **The near end of the window.** `valid_from` is required by the reference's
+# own provenance list, and with no `.cedar` expression reading it a grant
+# written for a visit next June authorizes this morning, while the identical
+# grant that ran out last January is refused. The two cases sit
 # together here for that reason: the rule is the window, not one end of it.
 name = "a grant whose window has not opened yet is not a grant"
 principal = 'User::"ana"'
@@ -93,11 +94,11 @@ because = "core.grant_has_begun"
 
 # **A grant the *other* guard stands aside for, so this one has to answer.**
 # `core.grant_has_begun` and `core.grant_not_expired` both read `context.now` and
-# both guard it `!(context has now) || …`. Every case here carried a grant with
-# both ends of its window, so each guard's proof was satisfied by the other's:
-# deleting `!(context has now) ||` from either left `cargo xtask check`
-# byte-identical to a clean run, and deleting it from *both* made the fail-open
-# gate fire for both, which is what proved the masking.
+# both guard it `!(context has now) || …`. With only grants carrying both ends
+# of their window, each guard's proof is satisfied by the other's: deleting
+# `!(context has now) ||` from either leaves `cargo xtask check` byte-identical
+# to a clean run, and deleting it from *both* makes the fail-open gate fire for
+# both.
 #
 # This grant is written by the pack — `source = "policy"` — and has no
 # `valid_until`, which `§4` permits and `g.by_policy` already ships. So

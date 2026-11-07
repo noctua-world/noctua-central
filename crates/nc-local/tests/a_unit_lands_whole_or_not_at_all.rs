@@ -366,10 +366,10 @@ async fn a_unit_committed_held_holds_itself_and_what_it_marks_until_it_is_releas
 /// key writes a key of its own, reads nothing of the first and lists nothing
 /// of it, and each realm's keys are held to the plugin's quota apart.
 ///
-/// **A reviewer found a real bug with it**: the store kept a plugin's keys by
-/// plugin and key alone, and the kernels of two realms sharing this file read
-/// and overwrote each other's — through the decision point, which had
-/// authorized each for an entity of its own realm.
+/// **Not by plugin and key alone**: a store that kept a plugin's keys so would
+/// have the kernels of two realms sharing this file read and overwrite each
+/// other's — through the decision point, which authorized each for an entity of
+/// its own realm.
 #[tokio::test]
 async fn a_key_is_a_realms_and_another_realm_neither_reads_nor_writes_it() {
     let scratch = Scratch::new("realms");
@@ -496,8 +496,8 @@ async fn a_plugin_at_its_quota_is_refused_a_new_key_and_keeps_the_old_ones() {
 /// **Only a new key counts against a quota**, and the test above holds a plugin
 /// at its number, never over it — which a manifest lowering `store_entries`
 /// below what its plugin holds makes. Measured, a commit counting every write
-/// that leaves a value as a new key: every suite of this crate green, and a
-/// rewrite over the bound refused.
+/// that leaves a value as a new key would refuse a rewrite over the bound,
+/// which this test asks and the one above does not.
 #[tokio::test]
 async fn a_plugin_over_a_lowered_quota_rewrites_and_deletes_what_it_holds_and_gains_no_key() {
     let scratch = Scratch::new("over-quota");
@@ -574,12 +574,12 @@ async fn a_plugin_over_a_lowered_quota_rewrites_and_deletes_what_it_holds_and_ga
 
 /// One unit writing for two plugins holds each to its own quota.
 ///
-/// **One number stood for the whole commit**, so a unit writing three keys of
-/// `big`, whose quota is three, and two of `small`, whose manifest lowers it to
-/// one, was judged by whichever number the kernel passed: handed one, `big` was
-/// refused inside its three; handed three, the unit committed and `small` held
-/// two keys against a manifest that says one. A manifest lowers a quota and
-/// never raises it past the catalog's.
+/// **Not one number for the whole commit**, which would judge a unit writing
+/// three keys of `big`, whose quota is three, and two of `small`, whose
+/// manifest lowers it to one, by whichever number the kernel passed: handed
+/// one, `big` would be refused inside its three; handed three, the unit would
+/// commit and `small` hold two keys against a manifest that says one. A manifest
+/// lowers a quota and never raises it past the catalog's.
 #[tokio::test]
 async fn one_unit_writing_for_two_plugins_holds_each_to_its_own_quota() {
     let scratch = Scratch::new("quota-per-plugin");
@@ -642,11 +642,11 @@ async fn one_unit_writing_for_two_plugins_holds_each_to_its_own_quota() {
 /// A unit the store already holds is refused as an invalid record, and the
 /// first commit of it is left as it was.
 ///
-/// **It was `NC-DB-0007`**: the primary key refused the second insert as
-/// `UNIQUE constraint failed`, which reads as a file this build does not
-/// expect — critical, not retryable, and telling the user their data is not
-/// what this version expects, for a kernel or a recovery committing one unit
-/// twice.
+/// **Not `NC-DB-0007`**: the primary key refuses the second insert
+/// as `UNIQUE constraint failed`, which, read as it comes, is a file this build
+/// does not expect — critical, not retryable, and telling the user their data
+/// is not what this version expects, for a kernel or a recovery committing one
+/// unit twice.
 #[tokio::test]
 async fn a_unit_committed_twice_is_refused_as_invalid_and_the_first_stays() {
     let scratch = Scratch::new("twice");
@@ -677,13 +677,13 @@ async fn a_unit_committed_twice_is_refused_as_invalid_and_the_first_stays() {
 /// Every call the store offers runs inside a task the runtime may move to
 /// another thread.
 ///
-/// **`open` could not**, and nothing said so: `sqlx`'s `Migrator::run` takes
-/// whatever can acquire a connection, the compiler cannot prove that bound for
-/// every lifetime a spawned task needs, and so `open`'s future was not `Send`
-/// — `tokio::spawn` of it failed to compile with "implementation of `Acquire`
-/// is not general enough", and so would any kernel future that awaited it
-/// behind a `Send` bound. This test is the proof by compiling: a call whose
-/// future is not `Send` does not build here.
+/// **`open` among them**: `sqlx`'s `Migrator::run` takes whatever can acquire a
+/// connection, and the compiler cannot prove that bound for every lifetime a
+/// spawned task needs, so a future that awaits it can fail to be `Send`
+/// — `tokio::spawn` of such an `open` would fail to compile with
+/// "implementation of `Acquire` is not general enough", and so would any kernel
+/// future that awaited it behind a `Send` bound. This test is the proof by
+/// compiling: a call whose future is not `Send` does not build here.
 #[tokio::test]
 async fn every_call_the_store_offers_runs_in_a_spawned_task() {
     let scratch = Scratch::new("spawned");
@@ -752,9 +752,8 @@ async fn every_call_the_store_offers_runs_in_a_spawned_task() {
 /// refuses the whole delete, as the method's `# Errors` says — and is said to,
 /// rather than as a trigger no schema here declares.
 ///
-/// **A reviewer found the sentence wrong**: SQLite answers an `ON DELETE
-/// RESTRICT` with a trigger's code, and the refusal was told as an impossible
-/// trigger's.
+/// **SQLite answers an `ON DELETE RESTRICT` with a trigger's code**, and read
+/// by the code alone the refusal would be told as an impossible trigger's.
 #[tokio::test]
 async fn forgetting_past_a_held_unit_is_refused_and_forgets_nothing() {
     let scratch = Scratch::new("forget-held");
@@ -1079,9 +1078,9 @@ async fn a_pin_taken_off_a_blob_no_unit_could_name_so_is_refused() {
 ///
 /// **This is what bounds `store_writes` and `store_notes`**: their rows go
 /// with their unit, so `store_units`' bound is theirs only times what one unit
-/// may record — and nothing held a unit to anything. A review committed one
-/// unit with 20,000 images and 50,000 notes. At the bound, so a count off by
-/// one in either direction is a failure here.
+/// may record — and without it the store would hold a unit to nothing: one unit
+/// with 20,000 images and 50,000 notes would commit. At the bound, so a count
+/// off by one in either direction is a failure here.
 #[tokio::test]
 async fn a_unit_past_what_one_unit_may_record_is_refused_and_leaves_nothing() {
     let scratch = Scratch::new("per-unit");
@@ -1189,11 +1188,11 @@ async fn an_undo_and_the_mark_on_its_target_land_together() {
 
 /// A redo is read back as a redo of its undo, and an undo as an undo.
 ///
-/// **Each kind is its own row.** Every unit this suite committed was a step or
-/// an undo, so a commit that recorded a redo as an undo of the same target was
-/// read back wrong by no test here — measured, the arm planted and every suite
-/// of this crate and the kernel's green — and the kernel's redo is read from
-/// exactly that row.
+/// **Each kind is its own row.** Measured, with the arm that records a redo
+/// planted to record an undo of the same target, every other suite of this
+/// crate stays green, while the kernel's undo and redo tests and
+/// `crates/nc-kernel/tests/both_stores_answer_alike.rs` fail; the kernel's
+/// redo is read from exactly that row.
 #[tokio::test]
 async fn a_redo_is_read_back_as_a_redo_and_an_undo_as_an_undo() {
     let scratch = Scratch::new("redo");
@@ -1457,9 +1456,9 @@ async fn a_listing_pages_through_one_plugins_keys_under_a_prefix() {
         "a page that holds the last key has no next"
     );
     // **A limit of zero is a page of one**, and still says where the rest
-    // begins. It answered `next: None` over keys it had not listed — a listing
-    // that said it was over, measured by a review — and this assertion read
-    // only that the page was empty, so it agreed.
+    // begins. A page of nothing would answer `next: None` over keys it has not
+    // listed — a listing that says it is over — and an assertion that reads
+    // only that the page is empty would agree with it.
     let none_asked = store
         .list(&home(), "p", "note/", 0, None)
         .await
@@ -1529,16 +1528,16 @@ async fn an_image_or_a_note_cannot_be_edited() {
 
 /// A temporary object on the store's connection stops every write.
 ///
-/// **A temporary trigger silences what `main.` cannot**: measured, a
-/// `BEFORE INSERT … RAISE(IGNORE)` made an insert report success having
+/// **A temporary trigger silences what `main.` cannot**: measured,
+/// a `BEFORE INSERT … RAISE(IGNORE)` makes an insert report success having
 /// written nothing. The store's one connection is the one planted on, which is
 /// why this is the in-memory store.
 ///
-/// **And a release is a write.** A reviewer found it out of this loop and its
-/// check deletable with every suite green: a temporary trigger that deletes
-/// every hold when one is let go keeps the release's own row count exact, so
-/// it answered `Ok(1)` and let go of another unit's hold too — one the pruner
-/// may then take the record of while its recovery still needs it.
+/// **And a release is a write**, in this loop: a temporary trigger that
+/// deletes every hold when one is let go keeps the release's own row count
+/// exact, so without the check a release would answer `Ok(1)` and let go of
+/// another unit's hold too — one the pruner may then take the record of while
+/// its recovery still needs it.
 #[tokio::test]
 async fn a_temporary_object_on_the_connection_stops_every_write() {
     let store = LocalStore::in_memory_for_tests().await.expect("opens");
@@ -1784,10 +1783,10 @@ const fn the_commits_a_trigger_can_silence() -> [(&'static str, &'static str, Si
                 ..step(3, Vec::new())
             }),
         ),
-        // **The case a reviewer found missing**: the pin a commit takes off a
-        // blob was the one write no case drove, and dropping its row count
-        // left this whole crate green — an undo said to have let go of its
-        // step's blobs while they stayed pinned.
+        // **The pin a commit takes off a blob**, which no other case drives:
+        // without this one, a dropped row count at that write would pass the
+        // list — an undo said to have let go of its step's blobs while they
+        // stay pinned.
         (
             "CREATE TRIGGER main.silence BEFORE UPDATE ON main.blobs \
              BEGIN SELECT RAISE(IGNORE); END",
@@ -1934,10 +1933,10 @@ async fn tried_through_a_trigger(
 /// next open whatever it is called — the name of a table or an index of the
 /// list among them.
 ///
-/// **A reviewer found a real bug with it**: SQLite keeps triggers in a
-/// namespace of their own, and the self-check matched objects by name alone,
-/// so a trigger called `blobs`, rewriting every value committed, opened and
-/// answered a commit of `1` that read back as `"planted"`.
+/// **SQLite keeps triggers in a namespace of their own**: a self-check that
+/// matched objects by name alone would open a file holding a trigger called
+/// `blobs`, rewriting every value committed, and answer a commit of `1` that
+/// reads back as `"planted"`.
 #[tokio::test]
 async fn a_trigger_planted_under_a_listed_name_is_refused_at_open() {
     const PLANTS: [&str; 3] = [
@@ -1992,14 +1991,13 @@ async fn a_trigger_planted_under_a_listed_name_is_refused_at_open() {
 ///
 /// **A trigger added to `main` after the store opened is one the open-time
 /// self-check cannot see**, and `main.` qualification does not stop it. With
-/// the store open, a review planted `BEFORE INSERT … RAISE(IGNORE)` on
-/// `store_entries` through a connection of its own and dropped the row count
-/// at the one call that writes a key: the whole suite stayed green, and
-/// `commit` handed out a revision for a key it never wrote. The only test of
-/// the count was the helper's, whose doc said the count could not be produced
-/// from outside. It can, so every statement the store writes with is driven
-/// here through a trigger that silences it, and each must come back
-/// `NC-DB-0007` naming the write and having changed nothing.
+/// the store open, `BEFORE INSERT … RAISE(IGNORE)` planted on `store_entries`
+/// through a connection of its own and the row count's check dropped at the
+/// one call that writes a key, `commit` would hand out a revision for a key it
+/// never wrote. The count can be produced from outside, so every statement the
+/// store writes with is driven here through a trigger that silences it, and
+/// each must come back `NC-DB-0007` naming the write and having changed
+/// nothing.
 #[tokio::test]
 async fn a_write_a_trigger_silences_is_refused_and_leaves_nothing() {
     let mut tried = 0_usize;
@@ -2147,9 +2145,8 @@ async fn a_commit_killed_anywhere_leaves_the_unit_absent_or_whole() {
             assert!(whole, "a child that finished left the unit absent");
             break;
         }
-        assert_eq!(
-            std::os::unix::process::ExitStatusExt::signal(&status),
-            Some(6),
+        assert!(
+            nc_platform::testing::stopped_by_abort(status),
             "the child did not stop the way `abort` stops it: {status}"
         );
         killed += 1;
@@ -2316,9 +2313,9 @@ fn committed_in_model(model: &Model, n: u64, writes: &[StagedWrite]) -> Result<M
 
 /// The model's page, where a limit of zero is a page of one.
 ///
-/// **Drawn from `1..4` and holding the store's flaw**, this could not see a
-/// limit of zero answer `next: None` over keys it had not listed: the model
-/// took none and said none were left, as the store did.
+/// **A page of one, not the store's flaw copied**: a model drawn from `1..4`
+/// that takes none and says none are left, as a flawed store does, cannot see a
+/// limit of zero answer `next: None` over keys it has not listed.
 fn listed_in_model(
     model: &Model,
     plugin: &str,

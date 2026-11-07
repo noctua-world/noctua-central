@@ -25,20 +25,19 @@ fn id(text: &str) -> OpaqueId {
 
 /// A store on `pool`, in the schema `pool` was opened for.
 ///
-/// **The store is told its schema now, and every test used to let it guess.**
-/// `Postgres::new` resolves nothing any more — see its own doc for the three
-/// versions that each asked the database and each got `"$user"` back. Tests open
-/// a schema of their own, so they say which.
+/// **The store is told its schema, and every test says which.** `Postgres::new`
+/// resolves nothing — see its own doc for why every way of asking the database
+/// gets `"$user"` back. Tests open a schema of their own, so they say which.
 fn store_in(pool: &sqlx::PgPool, schema: &str) -> Postgres {
     Postgres::in_schema(pool.clone(), &format!("{schema}_{}", std::process::id()))
 }
 
 /// The prefixes every schema this suite makes begins with.
 ///
-/// Two shapes reach the database — `pool`'s `{label}_{pid}` and
-/// `a_schema_named`'s `{prefix}_{pid}_{label}` — and the sweeper that removes
-/// what a dead run left behind matches by prefix. It matched `nc_` alone, so the
-/// two labels that do not begin with it were never swept.
+/// Two shapes reach the database — `pool`'s `{label}_{pid}`
+/// and `a_schema_named`'s `{prefix}_{pid}_{label}` — and the sweeper that
+/// removes what a dead run left behind matches by prefix. Matching `nc_` alone
+/// would leave the two labels that do not begin with it unswept.
 const SWEPT: [&str; 3] = ["nc_", "recorded_is_assigned", "head_undecodable"];
 
 /// The most concurrent `append`s any test in this file spawns.
@@ -54,57 +53,57 @@ const THE_LARGEST_FAN_OUT: u32 = 16;
 /// would collide, and the first thing they would do is drop each other's table.
 /// A schema is PostgreSQL's own answer and costs one statement.
 ///
-/// **Fail-closed, and skipping is something the gate has to ask for.** This used
-/// to return `None` whenever `DATABASE_URL` was unset, which made the skip
+/// **Fail-closed, and skipping is something the gate has to ask
+/// for.** Returning `None` whenever `DATABASE_URL` is unset would make the skip
 /// indistinguishable from a run: a skipped test still counts as passed, so
-/// cutting the one wire that hands the url to the test child left
-/// `cargo xtask check` printing `ok postgres is reachable` and `ok 355 test(s)`
-/// with all four of these having done nothing. The reachability line is about
-/// the gate's own socket, not the child's.
+/// cutting the one wire that hands the url to the test child would
+/// leave `cargo xtask check` printing `ok postgres is reachable` and its test
+/// count with all four of these having done nothing. The reachability line is
+/// about the gate's own socket, not the child's.
 ///
-/// So the default is to fail. `cargo xtask check --offline` sets `NC_OFFLINE`,
-/// and that — not the absence of a variable — is what permits a skip. Cutting
-/// either wire now turns the suite red, which is `§2.4`'s rule applied to a
-/// test: if the check cannot be performed, the answer is no.
+/// So the default is to fail. `cargo xtask check` sets `NC_NO_STACK` under
+/// `--offline` and on a system that runs no stack, with the reason as its
+/// value, and that — not the absence of a variable — is what permits a skip. Cutting
+/// either wire turns the suite red, which is `§2.4`'s rule applied to a test:
+/// if the check cannot be performed, the answer is no.
 ///
-/// **Wherever the gate runs**, which took a second fix: the child inherited
-/// `DATABASE_URL` from the parent, so cutting the wire was invisible to anyone
-/// with it exported — and the CI workflow sets it at job level, so it was
-/// invisible in CI. `check.rs` now removes it from the child's environment
-/// before setting what it measured.
+/// **Wherever the gate runs.** A child inheriting `DATABASE_URL` from the
+/// parent would make cutting the wire invisible to anyone with it exported —
+/// and the CI workflow sets it at job level, so it would be invisible
+/// in CI. `check.rs` removes it from the child's environment before setting
+/// what it measured.
 async fn pool(schema: &str) -> Option<sqlx::PgPool> {
-    // **The process id, so two runs do not destroy each other.** The schema
-    // names were fixed constants and `pool` drops and recreates the schema it is
-    // handed, so `cargo xtask check` was not safe to run twice against one
-    // database: three consecutive paired runs produced 9, 11 and 5 failures, all
+    // **The process id, so two runs do not destroy each other.** `pool` drops
+    // and recreates the schema it is handed, so with fixed schema names
+    // `cargo xtask check` is not safe to run twice against one database:
+    // measured, three consecutive paired runs produce 9, 11 and 5 failures, all
     // of them one run dropping the other's tables mid-test. The failure presents
     // as `duplicate key … Key (sequence)=(0) already exists`, which sends a
     // reader to the chain rather than to the schema.
     //
     // It leaves nothing behind: `finish` drops each test's schema at the end of
     // each test, and its own doc carries the measurement — 1170 schemas in one
-    // developer's database — that made it necessary. This paragraph used to say
-    // the opposite, and said it was deliberate, beside the fix that had already
-    // refuted it.
+    // developer's database — that makes it necessary.
     //
-    // **A drop that fails now fails the test.** It was reported with `eprintln!`,
-    // which cargo swallows on a passing test, so the claim above was checked by
-    // nothing — and two schemas were found on a developer's database from runs
+    // **A drop that fails fails the test.** Reported with `eprintln!`, which
+    // cargo swallows on a passing test, the claim above would be checked by
+    // nothing — measured on a developer's database: two schemas left by runs
     // whose processes were long gone. What is *not* claimed is a schema left by
     // a test that panicked: the panic is the finding, and the schema is
     // evidence to look at.
     let schema = &format!("{schema}_{}", std::process::id());
     let url = match std::env::var("DATABASE_URL").ok() {
         Some(url) => url,
-        None if std::env::var_os("NC_OFFLINE").is_some() => {
+        None if std::env::var_os("NC_NO_STACK").is_some() => {
             // **Announced, so the count cannot mean two things.** `check`
-            // reports "N test(s)" from cargo's own totals, and a skipped test
-            // still counts as passed — so `--offline` printed the same 440 as a
-            // run that had proved the chain against a real store. The line below
-            // reaches the gate's output through cargo's `--nocapture`-less
-            // stdout on a *failing* run only, so `check` also counts these and
-            // says so beside the number.
-            println!("nc-journal: skipped, no database (NC_OFFLINE)");
+            // reports the test count from cargo's own totals, and a skipped
+            // test still counts as passed — so unannounced, `--offline` would
+            // print the same number as a run that had proved the chain against
+            // a real store. The line below reaches the gate's output through
+            // cargo's `--nocapture`-less stdout on a *failing* run only, so
+            // `check` also counts these and says so beside the number.
+            let why = std::env::var("NC_NO_STACK").unwrap_or_default();
+            println!("nc-journal: skipped, no database: {why}");
             return None;
         }
         None => panic!(
@@ -122,9 +121,10 @@ async fn pool(schema: &str) -> Option<sqlx::PgPool> {
     // Dropped and recreated, so a run starts from nothing whatever the last one
     // left behind. The journal's trigger refuses `DELETE`, which is the point of
     // the table — so the schema goes, not the rows.
-    // **Every prefix this suite names, not the one that was obvious.**
-    // `LIKE 'nc_%'` missed the two `pool` labels that do not begin with it, and
-    // those are the schemas a panicking test leaves — one per script. Held to
+    // **Every prefix this suite names, not the one that is obvious.**
+    // Matching `LIKE 'nc_%'` alone misses the two `pool` labels that do not
+    // begin with it, and those are the schemas a panicking test leaves — one
+    // per script. Held to
     // the file by `every_prefix_this_suite_uses_is_swept`, which reads the
     // `pool(` call sites, so a new label that starts otherwise fails here rather
     // than accumulating quietly.
@@ -134,10 +134,10 @@ async fn pool(schema: &str) -> Option<sqlx::PgPool> {
     // **And the roles, which are cluster-global.** A schema belongs to a
     // database and a role does not: one left behind by a run that panicked is
     // visible to every database on the cluster and to every other repository
-    // sharing it. Seven were found on a developer's cluster from runs whose
-    // processes were long gone — all from tests in this file and in
-    // `nc-prune`'s, each named with the pid that made it, and nothing had ever
-    // removed one.
+    // sharing it. Measured on a developer's cluster without this sweep: seven,
+    // from runs whose processes were long gone — all from tests in this file
+    // and in `nc-prune`'s, each named with the pid that made it, and nothing
+    // removing one.
     sweep_roles_from_dead_runs(&admin).await;
     for statement in [
         format!("DROP SCHEMA IF EXISTS {schema} CASCADE"),
@@ -160,8 +160,8 @@ async fn pool(schema: &str) -> Option<sqlx::PgPool> {
         // `one_call_gets_one_answer_however_the_scheduler_orders_it` and
         // `a_race_between_writers_is_contention_and_says_so` assert, so both
         // fail with a message about the journal for a reason that is the
-        // harness. Observed twice on an unmutated tree while other builds shared
-        // the machine; both pass alone.
+        // harness. Measured that way on an unmutated tree while other builds
+        // share the machine; both pass alone.
         //
         // The number is the largest fan-out any test here spawns. It is per test
         // *schema*, and each of these schemas exists for one test, so the
@@ -182,12 +182,12 @@ async fn pool(schema: &str) -> Option<sqlx::PgPool> {
 
 /// Drops the test's schema and closes its pool.
 ///
-/// **Nothing dropped one, and they accumulated.** `pool` drops and recreates the
-/// schema it is *handed*, at setup, and every schema name carries the process
-/// id — so two runs never collided and no run ever cleaned up. Measured on the
-/// developer's stack: **1170** schemas from dozens of runs, in the shared
+/// **Without this, nothing drops one, and they accumulate.** `pool` drops and
+/// recreates the schema it is *handed*, at setup, and every schema name carries
+/// the process id — so two runs never collide and no run cleans up. Measured on
+/// a developer's stack: **1170** schemas from dozens of runs, in the shared
 /// database, in the stage whose subject is that records do not grow without
-/// bound. The suite was the unbounded thing.
+/// bound — the suite itself the unbounded thing.
 ///
 /// Called at the end of each test instead of in a `Drop`, because dropping a
 /// schema is a query and `Drop` cannot await one. A test that **panics** leaves
@@ -196,19 +196,17 @@ async fn pool(schema: &str) -> Option<sqlx::PgPool> {
 async fn finish(pool: sqlx::PgPool) {
     // **Never `public`, and never anything this suite did not name.**
     // `current_schema()` is the first *existing* schema on the path, not the one
-    // the pool asked for — so on a pool whose path resolves elsewhere it dropped
-    // the developer's `public` schema, twice, taking the journal, the access
-    // records and the migration record with it. That is the same `$user`
-    // resolution this whole class is about, in the cleanup helper.
+    // the pool asked for — so on a pool whose path resolves elsewhere it drops
+    // the developer's `public` schema, taking the journal, the access records
+    // and the migration record with it. That is the same `$user` resolution
+    // this whole class is about, in the cleanup helper.
     //
     // **The process id, which is the one thing every schema this suite makes
-    // carries and no shared schema does.** A prefix list was the first attempt
-    // and it grew by one on each run — `nc_test`, then `head_undecodable`, then
-    // `recorded_is_assigned` — which is an exclusion list keeping a destructive
-    // command honest, exactly the shape this repository refuses everywhere else.
-    // A `DROP SCHEMA` in a shared database that guesses has no undo, and this one
-    // took the developer's `public` schema twice: `current_schema()` is the first
-    // *existing* schema on the path and not the one the pool asked for.
+    // carries and no shared schema does.** A prefix list grows by one on each
+    // run — `nc_test`, then `head_undecodable`, then `recorded_is_assigned` —
+    // which is an exclusion list keeping a destructive command honest, exactly
+    // the shape this repository refuses everywhere else. A `DROP SCHEMA` in a
+    // shared database that guesses has no undo.
     //
     // Asked here rather than in a `DO` block, because a `DO` block takes no
     // parameters and the alternative is interpolating the answer into the
@@ -230,11 +228,11 @@ async fn finish(pool: sqlx::PgPool) {
     )
     .execute(&pool)
     .await;
-    // **Asserted, because a message here is invisible.** This reported the
-    // failure with `eprintln!` on the reasoning that a test which has made its
-    // point should not fail on the tidying — and cargo swallows the output of a
-    // passing test, so a drop that stopped working left schemas behind and said
-    // nothing. Two were found on a developer's database dated to runs whose
+    // **Asserted, because a message here is invisible.** Reported with
+    // `eprintln!`, on the reasoning that a test which has made its point should
+    // not fail on the tidying, a drop that stops working leaves schemas behind
+    // and says nothing, because cargo swallows the output of a passing test.
+    // Measured on a developer's database: two left behind, dated to runs whose
     // processes were long gone.
     //
     // The tidying *is* part of the point: the module header two screens up says
@@ -308,15 +306,16 @@ fn journal(store: Postgres) -> Journal<Postgres> {
 
 #[tokio::test]
 async fn a_write_that_lands_while_the_chain_is_verified_is_not_tampering() {
-    // **`verify` read the entries and then the tail**, and compared them with
-    // `!=`. An append landing between the two made the tail newer than the read,
-    // and the answer was `HistoryDoesNotReachTheTail` — the journal reporting
+    // **Reading the entries and then the tail, and comparing them with `!=`,**
+    // an append landing between the two makes the tail newer than the read,
+    // and `verify` answers `HistoryDoesNotReachTheTail` — the journal reporting
     // **tampering** because somebody wrote to it.
     //
-    // Measured before the fix, 300 concurrent appends against a continuous
-    // verifier: entries-then-tail gave 187 false alarms in 309 rounds, and `!=`
-    // with the read order corrected still gave 16 in 601. Both halves reverted
-    // cleanly with the whole workspace green, so nothing held either.
+    // Measured without either half, 300 concurrent appends against a continuous
+    // verifier: entries-then-tail gives 187 false alarms in 309 rounds, and
+    // `!=` with the read order corrected still gives 16 in 601. Each half
+    // reverted cleanly with the rest of the workspace green, so this is what
+    // holds them.
     const SCHEMA: &str = "nc_test_racing_verify";
     let Some(pool) = pool(SCHEMA).await else {
         return;
@@ -397,15 +396,16 @@ async fn a_read_that_falls_short_of_the_tail_is_still_caught() {
 
 #[tokio::test]
 async fn the_public_store_refuses_what_the_journal_refuses() {
-    // **The rule was one layer too high.** `Journal::append` is `pub(crate)`;
-    // `Store::append` is public, `Postgres` is public, and this very file calls
-    // `Store` directly six times — so the guard was a rule about one code path,
-    // which is the shape `postgres.rs`'s own module header names.
+    // **The rule is held at the store, not one layer up.** `Journal::append` is
+    // `pub(crate)`; `Store::append` is public, `Postgres` is public, and this
+    // very file calls `Store` directly six times — so a guard in the journal
+    // alone is a rule about one code path, which is the shape `postgres.rs`'s
+    // own module header names.
     //
-    // Through the public path, the original defect reproduced verbatim: the
-    // append succeeded and from that moment `tail`, `from`, `verify` at any
-    // sequence, and every later `record` all failed, with `DELETE` refused by
-    // the trigger.
+    // Measured through the public path with the guard one layer up: the append
+    // succeeds and from that moment `tail`, `from`, `verify` at any sequence,
+    // and every later `record` all fail, with `DELETE` refused by the
+    // trigger.
     const SCHEMA: &str = "nc_test_public_append";
     let Some(pool) = pool(SCHEMA).await else {
         return;
@@ -438,10 +438,11 @@ async fn the_public_store_refuses_what_the_journal_refuses() {
 async fn a_negative_sequence_cannot_reach_the_table_at_all() {
     // **A row nothing could see and nothing could remove.** `sequence` is a
     // `BIGINT` carrying a `u64`, and without a constraint a second connection
-    // could insert one at -1: `from` filters `sequence >= $1` and `tail` orders
-    // descending, so both step straight over it. Measured before the migration
-    // landed — a row recording `Escalate` by `attacker` sat in an append-only
-    // table, could never be deleted, and `verify(0)` called the history clean.
+    // can insert one at -1: `from` filters `sequence >= $1` and `tail` orders
+    // descending, so both step straight over it. Measured without the
+    // constraint — a row recording `Escalate` by `attacker` sits in an
+    // append-only table, can never be deleted, and `verify(0)` calls the
+    // history clean.
     //
     // The check belongs on the table because the caller who writes such a row
     // is not this code.
@@ -470,14 +471,14 @@ async fn a_negative_sequence_cannot_reach_the_table_at_all() {
 async fn a_row_this_code_did_not_write_is_a_verdict_rather_than_a_silence() {
     // **A second connection can `INSERT` whatever it likes**: the trigger guards
     // `UPDATE` and `DELETE`, which is the append-only rule, and says nothing
-    // about what an `INSERT` may contain. A row holding a resource past
-    // `MAX_DEPTH` then made `from` fail for the *whole range* — one bad row
-    // destroying reads of every other row — and `verify` returned no verdict at
-    // all, reported as `Unavailable`, when the store had answered perfectly
-    // well.
+    // about what an `INSERT` may contain. Read naively, a row holding a
+    // resource past `MAX_DEPTH` makes `from` fail for the *whole range* — one
+    // bad row destroying reads of every other row — and `verify` returns no
+    // verdict at all, reported as `Unavailable`, when the store has answered
+    // perfectly well.
     //
     // Nothing this crate writes is unreadable, so a row that will not decode
-    // arrived by another route. That is what verification is for, and it is now
+    // arrived by another route. That is what verification is for, and it is
     // what verification says.
     const SCHEMA: &str = "nc_test_foreign_row";
     let Some(pool) = pool(SCHEMA).await else {
@@ -517,18 +518,18 @@ async fn a_row_this_code_did_not_write_is_a_verdict_rather_than_a_silence() {
     .await
     .expect("a second connection may insert; the trigger only guards UPDATE and DELETE");
 
-    // **And the append is refused, saying which row and why.** This asserted
-    // that the journal still works: `Journal::append` fell back to `head()`,
-    // which reads the sequence and hash without parsing the record, so an
-    // unreadable row did not stop every future write.
+    // **And the append is refused, saying which row and why.** It is not
+    // asserted that the journal still works: a `Journal::append` falling back
+    // to `head()`, which reads the sequence and hash without parsing the
+    // record, would chain onto a row this code cannot read.
     //
-    // That fallback is gone, and the reason is that it achieved neither of the
-    // two things it was between. It does not keep the journal writable —
-    // `head()` parses the *hash column*, `hash TEXT` carries no constraint, and
-    // one `INSERT` with a non-hex hash refuses there too. And where it does
-    // work, it hands the next honest entry whatever sixty-four characters the
-    // foreign row put in `hash`: measured, *the honest entry chained onto the
-    // attacker's chosen hash*.
+    // No fallback, because one achieves neither of the two things it is
+    // between. It does not keep the journal writable — `head()` parses the
+    // *hash column*, and without `0009`'s constraint one `INSERT` with a
+    // non-hex hash refuses there too. And where it does work, it hands the next
+    // honest entry whatever sixty-four characters the foreign row put in
+    // `hash`: measured, *the honest entry chained onto the attacker's chosen
+    // hash*.
     //
     // So the choice is refusing or extending a history this code cannot read,
     // and `§14.9` decides it: the audit log fails closed. The refusal names the
@@ -543,7 +544,7 @@ async fn a_row_this_code_did_not_write_is_a_verdict_rather_than_a_silence() {
     );
 
     // And the rows before it are still readable, which failing the whole range
-    // on the first bad row had also destroyed.
+    // on the first bad row would also destroy.
     let read = store_in(&pool, "nc_test_foreign_row")
         .from(0)
         .await
@@ -575,10 +576,10 @@ async fn a_row_this_code_did_not_write_is_a_verdict_rather_than_a_silence() {
 
 #[tokio::test]
 async fn a_record_the_journal_could_not_read_back_is_refused_before_it_is_written() {
-    // **One call permanently destroyed the audit log.** `nc_canon` writes a
+    // **One call can permanently destroy the audit log.** `nc_canon` writes a
     // value of any depth; `nc_canon::parse` refuses one past `MAX_DEPTH`. A
-    // record whose resource nested past the bound was accepted, hashed and
-    // stored — and from that moment:
+    // record whose resource nests past the bound, accepted, hashed and
+    // stored, leaves from that moment:
     //
     //   verify(0)        -> Err(Unavailable), at any starting sequence
     //   from(0)          -> Err(… nests deeper than this parser will follow)
@@ -728,18 +729,18 @@ async fn the_table_refuses_to_be_edited() {
         .await;
     assert!(deleted.is_err(), "the journal accepted a DELETE");
 
-    // **And in replication mode**, which was one statement away from undoing
+    // **And in replication mode**, which is one statement away from undoing
     // all of it. `CREATE TRIGGER` leaves `tgenabled = 'O'` — origin only — and
     // `SET session_replication_role = replica` is what a logical-replication
     // apply worker sets so an incoming row does not re-fire local triggers. It
     // takes effect immediately and leaves **no catalog trace**, unlike
-    // `ALTER TABLE … DISABLE TRIGGER`. Measured before
+    // `ALTER TABLE … DISABLE TRIGGER`. Measured without
     // `migrations/0004_the_journal_refuses_replication_mode.sql`: `UPDATE 1`
-    // and `DELETE 1` against the shipped triggers, so the audit log could be
-    // edited and truncated and `verify` still reported it clean.
+    // and `DELETE 1` against the shipped triggers, so the audit log can be
+    // edited and truncated and `verify` still reports it clean.
     //
     // The role in `DATABASE_URL` is a superuser, which is exactly what
-    // `session_replication_role` requires — so this was the application's own
+    // `session_replication_role` requires — so this is the application's own
     // connection, not a hypothetical intruder's.
     let updated = in_replication_mode(
         &pool,
@@ -776,9 +777,9 @@ async fn an_actor_chain_respelled_in_the_column_is_not_read_as_the_same_row() {
     // takes the normalisation away, changing the column's type to `json`, which
     // preserves what it is handed.
     //
-    // Measured before the guard: `verify` answered `Ok(4)` both before and
-    // after, while `WHERE actor_chain::text LIKE '%agent-1%'` went from 4 rows
-    // to 0. The chain, which is supposed to be the detector, said clean.
+    // Measured without the guard: `verify` answers `Ok(4)` both before and
+    // after, while `WHERE actor_chain::text LIKE '%agent-1%'` goes from 4 rows
+    // to 0. The chain, which is supposed to be the detector, says clean.
     const SCHEMA: &str = "nc_test_actors_respelled";
     let Some(pool) = pool(SCHEMA).await else {
         return;
@@ -843,16 +844,16 @@ async fn an_actor_chain_respelled_in_the_column_is_not_read_as_the_same_row() {
 #[tokio::test]
 async fn the_first_of_two_unreadable_rows_is_the_one_named() {
     const SCHEMA: &str = "nc_test_two_unreadable";
-    // **An attacker still chose which row got investigated, by writing one
+    // **An attacker must not choose which row gets investigated, by writing one
     // more.** `verify` reports an unreadable row after the loop precisely so a
-    // row poisoned further on cannot hide a forgery before it — but the verdict
-    // it carried was `tail()`'s sequence, and `tail()` decodes the *last* row.
-    // With rows 3 and 4 both unreadable it answered `Broken { sequence: 4 }`,
-    // while `verify`'s own doc promises "the **first** entry that does not
-    // verify" and `§15.1` asks a diagnostic to point at an exact location.
+    // row poisoned further on cannot hide a forgery before it — but a verdict
+    // carrying `tail()`'s sequence, when `tail()` decodes the *last* row, would
+    // answer `Broken { sequence: 4 }` with rows 3 and 4 both unreadable, while
+    // `verify`'s own doc promises "the **first** entry that does not verify"
+    // and `§15.1` asks a diagnostic to point at an exact location.
     //
     // `read.stopped_at` is where the read from `from` stopped, which *is* the
-    // first such row. It was in hand and unused.
+    // first such row.
     let Some(pool) = pool(SCHEMA).await else {
         return;
     };
@@ -895,11 +896,11 @@ async fn the_first_of_two_unreadable_rows_is_the_one_named() {
 #[tokio::test]
 async fn the_table_refuses_to_be_truncated() {
     const SCHEMA: &str = "nc_test_truncate";
-    // **The statement that emptied the table without firing either trigger.** A
+    // **The statement that empties the table without firing either trigger.** A
     // row trigger fires per row and `TRUNCATE` removes rows without visiting
-    // them, so both of the refusals above were beside the point: measured
+    // them, so both of the refusals above are beside the point: measured
     // against migrations 0001-0004, with both triggers already `ENABLE ALWAYS`,
-    // `TRUNCATE journal_entries` succeeded and `verify(0)` answered `Ok(0)`.
+    // `TRUNCATE journal_entries` succeeds and `verify(0)` answers `Ok(0)`.
     //
     // No replication mode and no superuser — table ownership is enough — and
     // the selective form is the same statement with a temp table either side of
@@ -939,18 +940,17 @@ async fn the_table_refuses_to_be_truncated() {
 #[tokio::test]
 async fn a_row_this_code_cannot_read_stops_the_unit_being_closed_and_says_which_row() {
     const SCHEMA: &str = "nc_test_unit_poisoned";
-    // **One `INSERT` reopened every closed unit in the journal.** The check used
-    // to be a scan of `from(0)`, and `from` stops at the first row it cannot
-    // decode — the row `postgres.rs` documents a second connection as free to
-    // write. So a poisoned row hid every `UnitCommitted` bracket *behind* it,
-    // and an entry naming a committed unit landed after its own closing
-    // bracket: inside the group to every SQL reader, with `verify` unable to
-    // say so.
+    // **One `INSERT` must not reopen every closed unit in the journal.** A
+    // check that scans `from(0)` stops at the first row it cannot decode —
+    // the row `postgres.rs` documents a second connection as free to write.
+    // So a poisoned row hides every `UnitCommitted` bracket *behind* it, and
+    // an entry naming a committed unit lands after its own closing bracket:
+    // inside the group to every SQL reader, with `verify` unable to say so.
     //
     // **The poisoned row goes in before the bracket, and that is the whole
     // fixture.** Written the other way round — the unit committed first, the
     // unreadable row appended after — the scan still sees the bracket and the
-    // test passes with the defect present. It did, on the first attempt.
+    // test passes with the defect present.
     let Some(pool) = pool(SCHEMA).await else {
         return;
     };
@@ -981,11 +981,11 @@ async fn a_row_this_code_cannot_read_stops_the_unit_being_closed_and_says_which_
     .await
     .expect("the triggers refuse UPDATE, DELETE and TRUNCATE, not INSERT");
 
-    // **The commit is refused too, and that is the point of the change.** This
-    // asserted the bracket lands past the poisoned row, on the same fallback the
-    // append path used — and that fallback handed the next entry the foreign
-    // row's own `hash` column. An audit log fails closed (`§14.9`): a history
-    // this code cannot read is not one to extend, whatever the entry is for.
+    // **The commit is refused too.** Asserting the bracket lands past the
+    // poisoned row would rest on a fallback that hands the next entry the
+    // foreign row's own `hash` column. An audit log fails closed (`§14.9`): a
+    // history this code cannot read is not one to extend, whatever the entry is
+    // for.
     group
         .commit()
         .await
@@ -993,13 +993,13 @@ async fn a_row_this_code_cannot_read_stops_the_unit_being_closed_and_says_which_
 
     // And the unit is still closed *as a question*, which is what this test is
     // named for: the three columns that answer it are `realm`, `work_unit` and
-    // `result`, none of them the part of a row that fails to decode.
-    // **And the unit is still open, which is now the truthful statement.** With
-    // the bracket refused, the group was never closed — so what this fixture
-    // shows is not that a poisoned row fails to reopen a closed unit but that it
-    // stops the unit being closed at all, and says which row. The question
-    // itself is still answered from the three columns that do not fail to
-    // decode, which is what `unit_closed` reads:
+    // `result`, none of them the part of a row that fails to decode. **And the
+    // unit is still open, which is the truthful statement.** With the bracket
+    // refused, the group is never closed — so what this fixture shows is not
+    // that a poisoned row fails to reopen a closed unit but that it stops the
+    // unit being closed at all, and says which row. The question itself is
+    // still answered from the three columns that do not fail to decode, which
+    // is what `unit_closed` reads:
     assert!(
         !store_in(&pool, "nc_test_unit_poisoned")
             .unit_closed(&id("realm-1"), unit)
@@ -1021,8 +1021,8 @@ async fn a_row_this_code_cannot_read_stops_the_unit_being_closed_and_says_which_
 
 /// The triggers are there, always enabled, and call a function that refuses.
 ///
-/// **The append-only guarantee was checked by behaviour alone**, and behaviour
-/// is checked against the function the triggers call — which is one
+/// **Behaviour alone does not check the append-only guarantee**, because
+/// behaviour is checked against the function the triggers call — which is one
 /// `CREATE OR REPLACE FUNCTION` away from returning `COALESCE(NEW, OLD)` and
 /// letting everything through. That statement needs **function ownership only**:
 /// no superuser, no `session_replication_role`, no `DISABLE TRIGGER`, no
@@ -1031,8 +1031,8 @@ async fn a_row_this_code_cannot_read_stops_the_unit_being_closed_and_says_which_
 /// Afterwards the catalog is exactly what `0005`'s list holds up as proof —
 /// three triggers, all present, all `tgenabled = 'A'` — while UPDATE, DELETE
 /// and TRUNCATE are all accepted and the table can be emptied, with `verify`
-/// then answering `Ok(0)` about an empty history. Measured, before this test
-/// existed. sqlx's checksums hash the migration files and not the database, so
+/// then answering `Ok(0)` about an empty history. Measured, without this test.
+/// sqlx's checksums hash the migration files and not the database, so
 /// they say nothing about it either.
 ///
 /// So this reads the catalog rather than trusting it: the three triggers by
@@ -1064,8 +1064,8 @@ async fn the_triggers_are_there_and_call_what_they_were_written_to_call() {
             ("journal_entries_no_update".to_owned(), "A".to_owned()),
             // **And the one that makes the other three enough.** They stop a
             // row being edited or removed and say nothing about where one may
-            // land, so a foreign INSERT could put a row at the top of the
-            // column's range and every later append was refused for ever. Every
+            // land, so without it a foreign INSERT can put a row at the top of
+            // the column's range and every later append is refused for ever. Every
             // `CHECK` has that shape — a bound says which values are legal and
             // nothing about which comes next — so this is a trigger and not a
             // constraint. `ENABLE ALWAYS`, like the others: a replication
@@ -1080,11 +1080,11 @@ async fn the_triggers_are_there_and_call_what_they_were_written_to_call() {
          `SET session_replication_role = replica`"
     );
 
-    // **And what all three call — the function *these* triggers call.** This
-    // asked `pg_proc` for `proname = 'journal_is_append_only'` with no schema
-    // predicate, and every test schema creates one, as does `public`.
-    // `fetch_one` returns the first row, so the assertion read somebody else's
-    // body while the triggers under test called a tampered one:
+    // **And what all three call — the function *these* triggers call.** Asked
+    // of `pg_proc` as `proname = 'journal_is_append_only'` with no schema
+    // predicate, the question matches every test schema's, and `public`'s.
+    // `fetch_one` returns the first row, so the assertion reads somebody else's
+    // body while the triggers under test call a tampered one:
     //
     // ```text
     // rows the unqualified query matches: 2
@@ -1151,13 +1151,14 @@ async fn the_triggers_are_there_and_call_what_they_were_written_to_call() {
     // The behaviour, in the same test, so the two can be read together: this is
     // what the catalog above is the explanation for.
     //
-    // **All three statements, not only the one.** The substring assertions above
-    // are satisfied by a body that raises on `UPDATE` and returns for everything
-    // else, and this tried `UPDATE` alone — so the test whose doc says it reads
-    // the body rather than assuming it was blind to exactly the route it names.
-    // Measured, with the migration's `RAISE` wrapped in `IF TG_OP = 'UPDATE'`:
-    // this test passed while `the_table_refuses_to_be_edited` and
-    // `the_table_refuses_to_be_truncated` failed.
+    // **All three statements, not only the one.** The substring assertions
+    // above are satisfied by a body that raises on `UPDATE` and returns for
+    // everything else, and trying `UPDATE` alone would leave the test whose doc
+    // says it reads the body rather than assuming it blind to exactly the route
+    // it names. Measured, with the migration's `RAISE` wrapped in
+    // `IF TG_OP = 'UPDATE'` and `UPDATE` alone tried: this test passes while
+    // `the_table_refuses_to_be_edited` and `the_table_refuses_to_be_truncated`
+    // fail.
     let mut store = store_in(&pool, "nc_test_trigger_catalog");
     store
         .append(Entry::chain(0, None, full_record()))
@@ -1182,11 +1183,11 @@ async fn the_triggers_are_there_and_call_what_they_were_written_to_call() {
 
 /// A schema name that survives PostgreSQL's 63-byte truncation with its pid intact.
 ///
-/// **The pid was last, and truncation ate it.** `NAMEDATALEN` is 64, so an
+/// **A pid placed last is what truncation eats.** `NAMEDATALEN` is 64, so an
 /// identifier is silently cut at 63 bytes — and
 /// `nc_test_two_stores_an_entry_after_its_own_bracket,_at_the_wrong_sequence_1059300`
-/// is 80, cut to `…_at_the_wrong`. Two concurrent runs then built the *same*
-/// schema, and `a_schema_of_its_own`'s `DROP SCHEMA … CASCADE` destroyed the
+/// is 80, cut to `…_at_the_wrong`. Two concurrent runs then build the *same*
+/// schema, and `a_schema_of_its_own`'s `DROP SCHEMA … CASCADE` destroys the
 /// other's between its `CREATE SCHEMA` and its migration:
 ///
 /// ```text
@@ -1194,11 +1195,10 @@ async fn the_triggers_are_there_and_call_what_they_were_written_to_call() {
 ///   message: "no schema has been selected to create in" }
 /// ```
 ///
-/// Measured: **100 % of paired runs started together**, about 10 % with a
-/// stagger. `pool()`'s own paragraph says the pid is in the name "because two
-/// concurrent runs of `cargo xtask check` would otherwise destroy each other's
-/// tables mid-test" — which is exactly what happened, to the one name long
-/// enough to lose it.
+/// Measured with the pid last: **100 % of paired runs started together**,
+/// about 10 % with a stagger. `pool()`'s own paragraph puts the pid in the name
+/// "so two runs do not destroy each other", and with the pid last that is
+/// exactly what two runs do, to any name long enough to lose it.
 ///
 /// So the pid goes directly after the prefix, where truncation cannot reach it,
 /// and the label — which is only for a person reading `\dn` — is what gets cut.
@@ -1239,14 +1239,14 @@ fn a_schema_named(prefix: &str, label: &str) -> String {
 
 /// A schema with the migrations applied, and a pool pinned to it.
 ///
-/// **Dropped first.** `CREATE SCHEMA IF NOT EXISTS` left the previous run's rows
-/// in place, so the second run found a bracket already committed and the two
-/// stores disagreed at step 0 — a test that passes once and fails afterwards is
-/// worse than one that never passed.
+/// **Dropped first.** `CREATE SCHEMA IF NOT EXISTS` would leave the previous
+/// run's rows in place, so the second run would find a bracket already
+/// committed and the two stores disagree at step 0 — a test that passes once
+/// and fails afterwards is worse than one that never passed.
 async fn a_schema_of_its_own(pool: &sqlx::PgPool, name: &str) -> sqlx::PgPool {
-    // **Dropped first.** `IF NOT EXISTS` left the previous run's rows in
-    // place, so the second run found a bracket already committed and the
-    // two stores disagreed at step 0 — a test that passes once and fails
+    // **Dropped first.** `IF NOT EXISTS` would leave the previous run's rows in
+    // place, so the second run would find a bracket already committed and the
+    // two stores disagree at step 0 — a test that passes once and fails
     // afterwards is worse than one that never passed.
     sqlx::query(sqlx::AssertSqlSafe(format!(
         "DROP SCHEMA IF EXISTS \"{name}\" CASCADE"
@@ -1287,21 +1287,21 @@ async fn a_schema_of_its_own(pool: &sqlx::PgPool, name: &str) -> sqlx::PgPool {
 /// sequence to chain it at, the realm it is written in, and the action it
 /// carries when that is not the one its outcome implies.
 ///
-/// **The last two arrived because the script could not reach two of the three
-/// clauses either store's `unit_opened` asks.** Every step wrote `realm-1` and
-/// every `UnitBegun` step carried `OPENS`, so the script could see neither a
-/// second realm nor a non-bracket entry with a bracket's outcome — and the
-/// PostgreSQL predicate's `realm`, `action` and `result` comparisons could each
-/// be replaced by `OR TRUE` with `cargo xtask check` green. The trait's whole
+/// **The last two reach two of the three clauses either store's `unit_opened`
+/// asks.** Without them, every step writes `realm-1` and every `UnitBegun` step
+/// carries `OPENS`, so the script reaches neither a second realm nor a
+/// non-bracket entry with a bracket's outcome — and the PostgreSQL predicate's
+/// `realm`, `action` and `result` comparisons can each be replaced by
+/// `OR TRUE` with `cargo xtask check` green. The trait's whole
 /// premise is that both implementations answer one call the same way, and this
 /// is the test that holds them to it.
 type Step = (Outcome, Option<Snowflake>, u64, &'static str, &'static str);
 
 /// The bracket questions, asked of both stores and compared.
 ///
-/// **The loop that drives `Store::append` never consults them**, so
-/// `unit_opened` and `unit_closed` were outside the two-store comparison
-/// entirely — and each of the PostgreSQL predicate's three comparisons could be
+/// **The loop that drives `Store::append` never consults them**, so without
+/// this `unit_opened` and `unit_closed` are outside the two-store comparison
+/// entirely — and each of the PostgreSQL predicate's three comparisons can be
 /// replaced by `OR TRUE` with the whole gate green. They are asked here, in both
 /// realms the scripts write and for a unit no script mentions, so a store that
 /// ignores the realm, the action or the outcome answers differently from the one
@@ -1312,8 +1312,9 @@ type Step = (Outcome, Option<Snowflake>, u64, &'static str, &'static str);
 /// unit rolled back when the other says it committed, which are the two answers
 /// a caller acts on differently. The scripts close units both ways.
 ///
-/// Its own function because `both_stores_answer_the_same_script_the_same_way`
-/// crossed clippy's hundred-line bound when it arrived.
+/// Its own function because inline it takes
+/// `both_stores_answer_the_same_script_the_same_way` past clippy's hundred-line
+/// bound.
 async fn the_two_stores_agree_about_the_brackets(
     memory: &nc_journal::InMemory,
     postgres: &Postgres,
@@ -1348,10 +1349,9 @@ async fn the_two_stores_agree_about_the_brackets(
 /// The scripts both stores are driven through, written out rather than derived.
 ///
 /// A step that starts failing is a step somebody has to look at, which a
-/// generated set would not give. Its own function because the test crossed
-/// clippy's hundred-line bound when the last three scripts arrived — a second
-/// realm, an ordinary entry carrying a bracket's outcome, and a begin that was
-/// denied, none of which the earlier set could express.
+/// generated set would not give. Its own function because inline the scripts
+/// take the test past clippy's hundred-line bound — among them a second realm,
+/// an ordinary entry carrying a bracket's outcome, and a begin that was denied.
 /// <!-- allow-logging: `the_scripts_both_stores_answer` hands back script, realm and action names written as literals in this file, and nothing a caller chose -->
 fn the_scripts_both_stores_answer(unit: Snowflake) -> Vec<(String, Vec<Step>)> {
     let mut scripts = vec![
@@ -1378,13 +1378,13 @@ fn the_scripts_both_stores_answer(unit: Snowflake) -> Vec<(String, Vec<Step>)> {
                 (Outcome::Allowed, Some(unit), 7, "realm-1", ""),
             ],
         ),
-        // **A unit that was rolled back**, which no script anywhere expressed:
-        // `Outcome::UnitAborted` appears in no test in this repository. Both
-        // stores read a closing bracket as *committed or aborted*, and both
-        // halves could be narrowed to committed-only with the whole gate green —
-        // so `Store::unit_closing` (and `unit_closed` over it), which is public
-        // and is what the kernel asks, answered "still open" for a unit
-        // that had ended.
+        // **A unit that was rolled back.** Without this row
+        // `Outcome::UnitAborted` appears in no script. Both stores read a
+        // closing bracket as *committed or aborted*, and both halves can then be
+        // narrowed to committed-only with the whole gate green — so
+        // `Store::unit_closing` (and `unit_closed` over it), which is public
+        // and is what the kernel asks, answers "still open" for a unit
+        // that has ended.
         (
             "a unit closed by being rolled back".to_owned(),
             vec![
@@ -1396,9 +1396,10 @@ fn the_scripts_both_stores_answer(unit: Snowflake) -> Vec<(String, Vec<Step>)> {
         // **A bracket's outcome under an action that is not the bracket**, with
         // a closing result. `unit_closing`'s `action = $3` clause — the one its
         // own doc argues for at length, because "when did this unit end" must
-        // have one answer — was decided by nothing: `AND $3 = $3` left the gate
-        // green. An ordinary `Write` carrying `UnitCommitted` must not close the
-        // unit, or `Journal::append` refuses the unit's rightful owner.
+        // have one answer — is decided by this: without it `AND $3 = $3` leaves
+        // the gate green. An ordinary `Write` carrying `UnitCommitted` must not
+        // close the unit, or `Journal::append` refuses the unit's rightful
+        // owner.
         (
             "a bracket's outcome on an ordinary action".to_owned(),
             vec![
@@ -1441,8 +1442,8 @@ fn the_scripts_both_stores_answer(unit: Snowflake) -> Vec<(String, Vec<Step>)> {
             ],
         ),
         // **A bracket's outcome on an entry that is not one.** `action` is what
-        // makes a bracket a bracket, and no step could say so while the action
-        // was derived from the outcome.
+        // makes a bracket a bracket, and no step can say so while the action
+        // is derived from the outcome.
         (
             "an ordinary entry carrying a bracket's outcome".to_owned(),
             vec![
@@ -1467,24 +1468,22 @@ fn the_scripts_both_stores_answer(unit: Snowflake) -> Vec<(String, Vec<Step>)> {
 
 /// The scripts about the guard that decides whether a unit may be opened.
 ///
-/// Split from [`the_scripts_both_stores_answer`] because it crossed clippy's
-/// hundred-line bound for the second time — the first split is what made that
-/// function its own, and its doc says so. The division is by subject: there,
+/// Split from [`the_scripts_both_stores_answer`] because together they are
+/// past clippy's hundred-line bound, and that function is itself split from
+/// the test for the same reason, as its doc says. The division is by subject: there,
 /// what happens around a bracket already in the history; here and in
 /// [`the_scripts_about_the_closed_unit_guard`], the two guards that decide
 /// whether a bracket may be written at all.
 /// <!-- allow-logging: `the_scripts_about_the_opener_guard` hands back script, realm and action names written as literals in this file, and nothing a caller chose -->
 fn the_scripts_about_the_opener_guard(unit: Snowflake) -> Vec<(String, Vec<Step>)> {
     vec![
-        // **Seven scripts about the opener guard, which is written four times
-        // and was driven in one of them.** Round thirty-eight found both clauses
-        // of the `InMemory` copy untested and repaired it there, saying in as
-        // many words that the shape is *"what the store that runs accepts"* —
-        // and the store that runs was never asked. Measured on 2026-09-12,
-        // fifteen clauses of the other three copies deleted one at a time, each
-        // against the whole crate suite with a database up: **every one
-        // survived**, and two of them survived `cargo xtask check` at
-        // `ok 1275 test(s)` with the console byte-identical.
+        // **Seven scripts about the opener guard, which is written four
+        // times.** The `InMemory` copy's own tests say in as many words that
+        // the shape is *"what the store that runs accepts"* — and this asks the
+        // store that runs. Measured without these, fifteen clauses of the other
+        // three copies deleted one at a time, each against the whole crate
+        // suite with a database up: **every one survives**, and two of them
+        // survive `cargo xtask check` with the console byte-identical.
         //
         // Every step below is *accepted* except the one marked, and each one
         // separates a clause: the guard fires only for an entry that is an
@@ -1551,7 +1550,7 @@ fn the_scripts_about_the_opener_guard(unit: Snowflake) -> Vec<(String, Vec<Step>
         // **And at a sequence that is wrong**, which is the only route into the
         // diagnosis: the `INSERT` refuses on ordering, and the second query is
         // what decides whether the caller hears *out of order* or *already
-        // open*. Its three clauses about the opener were decided by nothing.
+        // open*. Its three clauses about the opener are decided here.
         (
             "another unit opened at the wrong sequence while one is open".to_owned(),
             vec![
@@ -1567,12 +1566,13 @@ fn the_scripts_about_the_opener_guard(unit: Snowflake) -> Vec<(String, Vec<Step>
         ),
         // **A near miss in the table, then a genuine opener at a wrong
         // sequence.** The diagnosis asks whether an opener for this unit exists
-        // by *its* action and *its* result, and each of those two clauses was
-        // decided by nothing: with either gone, an entry that is not an opener
-        // answers the question, and a caller whose only fault is the sequence is
-        // told `UnitAlreadyOpen` — which is not retryable — for a unit nobody
-        // has opened. A wrong sequence is the only route into that query, so
-        // the near miss has to be written first and the opener has to be second.
+        // by *its* action and *its* result, and without this each of those two
+        // clauses is decided by nothing: with either gone, an entry that is not
+        // an opener answers the question, and a caller whose only fault is the
+        // sequence is told `UnitAlreadyOpen` — which is not retryable — for a
+        // unit nobody has opened. A wrong sequence is the only route into that
+        // query, so the near miss has to be written first and the opener has to
+        // be second.
         (
             "a genuine opener at a wrong sequence, after an ordinary action carrying its outcome"
                 .to_owned(),
@@ -1604,8 +1604,8 @@ fn the_scripts_about_the_opener_guard(unit: Snowflake) -> Vec<(String, Vec<Step>
 /// The scripts about the guard that decides whether a unit is already closed.
 ///
 /// The other half of [`the_scripts_about_the_opener_guard`], and its own
-/// function for the same reason that one is: the pair crossed clippy's
-/// hundred-line bound together.
+/// function for the same reason that one is: the pair together is past
+/// clippy's hundred-line bound.
 /// <!-- allow-logging: `the_scripts_about_the_closed_unit_guard` hands back script, realm and action names written as literals in this file, and nothing a caller chose -->
 fn the_scripts_about_the_closed_unit_guard(unit: Snowflake) -> Vec<(String, Vec<Step>)> {
     vec![
@@ -1691,12 +1691,12 @@ fn the_scripts_about_the_closed_unit_guard(unit: Snowflake) -> Vec<(String, Vec<
             ],
         ),
         // **And the near miss as the entry being diagnosed**, which is the one
-        // shape the four above cannot express: each of them writes the near miss
-        // first, at the sequence that follows, so it lands and the diagnosis
-        // never sees it. The diagnosis asks whether the record in its hands is an
-        // opening bracket before it consults either permanent answer, and both
-        // clauses of that question were decided by nothing — deleted one at a
-        // time, `check passed` with 1281 test(s) and no warn.
+        // shape the four above cannot express: each of them writes the near
+        // miss first, at the sequence that follows, so it lands and the
+        // diagnosis never sees it. The diagnosis asks whether the record in its
+        // hands is an opening bracket before it consults either permanent
+        // answer, and without this both clauses of that question are decided by
+        // nothing — deleted one at a time, `check passed` with no warn.
         //
         // What it costs is the same sentence in both directions: an entry whose
         // only fault is its sequence is told `UnitAlreadyOpen`, which is not
@@ -1735,14 +1735,14 @@ fn the_scripts_about_the_closed_unit_guard(unit: Snowflake) -> Vec<(String, Vec<
 #[tokio::test]
 /// One script, both stores, entry for entry — including which refusal.
 ///
-/// **The comparison the "both stores answer alike" argument never had.** Each
-/// store had its own tests and nothing drove one sequence through both, so the
-/// two drifted in the one place the argument is about: an entry that is *both*
-/// out of order and inside a closed unit was `OutOfOrder` in memory and
-/// `UnitClosed` in PostgreSQL, because the two resolved the refusals in
-/// opposite orders. Those map to different error codes, so for one call the
-/// cheap store told a responder the hash chain was broken and the real store
-/// told them a work unit was closed — and the cheap store is what criterion 3's
+/// **The comparison the "both stores answer alike" argument needs.** With each
+/// store tested on its own and nothing driving one sequence through both, the
+/// two can drift in the one place the argument is about: an entry that is
+/// *both* out of order and inside a closed unit could be `OutOfOrder` in memory
+/// and `UnitClosed` in PostgreSQL, the two resolving the refusals in opposite
+/// orders. Those map to different error codes, so for one call the cheap store
+/// would tell a responder the hash chain was broken and the real store would
+/// tell them a work unit was closed — and the cheap store is what criterion 3's
 /// every-position proof runs on.
 ///
 /// A sequence past `i64::MAX` was the same shape one field along: `OutOfOrder`
@@ -1766,12 +1766,12 @@ async fn both_stores_answer_the_same_script_the_same_way() {
         let mut memory = nc_journal::InMemory::default();
         let mut postgres = Postgres::in_schema(scoped.clone(), &fresh);
         for (step, (result, in_unit, sequence, realm, action)) in script.iter().enumerate() {
-            // **A bracket carries the bracket's action.** The script wrote
-            // `Read` for every step, including the `UnitCommitted` one — and
-            // once `unit_closed` began asking for `kernel.unit`, that step
-            // stopped closing anything, which is the rule working: an ordinary
-            // entry carrying a bracket's *outcome* is not a bracket. The script
-            // is about what happens after a real one.
+            // **A bracket carries the bracket's action.** A script writing
+            // `Read` for every step, including the `UnitCommitted` one, closes
+            // nothing, because `unit_closed` asks for `kernel.unit` — which is
+            // the rule working: an ordinary entry carrying a bracket's
+            // *outcome* is not a bracket. The script is about what happens
+            // after a real one.
             let mut record = entry_record(if action.is_empty() {
                 match result {
                     Outcome::UnitBegun => nc_journal::unit::OPENS,
@@ -1992,13 +1992,13 @@ async fn both_journals_open_and_close_units_the_same_way() {
 /// How a unit closed is its first closing bracket, not one a second connection
 /// wrote around the store afterwards.
 ///
-/// **`ORDER BY sequence` decided nothing.** `append`'s `INSERT` refuses a second
-/// closing bracket, so every test here held one, and `DESC` in `unit_closing`'s
-/// query left every suite green — measured on 2026-09-28, alongside the
+/// **`ORDER BY sequence`, decided.** `append`'s `INSERT` refuses a second
+/// closing bracket, so every other test here holds one, and without this `DESC`
+/// in `unit_closing`'s query leaves every suite green — measured alongside the
 /// in-memory scan taking its last match. A plain `INSERT` from another
 /// connection is not refused: nothing in the table's constraints knows what a
 /// bracket is. Under `DESC`, a unit rolled back and then "committed" that way
-/// read as committed, which is the one answer of the two that says its effects
+/// reads as committed, which is the one answer of the two that says its effects
 /// stand.
 #[tokio::test]
 async fn how_a_unit_closed_is_its_first_closing_bracket_not_one_written_around_the_store() {
@@ -2084,11 +2084,11 @@ async fn a_party_that_can_only_insert_chooses_how_an_open_unit_closed_in_postgre
 /// A NUL in a unit's label is stored escaped in both stores, and the close
 /// repeats it as written.
 ///
-/// **`open_unit`'s section named `Unstorable` for such a label, and nothing
-/// builds it.** The label is the bracket's resource, which canonical JSON
-/// escapes — measured on 2026-09-28, both stores opening the unit and the
-/// PostgreSQL chain verifying. The column is asked too, because "escaped" is a
-/// claim about what the row holds and not only about what comes back.
+/// **No path builds `Unstorable` for such a label.** The label is the bracket's
+/// resource, which canonical JSON escapes — measured, both stores opening the
+/// unit and the PostgreSQL chain verifying. The column is asked too, because
+/// "escaped" is a claim about what the row holds and not only about what comes
+/// back.
 #[tokio::test]
 async fn a_label_holding_a_nul_is_stored_escaped_in_both_stores() {
     const SCHEMA: &str = "nc_test_nul_label";
@@ -2151,13 +2151,14 @@ async fn a_label_holding_a_nul_is_stored_escaped_in_both_stores() {
 
 #[tokio::test]
 async fn an_aborted_unit_is_closed_for_every_way_in() {
-    // **Abort is the other half of "closed", and it was the untested half.**
-    // Both the insert's `WHERE` and `unit_closing` list `unit-committed` *and*
-    // `unit-aborted`; every closed-unit test in the tree closed with `commit`,
-    // and `an_aborted_unit_keeps_every_entry_including_a_denial` aborts without
-    // ever trying to write afterwards. Deleting `UnitAborted` from the check
-    // left the suite green — so an entry could land after a `unit-aborted`
-    // bracket, inside a group that was rolled back, and verify clean.
+    // **Abort is the other half of "closed".** Both the insert's `WHERE` and
+    // `unit_closing` list `unit-committed` *and* `unit-aborted`; every other
+    // closed-unit test in this crate closes with `commit`, and
+    // `an_aborted_unit_keeps_every_entry_including_a_denial` aborts without
+    // ever trying to write afterwards. Without this, deleting `UnitAborted`
+    // from the check leaves the suite green — so an entry could land after a
+    // `unit-aborted` bracket, inside a group that was rolled back, and verify
+    // clean.
     const SCHEMA: &str = "nc_test_unit_aborted_closed";
     let Some(pool) = pool(SCHEMA).await else {
         return;
@@ -2251,8 +2252,8 @@ async fn forge_the_tail(pool: &sqlx::PgPool) {
 /// argues for that order in as many words. Both questions are asked a second
 /// time by `Store::append`'s `WHERE`, which reports them with the same two
 /// errors, so the outer copy is invisible through any history the store
-/// accepts: measured on 2026-09-10, each of the two guards in `Journal::append`
-/// made never to fire left the whole crate suite green with a database up.
+/// accepts: measured, each of the two guards in `Journal::append` made never to
+/// fire leaves the whole crate suite green with a database up, without this.
 ///
 /// A forged tail is what tells the two copies apart. With the guard, the unit
 /// is the answer; without it the append reaches the tail, the tail does not
@@ -2314,11 +2315,12 @@ async fn an_open_unit_is_the_answer_before_the_tail_is_read() {
 /// **And the guard is only about an opener**, which is its other half.
 ///
 /// The two clauses that make an entry an opening bracket — the action and the
-/// outcome, and it takes both — were decided by nothing in this copy: either
-/// one made always true left the crate suite green, and an ordinary entry
-/// written inside an open unit was refused `UnitAlreadyOpen`, which is not
-/// retryable, for a unit its own owner had opened. The store's `WHERE` accepts
-/// both entries below, so nothing downstream would have refused them.
+/// outcome, and it takes both — are decided here and by nothing else in this
+/// copy: either one made always true leaves the rest of the crate suite green,
+/// and an ordinary entry written inside an open unit is
+/// refused `UnitAlreadyOpen`, which is not retryable, for a unit its own owner
+/// had opened. The store's `WHERE` accepts both entries below, so nothing
+/// downstream would refuse them.
 #[tokio::test]
 async fn the_journals_opener_guard_is_only_about_an_opener() {
     const SCHEMA: &str = "nc_test_opener_guard_only";
@@ -2353,13 +2355,14 @@ async fn the_journals_opener_guard_is_only_about_an_opener() {
 
 #[tokio::test]
 async fn a_unit_closed_between_the_check_and_the_write_is_still_closed() {
-    // **Check-then-write, with nothing holding the answer still.**
-    // `Journal::append` asked `unit_closed`, then read the head, then wrote —
-    // three statements — so a second writer could close the unit in between and
-    // the entry landed *after* its own `unit-committed` bracket, inside the
-    // group to every SQL reader, with `verify` answering clean. That is the same
-    // defect the single-process path was fixed for, and `Store::unit_closing`'s
-    // own doc sells the store query on the multi-process case.
+    // **Check-then-write, with nothing holding the answer still.** Asking
+    // `unit_closed`, then reading the head, then writing — three statements —
+    // lets a second writer close the unit in between, and the entry lands
+    // *after* its own `unit-committed` bracket, inside the group to every SQL
+    // reader, with `verify` answering clean. That is the single-process
+    // defect `WorkUnit::record` and `Journal::record` both refuse, and
+    // `Store::unit_closing`'s own doc sells the store query on the
+    // multi-process case.
     //
     // The gap is made explicit rather than raced for: this writes the closing
     // bracket itself, directly, *after* the check `Journal::record` has already
@@ -2397,8 +2400,8 @@ async fn a_unit_closed_between_the_check_and_the_write_is_still_closed() {
         "an entry landed after its own closing bracket"
     );
 
-    // **And the store refuses it directly**, which is where the check now lives:
-    // a caller that chained the entry itself and went straight to `Store::append`
+    // **And the store refuses it directly**, which is where the check lives: a
+    // caller that chained the entry itself and went straight to `Store::append`
     // walks past `Journal` entirely.
     let mut store = store_in(&pool, "nc_test_unit_race");
     let head = store.head().await.expect("reads").expect("there are rows");
@@ -2432,20 +2435,21 @@ async fn a_unit_closed_between_the_check_and_the_write_is_still_closed() {
 
 /// An entry that is not a bracket does not end a unit, in either store.
 ///
-/// **The clause `unit_closing`'s own doc argues for, decided by nothing.**
-/// `AND action = $3` is what makes a closing bracket a *bracket*: without it an
-/// ordinary `Write` carrying `Outcome::UnitCommitted` — a row any caller can ask
-/// for — closes somebody else's unit, and `Journal::append` then refuses that
-/// unit's rightful owner. Measured: `AND $3 = $3` left the whole gate green,
-/// because the only tests that reached `unit_closed` compared the two stores
-/// against each other and **both** carry the clause, so neither the comparison
-/// nor the behaviour tests could separate the rule from the rule beside it.
+/// **The clause `unit_closing`'s own doc argues for,
+/// decided.** `AND action = $3` is what makes a closing bracket a *bracket*:
+/// without it an ordinary `Write` carrying `Outcome::UnitCommitted` — a row any
+/// caller can ask for — closes somebody else's unit, and `Journal::append` then
+/// refuses that unit's rightful owner. Measured without this
+/// test: `AND $3 = $3` leaves the whole gate green, because the other tests
+/// that reach `unit_closed` compare the two stores against each other and
+/// **both** carry the clause, so neither the comparison nor the behaviour tests
+/// can separate the rule from the rule beside it.
 ///
-/// **Asked of each store directly, and the realm said out loud.** The first form
-/// of this test built its record with `Record::new`, which copies the principal
-/// into the realm — so it asked about a realm the record was not in, and passed
-/// with the clause deleted. A test written to close a hole in coverage that
-/// cannot fail is the same defect one level up.
+/// **Asked of each store directly, and the realm said out loud.** A record
+/// built with `Record::new`, which copies the principal into the realm, asks
+/// about a realm the record is not in, and passes with the clause deleted. A
+/// test written to close a hole in coverage that cannot fail is the same defect
+/// one level up.
 #[tokio::test]
 async fn an_ordinary_action_carrying_a_brackets_outcome_closes_nothing() {
     const SCHEMA: &str = "nc_test_unit_action";
@@ -2463,10 +2467,10 @@ async fn an_ordinary_action_carrying_a_brackets_outcome_closes_nothing() {
         record.work_unit = Some(unit);
         record.result = closing;
         // **The realm, said out loud.** `Record::new` copies the principal into
-        // the realm — a journal overwrites it on append — so a record built here
-        // and asked about under `realm-1` answers "not closed" whatever the
-        // predicate does. The first form of this test did exactly that and
-        // passed with the clause it is written for deleted.
+        // the realm — a journal overwrites it on append — so a record built
+        // here and asked about under `realm-1` would answer "not closed"
+        // whatever the predicate does, and pass with the clause it is written
+        // for deleted.
         record.realm = id("realm-1");
         let entry = nc_journal::Entry::chain(0, None, record);
         store
@@ -2493,9 +2497,9 @@ async fn an_ordinary_action_carrying_a_brackets_outcome_closes_nothing() {
 #[tokio::test]
 async fn a_unit_closed_in_one_realm_is_not_closed_in_another() {
     const SCHEMA: &str = "nc_test_unit_realm";
-    // **A journal refused a write on the strength of another realm's history.**
-    // The scan read every row in the table, so a `UnitCommitted` bracket written
-    // by `realm-1` closed the same unit for `realm-2` — and `Journal::append`
+    // **A journal must not refuse a write on the strength of another realm's
+    // history.** A scan reading every row in the table lets a `UnitCommitted`
+    // bracket written by `realm-1` close the same unit for `realm-2` — and `Journal::append`
     // overwrites `record.realm` from the journal precisely so that one realm
     // cannot reach another's history.
     let Some(pool) = pool(SCHEMA).await else {
@@ -2539,15 +2543,18 @@ async fn a_unit_closed_in_one_realm_is_not_closed_in_another() {
 
 #[tokio::test]
 async fn the_first_broken_entry_is_the_one_named() {
-    // **An attacker chose which row got investigated.** The unreadable-row
-    // verdict returned *before* the loop, though its own comment said "after the
-    // loop below has had its chance at an earlier broken link" — so a forged
-    // early entry and a poisoned later one made verification name the later one.
+    // **An attacker must not choose which row gets investigated.** Returned
+    // *before* the loop, the unreadable-row verdict would contradict its own
+    // comment — "after the loop below has had its chance at an earlier broken
+    // link" — and a forged early entry and a poisoned later one would make
+    // verification name the later one.
     //
-    // Built with `INSERT`s rather than `UPDATE`s: the table refuses an update in
-    // every session role now (`migrations/0004_the_journal_refuses_replication_mode.sql`), which is what makes this a
-    // test of the *order of the verdicts* rather than of the trigger. A second
-    // connection may insert, which is the hole `verify` exists to find.
+    // Built with `INSERT`s rather than `UPDATE`s: the table refuses an update
+    // in every session role
+    // (`migrations/0004_the_journal_refuses_replication_mode.sql`), which is
+    // what makes this a test of the *order of the verdicts* rather than of the
+    // trigger. A second connection may insert, which is the hole `verify`
+    // exists to find.
     const SCHEMA: &str = "nc_test_first_broken";
     let Some(pool) = pool(SCHEMA).await else {
         return;
@@ -2570,7 +2577,7 @@ async fn the_first_broken_entry_is_the_one_named() {
     .await
     .expect("a second connection may insert");
 
-    // Sequence 2: a row that will not decode at all — the verdict that used to
+    // Sequence 2: a row that will not decode at all — the verdict that must not
     // win.
     sqlx::query(
         "INSERT INTO journal_entries (sequence, realm, principal, actor_chain, action, \
@@ -2649,10 +2656,10 @@ async fn an_unreadable_row_still_gets_its_verdict() {
 
 /// A row whose own `sequence` will not decode says so, and names no row number.
 ///
-/// **`unwrap_or(u64::MAX)` asserted a row that cannot exist.** The column is
-/// `BIGINT` under `CHECK (sequence >= 0)` and is the primary key, so
+/// **`unwrap_or(u64::MAX)` would assert a row that cannot exist.** The column
+/// is `BIGINT` under `CHECK (sequence >= 0)` and is the primary key, so
 /// 18446744073709551615 is a number no row in this table has ever held — and the
-/// verdict built from it read *"entry 18446744073709551615 … is in the table"*.
+/// verdict built from it reads *"entry 18446744073709551615 … is in the table"*.
 /// Reachable through exactly the channel the three canonical guards defend
 /// against: a heap rewrite that fires no row trigger.
 #[tokio::test]
@@ -2687,11 +2694,11 @@ async fn a_row_whose_sequence_will_not_decode_names_no_row_number() {
         "the verdict names a row number it invented: {said}"
     );
 
-    // **And through `verify`, which is the caller that had thrown it away.**
-    // `postgres.rs` fixed the sentence where it is produced; `verify` read only
-    // the sequence out of `stopped_at` and discarded the reason, so the verdict
-    // a person actually sees still said `entry 18446744073709551615 … is in the
-    // table`, which the table's own `CHECK (sequence >= 0)` makes impossible.
+    // **And through `verify`, which is the caller a person reads.** `postgres.rs`
+    // writes the sentence where it is produced; a `verify` reading only the
+    // sequence out of `stopped_at` and discarding the reason would still show
+    // `entry 18446744073709551615 … is in the table`, which the table's own
+    // `CHECK (sequence >= 0)` makes impossible.
     let journal = Journal::new(
         store_in(&pool, "nc_test_sequence_unreadable"),
         id("realm-1"),
@@ -2716,12 +2723,12 @@ async fn a_row_whose_sequence_will_not_decode_names_no_row_number() {
 
 /// The first entry that does not verify is named, when the tail still decodes.
 ///
-/// **The ordering has a test and the test takes the other branch.**
-/// `the_first_broken_entry_is_the_one_named` makes the *last* row unreadable, so
-/// `tail()` fails and `verify` answers through the empty-tail branch — the fix
-/// it exercises is `verdict_after_checking`, not the `stopped_at` return after
-/// the loop. That return could be moved back above the loop with the whole crate
-/// green:
+/// **The ordering has a test and the test takes the other
+/// branch.** `the_first_broken_entry_is_the_one_named` makes the *last* row
+/// unreadable, so `tail()` fails and `verify` answers through the empty-tail
+/// branch — what it exercises is `verdict_after_checking`, not the `stopped_at`
+/// return after the loop. Without this, that return could be moved above the
+/// loop with the whole crate green:
 ///
 /// ```text
 /// as shipped:  seq=1 HashDoesNotMatchContents   (the forged row)
@@ -2785,12 +2792,12 @@ async fn the_forged_row_is_named_even_when_a_later_row_will_not_decode() {
 
 /// The first row of a read being unreadable is said as that, not as a gap.
 ///
-/// **`verify` returned on the empty-`entries` branch before it consulted where
-/// the read stopped**, so a row rewritten in place at the start of a range was
-/// reported as `HistoryDoesNotStartHere` — whose own doc says *"the rows before
+/// **A `verify` returning on the empty-`entries` branch before it consults
+/// where the read stopped** reports a row rewritten in place at the start of a
+/// range as `HistoryDoesNotStartHere` — whose own doc says *"the rows before
 /// it are gone, and their absence is invisible to a chain of links"*, which is
-/// false: the row is on disk and was rewritten where it lies. Measured, one
-/// tamper applied at each position of a history:
+/// false: the row is on disk and was rewritten where it lies. Measured with
+/// such a `verify`, one tamper applied at each position of a history:
 ///
 /// ```text
 /// position 0 -> HistoryDoesNotStartHere / JournalChainBroken
@@ -2799,12 +2806,12 @@ async fn the_forged_row_is_named_even_when_a_later_row_will_not_decode() {
 ///
 /// The two codes exist so a responder knows whether to look at one row or at
 /// the whole history above it, and the sentence a person reads differs too. The
-/// sibling branch — the one for an unreadable *tail* — already consulted
-/// `stopped_at`; the fix existed in one half of the function and not the other.
+/// sibling branch — the one for an unreadable *tail* — consults `stopped_at`
+/// too, so both halves of the function answer alike.
 ///
 /// **The tail has to stay readable**, or `verify` answers through that sibling
-/// branch and this one is never reached — which is how the first version of
-/// this test passed with the fix reverted.
+/// branch and this one is never reached — and the test would pass with the
+/// ordering reverted.
 #[tokio::test]
 async fn the_first_row_of_a_read_being_unreadable_is_not_a_missing_history() {
     const SCHEMA: &str = "nc_test_unreadable_first";
@@ -2849,9 +2856,9 @@ async fn the_first_row_of_a_read_being_unreadable_is_not_a_missing_history() {
     );
     // **And the reason travels with the sequence.** `Broken::detail` is what
     // turns "entry 0 does not verify" into a sentence naming the two spellings,
-    // and it could be dropped from both paths through `chained_and_contiguous`
-    // with the whole suite green: every test here asserted the sequence and the
-    // code, and none read what a responder is actually handed.
+    // and an assertion on the sequence and the code alone would stay green
+    // with it dropped from both paths through `chained_and_contiguous`; this
+    // reads what a responder is actually handed.
     let said = verdict.to_string();
     assert!(
         said.contains(" — "),
@@ -2859,8 +2866,8 @@ async fn the_first_row_of_a_read_being_unreadable_is_not_a_missing_history() {
     );
     // **And which kind of damage it says this is.** `Broken::code()` maps both
     // `EntryIsNotReadable` and `HashDoesNotMatchContents` to
-    // `JournalEntryTampered`, so a site constructing the wrong one passed every
-    // assertion here — producing `its hash is not the hash of its contents —
+    // `JournalEntryTampered`, so without this a site constructing the wrong one
+    // passes every assertion here — producing `its hash is not the hash of its contents —
     // \`invented\` is not an outcome this code knows`, which contradicts itself.
     assert!(
         said.contains("this code cannot read it"),
@@ -2877,11 +2884,10 @@ async fn the_first_row_of_a_read_being_unreadable_is_not_a_missing_history() {
 /// Runs one statement with `session_replication_role = replica`, on **one**
 /// connection.
 ///
-/// **A pool is not a session, and this test was passing by accident.**
-/// `SET session_replication_role` is a *session* setting, and a `PgPool` hands
-/// each statement whichever connection is free — so the `SET` and the statement
-/// it was meant to affect ran on different backends. Measured against a pool
-/// shaped exactly like `pool()`'s:
+/// **A pool is not a session.** `SET session_replication_role` is a *session*
+/// setting, and a `PgPool` hands each statement whichever connection is free —
+/// so on a pool the `SET` and the statement it is meant to affect run on
+/// different backends. Measured against a pool shaped exactly like `pool()`'s:
 ///
 /// ```text
 /// after SET, statement 0: pid=7364 role=origin
@@ -2889,12 +2895,12 @@ async fn the_first_row_of_a_read_being_unreadable_is_not_a_missing_history() {
 /// after SET, statement 2: pid=7364 role=origin
 /// ```
 ///
-/// The connections alternate, so whether the replication-mode half tested
-/// anything at all was decided by how many statements happened to precede the
-/// `SET`. Proof that it mattered: deleting `ENABLE ALWAYS` from
-/// `0005_the_journal_refuses_truncate.sql` left the truncate test green ten runs
-/// out of ten, while the trigger was genuinely bypassable — verified by hand in
-/// `psql`, where one session really is one session.
+/// The connections alternate, so whether a replication-mode half on a pool
+/// tests anything at all is decided by how many statements happen to precede
+/// the `SET`. Proof that it matters: deleting `ENABLE ALWAYS`
+/// from `0005_the_journal_refuses_truncate.sql` leaves a pooled truncate test
+/// green ten runs out of ten, while the trigger is genuinely bypassable —
+/// verified by hand in `psql`, where one session really is one session.
 ///
 /// `pool.acquire()` pins a single connection for the whole block, which is what
 /// a session is.
@@ -2932,13 +2938,14 @@ async fn in_replication_mode(
 
 /// An unreadable tail is never a clean verdict, whatever `from` says.
 ///
-/// **The fallback that says so was decided by nothing.** `verify` carries where
-/// `tail()` stopped past the read, and answers with the read's own stopping
-/// point when there is one — the ordering `the_forged_row_is_named_even_when_a_later_row_will_not_decode`
-/// exists for. The `.or` behind it is the other case, and deleting it left the
-/// whole crate suite green: measured on 2026-09-10, `verify` then answered
-/// `Ok(0)` — *a clean history of nothing* — for a table whose last row this
-/// code cannot read.
+/// **The fallback that says so, decided.** `verify` carries where `tail()`
+/// stopped past the read, and answers with the read's own stopping point when
+/// there is one — the
+/// ordering `the_forged_row_is_named_even_when_a_later_row_will_not_decode`
+/// exists for. The `.or` behind it is the other case, and without this deleting
+/// it leaves the whole crate suite green: measured, `verify` then
+/// answers `Ok(0)` — *a clean history of nothing* — for a table whose last row
+/// this code cannot read.
 ///
 /// It is reached when the read starts past the unreadable row, so the read
 /// itself meets nothing and only `tail()` did. A `from` beyond the tail is a
@@ -2996,11 +3003,11 @@ async fn an_unreadable_tail_is_never_clean_however_far_ahead_from_is() {
 /// the application's own role has.
 ///
 /// The chain catches this the moment it touches a *hashed* field, which is the
-/// point of hashing them. What it could not catch, before the round-trip guards
-/// in `postgres.rs`, is a rewrite that keeps the value and changes the
-/// spelling — so this helper is how both of those guards are exercised for
-/// real, rather than through `SET session_replication_role = replica`, which
-/// `migrations/0004_the_journal_refuses_replication_mode.sql` now refuses.
+/// point of hashing them. What it cannot catch without the round-trip guards
+/// in `postgres.rs` is a rewrite that keeps the value and changes the spelling
+/// — so this helper is how both of those guards are exercised for real, rather
+/// than through `SET session_replication_role = replica`,
+/// which `migrations/0004_the_journal_refuses_replication_mode.sql` refuses.
 async fn rewrite_column(pool: &sqlx::PgPool, column: &str, expression: &str) {
     sqlx::query(sqlx::AssertSqlSafe(format!(
         "ALTER TABLE journal_entries ALTER COLUMN {column} TYPE text USING {expression}"
@@ -3012,13 +3019,13 @@ async fn rewrite_column(pool: &sqlx::PgPool, column: &str, expression: &str) {
 
 #[tokio::test]
 async fn a_row_respelled_without_changing_its_length_is_not_read_as_the_same_row() {
-    // **Every fixture for these three guards changed the number of bytes.**
-    // `"content"` becomes `"content"` — nine characters to fourteen — and
-    // `01J8XK2M9P51` becomes `OIJ8XK2M9P5I`, which at least is the same length
+    // **A fixture that changes the number of bytes cannot tell a length from
+    // the bytes.** `"content"` becoming `"\u0063ontent"` is nine characters to
+    // fourteen, and `01J8XK2M9P51` becoming `OIJ8XK2M9P5I` is the same length
     // but exercises only two of the three leniencies the guard's own comment
     // names. So a comparison that read the **length** rather than the bytes
-    // passed every test in this tree. Measured on 2026-09-08, each planted on
-    // its own and all three together:
+    // would pass every such test. Measured, each planted on its own and all
+    // three together:
     //
     // ```text
     // if canonical.len() == stored.len() {          (resource)
@@ -3131,13 +3138,13 @@ async fn an_actor_chain_respelled_without_changing_its_length_is_refused() {
 
 #[tokio::test]
 async fn a_work_unit_in_another_case_is_not_read_as_the_same_row() {
-    // **The first leniency the guard's own comment names, and the one nothing
-    // exercised.** It says the Crockford reader is *"case-insensitive, `O` for
-    // `0`, `I` and `L` for `1`"*; the only fixture was `translate(work_unit,
-    // '01', 'OI')`, the second and third. So a comparison written
-    // `read.to_crockford().eq_ignore_ascii_case(&unit)` passed everything —
-    // measured, with `lower(work_unit)` in the column, `from(0)` read clean and
-    // no row was found by the canonical spelling.
+    // **The first leniency the guard's own comment names.** It says the
+    // Crockford reader is *"case-insensitive, `O` for `0`, `I` and `L` for
+    // `1`"*; with only `translate(work_unit, '01', 'OI')`, the second and
+    // third, a comparison written
+    // `read.to_crockford().eq_ignore_ascii_case(&unit)` passes everything —
+    // measured, with `lower(work_unit)` in the column, `from(0)` reads clean
+    // and no row is found by the canonical spelling.
     const SCHEMA: &str = "nc_test_unit_lowered";
     let Some(pool) = pool(SCHEMA).await else {
         return;
@@ -3176,16 +3183,16 @@ async fn a_work_unit_in_another_case_is_not_read_as_the_same_row() {
 
 #[tokio::test]
 async fn a_work_unit_respelled_in_the_column_is_not_read_as_the_same_row() {
-    // **A row edit the hash did not cover.** `Entry::hashed_form` hashes
-    // `unit.to_crockford()` — the canonical re-encoding — while the reader
-    // decoded the column with `nc-ids`' Crockford reader, which is deliberately
-    // lenient: case-insensitive, `O` for `0`, `I` and `L` for `1`. So the stored
-    // text could be respelled and the hash would not move.
+    // **A row edit the hash does not cover.** `Entry::hashed_form` hashes
+    // `unit.to_crockford()` — the canonical re-encoding — while a reader
+    // decoding the column with `nc-ids`' Crockford reader alone is
+    // deliberately lenient: case-insensitive, `O` for `0`, `I` and `L` for
+    // `1`. So the stored text can be respelled and the hash does not move.
     //
-    // Measured before the guard: `verify` answered `Ok`, and every SQL reader —
-    // `WHERE work_unit = '<canonical>'`, and the table's own index — stopped
-    // finding the row. The entry had silently left its work unit while criterion
-    // 3 reported the history clean.
+    // Measured without the guard: `verify` answers `Ok`, and every SQL reader —
+    // `WHERE work_unit = '<canonical>'`, and the table's own index — stops
+    // finding the row. The entry silently leaves its work unit while criterion
+    // 3 reports the history clean.
     const SCHEMA: &str = "nc_test_respelled";
     let Some(pool) = pool(SCHEMA).await else {
         return;
@@ -3213,9 +3220,9 @@ async fn a_work_unit_respelled_in_the_column_is_not_read_as_the_same_row() {
 
     // **`stopped_at`, not `Err`.** `from` reports a row it cannot read as the
     // point the read stopped and returns the entries before it — an `Err` would
-    // throw away the history that is still good. The previous version of this
-    // test asserted `expect_err` inside an `if` that the append-only trigger had
-    // since made false, so it proved nothing in either direction.
+    // throw away the history that is still good. An `expect_err` inside an `if`
+    // that the append-only trigger makes false proves nothing in either
+    // direction.
     let (sequence, problem) = store
         .from(0)
         .await
@@ -3240,13 +3247,13 @@ async fn a_work_unit_respelled_in_the_column_is_not_read_as_the_same_row() {
 
 /// A respelling **after** rows that verify is reported with its reason.
 ///
-/// **The other branch of `verify`, which nothing reached.** When the first row
-/// of a read will not decode, `entries` comes back empty and the verdict is
-/// built before the loop; when the rows in front of it are fine and a *later*
-/// one will not decode, the loop runs to the end and the verdict is built
-/// after it. Both consult `stopped_at` and both carry its reason, and the
-/// second could be changed to `detail: None` with the whole suite green — every
-/// test asserted the sequence and the code, and none read the sentence.
+/// **The other branch of `verify`.** When the first row of a read will not
+/// decode, `entries` comes back empty and the verdict is built before the loop;
+/// when the rows in front of it are fine and a *later* one will not decode, the
+/// loop runs to the end and the verdict is built after it. Both
+/// consult `stopped_at` and both carry its reason, and an assertion on the
+/// sequence and the code alone would stay green with the second changed to
+/// `detail: None`; this reads the sentence.
 ///
 /// Which matters here more than anywhere: two rows verified, so a responder is
 /// being told the history is broken at row 2 and needs to know that what is
@@ -3260,8 +3267,7 @@ async fn a_later_row_respelled_names_the_row_and_says_what_is_wrong_with_it() {
     let mut store = store_in(&pool, "nc_test_later_respelled");
     // Four rows. The one that gets rewritten is in the *middle*: the tail has
     // to stay readable, or `verify` answers through its own early branch and
-    // the one this test is about is never reached — which is how the first
-    // version of this test passed with the fix reverted.
+    // the one this test is about is never reached.
     for sequence in 0..4 {
         let head = store.head().await.expect("reads");
         store
@@ -3309,7 +3315,7 @@ async fn a_later_row_respelled_names_the_row_and_says_what_is_wrong_with_it() {
         said.contains(&canonical) && said.contains(&respelled),
         "the verdict names neither spelling: {said}"
     );
-    // And which kind of damage, which the shared error code hid: both
+    // And which kind of damage, which the shared error code hides: both
     // `EntryIsNotReadable` and `HashDoesNotMatchContents` answer
     // `JournalEntryTampered`.
     assert!(
@@ -3327,8 +3333,8 @@ async fn a_resource_respelled_in_the_column_is_not_read_as_the_same_row() {
     // `to_canonical()`, and `nc_canon::parse` accepts more than it emits —
     // insignificant whitespace, `\u` escapes, leading zeros. So the text of the
     // column could be rewritten to another spelling of the same value, the
-    // digest would not move, and `verify` answered `Ok` while every reader
-    // searching for what was written found nothing.
+    // digest would not move, and without the guard `verify` answers `Ok` while
+    // every reader searching for what was written finds nothing.
     //
     // It is the harder one to notice because the value really is unchanged: the
     // damage is to everyone who reads the table as text, which is everyone.
@@ -3380,15 +3386,15 @@ async fn a_resource_respelled_in_the_column_is_not_read_as_the_same_row() {
     // **And the verdict carries the reason, not only the row number.** The
     // sentence a responder reads is what distinguishes "this row was respelled
     // after it was written, here are both spellings" from "entry 0 does not
-    // verify"; `Broken::detail` could be dropped from this path with the whole
-    // suite green, because every test asserted the sequence and the code and
-    // none read what is handed to a person.
+    // verify"; an assertion on the sequence and the code alone would stay
+    // green with `Broken::detail` dropped from this path, so this reads what is
+    // handed to a person.
     let said = verdict.to_string();
     assert!(
         said.contains(&canonical) && said.contains(&respelled),
         "the verdict names neither spelling: {said}"
     );
-    // And which kind of damage, which the shared error code hid: both
+    // And which kind of damage, which the shared error code hides: both
     // `EntryIsNotReadable` and `HashDoesNotMatchContents` answer
     // `JournalEntryTampered`.
     assert!(
@@ -3413,10 +3419,10 @@ async fn a_second_writer_racing_this_one_is_reported_as_out_of_order() {
     store.append(entry.clone()).await.expect("appends");
 
     let again = store.append(entry).await;
-    // **The numbers, not just the shape.** Asserting `matches!(…, OutOfOrder { .. })`
-    // left both fields carrying the same value, which rendered as "the journal
-    // expected sequence 0 and was handed 0" — a sentence that says a number
-    // differs from itself.
+    // **The numbers, not just the shape.** Asserting
+    // `matches!(…, OutOfOrder { .. })` lets both fields carry the same value,
+    // which renders as "the journal expected sequence 0 and was handed 0" — a
+    // sentence that says a number differs from itself.
     assert_eq!(
         again,
         Err(nc_journal::Error::OutOfOrder {
@@ -3441,7 +3447,7 @@ async fn a_second_writer_racing_this_one_is_reported_as_out_of_order() {
 /// `migrations/0001_journal.sql` puts the trigger on `UPDATE` and `DELETE` only,
 /// so a second connection — an older version of this code, a migration, somebody
 /// with `psql` — can `INSERT` whatever it likes. That is the shape every read
-/// guard in `postgres.rs` exists for, and none of them was exercised.
+/// guard in `postgres.rs` exists for, and this is what exercises them.
 async fn insert_raw(pool: &sqlx::PgPool, hash: &str, result: &str, recorded_at: i64) {
     sqlx::query(
         "INSERT INTO journal_entries (sequence, realm, principal, actor_chain, action, \
@@ -3460,11 +3466,11 @@ async fn insert_raw(pool: &sqlx::PgPool, hash: &str, result: &str, recorded_at: 
 ///
 /// **Sixty-four *lowercase* hex characters, and the link at all.** Both tests
 /// that name `0009` plant a hash of the wrong width — `abcd` and `ab` — so the
-/// width is the only half either one reaches, and
-/// `journal_entries_prev_hash_is_hex` was exercised by nothing in either
+/// width is the only half either one reaches, so without this
+/// `journal_entries_prev_hash_is_hex` is exercised by nothing in either
 /// direction. Both assertions also read `contains("hash_is_hex")`, which is a
-/// substring of the other constraint's name, so neither could say which of the
-/// two had refused.
+/// substring of the other constraint's name, so neither can say which of the
+/// two refused.
 ///
 /// Lowercase is not a preference. `nc_canon::to_hex` emits lowercase and the
 /// chain compares the column's text, so an uppercase spelling of the same
@@ -3541,13 +3547,13 @@ async fn a_hash_of_the_wrong_width_cannot_be_written_and_is_read_as_tampering() 
     // the array conversion panics — inside verification, which is the code that
     // runs when somebody already suspects the table.
     //
-    // **And the column refuses it now.** A `hash` this code cannot read locked
-    // the journal for ever and made the documented anchor repair impossible, so
-    // `migrations/0009_a_hash_is_sixty_four_hex_characters.sql` constrains the column to sixty-four lowercase hex
-    // characters. The row this test used to plant can no longer exist, which is
-    // the stronger guarantee — and the reader's guard stays under test at the
-    // seam, because a column constraint is not a reason to stop being able to
-    // read a row that got past one.
+    // **And the column refuses it.** A `hash` this code cannot read would lock
+    // the journal for ever and make the documented anchor repair impossible, so
+    // `migrations/0009_a_hash_is_sixty_four_hex_characters.sql` constrains the
+    // column to sixty-four lowercase hex characters. Such a row cannot exist,
+    // which is the stronger guarantee — and the reader's guard stays under test
+    // at the seam, because a column constraint is not a reason to stop being
+    // able to read a row that got past one.
     let Some(pool) = pool(SCHEMA).await else {
         return;
     };
@@ -3572,15 +3578,14 @@ async fn a_hash_of_the_wrong_width_cannot_be_written_and_is_read_as_tampering() 
         .expect_err("a short hash is not a digest");
     assert!(said.contains("32"), "{said}");
 
-    // **And too long, which nothing asked.** Both seam calls fed it hex that is
-    // *short*, so the exact-width conversion could be replaced by a silently
-    // truncating one with the whole gate green — and a 66-character `hash` then
-    // reads back as its first 32 bytes, so `verify` condemns the row as
-    // `HashDoesNotMatchContents` ("edited in place, look at this one row")
-    // instead of `EntryIsNotReadable` ("a row this code did not write").
-    // `Broken::code` splits those two so a responder knows whether to look at
-    // one row or at the history above it. Measured: `bytes.truncate(32)` left
-    // `ok 1133 test(s)` and `check passed`.
+    // **And too long.** Fed only *short* hex, the exact-width conversion could
+    // be replaced by a silently truncating one with the whole gate green — and
+    // a 66-character `hash` then reads back as its first 32 bytes, so `verify`
+    // condemns the row as `HashDoesNotMatchContents` ("edited in place, look at
+    // this one row") instead of `EntryIsNotReadable` ("a row this code did not
+    // write"). `Broken::code` splits those two so a responder knows whether to
+    // look at one row or at the history above it. Measured:
+    // `bytes.truncate(32)` leaves `check passed` without this.
     let too_long = nc_journal::postgres::digest_for_tests("hash", &"ab".repeat(33))
         .expect_err("a hash wider than a digest is not a digest");
     assert!(
@@ -3675,15 +3680,15 @@ async fn a_sequence_past_the_signed_range_is_refused_rather_than_cast() {
         return;
     };
     let mut store = store_in(&pool, "nc_test_range");
-    // **Through the sequence, which is the one `signed()` still answers.** This
-    // drove `recorded_at = u64::MAX` — and `readable_record` now refuses that
-    // before the store is reached, so the test stopped exercising the function
-    // it is named for. Both messages say "BIGINT", which was all it asserted, so
-    // reverting `signed()` to `Error::Unavailable` left the whole gate green.
+    // **Through the sequence, which is the one `signed()` still answers.**
+    // `recorded_at = u64::MAX` is refused by `readable_record` before the store
+    // is reached, so a test driving it would not exercise the function it is
+    // named for. Both messages say "BIGINT", so asserting only that would leave
+    // reverting `signed()` to `Error::Unavailable` with the whole gate green.
     //
     // A sequence past the signed range reaches `signed()` on both paths, and
     // neither is the store failing to answer: `JournalUnavailable` is
-    // `retryable`, so the old classification told a responder to look at
+    // `retryable`, so classified that way it would tell a responder to look at
     // PostgreSQL and to try again forever.
     let error = store
         .append(Entry::chain(u64::MAX, None, full_record()))
@@ -3709,7 +3714,7 @@ async fn a_sequence_past_the_signed_range_is_refused_rather_than_cast() {
     );
 
     // The caller's own instant is refused too, before any store is asked — a
-    // different rule, in `readable_record`, and the one that used to intercept
+    // different rule, in `readable_record`, and the one that would intercept
     // this test.
     let mut record = full_record();
     record.recorded_at = u64::MAX;
@@ -3724,9 +3729,9 @@ async fn a_sequence_past_the_signed_range_is_refused_rather_than_cast() {
 #[tokio::test]
 async fn an_entry_that_does_not_follow_the_tail_is_refused_with_both_numbers() {
     const SCHEMA: &str = "nc_test_out_of_order";
-    // `Store::append`'s documented contract, which `InMemory` enforced and this
-    // did not: appending sequence 7 into an empty table was accepted, and the
-    // chain reported it later as `HistoryDoesNotStartHere` — a different
+    // `Store::append`'s documented contract, which both stores enforce:
+    // without the check, appending sequence 7 into an empty table is accepted,
+    // and the chain reports it later as `HistoryDoesNotStartHere` — a different
     // problem, one step further from the caller who caused it.
     let Some(pool) = pool(SCHEMA).await else {
         return;
@@ -3758,12 +3763,12 @@ async fn an_entry_that_does_not_follow_the_tail_is_refused_with_both_numbers() {
 /// this needs: `nc-prune`'s own suite creates tables of its own design and could
 /// not see the trigger at all.
 ///
-/// The column carries the pruner's idea of *oldest* (`NOCTUA.md §15.8` and
-/// `catalog/limits.toml`), and it was `GENERATED ALWAYS AS IDENTITY` for a round
-/// — which refuses a plain INSERT naming it and nothing else. A row planted at
-/// `i64::MAX` through either of the other two paths sorts last for ever, is
-/// never pruned, and enough of them stop the table ever coming under its limit
-/// while every run reports ordinary.
+/// The column carries the pruner's idea of *oldest* (`NOCTUA.md §15.8`
+/// and `catalog/limits.toml`), and `GENERATED ALWAYS AS IDENTITY` would refuse
+/// a plain INSERT naming it and nothing else. A row planted at `i64::MAX`
+/// through either of the other two paths sorts last for ever, is never pruned,
+/// and enough of them stop the table ever coming under its limit while every
+/// run reports ordinary.
 #[tokio::test]
 async fn the_pruners_order_is_the_databases_to_write() {
     let Some(pool) = pool("recorded_is_assigned").await else {
@@ -3793,8 +3798,8 @@ async fn the_pruners_order_is_the_databases_to_write() {
     put("a", 42, false).await.expect("the row inserts");
     put("b", i64::MAX, true).await.expect("the row inserts");
 
-    // And `COPY`, which needed no keyword at all: `-1` would have taken a slot
-    // of every batch from now on.
+    // And `COPY`, which needs no keyword at all: `-1` would take a slot of
+    // every batch from then on.
     {
         let mut connection = pool.acquire().await.expect("a connection");
         let mut copying = connection
@@ -3848,11 +3853,10 @@ async fn the_pruners_order_is_the_databases_to_write() {
     // `0006` ends with `ALTER TABLE access_records ENABLE ALWAYS TRIGGER …` and
     // gives the same three-word reasoning `0004` gives for the journal — and
     // each of the journal's three triggers is exercised through
-    // `in_replication_mode` while this one was exercised through nothing.
-    // Measured on 2026-09-08 with that line deleted and the schema rebuilt:
-    // `nc-journal` 61 passed and `nc-prune` 34 passed, both suites green, while
-    // a caller in replication mode wrote its own value into the column the
-    // pruner orders by.
+    // `in_replication_mode`, so this one is too. Measured without this, with
+    // that line deleted and the schema rebuilt: `nc-journal` and `nc-prune`
+    // both green, while a caller in replication mode writes its own value into
+    // the column the pruner orders by.
     //
     // `session_replication_role = replica` is what a logical-replication apply
     // worker runs as, and an `ORIGIN` trigger does not fire under it.
@@ -3880,10 +3884,10 @@ async fn the_pruners_order_is_the_databases_to_write() {
 ///
 /// **The two error identities send a responder to two different places.**
 /// `NC-JRNL-0003` is *"the journal store did not answer"* and is `retryable`;
-/// `NC-JRNL-0001` is *"a row this code cannot read"* and is not. `head` built
-/// both of its decode failures as `Unavailable`, so a hash of the wrong width —
-/// which is tampering, since nothing this code writes has one — reached a
-/// responder as a transient outage. Measured before this:
+/// `NC-JRNL-0001` is *"a row this code cannot read"* and is not. A `head`
+/// building both of its decode failures as `Unavailable` hands a hash of the
+/// wrong width — which is tampering, since nothing this code writes has one —
+/// to a responder as a transient outage. Measured that way:
 ///
 /// ```text
 /// head() code    = JournalUnavailable        retryable = true
@@ -3893,7 +3897,7 @@ async fn the_pruners_order_is_the_databases_to_write() {
 ///
 /// The sentence contradicts itself, which is the contradiction `reason` exists
 /// to remove on the read path. `§15.1`: an error whose identity changes as it
-/// crosses a boundary cannot be traced — and here it changed by *not* changing.
+/// crosses a boundary cannot be traced — and here it changes by *not* changing.
 #[tokio::test]
 async fn a_head_row_this_code_cannot_read_cannot_be_written_at_all() {
     let Some(pool) = pool("head_undecodable").await else {
@@ -3905,13 +3909,14 @@ async fn a_head_row_this_code_cannot_read_cannot_be_written_at_all() {
         .await
         .expect("the first entry lands");
 
-    // **A hash that is not a digest, and the column now refuses one.**
+    // **A hash that is not a digest, and the column refuses one.**
     // `ALTER TABLE … TYPE … USING` rewrites the heap past every row trigger,
     // which is how this file's other rewrite tests plant a poisoned row — and
-    // `migrations/0009_a_hash_is_sixty_four_hex_characters.sql` constrains `hash`, so the rewrite is refused by the
-    // constraint rather than by a trigger. That is the guarantee the migration
-    // exists for: a `hash` this code cannot read locked the journal for ever
-    // and made the documented anchor repair impossible.
+    // `migrations/0009_a_hash_is_sixty_four_hex_characters.sql` constrains
+    // `hash`, so the rewrite is refused by the constraint rather than by a
+    // trigger. That is the guarantee the migration exists for: a `hash` this
+    // code cannot read would lock the journal for ever and make the documented
+    // anchor repair impossible.
     let refused = sqlx::query("ALTER TABLE journal_entries ALTER COLUMN hash TYPE text USING 'ab'")
         .execute(&pool)
         .await
@@ -3928,12 +3933,12 @@ async fn a_head_row_this_code_cannot_read_cannot_be_written_at_all() {
         .expect_err("a short hash is not a digest");
     assert!(said.contains("32"), "{said}");
 
-    // **And `head()` cannot be made to answer `Undecodable` at all now**, which
-    // is what the migration bought. It reads `sequence` and `hash`: the first
-    // is a `BIGINT` bounded top and bottom by `0003` and `0008`, the second is
+    // **And `head()` cannot be made to answer `Undecodable` at all**, which is
+    // what the migration buys. It reads `sequence` and `hash`: the first is a
+    // `BIGINT` bounded top and bottom by `0003` and `0008`, the second is
     // sixty-four lowercase hex by `0009`. Both are refused by the database
-    // rather than reported by the reader — so the outage this test was written
-    // about is unreachable, and that is the assertion.
+    // rather than reported by the reader — so the outage such a row would cause
+    // is unreachable, and that is the assertion.
     let head = journal
         .store()
         .head()
@@ -3961,11 +3966,12 @@ async fn a_head_row_this_code_cannot_read_cannot_be_written_at_all() {
     );
 
     // **And that `head` still makes it**, which the two assertions above cannot
-    // ask: they build the error by hand, and the reader's own arm is unreachable
-    // behind `0009`'s constraint. Measured — `.map_err(poisoned(sequence))`
-    // deleted from `head`'s digest read — the whole gate stayed green, and an
-    // unreadable head would answer `NC-JRNL-0003`, *"the journal store did not
-    // answer"*, `retryable`, which is a caller retrying a tampered row for ever.
+    // ask: they build the error by hand, and the reader's own arm is
+    // unreachable behind `0009`'s constraint. Measured —
+    // `.map_err(poisoned(sequence))` deleted from `head`'s digest read —
+    // without this the whole gate stays green, and an unreadable head would
+    // answer `NC-JRNL-0003`, *"the journal store did not answer"*, `retryable`,
+    // which is a caller retrying a tampered row for ever.
     //
     // A source assertion, for the reason `nc-prune`'s
     // `the_over_deletion_guard_runs_before_the_commit` gives: the branch cannot
@@ -3991,25 +3997,24 @@ async fn a_head_row_this_code_cannot_read_cannot_be_written_at_all() {
 
 /// A unit is opened once through the store, and both stores say so alike.
 ///
-/// **The predicate went into the `INSERT`'s `WHERE` and the diagnosis did not.**
-/// Zero rows was resolved by asking `unit_closed` and nothing else, so a second
-/// opening bracket for an open unit fell through to the ordering arm and came
-/// back as
+/// **The predicate is in the `INSERT`'s `WHERE`, and in the diagnosis.** With
+/// zero rows resolved by asking `unit_closed` and nothing else, a second
+/// opening bracket for an open unit would fall through to the ordering arm and
+/// come back as
 ///
 /// ```text
 /// postgres = OutOfOrder { expected: 1, found: 1 }   "expected sequence 1 and was handed 1"
 /// memory   = UnitAlreadyOpen { unit: … }            "work unit 2CZK0GV40400 was already open"
 /// ```
 ///
-/// — the self-contradicting sentence this crate records having removed once
-/// already, and two different `ErrorCode`s for one call. `Journal::append`
-/// answered correctly because it asks `unit_opened` first; `Store::append` is
-/// public and had no such path, which is `postgres.rs`'s own "a rule about one
-/// code path" again.
+/// — the self-contradicting sentence this crate refuses, and two
+/// different `ErrorCode`s for one call. `Journal::append` answers correctly
+/// because it asks `unit_opened` first; `Store::append` is public and has no
+/// such path, which is `postgres.rs`'s own "a rule about one code path" again.
 ///
 /// This also puts `Postgres::unit_opened` and the `action = $18` clause under
-/// test. Deleting the pre-check in `Journal::append` left the whole suite green
-/// before this existed.
+/// test. Without it, deleting the pre-check in `Journal::append` leaves the
+/// whole suite green.
 #[tokio::test]
 async fn a_unit_is_opened_once_through_the_store_too() {
     const SCHEMA: &str = "nc_test_opened_once";
@@ -4035,14 +4040,15 @@ async fn a_unit_is_opened_once_through_the_store_too() {
     store.append(first).await.expect("the first opening lands");
 
     // **Linked to the tail, which is what puts the question to the clause that
-    // answers it.** Written unlinked, the `INSERT`'s prev-hash predicate refuses
-    // the row before the open-unit predicate three lines below it is ever
-    // evaluated, and the verdict then comes from `why_nothing_landed` reading
-    // the table afterwards. The assertion below passes either way, so the clause
-    // `AND NOT ($5 = $18 AND $7 = $19 AND EXISTS …)` — the one that makes the
-    // check and the write a single statement, and the only reason two concurrent
-    // openers cannot both land — was held by nothing: deleting it left this test
-    // green. Deleting it now fails here.
+    // answers it.** Written unlinked, the `INSERT`'s prev-hash predicate
+    // refuses the row before the open-unit predicate three lines below it is
+    // ever evaluated, and the verdict then comes from `why_nothing_landed`
+    // reading the table afterwards. The assertion below passes either way, so
+    // the clause `AND NOT ($5 = $18 AND $7 = $19 AND EXISTS …)` — the one that
+    // makes the check and the write a single statement, and the only reason two
+    // concurrent openers cannot both land — would be held by nothing: deleting
+    // it would leave an unlinked version of this test green. Linked, deleting
+    // it fails here.
     let refused = store
         .append(Entry::chain(
             1,
@@ -4061,9 +4067,9 @@ async fn a_unit_is_opened_once_through_the_store_too() {
     let first = opening(0, 1_700_000_000_000);
     let linked = {
         let mut second = opening(1, 1_700_000_000_001);
-        // **Linked to the first**, because the store now checks that too: an
-        // entry that does not follow the tail is refused before anything about
-        // work units is asked, which is the door `readable` left open one field
+        // **Linked to the first**, because the store checks that too: an entry
+        // that does not follow the tail is refused before anything about work
+        // units is asked, which is the door `readable` leaves open one field
         // along from the hash.
         second = Entry::chain(1, Some(first.hash), second.record);
         second
@@ -4096,17 +4102,17 @@ async fn a_unit_is_opened_once_through_the_store_too() {
 
 /// Sixteen callers opening one work unit are told one thing, not two.
 ///
-/// **Which arm the scheduler put a caller in decided what it was told.** The
-/// refused `INSERT` comes back either as zero rows or as a unique violation, and
-/// only the first arm asked about the work unit — so for sixteen identical
-/// calls, nine were told `UnitAlreadyOpen` (`NC-JRNL-0004`, severity error) and
-/// six were told `OutOfOrder`, which mapped to `NC-JRNL-0001`: *the journal's
-/// hash chain is broken*, severity critical. One call, two codes, chosen by
-/// timing, and one of them the platform's loudest alarm about a chain that was
-/// perfectly intact.
+/// **Which arm the scheduler puts a caller in must not decide what it is
+/// told.** The refused `INSERT` comes back either as zero rows or as a unique
+/// violation, and with only the first arm asking about the work unit, for
+/// sixteen identical calls nine were told `UnitAlreadyOpen` (`NC-JRNL-0004`,
+/// severity error) and six were told `OutOfOrder`, which mapped
+/// to `NC-JRNL-0001`: *the journal's hash chain is broken*, severity
+/// critical. One call, two codes, chosen by timing, and one of them the
+/// platform's loudest alarm about a chain that was perfectly intact.
 ///
-/// Safety was never in question — exactly one opening landed then and now. What
-/// this pins is the diagnosis.
+/// Safety is not in question — exactly one opening lands either way. What this
+/// pins is the diagnosis.
 #[tokio::test]
 async fn one_call_gets_one_answer_however_the_scheduler_orders_it() {
     fn opening(unit: Snowflake) -> Entry {
@@ -4139,13 +4145,13 @@ async fn one_call_gets_one_answer_however_the_scheduler_orders_it() {
         match racer.await.expect("the task ran") {
             Ok(()) => landed += 1,
             Err(refused) => {
-                // **The error beside the code.** The message named only the two
-                // codes, and both of them mapped from more than one `Error` — so
-                // a run that failed said "two different error codes" and left a
-                // reader to work out which arm produced which. The error is what
-                // names the arm: it was `OutOfOrder { expected: 1, found: 0 }`,
-                // translated out of the density trigger's message by
-                // `unavailable`, on a path that never asks about the work unit.
+                // **The error beside the code.** Both codes map from more than
+                // one `Error`, so a message naming only the two codes would say
+                // "two different error codes" and leave a reader to work out
+                // which arm produced which. The error is what names the arm:
+                // `OutOfOrder { expected: 1, found: 0 }`, translated out of the
+                // density trigger's message by `unavailable`, is on a path that
+                // never asks about the work unit.
                 codes.insert(format!("{:?} <- {refused:?}", refused.code()));
             }
         }
@@ -4164,15 +4170,14 @@ async fn one_call_gets_one_answer_however_the_scheduler_orders_it() {
         "a second opening bracket was reported as a broken hash chain: {codes:?}"
     );
 
-    // **And again, four more times, because one round of sixteen caught this at
-    // roughly one run in ten.** The residual was a third arm of the same
-    // `INSERT`: `0012`'s density trigger fires when the `WHERE` passed and the
-    // tail moved before the row landed, and `unavailable` translated its message
-    // — "sequence 0 is not the next one, which is 1" — straight into
-    // `OutOfOrder` without ever asking about the work unit. The zero-rows arm
-    // and the unique-violation arm both diagnose; that one did not, so
-    // rewriting the diagnosis to read every fact in one snapshot changed
-    // nothing, because it never reached the diagnosis.
+    // **And again, four more times, because one round of sixteen catches a
+    // defect here at roughly one run in ten.** The third arm of the same
+    // `INSERT` is the one at stake: `0012`'s density trigger fires when the
+    // `WHERE` passed and the tail moved before the row landed, and translating
+    // its message — "sequence 0 is not the next one, which is 1" — straight into
+    // `OutOfOrder` never asks about the work unit. The zero-rows arm and the
+    // unique-violation arm both diagnose; an arm that does not is untouched by
+    // any change to the diagnosis, because it never reaches it.
     //
     // A test that catches a race one run in ten is a test people learn to
     // re-run. Every racer in these rounds is refused — the unit is open and
@@ -4236,11 +4241,12 @@ async fn one_call_gets_one_answer_however_the_scheduler_orders_it() {
 
 /// A race between ordinary writers is contention, not a broken chain.
 ///
-/// **Nine of twelve ordinary appends lost their audit entry on an instruction
-/// not to retry.** `head()` then `append()` is exactly what `Journal::append`
-/// does; run it from twelve threads and three land. Every one of the nine
-/// refusals carried `NC-JRNL-0001` — *the journal's hash chain is broken*,
-/// severity critical, `retryable = false` — for a chain that was intact. A
+/// **Contention is not a broken chain.** `head()` then `append()` is exactly
+/// what `Journal::append` does; run it from twelve threads and three land.
+/// Measured with the refusal misread: every one of the nine refusals carries
+/// `NC-JRNL-0001` — *the journal's hash chain is broken*, severity critical,
+/// `retryable = false` — for a chain that is intact, so nine of twelve
+/// ordinary appends lose their audit entry on an instruction not to retry. A
 /// writer of one entry per command from more than one task would meet it at
 /// three quarters of its commands.
 #[tokio::test]
@@ -4255,13 +4261,13 @@ async fn a_race_between_writers_is_contention_and_says_so() {
         racers.push(tokio::spawn(async move {
             let mut store = store_in(&pool, "nc_test_contention");
             // **Linked to the tail this racer read, which is what
-            // `Journal::append` does.** The hash `head()` returns was thrown
-            // away and `None` passed in its place — so a racer whose `head()`
-            // landed *after* another racer's append computed sequence 1 and then
-            // built an entry at 1 linking to nothing, which is a genuinely
-            // broken link and not contention at all. The store diagnosed it
-            // correctly as `Undecodable`/`JournalChainBroken` and this test's
-            // blanket assertion called that a defect:
+            // `Journal::append` does.** Passing `None` in place of the hash
+            // `head()` returns makes a racer whose `head()` lands *after*
+            // another racer's append compute sequence 1 and then build an entry
+            // at 1 linking to nothing, which is a genuinely broken link and not
+            // contention at all. The store diagnoses it correctly as
+            // `Undecodable`/`JournalChainBroken`, and a blanket assertion
+            // would call that a defect:
             //
             // ```text
             // a refused race says JournalChainBroken, and a caller acting on it
@@ -4269,11 +4275,11 @@ async fn a_race_between_writers_is_contention_and_says_so() {
             // link to the tail it would follow…" }
             // ```
             //
-            // Measured on a pristine tree: 3 of 20 runs alone, and 3 of 11 full
-            // `cargo xtask check` runs — the gate itself, red about a quarter of
-            // the time, for a defect in its own fixture. This file's own doc
-            // claimed `head()` then `append()` "is exactly what `Journal::append`
-            // does", and it was the one thing it did not do.
+            // Measured on a pristine tree without this: 3 of 20 runs alone, and
+            // 3 of 11 full `cargo xtask check` runs — the gate itself, red
+            // about a quarter of the time, for a defect in its own fixture.
+            // This file's own doc calls `head()` then `append()` "exactly what
+            // `Journal::append` does", and so this does it.
             let (at, previous) = match store.head().await {
                 Ok(Some((sequence, hash))) => (sequence + 1, Some(hash)),
                 Ok(None) => (0, None),
@@ -4308,13 +4314,13 @@ async fn a_race_between_writers_is_contention_and_says_so() {
         // **And the sentence is not the same number twice.** The diagnosis runs
         // after the refused statement and asks each of the `WHERE`'s three
         // checks again; when another connection has settled all three in
-        // between, none of them answers and the last arm reported
-        // `OutOfOrder { expected: free, found: entry.sequence }` — an arm
-        // reached only when those two are equal, so what a responder read was
-        // *the journal expected sequence 3 and was handed 3*. Measured under
-        // these racers: 11 of 400 rounds. That case is `Contended` now, and
-        // this holds the shape rather than the frequency, because a race
-        // reproduces when it feels like it.
+        // between, none of them answers, and an arm reporting
+        // `OutOfOrder { expected: free, found: entry.sequence }` — reached only
+        // when those two are equal — would tell a responder *the journal
+        // expected sequence 3 and was handed 3*. Measured under these racers:
+        // 11 of 400 rounds. That case is `Contended`, and this holds the shape
+        // rather than the frequency, because a race reproduces when it feels
+        // like it.
         if let nc_journal::Error::OutOfOrder { expected, found } = refused {
             assert_ne!(
                 expected, found,
@@ -4343,11 +4349,11 @@ async fn a_race_between_writers_is_contention_and_says_so() {
 
 /// A forged tail is tampering, not contention — and the advice does not cement it.
 ///
-/// **The new code said retry, and the retry finished the forgery.** `OutOfOrder`
-/// was given `NC-JRNL-0006` this round because a write race is not a broken
-/// chain; the same arm answers a caller whose tail was *replaced*. Measured: a
-/// well-formed row with a hash that does not match its contents, inserted at the
-/// caller's sequence —
+/// **A retry must not finish a forgery.** `OutOfOrder` carries `NC-JRNL-0006`,
+/// which says retry, because a write race is not a broken chain; the same arm
+/// answers a caller whose tail was *replaced*, and retrying there finishes the
+/// forgery. Measured without the recomputation below: a well-formed row with a
+/// hash that does not match its contents, inserted at the caller's sequence —
 ///
 /// ```text
 /// append -> OutOfOrder   NC-JRNL-0006  Warning  retryable = true
@@ -4356,8 +4362,8 @@ async fn a_race_between_writers_is_contention_and_says_so() {
 /// ```
 ///
 /// One rule reads the history as compromised and the other tells the caller to
-/// extend it. The refusal path now recomputes the tail's own hash before it
-/// calls anything contention.
+/// extend it. The refusal path recomputes the tail's own hash before it calls
+/// anything contention.
 #[tokio::test]
 async fn a_forged_tail_is_not_contention_and_retrying_does_not_bless_it() {
     const SCHEMA: &str = "nc_test_forged_tail";
@@ -4407,12 +4413,11 @@ async fn a_forged_tail_is_not_contention_and_retrying_does_not_bless_it() {
 
 /// An honest entry never chains onto a forged one, and `record` says so.
 ///
-/// **The hash guard lived only on the refusal path.** A tamperer need never
-/// provoke a refusal: with a forged but decodable row at the tail and no race at
-/// all, `record` returned `Ok` and chained the next honest entry onto it —
-/// measured, `the entry landed on the forgery at 3`. The refusal path had been
-/// repaired twice by then, in both of its arms, and the path that succeeds had
-/// never been asked.
+/// **The hash guard is not only on the refusal path.** A tamperer need never
+/// provoke a refusal: with a forged but decodable row at the tail and no race
+/// at all, a `record` guarded only there returns `Ok` and chains the next
+/// honest entry onto it — measured, `the entry landed on the forgery at 3`. The
+/// path that succeeds is asked as well as the refusal path.
 #[tokio::test]
 async fn an_honest_entry_never_chains_onto_a_forged_one() {
     const SCHEMA: &str = "nc_test_never_chains";
@@ -4467,11 +4472,11 @@ async fn an_honest_entry_never_chains_onto_a_forged_one() {
 
 /// One ordinary `INSERT` cannot make the table unwritable for ever.
 ///
-/// **A row at `i64::MAX` leaves no representable sequence after it.** The
-/// statement's own arithmetic was the first half — `$1 = MAX(sequence) + 1`
-/// overflowed `BIGINT` — and fixing it only moved the refusal one layer out:
+/// **A row at `i64::MAX` leaves no representable sequence after it.** In the
+/// statement's own arithmetic `$1 = MAX(sequence) + 1` overflows `BIGINT`, and
+/// computed outside it the refusal only moves one layer out:
 /// `MAX(sequence) + 1` is `2^63`, which `signed()` refuses, so every append
-/// answered
+/// answers
 ///
 /// ```text
 /// Unstorable { field: "sequence", why: "it is 9223372036854775808, which
@@ -4480,7 +4485,7 @@ async fn an_honest_entry_never_chains_onto_a_forged_one() {
 ///
 /// at every sequence, for ever. `DELETE`, `UPDATE` and `TRUNCATE` are refused
 /// by this table's own triggers and no command in `catalog/commands.toml` can
-/// undo it, so recovery meant DDL on the audit log — destroying the evidence to
+/// undo it, so recovery means DDL on the audit log — destroying the evidence to
 /// get the platform back — and `§14.9`'s fail-closed rule makes that a total
 /// outage from one statement.
 ///
@@ -4505,9 +4510,9 @@ async fn a_row_can_only_land_where_the_next_one_goes() {
 
     // **Every value but the next one**, which is the whole rule. The top of the
     // column's range and the value one below `0008`'s bound are here because
-    // each of them, planted, used to end the history: a bound says which values
-    // are legal and nothing about which comes next, so the row that bricked the
-    // table was always the one the bound permitted.
+    // each of them, planted, would end the history: a bound says which values
+    // are legal and nothing about which comes next, so the row that bricks the
+    // table is always the one the bound permits.
     for at in [
         "9223372036854775807",
         "4611686018427387903",
@@ -4583,14 +4588,15 @@ async fn a_row_can_only_land_where_the_next_one_goes() {
 ///
 /// **`readable` verifies an entry against itself and says nothing about what it
 /// claims to follow.** `Entry::chain(n, Some([0xAA; 32]), record)` is
-/// self-consistent, so it landed through the public `Store::append` — no raw
-/// SQL, no feature flag — and `verify` then condemned the history for ever at
-/// that row while `Journal::record` kept answering `Ok`, because the forged
-/// entry's own hash *is* its own hash. `InMemory` refused the same call and said
-/// why. One door, closed in one store.
+/// self-consistent, so read by `readable` alone it lands through the public
+/// `Store::append` — no raw SQL, no feature flag — and `verify` then condemns
+/// the history for ever at that row while `Journal::record` keeps answering
+/// `Ok`, because the forged entry's own hash *is* its own hash. `InMemory`
+/// refuses the same call and says why; a door closed in one store has to be
+/// closed in both.
 ///
-/// The whole refusal matrix is here rather than the one case, because what was
-/// wrong was that two implementations of one documented method disagreed.
+/// The whole refusal matrix is here rather than the one case, because the
+/// failure is two implementations of one documented method disagreeing.
 #[tokio::test]
 async fn a_forged_link_is_refused_and_both_stores_say_the_same_thing() {
     const SCHEMA: &str = "nc_test_forged_link";
@@ -4617,12 +4623,12 @@ async fn a_forged_link_is_refused_and_both_stores_say_the_same_thing() {
         ("a forged link at the right sequence", {
             Entry::chain(1, Some([0xAA; 32]), full_record())
         }),
-        // **The genesis entry, which both link checks skipped.** Written
-        // `if let Some(tail)`, the check did not run when there was no tail —
-        // so an entry claiming to follow a hash that never existed was accepted
-        // in memory as the first row of a history, and `verify` answered
+        // **The genesis entry, which a link check written `if let Some(tail)`
+        // skips.** In that form the check does not run when there is no tail —
+        // so an entry claiming to follow a hash that never existed is accepted
+        // in memory as the first row of a history, and `verify` answers
         // `Broken { sequence: 0, LinkDoesNotMatchPredecessor }` for ever;
-        // PostgreSQL's statement refused it and its diagnosis called it
+        // PostgreSQL's statement refuses it and its diagnosis calls it
         // `Contended`, `retryable = true`, for a forgery no retry clears. Run
         // against a history that has rows, this case is only reachable through
         // the sequence — which is why the empty-table half is below.
@@ -4671,13 +4677,13 @@ async fn a_forged_link_is_refused_and_both_stores_say_the_same_thing() {
 
 /// Sixteen openers of one unit are told the answer no retry clears.
 ///
-/// **The permanent answer and the transient one were both true, and the
-/// transient one was reported.** A unit that is open stays open; a sequence
-/// moves. `why_nothing_landed` asked the sequence first, so twelve to fifteen of
-/// every sixteen concurrent openers received `JournalContended`,
-/// `retryable = true`, severity warning — for a condition retrying never clears.
-/// Measured across five rounds of sixteen: 5/10, 0/15, 1/14, 3/12 and 2/13 split
-/// between two codes, decided by the scheduler.
+/// **When the permanent and the transient answer are both true, the permanent
+/// one is reported.** A unit that is open stays open; a sequence moves. With
+/// `why_nothing_landed` asking the sequence first, twelve to fifteen of every
+/// sixteen concurrent openers receive `JournalContended`, `retryable = true`,
+/// severity warning — for a condition retrying never clears. Measured across
+/// five rounds of sixteen: 5/10, 0/15, 1/14, 3/12 and 2/13 split between two
+/// codes, decided by the scheduler.
 ///
 /// `one_call_gets_one_answer_however_the_scheduler_orders_it` asserts one code
 /// per run; this asserts **which** code, which is what that test could not see.
@@ -4733,7 +4739,7 @@ async fn a_second_opening_bracket_is_told_the_thing_retrying_will_not_fix() {
 
     // And the code's own sentence is about a unit that is open, not one that
     // finished: `JournalUnitClosed` says "already committed or aborted", and
-    // both locales told the reader to start the action again — which is the
+    // both locales tell the reader to start the action again — which is the
     // operation that was just refused.
     assert_ne!(
         nc_catalog::ErrorCode::JournalUnitAlreadyOpen,
@@ -4746,10 +4752,10 @@ async fn a_second_opening_bracket_is_told_the_thing_retrying_will_not_fix() {
 
 /// A sequence past the end of the history is not another writer's doing.
 ///
-/// **`JournalContended` says *another writer took this sequence first*.**
-/// Writing only moves the end of a history forward, so an entry numbered past it
-/// is nobody else's doing — and a caller was told it was, with
-/// `retryable = true`, on an empty table with nobody racing:
+/// **`JournalContended` says *another writer took this sequence
+/// first*.** Writing only moves the end of a history forward, so an entry
+/// numbered past it is nobody else's doing — and a caller must not be told it
+/// was, with `retryable = true`, on an empty table with nobody racing:
 ///
 /// ```text
 /// Store::append(sequence 7) -> OutOfOrder { expected: 0, found: 7 }
@@ -4809,8 +4815,8 @@ async fn a_sequence_past_the_end_is_not_reported_as_someone_else_racing() {
 
 /// The first entry of a history does not follow a hash that never existed.
 ///
-/// **Both link checks were written `if let Some(tail)`**, so neither ran when
-/// there was no tail. Measured on an empty table:
+/// **Written `if let Some(tail)`, neither link check runs when there is no
+/// tail.** Measured on an empty table in that form:
 ///
 /// ```text
 /// InMemory::append(Entry::chain(0, Some([0xAA; 32]), record)) -> Ok(())
@@ -4819,8 +4825,8 @@ async fn a_sequence_past_the_end_is_not_reported_as_someone_else_racing() {
 ///   "found nothing wrong … Read the tail again and retry"   NC-JRNL-0006, retryable
 /// ```
 ///
-/// One store accepted a forgery as the first row of an audit log; the other
-/// refused it in the statement and then told the caller to try again. The
+/// One store accepts a forgery as the first row of an audit log; the other
+/// refuses it in the statement and then tells the caller to try again. The
 /// genesis entry's link is `None`, and that is as much a fact about the tail as
 /// any other.
 #[tokio::test]
@@ -4870,9 +4876,9 @@ async fn a_first_entry_does_not_follow_a_hash_that_never_existed() {
 ///
 /// **The opening bracket stays in the table when a unit is committed** — it is
 /// what says the unit began — so "has this unit been opened" answers `true` for
-/// one that has finished. Both stores asked that question first for an opening
-/// bracket and answered `NC-JRNL-0007`: *"A work unit that is already open was
-/// opened again"*, and in both locales *"Finish or cancel it before starting it
+/// one that has finished. Asked first for an opening bracket, both stores would
+/// answer `NC-JRNL-0007`: *"A work unit that is already open was opened
+/// again"*, and in both locales *"Finish or cancel it before starting it
 /// again"* — about something that already finished, and naming the two
 /// operations that are no longer possible.
 ///
@@ -4951,11 +4957,11 @@ async fn reopening_a_closed_unit_says_it_is_closed() {
 
 /// An entry that is wrong two ways answers with the more severe one.
 ///
-/// **A forged link inside a closed unit came back `UnitClosed`** —
-/// `NC-JRNL-0004`, severity **error**, "that action finished" — from PostgreSQL
-/// and `Undecodable` — `NC-JRNL-0001`, **critical**, the chain being broken —
-/// from memory. One call, two variants, two codes, and the store that runs was
-/// the one downgrading the forgery to a bracket problem.
+/// **A forged link inside a closed unit must not come back `UnitClosed`**
+/// — `NC-JRNL-0004`, severity **error**, "that action finished" —
+/// from PostgreSQL and `Undecodable` — `NC-JRNL-0001`, **critical**, the chain
+/// being broken — from memory. One call, two variants, two codes, and the store
+/// that runs would be the one downgrading the forgery to a bracket problem.
 #[tokio::test]
 async fn an_entry_wrong_two_ways_answers_with_the_more_severe_one() {
     {
@@ -5017,9 +5023,9 @@ async fn an_entry_wrong_two_ways_answers_with_the_more_severe_one() {
 
 /// A temporary table of the journal's own name does not become the journal.
 ///
-/// **The store's statements name `journal_entries` unqualified and nothing
-/// pinned the path.** The migrations closed that class inside trigger *bodies*;
-/// the store's own reads and writes were still decided by whoever planted a name
+/// **The store's statements name `journal_entries` unqualified, so the path is
+/// pinned.** The migrations close that class inside trigger *bodies*; unpinned,
+/// the store's own reads and writes are decided by whoever plants a name
 /// first, and `pg_temp` is searched ahead of `search_path` for relations — the
 /// fact those migrations are built on. Measured with the store's statements
 /// copied out of the source:
@@ -5032,11 +5038,11 @@ async fn an_entry_wrong_two_ways_answers_with_the_more_severe_one() {
 ///  0 | p | aaaa…              <- the audit log never received it
 /// ```
 ///
-/// No trigger fired, because the triggers are on the real table; the writer
-/// believed it had appended and `head`/`tail` agreed with it, so `§14.9`'s
-/// fail-closed rule never engaged. `nc-prune` already asks both of these
-/// questions about its own tables, and the journal — where it matters most — had
-/// neither.
+/// No trigger fires, because the triggers are on the real table; the writer
+/// believes it has appended and `head`/`tail` agree with it, so `§14.9`'s
+/// fail-closed rule never engages. `nc-prune` asks both of these questions
+/// about its own tables, and the journal — where it matters most — asks them
+/// too.
 #[tokio::test]
 async fn a_temporary_table_of_the_same_name_is_not_the_journal() {
     const SCHEMA: &str = "nc_test_temp_shadow";
@@ -5091,11 +5097,11 @@ async fn a_temporary_table_of_the_same_name_is_not_the_journal() {
     );
     // **And the trigger's own pin, which the assertion above cannot reach.**
     // The store pins the path for its own statements, so its append resolves to
-    // the real table whether or not the *function* is pinned — which is why
-    // removing `SET search_path FROM CURRENT` from `0012`'s density trigger left
-    // both integration suites green at 61 and 34, and why the shadow above being
-    // *empty* made no difference either: it answered the same maximum as the
-    // journal.
+    // the real table whether or not the *function* is pinned — which is why,
+    // without this, removing `SET search_path FROM CURRENT` from `0012`'s
+    // density trigger leaves both integration suites green, and why the shadow
+    // above being *empty* makes no difference either: it answers the same
+    // maximum as the journal.
     //
     // So this half is a writer the store has never touched, on its own
     // connection, with its own populated shadow. The temporary schema is
@@ -5148,8 +5154,8 @@ async fn a_temporary_table_of_the_same_name_is_not_the_journal() {
 
 /// A store that answers and refuses is not a store that did not answer.
 ///
-/// **Three different systems reported identically.** A revoked `INSERT`, a
-/// dropped table and a stopped container all reached a caller as
+/// **Three different systems, not reported identically.** Without this, a
+/// revoked `INSERT`, a dropped table and a stopped container all reach a caller as
 /// `NC-JRNL-0003` — *"the journal store did not answer"*, **critical**,
 /// `retryable = true` — and `§14.9` makes the journal fail closed, so the
 /// platform stops on any of them while the only instruction anybody gets is
@@ -5161,9 +5167,9 @@ async fn a_temporary_table_of_the_same_name_is_not_the_journal() {
 /// the store stopped       pool timed out while waiting for a connection
 /// ```
 ///
-/// `nc-prune` has separated these since it was written — `NC-DB-0005` is
-/// "refused, and retrying will not change it". This is the journal's, and it is
-/// what tells a responder which system to go and look at.
+/// `nc-prune` separates these too — `NC-DB-0005` is "refused, and retrying will
+/// not change it". This is the journal's, and it is what tells a responder
+/// which system to go and look at.
 #[tokio::test]
 async fn a_write_the_store_refuses_is_not_the_store_being_down() {
     const SCHEMA: &str = "nc_test_refused";
@@ -5246,17 +5252,18 @@ async fn a_write_the_store_refuses_is_not_the_store_being_down() {
 /// A store that cannot read its table refuses the unit questions rather than
 /// answering them.
 ///
-/// **Each of the three could answer "no" to a failure with every suite green.**
-/// `close_unit` asks `unit_opened` before it writes, and `!= Ok(true)` in place
-/// of its `?` reported a store that could not answer as a unit nobody opened:
-/// `JournalUnitNeverOpened`, which is not retryable and sends a person to
-/// whoever set up their Noctua, in place of the store's own refusal.
-/// `Postgres::unit_closing` with its error mapped to `None`, and the provided
-/// `unit_closed` with its error flattened away, each answered "not closed" for
-/// a table that is not there. Reported on 2026-09-28, each plant alone leaving
-/// `cargo test -p nc-journal` green. The kernel asks `unit_closing` before an
-/// undo reverts anything and acts on its answer in recovery, so "could not
-/// read" must never read as "there is no closing bracket".
+/// **Each of the three could answer "no" to a failure with every other suite
+/// green.** `close_unit` asks `unit_opened` before it writes, and `!= Ok(true)`
+/// in place of its `?` reports a store that could not answer as a unit nobody
+/// opened: `JournalUnitNeverOpened`, which is not retryable and sends a person
+/// to whoever set up their Noctua, in place of the store's own
+/// refusal. `Postgres::unit_closing` with its error mapped to `None`, and the
+/// provided `unit_closed` with its error flattened away, each answer "not
+/// closed" for a table that is not there — each plant alone
+/// leaving `cargo test -p nc-journal` green without this. The kernel
+/// asks `unit_closing` before an undo reverts anything and acts on its answer
+/// in recovery, so "could not read" must never read as "there is no closing
+/// bracket".
 ///
 /// **A schema that does not exist, on a pool of its own.** An undefined table
 /// is SQLSTATE class 42, which `unavailable` maps to `Refused`. The store pins
@@ -5338,11 +5345,12 @@ async fn a_store_that_cannot_read_refuses_the_unit_questions_rather_than_answeri
 #[tokio::test]
 /// A schema named after the connecting role does not become the journal.
 ///
-/// **The store's path used to begin `"$user"`.** Appending `pg_temp` to the
-/// caller's path moved the temporary schema and left the other half of the rule
-/// alone — and `$user` is not a schema, it is an instruction to look for one
-/// named after whoever connects, expanded afresh on every statement. Measured
-/// through the shipped entry point on a pool built with no options:
+/// **The store's path does not begin `"$user"`.** Appending `pg_temp` to the
+/// caller's path moves the temporary schema and leaves the other half of the
+/// rule alone — and `$user` is not a schema, it is an instruction to look for
+/// one named after whoever connects, expanded afresh on every
+/// statement. Measured through the shipped entry point on a pool built with no
+/// options, with the caller's path kept:
 ///
 /// ```text
 /// session search_path = "$user", public
@@ -5364,10 +5372,10 @@ async fn a_schema_named_after_the_role_does_not_become_the_journal() {
     // **A role of this run's own, not the connecting one.** Naming the decoy
     // after `current_user` and then dropping it `CASCADE` destroys whatever a
     // deployment keeps there — measured, a pre-existing `noctua.keepme` holding
-    // three rows was gone after one run — and two concurrent runs collided on it
-    // in three rounds of five. `finish`'s own paragraph records a guessing
-    // `DROP SCHEMA` taking the developer's `public` schema twice, and says every
-    // schema this suite makes carries the process id. These two did not.
+    // three rows is gone after one run — and two concurrent runs collide on it
+    // in three rounds of five. `finish`'s own paragraph says a guessing
+    // `DROP SCHEMA` has no undo and that every schema this suite makes carries
+    // the process id; this role and its schema carry it too.
     //
     // `SET ROLE` makes `"$user"` resolve to this name for the length of the
     // session, which is the condition the test needs, without touching a name
@@ -5409,11 +5417,12 @@ async fn a_schema_named_after_the_role_does_not_become_the_journal() {
         .connect(&std::env::var("DATABASE_URL").expect("checked by pool()"))
         .await
         .expect("connects");
-    // **The condition is established, not asserted about the caller.** These read
-    // the *server default* and failed when `DATABASE_URL` named a schema — which
-    // is the very form `in_schema` and `configured_schema` were added to support,
-    // so `cargo xtask check` could not pass against it. The path is set here
-    // instead, and `SET ROLE` makes `"$user"` resolve to the scratch role.
+    // **The condition is established, not asserted about the caller.** Reading
+    // the *server default* would fail when `DATABASE_URL` names a schema —
+    // which is the very form `in_schema` and `configured_schema` exist to
+    // support, so `cargo xtask check` could not pass against it. The path is
+    // set here instead, and `SET ROLE` makes `"$user"` resolve to the scratch
+    // role.
     for statement in [
         "SET search_path TO \"$user\", public",
         &format!("SET ROLE \"{role}\""),
@@ -5436,13 +5445,13 @@ async fn a_schema_named_after_the_role_does_not_become_the_journal() {
     let landed = store
         .append(Entry::chain(0, None, entry_record("Read")))
         .await;
-    // **Why it was refused, which nothing asserted.** `landed` was bound and then
-    // only interpolated into the message below, so `Postgres::new`'s `"public"`
-    // could become any other schema name and this test went on passing:
-    // measured, `Self::in_schema(pool, "nowhere")` with the whole gate green.
-    // This is the shipped default constructor's only caller in the tree, and it
-    // was checking where the row did *not* go — which a store aimed at a schema
-    // that does not exist satisfies just as well.
+    // **Why it was refused, asserted.** With `landed` bound and then only
+    // interpolated into the message below, `Postgres::new`'s `"public"` could
+    // become any other schema name and this test go on passing: measured,
+    // `Self::in_schema(pool, "nowhere")` with the whole gate green. This is the
+    // shipped default constructor's only caller in the tree, and checking only
+    // where the row did *not* go is satisfied just as well by a store aimed at
+    // a schema that does not exist.
     //
     // The role owns the decoy schema and holds no grant on the real journal, so
     // *permission denied* is the answer only a store that reached
@@ -5485,13 +5494,13 @@ async fn a_schema_named_after_the_role_does_not_become_the_journal() {
 
 /// Every SQLSTATE class `unavailable` names decides something.
 ///
-/// **Both class-based arms were pinned by nothing.** `unavailable_for_tests` is
-/// `#[doc(hidden)] pub` purely so a test can reach the mapping, and its one
-/// caller builds an error that hits the *first* arm — the trigger-message parse —
-/// and asserts only that. Measured, with both predicates disabled
-/// (`starts_with("40")` → `"zz40"`, `"22"`/`"23"` → `"zz22"`/`"zz23"`), so every
-/// serialization failure, deadlock, data exception and constraint violation falls
-/// through to `Unavailable`: `ok 807 test(s)`, `check passed`.
+/// **Both class-based arms, pinned.** `unavailable_for_tests`
+/// is `#[doc(hidden)] pub` purely so a test can reach the mapping, and a caller
+/// that builds an error hitting the *first* arm — the trigger-message parse —
+/// asserts only that. Measured without this, with both predicates disabled
+/// (`starts_with("40")` → `"zz40"`, `"22"`/`"23"` → `"zz22"`/`"zz23"`), so
+/// every serialization failure, deadlock, data exception and constraint
+/// violation falls through to `Unavailable`: `check passed`.
 ///
 /// The whole point of the mapping is that a database error which is the
 /// *record's* fault does not reach a responder as `NC-JRNL-0003 "The journal
@@ -5516,13 +5525,11 @@ async fn each_sqlstate_class_reaches_the_error_it_is_written_for() {
             "SELECT 'not a number'::BIGINT",
             nc_catalog::ErrorCode::JournalUnstorable,
         ),
-        // **Class 40, which the previous version of this test did not reach.** Its
-        // doc said "both class-based arms were pinned by nothing" and then gave
-        // three rows, all class 22 and 23 — so `starts_with("40")` was exactly as
-        // unpinned as before: changed to `"zz40"`, `check passed`. A
-        // serialization failure then goes back to `NC-JRNL-0003 "The journal store
-        // did not answer"`, critical and retryable, about a store that answered
-        // instantly.
+        // **Class 40, which rows of class 22 and 23 do not reach.** With only
+        // those, `starts_with("40")` is unpinned: changed to `"zz40"`,
+        // `check passed`. A serialization failure then goes back to
+        // `NC-JRNL-0003 "The journal store did not answer"`, critical and
+        // retryable, about a store that answered instantly.
         //
         // `40P01` is a deadlock and needs two sessions; `40001` is raised
         // directly by this statement under any isolation, which is what makes it
@@ -5543,12 +5550,12 @@ async fn each_sqlstate_class_reaches_the_error_it_is_written_for() {
              'res', 'ok', 1, repeat('a', 64))",
             nc_catalog::ErrorCode::JournalUnstorable,
         ),
-        // **And the four classes the third arm names, of which one was
-        // reached.** That arm lists `42`, `28`, `3D` and `3F`, and the rows
-        // above stop at class 40 — so three of the four were decided by
-        // nothing: each prefix in turn replaced with one that matches no
-        // SQLSTATE left the crate suite green with a database up, and a store
-        // that answered *permission denied* or *no such schema* goes back to
+        // **And the four classes the third arm names, every one reached.** That
+        // arm lists `42`, `28`, `3D` and `3F`, and the rows above stop at class
+        // 40 — so without these three of the four are decided by nothing: each
+        // prefix in turn replaced with one that matches no SQLSTATE leaves the
+        // crate suite green with a database up, and a store that answered
+        // *permission denied* or *no such schema* goes back to
         // `NC-JRNL-0003 "The journal store did not answer"`, retryable, which
         // asks a person to keep trying something that will refuse identically
         // for ever.
@@ -5609,11 +5616,11 @@ async fn each_sqlstate_class_reaches_the_error_it_is_written_for() {
 /// ```
 ///
 /// and the density trigger from `0010`/`0012` satisfies the right-hand side on
-/// its own — so replacing both `ALTER TABLE … ADD CONSTRAINT` statements with
-/// `SELECT 1;` left `cargo test --workspace` green, and so did lowering the
-/// ceiling from `4611686018427387904` to `1000`. The same is true of
-/// `a_row_can_only_land_where_the_next_one_goes`, which asserts only the
-/// trigger's sentence.
+/// its own — so without this, replacing both `ALTER TABLE … ADD CONSTRAINT`
+/// statements with `SELECT 1;` leaves `cargo test --workspace` green, and so
+/// does lowering the ceiling from `4611686018427387904` to `1000`. The same is
+/// true of `a_row_can_only_land_where_the_next_one_goes`, which asserts only
+/// the trigger's sentence.
 ///
 /// A constraint is a schema fact, and a behaviour assertion cannot separate it
 /// from another rule that refuses the same row first. So this asks the catalog:
@@ -5646,8 +5653,9 @@ async fn the_table_carries_both_of_its_own_check_constraints() {
         // (which orders descending), and cannot be deleted.
         ("journal_entries_sequence_is_not_negative", "sequence >= 0"),
         // And the ceiling, which is `i64::MAX / 2`: `tail` computes the next
-        // sequence, and a history that reached the top would have nowhere to put
-        // it. The number is written out here because lowering it was green.
+        // sequence, and a history that reached the top would have nowhere to
+        // put it. The number is written out here because lowering it is
+        // otherwise green.
         (
             "journal_entries_ends_far_from_the_top",
             // PostgreSQL renders the literal back with its type, so the number
@@ -5674,13 +5682,13 @@ async fn the_table_carries_both_of_its_own_check_constraints() {
 
 /// Every racing test in this file fits in the pool it races through.
 ///
-/// **The pool was two and the fan-outs are sixteen, sixteen and twelve.** A
+/// **With a pool of two against fan-outs of sixteen, sixteen and twelve**, a
 /// refused `append` acquires three times, so sixteen racers are forty-eight
 /// acquisitions through two slots; under load the pool times out and the append
 /// comes back `JournalUnavailable`, which is neither of the codes those tests
-/// assert. Both failed that way on an unmutated tree while other builds shared
-/// the machine, and both pass alone — the shape of a harness defect reported as
-/// a defect in the thing under test.
+/// assert. Measured: both fail that way on an unmutated tree while other builds
+/// share the machine, and both pass alone — the shape of a harness defect
+/// reported as a defect in the thing under test.
 ///
 /// Read out of this file's own source rather than restated, because a number
 /// restated is a number that drifts: a test spawning twenty racers would
@@ -5736,19 +5744,20 @@ fn every_racing_test_fits_in_the_pool() {
 ///
 /// **Driven directly, because the arm it pins is only reachable under a race.**
 /// `0012`'s density trigger fires when the `INSERT`'s `WHERE` passed and the
-/// tail moved before the row landed — and `unavailable` translated its message,
-/// "sequence 0 is not the next one, which is 1", straight into `OutOfOrder`
-/// without ever asking about the work unit. That is `JournalContended`:
+/// tail moved before the row landed — and an `unavailable` translating its
+/// message, "sequence 0 is not the next one, which is 1", straight into
+/// `OutOfOrder` never asks about the work unit. That is `JournalContended`:
 /// `retryable = true`, severity *warning*, for a condition no retry clears.
 ///
-/// It was the third arm of the same statement and the one left out: the
-/// zero-rows arm and the unique-violation arm both diagnose. Rewriting the
-/// diagnosis to read every fact in one snapshot changed nothing, because that
-/// arm never reached the diagnosis. Measured, `cargo xtask check` was red in
-/// 4 of 8 runs; the sixteen-way race with five rounds still catches the
-/// regression only about one run in six, which is not a test.
+/// It is the third arm of the same statement: the zero-rows arm and the
+/// unique-violation arm both diagnose. Rewriting the diagnosis to read every
+/// fact in one snapshot changes nothing for an arm that never reaches the
+/// diagnosis. Measured with it translated, `cargo xtask check` is red in 4 of 8
+/// runs; the sixteen-way race with five rounds still catches the regression
+/// only about one run in six, which is not a test.
 ///
-/// So this asks the diagnosis the question the trigger's arm now routes to it.
+/// So this asks the diagnosis the question the trigger's arm routes to
+/// it.
 #[tokio::test]
 async fn an_open_unit_outranks_the_sequence_whatever_refused_the_write() {
     const SCHEMA: &str = "nc_test_permanent_wins";
@@ -5868,8 +5877,8 @@ async fn sweep_roles_from_dead_runs(pool: &sqlx::PgPool) {
 ///
 /// The liveness question is asked here rather than in SQL, because the database
 /// cannot ask it — and asking it is what separates a leftover from a concurrent
-/// run's schema. A `DROP SCHEMA` that guesses has no undo, and the sibling
-/// helper in this file took the developer's `public` schema twice by guessing.
+/// run's schema. A `DROP SCHEMA` that guesses has no undo, and `finish`'s own
+/// paragraph says what a guess reaches: the developer's `public` schema.
 async fn sweep_schemas_from_dead_runs(pool: &sqlx::PgPool, prefix: &str) {
     let left: Vec<String> =
         sqlx::query_scalar("SELECT nspname::text FROM pg_namespace WHERE nspname LIKE $1 || '%'")
@@ -5881,14 +5890,14 @@ async fn sweep_schemas_from_dead_runs(pool: &sqlx::PgPool, prefix: &str) {
     for schema in left {
         // **The pid is where the builders put it, which is not the end.**
         // `pool` names a schema `{label}_{pid}` and `a_schema_named` names one
-        // `{prefix}_{pid}_{label}` — the pid was moved to the front there on
-        // purpose, so `NAMEDATALEN` truncation cannot eat it, and a test pins
-        // that. This read `rsplit('_')`, so it saw `link` for
-        // `nc_test_two_stores_<pid>_a_forged_link`, failed to parse it, and swept
-        // nothing: measured, three schemas planted from a dead pid and one full
-        // suite run afterwards left two of them standing. The first numeric
-        // segment is the pid under both shapes — a label is words, and the one
-        // that begins with a digit (`2nd_try`) does not parse as a number.
+        // `{prefix}_{pid}_{label}` — the pid is at the front there on purpose,
+        // so `NAMEDATALEN` truncation cannot eat it, and a test pins that. Read
+        // with `rsplit('_')`, `nc_test_two_stores_<pid>_a_forged_link` yields
+        // `link`, fails to parse, and sweeps nothing: measured, three schemas
+        // planted from a dead pid and one full suite run afterwards leave two
+        // of them standing. The first numeric segment is the pid under both
+        // shapes — a label is words, and the one that begins with a digit
+        // (`2nd_try`) does not parse as a number.
         let Some(pid) = schema
             .split('_')
             .find(|part| part.parse::<u32>().is_ok())
@@ -5911,15 +5920,15 @@ async fn sweep_schemas_from_dead_runs(pool: &sqlx::PgPool, prefix: &str) {
 
 /// Every schema name this suite builds keeps its process id.
 ///
-/// **PostgreSQL truncates an identifier at 63 bytes without saying so**, and the
-/// pid was last, so the one name long enough lost it — and two concurrent runs
-/// then shared a schema, each `DROP SCHEMA … CASCADE` destroying the other's
-/// mid-test. Measured: 100 % of paired runs started together failed with
+/// **PostgreSQL truncates an identifier at 63 bytes without saying so**, so a
+/// pid placed last is lost from the one name long enough — and two concurrent
+/// runs then share a schema, each `DROP SCHEMA … CASCADE` destroying the
+/// other's mid-test. Measured: 100 % of paired runs started together fail with
 /// `3F000: no schema has been selected to create in`, about 10 % with a stagger.
 ///
 /// The labels are read out of the script table rather than restated, so a script
 /// added with a longer name is checked by this without anyone remembering to add
-/// it — which is the failure mode that produced the defect.
+/// it — remembering is the failure mode this closes.
 #[test]
 fn no_schema_name_loses_its_process_id_to_truncation() {
     let source = include_str!("in_postgres.rs");
@@ -5966,11 +5975,11 @@ fn no_schema_name_loses_its_process_id_to_truncation() {
 
 /// Every role name this family builds begins with a prefix the sweeper matches.
 ///
-/// **A role outlives its schema and its database.** The schema sweep was added
-/// after 121 schemas were found on one developer's cluster; roles have the same
-/// shape and were swept by nothing — seven `nc_role_probe_*` were found, from
-/// runs whose processes were long gone, visible to every database on the cluster
-/// and to every other checkout sharing it.
+/// **A role outlives its schema and its database.** Roles have the same shape
+/// as the schemas the sweep removes, and they accumulate the same way —
+/// measured on one developer's cluster, 121 such schemas and seven
+/// `nc_role_probe_*` roles from runs whose processes were long gone — visible
+/// to every database on the cluster and to every other checkout sharing it.
 ///
 /// Read from where the names are *built*, not from the `CREATE ROLE` statements:
 /// both suites interpolate a variable into the statement, and the literal that
@@ -6020,8 +6029,8 @@ fn every_role_prefix_this_family_uses_is_swept() {
 ///
 /// **The list is a hand list, and this is what ties it to the file.** The
 /// sweeper matches by prefix; a label that begins otherwise is a schema nothing
-/// removes when the run that made it dies. Measured before `SWEPT` existed:
-/// three schemas planted from a dead pid, one full suite run, two left standing.
+/// removes when the run that made it dies. Measured without `SWEPT`: three
+/// schemas planted from a dead pid, one full suite run, two left standing.
 #[test]
 fn every_prefix_this_suite_uses_is_swept() {
     let source = include_str!("in_postgres.rs");
@@ -6058,11 +6067,11 @@ fn every_prefix_this_suite_uses_is_swept() {
 ///
 /// **Comments go before the split, not after it.** `0012` draws its whole
 /// sequence in an ASCII diagram, and one of those comment lines carries a `;` —
-/// so splitting first and dropping comment *lines* afterwards left the statement
-/// under that diagram inside a chunk that began mid-comment, and the save this
-/// file's restore reads was silently not replayed. The failure presented as
-/// `unrecognized configuration parameter "nc.path_before_0012"`, which sends a
-/// reader to the migration rather than to the reader.
+/// so splitting first and dropping comment *lines* afterwards would leave the
+/// statement under that diagram inside a chunk that began mid-comment, and the
+/// save this file's restore reads silently not replayed. The failure presents
+/// as `unrecognized configuration parameter "nc.path_before_0012"`, which sends
+/// a reader to the migration rather than to the reader.
 ///
 /// Split on `;` because a statement may be written over more than one line and
 /// `0011`'s epilogue is. A fragment inside a `$$` body is discarded by the same
@@ -6085,14 +6094,13 @@ fn the_path_statements_of(sql: &str) -> Vec<String> {
 
 /// A migration that changes the search path for its own length puts it back.
 ///
-/// **Round thirty named this and could not reach it; round thirty-two proved it.**
-/// `0011` and `0012` each widen or replace the session's `search_path` so that
-/// the functions they create resolve names the way those functions must, and
-/// each ends with a statement that restores it. Nothing measured the restore.
-/// Measured on 2026-09-08, `0012`'s epilogue replaced by
-/// `SELECT set_config('search_path', current_setting('search_path'), false);` —
-/// a shape the static gate must clear, because it reads the path and writes the
-/// path, and it is a no-op:
+/// **The restore, measured.** `0011` and `0012` each widen or replace the
+/// session's `search_path` so that the functions they create resolve names the
+/// way those functions must, and each ends with a statement that restores
+/// it. Measured without this, `0012`'s epilogue replaced
+/// by `SELECT set_config('search_path', current_setting('search_path'), false);`
+/// — a shape the static gate must clear, because it reads the path and writes
+/// the path, and it is a no-op:
 ///
 /// ```text
 ///   BEFORE            "$user", public
@@ -6101,9 +6109,9 @@ fn the_path_statements_of(sql: &str) -> Vec<String> {
 ///   AFTER (shipped)   "$user", public
 /// ```
 ///
-/// `cargo run --quiet -p xtask -- check` answered `check passed`, `ok 1219
-/// test(s)`, console byte-identical to a clean run. `0011`'s epilogue was the
-/// same, and it is the file where the class started.
+/// `cargo xtask check` answers `check passed`, console byte-identical to a
+/// clean run. `0011`'s epilogue is the same, and it is the file where the class
+/// starts.
 ///
 /// What that costs: `set_config(…, false)` is session-level on a connection sqlx
 /// returns to a pool, and `0012` then wipes its own saved copy — so nothing on
@@ -6207,12 +6215,12 @@ async fn a_migration_leaves_the_search_path_as_it_found_it() {
 
 /// A read starts where it was asked to, and comes back in sequence order.
 ///
-/// **`Postgres::from`'s `WHERE sequence >= $1` and its `ORDER BY sequence` were
-/// each covered by nothing.** Every `from` in this file passes `0`, and every
-/// record it writes carries a `recorded_at` that rises with the sequence — so
-/// the filter is the identity on every input the suite has and the heap order is
-/// the sequence order. Measured, one clause removed at a time:
-/// `cargo test -p nc-journal --all-features` green at 99 tests for both.
+/// **`Postgres::from`'s `WHERE sequence >= $1` and its `ORDER BY sequence`,
+/// each covered.** Every other `from` in this file passes `0`, and every record
+/// it writes carries a `recorded_at` that rises with the sequence — so the
+/// filter is the identity on every other input the suite has and the heap order
+/// is the sequence order. Measured without this, one clause removed at a
+/// time: `cargo test -p nc-journal --all-features` green for both.
 ///
 /// `Store::from`'s own sentence is *every entry from `sequence` onwards, in
 /// order*, and `Journal::verify` is written against both halves — the
@@ -6265,8 +6273,8 @@ async fn a_read_starts_where_it_was_asked_and_comes_back_in_order() {
     );
     // **And the two single-row reads, which order by the same column.**
     // `tail()`'s is pinned by `a_row_can_only_land_where_the_next_one_goes`;
-    // `head()`'s was pinned by nothing, because every record this suite writes
-    // carries a `recorded_at` that rises with the sequence. Measured,
+    // without this, `head()`'s is pinned by nothing, because every record this
+    // suite writes carries a `recorded_at` that rises with the sequence. Measured,
     // `ORDER BY recorded_at DESC` in its place: the whole suite green.
     assert_eq!(
         store.head().await.expect("reads").map(|(at, _)| at),
@@ -6293,12 +6301,12 @@ async fn a_read_starts_where_it_was_asked_and_comes_back_in_order() {
 
 /// Every check passing and the write refused is contention, and says so.
 ///
-/// **The arm that says so was reachable only by winning a race, and reverting
-/// it was silent.** `why_nothing_landed`'s own comment records what it used to
-/// answer — `OutOfOrder { expected: free, found: entry.sequence }`, reached only
-/// where those two are equal, so it printed one number twice and read as
-/// *nothing happened*. Measured, put back: `cargo test -p nc-journal
-/// --all-features` green at 99 tests.
+/// **The arm that says so is reachable only by winning a race, and reverting it
+/// would be silent.** `why_nothing_landed`'s own comment records what the wrong
+/// answer would be — `OutOfOrder { expected: free, found: entry.sequence }`,
+/// reached only where those two are equal, so it would print one number twice
+/// and read as *nothing happened*. Measured, put back without
+/// this: `cargo test -p nc-journal --all-features` green.
 ///
 /// Asked through the door for the same reason
 /// `an_open_unit_outranks_the_sequence_whatever_refused_the_write` uses it: the
@@ -6331,14 +6339,14 @@ async fn a_refusal_with_nothing_wrong_is_contention() {
 
 /// A row this code cannot read keeps the sentence that says what is wrong.
 ///
-/// **`reason` takes the text after the *first* `": "`, and nothing said so.**
-/// Its whole job is to drop `Error::Unavailable`'s own opener — *"the journal
-/// store did not answer: "* — and keep the part that describes the row; every
-/// message this suite reaches it with holds one colon, so `rsplit_once` is the
-/// identity on all of them. Measured, `split_once` swapped for `rsplit_once`:
-/// `cargo test -p nc-journal --all-features` green at 99 tests, while a row
-/// whose `realm` is not an identifier came back holding the parser's detail and
-/// nothing that says what was being parsed.
+/// **`reason` takes the text after the *first* `": "`, and this says so.** Its
+/// whole job is to drop `Error::Unavailable`'s own opener — *"the journal store
+/// did not answer: "* — and keep the part that describes the row; every other
+/// message this suite reaches it with holds one colon, so `rsplit_once` would
+/// be the identity on all of them. Measured, `split_once` swapped
+/// for `rsplit_once`: `cargo test -p nc-journal --all-features` green without
+/// this, while a row whose `realm` is not an identifier comes back holding the
+/// parser's detail and nothing that says what was being parsed.
 #[tokio::test]
 async fn an_unreadable_row_keeps_the_sentence_that_says_what_is_wrong() {
     const SCHEMA: &str = "nc_test_reason_prefix";

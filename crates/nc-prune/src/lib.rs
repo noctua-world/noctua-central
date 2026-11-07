@@ -34,16 +34,14 @@
 //! that can be wrong, and it is testable without a database. What needs
 //! PostgreSQL is one `DELETE`.
 //!
-//! **The trait is asynchronous because sqlx is.** It was synchronous, and that
-//! was not a small mismatch: a synchronous trait can only be implemented over
-//! PostgreSQL by blocking a thread on a runtime, which deadlocks when the caller
-//! is already inside one — so the shape guaranteed that the half of this crate
-//! that runs against a real database could never be written. It was not written:
-//! `nc-prune` had one implementation, in memory, and the `DELETE` this module is
-//! for had never reached PostgreSQL. [`postgres::Postgres`] is that half, and
-//! `crates/nc-prune/tests/in_postgres.rs` runs it against the store — asserting
-//! which rows survive rather than how many, because a pruner that takes the
-//! newest satisfies every in-memory assertion there is.
+//! **The trait is asynchronous because sqlx is.** A synchronous trait can only
+//! be implemented over PostgreSQL by blocking a thread on a runtime, which
+//! deadlocks when the caller is already inside one — so that shape guarantees
+//! the half of this crate that runs against a real database can never be
+//! written. [`postgres::Postgres`] is that half,
+//! and `crates/nc-prune/tests/in_postgres.rs` runs it against the store —
+//! asserting which rows survive rather than how many, because a pruner that
+//! takes the newest satisfies every in-memory assertion there is.
 //!
 //! # Two databases, one pruner
 //!
@@ -105,13 +103,13 @@ pub trait Target {
 
 /// Why one table could not be counted or pruned, and whether to try again.
 ///
-/// **`waited` is a fact the database stated, not a phrase in a sentence.** The
-/// skip that lets a locked table not stop the run was decided by
-/// `why.contains("gave up waiting for a lock")` — over a message *the database*
-/// composes, which carries text the application wrote. An ordinary
+/// **`waited` is a fact the database stated, not a phrase in a sentence.**
+/// Decided by `why.contains("gave up waiting for a lock")` — over a message
+/// *the database* composes, which carries text the application wrote — the
+/// skip that lets a locked table not stop the run reads an ordinary
 /// `BEFORE DELETE` trigger raising
 /// `'this table is archived: the exporter gave up waiting for a lock file'`
-/// was read as contention:
+/// as contention:
 ///
 /// ```text
 /// outcome        Ok([Pruned { …, left_alone: Some(SomethingElseHeldALock) }])
@@ -119,18 +117,19 @@ pub trait Target {
 /// ```
 ///
 /// A permanent failure reported as a benign skip that "the next tick will try
-/// again" — and every tick after. The SQLSTATE was already in hand when the
-/// sentence was built; it is carried instead of re-derived from prose.
+/// again" — and every tick after. The SQLSTATE is already in hand when the
+/// sentence is built; it is carried instead of re-derived from prose.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Failure {
     /// What went wrong, for a person.
     pub why: String,
     /// Whether the statement gave up waiting rather than being refused.
     ///
-    /// **A SQLSTATE is chosen by whoever raised it, and that is the residual.**
-    /// PL/pgSQL's `RAISE … USING ERRCODE = '55P03'` lets a `BEFORE DELETE`
-    /// trigger — the exact scenario this field was added for — say "lock
-    /// timeout" about a permanent refusal. Measured through the real target:
+    /// **A SQLSTATE is chosen by whoever raised it, and that is the
+    /// residual.** PL/pgSQL's `RAISE … USING ERRCODE = '55P03'` lets
+    /// a `BEFORE DELETE` trigger — the exact scenario this field exists for —
+    /// say "lock timeout" about a permanent refusal. Measured through the real
+    /// target:
     ///
     /// ```text
     /// RAISE EXCEPTION 'this table is archived' USING ERRCODE = '55P03';
@@ -138,9 +137,9 @@ pub struct Failure {
     ///      still holding 6 rows against a limit of 2
     /// ```
     ///
-    /// Moving from the message to the code raised the cost of forging it from
-    /// "write a sentence" to "write a trigger that lies about its own error
-    /// class", and did not remove it. What removes it is not available here: at
+    /// Reading the code rather than the message raises the cost of forging it
+    /// from "write a sentence" to "write a trigger that lies about its own error
+    /// class", and does not remove it. What removes it is not available here: at
     /// the protocol level a forged `55P03` and a real one are the same answer.
     ///
     /// So a skip is a **hint, not a verdict**, and the scheduler that calls this
@@ -159,10 +158,10 @@ pub struct Failure {
     /// Whether the database answered at all.
     ///
     /// **A store that is not there is not a table that refuses.** `waited` is
-    /// read from a SQLSTATE and a transport failure carries none, so a pool
-    /// timeout, a refused connection and a DNS failure all reached
+    /// read from a SQLSTATE and a transport failure carries none, so without
+    /// this a pool timeout, a refused connection and a DNS failure all reach
     /// [`Failure::code`] as `waited: false` — a permanent refusal — and a
-    /// scheduler keyed on `retryable` gave up for good on a database restart.
+    /// scheduler keyed on `retryable` gives up for good on a database restart.
     /// Measured against a closed port: `NC-DB-0005`, `retryable = false`,
     /// *"trying again will not help"*.
     pub answered: bool,
@@ -171,19 +170,18 @@ pub struct Failure {
 impl Failure {
     /// The registry code this failure carries.
     ///
-    /// **It had none.** `NC-DB-0003` — *"Pruning a table failed"* — was reserved
-    /// and produced by nothing, while the crate that fails to prune tables
-    /// answered with a `String`. `§15.1` makes an error's identity data: without
-    /// a code the failure cannot be journalled, cannot be a `LogValue` and
-    /// cannot be what the central log is queried by, which is the whole reason
-    /// a code exists.
+    /// **It carries one.** `NC-DB-0003` — *"Pruning a table failed"* — is
+    /// reserved for exactly this, and answering with a `String` would leave it
+    /// produced by nothing. `§15.1` makes an error's identity data: without a
+    /// code the failure cannot be journalled, cannot be a `LogValue` and cannot
+    /// be what the central log is queried by, which is the whole reason a code
+    /// exists.
     ///
     /// **One code, and `waited` is what says whether to try again.** A wait
-    /// carried `DbUnreachable` for a while, and that is a sentence about
-    /// something that did not happen: measured against a real
-    /// `ACCESS EXCLUSIVE` lock, the database answered in 5.0006 s with `55P03`,
-    /// and the failure said *"The database did not answer"* at severity
-    /// **critical**. Both of those are wrong about a benign skip, and `§15.1`
+    /// carrying `DbUnreachable` is a sentence about something that did not
+    /// happen: measured against a real `ACCESS EXCLUSIVE` lock, the database
+    /// answers in 5.0006 s with `55P03`, and the failure says *"The database
+    /// did not answer"* at severity **critical**. Both of those are wrong about a benign skip, and `§15.1`
     /// makes the code the identity a responder is paged by.
     ///
     /// Pruning a table failed. Whether it failed because something held a lock
@@ -191,21 +189,21 @@ impl Failure {
     /// different field, and the field is [`Self::waited`].
     ///
     /// **And that field chooses the code, because it chooses what to do next.**
-    /// One code covered both, and `NC-DB-0003` is `retryable`: measured, three
-    /// ticks against a table whose `order_by` column does not exist gave three
+    /// With one code for both, and `NC-DB-0003` `retryable`, measured: three
+    /// ticks against a table whose `order_by` column does not exist give three
     /// identical retryable failures, both locales promising "this will be tried
     /// again", and twenty rows still held against a limit of five. A lock this
     /// run did not get clears by itself; a statement that will not parse does
-    /// not, and a scheduler keyed on `retryable` went round that loop while the
-    /// table grew.
+    /// not, and a scheduler keyed on `retryable` goes round that loop while the
+    /// table grows.
     #[must_use]
     pub const fn code(&self) -> nc_catalog::ErrorCode {
-        // **A database that did not answer is not a table that refused.** Both
-        // came back `waited: false` — read from a SQLSTATE a transport failure
-        // does not carry — so a pool timeout answered `DbPruneRefused`,
-        // `retryable = false`, *"trying again will not help"*, for a database
-        // restarting. `DbUnreachable` exists for exactly this and was reachable
-        // from nowhere in this crate.
+        // **A database that did not answer is not a table that refused.** Read
+        // from a SQLSTATE a transport failure does not carry, both would come
+        // back `waited: false` — so a pool timeout would answer
+        // `DbPruneRefused`, `retryable = false`, *"trying again will not
+        // help"*, for a database restarting. `DbUnreachable` exists for exactly
+        // this, and this is where it is reached.
         if !self.answered {
             nc_catalog::ErrorCode::DbUnreachable
         } else if self.waited {
@@ -238,7 +236,8 @@ impl core::fmt::Display for Failure {
 /// A pruning failure is an error, as `NOCTUA.md §15.1` says every error type
 /// here is.
 ///
-/// **It was not one**: a `Display` with no `Error` beside it.
+/// A `Display` alone is not an error type; this is the `Error` beside
+/// it.
 impl core::error::Error for Failure {}
 
 impl From<String> for Failure {
@@ -278,7 +277,7 @@ pub struct Pruned {
 }
 
 /// Why a table this pruner considered was not pruned by it.
-// **Not `Copy` any more**, because one variant carries the sentence that says
+// **Not `Copy`**, because one variant carries the sentence that says
 // why a table was refused. A code and a reason are what `§15.1` asks a failure
 // to carry, and a bare discriminant cannot carry the reason.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -286,10 +285,10 @@ pub struct Pruned {
 pub enum Untouched {
     /// It was refused, and the run went on to the tables after it.
     ///
-    /// **Carried rather than thrown away.** A refusal used to make `run` return
-    /// `Err` and discard every `Pruned` it had already collected, so a run that
-    /// pruned one table and was refused on another told its caller about
-    /// neither — while the rows were gone.
+    /// **Carried rather than thrown away.** A refusal that made `run`
+    /// return `Err` would discard every `Pruned` already collected, so a run
+    /// that pruned one table and was refused on another would tell its caller
+    /// about neither — while the rows are gone.
     ItWasRefused(String),
     /// A policy pack decides its retention (`NOCTUA.md §15.8`).
     ///
@@ -298,12 +297,12 @@ pub enum Untouched {
     APolicyPackBoundsIt,
     /// The statement gave up waiting rather than being refused.
     ///
-    /// **A skip, and the run goes on.** The bounded wait in `postgres.rs` was
-    /// right — an unbounded one is a tick that never completes — but it returned
-    /// through the loop's `?`, so a lock on one table stopped every table after
-    /// it. Measured: two tables both over their limit, an `ACCESS EXCLUSIVE`
-    /// lock on the first, and the second still holding ten rows against a limit
-    /// of four, never looked at.
+    /// **A skip, and the run goes on.** The bounded wait in `postgres.rs` is
+    /// right — an unbounded one is a tick that never completes — but returned
+    /// through the loop's `?`, a lock on one table would stop every table after
+    /// it. Measured that way: two tables both over their limit, an
+    /// `ACCESS EXCLUSIVE` lock on the first, and the second still holding ten
+    /// rows against a limit of four, never looked at.
     ///
     /// The next tick tries again, which is the whole reason a pruning run has
     /// nowhere to be.
@@ -326,17 +325,16 @@ pub enum Untouched {
 impl Pruned {
     /// How many rows this run counted, less what this run removed.
     ///
-    /// **Not how many the table holds** — the doc comment said that, and it is
-    /// not something this number can know. `count` and `delete_oldest` are two
-    /// statements in two transactions, so nothing here is a snapshot: two
-    /// pruners over 2,000 tied rows with a batch of 500 both reported
-    /// `before: 2000, removed: 500` and therefore 1,500 remaining, and the table
-    /// held 1,000.
+    /// **Not how many the table holds**, which is not something this number
+    /// can know. `count` and `delete_oldest` are two statements in two
+    /// transactions, so nothing here is a snapshot: two pruners over 2,000 tied
+    /// rows with a batch of 500 both report `before: 2000, removed: 500` and
+    /// therefore 1,500 remaining, and the table holds 1,000.
     ///
-    /// That predates the bounded transaction and is unchanged by it; what the
-    /// transaction bounds is the wait for a lock, not the two statements into
-    /// one view. Read this as what this run saw and did, which is what a pruning
-    /// report is for — the next tick counts again.
+    /// The bounded transaction does not change that: what it bounds is the
+    /// wait for a lock, not the two statements into one view. Read this as what
+    /// this run saw and did, which is what a pruning report is for — the next
+    /// tick counts again.
     #[must_use]
     pub const fn remaining(&self) -> Option<u64> {
         match self.before {
@@ -345,31 +343,32 @@ impl Pruned {
         }
     }
 
-    // **One block, not two.** This type had two inherent `impl` blocks in one
-    // file with an ordinary function between them, and nothing but habit put
-    // them apart — while a reader that addresses an item by its declaring line,
-    // the meta-gate's among them, resolves `impl Pruned` to the first and
-    // reports every clause in the second as one it cannot find.
+    // **One block, not two.** Two inherent `impl` blocks for this type in one
+    // file, with an ordinary function between them, would be kept apart by
+    // nothing but habit — while a reader that addresses an item by its
+    // declaring line, the meta-gate's among them, resolves `impl Pruned` to the
+    // first and reports every clause in the second as one it cannot find.
     /// The registry code a `Pruned` carries, when it carries one.
     ///
     /// What went wrong with this table, if anything did.
     ///
-    /// **Because otherwise nothing outside this crate could see one.** `Failure`
-    /// gained a `code()` and every public entry point — `run`, `prune_these`,
-    /// `rehearse`, `prune_these_declared_by` — consumed the `Failure` into a
-    /// `String` or into `locked()`, so the method was called by this crate's own
+    /// **Because otherwise nothing outside this crate could see one.** Every
+    /// public entry point — `run`, `prune_these`, `rehearse`,
+    /// `prune_these_declared_by` — consumes the `Failure` into a `String` or
+    /// into `locked()`, so without this method and the code `refusal` writes
+    /// into that line, `Failure::code()` would be called by this crate's own
     /// tests and by nothing else. A code a caller cannot reach is a code the log
     /// cannot be queried by, which is the whole reason `§15.1` asks for one.
     #[must_use]
     pub fn code(&self) -> Option<nc_catalog::ErrorCode> {
         match &self.left_alone {
             Some(Untouched::SomethingElseHeldALock) => Some(nc_catalog::ErrorCode::DbPruneFailed),
-            // **And a refusal, which returned `None`.** This is the one variant
-            // that carries a hard failure, and it fell into the catch-all — so a
-            // scheduler filtering on `code().is_some()` saw every lock skip and
-            // missed every refusal. The code is read out of the sentence the
-            // refusal already carries, because `refusal()` writes it there and
-            // the two must not be able to disagree.
+            // **And a refusal, which must not answer `None`.** This is the one
+            // variant that carries a hard failure, and in the catch-all a
+            // scheduler filtering on `code().is_some()` would see every lock
+            // skip and miss every refusal. The code is read out of the sentence
+            // the refusal already carries, because `refusal()` writes it there
+            // and the two must not be able to disagree.
             Some(Untouched::ItWasRefused(why)) => Some(
                 nc_catalog::ErrorCode::ALL
                     .iter()
@@ -431,22 +430,22 @@ pub async fn run(target: &mut impl Target, request: Request<'_>) -> Result<Vec<P
 
 /// What one run of the pruner was asked to do.
 ///
-/// **This is `limits.prune`'s declared argument list**, and it was declared
-/// before it existed: `catalog/commands.toml` names `table` and `dry_run` in the
-/// command's `args_schema`, and `run` took neither — so the command a dispatcher
-/// will call and the function that would answer it disagreed, with nothing
-/// saying so. `the_declared_command_is_the_one_this_crate_implements` is what
-/// keeps them together now.
+/// **This is `limits.prune`'s declared argument list.** `catalog/commands.toml`
+/// names `table` and `dry_run` in the command's `args_schema`, and a `run`
+/// taking neither would leave the command a dispatcher will call and the
+/// function that would answer it disagreeing, with nothing saying
+/// so. `the_declared_command_is_the_one_this_crate_implements` is what keeps
+/// them together.
 #[derive(Debug, Clone, Copy, Default)]
 #[non_exhaustive]
 pub struct Request<'a> {
-    // **`#[non_exhaustive]` with no constructor made this unbuildable from
+    // **`#[non_exhaustive]` with no constructor makes this unbuildable from
     // outside**: `Request { table: Some(x), dry_run: true }` is
     // `error[E0639]: cannot create non-exhaustive struct using struct
-    // expression`, so the only expression available to a caller was
-    // `Request::default()` — every table, for real. The drift test lives inside
-    // this crate and could not see it, so the declared `limits.prune` surface
-    // still was not reachable in the form a dispatcher would write.
+    // expression`, so without one the only expression available to a caller
+    // is `Request::default()` — every table, for real. The drift test lives
+    // inside this crate and cannot see that, and the declared `limits.prune`
+    // surface would not be reachable in the form a dispatcher would write.
     //
     // `every` and `just` below are that form.
     /// One bounded table by name, or every one of them.
@@ -491,10 +490,10 @@ impl<'a> Request<'a> {
 /// Skipped entirely rather than pruned with a default, which is what `§15.8`
 /// means by "never a global constant".
 ///
-/// **Reported, not skipped silently.** The loop used to `continue` before
-/// pushing anything, so a journal considered-and-left-alone was
-/// indistinguishable from a journal this pruner never looked at — the exact
-/// thing `run`'s own doc says a run must not do.
+/// **Reported, not skipped silently.** A `continue` before pushing anything
+/// would make a journal considered-and-left-alone indistinguishable from a
+/// journal this pruner never looked at — the exact thing `run`'s own doc says a
+/// run must not do.
 fn bounded_elsewhere(table: &'static str, why: Untouched) -> Pruned {
     Pruned {
         table,
@@ -518,10 +517,11 @@ fn locked(table: &'static str) -> Pruned {
 
 /// One refusal line, carrying the code a responder queries the log by.
 ///
-/// **The code reached no caller.** `Failure::code()` was called by this crate's
-/// own tests and by nothing else, because every public entry point consumed the
-/// `Failure` into a `String` first. `§15.1` asks for a code so a failure can be
-/// found again; a code that stops at the crate boundary is not one.
+/// **The code reaches the caller through the line.** Every public entry point
+/// consumes the `Failure` into a `String`, so without the code written here
+/// `Failure::code()` would be called by this crate's own tests and by nothing
+/// else. `§15.1` asks for a code so a failure can be found again; a code that
+/// stops at the crate boundary is not one.
 fn refusal(why: &Failure, table: &str, what: &str) -> String {
     format!(
         "[{}] `{table}` could not be {what}: {why}",
@@ -549,15 +549,15 @@ fn in_the_other_database(table: &TableLimit, target: nc_catalog::Database) -> St
 /// A table the catalog declares is ordered the way the catalog says.
 ///
 /// **`Target` is public and `the_catalog_disagrees` lives one layer up.** So
-/// this method — the one that issues the `DELETE` — never asked a catalog
-/// anything: measured, `delete_oldest("access_records", "occurred_at", 3)`
-/// removed the three **newest** rows, which is the exact inversion
+/// the method that issues the `DELETE` asks the catalog itself, through this.
+/// Without that, measured, `delete_oldest("access_records", "occurred_at", 3)`
+/// removes the three **newest** rows, which is the exact inversion
 /// `migrations/0006_access_records_orders_by_insertion.sql` exists to prevent,
-/// and `delete_oldest("journal_entries", "sequence", 6)` truncated an audit log
+/// and `delete_oldest("journal_entries", "sequence", 6)` truncates an audit log
 /// carrying `0001`'s shape without the trigger migrations — a restored dump, or
 /// a second deployment mid-migration. `lib.rs` says of the journal that "the
 /// database refuses the `DELETE` as well, and this crate does not rely on
-/// that"; through this door it did.
+/// that"; through this door it would.
 ///
 /// # Errors
 ///
@@ -647,14 +647,15 @@ pub async fn rehearse(
 
 /// The same, judged against a set of limits other than the catalog's.
 ///
-/// **The seam, and it is named so that using it is visible.** `prune_these` and
-/// `rehearse` judge every table against `nc_catalog::TABLES`: a name the catalog
-/// does not declare is refused, and a name it does declare must be handed over
-/// exactly as the catalog wrote it. That is what "the catalog decides what this
-/// crate may touch" has to mean, and it was one field of one comparison — a
-/// caller that matched `strategy` could put back any `order_by`, `max_rows` and
-/// `prune_batch` it liked, and a reviewer emptied `access_records` through the
-/// guard by ordering it with the column that had just been taken away.
+/// **The seam, and it is named so that using it is visible.** `prune_these`
+/// and `rehearse` judge every table against `nc_catalog::TABLES`: a name the
+/// catalog does not declare is refused, and a name it does declare must be
+/// handed over exactly as the catalog wrote it. That is what "the catalog
+/// decides what this crate may touch" has to mean, and one field of one
+/// comparison is not it — a caller that matched `strategy` could put back
+/// any `order_by`, `max_rows` and `prune_batch` it liked, and `access_records`
+/// is emptied through such a guard by ordering it by `id`, a column the
+/// catalog does not order it by, measured.
 ///
 /// The tests in `crates/nc-prune/tests/in_postgres.rs` prune tables they create themselves, and
 /// they are the reason this exists. It is `#[doc(hidden)]` and it says in its
@@ -663,7 +664,7 @@ pub async fn rehearse(
 /// The journal is refused whatever the authority says — `the_catalog_disagrees`
 /// is where the carve-out lives.
 ///
-/// **The link named a function that does not exist**, and nothing saw it:
+/// **A link naming a function that does not exist goes unseen here**:
 /// `RUSTDOCFLAGS=-D warnings` denies `broken_intra_doc_links`, but this item is
 /// `#[doc(hidden)]` and rustdoc does not document a hidden item unless asked —
 /// so it is outside the only gate that reads documentation, along with every
@@ -688,8 +689,8 @@ pub async fn prune_these_declared_by(
 /// Four refusals, all of them about the *request* rather than the database: a
 /// name the catalog does not bound, the journal's `§15.8` carve-out, an entry
 /// that disagrees with what the catalog declares, and an oldest-first entry with
-/// no limit. Split out because the loop they came from crossed a hundred lines
-/// when they stopped ending the run.
+/// no limit. Split out because inside the loop that asks them they would cross
+/// a hundred lines.
 fn the_catalog_disagrees(table: &TableLimit, authority: &[TableLimit]) -> Option<String> {
     let mut refused = Vec::new();
     let bare = table.name.rsplit('.').next().unwrap_or(table.name);
@@ -710,22 +711,21 @@ fn the_catalog_disagrees(table: &TableLimit, authority: &[TableLimit]) -> Option
         return refused.pop();
     }
     // **And the authority for a catalog table is the catalog, not the caller.**
-    // It was compared only against itself, so passing one forged entry as both
-    // sides made the comparison vacuous. Measured through the shipped `pub`
-    // seam: `access_records` with `order_by = "id"`, `max_rows = 0` and a batch
-    // of 500 000 handed in as its own authority emptied all 20 rows,
-    // newest-first by a column the access-log migration documents as *not* creation
-    // order, against a catalog limit of 500 000, reported as an ordinary
-    // success. The journal was carved out by name and nothing else was.
+    // Compared only against itself, passing one forged entry as both sides
+    // makes the comparison vacuous. Measured through the shipped `pub` seam
+    // that way: `access_records` with `order_by = "id"`, `max_rows = 0` and a
+    // batch of 500 000 handed in as its own authority emptied all 20 rows,
+    // newest-first by a column the access-log migration documents as *not*
+    // creation order, against a catalog limit of 500 000, reported as an
+    // ordinary success.
     // A caller's own limits may describe a table the catalog does not know; for
     // one it does, the catalog is the authority whatever was handed over.
     // **By the bare name, like the journal's carve-out.** Matched on the whole
-    // string, a schema-qualified alias — `<schema>.access_records`, a legal name
-    // for the same table — was not "a table the catalog declares", so the
-    // caller stayed its own authority: measured through the seam, 20 of 20 rows
+    // string, a schema-qualified alias — `<schema>.access_records`, a legal
+    // name for the same table — is not "a table the catalog declares", so the
+    // caller stays its own authority: measured through the seam, 20 of 20 rows
     // of the access log gone, newest-first, reported as an ordinary success.
-    // The journal was protected from exactly this by comparing `bare` and the
-    // other declared table was not.
+    // The journal's carve-out compares `bare` for the same reason.
     let authority: &[TableLimit] = if nc_catalog::TABLES
         .iter()
         .any(|known| known.name == table.name || known.name == bare)
@@ -782,10 +782,10 @@ async fn prune_these_with(
 ) -> Result<Vec<Pruned>, String> {
     let mut done = Vec::new();
     // **Every table that refused for a reason no later tick will get past —
-    // carried, not returned.** This returned on the first such table, so one
+    // carried, not returned.** Returning on the first such table, one
     // `RAISE EXCEPTION 'no'` in a `BEFORE DELETE` trigger on the alphabetically
-    // first one stopped pruning for every table after it. Measured: two tables
-    // at six rows each against a limit of two, one trigger, and the second never
+    // first one stops pruning for every table after it. Measured: two tables at
+    // six rows each against a limit of two, one trigger, and the second never
     // looked at — unbounded growth, in the crate whose subject is that records
     // do not grow without bound, from four words of PL/pgSQL.
     //
@@ -795,23 +795,24 @@ async fn prune_these_with(
     let mut refused: Vec<(&'static str, String)> = Vec::new();
     for table in tables {
         // **The catalog decides what this crate may touch, not the caller.**
-        // `prune_these` takes a `&[TableLimit]`, every field of `TableLimit` is
-        // `pub`, and only `run` read `nc_catalog::TABLES` — so a consumer could
-        // hand this a `TableLimit { name: "journal_entries", strategy:
-        // OldestFirst, max_rows: Some(0), … }` and ask the crate whose header
-        // says of the journal *"this must not touch it"* to delete all of it.
-        // The tree's own tests build `TableLimit` that way, so the shape is
-        // reachable from outside.
+        // `prune_these` takes a `&[TableLimit]` and every field of `TableLimit`
+        // is `pub`, so a consumer can hand this a `TableLimit { name:
+        // "journal_entries", strategy: OldestFirst, max_rows: Some(0), … }`.
+        // Judged by the caller's limits alone, that would ask the crate whose
+        // header says of the journal *"this must not touch it"* to delete all
+        // of it. The tree's own tests build `TableLimit` that way, so the shape
+        // is reachable from outside.
         //
-        // What stopped it was one migration's trigger — measured, and it does
-        // hold: `ERROR: the journal is append-only: DELETE on journal_entries
-        // was refused`. But `§15.8`'s carve-out belonged to the database alone
-        // while this crate documented it as its own, and a guarantee that lives
-        // in one place should not be claimed in two.
+        // What else stops it is one migration's trigger — measured, and it does
+        // hold:
+        // `ERROR: the journal is append-only: DELETE on journal_entries was refused`.
+        // But this crate's header claims `§15.8`'s carve-out as its own, and a
+        // guarantee a crate claims is one it holds itself rather than one that
+        // lives only in the database.
         //
-        // **Three ways past the first attempt at this, all measured.** It
-        // compared one field — `strategy` — of the caller's entry against the
-        // catalog's, and only when the names matched exactly:
+        // **Three ways past a guard that compares one field, all measured.**
+        // Comparing only `strategy` of the caller's entry against the
+        // catalog's, and only when the names match exactly, lets these through:
         //
         // ```text
         // public.journal_entries  ->  removed 1000000   (a legal name for the
@@ -894,7 +895,7 @@ async fn prune_these_with(
         // Exactly one batch, even when the table is far over. A run that looped
         // until the table was under its limit would hold a lock for as long as
         // the backlog took, and the schedule is what catches up.
-        // What a real run takes now: one whole batch, or every row if the table
+        // What a real run takes: one whole batch, or every row if the table
         // holds fewer than a batch. **Not the excess** — the `DELETE` removes a
         // batch whether or not that takes the table below its limit, and a
         // prediction that said otherwise would be a dry run answering a
@@ -937,38 +938,39 @@ async fn prune_these_with(
 
 /// What a run answers when some tables refused and others were pruned.
 ///
-/// Its own function because `prune_these_with` crossed a hundred lines when a
-/// table that refuses stopped ending the run.
+/// Its own function because inside `prune_these_with` it would cross a hundred
+/// lines.
 fn verdict(done: Vec<Pruned>, refused: &[(&'static str, String)]) -> Result<Vec<Pruned>, String> {
     if refused.is_empty() {
         return Ok(done);
     }
-    // **What was done is not discarded because something else failed.** This
-    // returned `Err` and threw the `Pruned` list away, so a run that pruned one
-    // table and was refused on another reported *no* table — measured, four rows
-    // gone from `r24c_b` and a caller that could not know it, against a doc that
-    // promises one entry per table considered. A scheduler cannot journal what
-    // it is not told.
+    // **What was done is not discarded because something else failed.**
+    // Returning `Err` and throwing the `Pruned` list away, a run that pruned
+    // one table and was refused on another would report *no* table — measured,
+    // four rows gone from `r24c_b` and a caller that could not know it, against
+    // a doc that promises one entry per table considered. A scheduler cannot
+    // journal what it is not told.
     //
     // So a refusal is an error only when nothing was done. When something was,
     // the refusals ride along as their own rows: `left_alone` is where a table
     // says why it was not pruned, and this is one more reason.
     // **"Nothing was done" is not "removed nothing".** `removed` is zero on
-    // every dry run by construction — the batch is `LIMIT 0` — so a rehearsal
-    // with one refusal threw away every prediction it had made, and a table
-    // something else held a lock on, the one `Pruned` a scheduler escalates on,
-    // went with it. What distinguishes a run that did nothing is that it has no
-    // rows to report at all.
+    // every dry run by construction — the batch is `LIMIT 0` — so judged that
+    // way a rehearsal with one refusal throws away every prediction it has
+    // made, and a table something else held a lock on, the one `Pruned` a
+    // scheduler escalates on, goes with it. What distinguishes a run that did
+    // nothing is that it has no rows to report at all.
     //
     // **And a row nothing asked the store for is not a row that was done.** A
     // table the pack bounds is pushed without the database being touched, so
-    // `done` was never empty for the whole-catalog request — measured with the
-    // store unreachable: `run(Request::every())` answered **`Ok`** with two
-    // rows, one of them the journal's carve-out and the other the refusal, while
-    // `run(Request::just("access_records"))` answered `Err` for the same fault.
-    // One outage, two result shapes decided by the shape of the request, and a
-    // scheduler checking `is_err()` never learned the store was gone while the
-    // one table `§15.8` exists to bound grew.
+    // `done` is never empty for the whole-catalog request — measured with the
+    // store unreachable and `done` alone judged: `run(Request::every())`
+    // answered **`Ok`** with two rows, one of them the journal's carve-out and
+    // the other the refusal, while `run(Request::just("access_records"))`
+    // answered `Err` for the same fault. One outage, two result shapes decided
+    // by the shape of the request, and a scheduler checking `is_err()` never
+    // learns the store is gone while the one table `§15.8` exists to bound
+    // grows.
     if done.iter().all(|pruned| {
         matches!(
             pruned.left_alone,
@@ -982,9 +984,9 @@ fn verdict(done: Vec<Pruned>, refused: &[(&'static str, String)]) -> Result<Vec<
             .join("; "));
     }
     let mut done = done;
-    // **And the row says which table, which it did not.** `table: ""` sent a
-    // scheduler the one row it has to act on with nothing to act on it by —
-    // measured, `Pruned { table: "", removed: 0, left_alone: Some(ItWasRefused(…)) }`
+    // **And the row says which table.** `table: ""` sends a scheduler the one
+    // row it has to act on with nothing to act on it by — measured,
+    // `Pruned { table: "", removed: 0, left_alone: Some(ItWasRefused(…)) }`
     // beside a row that had deleted 50 000. The name is carried alongside the
     // sentence rather than read back out of it, so the two cannot disagree.
     for (table, why) in refused {
@@ -1011,20 +1013,19 @@ mod tests {
 
     /// The code on a refusal is the one its own sentence carries.
     ///
-    /// **The only test of `code()` on a refusal built one whose code *is* the
-    /// fallback**, so neither the `ErrorCode::ALL` lookup nor the
-    /// `unwrap_or` was ever decided: `in_postgres.rs`'s
-    /// `a_skip_and_a_refusal_each_carry_the_code_a_scheduler_reads` asserts
-    /// only `!code.retryable()`, and its refusal is a view, which is
-    /// `NC-DB-0005`. Measured: the whole arm replaced by
-    /// `Some(ErrorCode::DbPruneRefused)` left `ok 1130 test(s)` and `check
-    /// passed`, and a `the catalog does not bound this table` refusal —
-    /// `NC-DB-0004`, *the request names something that is not there* — reached
-    /// a scheduler as *old records could not be cleared, and trying again will
-    /// not help*. That is one fault under two identities, which is the failure
-    /// `§15.1` exists to prevent. Replacing the fallback with the **retryable**
-    /// `DbPruneFailed` also stayed green, so the arm was decided by nothing in
-    /// either direction.
+    /// **A refusal whose code is the fallback decides neither
+    /// the `ErrorCode::ALL` lookup nor
+    /// the `unwrap_or`**: `in_postgres.rs`'s `a_skip_and_a_refusal_each_carry_the_code_a_scheduler_reads`
+    /// asserts only `!code.retryable()`, and its refusal is a view, which
+    /// is `NC-DB-0005`. Measured without this: the whole arm replaced
+    /// by `Some(ErrorCode::DbPruneRefused)` leaves `check passed`, and
+    /// a `the catalog does not bound this table` refusal — `NC-DB-0004`, *the
+    /// request names something that is not there* — reaches a scheduler as *old
+    /// records could not be cleared, and trying again will not help*. That is
+    /// one fault under two identities, which is the failure `§15.1` exists to
+    /// prevent. Replacing the fallback with the **retryable** `DbPruneFailed`
+    /// stays green too, so without this the arm is decided by nothing in either
+    /// direction.
     #[test]
     fn a_refusal_carries_the_code_its_own_sentence_names() {
         let refused = |why: &str| super::Pruned {
@@ -1070,7 +1071,7 @@ mod tests {
 
     /// Every refusal a caller can receive names a code.
     ///
-    /// **Five of nine reached a caller as bare text.** Measured against a real
+    /// **Without a code, five of nine reach a caller as bare text.** Measured against a real
     /// database: an unknown table, the journal carve-out, a table the catalog
     /// does not declare, an entry that disagrees with the catalog, and an
     /// oldest-first entry with no limit — all `Err(String)` with nothing in
@@ -1117,11 +1118,12 @@ mod tests {
 
     /// And the code reaches a caller, which is the only reason it exists.
     ///
-    /// **It did not.** Every public entry point consumed the `Failure` into a
-    /// `String` or into `locked()`, so `Failure::code()` was called by the test
-    /// above and by nothing else on the planet. A code that stops at the crate
-    /// boundary cannot be journalled, cannot be a `LogValue` and cannot be what
-    /// the central log is queried by — which is the whole of `§15.1`'s ask.
+    /// Every public entry point consumes the `Failure` into a `String` or into
+    /// `locked()`, so without the code in that `String`, `Failure::code()`
+    /// would be called by the test above and by nothing else on the planet. A
+    /// code that stops at the crate boundary cannot be journalled, cannot be a
+    /// `LogValue` and cannot be what the central log is queried by — which is
+    /// the whole of `§15.1`'s ask.
     #[test]
     fn the_code_reaches_whoever_reads_the_result() {
         let refused = super::Failure {
@@ -1136,14 +1138,15 @@ mod tests {
         );
 
         // **The code the reader gets back, rather than a `contains`.**
-        // `Pruned::code()` reads the code off the *front* of this sentence and
-        // this asked only that it appear somewhere in it — so a prefix as small
-        // as `prune: ` left the writer and the reader disagreeing with the whole
-        // workspace green. Measured: with one added, a store that did not answer
-        // was written `NC-DB-0001` by `refusal` and read back as `NC-DB-0005` by
-        // `code`, whose sentence says trying again will not help. That inverts
-        // `retryable` for a database that is merely restarting, which is the one
-        // distinction `Failure::answered` exists to draw.
+        // `Pruned::code()` reads the code off the *front* of this sentence, and
+        // asking only that it appear somewhere in it lets a prefix as small as
+        // `prune: ` leave the writer and the reader disagreeing with the whole
+        // workspace green. Measured: with one added, a store that does not
+        // answer is written `NC-DB-0001` by `refusal` and read back as
+        // `NC-DB-0005` by `code`, whose sentence says trying again will not
+        // help. That inverts `retryable` for a database that is merely
+        // restarting, which is the one distinction `Failure::answered` exists
+        // to draw.
         //
         // Both failures, because the pair is what the inversion is between.
         for why in [
@@ -1194,10 +1197,9 @@ mod tests {
 
     /// A failure says which failure it is, in the vocabulary a log is queried by.
     ///
-    /// **`NC-DB-0003` was reserved and produced by nothing** while this crate —
-    /// the one whose whole job is pruning tables — answered with a `String`.
-    /// Seven of twenty reserved codes were in that state; this is the one whose
-    /// producer was sitting right here.
+    /// **`NC-DB-0003` is reserved for this crate**, the one whose whole job is
+    /// pruning tables. Answering with a `String` alone, it would leave a
+    /// reserved code produced by nothing, with its producer sitting right here.
     #[test]
     fn a_failure_carries_the_code_the_registry_reserved_for_it() {
         let refused = super::Failure {
@@ -1210,15 +1212,15 @@ mod tests {
             !refused.code().retryable(),
             "a table that refuses to be pruned refuses again on the next tick"
         );
-        // **And a wait is a different code**, because what a caller does with it
-        // is different. Both were `DbPruneFailed`, which is `retryable`:
-        // measured, three ticks against a table whose `order_by` column does not
-        // exist gave three identical retryable failures, both locales promising
-        // "this will be tried again", and twenty rows still held against a limit
-        // of five. It answered `DbUnreachable` before that — *"The database did
-        // not answer"*, severity critical — for a lock timeout the database
-        // answered with, in five seconds, and a responder reading that goes
-        // looking for a store that is down.
+        // **And a wait is a different code**, because what a caller does with
+        // it is different. As `DbPruneFailed` for both, which is `retryable`:
+        // measured, three ticks against a table whose `order_by` column does
+        // not exist give three identical retryable failures, both locales
+        // promising "this will be tried again", and twenty rows still held
+        // against a limit of five. As `DbUnreachable` — *"The database did not
+        // answer"*, severity critical — a lock timeout the database answered
+        // with, in five seconds, sends a responder looking for a store that is
+        // down.
         let waited = super::Failure {
             why: "canceling statement due to lock timeout".to_owned(),
             waited: true,
@@ -1238,15 +1240,14 @@ mod tests {
         // chosen by that field so the two cannot disagree.
         assert!(waited.waited && !refused.waited);
 
-        // **And the store that did not answer at all**, which nothing pinned:
-        // the arm's own paragraph records a pool timeout answering
-        // `DbPruneRefused`, *retrying will not help*, for a database that was
-        // restarting — and `answered` exists to draw exactly that line.
-        // Measured on 2026-09-10, the condition switched off:
-        // `cargo test -p nc-prune --lib` stayed green, because the one test
-        // that reads this code compares the reader against the writer and both
-        // go through this function. An expectation derived from the thing it
-        // tests holds for any answer at all.
+        // **And the store that did not answer at all**, held here: the arm's
+        // own paragraph records a pool timeout answering `DbPruneRefused`,
+        // *retrying will not help*, for a database that is restarting — and
+        // `answered` exists to draw exactly that line. Measured without this,
+        // the condition switched off: `cargo test -p nc-prune --lib` green,
+        // because the one other test that reads this code compares the reader
+        // against the writer and both go through this function. An expectation
+        // derived from the thing it tests holds for any answer at all.
         let silent = super::Failure {
             why: "the pool timed out".to_owned(),
             waited: false,
@@ -1328,15 +1329,16 @@ mod tests {
 
     /// A table the real catalog does not declare.
     ///
-    /// **It used to be `access_records`, and that made these tests the attack.**
-    /// `the_catalog_disagrees` compared a caller's entry against the authority
-    /// the caller handed over, so passing one forged entry as both sides was
-    /// vacuous — measured through the shipped `pub` seam, `access_records`
-    /// emptied newest-first by a column the catalog had taken away. The
-    /// comparison is against `nc_catalog::TABLES` for any name the catalog
-    /// declares now, so a test that describes its own limits has to describe a
-    /// table of its own. That is what the seam is for: `prune_these_declared_by`
-    /// exists so a test can prune a table it created.
+    /// **Not `access_records`, because that would make these tests the
+    /// attack.** `the_catalog_disagrees` comparing a caller's entry against the
+    /// authority the caller handed over is vacuous for one forged entry passed
+    /// as both sides — measured through the shipped `pub`
+    /// seam, `access_records` emptied newest-first by a column the catalog had
+    /// taken away. The comparison is against `nc_catalog::TABLES` for any name
+    /// the catalog declares, so a test that describes its own limits has to
+    /// describe a table of its own. That is what the seam is
+    /// for: `prune_these_declared_by` exists so a test can prune a table it
+    /// created.
     const LIMIT: TableLimit = TableLimit {
         name: "rows_a_test_created",
         database: Database::Server,
@@ -1511,23 +1513,24 @@ mod tests {
 
     /// `LIMIT` is this module's `access_records`, at numbers small enough to
     /// count by hand — a different entry from the catalog's, which is exactly
-    /// what `prune_these` now refuses. Driven through the seam that says so.
+    /// what `prune_these` refuses. Driven through the seam that says so.
     async fn ours(rows: &mut Rows, tables: &[TableLimit]) -> Result<Vec<Pruned>, String> {
         super::prune_these_declared_by(rows, tables, &[LIMIT, PACKED], false).await
     }
 
     /// A refusal beside real work keeps the work it reported.
     ///
-    /// **"Nothing was done" is not "removed nothing", and only one direction of
-    /// that was held.** The predicate is *every row is a table the policy pack
-    /// bounds*, and its own paragraph records what `done.is_empty()` cost: a
-    /// rehearsal with one refusal threw away every prediction it had made, and
-    /// a table something else held a lock on — the one `Pruned` a scheduler
-    /// escalates on — went with it. Planting `done.is_empty()` there is caught.
-    /// Planting `pruned.removed == 0` was not: a **dry run removes nothing by
-    /// definition**, so every rehearsal beside a refusal became `Err`, and so
-    /// did every real run where the tables under their limits happened to be
-    /// the ones that answered. Measured: `ok 1130 test(s)` and `check passed`.
+    /// **"Nothing was done" is not "removed nothing", and both directions are
+    /// held.** The predicate is *every row is a table the policy pack bounds*,
+    /// and its own paragraph records what `done.is_empty()` costs: a rehearsal
+    /// with one refusal throws away every prediction it has made, and a table
+    /// something else held a lock on — the one `Pruned` a scheduler escalates
+    /// on — goes with it. Planting `done.is_empty()` there is
+    /// caught. Planting `pruned.removed == 0` is what this catches: a **dry run
+    /// removes nothing by definition**, so every rehearsal beside a refusal
+    /// becomes `Err`, and so does every real run where the tables under their
+    /// limits happen to be the ones that answered. Measured without
+    /// this: `check passed`.
     #[tokio::test]
     async fn a_rehearsal_beside_a_refusal_still_reports_what_it_would_do() {
         const STRANGER: TableLimit = TableLimit {
@@ -1594,22 +1597,22 @@ mod tests {
 
     /// A batch larger than the table takes the table, not the batch.
     ///
-    /// **The `.min(before)` was decided by nothing.** `let would_remove = batch;`
-    /// left this crate's 21 + 32 tests green, because every case in the suite
-    /// has `batch <= before`: the catalog's `access_records` is 500,000 over
-    /// 50,000, `LIMIT` is 100 over 10, and the dry-run case is 14 over 4. The
-    /// clause the comment argues for — "or every row if the table holds fewer
-    /// than a batch" — is reachable only when `prune_batch > max_rows`. A dry
-    /// run would then predict more rows than any real run can take.
+    /// **The `.min(before)`, decided here.** Over a case with
+    /// `batch <= before` — the catalog's `access_records`, 500,000 over 50,000;
+    /// `LIMIT`, 100 over 10; the dry-run case, 14 over 4 —
+    /// `let would_remove = batch;` answers the same, so the clause needs a case
+    /// of its own. The clause the comment argues for — "or every row if the
+    /// table holds fewer than a batch" — is reachable only when
+    /// `prune_batch > max_rows`. A dry run would then predict more rows than
+    /// any real run can take.
     ///
-    /// **This paragraph said `catalog/limits.toml` can express that, and it
-    /// cannot.** `nc-catalog-compiler`'s loader refuses the shape outright as
+    /// **`catalog/limits.toml` cannot express that.** `nc-catalog-compiler`'s
+    /// loader refuses the shape outright as
     /// `batch-past-limit`, and pruning only runs when `before > max_rows >=
     /// prune_batch`, so for every catalog-legal entry `batch.min(before)` *is*
     /// `batch` and this clause is reachable only through
-    /// `prune_these_declared_by`, where a caller passes the numbers directly.
-    /// The test is worth having for exactly that caller; the sentence that
-    /// explained why had gone stale.
+    /// `prune_these_declared_by`, where a caller passes the numbers directly; the
+    /// test is worth having for exactly that caller.
     #[tokio::test]
     async fn a_batch_larger_than_the_table_takes_the_table() {
         const SMALL: TableLimit = TableLimit {
@@ -1689,8 +1692,8 @@ mod tests {
 
     /// A target that refuses one table the way PostgreSQL does under a lock.
     ///
-    /// At module scope because two tests drive it, and because the test it was
-    /// written inside crossed a hundred lines once a second one was added.
+    /// At module scope because two tests drive it, and because one test holding
+    /// both would cross a hundred lines.
     #[derive(Debug, Default)]
     struct OneIsLocked {
         rows: Rows,
@@ -1706,11 +1709,11 @@ mod tests {
                 )));
             }
             if table == "a_locked" {
-                // The database's own fact, not a phrase: a `BEFORE DELETE`
-                // trigger raising "the exporter gave up waiting for a lock
-                // file" was read as contention by a `contains` over the
-                // message, and a permanent failure was reported as a benign
-                // skip on every tick for ever.
+                // The database's own fact, not a phrase: decided by a
+                // `contains` over the message, a `BEFORE DELETE` trigger
+                // raising "the exporter gave up waiting for a lock file" reads
+                // as contention, and a permanent failure is reported as a
+                // benign skip on every tick for ever.
                 return Err(super::Failure {
                     why: "canceling statement due to lock timeout".to_owned(),
                     waited: true,
@@ -1731,14 +1734,14 @@ mod tests {
 
     /// A lock skip beside a refusal is still a lock skip.
     ///
-    /// **`verdict`'s predicate names one variant and nothing decided that it
-    /// is one.** The paragraph above it argues for exactly that wording — "a
-    /// table something else held a lock on, the one `Pruned` a scheduler
-    /// escalates on, went with it". Measured: broadened to
-    /// `APolicyPackBoundsIt | SomethingElseHeldALock`, the whole run answers
-    /// `Err` and the lock skip is discarded, with `ok 1133 test(s)` and `check
-    /// passed` — green because `catalog/limits.toml` ships two bounded tables
-    /// and one of them is the carve-out, so the case that bites cannot be built
+    /// **`verdict`'s predicate names one variant, and this decides that it is
+    /// one.** The paragraph above it argues for exactly that wording — "a table
+    /// something else held a lock on, the one `Pruned` a scheduler escalates
+    /// on, went with it". Measured without this: broadened
+    /// to `APolicyPackBoundsIt | SomethingElseHeldALock`, the whole run
+    /// answers `Err` and the lock skip is discarded, with `check passed` —
+    /// because `catalog/limits.toml` ships two bounded tables and
+    /// one of them is the carve-out, so the case that bites cannot be built
     /// from the catalog. Driven through the seam that takes its own limits, it
     /// can.
     #[tokio::test]
@@ -1772,9 +1775,9 @@ mod tests {
 
     /// A table something else is holding does not stop the ones after it.
     ///
-    /// **The lock bound was right and it returned through the loop's `?`.**
-    /// Measured against a real database, two tables both over their limit with
-    /// an `ACCESS EXCLUSIVE` lock held on the first:
+    /// **A lock bound that returns through the loop's `?` stops every table
+    /// after it.** Measured against a real database, two tables both over their
+    /// limit with an `ACCESS EXCLUSIVE` lock held on the first:
     ///
     /// ```text
     /// after    5.0017s
@@ -1818,13 +1821,13 @@ mod tests {
             "the table after the locked one was not pruned: {done:?}"
         );
 
-        // **A message is not a fact.** The skip was decided by `contains` over
-        // the database's message, and that message carries text the application
-        // wrote. An ordinary `BEFORE DELETE` trigger — no lock, nothing timed
+        // **A message is not a fact.** The database's message carries text
+        // the application wrote, so with the skip decided by `contains` over
+        // it, an ordinary `BEFORE DELETE` trigger — no lock, nothing timed
         // out — raising `'this table is archived: the exporter gave up waiting
-        // for a lock file'` was read as contention, and the run reported
+        // for a lock file'` reads as contention, and the run reports
         // `Ok([Pruned { …, left_alone: Some(SomethingElseHeldALock) }])` while
-        // the table sat at nine rows against a limit of six. On every tick.
+        // the table sits at nine rows against a limit of six. On every tick.
         let mut target = OneIsLocked::default();
         target.rows.counts.insert("b_free".to_owned(), 150);
         target.rows.refuse =
@@ -1837,8 +1840,9 @@ mod tests {
 
         // **A table that refuses permanently does not stop the ones after it.**
         // The run still fails — at the end — but every table that could be
-        // pruned has been. One `RAISE EXCEPTION 'no'` on the alphabetically
-        // first table used to stop pruning for all of them.
+        // pruned has been, where returning on the first refusal would let one
+        // `RAISE EXCEPTION 'no'` on the alphabetically first table stop pruning
+        // for all of them.
         let mut target = OneIsLocked::default();
         target.rows.counts.insert("b_free".to_owned(), 150);
         target.rows.refuse_first = Some("a_locked".to_owned());
@@ -1849,11 +1853,11 @@ mod tests {
             false,
         )
         .await;
-        // **The refusal is reported and the work is not discarded.** This
-        // asserted `is_err()`, and `verdict` returned `Err` while throwing away
-        // every `Pruned` it had collected — so a run that pruned one table and
-        // was refused on another told its caller about neither, with the rows
-        // already gone. The refusal rides along as its own row now.
+        // **The refusal is reported and the work is not discarded.** An
+        // `is_err()` alone would pass a `verdict` that returns `Err` while
+        // throwing away every `Pruned` it collected — a run that pruned one
+        // table and was refused on another telling its caller about neither,
+        // with the rows already gone. The refusal rides along as its own row.
         let done = stopped.expect("a run that pruned something reports what it pruned");
         assert!(
             done.iter()
@@ -1882,13 +1886,13 @@ mod tests {
 
     /// The journal is carved out under its schema-qualified name too.
     ///
-    /// **The `bare` comparison had no case.** `if bare == JOURNAL` could be
-    /// reverted to `if table.name == JOURNAL` with `cargo test -p nc-prune`
-    /// green: `public.journal_entries` is still refused, because the
-    /// entry-versus-catalog clause below catches it and says something else.
-    /// Only the *sentence* changes — so this is defence in depth rather than an
-    /// exploit, and a clause whose only evidence is another clause's verdict is
-    /// a clause nothing is holding.
+    /// **The `bare` comparison's own case.** Without it, `if bare == JOURNAL`
+    /// can be reverted to `if table.name == JOURNAL`
+    /// with `cargo test -p nc-prune` green: `public.journal_entries` is still
+    /// refused, because the entry-versus-catalog clause below catches it and
+    /// says something else. Only the *sentence* changes — so this is defence in
+    /// depth rather than an exploit, and a clause whose only evidence is
+    /// another clause's verdict is a clause nothing is holding.
     ///
     /// Called directly rather than through the pool: the refusal is decided
     /// before any statement is prepared, and a case that needs a database to
@@ -1896,13 +1900,14 @@ mod tests {
     /// A table at or below its limit is not pruned, and no database is needed
     /// to say so.
     ///
-    /// **The clause that decides whether the pruner runs at all was decided only
-    /// by the PostgreSQL suite**, which `--offline` skips: `before <= max_rows`
-    /// weakened to `before == max_rows` left `cargo test -p nc-prune --lib` at
-    /// 23 passed and `cargo xtask check --offline` at `check passed` — with a
-    /// pruner that removes a batch from every table **below** its limit. For
-    /// `access_records` that empties a live table 50 000 rows at a time, every
-    /// run answering `Ok`.
+    /// **The clause that decides whether the pruner runs at all, decided
+    /// outside the PostgreSQL suite**, which `--offline` skips: without
+    /// this, `before <= max_rows` weakened to `before == max_rows`
+    /// leaves `cargo test -p nc-prune --lib` green
+    /// and `cargo xtask check --offline` at `check passed` — with a pruner that
+    /// removes a batch from every table **below** its
+    /// limit. For `access_records` that empties a live table 50 000 rows at a
+    /// time, every run answering `Ok`.
     ///
     /// `in_postgres.rs`'s header claims *"the parent module's tests prove the
     /// arithmetic — when to run, how many to take, what to report"*. They proved
@@ -1966,9 +1971,9 @@ mod tests {
     #[tokio::test]
     /// Three ways past the guard, each one measured against a real database.
     ///
-    /// The first version of this compared `strategy` and only `strategy`, and
-    /// only when the caller's name was character-for-character the catalog's. A
-    /// reviewer emptied three tables through it with the public API alone.
+    /// A guard comparing `strategy` and only `strategy`, and only when the
+    /// caller's name is character-for-character the catalog's, lets three
+    /// tables be emptied through it with the public API alone, measured.
     async fn the_catalog_decides_the_whole_entry_and_not_one_field_of_it() {
         // (a) A legal second name for the same table. `identifier` accepts
         // `schema.table` — deliberately — and the default `search_path` makes
@@ -2015,8 +2020,8 @@ mod tests {
         assert!(through_the_seam.is_err(), "{through_the_seam:?}");
         assert!(rows.deletions.is_empty(), "{:?}", rows.deletions);
 
-        // (b) A table the catalog says nothing about, so there was nothing to
-        // disagree with. `_sqlx_migrations` is the one this reached.
+        // (b) A table the catalog says nothing about, so there is nothing to
+        // disagree with. `_sqlx_migrations` is the one this reaches.
         let mut rows = Rows::with("_sqlx_migrations", 500);
         let refused = prune_these(
             &mut rows,
@@ -2034,8 +2039,9 @@ mod tests {
         assert!(rows.deletions.is_empty(), "{:?}", rows.deletions);
 
         // (c) The catalog's own table, its strategy matched, and every other
-        // field the caller's — including the `order_by` column this round took
-        // away. `removed 400000`, leaving the table empty.
+        // field the caller's — including an `order_by` of `id`, which the
+        // catalog does not order it by. `removed 400000`, leaving the table
+        // empty.
         let declared = nc_catalog::TABLES
             .iter()
             .find(|table| table.name == "access_records")
@@ -2066,15 +2072,15 @@ mod tests {
 
     #[tokio::test]
     async fn the_journal_this_repository_ships_is_bounded_by_the_pack_and_not_by_a_number() {
-        // **Against the catalog that ships**, not against a fixture. Setting
-        // `journal_entries` to `oldest-first` with a `max_rows` and a
-        // `prune_batch` left `cargo xtask check` entirely green, and this pruner
-        // would then have deleted 20,000 journal rows per run — which is what
-        // `NOCTUA.md §15.8` forbids in as many words: audit retention is "never
-        // a global constant, and never silently pruned below what the pack
-        // promises". The only thing that objected was a fixture whose `replace`
-        // needle happened to be the journal's own two lines, which is a drift
-        // guard rather than a rule about the journal.
+        // **Against the catalog that ships**, not against a fixture. Without
+        // this, setting `journal_entries` to `oldest-first` with a `max_rows`
+        // and a `prune_batch` leaves `cargo xtask check` entirely green, and
+        // this pruner would then delete 20,000 journal rows per run — which is
+        // what `NOCTUA.md §15.8` forbids in as many words: audit retention is
+        // "never a global constant, and never silently pruned below what the
+        // pack promises". The only other thing that objects is a fixture whose
+        // `replace` needle happens to be the journal's own two lines, which is
+        // a drift guard rather than a rule about the journal.
         let journal = nc_catalog::TABLES
             .iter()
             .find(|table| table.name == "journal_entries")
@@ -2090,12 +2096,12 @@ mod tests {
         // And end to end: the real catalog, through the real entry point.
         //
         // **With a second table over its limit**, because without one this
-        // assertion ranged over nothing: `Rows::with` leaves every other table
-        // at zero and the journal is `PolicyPack`, so `deletions` was empty and
+        // assertion ranges over nothing: `Rows::with` leaves every other table
+        // at zero and the journal is `PolicyPack`, so `deletions` is empty and
         // an `.all()` over it is true whatever the pruner does. Measured with an
-        // iterator probe over the whole suite — this closure never saw an
-        // element, so a `run()` that pruned nothing satisfied the "end to end"
-        // half of a `§15.8` test.
+        // iterator probe over the whole suite — without the second table this
+        // closure never sees an element, so a `run()` that prunes nothing
+        // satisfies the "end to end" half of a `§15.8` test.
         let mut rows = Rows::with("journal_entries", 1_000_000);
         rows.counts.insert("access_records".to_owned(), 1_000_000);
         run(&mut rows, Request::default()).await.expect("prunes");
@@ -2121,10 +2127,10 @@ mod tests {
         // §15.8's exception, and the one that matters most: audit retention is a
         // promise, and a global constant here would one day prune below it.
         //
-        // **And it is reported.** This asserted `done.is_empty()`, which is what
-        // a pruner that never looked at the table also produces — so the doc
-        // comment's own rule, that a run must be able to tell "did nothing" from
-        // "did not look", was contradicted by the test meant to pin it.
+        // **And it is reported.** `done.is_empty()` is also what a pruner that
+        // never looked at the table produces, so asserting it would contradict
+        // the doc comment's own rule, that a run must be able to tell "did
+        // nothing" from "did not look".
         let mut rows = Rows::with("journal_entries", 1_000_000);
         let done = prune_these(&mut rows, &[PACKED]).await.expect("prunes");
         assert_eq!(
@@ -2166,7 +2172,7 @@ mod tests {
             // to hold, and an `async` block for it is a `manual_async_fn` that
             // clippy asks to be an `async fn` again. So reaching this method is
             // a sentence in the error instead, and the assertion below reads it
-            // — which says the same thing a panic did.
+            // — which says what a panic would.
             fn delete_oldest(
                 &mut self,
                 _: &str,
@@ -2188,10 +2194,10 @@ mod tests {
 
     #[test]
     fn the_declared_command_is_the_one_this_crate_implements() {
-        // **`limits.prune` was declared before it existed.**
+        // **`limits.prune` is declared, so `run` takes what it declares.**
         // `catalog/commands.toml` gives the command an `args_schema` naming
-        // `table` and `dry_run`, and `run` took neither — so the command a
-        // dispatcher will call and the function that would answer it disagreed,
+        // `table` and `dry_run`; a `run` taking neither would leave the command
+        // a dispatcher calls and the function that answers it disagreeing,
         // with nothing in the tree saying so. A declared surface nothing
         // implements is worse than an undeclared one: the first reads as done.
         let declared = nc_catalog::command("limits.prune").expect("the command is declared");
@@ -2285,11 +2291,11 @@ mod tests {
         // exception would leave this component with no data at all, and every
         // test above passing against limits its own test invented.
         //
-        // **Not `!done.is_empty()`.** Since a policy-pack table began reporting
-        // itself as considered-and-left-alone, `done` is non-empty in exactly
-        // the case this was written to catch — so the assertion that names the
-        // floor stopped measuring it. What it has to count is the tables this
-        // component can actually act on.
+        // **Not `!done.is_empty()`.** A policy-pack table reports itself as
+        // considered-and-left-alone, so `done` is non-empty in exactly the case
+        // this is written to catch — and an assertion on it would not measure
+        // the floor it names. What it has to count is the tables this component
+        // can actually act on.
         let mut rows = Rows::default();
         let done = run(&mut rows, Request::default()).await.expect("runs");
         let actionable = done

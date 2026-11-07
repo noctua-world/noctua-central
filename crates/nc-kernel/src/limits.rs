@@ -338,9 +338,9 @@ mod tests {
     /// capability spec, so no function of it can take either from a caller.
     ///
     /// **The guarantee the seal was taken for.** `#[non_exhaustive]` stops a
-    /// struct literal and nothing else: a review compiled
+    /// struct literal and nothing else:
     /// `let mut second = nc_catalog::KERNEL; second.memory_bytes = u64::MAX;`
-    /// in a suite of this crate, and the same edit of a copied
+    /// compiles in a suite of this crate, and so does the same edit of a copied
     /// `CapabilitySpec`, so a second value of either can be made anywhere.
     /// What stops it reaching a decision is that the kernel reads `KERNEL` and
     /// `Capability::spec` itself and accepts neither type from outside: a
@@ -349,13 +349,13 @@ mod tests {
     /// the sentences that explain this are not what it refuses; a macro that
     /// assembles the name is what it does not see.
     ///
-    /// **The walk is held to the crate's own module tree, both ways.** It was
-    /// floored at `read > 1`, and a review planted a type in
-    /// `crates/nc-kernel/src/host/store.rs` and a walk that stopped at the top
-    /// directory: half the sources were read, the floor held, and the test
-    /// passed. Every `mod name;` of a file read is a file it must read, which
-    /// the compiler keeps true, so a walk that skips a directory, or reads a
-    /// file the crate does not build, fails.
+    /// **The walk is held to the crate's own module tree, both ways.** A floor
+    /// of `read > 1` does not hold it: with a type planted in
+    /// `crates/nc-kernel/src/host/store.rs` and a walk that stops at the top
+    /// directory, half the sources would be read, the floor would hold, and a
+    /// test floored so would pass. Every `mod name;` of a file read is a file
+    /// it must read, which the compiler keeps true, so a walk that skips a
+    /// directory, or reads a file the crate does not build, fails.
     #[test]
     fn no_function_of_the_kernel_takes_the_catalogs_limits_or_a_spec_from_its_caller() {
         let names = [concat!("Kernel", "Limits"), concat!("Capability", "Spec")];
@@ -524,11 +524,11 @@ mod tests {
 
     /// Every bound a lowering refuses is named, not the first of them.
     ///
-    /// **A review raised two limits in one manifest and was told of one:** this
-    /// returned on the first refusal, and the manifest's module says every
-    /// problem is reported. Here all four are wrong at once, three raised and
-    /// one lowered to zero, and all four are named, in the order [`Lowering`]
-    /// declares them.
+    /// **Two limits raised in one manifest are two refusals:** a lowering that
+    /// returns on the first refusal tells of one, and the manifest's module
+    /// says every problem is reported. Here all four are wrong at once, three
+    /// raised and one lowered to zero, and all four are named, in the order
+    /// [`Lowering`] declares them.
     #[test]
     fn every_bound_a_lowering_refuses_is_named_not_the_first() {
         let ceiling = Limits::catalog();

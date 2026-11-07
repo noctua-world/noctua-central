@@ -32,11 +32,11 @@ decision = "deny"
 no_permit_matched = "family.a_member_reads_shared_content"
 
 [[case]]
-# **The sensitivity the pack never touched.** The schema names four values, the
-# world held two, and the suite exercised `realm` (allow) and `private` (deny) —
-# so replacing this permit's whole condition with `resource.sensitivity !=
-# "private"` opened `restricted` content to every household member with the gate
-# reporting `10 policy(ies) each have a denial test` and `check passed`.
+# **The strictest sensitivity, exercised.** The schema names four values.
+# Measured with only `realm` (allow) and `private` (deny) exercised: replacing
+# this permit's whole condition with `resource.sensitivity != "private"` opened
+# `restricted` content to every household member with the gate reporting
+# `10 policy(ies) each have a denial test` and `check passed`.
 # `NOCTUA.md §13.3` keys encryption off this label, and `restricted` is the
 # strictest of the four.
 name = "and not what is restricted, which is the label §13.3 encrypts hardest"
@@ -81,13 +81,11 @@ decision = "deny"
 no_permit_matched = "family.a_guardian_administers_the_realm"
 
 [[case]]
-# **The action list, which nothing pinned.** `check_every_permit_constraint_is_tested`
-# was reading `@id(…)`'s parenthesis as the policy scope, so it had never fired
-# for any policy the loader accepts — and widening this permit's
-# `action in [Action::"Grant", Action::"Revoke"]` to a bare `action` gave every
+# **The action list.** Widening this permit's
+# `action in [Action::"Grant", Action::"Revoke"]` to a bare `action` gives every
 # guardian Read, Write, Delete and Share over every resource in the realm,
-# `restricted` content included, with the whole gate green. A guardian is
-# denied here *because of* that list, so removing it flips this answer.
+# `restricted` content included. A guardian is denied here *because of* that
+# list, so removing it flips this answer.
 name = "a guardian administers permissions and does not thereby read everything"
 the_action_is_the_boundary = true
 principal = 'User::"ana"'
@@ -97,9 +95,9 @@ decision = "deny"
 no_permit_matched = "family.a_guardian_administers_the_realm"
 
 [[case]]
-# The same gap in the read permit: `action == Action::"Read"` was pinned by
-# nothing, so a member who may read what the house shares could have been given
-# every other action over it by one token.
+# The same for the read permit: without a case on `action == Action::"Read"`,
+# a member who may read what the house shares could be given every other
+# action over it by one token.
 name = "a member reads what the house shares and does not share it onward"
 the_action_is_the_boundary = true
 principal = 'User::"bruno"'
@@ -111,8 +109,8 @@ no_permit_matched = "family.a_member_reads_shared_content"
 [[case]]
 # And the owner permit's list. `Content::"recipe"` belongs to carla precisely so
 # this case can exist: every other Content here belongs to `ana`, who is in
-# `role.guardian`, so `Grant` on her own content was already allowed by the
-# guardian permit and widening this one changed nothing.
+# `role.guardian`, so `Grant` on her own content is already allowed by the
+# guardian permit and widening this one would change nothing.
 name = "an owner governs her own content and does not grant over it"
 the_action_is_the_boundary = true
 principal = 'User::"carla"'
@@ -167,8 +165,8 @@ because = "family.giving_out_encrypted_content_needs_quorum"
 [[case]]
 # **The other label.** `§6` names the pair in one breath — "private or
 # restricted content: encrypted with a random per-content key" — and the read
-# permit twenty lines up stops at `realm` for that reason. The `forbid` covered
-# `restricted` alone, so ana could hand out her diary with no quorum.
+# permit twenty lines up stops at `realm` for that reason. A `forbid` covering
+# `restricted` alone would let ana hand out her diary with no quorum.
 name = "and does not share private content without one either"
 principal = 'User::"ana"'
 action = "Share"

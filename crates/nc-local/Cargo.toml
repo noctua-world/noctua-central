@@ -38,6 +38,12 @@ nc-canon.workspace = true
 # the SQL, so no statement that builds a table is written in this crate's
 # sources — which is what `cargo xtask check`'s source gate refuses.
 blake3.workspace = true
+# What makes the directory and its files this user's alone, on each system:
+# the owner, the mode or the access list, the link, the lock — the one crate
+# whose code decides what to do by the system it runs on, beside `xtask`'s
+# `check::RUNS_THE_STACK`, which decides which gate steps apply
+# (`NOCTUA.md §2.7`).
+nc-platform.workspace = true
 # The runtime `sqlx` already drives this crate on, for one thing of its own:
 # an open waits for the profile's lock on the blocking pool, never on a thread
 # that drives futures — two opens of one profile awaited on one runtime
@@ -54,6 +60,10 @@ nc-local = { path = ".", features = ["test-support"] }
 tokio.workspace = true
 # The model-based test holds the store against a `BTreeMap`.
 proptest.workspace = true
+# A path another user can reach, one its owner cannot write, and a link,
+# staged the same way on every system, so each refusal test is one body for
+# Unix and Windows alike.
+nc-platform = { workspace = true, features = ["test-support"] }
 # A test reaches the file the way somebody with write access to it would — to
 # drop a trigger, plant a temporary one, or rewrite the header — and then asks
 # the store what it makes of that.
