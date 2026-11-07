@@ -2388,6 +2388,12 @@ rather than anything decided for the project, and each is a maintainer's to reop
   `.github/workflows/ci.yml` as a document ("CI's one gate reaches every file CI can
   reach"), so CI and a developer cannot drift into two gates. It carries no `services:` on
   purpose ("CI runs the stack, not a copy of it").
+- **A required check is a job's name, and a pull request runs the workflow it brings**:
+  the rulesets require jobs named `linux`, `macos`, `windows` and `deterministic` from
+  GitHub Actions, and a pull request's run reads `ci.yml` from the merge made for it, so
+  one that rewrites `ci.yml` so those jobs pass without the gate meets the rulesets. The
+  workflow reader runs inside the gate such a file would skip; what holds a change to the
+  workflows is its diff, read by whoever merges.
 - **A pinned action is the code at its commit, not code anyone here has read**: the pin
   keeps a moved tag from changing what runs, and nothing reads what the action does or
   fetches when it runs. The release written beside a pin is a comment no gate checks
@@ -2487,6 +2493,13 @@ rather than anything decided for the project, and each is a maintainer's to reop
   reads as YAML, a `#` glued to a double-quoted scalar's closing quote is read as a shell
   reads it, though a YAML parser ends the line there; and an anchor on such a line, as in
   `run: &a |`, is read as a command sent to the background with `&`.
+- **The workflow reader reads a file written to run the gate, not one written to hide a
+  command from it**: a file CI reaches that is not UTF-8 is passed over, not refused; a
+  path a step names is joined as written, so an absolute one, or one that climbs above the
+  root, is read where it leads; and of a shell's globs only `*` is expanded, so a file
+  named by `?` or `[…]` is not read. A shape built to slip past it is held by the diff, as
+  any change to the workflows is ("A required check is a job's name, and a pull request
+  runs the workflow it brings").
 - **The comparison gate's subject is public fields and accessors, not everything the
   compiler writes**: `pub const` arrays (`AREAS`, `KEYS`, `COMMANDS`, `TABLES`, `STORES`,
   `RATE_LIMITS`, `EVENTS`, each `ALL`), enum variants, functions taking an argument, and
@@ -2535,6 +2548,11 @@ rather than anything decided for the project, and each is a maintainer's to reop
   step, and `NOCTUA.md §17.8` is held there by review. A blob above the limit is judged at
   every path a commit puts it at; one below it is measured once, whatever its paths — one
   object in every clone either way.
+- **Three of the history step's refusals have no case**: a `HEAD` git names with
+  something other than a hash, an answer other than `true` or `false` to whether the clone
+  is shallow, and a line of `rev-list` that is not a hash are each refused by name, and no
+  test reaches them, because a working git gives none of those answers. They stop the step
+  where git answers something it cannot read.
 - **A release commit is known by its subject and its one parent**, never by who made it:
   on `staging` and `main` every commit a person brings is a merge, and only the release App
   may push to either directly, so a commit there titled `chore(release): v…` with one
@@ -2587,6 +2605,10 @@ rather than anything decided for the project, and each is a maintainer's to reop
   conflict, and auto-merge refused is what says otherwise then. One GitHub finds in
   conflict after auto-merge is on waits until a run on the release commit asks again —
   the run its push starts is one — or a person carries the release back.
+- **A migration's comments are frozen with it**: sqlx's migrator keeps a checksum of each
+  migration it applied and refuses to run against a database whose applied file has
+  changed since, so `migrations/0002_access_records.sql`'s comment on the identifier
+  column, which says what it said before, stays as written.
 - **`cargo xtask dev` from a clean machine, anywhere but CI's Linux runner** — Stage 10's
   criterion 10 runs in the `linux` job on every push and pull request and in
   `release.yml`'s gate job, each on a fresh Ubuntu runner that pulls both pinned images;
