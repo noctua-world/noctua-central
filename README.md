@@ -152,5 +152,6 @@ included — those it also applies to a scratch SQLite file and holds to the lis
 branch below it, and a merge into either publishes that channel's release on GitHub:
 the version and the changelog are computed from the conventional commits, and nothing
 else chooses them (`NOCTUA.md §22`). Merges are merge commits, whose title and body are
-the pull request's; every commit is signed; and no branch's history is rewritten.
+left as GitHub fills them from the pull request and never edited when merging; every
+commit is signed; and no branch's history is rewritten.
 `AGENTS.md` says how each of those is held.

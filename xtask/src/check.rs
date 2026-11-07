@@ -5267,7 +5267,9 @@ fn ci(root: &Path, failures: &mut Vec<String>) {
 /// (`NOCTUA.md §22.5`, `NOCTUA.md §17.8`).
 ///
 /// Under a pull request, what the event names is judged instead of `HEAD`,
-/// with the title and the body — `crate::history`'s header says why. `event`
+/// with the title and the body, and the blobs of the merge the checkout is at
+/// are measured with the head's and the base's — `crate::history`'s header
+/// says why. `event`
 /// and `path` are `GITHUB_EVENT_NAME` and `GITHUB_EVENT_PATH`, which [`run`]
 /// reads and a test hands in, so a test run under CI's own event judges the
 /// tree it built and not that event. Git reads this machine's repository and
@@ -7731,7 +7733,7 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// constant**, as `OPERATORS` is: one copy rather than one per use, and nothing
 /// reads it at compile time.
 #[cfg(test)]
-static WHAT_THE_GATE_CAN_SAY: [&str; 1041] = [
+static WHAT_THE_GATE_CAN_SAY: [&str; 1043] = [
     // The workflows' bounds (`xtask/src/workflow.rs`): what `.github/` may hold,
     // the authority each workflow opens with, the pins, and how the release is
     // made; and the `CI` step's two verdicts about them.
@@ -7959,6 +7961,7 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1041] = [
     "`cargo xtask` runs `cargo {alias}`, without `--locked`",
     "`docker-compose.yml` is what the catalog names as the enforcer, and the store running now was not started from what it says",
     "`docs` writes pages and reserves nothing — `cargo xtask build` is what makes a code permanent, and until it runs these pages document a number that is not yet anybody's",
+    "`pull_request` runs on GitHub's default types, which leave out `edited`",
     "`raising` in catalog/errors.toml says what a code is today — `raised`, or `reserved` for a stage that is not built. A line that has stopped describing the tree makes `docs/errors.md` publish a subsystem that does not exist, or hide one that does",
     "`sqlx::{needle}` checks its SQL at build time",
     "`{citation}` names a path that does not exist",
@@ -8737,6 +8740,7 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1041] = [
     "git answered {} for {}, which is not an object it holds",
     "git answered {} when asked for the {kind} {}",
     "git answered {} when asked whether this clone is shallow",
+    "git answered {} when asked which commit `HEAD` is",
     "git could not be started, and the history is read through it: {error}",
     "git described a change as {}, which is not one path added, removed or changed",
     "git gave a blob the size {}",
@@ -10977,7 +10981,7 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 723] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 725] = [
     // The workflows' bounds: their remedies, the release job's steps as
     // `THE_RELEASE_STEPS` writes them, the environment and the line that hands
     // the token on, a step's words when it is missing, and the clean line.
@@ -11200,7 +11204,9 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 723] = [
     "a file's modification time under the C name `std::os::linux` gives it. Generated output carries no time",
     "a file's modification time, which is `modified` under the name libc gives it. Generated output carries no time",
     "a filter between the counter at the top of the loop and the judgement at the bottom leaves every printed number whole while the rule is never asked — measured, with a hand-written code in the crate it skipped and every count *up*. The two counters are here so that cannot be true; if something legitimately needs skipping, skip it before the first one",
-    "a filter decides which pushes run the gate, and this gate's whole point is that every one of them does — a branch list or a path filter is how CI comes to be green on the change that broke it. Run on every push and every pull request",
+    "a filter decides which pushes run the gate, and this gate's whole point is that every one of them does — a branch list or a path filter is how CI comes to be green on the change that broke it. Run on every push, and on every pull request with `{THE_PULL_REQUEST_TYPES}` alone under `pull_request:`",
+    "an edit to a pull request's title or body starts no run on the default types, so the merge commit takes a title and a body the history step never judged. Write `{THE_PULL_REQUEST_TYPES}` alone under `pull_request:`",
+    "types: [opened, synchronize, reopened, edited]",
     "a fixture that fails for an unrelated reason still passes a naive check, and then proves nothing. rustc said: {}",
     "a gap means either a migration was deleted after being applied somewhere — in which case that database and this tree disagree about what ran — or the next number was guessed. Neither is something to discover during a deployment",
     "a grant expiring at this very instant has expired",
@@ -18911,7 +18917,7 @@ mod the_frozen_path_rule {
         ("xtask/docs.rs", 8, 1),
         ("xtask/every_generated_value_is_compared.rs", 30, 8),
         ("xtask/gates.rs", 219, 33),
-        ("xtask/history.rs", 109, 3),
+        ("xtask/history.rs", 113, 3),
         ("xtask/limits.rs", 176, 59),
         ("xtask/local.rs", 79, 8),
         ("xtask/main.rs", 3, 25),
@@ -18927,7 +18933,7 @@ mod the_frozen_path_rule {
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 30, 6),
         ("xtask/ui.rs", 52, 12),
         ("xtask/wall.rs", 129, 28),
-        ("xtask/workflow.rs", 278, 23),
+        ("xtask/workflow.rs", 280, 23),
     ];
 
     /// The name an item declaration introduces, for the message below.
@@ -22189,14 +22195,15 @@ mod the_frozen_path_rule {
     ///
     /// **The guard reached a fraction of the sites, and this asserts, per file,
     /// how many of the scratch-building tests carry one.** That is not a rule
-    /// that can be repaired by making it pass — 90 tests would have to grow a
-    /// `Drop` first, and **the copy of that number here is held by nothing**:
-    /// the prose test's needle is satisfied by the census paragraph on
-    /// `BUILDS_A_SCRATCH`, which says the same thing about the same list —
-    /// measured, this copy stood at 94 after that one was corrected, and no run
-    /// noticed. So what is written down is the gap, in the shape this module
-    /// already uses for every other census: two numbers per file, compared for
-    /// equality.
+    /// that can be repaired by making it pass — every test
+    /// `THE_SCRATCHES_WITH_NO_GUARD` names would have to grow a `Drop` first,
+    /// and **that list is cited here rather than its length**, because a copy
+    /// of the number here is held by nothing: the prose test's needle is
+    /// satisfied by the census paragraph on `BUILDS_A_SCRATCH`, which says the
+    /// same thing about the same list — measured, a copy here stood at 94 after
+    /// that one was corrected, and no run noticed. So what is written down is
+    /// the gap, in the shape this module already uses for every other census:
+    /// two numbers per file, compared for equality.
     #[test]
     fn the_scratches_that_carry_a_guard_are_the_ones_written_down() {
         let written = BUILDS_A_SCRATCH
@@ -24665,7 +24672,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15099;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15111;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24684,7 +24691,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3072;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3075;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -24701,7 +24708,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1008;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1009;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -24735,7 +24742,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 21290;
+    const THE_REARRANGEMENTS_JUDGED: usize = 21316;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24789,7 +24796,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **461 of 21,290 are accepted by the first-line
+    /// rules the gates apply: **461 of 21,316 are accepted by the first-line
     /// rule alone, and 237 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -24822,7 +24829,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1008 of
+    /// this tree offers, **1009 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -27012,7 +27019,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 723;
+    const THE_REST_IT_SAYS: usize = 725;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -29288,7 +29295,7 @@ mod the_frozen_path_rule {
     /// Seven words of each remedy, because a remedy is long and its opening is
     /// what tells one from another; the rule beside the list is that those
     /// seven are unique.
-    const WHAT_A_REMEDY_ANSWERS: [(&str, &str, &str); 151] = [
+    const WHAT_A_REMEDY_ANSWERS: [(&str, &str, &str); 152] = [
         (
             "counts.rs",
             "this document has an odd number of",
@@ -29988,6 +29995,11 @@ mod the_frozen_path_rule {
             "workflow.rs",
             "`{event}` is filtered by `{filter}`",
             "a filter decides which pushes run the",
+        ),
+        (
+            "workflow.rs",
+            "`pull_request` runs on GitHub's default types, which",
+            "an edit to a pull request's title",
         ),
         (
             "workflow.rs",
@@ -35717,7 +35729,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1691] = [
+    static OPERATORS: [(&str, &str, &str); 1698] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -36379,6 +36391,21 @@ Options:
             "git's variables are removed from this process's own environment",
         ),
         ("history", "not_grafted", "a grafted clone is refused"),
+        (
+            "history",
+            "judge_the_pull_request",
+            "a pull request's title is read for a credit",
+        ),
+        (
+            "history",
+            "judged_inheriting",
+            "the merge made for the run is measured",
+        ),
+        (
+            "history",
+            "judged_inheriting",
+            "the merge made for the run is read for its paths",
+        ),
         ("ui", "warn", "a skip is declared at the start of its line"),
         ("ui", "warn", "and the colon is what declares it"),
         ("docs", "already_there", "a page that differs is written"),
@@ -37639,6 +37666,26 @@ Options:
             "workflow",
             "a_node_may_open_after",
             "a property hides the quote after it",
+        ),
+        (
+            "workflow",
+            "the_workflow_actually_runs",
+            "a pull request may run on GitHub's default types",
+        ),
+        (
+            "workflow",
+            "the_workflow_actually_runs",
+            "any list of a pull request's types widens it",
+        ),
+        (
+            "workflow",
+            "the_workflow_actually_runs",
+            "a line beside the pull request's types is passed",
+        ),
+        (
+            "workflow",
+            "the_workflow_actually_runs",
+            "a push may carry the pull request's types",
         ),
         (
             "workflow",

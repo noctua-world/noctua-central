@@ -88,6 +88,16 @@ const RELEASED_FROM: [&str; 2] = ["staging", "main"];
 /// same. No workflow here is started either way.
 const WITH_THIS_REPOSITORYS_AUTHORITY: [&str; 2] = ["pull_request_target", "workflow_run"];
 
+/// The one line `ci.yml`'s `pull_request:` holds: GitHub's default types
+/// and `edited`.
+///
+/// **It widens the events, never narrows them.** On the default types an edit
+/// to a pull request's title or body starts no run, so the merge commit would
+/// take a title and a body the history step never judged; `edited` is the run
+/// that judges them. Every other line under the event is a filter, and is
+/// refused ([`the_workflow_actually_runs`]).
+const THE_PULL_REQUEST_TYPES: &str = "types: [opened, synchronize, reopened, edited]";
+
 /// What a job may ask its workflow's token for: reading the tree it checks out.
 ///
 /// **And nothing else, in either workflow.** The gate writes nothing on GitHub,
@@ -5116,6 +5126,13 @@ fn the_workflow_actually_runs(ci: &str, findings: &mut Vec<Finding>) {
     // unconditional `push:` has nothing under it, so what this asks is that:
     // the body is empty. That answers for every filter GitHub has and every one
     // it adds later, which a list of names cannot.
+    //
+    // **But one line under `pull_request:`, [`THE_PULL_REQUEST_TYPES`], and it
+    // is required.** That list widens the events, never narrows them: it is
+    // GitHub's default types and `edited`, without which an edited title or body
+    // starts no run and reaches the merge commit unjudged. It is matched whole,
+    // so a list without `edited`, or with anything else in it, is a filter like
+    // any other.
     for event in ["push", "pull_request"] {
         let Some(body) = event_body(ci, event) else {
             findings.push(Finding {
@@ -5130,20 +5147,38 @@ fn the_workflow_actually_runs(ci: &str, findings: &mut Vec<Finding>) {
             });
             continue;
         };
-        if let Some(filter) = body
+        let held: Vec<String> = body
             .lines()
             .map(the_code_before_a_comment)
-            .find(|line| !line.is_empty())
-        {
+            .filter(|line| !line.is_empty())
+            .collect();
+        let widened = event == "pull_request"
+            && held.first().map(String::as_str) == Some(THE_PULL_REQUEST_TYPES);
+        if let Some(filter) = held.get(usize::from(widened)) {
             findings.push(Finding {
                 file: WORKFLOW.to_owned(),
                 line: 1,
                 what: format!("`{event}` is filtered by `{filter}`"),
-                fix: "a filter decides which pushes run the gate, and this gate's whole \
-                      point is that every one of them does — a branch list or a path \
-                      filter is how CI comes to be green on the change that broke it. \
-                      Run on every push and every pull request"
+                fix: format!(
+                    "a filter decides which pushes run the gate, and this gate's whole \
+                     point is that every one of them does — a branch list or a path \
+                     filter is how CI comes to be green on the change that broke it. \
+                     Run on every push, and on every pull request with \
+                     `{THE_PULL_REQUEST_TYPES}` alone under `pull_request:`"
+                ),
+            });
+        } else if event == "pull_request" && !widened {
+            findings.push(Finding {
+                file: WORKFLOW.to_owned(),
+                line: 1,
+                what: "`pull_request` runs on GitHub's default types, which leave out `edited`"
                     .to_owned(),
+                fix: format!(
+                    "an edit to a pull request's title or body starts no run on the default \
+                     types, so the merge commit takes a title and a body the history step \
+                     never judged. Write `{THE_PULL_REQUEST_TYPES}` alone under \
+                     `pull_request:`"
+                ),
             });
         }
     }
@@ -7987,7 +8022,7 @@ mod tests {
     /// `the_scripts_both_stores_answer` records in `nc-journal`.
     /// <!-- allow-logging: `the_attacks_this_gate_survives` hands back the names, paths and workflow fragments written as literals in this file, and nothing a caller chose -->
     fn the_attacks_this_gate_survives()
-    -> [(&'static str, &'static str, &'static str, &'static str); 14] {
+    -> [(&'static str, &'static str, &'static str, &'static str); 16] {
         [
             // A variadic parameter is declared with a sigil, and the sigil is
             // not part of the name the body writes. The gate must still refuse
@@ -8056,10 +8091,22 @@ mod tests {
                 "\n  push:\n    tags: ['v*']\n",
             ),
             (
-                "a `types:` list on the pull request",
+                "a `types:` list that narrows the pull request to one event",
                 super::WORKFLOW,
-                "\n  pull_request:\n",
-                "\n  pull_request:\n    types: [labeled]\n",
+                "\n    types: [opened, synchronize, reopened, edited]\n",
+                "\n    types: [labeled]\n",
+            ),
+            (
+                "a `types:` list without `edited`, so an edited title or body is never judged",
+                super::WORKFLOW,
+                "\n    types: [opened, synchronize, reopened, edited]\n",
+                "\n    types: [opened, synchronize, reopened]\n",
+            ),
+            (
+                "no `types:` list, which is the default types and leaves out `edited`",
+                super::WORKFLOW,
+                "\n    types: [opened, synchronize, reopened, edited]\n",
+                "\n",
             ),
             (
                 "`|| true` in the surface a developer types",
@@ -10095,6 +10142,65 @@ mod tests {
         );
     }
 
+    /// A pull request runs on GitHub's default types and `edited`, written as
+    /// the one line under it, and a push on everything.
+    ///
+    /// **The list widens the events, and nothing else under them passes.** On
+    /// the default types an edited title or body starts no run, so the line is
+    /// required as well as admitted: an event with nothing under it, and a list
+    /// without `edited`, are refused, and so are a list that narrows the events
+    /// and the same line under `push:`.
+    #[test]
+    fn a_pull_request_runs_on_its_default_types_and_edited_and_nothing_else() {
+        let said = |on: &str| -> Vec<String> {
+            let mut findings = Vec::new();
+            super::the_workflow_actually_runs(&format!("{on}jobs:\n"), &mut findings);
+            findings.into_iter().map(|finding| finding.what).collect()
+        };
+        let types = super::THE_PULL_REQUEST_TYPES;
+        for passes in [
+            format!("on:\n  push:\n  pull_request:\n    {types}\n"),
+            format!("on:\n  push:\n  pull_request:\n    {types} # and edited\n"),
+        ] {
+            assert_eq!(said(&passes), Vec::<String>::new(), "{passes}");
+        }
+        let default = "`pull_request` runs on GitHub's default types, which leave out `edited`";
+        let narrowed = "types: [opened, synchronize, reopened]";
+        for (fails, expected) in [
+            (
+                "on:\n  push:\n  pull_request:\n".to_owned(),
+                default.to_owned(),
+            ),
+            ("on: [push, pull_request]\n".to_owned(), default.to_owned()),
+            (
+                format!("on:\n  push:\n  pull_request:\n    {narrowed}\n"),
+                format!("`pull_request` is filtered by `{narrowed}`"),
+            ),
+            (
+                "on:\n  push:\n  pull_request:\n    types: [labeled]\n".to_owned(),
+                "`pull_request` is filtered by `types: [labeled]`".to_owned(),
+            ),
+            (
+                format!("on:\n  push:\n  pull_request:\n    {types}\n    branches: [dev]\n"),
+                "`pull_request` is filtered by `branches: [dev]`".to_owned(),
+            ),
+            (
+                format!("on:\n  push:\n  pull_request:\n    branches: [dev]\n    {types}\n"),
+                "`pull_request` is filtered by `branches: [dev]`".to_owned(),
+            ),
+            (
+                format!("on:\n  push:\n  pull_request:\n    {types}\n    {types}\n"),
+                format!("`pull_request` is filtered by `{types}`"),
+            ),
+            (
+                format!("on:\n  push:\n    {types}\n  pull_request:\n    {types}\n"),
+                format!("`push` is filtered by `{types}`"),
+            ),
+        ] {
+            assert_eq!(said(&fails), vec![expected], "{fails}");
+        }
+    }
+
     #[test]
     fn a_workflow_that_never_fires_is_a_finding() {
         // **`on:` and `if:` are read.** Measured with neither read: `on:`
@@ -10290,12 +10396,14 @@ mod tests {
         let _ = std::fs::remove_dir_all(&scratch);
     }
 
-    /// The two lines every fixture needs before `jobs:`.
+    /// The lines every fixture needs before `jobs:`.
     ///
     /// A workflow that fires on nothing is a finding of its own, so a
     /// fixture about the *cargo* rule has to be a workflow that runs — the same
-    /// reason each of them carries both jobs.
-    const FIRES: &str = "on:\n  push:\n  pull_request:\n";
+    /// reason each of them carries both jobs — and its pull request runs on
+    /// the one list of types the rule requires.
+    const FIRES: &str =
+        "on:\n  push:\n  pull_request:\n    types: [opened, synchronize, reopened, edited]\n";
 
     /// The macOS and Windows gates, each on its runner, which a fixture carries
     /// beside the job it is about so that it is not refused for lacking them.
