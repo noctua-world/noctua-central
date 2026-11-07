@@ -254,14 +254,15 @@ pub(crate) fn on_disk_checksums_in(
 /// constraint that has gone. A count cannot say which one went, and which one
 /// went is the whole question.
 ///
-/// **The one thing outside the tree that remembers.** The gate reads the tree
-/// and not its history, so nothing it reads *in* the tree recalls what was there
-/// yesterday — both sides of a tree-derived comparison shrink together.
+/// **The one thing outside the tree that remembers.** No step compares the tree
+/// with what it held before, so nothing it reads *in* the tree recalls what was
+/// there yesterday — both sides of a tree-derived comparison shrink together.
 /// `_sqlx_migrations` holds a row per migration this database has run.
 ///
-/// Empty when the stack has never been brought up, which is every CI run: an
-/// empty answer is "nothing to corroborate", not "nothing was applied wrongly",
-/// and the caller says which.
+/// Empty when nothing has applied the migrations to this database — a stack
+/// never brought up, or one brought up and never migrated: an empty answer is
+/// "nothing to corroborate", not "nothing was applied wrongly", and the caller
+/// says which.
 ///
 /// # Errors
 ///
@@ -308,18 +309,16 @@ pub(crate) fn applied(url: &str) -> Result<Vec<(i64, String, Vec<u8>)>, String> 
                AND c.relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = $1)",
         )
         .bind(configured_schema(url))
-        // **`fetch_optional`, because zero rows is the ordinary case.**
+        // **`fetch_optional`, because zero rows is a case the gate meets.**
         // `fetch_one` turns "no such table" into `RowNotFound`, which makes the
         // `is_none()` branch below dead code and the paragraph above it — "an
-        // empty answer is nothing to corroborate, which is every CI run" — a
-        // path nothing can reach. Measured against exactly what CI gives this: on
-        // a fresh `postgres:18-alpine` service with an empty database and no
-        // migrations applied, `fetch_one` makes `check` report `error the
-        // migration record could not be looked for: no rows returned by a query
-        // that expected to return at least one row` and `check failed`. The
-        // workflow runs `cargo xtask check` and nothing applies the migrations
-        // first, so with `fetch_one` the gate could not pass on the database its
-        // own CI hands it.
+        // empty answer is nothing to corroborate" — a path nothing can reach.
+        // Measured on a database with no migrations applied: on a fresh
+        // `postgres:18-alpine` with an empty database, `fetch_one` makes `check`
+        // report `error the migration record could not be looked for: no rows
+        // returned by a query that expected to return at least one row` and
+        // `check failed`. So with `fetch_one` the gate could not pass on a
+        // database nothing has migrated yet, which is an ordinary one to hand it.
         .fetch_optional(&pool)
         .await
         .map_err(|error| format!("the migration record could not be looked for: {error}"))?

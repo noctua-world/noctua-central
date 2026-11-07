@@ -3,8 +3,11 @@
 //! path judged, a profile held for one open, and a directory's entries made
 //! durable (`NOCTUA.md §2.7`).
 //!
-//! **One interface, an implementation per system, and nothing outside it asks
-//! which system it runs on.** `unix.rs` is the Unix half, which macOS takes
+//! **One interface, an implementation per system.** No code outside it
+//! decides what to do by the system it runs on, except `xtask`'s
+//! `check::RUNS_THE_STACK`, which decides which gate steps apply there;
+//! `xtask`'s `ui::SYSTEM` names the system in what the gate prints, and tests
+//! name it in their skips. `unix.rs` is the Unix half, which macOS takes
 //! too: modes and owners through `std::os::unix`. `windows.rs` is the Windows
 //! half: the token's user and the access lists of the Win32 security calls.
 //! The local database's open (`nc_local`) and the kernel's blob directory are
@@ -223,6 +226,46 @@ pub const PRIVATE_FILE: &str = imp::PRIVATE_FILE;
 /// in full must be asked for more: true on macOS, where `F_FULLFSYNC` is
 /// what reaches the platter.
 pub const FSYNC_STOPS_SHORT_OF_THE_DISK: bool = cfg!(target_os = "macos");
+
+/// What this system has that a suite needs: asked by the suite before it
+/// runs, and by the gate to name each suite that stands aside.
+///
+/// **Compiled in every build, not behind `test-support`**, because the gate
+/// that names them is `xtask`'s own build and no test: a suite that returns
+/// early is counted by cargo as passed, and what it prints as it does is
+/// captured with the rest of a passing test's output, so the gate's test step
+/// is what says, beside its count and its verdict, which suites this system
+/// stood aside. Each answer is fixed when this crate is built for a system,
+/// never a probe of the machine, so a Linux machine cannot stand a suite
+/// aside, and `linux_lacks_nothing_a_suite_stands_aside_for` holds every
+/// answer on every system.
+pub mod system {
+    /// A directory that lists its entries in the order they were made, where
+    /// this system has one: Linux's `tmpfs` at `/dev/shm`.
+    ///
+    /// **What a suite stands aside for where it is `None`.** macOS's APFS
+    /// lists a directory by a hash of each name and Windows' NTFS by the name
+    /// itself, so there two layouts of one set of names come back in one
+    /// order, and a suite about the order on disk has nothing to compare. It
+    /// says so in its own output, by the system's name, and the Linux job
+    /// runs it.
+    pub const LISTED_AS_MADE: Option<&str> = crate::imp::LISTED_AS_MADE;
+
+    /// Whether this system has a POSIX shell of its own, in which a path is
+    /// spent as POSIX spends it: false on Windows.
+    ///
+    /// **The `sh` Git ships there runs a script, and is not one.** It hands
+    /// its paths to Windows, which spends a `..` by striking out the name
+    /// before it, link or not, and reads two leading slashes as a network
+    /// host; and a native caller hands it a drive's path that is not rooted
+    /// at `/` at all. A guard written against POSIX paths is not, there, the
+    /// guard it reads as: measured on a Windows runner, a decoy that reaches a
+    /// script through a junction is taken for the repository the script
+    /// belongs to. A suite driving such a guard stands aside where this is
+    /// false and says so in its own output, by the system's name, and the
+    /// Linux and macOS jobs run it.
+    pub const A_POSIX_SHELL: bool = crate::imp::A_POSIX_SHELL;
+}
 
 /// Whether [`sync_directory`] syncs anything here, and so can fail.
 ///
@@ -673,7 +716,7 @@ mod tests {
             (None, true)
         };
         assert_eq!(
-            (testing::LISTED_AS_MADE, testing::A_POSIX_SHELL),
+            (super::system::LISTED_AS_MADE, super::system::A_POSIX_SHELL),
             expected,
             "what this system lacks for a suite is not what it is written to lack"
         );
@@ -745,6 +788,13 @@ mod tests {
     /// its name — a link, or a file another user can reach — would otherwise
     /// be opened and locked, and whatever it points at or whoever reaches it
     /// decide when the profile is held.
+    ///
+    /// **And by the rule for what this crate made, not the companions'**: one
+    /// owned by whoever the system makes the owner of what this process
+    /// creates — the Administrators group, on Windows in an elevated process —
+    /// is refused, since the lock file this crate makes it makes owned by the
+    /// user. Where that owner is the user there is nothing to stage, and the
+    /// test says so; the file is then the user's own, and taken.
     #[test]
     fn a_lock_file_that_is_not_its_own_is_refused_where_a_file_holds_the_directory() {
         let scratch = Scratch::new("lock-file");
@@ -755,7 +805,28 @@ mod tests {
         let reachable = scratch.0.join("reachable");
         drop(super::create_private(&reachable).expect("a file"));
         let said = testing::open_to_another_user(&reachable).expect("opened up");
-        for (name, says) in [("linked", "symbolic link"), ("reachable", said.as_str())] {
+        let owned_by_default = scratch.0.join("owned-by-default");
+        drop(super::create_private(&owned_by_default).expect("a file"));
+        let given_away =
+            testing::owned_as_this_process_creates(&owned_by_default).expect("its owner is set");
+        if !given_away {
+            #[expect(
+                clippy::print_stdout,
+                reason = "a test saying, in its own output, that there was nothing to stage"
+            )]
+            {
+                println!(
+                    "nothing to stage for a lock file owned as the system owns what this \
+                     process creates, on {}: that owner is this user",
+                    std::env::consts::OS
+                );
+            }
+        }
+        for (name, says) in [
+            ("linked", Some("symbolic link")),
+            ("reachable", Some(said.as_str())),
+            ("owned-by-default", given_away.then_some("belongs to user")),
+        ] {
             let path = scratch.0.join(name);
             let as_it_stands = || {
                 let found = std::fs::symlink_metadata(&path).expect("there");
@@ -772,14 +843,18 @@ mod tests {
                 before,
                 "{name}: the hold changed what stood there"
             );
-            if testing::HOLDS_THROUGH_A_FILE {
-                let refused = match held {
-                    Err(Judged::Refused(refused)) => refused.to_string(),
-                    other => panic!("{name}: refused, and it was {other:?}"),
-                };
-                assert!(refused.contains(says), "{name}: {refused}");
-            } else {
-                drop(held.expect("the directory is held, and the name is not the hold's"));
+            match (testing::HOLDS_THROUGH_A_FILE, says) {
+                (true, Some(says)) => {
+                    let refused = match held {
+                        Err(Judged::Refused(refused)) => refused.to_string(),
+                        other => panic!("{name}: refused, and it was {other:?}"),
+                    };
+                    assert!(refused.contains(says), "{name}: {refused}");
+                }
+                (true, None) => drop(held.expect("the lock file is the user's own, and held")),
+                (false, _) => {
+                    drop(held.expect("the directory is held, and the name is not the hold's"));
+                }
             }
         }
     }

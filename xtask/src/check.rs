@@ -65,14 +65,16 @@ const WHAT_CI_RUNS: [&str; 4] = [
 
 /// Whether this system runs the container stack the gate's stack steps read.
 ///
-/// **The one place this tool asks which system it runs on** (`NOCTUA.md §2.7`),
-/// and it asks the target it was compiled for — never whether docker answers,
-/// which would make a Linux machine with its stack down read as a system the
-/// stack does not apply to, and every step that needs it stand aside there in
-/// silence. Linux runs every step; on macOS and Windows each step that needs
-/// the stack says it is not applicable, by name, and the Linux job is what runs it
-/// (`NOCTUA.md §22.2`). That is a property of the system, which is why it is
-/// decided here rather than by a flag anybody can pass.
+/// **The one place this tool decides by the system it runs on**
+/// (`NOCTUA.md §2.7`): `ui::SYSTEM` only names it, and which suites stand
+/// aside is `nc_platform::system`'s answer. It asks the target it was compiled
+/// for — never whether docker answers, which would make a Linux machine with
+/// its stack down read as a system the stack does not apply to, and every step
+/// that needs it stand aside there in silence. Linux runs every step; on macOS
+/// and Windows each step that needs the stack says it is not applicable, by
+/// name, and the Linux job is what runs it (`NOCTUA.md §22.2`). That is a
+/// property of the system, which is why it is decided here rather than by a
+/// flag anybody can pass.
 pub(crate) const RUNS_THE_STACK: bool = cfg!(target_os = "linux");
 
 /// Whether this run asks the container stack, and when it does not, why.
@@ -148,11 +150,12 @@ impl Stack {
 /// not-applicable line gives it, in the order a run reaches them.
 ///
 /// **What a not-applicable line may say, exactly.** Off Linux a run prints
-/// these and nothing else on one; on Linux it prints none of them, which is
-/// [`the_parts_not_applicable`] and the test beside it. Each is one of the
-/// steps `--offline` skips too, so a part added here is a part the flag
-/// announces as well, and the advisory database — which needs the network and
-/// no stack — is the one `--offline` skip that is not here.
+/// these, then each suite [`THE_SUITES_A_SYSTEM_STANDS_ASIDE`] names that the
+/// system stands aside, and nothing else on one; on Linux it prints none of
+/// either, which is [`what_does_not_apply`] and the tests beside it. Each part
+/// is one of the steps `--offline` skips too, so a part added here is a part
+/// the flag announces as well, and the advisory database — which needs the
+/// network and no stack — is the one `--offline` skip that is not here.
 ///
 /// **Written twice, and held together.** Each part writes its sentence where it
 /// stands aside, so the census of what the gate can say reads it as a literal
@@ -176,6 +179,29 @@ pub(crate) const fn the_parts_not_applicable(stack: Stack) -> &'static [&'static
         Stack::NotApplicable => &THE_STACKS_PARTS,
         Stack::Asked | Stack::Offline => &[],
     }
+}
+
+/// Everything a run with `stack`, on a system that has `has`, says does not
+/// apply, in the order the run reaches it: the parts of the stack, then the
+/// suites the system stands aside.
+///
+/// **Owned, so this hands back nothing borrowed from a static**: the type
+/// wall's signature rule reads `-> …&'static str` as a door, and a `String`
+/// costs nothing to `finish`, which only compares it.
+///
+/// **What the verdict is held to, exactly.** Each part and each suite says so
+/// where it stands aside and is counted by what it says, and `finish` holds
+/// that count to this, so a suite that stopped saying it stood aside reads as
+/// a refusal on the system that stood it aside. On Linux the list is empty,
+/// which `the_suites_a_system_stands_aside_are_the_ones_written_down_for_it`
+/// and `nothing_is_not_applicable_on_linux` hold.
+fn what_does_not_apply(stack: Stack, has: [bool; 2]) -> Vec<String> {
+    let mut parts: Vec<String> = the_parts_not_applicable(stack)
+        .iter()
+        .map(|part| (*part).to_owned())
+        .collect();
+    parts.extend(the_suites_not_applicable(has));
+    parts
 }
 
 /// How many steps a run with `stack` announces as skipped by `--offline`.
@@ -231,7 +257,10 @@ fn assert_the_names_were_read(looked: usize, failures: &mut Vec<String>) {
 ///
 /// On a system that runs no stack, the steps that need it say they are not
 /// applicable instead, whatever the flag — [`Stack`] says which, and
-/// [`THE_STACKS_PARTS`] is what such a run is held to.
+/// [`THE_STACKS_PARTS`] is what such a run is held to. A suite the system
+/// stands aside because it lacks what the suite needs says so the same way,
+/// whatever the flag, and [`THE_SUITES_A_SYSTEM_STANDS_ASIDE`] is what it is
+/// held to.
 pub(crate) fn run(root: &Path, offline: bool) -> Result<(), String> {
     let mut failures: Vec<String> = Vec::new();
     // **What the stack's steps do, decided once.** Every step that needs the
@@ -318,7 +347,7 @@ pub(crate) fn run(root: &Path, offline: bool) -> Result<(), String> {
     finish(
         &failures,
         skipped_by_the_flag(offline, stack),
-        the_parts_not_applicable(stack),
+        &what_does_not_apply(stack, WHAT_THIS_SYSTEM_HAS),
         !offline,
     )
 }
@@ -1705,8 +1734,8 @@ fn what_the_record_says(
         // migration(s), numbered once each and in order`. sqlx refuses a
         // changed migration when it applies one,
         // and CI applies to a fresh database where nothing is recorded,
-        // so that refusal never runs there. The gate reads no history
-        // to remember; `_sqlx_migrations` is what does.
+        // so that refusal never runs there. No step compares the tree
+        // with what it held before; `_sqlx_migrations` is what remembers.
         // The checksum sqlx itself computes for the file **as it is on
         // disk now** — not the one baked into this binary, which cargo
         // rebuilds by mtime and so misses an edit made with
@@ -1826,8 +1855,9 @@ fn the_record_against_the_files(
             // migrations deleted: `ok 2 migration(s), numbered once each
             // and in order`. The neighbouring gates caught the deletion;
             // this floor did not, and it is the only one that could,
-            // because the gate reads no history and `_sqlx_migrations` is
-            // the only thing outside the tree that remembers.
+            // because no step compares the tree with what it held before and
+            // `_sqlx_migrations` is the only thing outside the tree that
+            // remembers.
             // What covers the arithmetic everywhere is
             // `what_the_record_says`'s own tests, which need no
             // database at all.
@@ -1838,8 +1868,8 @@ fn the_record_against_the_files(
             );
             ui::detail(
                 "`_sqlx_migrations` is the only thing outside this tree that \
-                 remembers what was applied, and the gate reads no history in its \
-                 place — `cargo xtask dev` applies them",
+                 remembers what was applied, and no step compares the tree with what \
+                 it held before — `cargo xtask dev` applies them",
             );
             failures.push("the database has applied no migration".to_owned());
         } else if let behind = never_applied(applied, on_disk)
@@ -1935,12 +1965,12 @@ fn bounds(root: &Path, stack: Stack, failures: &mut Vec<String>) {
             // **Against the database, not against the directory.** A second walk
             // of `migrations/` with the same walker could only disagree with the
             // first if the walker were broken — deleting a migration would
-            // lower both and still print `ok` (measured: `ok 2 migration(s)`). The gate
-            // reads the tree and not its history, so nothing *in* the tree remembers
-            // what was there yesterday; what does remember is `_sqlx_migrations`, which
-            // records every migration this database has applied. A file that was
-            // applied and is now gone is the case a floor derived from the tree
-            // cannot see.
+            // lower both and still print `ok` (measured: `ok 2 migration(s)`). No
+            // step compares the tree with what it held before, so nothing *in* the
+            // tree remembers what was there yesterday; what does remember is
+            // `_sqlx_migrations`, which records every migration this database has
+            // applied. A file that was applied and is now gone is the case a floor
+            // derived from the tree cannot see.
             // **Which versions, not how many.** A deletion compensated by an
             // addition passes a count comparison — measured under one, renaming a
             // migration so that a rebase's file took its number left
@@ -2412,11 +2442,11 @@ fn the_migrations_are_the_ones_written_down(
 ///   check passed
 /// ```
 ///
-/// The gate reads no history, and CI, which every change passes, migrates a
-/// fresh database and so cannot see a deletion — and what it prints is a
-/// positive `ok` among skips that read as routine. A written list is the reader that does not
-/// depend on any database: removing a migration is then a two-place edit, and
-/// the second place is here.
+/// No step compares the tree with what it held before, and CI, which every
+/// change passes, migrates a fresh database and so cannot see a deletion — and
+/// what it prints is a positive `ok` among skips that read as routine. A
+/// written list is the reader that does not depend on any database: removing a
+/// migration is then a two-place edit, and the second place is here.
 ///
 /// Compared both ways, so a migration added without being written down is a
 /// finding too.
@@ -5640,18 +5670,21 @@ const ANNOUNCES_NO_DATABASE: [(&str, &str, &str, usize); 5] = [
 ///
 /// **The other half of [`ANNOUNCES_NO_DATABASE`].** There the gate tells a suite
 /// through `NC_NO_STACK`; here the system answers, through
-/// `nc_platform::testing`, which is the one place a system is asked what it can
-/// do (`NOCTUA.md §2.7`). Each guard says in its own output which system stood
-/// it aside and why, and the same reader counts it into the same line, so the
-/// number printed is every suite that stands aside. On Linux none of these does,
-/// which `linux_lacks_nothing_a_suite_stands_aside_for` holds in `nc-platform`,
+/// `nc_platform::system`, which is the one place a system is asked what it
+/// has (`NOCTUA.md §2.7`). Each guard says in its own output which system stood
+/// it aside and why, and the same reader counts it into the same line — so the
+/// number printed counts every suite that can stand aside, read from the
+/// sources, on every system. Which of them stood aside on this one is
+/// [`WHAT_THIS_SYSTEM_HAS`]'s answer, and the test step names each, by
+/// [`THE_SUITES_A_SYSTEM_STANDS_ASIDE`]. On Linux none of these does, which
+/// `linux_lacks_nothing_a_suite_stands_aside_for` holds in `nc-platform`,
 /// since the Linux job is the one that runs them.
 const ANNOUNCES_WHAT_THE_SYSTEM_LACKS: [(&str, &str, &str, usize); 2] = [
     // A directory listed in the order its entries were made, without which the
     // suite about the order on disk has two layouts in one order.
     (
         "crates/nc-catalog-compiler/tests/the_order_on_disk_stays_on_disk.rs",
-        "nc_platform::testing::LISTED_AS_MADE.is_none()",
+        "nc_platform::system::LISTED_AS_MADE.is_none()",
         "skipped, not applicable on",
         1,
     ),
@@ -5659,11 +5692,126 @@ const ANNOUNCES_WHAT_THE_SYSTEM_LACKS: [(&str, &str, &str, usize); 2] = [
     // script is a claim about.
     (
         "xtask/src/check.rs",
-        "!nc_platform::testing::A_POSIX_SHELL",
+        "!nc_platform::system::A_POSIX_SHELL",
         "skipped, not applicable on",
         10,
     ),
 ];
+
+/// Every suite a system stands aside where it lacks what the suite needs, by
+/// the name its not-applicable line gives it, in the order of
+/// [`ANNOUNCES_WHAT_THE_SYSTEM_LACKS`], whose census reads their guards.
+///
+/// **Named by the gate, because the suite cannot be heard.** A guard that
+/// returns is counted by cargo as a pass, and the line it prints as it does
+/// is captured with the rest of a passing test's output, of which the test
+/// step prints nothing — measured on a Windows run, where no line of the log
+/// named one of the suites that stood aside. So the test step says which, one
+/// not-applicable line each before the tests run and a clause on the count
+/// line after them, and the verdict names each beside the pass.
+///
+/// **Written twice, and held together**, as [`THE_STACKS_PARTS`] is: each
+/// sentence is written again where it is said, beside the answer that
+/// chooses it, in [`the_suites_the_system_stands_aside`], and
+/// `every_suite_a_system_stands_aside_says_so` drives that and holds what it
+/// prints to this list.
+pub(crate) const THE_SUITES_A_SYSTEM_STANDS_ASIDE: [&str; 2] = [
+    "running the suite about the order on disk, which needs a directory that lists its entries in the order they were made",
+    "running the checkout script's guards, which need a POSIX shell of the system's own",
+];
+
+/// What this system has of what each suite of
+/// [`THE_SUITES_A_SYSTEM_STANDS_ASIDE`] needs, in the same order.
+///
+/// **`nc_platform::system`'s answers, read and never made here.** That crate
+/// is the one place a system is asked what it has (`NOCTUA.md §2.7`), fixed
+/// when it is built, and each suite's guard asks the same constant, so the
+/// gate and a guard cannot disagree about which suite stood aside.
+const WHAT_THIS_SYSTEM_HAS: [bool; 2] = [
+    nc_platform::system::LISTED_AS_MADE.is_some(),
+    nc_platform::system::A_POSIX_SHELL,
+];
+
+/// The suites a system that has `has` stands aside, in order: each one whose
+/// need it lacks. Owned, for the reason [`what_does_not_apply`] gives.
+fn the_suites_not_applicable(has: [bool; 2]) -> Vec<String> {
+    THE_SUITES_A_SYSTEM_STANDS_ASIDE
+        .into_iter()
+        .zip(has)
+        .filter(|&(_, has)| !has)
+        .map(|(suite, _)| suite.to_owned())
+        .collect()
+}
+
+/// Says, one not-applicable line each, which suites a system that has `has`
+/// stands aside.
+///
+/// **Before the tests run**, so a run whose tests fail says it as well, and
+/// the verdict that names a failure is not also handed a list that stopped
+/// short. Its own function so a test can hand it each answer: each suite
+/// writes its sentence here, beside the answer that chooses it, and
+/// [`THE_SUITES_A_SYSTEM_STANDS_ASIDE`] writes it again for the verdict.
+fn the_suites_the_system_stands_aside(has: [bool; 2]) {
+    let [listed_as_made, a_posix_shell] = has;
+    if !listed_as_made {
+        ui::not_applicable(
+            "running the suite about the order on disk, which needs a directory that lists its entries in the order they were made",
+        );
+    }
+    if !a_posix_shell {
+        ui::not_applicable(
+            "running the checkout script's guards, which need a POSIX shell of the system's own",
+        );
+    }
+}
+
+/// What the count of tests leaves out, one clause each, for a run with
+/// `stack`, with a workspace above this repository or without one, on a
+/// system that has `has`.
+///
+/// **What the number leaves out, beside it.** A skipped test counts as
+/// passed, so without a clause `--offline` reports the same total as a run
+/// that proved the chain against a real store — the one number a reader uses
+/// to tell those apart says nothing.
+///
+/// **And the same for the workspace.** Some tests are *about* the documents
+/// above this repository and return early when there are none — and a test
+/// that returns early counts as passed, so the number is identical in a
+/// checkout and in a workspace. Several of them say in a comment that
+/// `check`'s test count names what did not run, and this clause is what makes
+/// that true.
+///
+/// **And for what the system lacks**, off Linux: the suites
+/// [`THE_SUITES_A_SYSTEM_STANDS_ASIDE`] names, each of which the run has also
+/// named on a not-applicable line of its own.
+///
+/// **Named, not counted.** A number in this sentence would be one nothing
+/// holds, and a test arriving — such as the gate that compares this
+/// repository's copied texts against the workspace's own — would not move it.
+/// The names are written down in `STANDS_ASIDE_WITHOUT_A_WORKSPACE` and read
+/// out of the sources, as the database half of this same clause has its census
+/// and its reader.
+fn what_the_count_leaves_out(stack: Stack, a_workspace_above: bool, has: [bool; 2]) -> Vec<String> {
+    let mut caveats = Vec::new();
+    if !stack.asked() {
+        caveats.push("the ones that need a database".to_owned());
+    }
+    if !a_workspace_above {
+        caveats.push("the ones that need the workspace above this repository".to_owned());
+    }
+    if !the_suites_not_applicable(has).is_empty() {
+        caveats.push("the ones that need what this system lacks".to_owned());
+    }
+    caveats
+}
+
+/// Clauses read as one: `a`, `a and b`, `a, b and c`.
+fn in_one_clause(clauses: &[String]) -> String {
+    match clauses.split_last() {
+        Some((last, rest)) if !rest.is_empty() => format!("{} and {last}", rest.join(", ")),
+        _ => clauses.concat(),
+    }
+}
 
 /// How many of a suite's guards both ask for the flag and say so inside themselves.
 ///
@@ -6039,6 +6187,9 @@ fn workspace(
     // `OFFLINE_SKIPS` are for. Off Linux the same suite, and this tool's own
     // image-pin cases, are not applicable, and the line says that instead.
     the_stacks_own_tests_stand_aside(stack);
+    // **And each suite this system stands aside, by name**, since what the
+    // suite itself prints as it returns is captured and never shown.
+    the_suites_the_system_stands_aside(WHAT_THIS_SYSTEM_HAS);
     step_aside_for_the_test_build();
     // Deliberately not `--quiet`: the count is the assertion. A suite with no
     // tests exits zero, so "tests passed" without a number is the gate
@@ -6101,45 +6252,25 @@ fn workspace(
                         failures.push("the test census could not be taken".to_owned());
                     }
                 }
-                // **What the number leaves out, beside it.** A skipped test
-                // counts as passed, so without a clause `--offline` reports the
-                // same total as a run that proved the chain against a real store
-                // — the one number a reader uses to tell those apart says
-                // nothing.
-                // **And the same for the workspace.** Some tests are *about*
-                // the documents above this repository and return early when
-                // there are none — and a test that returns early counts as
-                // passed, so the number is identical in a checkout and in a
-                // workspace. Several of them say in a comment that `check`'s
-                // test count names what did not run, and this clause is what
-                // makes that true.
-                //
-                // **Named, not counted.** A number in this sentence would be one
-                // nothing holds, and a test arriving — such as the gate that
-                // compares this repository's copied texts against the
-                // workspace's own — would not move it. The names are written
-                // down in `STANDS_ASIDE_WITHOUT_A_WORKSPACE` and read out of the
-                // sources, as the database half of this same clause has its
-                // census and its reader.
-                let mut caveats = Vec::new();
                 // **Asked of the sources every run, not only under the flag.**
                 // Inside `if offline`, the one census that says a database suite
                 // still stands aside would never run in CI at all — and CI is
                 // where the suites do run. What it reads is source,
                 // which is there either way.
                 the_database_suites_still_stand_aside(root, failures);
-                if !stack.asked() {
-                    caveats.push("the ones that need a database");
-                }
-                if workspace_above(root).is_none() {
-                    caveats.push("the ones that need the workspace above this repository");
-                }
+                // What the number leaves out, beside it: see
+                // `what_the_count_leaves_out`.
+                let caveats = what_the_count_leaves_out(
+                    stack,
+                    workspace_above(root).is_some(),
+                    WHAT_THIS_SYSTEM_HAS,
+                );
                 if caveats.is_empty() {
                     ui::ok(&format!("{passed} test(s)"));
                 } else {
                     ui::ok(&format!(
                         "{passed} test(s), and {} did not run",
-                        caveats.join(" and ")
+                        in_one_clause(&caveats)
                     ));
                 }
             }
@@ -7551,8 +7682,8 @@ fn ends_in_a_backslash(path: &str) -> bool {
 /// **Written out, because a list read from the tree shrinks with the tree.**
 /// A walk of `crates/*/tests/` compared against cargo's output loses a deleted
 /// suite from both sides — measured, nineteen tests
-/// went with `ok 508 test(s)` and `check passed`. The gate reads the tree and
-/// not its history, so nothing it reads remembers what was in it.
+/// went with `ok 508 test(s)` and `check passed`. No step compares the tree
+/// with what it held before, so nothing it reads remembers what was in it.
 ///
 /// What this can do, stated exactly: it makes removing a suite a
 /// **two-place edit**, one of them here, where a reviewer reading the diff meets
@@ -7711,8 +7842,9 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// held by nothing but this list, and a floor under a walk — the mechanism this
 /// repository relies on most — is the kind a run cannot show missing. One of
 /// the twenty-six, the edited-migration report, is the only reader of
-/// `_sqlx_migrations` for that case, and the gate reads no history in its
-/// place: with it gone, a migration edited after it was applied passed the gate.
+/// `_sqlx_migrations` for that case, and no step compares the tree with what it
+/// held before: with it gone, a migration edited after it was applied passed
+/// the gate.
 ///
 /// A verdict name is what `check failed: …` prints and a finding's `what` is
 /// the line a developer reads, so between them this list is everything the gate
@@ -7733,7 +7865,7 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// constant**, as `OPERATORS` is: one copy rather than one per use, and nothing
 /// reads it at compile time.
 #[cfg(test)]
-static WHAT_THE_GATE_CAN_SAY: [&str; 1044] = [
+static WHAT_THE_GATE_CAN_SAY: [&str; 1047] = [
     // The workflows' bounds (`xtask/src/workflow.rs`): what `.github/` may hold,
     // the authority each workflow opens with, the pins, and how the release is
     // made; and the `CI` step's two verdicts about them.
@@ -7920,7 +8052,7 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1044] = [
     "`#[ignore]`",
     "`GET /flags` on the log store answered `{}`, so what it is running with could not be read",
     "`POSTGRES_INITDB_ARGS` is read only when the data directory is empty, so this volume predates the line or was made without it: `cargo xtask dev --down` removes it and the next `dev` initialises a database that matches the file",
-    "`_sqlx_migrations` is the only thing outside this tree that remembers what was applied, and the gate reads no history in its place — `cargo xtask dev` applies them",
+    "`_sqlx_migrations` is the only thing outside this tree that remembers what was applied, and no step compares the tree with what it held before — `cargo xtask dev` applies them",
     "`cargo metadata` did not answer in JSON: {error}",
     "`cargo metadata` did not run: {error}",
     "`cargo metadata` failed: {said}",
@@ -7941,6 +8073,8 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1044] = [
     "reading how the database sorts and encodes",
     "running the PostgreSQL tests against a database",
     "running the stack's own tests and the image-pin cases, which ask docker what it resolves",
+    "running the suite about the order on disk, which needs a directory that lists its entries in the order they were made",
+    "running the checkout script's guards, which need a POSIX shell of the system's own",
     "the container stack, which this verb brings up and takes down",
     "not applicable here: {part}",
     "not run: {skip}",
@@ -8470,6 +8604,7 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1044] = [
     "the migrations directory",
     "the ones that need a database",
     "the ones that need the workspace above this repository",
+    "the ones that need what this system lacks",
     "the pinned clauses moved policy",
     "the pinned-clause count moved",
     "the query walk is short",
@@ -12901,7 +13036,7 @@ const STEPS: [&str; 11] = [
 fn finish(
     failures: &[String],
     announced: usize,
-    inapplicable: &[&str],
+    inapplicable: &[String],
     to_fetch: bool,
 ) -> Result<(), String> {
     // **Taken before this function prints anything of its own.** What the rule
@@ -12954,8 +13089,9 @@ fn finish(
     // it.** On Linux that is nothing: every step runs there, and a part saying
     // not applicable on Linux is a step the Linux job no longer judges — acceptance
     // criterion 2's whole subject — with every other line of the run green.
-    // Elsewhere it is every part that needs the stack, in order, so a part that
-    // stopped saying so reads as a part that ran.
+    // Elsewhere it is every part that needs the stack, then every suite the
+    // system lacks what it needs for, in order, so a part or a suite that
+    // stopped saying so reads as one that ran.
     let said = ui::not_applicable_parts();
     if said != inapplicable {
         ui::failure(&format!(
@@ -13823,8 +13959,8 @@ mod tests {
             assert_eq!(
                 its_walk, walk,
                 "`past_the_attributes` in `{relative}` is not the one in `{first}`. \
-                 Wave 24 repaired one copy and left two; wave 25 repaired the second \
-                 and found the third. This is the rule that stops the fourth time"
+                 One rule written three times is one rule with three answers; the \
+                 copies are held equal here"
             );
         }
         // **And a fourth copy is a finding, not a silence.** A new one appears
@@ -13848,8 +13984,7 @@ mod tests {
         assert_eq!(
             declared, expected,
             "the attribute walk is declared somewhere this rule does not compare. A \
-             copy outside `COPIES` is a copy nothing holds in step, which is exactly \
-             the state wave 25 found"
+             copy outside `COPIES` is a copy nothing holds in step"
         );
     }
 
@@ -14383,8 +14518,9 @@ mod tests {
             "the tree disagrees with itself: {lost:?} / {rewritten:?}"
         );
 
-        // A migration that was applied and whose file is gone. The gate reads
-        // no history, so the record is the only thing it reads that remembers it.
+        // A migration that was applied and whose file is gone. No step compares
+        // the tree with what it held before, so the record is the only thing it
+        // reads that remembers it.
         let one_short: Vec<String> = files
             .iter()
             .filter(|name| !name.starts_with("0003_"))
@@ -15660,7 +15796,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
             ui::not_applicable(part);
         }
         assert!(
-            finish(&[], 0, &THE_STACKS_PARTS, false).is_ok(),
+            finish(&[], 0, &THE_STACKS_PARTS.map(String::from), false).is_ok(),
             "every part of the stack said it does not apply, as written down for a system \
              that runs no stack, and the run was refused"
         );
@@ -15680,10 +15816,164 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
             ui::not_applicable(part);
         }
         assert!(
-            finish(&[], 0, &THE_STACKS_PARTS, false).is_err(),
+            finish(&[], 0, &THE_STACKS_PARTS.map(String::from), false).is_err(),
             "a part stopped saying it does not apply and the run was accepted"
         );
         ui::forget_counts();
+    }
+
+    /// The suites a system stands aside are the ones written down for it:
+    /// none on Linux, the suite about the order on disk on macOS, and that and
+    /// the checkout script's guards on Windows.
+    ///
+    /// **Held per system**, as the verdict holds the stack's parts: each
+    /// system's job runs this, so an answer moved on any of the three fails on
+    /// that system's own job — and on Linux the list is empty, because the
+    /// Linux job is the one that runs every suite another system stands aside,
+    /// and a suite standing aside there is one no job judges. **And driven with
+    /// every answer**, so the rule is held on each system and not only by the
+    /// answer that system gives.
+    #[test]
+    fn the_suites_a_system_stands_aside_are_the_ones_written_down_for_it() {
+        use super::{
+            ANNOUNCES_WHAT_THE_SYSTEM_LACKS, THE_SUITES_A_SYSTEM_STANDS_ASIDE as ASIDE,
+            WHAT_THIS_SYSTEM_HAS, the_suites_not_applicable,
+        };
+        let written: &[&str] = if cfg!(target_os = "linux") {
+            &[]
+        } else if cfg!(windows) {
+            &ASIDE
+        } else {
+            &ASIDE[..1]
+        };
+        assert_eq!(
+            the_suites_not_applicable(WHAT_THIS_SYSTEM_HAS),
+            written,
+            "the suites this system stands aside are not the ones written down for it"
+        );
+        for (has, aside) in [
+            ([true, true], &[][..]),
+            ([false, true], &ASIDE[..1]),
+            ([true, false], &ASIDE[1..]),
+            ([false, false], &ASIDE[..]),
+        ] {
+            assert_eq!(
+                the_suites_not_applicable(has),
+                aside,
+                "a system that has {has:?} of what the suites need"
+            );
+        }
+        assert_eq!(
+            ASIDE.len(),
+            ANNOUNCES_WHAT_THE_SYSTEM_LACKS.len(),
+            "a suite the census reads the guards of is not one the gate can name, or the \
+             other way round"
+        );
+    }
+
+    /// Every suite a system stands aside says so when it is handed that
+    /// answer, and the verdict takes those lines only where they are written
+    /// down, after the stack's parts.
+    ///
+    /// **Driven, so the written list is the printed one**, with every answer a
+    /// system can give, on every system: the sentences are written twice, once
+    /// where each is said and once in
+    /// [`super::THE_SUITES_A_SYSTEM_STANDS_ASIDE`], and this holds the two to
+    /// each other and both to the verdict.
+    #[test]
+    fn every_suite_a_system_stands_aside_says_so() {
+        use super::{
+            Stack, THE_STACKS_PARTS, the_suites_not_applicable, the_suites_the_system_stands_aside,
+            what_does_not_apply,
+        };
+        let _printing = crate::ui::printing();
+        for has in [[true, true], [false, true], [true, false], [false, false]] {
+            let aside = the_suites_not_applicable(has);
+            ui::forget_counts();
+            the_suites_the_system_stands_aside(has);
+            assert_eq!(
+                ui::not_applicable_parts(),
+                aside,
+                "a system that has {has:?}: the suites that said they stood aside are not \
+                 the ones the verdict is held to"
+            );
+            assert_eq!(
+                what_does_not_apply(Stack::Asked, has),
+                aside,
+                "a system that runs the stack and has {has:?}"
+            );
+            let expected = what_does_not_apply(Stack::NotApplicable, has);
+            assert_eq!(
+                expected,
+                [THE_STACKS_PARTS.map(String::from).to_vec(), aside.clone()].concat(),
+                "a system that runs no stack and has {has:?}: the stack's parts, then the \
+                 suites"
+            );
+            ui::forget_counts();
+            for part in THE_STACKS_PARTS {
+                ui::not_applicable(part);
+            }
+            the_suites_the_system_stands_aside(has);
+            assert!(
+                finish(&[], 0, &expected, false).is_ok(),
+                "a system that has {has:?} said what it stands aside, as written down, and \
+                 the run was refused"
+            );
+            if !aside.is_empty() {
+                // **And a suite that stopped saying so is a refusal**, where it
+                // would otherwise read as one that ran.
+                ui::forget_counts();
+                for part in THE_STACKS_PARTS {
+                    ui::not_applicable(part);
+                }
+                assert!(
+                    finish(&[], 0, &expected, false).is_err(),
+                    "a system that has {has:?} stood a suite aside without saying so, and \
+                     the run was accepted"
+                );
+            }
+        }
+        ui::forget_counts();
+    }
+
+    /// The count line names what it leaves out — a database the run did not
+    /// ask, a workspace that is not above it, and a suite the system stood
+    /// aside — one clause each, read as one.
+    #[test]
+    fn the_count_line_names_what_it_leaves_out() {
+        use super::{Stack, in_one_clause, what_the_count_leaves_out};
+        assert!(
+            what_the_count_leaves_out(Stack::Asked, true, [true, true]).is_empty(),
+            "a run that left nothing out says it did"
+        );
+        assert_eq!(
+            what_the_count_leaves_out(Stack::Offline, true, [true, true]),
+            ["the ones that need a database"]
+        );
+        assert_eq!(
+            what_the_count_leaves_out(Stack::Asked, false, [true, true]),
+            ["the ones that need the workspace above this repository"]
+        );
+        for has in [[false, true], [true, false], [false, false]] {
+            assert_eq!(
+                what_the_count_leaves_out(Stack::Asked, true, has),
+                ["the ones that need what this system lacks"],
+                "a system that has {has:?} stood a suite aside, and the count line \
+                 does not say so"
+            );
+        }
+        let every = what_the_count_leaves_out(Stack::NotApplicable, false, [false, false]);
+        assert_eq!(
+            in_one_clause(&every),
+            "the ones that need a database, the ones that need the workspace above this \
+             repository and the ones that need what this system lacks"
+        );
+        assert_eq!(
+            in_one_clause(&every[..2]),
+            "the ones that need a database and the ones that need the workspace above \
+             this repository"
+        );
+        assert_eq!(in_one_clause(&every[..1]), "the ones that need a database");
     }
 
     /// What a child is told about the stack is the reason, or nothing.
@@ -18877,7 +19167,7 @@ mod the_frozen_path_rule {
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 52, 15),
         ("nc-local/lib.rs", 12, 8),
         ("nc-local/open.rs", 19, 6),
-        ("nc-local/opening_refuses_what_it_did_not_make.rs", 62, 4),
+        ("nc-local/opening_refuses_what_it_did_not_make.rs", 64, 4),
         ("nc-local/schema.rs", 23, 2),
         ("nc-local/store.rs", 82, 12),
         ("nc-log/events.rs", 22, 110),
@@ -18885,8 +19175,8 @@ mod the_frozen_path_rule {
         ("nc-log/lib.rs", 19, 25),
         ("nc-log/ship.rs", 106, 50),
         ("nc-log/value.rs", 18, 36),
-        ("nc-platform/lib.rs", 42, 21),
-        ("nc-platform/testing.rs", 26, 1),
+        ("nc-platform/lib.rs", 45, 21),
+        ("nc-platform/testing.rs", 24, 1),
         ("nc-platform/unix.rs", 46, 2),
         ("nc-platform/windows.rs", 84, 11),
         ("nc-policy/an_entity_type_is_a_name_cedar_parses.rs", 7, 3),
@@ -18909,7 +19199,7 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 650, 56),
+        ("xtask/check.rs", 660, 56),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 45, 29),
         ("xtask/database.rs", 29, 6),
@@ -21708,8 +21998,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 547 scratches this tree
-    /// builds, 460 of the 547 are removed however the test leaves and 87 are
+    /// directories accumulated in an afternoon. Of the 548 scratches this tree
+    /// builds, 461 of the 548 are removed however the test leaves and 87 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -21790,7 +22080,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/where_a_blob_is.rs", 3, 3),
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 26, 26),
         ("nc-local/open.rs", 4, 4),
-        ("nc-local/opening_refuses_what_it_did_not_make.rs", 42, 42),
+        ("nc-local/opening_refuses_what_it_did_not_make.rs", 43, 43),
         ("nc-platform/lib.rs", 14, 14),
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
         ("nc-prune/in_sqlite.rs", 13, 13),
@@ -24673,7 +24963,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15115;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15144;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -24692,7 +24982,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3075;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3079;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -24709,7 +24999,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1009;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1011;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -24726,7 +25016,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [72, 16, 30, 31, 88];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [73, 16, 31, 32, 87];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -24743,7 +25033,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 21326;
+    const THE_REARRANGEMENTS_JUDGED: usize = 21380;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -24761,7 +25051,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 461;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 463;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -24797,8 +25087,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **461 of 21,326 are accepted by the first-line
-    /// rule alone, and 237 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **463 of 21,380 are accepted by the first-line
+    /// rule alone, and 239 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -24819,8 +25109,8 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **72 ascending sorts, 16 descending, 30
-    /// swaps, 31 rotations and 88 reversals** — so the reversal is the largest
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **73 ascending sorts, 16 descending, 31
+    /// swaps, 32 rotations and 87 reversals** — so the reversal is the largest
     /// part of it, not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
@@ -24830,7 +25120,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1009 of
+    /// this tree offers, **1011 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -26366,7 +26656,7 @@ mod the_frozen_path_rule {
     /// with as many guards as it writes down.
     ///
     /// **The same two halves as the flag's census above.** A suite asking
-    /// `nc_platform::testing` whether this system can give it what it needs,
+    /// `nc_platform::system` whether this system can give it what it needs,
     /// and returning when it cannot, is counted by cargo as a pass; unnamed, it
     /// is a suite standing aside on macOS or Windows with nothing judging
     /// whether it says so. Each door is looked for by its own name, through
@@ -26411,7 +26701,7 @@ mod the_frozen_path_rule {
         }
     }
 
-    /// The doors of `nc_platform::testing` a suite stands aside by.
+    /// The doors of `nc_platform::system` a suite stands aside by.
     ///
     /// Each by its own name: what a needle of the census asks, without the
     /// path in front of it, the `!` and the method that reads it.
@@ -26432,9 +26722,9 @@ mod the_frozen_path_rule {
     /// Whether `text` asks one of `doors` in its code, however the door was
     /// brought into scope.
     ///
-    /// **By the door's own name, and not by its path.** Suites of this tree
-    /// already reach the module as `use nc_platform::testing;`, after which a
-    /// door is `testing::A_POSIX_SHELL`, and a walk for the whole path misses it —
+    /// **By the door's own name, and not by its path.** A suite may reach the
+    /// module as `use nc_platform::system;`, after which a door is
+    /// `system::A_POSIX_SHELL`, and a walk for the whole path misses it —
     /// as it misses a `use` of the door itself, or of the module under another
     /// name. What every spelling shares is the constant's name, so that is
     /// what is looked for, as a whole word, since a longer name holding it is
@@ -26475,22 +26765,22 @@ mod the_frozen_path_rule {
         for (how, text) in [
             (
                 "through its module",
-                "use nc_platform::testing;\n\
-                 fn drive() { if !testing::A_POSIX_SHELL { return; } }\n",
+                "use nc_platform::system;\n\
+                 fn drive() { if !system::A_POSIX_SHELL { return; } }\n",
             ),
             (
                 "by its own name",
-                "use nc_platform::testing::LISTED_AS_MADE;\n\
+                "use nc_platform::system::LISTED_AS_MADE;\n\
                  fn drive() { if LISTED_AS_MADE.is_none() { return; } }\n",
             ),
             (
                 "through the module under another name",
-                "use nc_platform::testing as system;\n\
-                 fn drive() -> bool { system::A_POSIX_SHELL }\n",
+                "use nc_platform::system as answers;\n\
+                 fn drive() -> bool { answers::A_POSIX_SHELL }\n",
             ),
             (
                 "by its whole path",
-                "fn drive() { if !nc_platform::testing::A_POSIX_SHELL { return; } }\n",
+                "fn drive() { if !nc_platform::system::A_POSIX_SHELL { return; } }\n",
             ),
         ] {
             assert!(
@@ -26502,11 +26792,11 @@ mod the_frozen_path_rule {
         for (how, text) in [
             (
                 "in a comment",
-                "// if !testing::A_POSIX_SHELL { return; }\nfn drive() {}\n",
+                "// if !system::A_POSIX_SHELL { return; }\nfn drive() {}\n",
             ),
             (
                 "in a string",
-                "const ROW: &str = \"!nc_platform::testing::A_POSIX_SHELL\";\n",
+                "const ROW: &str = \"!nc_platform::system::A_POSIX_SHELL\";\n",
             ),
             (
                 "inside a longer name",
@@ -27168,7 +27458,7 @@ mod the_frozen_path_rule {
     /// verdicts that agree for that long are one row, and — because a prefix
     /// matches nothing the two censuses hold — every row is a shipped literal
     /// accounted for nowhere. Written out, each row is its own accounting.
-    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 485] = [
+    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 487] = [
         ("—", "compiled catalog/"),
         (
             "—",
@@ -27454,7 +27744,7 @@ mod the_frozen_path_rule {
         ),
         (
             "if applied.is_empty()",
-            "`_sqlx_migrations` is the only thing outside this tree that remembers what was applied, and the gate reads no history in its place — `cargo xtask dev` applies them",
+            "`_sqlx_migrations` is the only thing outside this tree that remembers what was applied, and no step compares the tree with what it held before — `cargo xtask dev` applies them",
         ),
         (
             "if applied.is_empty()",
@@ -27933,6 +28223,14 @@ mod the_frozen_path_rule {
         (
             "if unjudged > 0 && let Some(reason) = crate::sections::out_of_reach(above)",
             "skipped: {unjudged} of them name a workspace document and could not be judged: {reason}",
+        ),
+        (
+            "if !listed_as_made",
+            "running the suite about the order on disk, which needs a directory that lists its entries in the order they were made",
+        ),
+        (
+            "if !a_posix_shell",
+            "running the checkout script's guards, which need a POSIX shell of the system's own",
         ),
         (
             "let Ok(text) = std::fs::read_to_string(root.join(named)) else",
@@ -32952,8 +33250,9 @@ mod the_meta_gate {
     /// repository it belongs to. So the script refuses to run there before its
     /// first guard, which `the_script_refuses_a_system_its_guards_do_not_hold_on`
     /// holds on every system, and a drive of a guard would meet that refusal
-    /// and prove nothing about the guard. `nc_platform::testing::A_POSIX_SHELL`
-    /// is where the system says so.
+    /// and prove nothing about the guard. `nc_platform::system::A_POSIX_SHELL`
+    /// is where the system says so, and the gate's test step names these
+    /// guards where it is false.
     const NO_POSIX_SHELL: &str = "the checkout script's guards spend a path as a POSIX \
                                   shell does, and the sh this system has spends it as \
                                   Windows does, so the script refuses to run here before \
@@ -33072,10 +33371,7 @@ mod the_meta_gate {
              one. It reads the generated crate on disk, so a weakening of \
              `emit.rs` or `model.rs` cannot move what it sees: those files decide \
              what the crate *would* be, and the drift gate is what holds the \
-             committed one to it. This row claimed the two were the same and they \
-             are not — a reviewer named it in round seventy-one, beside the row \
-             three below where the same sentence was true and the command was \
-             wrong",
+             committed one to it",
         ),
         (
             "crates/nc-catalog-compiler/tests/the_gates_fire.rs",
@@ -35730,7 +36026,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1699] = [
+    static OPERATORS: [(&str, &str, &str); 1703] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -40031,6 +40327,26 @@ Options:
             "check",
             "unset_what_proptest_reads",
             "a variable proptest reads never reaches the gate's cargo",
+        ),
+        (
+            "check",
+            "the_suites_not_applicable",
+            "a suite stands aside where the system has what it needs",
+        ),
+        (
+            "check",
+            "what_does_not_apply",
+            "the verdict is not held to the suites a system stands aside",
+        ),
+        (
+            "check",
+            "the_suites_the_system_stands_aside",
+            "a suite the system stands aside need not say so",
+        ),
+        (
+            "check",
+            "what_the_count_leaves_out",
+            "the count line need not say what the system stood aside",
         ),
         (
             "kernel_dispatch",
@@ -44643,7 +44959,7 @@ impl<T: Shown> Shown for Option<T> {
         // What `uname -s` answers under Git's shell, under MSYS2's own, under
         // Cygwin, and under an MSYS2 environment only the last pattern takes;
         // `None` is the system's own answer, asked where it is one of them.
-        let answers: Vec<Option<&str>> = if nc_platform::testing::A_POSIX_SHELL {
+        let answers: Vec<Option<&str>> = if nc_platform::system::A_POSIX_SHELL {
             [
                 "MINGW64_NT-10.0-26100",
                 "MSYS_NT-10.0-26100",
@@ -44698,7 +45014,7 @@ impl<T: Shown> Shown for Option<T> {
                  {said}"
             );
         }
-        if nc_platform::testing::A_POSIX_SHELL {
+        if nc_platform::system::A_POSIX_SHELL {
             // **A `uname` that fails stops the script, and is not read as a
             // system it may run on.** Asked inside the `case` word, a failing
             // `uname` is an empty answer that no pattern takes, and the script
@@ -44763,7 +45079,7 @@ impl<T: Shown> Shown for Option<T> {
     /// absolute, which is the difference the guard has to see.
     #[test]
     fn a_path_that_resolves_inside_this_repository_is_refused() {
-        if !nc_platform::testing::A_POSIX_SHELL {
+        if !nc_platform::system::A_POSIX_SHELL {
             println!(
                 "skipped, not applicable on {}: {NO_POSIX_SHELL}",
                 crate::ui::SYSTEM
@@ -44891,7 +45207,7 @@ impl<T: Shown> Shown for Option<T> {
     /// run `rm -rf` as root's parent.
     #[test]
     fn the_root_is_refused_though_it_contains_everything() {
-        if !nc_platform::testing::A_POSIX_SHELL {
+        if !nc_platform::system::A_POSIX_SHELL {
             println!(
                 "skipped, not applicable on {}: {NO_POSIX_SHELL}",
                 crate::ui::SYSTEM
@@ -44986,7 +45302,7 @@ impl<T: Shown> Shown for Option<T> {
     /// `rm -rf` of a directory the caller did not name.
     #[test]
     fn the_script_reached_through_a_doubled_slash_still_knows_where_it_is() {
-        if !nc_platform::testing::A_POSIX_SHELL {
+        if !nc_platform::system::A_POSIX_SHELL {
             println!(
                 "skipped, not applicable on {}: {NO_POSIX_SHELL}",
                 crate::ui::SYSTEM
@@ -45085,7 +45401,7 @@ impl<T: Shown> Shown for Option<T> {
     /// inodes after following them.
     #[test]
     fn a_link_to_this_script_does_not_make_its_directory_the_repository() {
-        if !nc_platform::testing::A_POSIX_SHELL {
+        if !nc_platform::system::A_POSIX_SHELL {
             println!(
                 "skipped, not applicable on {}: {NO_POSIX_SHELL}",
                 crate::ui::SYSTEM
@@ -45208,7 +45524,7 @@ impl<T: Shown> Shown for Option<T> {
     /// where `dirname` answers `.` and `.` is right.
     #[test]
     fn the_script_reached_by_another_name_refuses_rather_than_guessing() {
-        if !nc_platform::testing::A_POSIX_SHELL {
+        if !nc_platform::system::A_POSIX_SHELL {
             println!(
                 "skipped, not applicable on {}: {NO_POSIX_SHELL}",
                 crate::ui::SYSTEM
@@ -45341,7 +45657,7 @@ impl<T: Shown> Shown for Option<T> {
     /// same spelling is read in.
     #[test]
     fn an_ordinary_cdpath_does_not_move_the_repository() {
-        if !nc_platform::testing::A_POSIX_SHELL {
+        if !nc_platform::system::A_POSIX_SHELL {
             println!(
                 "skipped, not applicable on {}: {NO_POSIX_SHELL}",
                 crate::ui::SYSTEM
@@ -45415,7 +45731,7 @@ impl<T: Shown> Shown for Option<T> {
     /// fails this rather than passing it.
     #[test]
     fn the_guard_is_armed_before_the_gate_that_can_come_back() {
-        if !nc_platform::testing::A_POSIX_SHELL {
+        if !nc_platform::system::A_POSIX_SHELL {
             println!(
                 "skipped, not applicable on {}: {NO_POSIX_SHELL}",
                 crate::ui::SYSTEM
@@ -45503,7 +45819,7 @@ impl<T: Shown> Shown for Option<T> {
     /// arrived.
     #[test]
     fn the_copy_leaves_the_build_directory_behind() {
-        if !nc_platform::testing::A_POSIX_SHELL {
+        if !nc_platform::system::A_POSIX_SHELL {
             println!(
                 "skipped, not applicable on {}: {NO_POSIX_SHELL}",
                 crate::ui::SYSTEM
@@ -45731,7 +46047,7 @@ impl<T: Shown> Shown for Option<T> {
     /// first `rm -rf`, so the test costs a process and no copying.
     #[test]
     fn the_checkout_script_refuses_a_copy_inside_this_repository() {
-        if !nc_platform::testing::A_POSIX_SHELL {
+        if !nc_platform::system::A_POSIX_SHELL {
             println!(
                 "skipped, not applicable on {}: {NO_POSIX_SHELL}",
                 crate::ui::SYSTEM
@@ -45870,7 +46186,7 @@ impl<T: Shown> Shown for Option<T> {
     /// script is for.
     #[test]
     fn the_script_refuses_to_run_inside_a_checkout_it_made() {
-        if !nc_platform::testing::A_POSIX_SHELL {
+        if !nc_platform::system::A_POSIX_SHELL {
             println!(
                 "skipped, not applicable on {}: {NO_POSIX_SHELL}",
                 crate::ui::SYSTEM

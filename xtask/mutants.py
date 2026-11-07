@@ -4009,6 +4009,21 @@ WEAKENINGS = [
     ("check", "unset_what_proptest_reads", "a variable proptest reads never reaches the gate's cargo",
      "        if name.as_encoded_bytes().starts_with(b\"PROPTEST_\") {",
      "        if false {"),
+    # A suite a system stands aside where it lacks what the suite needs is
+    # named by the gate, before the tests and on the count line, and the
+    # verdict is held to the list of them as it is to the stack's parts.
+    ("check", "the_suites_not_applicable", "a suite stands aside where the system has what it needs",
+     "        .filter(|&(_, has)| !has)",
+     "        .filter(|&(_, has)| has)"),
+    ("check", "what_does_not_apply", "the verdict is not held to the suites a system stands aside",
+     "    parts.extend(the_suites_not_applicable(has));",
+     "    parts.extend(the_suites_not_applicable([true; 2]));"),
+    ("check", "the_suites_the_system_stands_aside", "a suite the system stands aside need not say so",
+     "    if !a_posix_shell {",
+     "    if !a_posix_shell && listed_as_made {"),
+    ("check", "what_the_count_leaves_out", "the count line need not say what the system stood aside",
+     "    if !the_suites_not_applicable(has).is_empty() {",
+     "    if the_suites_not_applicable(has).len() > THE_SUITES_A_SYSTEM_STANDS_ASIDE.len() {"),
     # -- the decision point, the units of work and the log --------------------
     ("kernel_dispatch", "spend", "a call tree nests no deeper than its depth",
      "        if depth > usize::try_from(KERNEL.dispatch_depth).unwrap_or(usize::MAX) {",

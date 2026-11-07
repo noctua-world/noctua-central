@@ -28,6 +28,12 @@ tokio.workspace = true
 # open cannot disagree about what `local-migrations/` must build. It does not
 # reach `nc-log`, so taking it keeps this tool outside the log's wall.
 nc-local.workspace = true
+# **What this system has that a suite needs**, read by the test step to name,
+# beside its count and its verdict, each suite this system stands aside: the
+# one place a system is asked what it has (`NOCTUA.md §2.7`). In this tool's
+# graph already, under `nc-local`, so it adds no package; the test doors stay
+# behind `test-support`, which only the dev-dependency below turns on.
+nc-platform.workspace = true
 
 # The alarms in `AGENTS.md` are copied verbatim from `NOCTUA.md §3.6` and are
 # printed when `NOCTUA.md` cannot be reached, so they cannot be compared against

@@ -994,7 +994,7 @@ mod an_opaque_identifier_holds_no_shape {
                 "ReadsEveryByteOfAnIdentifier",
             ),
             (
-                "a mutable reference, which wave 28 was shown",
+                "a mutable reference",
                 "impl<'a> IntoIterator for &'a mut OpaqueId {\n",
                 "IntoIterator",
             ),

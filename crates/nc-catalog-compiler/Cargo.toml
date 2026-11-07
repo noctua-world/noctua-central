@@ -31,8 +31,9 @@ nc-schema.workspace = true
 nc-catalog-compiler = { path = "." }
 # **What this system lists in the order it was made**, which the suite about
 # the order on disk needs and stands aside without, saying so: the one place
-# a system is asked what it can do (`NOCTUA.md §2.7`).
-nc-platform = { workspace = true, features = ["test-support"] }
+# a system is asked what it has (`NOCTUA.md §2.7`). Its answer is compiled in
+# every build, so none of the test doors is turned on here.
+nc-platform.workspace = true
 
 [lints]
 workspace = true

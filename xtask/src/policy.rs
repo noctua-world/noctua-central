@@ -44,9 +44,10 @@
 /// a policy is deleted, and each still reads as `ok`. This is the one thing here
 /// that a deletion cannot make agree with itself.
 ///
-/// It cannot stop somebody editing both places. The gate reads no history, so
-/// nothing it reads remembers; what it changes is that the removal is a line of
-/// the pull request's diff instead of a smaller number.
+/// It cannot stop somebody editing both places. No step compares the tree with
+/// what it held before, so nothing it reads remembers; what it changes is that
+/// the removal is a line of the pull request's diff instead of a smaller
+/// number.
 const CORE_POLICIES: [&str; 7] = [
     "agent_authority.cedar",
     "chain_depth.cedar",

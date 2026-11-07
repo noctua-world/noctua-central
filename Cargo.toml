@@ -159,7 +159,10 @@ nc-local = { path = "crates/nc-local" }
 # this process runs as, a directory and a file created private, an existing
 # path judged, a profile held for one open. The local database's open and the
 # kernel's blob directory both stand on it, so the rule is written once per
-# system, and it is the one crate that asks which system it runs on.
+# system, and it is the one crate whose code decides what to do by the system
+# it runs on, beside `xtask`'s `check::RUNS_THE_STACK`, which decides which gate
+# steps apply. It also answers what a system has that a suite needs, which the
+# suites and the gate both read.
 nc-platform = { path = "crates/nc-platform" }
 # The decision point as a library: the core and one realm's pack, embedded when
 # it is built (`NOCTUA.md §14.2`). The kernel holds every command a plugin

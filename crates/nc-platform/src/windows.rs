@@ -94,12 +94,10 @@ pub(crate) const SYNCS_A_DIRECTORY: bool = false;
 pub(crate) const HOLDS_THROUGH_A_FILE: bool = true;
 
 /// NTFS lists a directory by name, whatever order its entries were made in.
-#[cfg(any(test, feature = "test-support"))]
 pub(crate) const LISTED_AS_MADE: Option<&str> = None;
 
 /// No `sh` of the system's own: the one Git ships hands every path to a
 /// system that spends it as Windows does.
-#[cfg(any(test, feature = "test-support"))]
 pub(crate) const A_POSIX_SHELL: bool = false;
 
 /// Python 3 by the name its installers give it here: `python3` is, where it

@@ -424,6 +424,84 @@ async fn a_file_its_owner_cannot_write_is_refused_and_left_as_it_was() {
     private(&file);
 }
 
+/// The database file, the lock file, the profile's directory and the blobs'
+/// directory are refused when they are owned by whoever the system makes the
+/// owner of what this process creates, and left as they were: only SQLite's
+/// companions are taken so.
+///
+/// **The rule each path is held to, at the call that holds it.** On Windows,
+/// in an elevated process, that owner is the Administrators group, and the two
+/// rules `nc_platform` keeps are two: what this crate makes it makes owned by
+/// the user, so one of its paths owned by that group was given away since,
+/// while a file SQLite made carries that owner by right. Staged here, at the
+/// open and at [`nc_local::blob_directory`], so a call site that judged one of
+/// these paths by the companions' rule is a failure. **Elsewhere there is
+/// nothing to stage** — on Unix, and on Windows unelevated, a new path is the
+/// user's own and the two rules are one — and the test says so, by the path's
+/// name, and still holds that each path is taken as it stands.
+#[tokio::test]
+async fn what_this_crate_made_owned_as_the_system_owns_what_it_creates_is_refused() {
+    let scratch = Scratch::new("owned-by-default");
+    let profile = scratch.profile();
+    let blobs = scratch.0.join("blobs");
+    taken(&profile, &blobs, &profile).await.expect("opens");
+    taken(&profile, &blobs, &blobs).await.expect("made");
+    let mut made = vec![
+        ("the database file", profile.join(nc_local::FILE_NAME)),
+        ("the profile's directory", profile.clone()),
+        ("the blobs' directory", blobs.clone()),
+    ];
+    if testing::HOLDS_THROUGH_A_FILE {
+        made.push(("the lock file", profile.join(nc_local::LOCK_NAME)));
+    }
+    for (what, path) in made {
+        if testing::owned_as_this_process_creates(&path).expect("its owner is set") {
+            let before = access(&path);
+            let Err(error) = taken(&profile, &blobs, &path).await else {
+                panic!("{what} is owned by another than the user, and it was taken");
+            };
+            assert_eq!(
+                error.code(),
+                ErrorCode::DbLocalOpenRefused,
+                "{what}: {error}"
+            );
+            assert!(
+                error.to_string().contains("belongs to user"),
+                "{what}: {error}"
+            );
+            assert_eq!(
+                access(&path),
+                before,
+                "{what}: a refused path was repaired rather than left"
+            );
+            private(&path);
+        } else {
+            println!(
+                "nothing to stage for {what} on {}: the owner this process gives what it \
+                 creates is this user, so the rule {what} is held to and the one SQLite's \
+                 companions are held to are one",
+                std::env::consts::OS
+            );
+        }
+        taken(&profile, &blobs, &path)
+            .await
+            .unwrap_or_else(|error| {
+                panic!("{what} is the user's own, and it was refused: {error}")
+            });
+    }
+}
+
+/// Takes what holds `path` as its caller does — the blobs' directory through
+/// [`nc_local::blob_directory`], anything else by opening the profile and
+/// closing it again.
+async fn taken(profile: &Path, blobs: &Path, path: &Path) -> Result<(), LocalError> {
+    if path == blobs {
+        return nc_local::blob_directory(blobs);
+    }
+    LocalStore::open(profile).await?.close().await;
+    Ok(())
+}
+
 /// Opens of one profile awaited together on one runtime each open, however
 /// few threads drive it: two on a current-thread runtime, three on one of two
 /// workers.

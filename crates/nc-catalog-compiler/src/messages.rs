@@ -122,7 +122,7 @@ fn params(
     problems: &mut Vec<Problem>,
 ) {
     //
-    // Two checks, not one. Equality would be wrong now that an entry governs
+    // Two checks, not one. Equality would be wrong, because an entry governs
     // more than one message: a subject that uses one of two declared parameters
     // is ordinary, and a subject that uses one nobody declared is not.
     for declaration in declared_params(catalog) {

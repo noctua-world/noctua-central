@@ -4448,8 +4448,8 @@ mod tests {
     /// **A count and a string literal do not hold it.** A count of the sites
     /// that call `fs::write(` in what this module ships, and a failure message
     /// holding a sentence, are both true of a restore that writes anything:
-    /// measured in wave 16 as `&locked[..0]`, which left all 627 tests green
-    /// and truncated the lockfile to nothing after a failed `cargo update`. So
+    /// measured, a restore writing `&locked[..0]` leaves every test green and
+    /// truncates the lockfile after a failed `cargo update`. So
     /// this asks the function for the bytes, and the test of a failed relock
     /// asks `written` for them after the read-back refused what it wrote.
     #[test]

@@ -41,7 +41,6 @@ pub(crate) const HOLDS_THROUGH_A_FILE: bool = false;
 
 /// `tmpfs` at `/dev/shm` on Linux, which lists a directory in the order its
 /// entries were made; APFS, which macOS mounts, lists by a hash of the name.
-#[cfg(any(test, feature = "test-support"))]
 pub(crate) const LISTED_AS_MADE: Option<&str> = if cfg!(target_os = "linux") {
     Some("/dev/shm")
 } else {
@@ -49,7 +48,6 @@ pub(crate) const LISTED_AS_MADE: Option<&str> = if cfg!(target_os = "linux") {
 };
 
 /// The system's own `sh`, which spends a path as POSIX says.
-#[cfg(any(test, feature = "test-support"))]
 pub(crate) const A_POSIX_SHELL: bool = true;
 
 /// Python 3 by the name a Unix system gives it.

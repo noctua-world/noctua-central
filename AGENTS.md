@@ -463,8 +463,8 @@ effect; 22 is gated over the statements written today and by nothing over the ne
    and fails without licence statistics, and a step that checks one fact has nothing to
    count. **The migration count leans on the database**: `migrations/` is compared with
    `_sqlx_migrations`, the only thing outside this tree that remembers what was applied
-   — the gate reads no history in its place — since deleting the highest-numbered
-   migration leaves no gap in the numbering.
+   — no step compares the tree with what it held before — since deleting the
+   highest-numbered migration leaves no gap in the numbering.
 
 6. **No query is checked against a live database while compiling.** `sqlx`'s `query!`
    family needs a database at build time, so `cargo xtask check --offline` could not
@@ -1844,10 +1844,12 @@ pull request, never another**: auto-merge and the merge are asked only of a pull
 whose head is a branch here, never of a fork's that shares the branch's name. What `gh`
 answers is read and never printed, and a refusal quoting it has every character a reader
 cannot see written as its escape, a newline among them, so no line of GitHub's can open a
-line of CI's log. Git is never started here: the history is read through the history
-step's own reader. A test drives the whole sequence through a fake `gh` first on `PATH`,
-compiled for the system it runs on, which records each call — its arguments, the variables
-of `gh`'s own it was handed, and the request — and answers from fixtures, a run carried on
+line of CI's log. The release starts git only through the history step's reader
+(`crate::history::Own`), which removes every `GIT_*` variable and every one of `gh`'s from
+what it inherits, and sets `GIT_DIR` and `GIT_NO_LAZY_FETCH` itself. A test drives the
+whole sequence through a fake `gh` first on `PATH`, compiled for the system it runs on,
+which records each call — its arguments, the variables of `gh`'s own it was handed, and the
+request — and answers from fixtures, a run carried on
 after each step among them, a fork's pull request beside the release's own, one whose
 checks have passed in each state GitHub merges at once, an earlier release's pull request
 merged before the release commit, with the branch below stopped there or moved on since,
@@ -2178,8 +2180,11 @@ rather than anything decided for the project, and each is a maintainer's to reop
   here runs SQL this repository did not write — the premise the bundled SQLite's floor
   (3.50.2, CVE-2025-6965) and the later FTS5 advisories rest on. The blobs' directory
   stops the same people and no more. An open leaves a `-shm` it gave a `-wal` that had
-  none (an index holding no data) beside a file it then refuses, and waits without bound
-  for another open of the profile, so a process stopped mid-open holds every other.
+  none (an index holding no data) beside a file it then refuses, and leaves what it made
+  before it judged the path it refuses: the database file, when it was missing and a
+  companion is then refused, and on Windows the profile's lock file
+  (`nc_local::LOCK_NAME`), made before the database file is judged. It waits without
+  bound for another open of the profile, so a process stopped mid-open holds every other.
 - **On Windows, the system's own can read or take anything** — the Administrators group,
   `SYSTEM`, and any process holding the backup or the take-ownership privilege —
   whatever the access list says: Windows' counterpart of root, which no access list
@@ -2189,9 +2194,12 @@ rather than anything decided for the project, and each is a maintainer's to reop
   user's: SQLite creates them with the token's default owner, and that group's members
   are the ones who can take any file already. The directory, the database file, the lock
   file and the blobs' directory are this crate's, created owned by the user, and one owned
-  by anybody else is refused. A deny entry is read as this user's
-  whoever it names — which groups a user is in is the token's to say, and reading every
-  deny as this user's refuses more, never less. A path past Windows' 260-character limit
+  by anybody else is refused — the group above included, at each call that judges one:
+  `what_this_crate_made_owned_as_the_system_owns_what_it_creates_is_refused` and
+  `a_lock_file_that_is_not_its_own_is_refused_where_a_file_holds_the_directory` stage that
+  owner where the process is elevated, and say there is nothing to stage where it is the
+  user. A deny entry is read as this user's whoever it names — which groups a user is in
+  is the token's to say, and reading every deny as this user's refuses more, never less. A path past Windows' 260-character limit
   is refused by the system, since nothing here writes the `\\?\` form for it.
 - **A journal entry's authorization fields are the kernel's to fill, and one stays
   empty**: `actor_chain`, until agents act (Stage 15); an entry another writer makes
@@ -2351,12 +2359,19 @@ rather than anything decided for the project, and each is a maintainer's to reop
   refusal on every system — on Windows by the system's own answer, elsewhere through a
   `uname` planted on the path, with nothing removed or copied either way — and the failing
   `uname` on Linux and macOS; the drives of the guards themselves stand aside on Windows,
-  saying so, while the Linux and macOS jobs run them. A layer over Windows that names
-  itself some other way to `uname` is not refused, and runs guards no test holds.
+  named by the gate there as not applicable, while the Linux and macOS jobs run them. A
+  layer over Windows that names itself some other way to `uname` is not refused, and runs
+  guards no test holds.
 - **That the catalog's output does not follow a directory's order is measured on Linux
   alone**: macOS lists a directory by a hash of each name and Windows by the name, so two
   layouts of the locale files come back in one order there and the suite holding the
-  output to both stands aside. The sort it holds is the same code on every system.
+  output to both stands aside, named by the gate as not applicable. The sort it holds is
+  the same code on every system.
+- **Which suites stand aside off Linux is the system's answer, not what the run saw**: the
+  gate names a suite as not applicable from `nc_platform::system`'s constants, the ones its
+  guard asks, and the census of guards holds each guard to deciding on that alone. A test
+  that returns early by any other path is counted by cargo as passed and named by
+  nothing.
 - **An answer a reset overtakes is lost on Windows**: a store that closes the connection
   with the request unread resets it, and Windows discards what of the answer the shipper
   had not read yet. What the shipper had read decides the rest. Part of the status line,
@@ -2572,9 +2587,11 @@ rather than anything decided for the project, and each is a maintainer's to reop
   conflict, and auto-merge refused is what says otherwise then. One GitHub finds in
   conflict after auto-merge is on waits until a run on the release commit asks again —
   the run its push starts is one — or a person carries the release back.
-- **`cargo xtask dev` from a clean machine** — Stage 10's criterion 10 — has been watched
-  with one of the two images removed and the data volumes kept, never on a host with an
-  empty image store; a run on a host sharing nothing with this one would close it.
+- **`cargo xtask dev` from a clean machine, anywhere but CI's Linux runner** — Stage 10's
+  criterion 10 runs in the `linux` job on every push and pull request and in
+  `release.yml`'s gate job, each on a fresh Ubuntu runner that pulls both pinned images;
+  macOS and Windows run no stack (`NOCTUA.md §22.2`), and a local `dev --down` empties the
+  database and leaves the image store, so it is not that run.
 
 ## How the gates are built
 
@@ -2924,7 +2941,9 @@ under `--offline` and on a system that runs no stack, and its value is the reaso
 ### Not applicable is a property of the system, never of the machine
 
 `RUNS_THE_STACK` in `xtask/src/check.rs` asks the target `xtask` was compiled for, and
-nothing else in this tool asks which system it is on (`NOCTUA.md §2.7`). That is the
+nothing else in this tool decides by which system it is on (`NOCTUA.md §2.7`): `ui::SYSTEM`
+names the system in what the gate prints, and which suites stand aside is
+`nc_platform::system`'s answer. That is the
 security answer for this kind of line: a probe for docker would make a Linux machine with
 its stack down read as a system the stack does not apply to, and every step that needs it
 would stand aside there quietly — so the answer is fixed when the tool is built, a flag
@@ -2933,17 +2952,28 @@ any list but `THE_STACKS_PARTS`, in order. A part added to the stack's steps is 
 there and a sentence at its call site, which `every_part_of_the_stack_says_why_it_stands_aside`
 holds to each other.
 
-**A suite that needs what a system lacks asks `nc_platform::testing`, and says so.** The
-system's answer is a constant of that crate, fixed per system as `RUNS_THE_STACK` is —
-`LISTED_AS_MADE`, a directory listed in the order its entries were made, and
-`A_POSIX_SHELL` — never a probe of the machine, so a Linux machine cannot stand a suite
-aside, and `linux_lacks_nothing_a_suite_stands_aside_for` holds every answer on every
-system. Each guard prints `skipped, not applicable on <system>:` and why, in its own output,
-and `ANNOUNCES_WHAT_THE_SYSTEM_LACKS` in `xtask/src/check.rs` counts the guards into the
-same line as the database suites, read by the same rule, with
+**A suite that needs what a system lacks asks `nc_platform::system`, and the gate names
+it.** The system's answer is a constant of that crate, fixed per system as
+`RUNS_THE_STACK` is — `LISTED_AS_MADE`, a directory listed in the order its entries were
+made, and `A_POSIX_SHELL` — never a probe of the machine, so a Linux machine cannot stand a
+suite aside, and `linux_lacks_nothing_a_suite_stands_aside_for` holds every answer on every
+system. That module is compiled in every build, not behind `test-support`, because the
+gate reads it too. Each guard prints `skipped, not applicable on <system>:` and why — and
+cargo counts the test as passed and captures that line with the rest of a passing test's
+output, which the gate prints none of. So the gate's test step says it instead, from the
+same constants: before the tests, a `not applicable` line for each suite this system stands
+aside (`THE_SUITES_A_SYSTEM_STANDS_ASIDE`); after them, `the ones that need what this
+system lacks` on the count line; and beside the verdict, `not applicable here: <suite>`.
+`finish` holds those lines to the list as it holds the stack's parts, so on macOS (the
+order on disk) and on Windows (that and the checkout script's guards) a suite that stopped
+saying so is a refusal, and
+`the_suites_a_system_stands_aside_are_the_ones_written_down_for_it` holds the list per
+system, empty on Linux. `ANNOUNCES_WHAT_THE_SYSTEM_LACKS` in `xtask/src/check.rs` counts
+the guards into the same line as the database suites, read by the same rule — a count of
+the guards in the sources, the same on every system — with
 `every_source_that_asks_what_the_system_lacks_is_one_the_census_names` naming every source
 outside `nc-platform` whose code names a door. It looks for the door by its own name, as a
-whole word, so a suite that reaches it through `use nc_platform::testing;`, or under
+whole word, so a suite that reaches it through `use nc_platform::system;`, or under
 another name, is found as one writing the whole path is, and
 `a_door_is_asked_however_it_was_brought_into_scope` hands that reader the spellings the
 tree does not hold.
