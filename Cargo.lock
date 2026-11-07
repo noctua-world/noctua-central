@@ -1684,7 +1684,7 @@ checksum = "743fb55ba31b18fb1ecef6bdc9aa2743314978ac084044301a7eee33fb99a20d"
 
 [[package]]
 name = "nc-authz"
-version = "0.1.0-rc.1"
+version = "0.1.0"
 dependencies = [
  "cedar-policy",
  "nc-authz",
@@ -1698,7 +1698,7 @@ dependencies = [
 
 [[package]]
 name = "nc-canon"
-version = "0.1.0-rc.1"
+version = "0.1.0"
 dependencies = [
  "blake3",
  "nc-canon",
@@ -1708,14 +1708,14 @@ dependencies = [
 
 [[package]]
 name = "nc-catalog"
-version = "0.1.0-rc.1"
+version = "0.1.0"
 dependencies = [
  "nc-catalog",
 ]
 
 [[package]]
 name = "nc-catalog-compiler"
-version = "0.1.0-rc.1"
+version = "0.1.0"
 dependencies = [
  "blake3",
  "nc-catalog-compiler",
@@ -1727,7 +1727,7 @@ dependencies = [
 
 [[package]]
 name = "nc-guest"
-version = "0.1.0-rc.1"
+version = "0.1.0"
 dependencies = [
  "nc-guest",
  "wit-bindgen 0.61.1",
@@ -1735,7 +1735,7 @@ dependencies = [
 
 [[package]]
 name = "nc-ids"
-version = "0.1.0-rc.1"
+version = "0.1.0"
 dependencies = [
  "blake3",
  "nc-canon",
@@ -1746,7 +1746,7 @@ dependencies = [
 
 [[package]]
 name = "nc-journal"
-version = "0.1.0-rc.1"
+version = "0.1.0"
 dependencies = [
  "nc-canon",
  "nc-catalog",
@@ -1759,7 +1759,7 @@ dependencies = [
 
 [[package]]
 name = "nc-kernel"
-version = "0.1.0-rc.1"
+version = "0.1.0"
 dependencies = [
  "blake3",
  "nc-authz",
@@ -1790,7 +1790,7 @@ dependencies = [
 
 [[package]]
 name = "nc-local"
-version = "0.1.0-rc.1"
+version = "0.1.0"
 dependencies = [
  "blake3",
  "nc-canon",
@@ -1805,7 +1805,7 @@ dependencies = [
 
 [[package]]
 name = "nc-log"
-version = "0.1.0-rc.1"
+version = "0.1.0"
 dependencies = [
  "nc-canon",
  "nc-catalog",
@@ -1815,7 +1815,7 @@ dependencies = [
 
 [[package]]
 name = "nc-platform"
-version = "0.1.0-rc.1"
+version = "0.1.0"
 dependencies = [
  "nc-platform",
  "windows-sys 0.61.2",
@@ -1823,7 +1823,7 @@ dependencies = [
 
 [[package]]
 name = "nc-plugin-reference"
-version = "0.1.0-rc.1"
+version = "0.1.0"
 dependencies = [
  "nc-canon",
  "nc-guest",
@@ -1834,7 +1834,7 @@ dependencies = [
 
 [[package]]
 name = "nc-policy"
-version = "0.1.0-rc.1"
+version = "0.1.0"
 dependencies = [
  "cedar-policy",
  "nc-platform",
@@ -1847,7 +1847,7 @@ dependencies = [
 
 [[package]]
 name = "nc-prune"
-version = "0.1.0-rc.1"
+version = "0.1.0"
 dependencies = [
  "nc-catalog",
  "nc-local",
@@ -1858,7 +1858,7 @@ dependencies = [
 
 [[package]]
 name = "nc-schema"
-version = "0.1.0-rc.1"
+version = "0.1.0"
 dependencies = [
  "nc-schema",
  "proptest",
@@ -3866,7 +3866,7 @@ checksum = "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc"
 
 [[package]]
 name = "xtask"
-version = "0.1.0-rc.1"
+version = "0.1.0"
 dependencies = [
  "anstream",
  "anstyle",
