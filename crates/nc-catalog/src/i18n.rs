@@ -264,6 +264,41 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "error.channel.base-malformed",
+        [
+            "This installation names a folder that is not written as a full, plain path, so Noctua stopped before doing anything. Install Noctua again.",
+            "Esta instalação indica uma pasta que não está escrita como um caminho completo e simples, então o Noctua parou antes de fazer qualquer coisa. Instale o Noctua novamente.",
+        ],
+    ),
+    (
+        "error.channel.checkout-malformed",
+        [
+            "This installation names the development copy it was built from wrongly, so Noctua stopped before doing anything. Install Noctua again.",
+            "Esta instalação indica de forma errada a cópia de desenvolvimento de onde foi construída, então o Noctua parou antes de fazer qualquer coisa. Instale o Noctua novamente.",
+        ],
+    ),
+    (
+        "error.channel.manifest-unreadable",
+        [
+            "Noctua could not read the file that says which installation this is, so it stopped before doing anything. Install Noctua again.",
+            "O Noctua não conseguiu ler o arquivo que diz qual instalação é esta, então parou antes de fazer qualquer coisa. Instale o Noctua novamente.",
+        ],
+    ),
+    (
+        "error.channel.namespace-malformed",
+        [
+            "This installation's name for running beside others is not one Noctua accepts, so it stopped before doing anything. Install Noctua again.",
+            "O nome que esta instalação usa para rodar ao lado de outras não é um que o Noctua aceite, então ele parou antes de fazer qualquer coisa. Instale o Noctua novamente.",
+        ],
+    ),
+    (
+        "error.channel.unknown",
+        [
+            "This installation names a release channel Noctua does not know, so it stopped before doing anything. Install Noctua again.",
+            "Esta instalação indica um canal de versões que o Noctua não conhece, então ele parou antes de fazer qualquer coisa. Instale o Noctua novamente.",
+        ],
+    ),
+    (
         "error.db.local-open-refused",
         [
             "Noctua did not open the data it keeps on this computer, because its folder or files are not set up for you alone to read and write. Nothing was changed. Contact whoever set up your Noctua.",
@@ -924,6 +959,11 @@ pub const KEYS: &[&str] = &[
     "error.blob.writer-finished",
     "error.canon.number",
     "error.canon.unparsable",
+    "error.channel.base-malformed",
+    "error.channel.checkout-malformed",
+    "error.channel.manifest-unreadable",
+    "error.channel.namespace-malformed",
+    "error.channel.unknown",
     "error.db.local-open-refused",
     "error.db.local-schema-unexpected",
     "error.db.migration-failed",

@@ -492,6 +492,12 @@ SOURCES = {
     # The gates over the local database — its schema built from the files on
     # disk, and the SQL its crates may write — decided by their own module.
     "local_gates": os.path.join(ROOT, "xtask/src/local.rs"),
+    # **Every name an install gives the system**, and the manifest an install
+    # names itself by: the frozen digest and its rendering, the port block, the
+    # leaf, the user's spelling and every refusal of a manifest. Decided by
+    # that crate's own tests, which derive the names of every channel and touch
+    # no disk but to canonicalize a path.
+    "channel": os.path.join(ROOT, "crates/nc-channel/src/lib.rs"),
 }
 
 # (source, predicate, label, from, to). `from` must appear exactly once in it.
@@ -6187,6 +6193,86 @@ WEAKENINGS = [
     ("gates", "directly_under_a_member", "a canary directory at any member's root is one",
      "    inside_a_member(relative)\n        .map(|(_, inside)| inside)\n        .or_else(|| relative.strip_prefix(\"xtask/\"))",
      "    relative.strip_prefix(\"xtask/\")"),
+
+    # -- channel: every name an install gives the system -------------------
+    ("channel", "digest_of", "the digest starts from FNV-1a's offset basis",
+     "    let mut hash: u32 = 0x811c_9dc5;",
+     "    let mut hash: u32 = 0x811c_9dc4;"),
+    ("channel", "digest_of", "the digest multiplies by FNV's prime",
+     "        hash = hash.wrapping_mul(0x0100_0193);",
+     "        hash = hash.wrapping_mul(0x0100_0195);"),
+    ("channel", "fmt", "a checkout is written with its leading zeros",
+     "        write!(formatter, \"{:08x}\", self.digest)",
+     "        write!(formatter, \"{:x}\", self.digest)"),
+    ("channel", "Checkout", "a checkout's path is canonicalized first",
+     "        let path = std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());",
+     "        let path = root.to_path_buf();"),
+    ("channel", "Checkout", "a checkout is eight digits, not at least eight",
+     "        let digits = text.len() == 8",
+     "        let digits = text.len() >= 8"),
+    ("channel", "Checkout", "a checkout's digits are lower-case",
+     "                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte));",
+     "                .all(|byte| byte.is_ascii_hexdigit());"),
+    ("channel", "stack", "the log store's port is PostgreSQL's plus one",
+     "            logs: postgres + 1,",
+     "            logs: postgres + 2,"),
+    ("channel", "pair_of", "the block wraps at its last pair",
+     "    (digest % u32::from(PORT_PAIRS)) as u16",
+     "    (digest % (u32::from(PORT_PAIRS) + 1)) as u16"),
+    ("channel", "leader", "staging holds Control as well as Alt",
+     "                modifiers: &[Modifier::Control, Modifier::Alt],",
+     "                modifiers: &[Modifier::Alt],"),
+    ("channel", "Namespace", "a namespace is bounded in length",
+     "            && text.len() <= NAMESPACE_MAX",
+     "            && text.len() <= NAMESPACE_MAX + 1"),
+    ("channel", "Namespace", "a namespace holds no separator",
+     "                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit());",
+     "                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-');"),
+    ("channel", "Namespace", "a namespace holds a digit",
+     "        if !text.bytes().any(|byte| byte.is_ascii_digit()) {",
+     "        if false {"),
+    ("channel", "plain", "a base holds no control character",
+     "    if text.chars().any(char::is_control) {",
+     "    if false {"),
+    ("channel", "plain", "a base is absolute",
+     "    if !path.is_absolute() {",
+     "    if false {"),
+    ("channel", "plain", "a base is spelled as its components spell it",
+     "    if spelled.as_os_str() != path.as_os_str()\n",
+     "    if false\n"),
+    ("channel", "plain", "a base that climbs is refused",
+     "            .any(|component| component == Component::ParentDir)",
+     "            .any(|_| false)"),
+    ("channel", "Install", "a key the manifest does not read is refused",
+     "        only_known(&fields, &KEYS, \"\")?;\n",
+     ""),
+    ("channel", "Install", "a manifest of another format is refused",
+     "        if format != FORMAT {",
+     "        if false {"),
+    ("channel", "Install", "a checkout outside a development install is refused",
+     "            (\"production\" | \"staging\", Some(_)) => {",
+     "            (\"production\" | \"staging\", Some(_)) if false => {"),
+    ("channel", "Install", "a development install writes its checkout",
+     "            fields.push((\"checkout\", Value::text(checkout.to_string())));",
+     "            let _ = checkout;"),
+    ("channel", "layout", "the pipe carries the user",
+     "        pipe: format!(r\"\\\\.\\pipe\\{leaf}.{user}\"),",
+     "        pipe: format!(r\"\\\\.\\pipe\\{leaf}\"),"),
+    ("channel", "layout", "a relocated install follows no feed",
+     "            Channel::Production | Channel::Staging if !relocated => Some(Update {",
+     "            Channel::Production | Channel::Staging => Some(Update {"),
+    ("channel", "layout", "a relocated install names no stack",
+     "            Channel::Development(checkout) if !relocated => Some(checkout.stack()),",
+     "            Channel::Development(checkout) => Some(checkout.stack()),"),
+    ("channel", "leaf", "a namespace is a part of its own",
+     "        leaf.push('-');",
+     "        leaf.push('_');"),
+    ("channel", "spelled", "a user keeps its hyphens",
+     "        if character.is_ascii_alphanumeric() || character == '-' {",
+     "        if character.is_ascii_alphanumeric() {"),
+    ("channel", "spelled", "nobody is written as somebody",
+     "        out.push('_');\n    }\n    out\n}",
+     "    }\n    out\n}"),
 ]
 
 TOUCH = ["find", "crates", "xtask", "-name", "*.rs", "-exec", "touch", "{}", "+"]
@@ -6303,6 +6389,11 @@ ELSEWHERE = {
     # asked.
     "canon": ["cargo", "test", "-q", "-p", "nc-canon"],
     "reader": ["cargo", "test", "-q", "-p", "nc-canon"],
+    # The whole crate, both targets: the unit tests hold the digest and the
+    # user's spelling, and `crates/nc-channel/tests/the_names_are_disjoint.rs`
+    # holds every name, the ports and the manifest. Neither spawns a process
+    # or registers anything with a system.
+    "channel": ["cargo", "test", "-q", "-p", "nc-channel"],
     # The whole crate, both targets: the unit tests hold the layout and the
     # alphabet, and `crates/nc-ids/tests/properties.rs` and
     # `crates/nc-ids/tests/against_denote.rs` hold the round trips. A weakening

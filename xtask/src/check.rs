@@ -7696,12 +7696,15 @@ fn ends_in_a_backslash(path: &str) -> bool {
 /// failure is silent.
 ///
 /// Each is a crate and the file cargo announces as `Running tests/<name>`.
-const SUITES: [(&str, &str); 33] = [
+const SUITES: [(&str, &str); 34] = [
     ("nc-authz", "the_embedded_pack_decides.rs"),
     ("nc-canon", "properties.rs"),
     ("nc-catalog", "the_generated_surface.rs"),
     ("nc-catalog-compiler", "the_gates_fire.rs"),
     ("nc-catalog-compiler", "the_order_on_disk_stays_on_disk.rs"),
+    // The one naming function, over every channel, two users and two
+    // namespaces: it touches no disk and spawns nothing.
+    ("nc-channel", "the_names_are_disjoint.rs"),
     ("nc-ids", "against_denote.rs"),
     ("nc-ids", "properties.rs"),
     ("nc-journal", "across_threads.rs"),
@@ -16854,7 +16857,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 
         // And the real manifest, or the assertions above are about a shape
         // nothing here is written in.
-        assert_eq!(members_of(root()), 16);
+        assert_eq!(members_of(root()), 17);
 
         // **Zero when cargo cannot say**, rather than a number invented from a
         // tree that is not a workspace; the caller reads the members itself and
@@ -17043,11 +17046,12 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     /// against — four sets compared with a set the same call produces. A bound
     /// under it shrinks with the run it is judging, which is the shape this
     /// table exists to refuse.
-    const SOURCE_ROOTS: [(&str, usize); 16] = [
+    const SOURCE_ROOTS: [(&str, usize); 17] = [
         ("nc-authz", 2),
         ("nc-canon", 2),
         ("nc-catalog", 2),
         ("nc-catalog-compiler", 3),
+        ("nc-channel", 2),
         ("nc-guest", 1),
         ("nc-ids", 3),
         ("nc-journal", 5),
@@ -19076,7 +19080,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 148] = [
+    const DOCUMENTED: [(&str, usize, usize); 150] = [
         ("nc-authz/directory.rs", 28, 13),
         ("nc-authz/embedded.rs", 12, 4),
         ("nc-authz/lib.rs", 30, 19),
@@ -19108,6 +19112,8 @@ mod the_frozen_path_rule {
         ("nc-catalog/limits.rs", 16, 0),
         ("nc-catalog/notifications.rs", 7, 1),
         ("nc-catalog/the_generated_surface.rs", 10, 15),
+        ("nc-channel/lib.rs", 53, 14),
+        ("nc-channel/the_names_are_disjoint.rs", 25, 0),
         ("nc-guest/lib.rs", 1, 0),
         ("nc-ids/against_denote.rs", 6, 6),
         ("nc-ids/base32.rs", 11, 18),
@@ -19208,7 +19214,7 @@ mod the_frozen_path_rule {
         ("xtask/counts.rs", 45, 29),
         ("xtask/database.rs", 29, 6),
         ("xtask/determinism.rs", 29, 11),
-        ("xtask/dev.rs", 60, 8),
+        ("xtask/dev.rs", 59, 8),
         ("xtask/docs.rs", 8, 1),
         ("xtask/every_generated_value_is_compared.rs", 30, 8),
         ("xtask/gates.rs", 219, 33),
@@ -25013,7 +25019,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15149;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15349;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25032,7 +25038,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3079;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3127;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25049,7 +25055,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1011;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1028;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25083,7 +25089,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 21390;
+    const THE_REARRANGEMENTS_JUDGED: usize = 21560;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25137,7 +25143,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **463 of 21,390 are accepted by the first-line
+    /// rules the gates apply: **463 of 21,560 are accepted by the first-line
     /// rule alone, and 239 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25170,7 +25176,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1011 of
+    /// this tree offers, **1028 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -33332,7 +33338,7 @@ mod the_meta_gate {
     /// own doc: a module directory may be called anything. Every row here is a
     /// prefix of a workspace-relative path, anchored at its start, so what it
     /// excuses is what it names.
-    const NOT_MUTATED: [(&str, &str); 40] = [
+    const NOT_MUTATED: [(&str, &str); 41] = [
         (
             "crates/nc-platform/src/windows.rs",
             "another system's: the Windows half of what makes a path private, \
@@ -33399,6 +33405,14 @@ mod the_meta_gate {
             "a suite: the laws canonical serialization has to obey, stated as \
              properties rather than examples. Its writer `lib.rs` and its reader \
              `parse.rs` are both edited by the runner, and a weakening of this \
+             file would remove evidence rather than uncover an undecided clause",
+        ),
+        (
+            "crates/nc-channel/tests/the_names_are_disjoint.rs",
+            "a suite: every channel's names derived for two users and two \
+             namespaces and held apart, the spellings, the ports and the manifest. \
+             The one source it drives, `lib.rs`, is edited by the runner under the \
+             crate's own command, which builds this suite, and a weakening of this \
              file would remove evidence rather than uncover an undecided clause",
         ),
         (
@@ -36042,7 +36056,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 162,
+            walked, 164,
             "{walked} Rust source(s) were walked, and this tree holds 119. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -36082,7 +36096,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1703] = [
+    static OPERATORS: [(&str, &str, &str); 1729] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -43714,6 +43728,76 @@ Options:
             "directly_under_a_member",
             "a canary directory at any member's root is one",
         ),
+        (
+            "channel",
+            "digest_of",
+            "the digest starts from FNV-1a's offset basis",
+        ),
+        (
+            "channel",
+            "digest_of",
+            "the digest multiplies by FNV's prime",
+        ),
+        (
+            "channel",
+            "fmt",
+            "a checkout is written with its leading zeros",
+        ),
+        (
+            "channel",
+            "Checkout",
+            "a checkout's path is canonicalized first",
+        ),
+        (
+            "channel",
+            "Checkout",
+            "a checkout is eight digits, not at least eight",
+        ),
+        ("channel", "Checkout", "a checkout's digits are lower-case"),
+        (
+            "channel",
+            "stack",
+            "the log store's port is PostgreSQL's plus one",
+        ),
+        ("channel", "pair_of", "the block wraps at its last pair"),
+        ("channel", "leader", "staging holds Control as well as Alt"),
+        ("channel", "Namespace", "a namespace is bounded in length"),
+        ("channel", "Namespace", "a namespace holds no separator"),
+        ("channel", "Namespace", "a namespace holds a digit"),
+        ("channel", "plain", "a base holds no control character"),
+        ("channel", "plain", "a base is absolute"),
+        (
+            "channel",
+            "plain",
+            "a base is spelled as its components spell it",
+        ),
+        ("channel", "plain", "a base that climbs is refused"),
+        (
+            "channel",
+            "Install",
+            "a key the manifest does not read is refused",
+        ),
+        (
+            "channel",
+            "Install",
+            "a manifest of another format is refused",
+        ),
+        (
+            "channel",
+            "Install",
+            "a checkout outside a development install is refused",
+        ),
+        (
+            "channel",
+            "Install",
+            "a development install writes its checkout",
+        ),
+        ("channel", "layout", "the pipe carries the user"),
+        ("channel", "layout", "a relocated install follows no feed"),
+        ("channel", "layout", "a relocated install names no stack"),
+        ("channel", "leaf", "a namespace is a part of its own"),
+        ("channel", "spelled", "a user keeps its hyphens"),
+        ("channel", "spelled", "nobody is written as somebody"),
     ];
 
     /// The prefix Python reads in front of the quote at `at`, lower-cased.

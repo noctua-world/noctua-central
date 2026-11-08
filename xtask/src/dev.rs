@@ -778,30 +778,16 @@ fn wait_for_health(root: &Path) -> Result<(), String> {
 /// makes it this checkout's. Canonicalized first, so a symlinked path and its
 /// target are one stack rather than two.
 ///
+/// **Derived by `nc_channel`, which names everything an install gives the
+/// system** (`NOCTUA.md §17.1`): the stack is the checkout's, so it is
+/// `Checkout::stack`, the one place the digest and its rendering are written,
+/// and the one a development install's layout is handed too.
+///
 /// The two stacks still cannot run at once — both bind 127.0.0.1:5432 — and that
 /// is the point: the second `dev` fails on the port, loudly, instead of quietly
 /// migrating the first's database.
 fn project_for(root: &Path) -> String {
-    let path = std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
-    format!("noctua-central-{:08x}", digest_of(&path.to_string_lossy()))
-}
-
-/// FNV-1a, 32 bits of it, over the checkout's path.
-///
-/// **Written here rather than taken from a crate**, and not because a
-/// dependency would be heavy: what this number names is a Docker volume holding
-/// a developer's database, so it has to mean the same thing in five years. A
-/// hasher whose output is documented as unstable between releases — which is
-/// every `std` one — would rename the project on a toolchain upgrade and orphan
-/// the data. This is eight lines and it is frozen by
-/// `the_project_name_does_not_move_under_a_checkout`.
-fn digest_of(text: &str) -> u32 {
-    let mut hash: u32 = 0x811c_9dc5;
-    for byte in text.as_bytes() {
-        hash ^= u32::from(*byte);
-        hash = hash.wrapping_mul(0x0100_0193);
-    }
-    hash
+    nc_channel::Checkout::of(root).stack().project
 }
 
 /// The compose invocation that was made, written so it can be run again.
@@ -2641,9 +2627,15 @@ mod tests {
         use std::path::Path;
 
         // Frozen. If this number changes, every existing checkout's stack is
-        // renamed and its volumes are stranded under the old name.
-        assert_eq!(super::digest_of("/home/dev/noctua-central"), 0x5e24_507c);
-        assert_eq!(super::digest_of(""), 0x811c_9dc5);
+        // renamed and its volumes are stranded under the old name. **Through
+        // the project, since the digest moved to `nc_channel`**, whose own
+        // tests hold it as a number; a path that does not exist is hashed as
+        // written, on every system.
+        assert_eq!(
+            super::project_for(Path::new("/home/dev/noctua-central")),
+            "noctua-central-5e24507c"
+        );
+        assert_eq!(super::project_for(Path::new("")), "noctua-central-811c9dc5");
         // **And the rendering, not only the digest.** `{:08x}` written `{:x}`
         // leaves both digests above unchanged, and drops the leading zero for
         // one checkout path in sixteen — renaming its project and stranding the

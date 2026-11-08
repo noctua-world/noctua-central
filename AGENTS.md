@@ -138,6 +138,9 @@ backend services — everything `NOCTUA.md §1` describes. What is in it today:
   on each system (`crates/nc-platform`).
 - **What a plugin is built from**: the world's guest half (`crates/nc-guest`) and the
   reference plugin the kernel is proven with (`plugins/reference`).
+- **What every install is named by** (`crates/nc-channel`): the manifest an install names
+  itself by, and the one function that derives from it every name the system sees
+  (`NOCTUA.md §17.1`).
 
 It is one repository on purpose (`NOCTUA.md §10.1`): those parts share the command
 catalog, the policy pack, the generated types and the journal format. `NOCTUA.md §10.2`
@@ -263,6 +266,7 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 │   │   ├── events.rs              in src/ — GENERATED, one struct per event
 │   │   └── fixtures/               the files that MUST NOT COMPILE
 │   ├── nc-platform/                a path one user's alone, per system (§2.7) — THE ONE `unsafe`
+│   ├── nc-channel/                 every name an install gives the system, from one function (§17.1)
 │   ├── nc-policy/                  the pack's compiler, validator and case runner
 │   ├── nc-authz/                   the decision point: the embedded pack, asked (§14.2)
 │   ├── nc-kernel/                  the local kernel: the host of the plugin world (§11)
@@ -402,6 +406,7 @@ fails a gate a minute or two later.
 | a call the kernel asks of the store | `StoreBackend` in `crates/nc-kernel/src/backend.rs` | the same method on `nc_local::LocalStore` first — the trait answers as that store does, and is its specification — then on `MemoryBackend` beside the trait, with the same refusals in the same sentences; `crates/nc-kernel/tests/both_stores_answer_alike.rs` runs each script through both and holds the two transcripts equal, and its property test drives both through every operation, in two realms and every kind of unit, so a call the second store answers otherwise fails there — a script or a sequence that never varies what a filter selects on cannot see that filter go |
 | a call the kernel asks of the blobs | `BlobStore` in `crates/nc-kernel/src/blobs.rs` | the same method on `DirectoryBlobs` first — the one a daemon keeps a person's files in — then on `MemoryBlobs` beside it, which `the_two_stores_answer_one_script_alike` holds to one script; the trait is asynchronous because the disk may not answer, so a host function that calls it goes through `supervisor::in_time` like any other that waits, and a writer is moved into a write and handed back, so one a deadline abandons takes its writing with it. What a blob is to the decision point — which unit made it, whether one still holds it — is the store's, in `nc_local`'s `blobs` table, never the blob store's |
 | a kind of node a surface shows | `KINDS` in `crates/nc-kernel/src/ui.rs` | the table in that module's header is what a plugin author reads, and changes in the same edit; the kind's keys are a row of `KINDS`, a key holding a person's text is in `TEXTS` and a closed choice in `CHOICES`, so every text of every kind is held to the same bound and characters; and a test in that file keeps a tree of the new kind and refuses each rule it is held to — the interface's renderer (Stage 16) draws only the kinds this set names |
+| a name the system sees | a field of `Layout` in `crates/nc-channel/src/lib.rs`, derived in `layout` and in the table of that crate's header | a line of `parts` in `crates/nc-channel/tests/the_names_are_disjoint.rs`, which destructures `Layout` without `..` and does not compile until the field is read — what it reads is held apart from every other install's name, case-folded; a name the whole machine shares carries the user and is a row of `MACHINE_WIDE` there too; its spelling is written out in `each_name_is_spelled_as_the_crate_header_writes_it`; a relocated install's must lie under its root, or be `None` as the update feed and the stack are; and nothing outside the crate spells one — `cargo xtask dev` names its stack through `Checkout::stack` |
 | a kernel limit | `[kernel]` in `catalog/limits.toml`, and a field of `KernelLimits` in `crates/nc-catalog-compiler/src/model.rs` with its row in `KernelLimits::each` | every limit is required and above zero, and one that bounds another is held to it where both are written (`check_kernel` in the compiler's `load.rs`); `xtask/tests/the_registry_reaches_the_code.rs` compares every field by name, so a new one is a line there as well, and `docs/limits.md` publishes it with its unit. A plugin's manifest may lower only what `Lowering` in `crates/nc-kernel/src/limits.rs` names, and never raise it |
 
 Two things are true of all of them:
@@ -1534,6 +1539,42 @@ does not move: a table in `catalog/limits.toml` without a single-column primary 
 refused by name when the pruner runs. `SELECT … FOR UPDATE` would need the `UPDATE`
 privilege, which the journal's append-only design withholds.
 
+### Every name an install gives the system comes from one function, and a test's install never meets a real one's
+
+**Guaranteed.** Every name `NOCTUA.md §17.1` lists — the profile's directories and files,
+the runtime directory and the socket in it, the pipe, the units, labels, tasks and mutexes,
+the CLI's and the daemon's names, the application's identities, the update feed and its
+key, the default Leader, and a checkout's compose project and ports — is derived by
+`nc_channel::layout` from an install's manifest and the user it runs as, and by nothing
+else; `cargo xtask dev` names its stack through `Checkout::stack`, which `layout` hands a
+development install too. Production, staging and two development checkouts, for two users
+and under two namespaces, share no name, compared case-folded as a pipe and a
+case-insensitive file system compare them; a relocated install — a test's — shares none
+with a real one, whoever each runs as, every path it derives lies under its root, and it
+follows no update feed and names no stack. Every name the whole machine shares carries the
+user, written in letters, digits and `-` with every other character spelled out and joined
+by a `.` no leaf holds, so no user can end a name or be read as another. A manifest is
+read only as `nc_channel::Install::parse` reads it, failing closed: a key it does not read,
+a key missing or of the wrong type, another format, an unknown channel, a checkout outside
+a development install or malformed in one, a base that is not a plain absolute path, and
+a namespace outside its alphabet are each refused with their own code in the `CHAN` area,
+and a running binary reads no location from the environment. The checkout's digest and its
+rendering are the ones `cargo xtask dev` named every stack with before, so no volume is
+stranded.
+
+**Enforced by** `crates/nc-channel/tests/the_names_are_disjoint.rs` — which destructures
+`Layout` without `..`, so a field it does not compare does not compile, writes every
+spelling out, and holds each refusal to its code — the unit tests beside the digest and
+the user's spelling, `the_project_name_does_not_move_under_a_checkout` in
+`xtask/src/dev.rs`, and the operators over `crates/nc-channel/src/lib.rs` in
+`xtask/mutants.py`.
+
+**Not answered:** a process running as the same user, which can rewrite a manifest —
+judging the file this user's alone is the reader's, and stops other accounts only; and
+whether anything uses a name as derived, which is each consumer's — the daemon, the CLI,
+the installer and the service manager's registration are what read a layout. What the
+names leave narrowed is under **What is deliberately not claimed**.
+
 ### The stack binds to loopback and nothing else
 
 `docker-compose.yml` publishes `127.0.0.1:5432` and `127.0.0.1:9428`, never `0.0.0.0` or a
@@ -1550,7 +1591,9 @@ opens the database, so PostgreSQL's healthcheck runs a query over TCP, as
 **The stack belongs to this checkout.** Compose names a project after its directory, so
 two checkouts of this repository would share one project and `cargo xtask dev --down` from
 either would remove the other's containers *and volumes*; a constant name makes that
-unconditional. `dev` derives the name from the canonicalized checkout path and prints it
+unconditional. `dev` derives the name from the canonicalized checkout path, through
+`nc_channel::Checkout::stack` ("Every name an install gives the system comes from one
+function, and a test's install never meets a real one's"), and prints it
 (`docker compose ls` says which stack is whose). Two checkouts **at their defaults**
 cannot run at once — both bind `${POSTGRES_PORT:-5432}` — and the second `dev` fails on
 the port loudly instead of migrating the first's database; `POSTGRES_PORT` and `LOGS_PORT`
@@ -2207,6 +2250,18 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **A journal entry's authorization fields are the kernel's to fill, and one stays
   empty**: `actor_chain`, until agents act (Stage 15); an entry another writer makes
   carries what that writer gives it.
+
+**Channels and installs**
+
+- **A checkout is 32 bits of its path's digest**, kept because it already names every
+  developer's compose volumes: two checkouts whose paths share a digest are one checkout
+  to every name, and two whose digests fall on one pair of the port block
+  (`nc_channel::PORT_PAIRS`) share a stack's ports, which the second stack's bind refuses.
+- **The stack is the checkout's, not its user's**: two accounts working in one checkout
+  directory share one compose project, on a Docker daemon the machine shares.
+- **Two development checkouts share the development Leader** until one is configured —
+  the default is one chord per channel (`NOCTUA.md §12.8`), and the configuration that
+  refuses the collision is the interface's (Stage 16).
 
 **The journal and the central log**
 

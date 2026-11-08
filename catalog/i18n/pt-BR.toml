@@ -137,6 +137,13 @@ dir   = "ltr"
 "error.blob.writer-finished" = "Esse arquivo já foi concluído, então nada mais pode ser acrescentado a ele."
 "error.blob.no-peers" = "Não há outro dispositivo com quem compartilhar esse arquivo agora."
 
+# --- Canais e instalações ---
+"error.channel.manifest-unreadable" = "O Noctua não conseguiu ler o arquivo que diz qual instalação é esta, então parou antes de fazer qualquer coisa. Instale o Noctua novamente."
+"error.channel.unknown" = "Esta instalação indica um canal de versões que o Noctua não conhece, então ele parou antes de fazer qualquer coisa. Instale o Noctua novamente."
+"error.channel.checkout-malformed" = "Esta instalação indica de forma errada a cópia de desenvolvimento de onde foi construída, então o Noctua parou antes de fazer qualquer coisa. Instale o Noctua novamente."
+"error.channel.base-malformed" = "Esta instalação indica uma pasta que não está escrita como um caminho completo e simples, então o Noctua parou antes de fazer qualquer coisa. Instale o Noctua novamente."
+"error.channel.namespace-malformed" = "O nome que esta instalação usa para rodar ao lado de outras não é um que o Noctua aceite, então ele parou antes de fazer qualquer coisa. Instale o Noctua novamente."
+
 # --- The entries that prove the catalog's mechanism ---
 "notification.catalog.mechanism.title" = "O Noctua está funcionando"
 "notification.catalog.mechanism.body" = "Olá, {name}. Esta mensagem existe para o Noctua conferir que as próprias notificações chegam até você corretamente."
