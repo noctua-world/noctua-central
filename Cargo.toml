@@ -149,6 +149,13 @@ nc-journal = { path = "crates/nc-journal" }
 # rule is written once; the compiler depending on it is why it depends on
 # nothing of this workspace.
 nc-schema = { path = "crates/nc-schema" }
+# Every name an install gives the system, from its manifest and one function
+# (`NOCTUA.md §17.1`): the directories, the socket and the pipe, the units and
+# the tasks, the CLI's name, a checkout's stack. Every binary and `cargo xtask`
+# name things through it, so no second place spells a name; it depends on
+# nothing but the catalog and canonical JSON, and does no I/O but canonicalize a
+# checkout's path.
+nc-channel = { path = "crates/nc-channel" }
 # The local app database (`NOCTUA.md §4`, "Local app database"): the plugin
 # store and the units that wrote it, in one SQLite file private to the user.
 # The kernel builds its store on it, and `xtask` takes it for the list of

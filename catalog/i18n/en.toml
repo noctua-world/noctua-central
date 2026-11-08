@@ -143,6 +143,13 @@ dir   = "ltr"
 "error.blob.writer-finished" = "That file was already finished, so nothing more can be added to it."
 "error.blob.no-peers" = "There is no other device to share that file with right now."
 
+# --- Channels and installs ---
+"error.channel.manifest-unreadable" = "Noctua could not read the file that says which installation this is, so it stopped before doing anything. Install Noctua again."
+"error.channel.unknown" = "This installation names a release channel Noctua does not know, so it stopped before doing anything. Install Noctua again."
+"error.channel.checkout-malformed" = "This installation names the development copy it was built from wrongly, so Noctua stopped before doing anything. Install Noctua again."
+"error.channel.base-malformed" = "This installation names a folder that is not written as a full, plain path, so Noctua stopped before doing anything. Install Noctua again."
+"error.channel.namespace-malformed" = "This installation's name for running beside others is not one Noctua accepts, so it stopped before doing anything. Install Noctua again."
+
 # --- The catalog's own mechanism entries ---
 # These two pairs exist to prove the generated typed handles resolve in both
 # locales. They are the entries a stage with a real notification or email

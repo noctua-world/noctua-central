@@ -101,8 +101,9 @@ const MOST_ASSETS: usize = 1000;
 /// What every asset must stay under, as [`GITHUBS_LIMITS`] says: 2 GiB.
 const LARGEST_ASSET: u64 = 2 << 30;
 
-/// Every asset a release carries, with its size: none before Stage 13, which
-/// builds the first binaries.
+/// Every asset a release carries, with its size: none before Stage 19, which
+/// publishes the first binaries — an executable published before release
+/// signing (`NOCTUA.md §17.7`) is one nobody can verify.
 ///
 /// **Judged against GitHub's limits however short it is**
 /// ([`within_githubs_limits`]), so the day it gains its first binary the

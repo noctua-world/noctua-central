@@ -1726,6 +1726,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "nc-channel"
+version = "0.1.0-rc.1"
+dependencies = [
+ "nc-canon",
+ "nc-catalog",
+ "nc-channel",
+]
+
+[[package]]
 name = "nc-guest"
 version = "0.1.0-rc.1"
 dependencies = [
@@ -3875,6 +3884,7 @@ dependencies = [
  "clap",
  "nc-catalog",
  "nc-catalog-compiler",
+ "nc-channel",
  "nc-local",
  "nc-platform",
  "nc-policy",

@@ -73,6 +73,16 @@ pub enum ErrorCode {
     CanonUnparsable,
     /// NC-CANON-0002 — A payload holds a number this model cannot represent
     CanonNumber,
+    /// NC-CHAN-0001 — An install manifest is not one this build reads: not a JSON object, a key it does not know or lacks, a value of the wrong type, or another format
+    ChannelManifestUnreadable,
+    /// NC-CHAN-0002 — An install manifest names a channel this build does not know
+    ChannelUnknown,
+    /// NC-CHAN-0003 — An install manifest's checkout is missing from a development install, present in another channel's, or not eight lower-case hexadecimal digits
+    ChannelCheckoutMalformed,
+    /// NC-CHAN-0004 — An install manifest names a base directory that is not a plain absolute path
+    ChannelBaseMalformed,
+    /// NC-CHAN-0005 — An install manifest's namespace is not one to sixteen lower-case letters and digits holding a digit
+    ChannelNamespaceMalformed,
     /// NC-DB-0001 — The database did not answer
     DbUnreachable,
     /// NC-DB-0002 — A migration failed to apply
@@ -264,6 +274,11 @@ impl ErrorCode {
         Self::BlobNoPeers,
         Self::CanonUnparsable,
         Self::CanonNumber,
+        Self::ChannelManifestUnreadable,
+        Self::ChannelUnknown,
+        Self::ChannelCheckoutMalformed,
+        Self::ChannelBaseMalformed,
+        Self::ChannelNamespaceMalformed,
         Self::DbUnreachable,
         Self::DbMigrationFailed,
         Self::DbPruneFailed,
@@ -367,6 +382,11 @@ impl ErrorCode {
             Self::BlobNoPeers => "NC-BLOB-0006",
             Self::CanonUnparsable => "NC-CANON-0001",
             Self::CanonNumber => "NC-CANON-0002",
+            Self::ChannelManifestUnreadable => "NC-CHAN-0001",
+            Self::ChannelUnknown => "NC-CHAN-0002",
+            Self::ChannelCheckoutMalformed => "NC-CHAN-0003",
+            Self::ChannelBaseMalformed => "NC-CHAN-0004",
+            Self::ChannelNamespaceMalformed => "NC-CHAN-0005",
             Self::DbUnreachable => "NC-DB-0001",
             Self::DbMigrationFailed => "NC-DB-0002",
             Self::DbPruneFailed => "NC-DB-0003",
@@ -471,6 +491,11 @@ impl ErrorCode {
             Self::BlobNoPeers => "BLOB",
             Self::CanonUnparsable => "CANON",
             Self::CanonNumber => "CANON",
+            Self::ChannelManifestUnreadable => "CHAN",
+            Self::ChannelUnknown => "CHAN",
+            Self::ChannelCheckoutMalformed => "CHAN",
+            Self::ChannelBaseMalformed => "CHAN",
+            Self::ChannelNamespaceMalformed => "CHAN",
             Self::DbUnreachable => "DB",
             Self::DbMigrationFailed => "DB",
             Self::DbPruneFailed => "DB",
@@ -577,6 +602,19 @@ impl ErrorCode {
             Self::BlobNoPeers => "A blob was announced and no peer was there to tell",
             Self::CanonUnparsable => "A payload is not the canonical form this platform carries",
             Self::CanonNumber => "A payload holds a number this model cannot represent",
+            Self::ChannelManifestUnreadable => {
+                "An install manifest is not one this build reads: not a JSON object, a key it does not know or lacks, a value of the wrong type, or another format"
+            }
+            Self::ChannelUnknown => "An install manifest names a channel this build does not know",
+            Self::ChannelCheckoutMalformed => {
+                "An install manifest's checkout is missing from a development install, present in another channel's, or not eight lower-case hexadecimal digits"
+            }
+            Self::ChannelBaseMalformed => {
+                "An install manifest names a base directory that is not a plain absolute path"
+            }
+            Self::ChannelNamespaceMalformed => {
+                "An install manifest's namespace is not one to sixteen lower-case letters and digits holding a digit"
+            }
             Self::DbUnreachable => "The database did not answer",
             Self::DbMigrationFailed => "A migration failed to apply",
             Self::DbPruneFailed => "Pruning a table did not finish, and a later run may",
@@ -807,6 +845,11 @@ impl ErrorCode {
             Self::BlobNoPeers => "error.blob.no-peers",
             Self::CanonUnparsable => "error.canon.unparsable",
             Self::CanonNumber => "error.canon.number",
+            Self::ChannelManifestUnreadable => "error.channel.manifest-unreadable",
+            Self::ChannelUnknown => "error.channel.unknown",
+            Self::ChannelCheckoutMalformed => "error.channel.checkout-malformed",
+            Self::ChannelBaseMalformed => "error.channel.base-malformed",
+            Self::ChannelNamespaceMalformed => "error.channel.namespace-malformed",
             Self::DbUnreachable => "error.db.unreachable",
             Self::DbMigrationFailed => "error.db.migration-failed",
             Self::DbPruneFailed => "error.db.prune-failed",
@@ -911,6 +954,11 @@ impl ErrorCode {
             Self::BlobNoPeers => Severity::Info,
             Self::CanonUnparsable => Severity::Error,
             Self::CanonNumber => Severity::Error,
+            Self::ChannelManifestUnreadable => Severity::Error,
+            Self::ChannelUnknown => Severity::Error,
+            Self::ChannelCheckoutMalformed => Severity::Error,
+            Self::ChannelBaseMalformed => Severity::Error,
+            Self::ChannelNamespaceMalformed => Severity::Error,
             Self::DbUnreachable => Severity::Critical,
             Self::DbMigrationFailed => Severity::Critical,
             Self::DbPruneFailed => Severity::Error,
@@ -1015,6 +1063,11 @@ impl ErrorCode {
             Self::BlobNoPeers => false,
             Self::CanonUnparsable => false,
             Self::CanonNumber => false,
+            Self::ChannelManifestUnreadable => false,
+            Self::ChannelUnknown => false,
+            Self::ChannelCheckoutMalformed => false,
+            Self::ChannelBaseMalformed => false,
+            Self::ChannelNamespaceMalformed => false,
             Self::DbUnreachable => true,
             Self::DbMigrationFailed => false,
             Self::DbPruneFailed => true,
@@ -1119,6 +1172,11 @@ impl ErrorCode {
             Self::BlobNoPeers => &[],
             Self::CanonUnparsable => &[],
             Self::CanonNumber => &[],
+            Self::ChannelManifestUnreadable => &[],
+            Self::ChannelUnknown => &[],
+            Self::ChannelCheckoutMalformed => &[],
+            Self::ChannelBaseMalformed => &[],
+            Self::ChannelNamespaceMalformed => &[],
             Self::DbUnreachable => &[],
             Self::DbMigrationFailed => &[],
             Self::DbPruneFailed => &[],
@@ -1247,6 +1305,10 @@ pub const AREAS: &[(&str, &str)] = &[
     (
         "CAT",
         "The catalog: reading a registry the platform ships. No code yet — the compiler's own diagnostics are located build errors, not identities a log is queried by",
+    ),
+    (
+        "CHAN",
+        "Channels and installs: the manifest an install names itself by, and every name derived from it (§17.1)",
     ),
     (
         "DB",

@@ -46,6 +46,7 @@ CANON = "Canonical serialization: the payload format every boundary carries (§1
 IDS  = "Identifiers: Snowflake, the machine flake, file names"
 JRNL = "The command journal and its hash chain"
 POL  = "Policy packs: loading, validation, evaluation"
+CHAN = "Channels and installs: the manifest an install names itself by, and every name derived from it (§17.1)"
 
 # --- The journal (§14.9) ---
 
@@ -1071,4 +1072,47 @@ code = "NC-BLOB-0006"
 description = "A blob was announced and no peer was there to tell"
 message = "error.blob.no-peers"
 severity = "info"
+retryable = false
+
+# --- Channels and installs (§17.1) ---
+#
+# What `nc_channel::Install::parse` refuses in the manifest an install names
+# itself by, which every binary reads beside itself before anything else. **Not
+# one is retryable**: the manifest is the installer's, so reading it again reads
+# the same bytes, and what fixes it is installing again. One code per value a
+# manifest can get wrong, so a log is queried by which one it was (`§15.1`).
+
+[[error]]
+code = "NC-CHAN-0001"
+description = "An install manifest is not one this build reads: not a JSON object, a key it does not know or lacks, a value of the wrong type, or another format"
+message = "error.channel.manifest-unreadable"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-CHAN-0002"
+description = "An install manifest names a channel this build does not know"
+message = "error.channel.unknown"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-CHAN-0003"
+description = "An install manifest's checkout is missing from a development install, present in another channel's, or not eight lower-case hexadecimal digits"
+message = "error.channel.checkout-malformed"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-CHAN-0004"
+description = "An install manifest names a base directory that is not a plain absolute path"
+message = "error.channel.base-malformed"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-CHAN-0005"
+description = "An install manifest's namespace is not one to sixteen lower-case letters and digits holding a digit"
+message = "error.channel.namespace-malformed"
+severity = "error"
 retryable = false
