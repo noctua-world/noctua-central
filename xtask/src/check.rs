@@ -2502,7 +2502,7 @@ const LOCAL_MIGRATIONS_ON_DISK: [(&str, &str); 4] = [
     ),
     (
         "0004_local_journal.sql",
-        "5b87828b77db89a98539cf1d49db3f950490763ae66819d4615462e1759011596095fc0309d59b55c4706d7660466c55",
+        "c9d84ce101fdbe9e19a9f164a3465133adb66a7bde2631cb9db85de074b811061857ca5ef0fdc25d0324364c247fcd22",
     ),
 ];
 
@@ -19140,7 +19140,7 @@ mod the_frozen_path_rule {
         ("nc-ids/snowflake.rs", 56, 80),
         ("nc-journal/across_threads.rs", 2, 5),
         ("nc-journal/entry.rs", 31, 16),
-        ("nc-journal/in_postgres.rs", 74, 109),
+        ("nc-journal/in_postgres.rs", 75, 110),
         ("nc-journal/lib.rs", 72, 23),
         ("nc-journal/memory.rs", 22, 12),
         ("nc-journal/postgres.rs", 21, 12),
@@ -19181,7 +19181,7 @@ mod the_frozen_path_rule {
         ("nc-kernel/pump.rs", 9, 2),
         ("nc-kernel/registry.rs", 36, 24),
         ("nc-kernel/supervisor.rs", 58, 12),
-        ("nc-kernel/the_decision_point.rs", 171, 76),
+        ("nc-kernel/the_decision_point.rs", 177, 77),
         ("nc-kernel/the_reference_plugin_activates.rs", 14, 0),
         ("nc-kernel/the_rest_of_the_world.rs", 51, 60),
         ("nc-kernel/timers.rs", 18, 5),
@@ -19197,7 +19197,7 @@ mod the_frozen_path_rule {
         ("nc-local/opening_refuses_what_it_did_not_make.rs", 64, 4),
         ("nc-local/schema.rs", 23, 2),
         ("nc-local/store.rs", 83, 12),
-        ("nc-local/the_local_journal.rs", 29, 12),
+        ("nc-local/the_local_journal.rs", 32, 12),
         ("nc-log/events.rs", 22, 110),
         ("nc-log/every_event_reaches_the_store.rs", 4, 1),
         ("nc-log/lib.rs", 19, 25),
@@ -22026,8 +22026,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 556 scratches this tree
-    /// builds, 469 of the 556 are removed however the test leaves and 87 are
+    /// directories accumulated in an afternoon. Of the 559 scratches this tree
+    /// builds, 472 of the 559 are removed however the test leaves and 87 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22102,14 +22102,14 @@ mod the_frozen_path_rule {
             2,
         ),
         ("nc-kernel/blobs.rs", 10, 10),
-        ("nc-kernel/the_decision_point.rs", 4, 4),
+        ("nc-kernel/the_decision_point.rs", 5, 5),
         ("nc-kernel/the_rest_of_the_world.rs", 2, 2),
         ("nc-kernel/units_and_history.rs", 3, 3),
         ("nc-kernel/where_a_blob_is.rs", 3, 3),
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 26, 26),
         ("nc-local/open.rs", 4, 4),
         ("nc-local/opening_refuses_what_it_did_not_make.rs", 43, 43),
-        ("nc-local/the_local_journal.rs", 7, 7),
+        ("nc-local/the_local_journal.rs", 9, 9),
         ("nc-platform/lib.rs", 14, 14),
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
         ("nc-prune/in_sqlite.rs", 13, 13),
@@ -25038,7 +25038,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15269;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15290;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25057,7 +25057,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3138;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3150;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25074,7 +25074,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1029;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1033;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25091,7 +25091,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [83, 16, 34, 35, 90];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [82, 16, 34, 35, 89];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -25108,7 +25108,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 21573;
+    const THE_REARRANGEMENTS_JUDGED: usize = 21612;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25126,7 +25126,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 482;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 480;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -25162,8 +25162,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **482 of 21,573 are accepted by the first-line
-    /// rule alone, and 258 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **480 of 21,612 are accepted by the first-line
+    /// rule alone, and 256 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -25184,8 +25184,8 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **83 ascending sorts, 16 descending, 34
-    /// swaps, 35 rotations and 90 reversals** — so the reversal is the largest
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **82 ascending sorts, 16 descending, 34
+    /// swaps, 35 rotations and 89 reversals** — so the reversal is the largest
     /// part of it, not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
@@ -25195,7 +25195,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1029 of
+    /// this tree offers, **1033 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -36115,7 +36115,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1715] = [
+    static OPERATORS: [(&str, &str, &str); 1717] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -43111,6 +43111,11 @@ Options:
             "PostgreSQL leaves a unit closed out of the open ones",
         ),
         (
+            "journal_store",
+            "open_units",
+            "PostgreSQL refuses an opening naming its unit as this code never writes one",
+        ),
+        (
             "local_journal",
             "append",
             "an entry lands only where the next one goes",
@@ -43144,6 +43149,11 @@ Options:
             "local_journal",
             "open_units",
             "the local journal names the open units of the realm asked about alone",
+        ),
+        (
+            "local_journal",
+            "open_units",
+            "an opening naming its unit as this code never writes one is refused, never skipped",
         ),
         (
             "kernel_units",

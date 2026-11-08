@@ -13,8 +13,19 @@
 -- SQLite having no `jsonb`, and every integer is SQLite's own. The bounds the
 -- server's migrations add are here from the first: a sequence that is not
 -- negative and ends far from the top (`0003`, `0008`), and a hash and a link of
--- sixty-four lowercase hex characters (`0009`) — so a row planted from another
--- connection is refused where it would otherwise end the history.
+-- sixty-four lowercase hex characters (`0009`). **A bound says which values are
+-- legal, and nothing about which comes next**, so no `CHECK` stops a row planted
+-- at the top of the range — 4611686018427387903 is legal, and the entry after
+-- it is the one refused, for good — and any connection can turn every `CHECK`
+-- off with `PRAGMA ignore_check_constraints`, which changes no schema.
+--
+-- **A sequence is the next one, and nothing else** (the server's `0010`): a
+-- `BEFORE INSERT` trigger refuses a row anywhere but at `max(sequence) + 1`, or
+-- at 0 in an empty table, so a row planted from another connection cannot
+-- leap to the top and end the history — it cannot leap anywhere — and the
+-- density `verify` assumes is the table's to hold. The store's own append
+-- states the same rule in its `WHERE`, so it never meets this trigger; a row
+-- written around the store does.
 --
 -- **Append-only, by the table.** `BEFORE UPDATE` and `BEFORE DELETE` refuse
 -- every statement that would change or remove a row, whoever runs it, and a
@@ -70,4 +81,10 @@ END;
 CREATE TRIGGER local_journal_entries_are_never_deleted BEFORE DELETE ON local_journal_entries
 BEGIN
     SELECT RAISE(ABORT, 'local_journal_entries: the journal is append-only, and an entry is never deleted');
+END;
+
+CREATE TRIGGER local_journal_entries_sequence_is_the_next_one BEFORE INSERT ON local_journal_entries
+WHEN NEW.sequence IS NOT (SELECT coalesce(max(sequence) + 1, 0) FROM local_journal_entries)
+BEGIN
+    SELECT RAISE(ABORT, 'local_journal_entries: the journal is dense, and an entry lands only at the next sequence');
 END;

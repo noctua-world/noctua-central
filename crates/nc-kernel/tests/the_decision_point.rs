@@ -1465,6 +1465,72 @@ async fn a_unit_opened_past_a_row_a_read_cannot_decode_is_recovered() {
     assert_eq!(of(unseen), [Outcome::UnitBegun, Outcome::UnitAborted]);
 }
 
+/// A kernel does not open over a journal holding an opening bracket of its
+/// realm that names its unit as no kernel writes one, and says so with the
+/// journal's code; nothing is recovered or written.
+///
+/// **The residual, held as written** (`AGENTS.md`, the journal on the
+/// person's machine): the store refuses the row by name rather than skip it,
+/// so recovery cannot say which units are open, and a kernel that cannot say
+/// does not open — failing closed, until the row is repaired by hand. A
+/// recovery that skipped it, or read the unit leniently, would open here.
+#[tokio::test]
+async fn a_kernel_does_not_open_over_an_opening_naming_its_unit_as_no_kernel_writes_one() {
+    let store = stalling(
+        LocalStore::in_memory_for_tests()
+            .await
+            .expect("the local database opens in memory"),
+    );
+    let realm = MemoryDirectory::from_world(WORLD, &family())
+        .expect("the world is valid")
+        .realm_id("home")
+        .expect("home is a realm");
+    sqlx::query(
+        "INSERT INTO main.local_journal_entries (sequence, realm, principal, actor_chain, \
+         action, resource, result, work_unit, recorded_at, prev_hash, hash) \
+         VALUES (0, ?1, 'principal-1', '[]', ?2, 'null', ?3, '01j8xk2m9p51', 1, NULL, ?4)",
+    )
+    .bind(realm.as_str())
+    .bind(nc_journal::unit::OPENS)
+    .bind(Outcome::UnitBegun.as_str())
+    .bind("ab".repeat(32))
+    .execute(store.inner.pool())
+    .await
+    .expect("whoever can write the file can insert a row at the next sequence");
+    let log = Arc::new(Captured::default());
+    let refused = match opening(
+        3,
+        store.inner.journal(),
+        Ok(family()),
+        store.clone(),
+        Arc::clone(&log),
+    )
+    .await
+    {
+        Err(nc_kernel::OpenError::Unrecovered(refusal)) => refusal,
+        Err(other) => panic!("refused for another reason: {other}"),
+        Ok(_) => panic!("opened over a journal that cannot say which units are open"),
+    };
+    assert_eq!(
+        (refused.kind(), refused.code()),
+        (RefusalKind::Unavailable, ErrorCode::JournalChainBroken),
+        "{refused}"
+    );
+    assert_eq!(
+        log.named("kernel.recovered"),
+        [] as [nc_kernel::logging::CapturedLine; 0]
+    );
+    assert_eq!(
+        nc_journal::Store::head(&store.inner.journal())
+            .await
+            .expect("the head reads")
+            .map(|(sequence, _)| sequence),
+        Some(0),
+        "nothing was written over the row"
+    );
+    store.inner.close().await;
+}
+
 /// A unit the journal's store names as open and the journal then says is
 /// closed is left as it is.
 ///
@@ -6603,12 +6669,94 @@ async fn a_unit_a_stopped_kernel_left_open_is_reverted_though_the_pruner_ran_mea
     let scratch = Scratch::new("left-open-pruned");
     let profile = scratch.0.join("the-close");
     let status = the_stopped_child(STOPPED_OVER_POSTGRES, "the-close", &schema, &profile);
+    let after = the_pruner_runs_and_the_kernel_opens_again(status, &profile, |_| {
+        nc_journal::postgres::Postgres::in_schema(pool.clone(), &schema)
+    })
+    .await;
+    finish(pool).await;
+    after.nothing_of_the_unit_is_left();
+}
+
+/// A unit a stopped kernel left committed in the store and open in the local
+/// journal is reverted when that kernel opens again, though the pruner ran
+/// over the file in between — the file that holds the journal too.
+///
+/// **The daemon's case, and the one every system runs**: what
+/// `a_unit_a_stopped_kernel_left_open_is_reverted_though_the_pruner_ran_meanwhile`
+/// holds over PostgreSQL, held over `nc_local::LocalJournal`, where the pruner
+/// runs over the very file whose `local_journal_entries` the recovery asks.
+/// The table is the realm's pack's to bound (`policy-pack`), so the pruner
+/// leaves every row of it, and the unit is found open and reverted.
+#[tokio::test]
+async fn a_unit_a_stopped_kernel_left_open_in_the_local_journal_is_reverted_though_the_pruner_ran_meanwhile()
+ {
+    let scratch = Scratch::new("left-open-pruned-in-the-file");
+    let profile = scratch.0.join("the-close");
+    let status = the_stopped_child(STOPPED_OVER_THE_FILE, "the-close", "", &profile);
+    let after =
+        the_pruner_runs_and_the_kernel_opens_again(status, &profile, |store| store.inner.journal())
+            .await;
+    assert!(
+        after.journaled.0 > 0,
+        "the child's unit is in the file's journal: {:?}",
+        after.journaled
+    );
+    assert_eq!(
+        after.journaled.0, after.journaled.1,
+        "the pruner took nothing of the journal"
+    );
+    after.nothing_of_the_unit_is_left();
+}
+
+/// What a kernel opened again over the file a stopped child left found, once
+/// the pruner had run over it.
+struct AfterThePruner {
+    /// How many records of the stopped unit the pruner left.
+    left: i64,
+    /// The note the child's unit wrote, as the store held it once the kernel
+    /// opened again.
+    photo: Option<String>,
+    /// How many rows the file's own journal held before the pruner ran, and
+    /// after.
+    journaled: (i64, i64),
+}
+
+impl AfterThePruner {
+    /// Holds the unit's record to have outlived the pruner, and its write to
+    /// have been reverted.
+    fn nothing_of_the_unit_is_left(&self) {
+        assert_eq!(
+            self.left, 1,
+            "the pruner took the record the recovery reverts from"
+        );
+        assert_eq!(
+            self.photo, None,
+            "the journal closed the stopped unit as aborted and its write is still in the store"
+        );
+    }
+}
+
+/// Runs the pruner over a stopped child's file, then opens a kernel over it.
+///
+/// The child stopped with `status` between the store's commit and the
+/// journal's close, and the file in `profile` has its units table filled past
+/// its bound; the kernel opens over that file and over the journal handed over
+/// by `journal_of`.
+async fn the_pruner_runs_and_the_kernel_opens_again<J, F>(
+    status: std::process::ExitStatus,
+    profile: &std::path::Path,
+    journal_of: F,
+) -> AfterThePruner
+where
+    J: nc_journal::Store + Debug + Send + Sync + 'static,
+    F: FnOnce(&Stalling) -> J,
+{
     assert!(
         nc_platform::testing::stopped_by_abort(status),
         "the child did not stop the way `abort` stops it: {status}"
     );
     let store = stalling(
-        LocalStore::open(&profile)
+        LocalStore::open(profile)
             .await
             .expect("the file opens after the stop"),
     );
@@ -6620,6 +6768,7 @@ async fn a_unit_a_stopped_kernel_left_open_is_reverted_though_the_pruner_ran_mea
         .fetch_one(store.inner.pool())
         .await
         .expect("the store counts");
+    let before = journal_rows(&store.inner).await;
     let (_, batch) = units_past_their_bound_from(&store.inner, stopped).await;
     let mut target = nc_prune::sqlite::Sqlite::new(store.inner.pool().clone());
     let pruned = nc_prune::run(&mut target, nc_prune::Request::every())
@@ -6632,10 +6781,11 @@ async fn a_unit_a_stopped_kernel_left_open_is_reverted_though_the_pruner_ran_mea
         .fetch_one(store.inner.pool())
         .await
         .expect("the store counts");
+    let after = journal_rows(&store.inner).await;
     let log = Arc::new(Captured::default());
     let fixture = opening(
         8,
-        nc_journal::postgres::Postgres::in_schema(pool.clone(), &schema),
+        journal_of(&store),
         Ok(family()),
         store.clone(),
         Arc::clone(&log),
@@ -6645,13 +6795,17 @@ async fn a_unit_a_stopped_kernel_left_open_is_reverted_though_the_pruner_ran_mea
     let photo = photo_in(&store).await;
     drop(fixture);
     store.inner.close().await;
-    finish(pool).await;
-    assert_eq!(
-        left, 1,
-        "the pruner took the record the recovery reverts from"
-    );
-    assert_eq!(
-        photo, None,
-        "the journal closed the stopped unit as aborted and its write is still in the store"
-    );
+    AfterThePruner {
+        left,
+        photo,
+        journaled: (before, after),
+    }
+}
+
+/// How many rows the local file's own journal holds.
+async fn journal_rows(store: &LocalStore) -> i64 {
+    sqlx::query_scalar("SELECT count(*) FROM main.local_journal_entries")
+        .fetch_one(store.pool())
+        .await
+        .expect("the journal counts")
 }

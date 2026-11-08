@@ -1101,7 +1101,7 @@ async fn the_units_a_realm_left_open_are_named_past_a_row_a_read_stops_at() {
         &nc_canon::to_hex(&link),
         opens,
         Outcome::UnitBegun.as_str(),
-        Some(left),
+        Some(&left.to_crockford()),
     )
     .await;
     let read = store.from(0).await.expect("the history reads");
@@ -1120,16 +1120,71 @@ async fn the_units_a_realm_left_open_are_named_past_a_row_a_read_stops_at() {
     finish(pool).await;
 }
 
-/// A row a second connection writes at `sequence`, linked to `link`: an
-/// opening of `unit` when one is named, and otherwise a row of the outcome
-/// `result` — one this code does not know, which no read of it decodes.
+/// An opening bracket a second connection wrote, naming its unit as this
+/// code never writes one, is refused by name when the realm is asked which
+/// units are open, and another realm's answer is untouched — in PostgreSQL as
+/// in the local journal.
+///
+/// **Refused, not skipped**, for the reason the local journal's case gives:
+/// read leniently, `01j8xk2m9p52` is a unit no question finds by its canonical
+/// text, and skipped, a unit a stopped process left might be the one dropped.
+/// `journal_entries.work_unit` holds any text, so a party that can only insert
+/// can write this row — the residual `AGENTS.md` names beside the closing
+/// bracket such a party forges.
+#[tokio::test]
+async fn an_opening_naming_its_unit_as_this_code_never_writes_one_is_refused_by_name() {
+    const SCHEMA: &str = "nc_test_respelled_opening";
+    let Some(pool) = pool(SCHEMA).await else {
+        return;
+    };
+    let mut store = store_in(&pool, SCHEMA);
+    let unit = |text: &str| Snowflake::from_crockford(text).expect("a test unit");
+    let (open, there) = (unit("01J8XK2M9P51"), unit("01J8XK2M9P52"));
+    let opens = nc_journal::unit::OPENS;
+    entered(&mut store, "realm-1", opens, Outcome::UnitBegun, open).await;
+    entered(&mut store, "realm-2", opens, Outcome::UnitBegun, there).await;
+    let (last, link) = store.head().await.expect("the head reads").expect("a head");
+    insert_foreign(
+        &pool,
+        last + 1,
+        &nc_canon::to_hex(&link),
+        opens,
+        Outcome::UnitBegun.as_str(),
+        Some(&there.to_crockford().to_lowercase()),
+    )
+    .await;
+    let refused = store.open_units(&id("realm-1")).await;
+    assert!(
+        matches!(&refused, Err(nc_journal::Error::Undecodable { sequence, why })
+            if *sequence == last + 1
+                && why.contains("01j8xk2m9p52")
+                && why.contains("not an identifier as this code writes one")),
+        "{refused:?}"
+    );
+    assert_eq!(
+        refused.as_ref().map_err(nc_journal::Error::code),
+        Err(nc_catalog::ErrorCode::JournalChainBroken)
+    );
+    assert_eq!(
+        store.open_units(&id("realm-2")).await,
+        Ok(vec![there]),
+        "another realm's units are asked of its own rows"
+    );
+    finish(pool).await;
+}
+
+/// A row a second connection writes, at `sequence` and linked to `link`.
+///
+/// It opens the unit spelled `unit` when one is named, and is otherwise a row
+/// of the outcome `result` — one this code does not know, which no read of it
+/// decodes.
 async fn insert_foreign(
     pool: &sqlx::PgPool,
     sequence: u64,
     link: &str,
     action: &str,
     result: &str,
-    unit: Option<Snowflake>,
+    unit: Option<&str>,
 ) {
     sqlx::query(
         "INSERT INTO journal_entries (sequence, realm, principal, actor_chain, action, \
@@ -1139,7 +1194,7 @@ async fn insert_foreign(
     .bind(i64::try_from(sequence).expect("a short test history"))
     .bind(action)
     .bind(result)
-    .bind(unit.map(Snowflake::to_crockford))
+    .bind(unit)
     .bind(link)
     .bind("ab".repeat(32))
     .execute(pool)

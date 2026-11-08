@@ -775,6 +775,163 @@ async fn a_row_whose_hash_is_not_its_contents_is_refused_where_it_lies() {
     store.close().await;
 }
 
+/// A row planted anywhere but at the next sequence is refused by the table's
+/// own trigger — at the top of the range the bounds allow, past the head, and
+/// with every `CHECK` turned off — and the store's next append lands.
+///
+/// **The bound is not the rule.** 4611686018427387903 is a sequence the
+/// column's `CHECK` permits, and without the trigger it lands: the entry after
+/// it is the one the bound refuses, and every append after that, for good —
+/// measured, with `sqlite3` over a file built by `0004` before it had the
+/// trigger. And `PRAGMA ignore_check_constraints`, which any connection may
+/// send and which changes no schema, takes every bound away; no pragma takes a
+/// trigger away.
+#[tokio::test]
+async fn a_row_planted_past_the_next_sequence_is_refused_and_the_next_append_lands() {
+    let scratch = Scratch::new("dense");
+    let profile = scratch.profile();
+    let store = LocalStore::open(&profile).await.expect("opens");
+    let mut journal = store.journal();
+    transcript_of(&mut journal, &[opens(0), in_unit(0)]).await;
+    let (head, hash) = journal.head().await.expect("readable").expect("a head");
+    let mut console = raw(&profile).await;
+    for (pragma, sequence) in [
+        (
+            "PRAGMA ignore_check_constraints = OFF",
+            4_611_686_018_427_387_903,
+        ),
+        ("PRAGMA ignore_check_constraints = OFF", head + 5),
+        (
+            "PRAGMA ignore_check_constraints = ON",
+            4_611_686_018_427_387_903,
+        ),
+        (
+            "PRAGMA ignore_check_constraints = ON",
+            4_611_686_018_427_387_909,
+        ),
+    ] {
+        sqlx::query(pragma)
+            .execute(&mut console)
+            .await
+            .expect("any connection may send it");
+        let refused = a_row_at(
+            &mut console,
+            sequence,
+            &nc_canon::to_hex(&hash),
+            "Write",
+            "allowed",
+            None,
+        )
+        .await
+        .expect_err("a row lands only at the next sequence");
+        assert!(
+            nc_local::is_a_trigger_refusal(&refused),
+            "{pragma}, at {sequence}: {refused}"
+        );
+        assert!(
+            refused.to_string().contains("the journal is dense"),
+            "{pragma}, at {sequence}: {refused}"
+        );
+    }
+    console.close().await.expect("closes");
+    assert_eq!(
+        journal.head().await.expect("readable").map(|(at, _)| at),
+        Some(head),
+        "nothing planted landed"
+    );
+    transcript_of(&mut journal, &[commits(0)]).await;
+    assert_eq!(
+        journal
+            .from(0)
+            .await
+            .expect("the history reads")
+            .entries
+            .len(),
+        3,
+        "the next append lands where the history goes on"
+    );
+    store.close().await;
+}
+
+/// An opening bracket naming its unit as this code never writes one is
+/// refused by name when the realm is asked which units are open, and another
+/// realm's answer is untouched.
+///
+/// **Refused, not skipped**: the lenient Crockford reader reads
+/// `01j8xk2m9p51` as a real unit, which no question about it finds by its
+/// canonical text, so read leniently it would be recovered as open for ever;
+/// skipped, a unit a stopped process left might be the one dropped. So the
+/// kernel of `realm-1` does not open over this file until the row is repaired
+/// — the residual `AGENTS.md` names under the journal on the person's machine.
+#[tokio::test]
+async fn an_opening_naming_its_unit_as_this_code_never_writes_one_is_refused_by_name() {
+    let scratch = Scratch::new("respelled-opening");
+    let profile = scratch.profile();
+    let store = LocalStore::open(&profile).await.expect("opens");
+    let mut journal = store.journal();
+    transcript_of(&mut journal, &[opens(0), elsewhere(opens(1))]).await;
+    let (head, hash) = journal.head().await.expect("readable").expect("a head");
+    let mut console = raw(&profile).await;
+    a_row_at(
+        &mut console,
+        head + 1,
+        &nc_canon::to_hex(&hash),
+        nc_journal::unit::OPENS,
+        Outcome::UnitBegun.as_str(),
+        Some(&UNITS[2].to_lowercase()),
+    )
+    .await
+    .expect("an insertion at the next sequence is what a journal is for");
+    console.close().await.expect("closes");
+    let refused = journal.open_units(&id("realm-1")).await;
+    assert!(
+        matches!(&refused, Err(Error::Undecodable { sequence, why })
+            if *sequence == head + 1
+                && why.contains("01j8xk2m9p53")
+                && why.contains("not an identifier as this code writes one")),
+        "{refused:?}"
+    );
+    assert_eq!(
+        refused.as_ref().map_err(Error::code),
+        Err(ErrorCode::JournalChainBroken)
+    );
+    assert_eq!(
+        journal.open_units(&id("realm-2")).await,
+        Ok(vec![unit(1)]),
+        "another realm's units are asked of its own rows"
+    );
+    store.close().await;
+}
+
+/// Inserts one row into the file's journal, the way a console would.
+///
+/// It goes in on `console`, at `sequence`, linked to `link`, with `action`,
+/// `result` and the text `unit` in `work_unit`; its hash is sixty-four hex
+/// characters that are the hash of nothing it holds.
+async fn a_row_at(
+    console: &mut sqlx::SqliteConnection,
+    sequence: u64,
+    link: &str,
+    action: &str,
+    result: &str,
+    unit: Option<&str>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "INSERT INTO main.local_journal_entries (sequence, realm, principal, actor_chain, \
+         action, resource, result, work_unit, recorded_at, prev_hash, hash) \
+         VALUES (?1, 'realm-1', 'principal-1', '[]', ?2, 'null', ?3, ?4, 1, ?5, ?6)",
+    )
+    .bind(i64::try_from(sequence).expect("a sequence SQLite holds"))
+    .bind(action)
+    .bind(result)
+    .bind(unit)
+    .bind(link)
+    .bind("ab".repeat(32))
+    .execute(&mut *console)
+    .await
+    .map(|_| ())
+}
+
 /// Writes a row into the file's journal from a connection of its own, after
 /// the head, linked to it, holding `resource` as its text and naming `unit`;
 /// answers its sequence.

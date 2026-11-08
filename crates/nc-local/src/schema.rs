@@ -134,6 +134,13 @@ pub const EXPECTED: &[Object<'static>] = &[
         since: 4,
     },
     Object {
+        kind: "trigger",
+        name: "local_journal_entries_sequence_is_the_next_one",
+        table: "local_journal_entries",
+        sql: Some("a60c4cccb73559904562de995a89354e529ef167c48b66456c807413d9963ffd"),
+        since: 4,
+    },
+    Object {
         kind: "table",
         name: "store_entries",
         table: "store_entries",

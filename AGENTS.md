@@ -668,8 +668,10 @@ effect; 22 is gated over the statements written today and by nothing over the ne
     **Enforced by** `crates/nc-kernel/tests/the_decision_point.rs` — the journal refusing
     at the opening, at a top-level and a nested entry, at the close and at a read's entry,
     a close taken with its answer lost, the store refusing a reversal, a prune past a unit
-    left open, and a kernel stopped in a child process between the store's commit and the
-    journal's close and opened again, over PostgreSQL and over the local journal — by
+    left open, a journal whose store cannot name a unit it holds open, and a kernel stopped
+    in a child process between the store's commit and the journal's close and opened
+    again, with the pruner run over the file meanwhile or not, over PostgreSQL and over the
+    local journal — by
     `crates/nc-kernel/tests/units_and_history.rs`, over every shape a stop leaves, each
     over the journal in memory and over the local journal, and by the operators over
     `dispatch.rs`, `units.rs`, `builtin.rs` and `pump.rs` in `xtask/mutants.py`.
@@ -733,7 +735,7 @@ entry owns.
 | Undo used to escalate | the asker's own steps, authorized again now, refused on a conflict, compensations dispatched through the decision point | "A person undoes their own steps, with the authority they hold now" |
 | A rule swapped under the kernel | packs compiled into the binary, and a realm's pin held to them | "The pack a kernel decides with is the one it was built with" |
 | Authorization gone stale | decided again on every dispatch, and when a timer or an event comes due | "What a plugin puts off runs only under an authority decided again when it comes due" |
-| A history rewritten on the person's machine | append-only triggers, the link inside the insert, every row read back only as this code writes it | "The journal on the person's machine refuses to be edited, and says which units are open" |
+| A history rewritten on the person's machine | append-only triggers, a row only at the next sequence, the link inside the insert, every row read back only as this code writes it | "The journal on the person's machine refuses to be edited, and says which units are open" |
 | Another account reading the local database | `0700` and `0600` on Unix, an access list naming the user alone on Windows, owner and link checks, `trusted_schema = OFF`, `main.`-qualified statements and append-only images | "The local database is private to its user, and refuses what it did not make" |
 | A sandbox escape through this repository's own code | no `unsafe` written anywhere but the Win32 calls of `nc-platform`'s Windows half, each beside its reason, plugins included, and what `forbid` does not reach written down | invariant 17 |
 
@@ -852,6 +854,11 @@ over the journal in memory and the local journal alike.
   (`kernel.unit_aborted`, cause `journal_unknown`, records the reversal);
 - two kernels over one journal, each taking the other's open units for a stopped process's
   — one daemon keeps one profile;
+- an opening bracket that names its unit in a spelling this code never writes, which the
+  journal's store refuses by name (`NC-JRNL-0001`), so the realm's kernel does not open
+  until somebody repairs the journal by hand: a party that can only insert writes one on
+  the server, where `journal_entries.work_unit` holds any text, and whoever can write the
+  local file writes one there;
 - the public-read allowlist `NOCTUA.md §14.2` permits, which this kernel does not
   implement: every read is decided by Cedar in process, a bypass would be a second path
   buying nothing, and the web backend's middleware (Stage 22) is the first surface that
@@ -1329,11 +1336,14 @@ the plugin store: `local_journal_entries`, built by
 
 **Guaranteed:**
 
-- **Append-only, by the table.** `BEFORE UPDATE` and `BEFORE DELETE` triggers refuse an
-  edit and a deletion from any connection — a `DELETE` with no `WHERE` included, since a
-  table with a delete trigger is never truncated — under `trusted_schema = OFF`; the
-  sequence, the hash and the link are held to the server's bounds by `CHECK`s, so a row
-  planted at the top of the range cannot end the history.
+- **Append-only and dense, by the table.** `BEFORE UPDATE` and `BEFORE DELETE` triggers
+  refuse an edit and a deletion from any connection — a `DELETE` with no `WHERE` included,
+  since a table with a delete trigger is never truncated — under `trusted_schema = OFF`,
+  and a `BEFORE INSERT` trigger refuses a row anywhere but at the next sequence (the
+  server's `0010`), so a row planted at the top of the range cannot end the history. The
+  sequence, the hash and the link are held to the server's bounds by `CHECK`s too, which a
+  connection can switch off with `PRAGMA ignore_check_constraints` and no schema change;
+  no pragma switches off a trigger.
 - **One statement per append.** The link, the sequence and the unit's brackets are the
   `WHERE` of the `INSERT`, inside a `BEGIN IMMEDIATE` holding the file's one writer, and a
   refused entry is diagnosed in the same transaction — so every refusal is the one the
@@ -1342,26 +1352,35 @@ the plugin store: `local_journal_entries`, built by
 - **A row this code did not write is named where it lies.** `nc_journal::Entry` stays
   sealed: each row is read back through `Entry::chain` over its stored link and held to
   its stored hash, and every column the chain hashes only as the text this code writes.
-  One that fails is where `from` stops and what `tail` refuses, with the code a
-  verification gives a tampered row (`NC-JRNL-0002`), at its own sequence.
+  One that fails is where `from` stops and what `tail` refuses as `Undecodable`
+  (`NC-JRNL-0001`), at its own sequence, and `journal.verify` reports it there as a
+  tampered row (`NC-JRNL-0002`).
 - **Which units are open is asked of four columns** — the realm, the unit, the action
-  and the outcome, over the index `(realm, work_unit)` — so a recovery costs what was left
-  open, and no row that fails to decode hides a unit opened after it.
+  and the outcome, over the index `(realm, work_unit)` — so no row that fails to decode
+  hides a unit opened after it, and a recovery visits the realm's entries inside units,
+  never decoded, rather than every realm's history. An opening bracket whose unit is not
+  spelled as this code writes one is refused by name, never skipped (`NC-JRNL-0001`).
 
 **Enforced by** `crates/nc-local/tests/the_local_journal.rs` — the triggers from a
-connection of its own, a forged link, an insert a trigger silences, a planted row nothing
-can decode and one whose hash is not its contents', a history read back by the next open,
-and the transcript held to the store in memory over written and generated scripts and to
-PostgreSQL's where the stack runs — by the kernel's recovery suites run over it
-(`units_and_history.rs`, and the stopped child of `the_decision_point.rs`), and by the
-operators over `journal.rs` in `xtask/mutants.py`.
+connection of its own, rows planted past the next sequence with the checks on and off, a
+forged link, an insert a trigger silences, a planted row nothing can decode, one whose
+hash is not its contents' and an opening bracket naming its unit as this code never
+writes one, a history read back by the next open, and the transcript held to the store in
+memory over written and generated scripts and to PostgreSQL's where the stack runs — by
+the kernel's recovery suites run over it (`units_and_history.rs`, and in
+`the_decision_point.rs` the stopped child, with and without the pruner run over the file
+meanwhile, and the kernel that does not open over that bracket), and by the operators over
+`journal.rs` in `xtask/mutants.py`.
 
 **Not answered:** a process running as the same user, which can drop the triggers and edit
 or delete any row — SQLite has no roles; a shortened history or a rewritten tail, which a
 chain cannot show without an anchor off this machine (`NOCTUA.md §14.9`; `nc-journal`'s
 header); a party that can only insert choosing how an open unit closed, as on the server;
-and retention, which is the realm's pack's to state and nothing applies yet
-(`catalog/limits.toml`, `policy-pack`).
+the same party inserting an opening bracket that names its unit in a spelling this code
+never writes, which keeps every kernel of that realm from opening until somebody repairs
+the file by hand — refused rather than skipped, because skipped it might be the unit a
+stopped process left; and retention, which is the realm's pack's to state and nothing
+applies yet (`catalog/limits.toml`, `policy-pack`).
 
 ### The central log cannot contain user data
 
@@ -2195,12 +2214,15 @@ rather than anything decided for the project, and each is a maintainer's to reop
   reason the kernel's crate header names timing between plugins as unanswered.
 - **Recovery finds what was left open, and not what is broken.** A kernel opening asks
   the journal's store which units of its realm are open (`nc_journal::Store::open_units`):
-  the columns that bracket a unit, never a read of the history, so its cost is what was
-  left open and a row nothing can decode hides no unit opened after it. It does not look
-  for that row, and logs nothing about a history it never reads: `journal.verify` still
-  stops at it and reports it (`journal.broken`), and nothing runs that verification on a
-  schedule. Two kernels over one journal would each take the other's open units for a
-  stopped process's; one daemon keeps one profile.
+  the columns that bracket a unit, never a read of the history, so a row nothing can
+  decode hides no unit opened after it. Its cost still grows with every unit the realm
+  ever opened — each entry inside one is visited through the index `(realm, work_unit)`,
+  never decoded — and not only with what was left open. It does not look for a broken row,
+  and logs nothing about a history it never reads: `journal.verify` still stops at it and
+  reports it (`journal.broken`), and nothing runs that verification on a schedule. An
+  opening bracket it cannot name keeps the kernel shut, as the decision point's **Not
+  answered** says. Two kernels over one journal would each take the other's open units for
+  a stopped process's; one daemon keeps one profile.
 - **Nothing runs on a schedule, and nothing put off outlives the kernel.** Timers and
   events are kept on no disk. `nc-prune` is a library the pump runs over the local
   database and `limits.prune` runs when a guardian holding a quorum's approval dispatches
@@ -2274,7 +2296,10 @@ rather than anything decided for the project, and each is a maintainer's to reop
   `NOCTUA.md §14.9` lists in cost order for a later stage. An `INSERT`-only party can also
   write a `unit-committed` bracket for a unit still open, locking its writer out while the
   history reads clean and making `Store::unit_closing` report the forger's outcome;
-  closing that needs the digest **keyed**.
+  closing that needs the digest **keyed**. And it can write a `unit-begun` bracket naming
+  its unit in a spelling this code never writes — `journal_entries.work_unit` holds any
+  text — which `Store::open_units` refuses by name, so no kernel of that realm opens until
+  the row is repaired by hand.
 - **The append-only triggers rest on a function their owner can replace**: all three call
   `journal_is_append_only()`, and one `CREATE OR REPLACE FUNCTION` with an empty body
   needs **function ownership only** — every trigger still there and still

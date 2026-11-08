@@ -30,16 +30,27 @@
 //!   `Entry::chain` over its own stored link, and one whose stored hash is not
 //!   the hash that gives — a row written around this store, or rewritten after
 //!   — is one [`from`](nc_journal::Store::from) stops at and
-//!   [`tail`](nc_journal::Store::tail) refuses, with the code a verification
-//!   gives a row it cannot read, `NC-JRNL-0002`, which is the code it gives a
-//!   row whose hash is wrong. Every column that holds what the chain hashes is
-//!   read back as the text this code writes, or the row is refused: a reader
-//!   accepting more spellings than the writer emits is a row respelled without
-//!   moving the digest.
+//!   [`tail`](nc_journal::Store::tail) refuses as `Error::Undecodable`
+//!   (`NC-JRNL-0001`), at its own sequence; `journal.verify` reports it there
+//!   as a row it cannot read, `NC-JRNL-0002`, the code it gives a row whose
+//!   hash is wrong. Every column that holds what the chain hashes is read back
+//!   as the text this code writes, or the row is refused: a reader accepting
+//!   more spellings than the writer emits is a row respelled without moving
+//!   the digest.
 //! - **Which units are open is asked of four columns**: the realm, the unit,
 //!   the action and the outcome — over the index `(realm, work_unit)`, never
 //!   over the history — so a row nothing can decode hides no unit opened after
-//!   it.
+//!   it. Every entry of the realm inside a unit is visited through the index,
+//!   read from those columns and never decoded, so the answer costs the
+//!   realm's units and not every realm's history. An opening bracket whose
+//!   unit is not spelled as this code writes one is refused by name
+//!   (`Error::Undecodable`), never skipped: read leniently it is a unit no
+//!   question finds by its text, and skipped it might be the one a stopped
+//!   process left.
+//! - **A row lands only at the next sequence**, by the table's own trigger,
+//!   whoever writes it: a row planted at the top of the range would end the
+//!   history, and every `CHECK` is one `PRAGMA ignore_check_constraints` away
+//!   from a connection that changes no schema.
 //!
 //! # What it does not answer (`§2.4`)
 //!
@@ -48,7 +59,11 @@
 //! shows a row edited in the middle of the history; it does not show a
 //! shortened one or a rewritten tail, and no anchor of it is kept off this
 //! machine (`nc_journal`'s header; `NOCTUA.md §14.9` leaves the anchor to a
-//! later stage).
+//! later stage). And whoever can write the file can insert, at the next
+//! sequence, an opening bracket naming its unit in a spelling this code never
+//! writes: `open_units` refuses it, so every kernel of that realm stays shut
+//! until the row is repaired by hand — failing closed, and a residual the
+//! repository's manual names.
 
 use nc_canon::Value;
 use nc_ids::{OpaqueId, Snowflake};
