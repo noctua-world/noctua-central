@@ -16,16 +16,16 @@
 //! "refuse to mint rather than mint a duplicate", and a module that implied more
 //! than it enforces would be worse than one that says where the line is.
 //!
-//! **And nothing in this repository persists that mark, which is a decision and
-//! not an omission.** Both halves are here — [`Minter::high_water_mark`] reads
-//! the highest millisecond a minter reached, [`Minter::resuming_at`] refuses to
-//! go below one — and there is no caller, because nothing in this stage mints
-//! an identifier in production. A store chosen here would be a second place the
-//! answer lives, in the crate least able to know where the first one
-//! is. `§16.2` carries the rule instead, and it names the ordering that
-//! matters: the mark is written *before* the identifier is handed out, since a
-//! mark written after is one a crash skips — which is the same duplicate this
-//! module refuses to mint while it is running.
+//! **And this crate persists nothing, which is a decision and not an
+//! omission.** Both halves of a mark are here — [`Minter::high_water_mark`]
+//! reads the highest millisecond a minter reached, [`Minter::resuming_at`]
+//! refuses to go below one — and the store is the caller's, behind a
+//! [`Ceiling`]: a minter given one by [`Minter::with_ceiling`] has it raised
+//! *before* it hands out a millisecond past it, so the mark is durable before
+//! the identifier exists, since a mark written after is one a crash skips —
+//! which is the same duplicate this module refuses to mint while it is running.
+//! A store chosen here would be a second place the answer lives, in the crate
+//! least able to know where the first one is; the daemon keeps it (`§16.2`).
 //!
 //! **Nothing here logs**, and `§16.2` asks for it. The events are declared —
 //! `ids.clock_backwards`, `ids.sequence_exhausted`, `ids.flake_collision` in
@@ -184,6 +184,12 @@ pub enum MintError {
         /// The mark that was handed in.
         millis: u64,
     },
+    /// The ceiling a minter may hand out up to could not be raised past the
+    /// clock, so nothing past it was handed out.
+    CeilingNotRaised {
+        /// The ceiling it still holds.
+        at: Duration,
+    },
 }
 
 /// The most a clock may plausibly be behind a mark, in milliseconds.
@@ -254,6 +260,13 @@ impl MintError {
             // has stopped on this machine until somebody fixes its time:
             // measured, 4096 identifiers and then a refusal that never clears.
             Self::ClockStuck { .. } => ErrorCode::IdsClockStuck,
+            // **The store's, not the clock's.** The clock is fine and the
+            // minter is too; what refused is the write that would have made a
+            // later millisecond durable, and a write that failed once — a full
+            // disk, a volume gone read-only for a moment — may land the next
+            // time, so its code is retryable where the clock's out-of-range one
+            // is not.
+            Self::CeilingNotRaised { .. } => ErrorCode::IdsCeilingNotRaised,
         }
     }
 }
@@ -279,6 +292,11 @@ impl core::fmt::Display for MintError {
                 formatter,
                 "a stored mark of {millis} ms is further ahead of this clock than any \
                  real skew, so it is a wrong number rather than an early one"
+            ),
+            Self::CeilingNotRaised { at } => write!(
+                formatter,
+                "the ceiling at {} ms could not be raised, so nothing past it was minted",
+                at.as_millis()
             ),
         }
     }
@@ -398,6 +416,62 @@ impl SystemClock {
     }
 }
 
+/// Where a minter's ceiling is kept: the highest millisecond it may hand out
+/// before it has to make a later one durable.
+///
+/// **Implemented by whoever persists the mark, never here.** A minter given one
+/// asks it to [`Ceiling::raise`] before handing out a millisecond past the
+/// ceiling it holds, and hands that millisecond out only once the answer says
+/// a ceiling at or past it is durable — so a process stopped at any instant has
+/// handed out nothing above what the store will give the next process to
+/// resume at. A raise that fails is a mint refused with
+/// [`MintError::CeilingNotRaised`] before the minter moves.
+///
+/// It is `Send + Sync` because a [`Minter`] is, and `Debug` because a minter
+/// prints.
+pub trait Ceiling: core::fmt::Debug + Send + Sync {
+    /// Makes a ceiling of at least `at_least` durable, and answers the one it
+    /// made durable.
+    ///
+    /// # Errors
+    ///
+    /// [`CeilingRefused`] when nothing could be made durable; the minter then
+    /// hands out nothing past the ceiling it already held.
+    fn raise(&mut self, at_least: u64) -> Result<u64, CeilingRefused>;
+
+    /// Makes exactly `high_water` the ceiling, at a clean stop, so the next
+    /// process resumes where this one stopped and does not wait out a raise.
+    ///
+    /// # Errors
+    ///
+    /// [`CeilingRefused`] when it could not be written; the ceiling that was
+    /// durable before stays so, which is higher, and only costs a wait.
+    fn settle(&mut self, high_water: u64) -> Result<(), CeilingRefused>;
+}
+
+/// Why a [`Ceiling`] made nothing durable.
+///
+/// **Carries nothing**: what the store met is the store's to report, and
+/// [`MintError`] is a value a caller copies.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CeilingRefused;
+
+impl core::fmt::Display for CeilingRefused {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter.write_str("the ceiling could not be made durable")
+    }
+}
+
+impl core::error::Error for CeilingRefused {}
+
+/// A minter's ceiling: the store, and the highest millisecond it last made
+/// durable.
+#[derive(Debug)]
+struct Held {
+    store: Box<dyn Ceiling>,
+    at: u64,
+}
+
 /// Mints identifiers for one machine.
 ///
 /// **One minter is one sequence**, and two threads minting from one without a
@@ -440,6 +514,8 @@ pub struct Minter<C: Clock> {
     /// misdiagnosis in the other direction. A memo of a verdict carries the
     /// verdict.
     concluded: Option<(u64, Verdict)>,
+    /// The ceiling a later millisecond waits behind, when there is one.
+    ceiling: Option<Held>,
 }
 
 /// What a bounded wait concluded about the clock.
@@ -470,6 +546,7 @@ impl<C: Clock> Minter<C> {
             last_millis: 0,
             sequence: 0,
             concluded: None,
+            ceiling: None,
         }
     }
 
@@ -554,7 +631,64 @@ impl<C: Clock> Minter<C> {
             // inside `u16`.
             sequence: SEQUENCE_MASK_U16,
             concluded: None,
+            ceiling: None,
         })
+    }
+
+    /// The same minter, which will not hand out a millisecond past `at`
+    /// until `ceiling` has made a later one durable.
+    ///
+    /// `at` is the ceiling the store already holds — what a resumed minter was
+    /// resumed at, or what the store last made durable.
+    #[must_use]
+    pub fn with_ceiling(mut self, ceiling: Box<dyn Ceiling>, at: u64) -> Self {
+        self.ceiling = Some(Held { store: ceiling, at });
+        self
+    }
+
+    /// Settles the ceiling to exactly the high-water mark, at a clean stop.
+    ///
+    /// Nothing to do without a ceiling or a mark. After it, the next
+    /// millisecond is raised for again, so a minter that goes on minting stays
+    /// behind a durable ceiling.
+    ///
+    /// # Errors
+    ///
+    /// [`CeilingRefused`] when the store could not write it, and the ceiling it
+    /// held stays the minter's.
+    pub fn settle_ceiling(&mut self) -> Result<(), CeilingRefused> {
+        let Some(high) = self.high_water_mark() else {
+            return Ok(());
+        };
+        let Some(held) = self.ceiling.as_mut() else {
+            return Ok(());
+        };
+        held.store.settle(high)?;
+        held.at = high;
+        Ok(())
+    }
+
+    /// Raises the ceiling before `now` is handed out, when `now` is past it.
+    ///
+    /// **A ceiling that did not reach `now` is a refusal**, whatever the store
+    /// answered: an answer below the millisecond about to be handed out is a
+    /// durable mark the identifier would outrun.
+    fn under_the_ceiling(&mut self, now: u64) -> Result<(), MintError> {
+        let Some(held) = self.ceiling.as_mut() else {
+            return Ok(());
+        };
+        if now <= held.at {
+            return Ok(());
+        }
+        match held.store.raise(now) {
+            Ok(raised) if raised >= now => {
+                held.at = raised;
+                Ok(())
+            }
+            _ => Err(MintError::CeilingNotRaised {
+                at: Duration::from_millis(held.at),
+            }),
+        }
     }
 
     /// The last millisecond this minter used, for persisting as a high-water
@@ -614,7 +748,12 @@ impl<C: Clock> Minter<C> {
         // (`NOCTUA.md §15.1`).
         Self::within_range(now)?;
 
-        if now == self.last_millis {
+        // **The next sequence is worked out before anything moves**, because
+        // the ceiling is asked after it and may refuse: a minter that had
+        // already moved to the next millisecond, or reset its sequence there,
+        // would hand out on the retry a sequence number of a millisecond it
+        // never reached.
+        let sequence = if now == self.last_millis {
             // **Tested for exhaustion before the increment, never after.**
             // Every path out of the wait below is an early return — so with the
             // increment first, a minter that failed once would leave `sequence`
@@ -722,9 +861,9 @@ impl<C: Clock> Minter<C> {
                     attempts += 1;
                 }
                 Self::within_range(now)?;
-                self.sequence = 0;
+                0
             } else {
-                self.sequence += 1;
+                self.sequence + 1
             }
         } else {
             // **The reset on a new millisecond.** Without it `sequence()`
@@ -738,8 +877,13 @@ impl<C: Clock> Minter<C> {
             // here, and the proptest steps 0..3;
             // `each_millisecond_starts_its_sequence_again` is the test of this
             // line.
-            self.sequence = 0;
-        }
+            0
+        };
+        // **The ceiling before the identifier, and before the minter moves.**
+        // Raised after, a process stopped between the two has handed out a
+        // millisecond no store holds, and the next one resumes below it.
+        self.under_the_ceiling(now)?;
+        self.sequence = sequence;
         self.last_millis = now;
 
         // Checked above, so the subtraction cannot wrap.
@@ -874,7 +1018,8 @@ mod tests {
     }
 
     use super::{
-        Clock, EPOCH_MS, MintError, Minter, SEQUENCE_MASK, Snowflake, SystemClock, TIMESTAMP_MASK,
+        Ceiling, CeilingRefused, Clock, EPOCH_MS, MintError, Minter, SEQUENCE_MASK, Snowflake,
+        SystemClock, TIMESTAMP_MASK,
     };
     use crate::flake::MachineFlake;
     use core::cell::Cell;
@@ -951,6 +1096,181 @@ mod tests {
 
     fn flake() -> MachineFlake {
         MachineFlake::from_value(7).expect("7 fits in ten bits")
+    }
+
+    /// What a [`Ceiling`] a test holds was asked, and how it answers.
+    #[derive(Debug, Default)]
+    struct Kept {
+        /// Every `at_least` a raise was asked for, in order.
+        raised: Vec<u64>,
+        /// Every high-water mark a settle was asked to write.
+        settled: Vec<u64>,
+        /// How far past what it is asked a raise makes durable.
+        lease: u64,
+        /// Whether it refuses.
+        refusing: bool,
+        /// Whether it answers a ceiling below what it was asked.
+        short: bool,
+    }
+
+    /// A ceiling a test reads back after handing it to a minter.
+    #[derive(Debug, Clone, Default)]
+    struct Recorded(std::sync::Arc<std::sync::Mutex<Kept>>);
+
+    impl Recorded {
+        fn leasing(lease: u64) -> Self {
+            let recorded = Self::default();
+            recorded.kept().lease = lease;
+            recorded
+        }
+        fn kept(&self) -> std::sync::MutexGuard<'_, Kept> {
+            self.0.lock().expect("no test panics holding it")
+        }
+        fn raised(&self) -> Vec<u64> {
+            self.kept().raised.clone()
+        }
+    }
+
+    impl Ceiling for Recorded {
+        fn raise(&mut self, at_least: u64) -> Result<u64, CeilingRefused> {
+            let mut kept = self.kept();
+            if kept.refusing {
+                return Err(CeilingRefused);
+            }
+            kept.raised.push(at_least);
+            Ok(if kept.short {
+                at_least - 1
+            } else {
+                at_least + kept.lease
+            })
+        }
+        fn settle(&mut self, high_water: u64) -> Result<(), CeilingRefused> {
+            let mut kept = self.kept();
+            if kept.refusing {
+                return Err(CeilingRefused);
+            }
+            kept.settled.push(high_water);
+            Ok(())
+        }
+    }
+
+    /// A millisecond past the ceiling is handed out only after the ceiling is
+    /// raised to it, and one inside it asks nothing.
+    #[test]
+    fn a_ceiling_is_raised_before_a_millisecond_past_it_is_handed_out() {
+        let clock = FakeClock::at(EPOCH_MS + 100);
+        let kept = Recorded::leasing(10);
+        let mut minter =
+            Minter::new(flake(), &clock).with_ceiling(Box::new(kept.clone()), EPOCH_MS + 99);
+        let first = minter.mint().expect("mints");
+        assert_eq!(first.millis_since_epoch(), 100);
+        assert_eq!(
+            kept.raised(),
+            [EPOCH_MS + 100],
+            "a millisecond past the ceiling was handed out with nothing made durable"
+        );
+        for _ in 0..10 {
+            clock.advance();
+            minter.mint().expect("mints inside the raised ceiling");
+        }
+        assert_eq!(
+            kept.raised(),
+            [EPOCH_MS + 100],
+            "a millisecond inside the ceiling asked the store again"
+        );
+        clock.advance();
+        minter.mint().expect("mints once raised again");
+        assert_eq!(kept.raised(), [EPOCH_MS + 100, EPOCH_MS + 111]);
+    }
+
+    /// A ceiling that is not raised refuses the mint before any identifier
+    /// exists, and the minter has not moved.
+    #[test]
+    fn a_ceiling_not_raised_refuses_before_any_identifier_exists() {
+        let clock = FakeClock::at(EPOCH_MS + 100);
+        let kept = Recorded::leasing(0);
+        let mut minter =
+            Minter::new(flake(), &clock).with_ceiling(Box::new(kept.clone()), EPOCH_MS + 100);
+        let before = minter.mint().expect("mints inside the ceiling it holds");
+        clock.advance();
+        kept.kept().refusing = true;
+        let refused = minter.mint().expect_err("a ceiling not raised refuses");
+        assert!(
+            matches!(refused, MintError::CeilingNotRaised { at } if at == Duration::from_millis(EPOCH_MS + 100)),
+            "{refused:?}"
+        );
+        assert_eq!(
+            minter.high_water_mark(),
+            Some(EPOCH_MS + 100),
+            "a refused mint moved the minter to a millisecond no store holds"
+        );
+        // **And a store that answers below the millisecond is a refusal too**:
+        // a durable ceiling the identifier would outrun is no ceiling.
+        kept.kept().refusing = false;
+        kept.kept().short = true;
+        assert!(matches!(
+            minter.mint(),
+            Err(MintError::CeilingNotRaised { .. })
+        ));
+        kept.kept().short = false;
+        let after = minter.mint().expect("mints once raised");
+        assert_eq!((after.millis_since_epoch(), after.sequence()), (101, 0));
+        assert!(after > before);
+    }
+
+    /// A refused raise after a millisecond's sequence ran out leaves it run
+    /// out, so the retry never hands that millisecond out again.
+    ///
+    /// **The order this holds**: the next sequence is worked out first and
+    /// written only once the ceiling answers. Written before, the refused mint
+    /// would have reset the sequence to zero, and a clock reading the same
+    /// millisecond again would hand out its second identifier twice.
+    #[test]
+    fn a_refused_raise_after_an_exhausted_millisecond_leaves_it_exhausted() {
+        let clock = FakeClock::at(EPOCH_MS + 100);
+        let kept = Recorded::leasing(0);
+        let mut minter =
+            Minter::new(flake(), &clock).with_ceiling(Box::new(kept.clone()), EPOCH_MS + 100);
+        let handed: Vec<Snowflake> = (0..=SEQUENCE_MASK)
+            .map(|_| minter.mint().expect("mints the whole millisecond"))
+            .collect();
+        kept.kept().refusing = true;
+        minter
+            .mint()
+            .expect_err("the wait reached a millisecond past the ceiling, and it was refused");
+        kept.kept().refusing = false;
+        clock.set(EPOCH_MS + 100);
+        let next = minter.mint().expect("mints once raised");
+        assert!(
+            !handed.contains(&next),
+            "{next:?} was handed out twice, after a refused raise"
+        );
+        assert_eq!(next.millis_since_epoch(), 101);
+    }
+
+    /// A clean stop settles the ceiling to the high-water mark, and the next
+    /// millisecond is raised for again.
+    #[test]
+    fn settling_writes_the_high_water_mark_and_raises_before_the_next_millisecond() {
+        let clock = FakeClock::at(EPOCH_MS + 100);
+        let kept = Recorded::leasing(50);
+        let mut minter =
+            Minter::new(flake(), &clock).with_ceiling(Box::new(kept.clone()), EPOCH_MS + 99);
+        minter.mint().expect("mints");
+        clock.advance();
+        minter.mint().expect("mints");
+        minter.settle_ceiling().expect("settles");
+        assert_eq!(kept.kept().settled, [EPOCH_MS + 101]);
+        clock.advance();
+        minter.mint().expect("mints past the settled mark");
+        assert_eq!(
+            kept.raised(),
+            [EPOCH_MS + 100, EPOCH_MS + 102],
+            "a millisecond past the settled mark was handed out unraised"
+        );
+        // And a minter with no ceiling, or with no mark, has nothing to settle.
+        let mut bare = Minter::new(flake(), &clock);
+        assert_eq!(bare.settle_ceiling(), Ok(()));
     }
 
     /// A clock whose `wait_past` does nothing at all.
@@ -1088,7 +1408,7 @@ mod tests {
             .code(),
             ErrorCode::IdsClockBackwards
         );
-        // **And the three the name of this test claims.** `MintError` has five
+        // **And the three the name of this test claims.** `MintError` has six
         // variants, and two of their codes are pinned elsewhere. Of the other
         // three, `MarkOutOfRange`'s is pinned by
         // `a_mark_further_ahead_than_any_skew_is_corrupt_rather_than_early` as
@@ -1144,6 +1464,17 @@ mod tests {
             ErrorCode::ValidationOutOfRange,
             "the mapping moved and the paragraph above it did not: this is the one the \
              developer has been asked about"
+        );
+        // **The sixth is the store's.** A ceiling that could not be raised is
+        // a write that failed, which none of the clock's sentences is true of,
+        // and one that may land when it is asked again.
+        let refused = MintError::CeilingNotRaised {
+            at: Duration::from_millis(1),
+        };
+        assert_eq!(refused.code(), ErrorCode::IdsCeilingNotRaised);
+        assert!(
+            refused.code().retryable(),
+            "a write that failed once is what asking again can clear"
         );
         // A stuck clock and a clock that moved backwards are different problems
         // and different first places to look.

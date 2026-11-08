@@ -113,6 +113,8 @@ pub enum ErrorCode {
     IdsClockStuck,
     /// NC-IDS-0008 — The clock is outside the range this identifier layout can represent
     IdsClockOutOfRange,
+    /// NC-IDS-0009 — The highest identifier time could not be saved, so no identifier past it was minted
+    IdsCeilingNotRaised,
     /// NC-JRNL-0001 — The journal's hash chain is broken at an entry
     JournalChainBroken,
     /// NC-JRNL-0002 — An entry's hash does not match the entry's own contents
@@ -294,6 +296,7 @@ impl ErrorCode {
         Self::IdsNotAnIdentifier,
         Self::IdsClockStuck,
         Self::IdsClockOutOfRange,
+        Self::IdsCeilingNotRaised,
         Self::JournalChainBroken,
         Self::JournalEntryTampered,
         Self::JournalUnavailable,
@@ -402,6 +405,7 @@ impl ErrorCode {
             Self::IdsNotAnIdentifier => "NC-IDS-0006",
             Self::IdsClockStuck => "NC-IDS-0007",
             Self::IdsClockOutOfRange => "NC-IDS-0008",
+            Self::IdsCeilingNotRaised => "NC-IDS-0009",
             Self::JournalChainBroken => "NC-JRNL-0001",
             Self::JournalEntryTampered => "NC-JRNL-0002",
             Self::JournalUnavailable => "NC-JRNL-0003",
@@ -511,6 +515,7 @@ impl ErrorCode {
             Self::IdsNotAnIdentifier => "IDS",
             Self::IdsClockStuck => "IDS",
             Self::IdsClockOutOfRange => "IDS",
+            Self::IdsCeilingNotRaised => "IDS",
             Self::JournalChainBroken => "JRNL",
             Self::JournalEntryTampered => "JRNL",
             Self::JournalUnavailable => "JRNL",
@@ -645,6 +650,9 @@ impl ErrorCode {
             }
             Self::IdsClockOutOfRange => {
                 "The clock is outside the range this identifier layout can represent"
+            }
+            Self::IdsCeilingNotRaised => {
+                "The highest identifier time could not be saved, so no identifier past it was minted"
             }
             Self::JournalChainBroken => "The journal's hash chain is broken at an entry",
             Self::JournalEntryTampered => "An entry's hash does not match the entry's own contents",
@@ -865,6 +873,7 @@ impl ErrorCode {
             Self::IdsNotAnIdentifier => "error.ids.not-an-identifier",
             Self::IdsClockStuck => "error.ids.clock-stuck",
             Self::IdsClockOutOfRange => "error.ids.clock-out-of-range",
+            Self::IdsCeilingNotRaised => "error.ids.ceiling-not-raised",
             Self::JournalChainBroken => "error.journal.chain-broken",
             Self::JournalEntryTampered => "error.journal.entry-tampered",
             Self::JournalUnavailable => "error.journal.unavailable",
@@ -974,6 +983,7 @@ impl ErrorCode {
             Self::IdsNotAnIdentifier => Severity::Error,
             Self::IdsClockStuck => Severity::Critical,
             Self::IdsClockOutOfRange => Severity::Error,
+            Self::IdsCeilingNotRaised => Severity::Error,
             Self::JournalChainBroken => Severity::Critical,
             Self::JournalEntryTampered => Severity::Critical,
             Self::JournalUnavailable => Severity::Critical,
@@ -1083,6 +1093,7 @@ impl ErrorCode {
             Self::IdsNotAnIdentifier => false,
             Self::IdsClockStuck => true,
             Self::IdsClockOutOfRange => false,
+            Self::IdsCeilingNotRaised => true,
             Self::JournalChainBroken => false,
             Self::JournalEntryTampered => false,
             Self::JournalUnavailable => true,
@@ -1192,6 +1203,7 @@ impl ErrorCode {
             Self::IdsNotAnIdentifier => &[],
             Self::IdsClockStuck => &[],
             Self::IdsClockOutOfRange => &[],
+            Self::IdsCeilingNotRaised => &[],
             Self::JournalChainBroken => &[],
             Self::JournalEntryTampered => &[],
             Self::JournalUnavailable => &[],

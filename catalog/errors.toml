@@ -300,6 +300,21 @@ message = "error.ids.clock-stuck"
 severity = "critical"
 retryable = true
 
+[[error]]
+# **The store's refusal, not the clock's.** A minter hands out no millisecond
+# past the ceiling a store has made durable, so a process stopped at any instant
+# has minted nothing the next one does not resume above (§16.2); when the write
+# that raises the ceiling fails, minting refuses before any identifier exists.
+# `retryable = true`: what failed is a write — a full disk, a volume read-only
+# for a moment — and the same mint asked again raises it once the write lands.
+# Not NC-IDS-0001, whose sentence is about a clock that stepped back, which this
+# clock did not.
+code = "NC-IDS-0009"
+description = "The highest identifier time could not be saved, so no identifier past it was minted"
+message = "error.ids.ceiling-not-raised"
+severity = "error"
+retryable = true
+
 # --- The central log (§15.4) ---
 
 [[error]]

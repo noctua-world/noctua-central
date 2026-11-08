@@ -19,8 +19,8 @@
 # sentences replaced — with the gate green.
 
 [meta]
-checksum = "8a4b717fe574da4b8dfd8c0a383efabc4b35da0cefe4e2056563a5767c639cb7"
-count = 102
+checksum = "f8b523303c1fbe08c01d500efe81796c726b92f7f5741bae52defcfc605fc08b"
+count = 103
 
 [reserved]
 "NC-BLOB-0001" = "error.blob.malformed-hash — warning — retryable:false — params:[] — A blob was named by text that is not a BLAKE3 hash"
@@ -51,6 +51,7 @@ count = 102
 "NC-IDS-0006" = "error.ids.not-an-identifier — error — retryable:false — params:[] — Text handed to an identifier type is not one"
 "NC-IDS-0007" = "error.ids.clock-stuck — critical — retryable:true — params:[] — The clock has stopped, so no more identifiers can be minted on this machine"
 "NC-IDS-0008" = "error.ids.clock-out-of-range — error — retryable:false — params:[] — The clock is outside the range this identifier layout can represent"
+"NC-IDS-0009" = "error.ids.ceiling-not-raised — error — retryable:true — params:[] — The highest identifier time could not be saved, so no identifier past it was minted"
 "NC-JRNL-0001" = "error.journal.chain-broken — critical — retryable:false — params:[] — The journal's hash chain is broken at an entry"
 "NC-JRNL-0002" = "error.journal.entry-tampered — critical — retryable:false — params:[] — An entry's hash does not match the entry's own contents"
 "NC-JRNL-0003" = "error.journal.unavailable — critical — retryable:true — params:[] — The journal store did not answer"

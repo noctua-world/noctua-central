@@ -547,6 +547,27 @@ WEAKENINGS = [
     ("snowflake", "wait_past_with", "a wait on a stopped clock spends its yields",
      "        for _ in 0..YIELDS_PER_WAIT {\n",
      "        for _ in 0..YIELDS_PER_WAIT / 10_000 {\n"),
+    # **The ceiling a persisted mark is kept behind** (`§16.2`): raised before
+    # a millisecond past it is handed out, a short answer refused, asked
+    # before the minter moves, and raised for again after a clean stop.
+    ("snowflake", "under_the_ceiling", "a millisecond past the ceiling is raised for",
+     "        if now <= held.at {\n",
+     "        if true {\n"),
+    ("snowflake", "under_the_ceiling", "a millisecond at the ceiling asks nothing",
+     "        if now <= held.at {\n",
+     "        if now < held.at {\n"),
+    ("snowflake", "under_the_ceiling", "a ceiling below the millisecond is a refusal",
+     "            Ok(raised) if raised >= now => {",
+     "            Ok(raised) => {"),
+    ("snowflake", "mint", "the ceiling is asked before the minter moves",
+     "        self.under_the_ceiling(now)?;\n        self.sequence = sequence;\n        self.last_millis = now;\n",
+     "        self.sequence = sequence;\n        self.last_millis = now;\n        self.under_the_ceiling(now)?;\n"),
+    ("snowflake", "settle_ceiling", "a settled ceiling is raised for again",
+     "        held.store.settle(high)?;\n        held.at = high;\n",
+     "        held.store.settle(high)?;\n"),
+    ("ids", "of_device_key", "a device's byte keeps its leading zero",
+     '            let _ = write!(text, "{byte:02x}");',
+     '            let _ = write!(text, "{byte:x}");'),
     # -- flake: the ten bits that say which machine minted an identifier --
     ("flake", "from_value", "the range bound is a bound",
      "        if value >= RANGE {",

@@ -37,6 +37,7 @@ Every error this platform declares. A code is **append-only**: it identifies one
 | `NC-IDS-0006` | error | no | yes | none | Text handed to an identifier type is not one | That is not an identifier this system recognises. Check the value and try again. | Isso não é um identificador que este sistema reconheça. Confira o valor e tente de novo. |
 | `NC-IDS-0007` | critical | yes | yes | none | The clock has stopped, so no more identifiers can be minted on this machine | This computer's clock has stopped, so nothing new can be saved. Someone needs to look at it. | O relógio deste computador parou, então nada novo pode ser salvo. Alguém precisa olhar isso. |
 | `NC-IDS-0008` | error | no | yes | none | The clock is outside the range this identifier layout can represent | This computer's clock is set to the wrong year, so nothing can be saved. Fix the date and time, then try again. | O relógio deste computador está no ano errado, então nada pode ser salvo. Ajuste a data e a hora e tente de novo. |
+| `NC-IDS-0009` | error | yes | yes | none | The highest identifier time could not be saved, so no identifier past it was minted | Noctua could not save where its numbering has reached, so nothing new was saved. Try again in a moment, and check the disk has room if this does not clear. | O Noctua não conseguiu salvar até onde sua numeração chegou, então nada novo foi salvo. Tente de novo em instantes e, se não resolver, veja se o disco tem espaço. |
 | `NC-JRNL-0001` | critical | no | yes | none | The journal's hash chain is broken at an entry | The activity history does not add up, so Noctua stopped rather than continue. Nothing was changed. Contact whoever set up your Noctua. | O histórico de atividades não confere, então o Noctua parou em vez de continuar. Nada foi alterado. Fale com quem instalou o seu Noctua. |
 | `NC-JRNL-0002` | critical | no | yes | none | An entry's hash does not match the entry's own contents | One entry in the activity history has been altered since it was written. Nothing was changed now. Contact whoever set up your Noctua. | Um registro do histórico de atividades foi alterado depois de ter sido escrito. Nada foi alterado agora. Fale com quem instalou o seu Noctua. |
 | `NC-JRNL-0003` | critical | yes | yes | none | The journal store did not answer | The activity history is not answering right now. Try again in a moment. | O histórico de atividades não está respondendo agora. Tente de novo em instantes. |
@@ -128,7 +129,7 @@ An area with no codes is a reservation: the prefix is spoken for and the subsyst
 | `CHAN` | 5 | Channels and installs: the manifest an install names itself by, and every name derived from it (§17.1) |
 | `DB` | 7 | Databases: PostgreSQL's connections, migrations and pruning, and the local SQLite file |
 | `GW` | none yet | The public gateway: ingress, rate limiting, transport |
-| `IDS` | 8 | Identifiers: Snowflake, the machine flake, file names |
+| `IDS` | 9 | Identifiers: Snowflake, the machine flake, file names |
 | `JRNL` | 10 | The command journal and its hash chain |
 | `KERN` | 24 | The local kernel and command dispatch |
 | `LOG` | 2 | The central log and its shipper |

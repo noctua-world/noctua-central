@@ -19143,10 +19143,10 @@ mod the_frozen_path_rule {
         ("nc-ids/against_denote.rs", 6, 6),
         ("nc-ids/base32.rs", 11, 18),
         ("nc-ids/flake.rs", 21, 26),
-        ("nc-ids/lib.rs", 45, 27),
+        ("nc-ids/lib.rs", 47, 27),
         ("nc-ids/naming.rs", 40, 37),
         ("nc-ids/properties.rs", 11, 6),
-        ("nc-ids/snowflake.rs", 56, 80),
+        ("nc-ids/snowflake.rs", 70, 90),
         ("nc-journal/across_threads.rs", 2, 5),
         ("nc-journal/entry.rs", 31, 16),
         ("nc-journal/in_postgres.rs", 75, 110),
@@ -25047,7 +25047,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15519;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15558;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25066,7 +25066,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3196;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3214;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25083,7 +25083,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1049;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1055;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25117,7 +25117,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 21845;
+    const THE_REARRANGEMENTS_JUDGED: usize = 21896;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25171,7 +25171,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **480 of 21,845 are accepted by the first-line
+    /// rules the gates apply: **480 of 21,896 are accepted by the first-line
     /// rule alone, and 256 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25204,7 +25204,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1049 of
+    /// this tree offers, **1055 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -36138,7 +36138,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1763] = [
+    static OPERATORS: [(&str, &str, &str); 1769] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -36166,6 +36166,36 @@ Options:
             "snowflake",
             "wait_past_with",
             "a wait on a stopped clock spends its yields",
+        ),
+        (
+            "snowflake",
+            "under_the_ceiling",
+            "a millisecond past the ceiling is raised for",
+        ),
+        (
+            "snowflake",
+            "under_the_ceiling",
+            "a millisecond at the ceiling asks nothing",
+        ),
+        (
+            "snowflake",
+            "under_the_ceiling",
+            "a ceiling below the millisecond is a refusal",
+        ),
+        (
+            "snowflake",
+            "mint",
+            "the ceiling is asked before the minter moves",
+        ),
+        (
+            "snowflake",
+            "settle_ceiling",
+            "a settled ceiling is raised for again",
+        ),
+        (
+            "ids",
+            "of_device_key",
+            "a device's byte keeps its leading zero",
         ),
         ("flake", "from_value", "the range bound is a bound"),
         ("flake", "candidate", "the domain is length-prefixed"),

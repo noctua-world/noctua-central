@@ -26,7 +26,7 @@ pub mod snowflake;
 pub use flake::MachineFlake;
 pub use naming::{FileName, NameError};
 pub use snowflake::EPOCH_MS;
-pub use snowflake::{Clock, MintError, Minter, Snowflake, SystemClock};
+pub use snowflake::{Ceiling, CeilingRefused, Clock, MintError, Minter, Snowflake, SystemClock};
 
 /// An **opaque identifier** (`NOCTUA.md §16.1`), held as what it is: an opaque string
 /// of bounded length.
@@ -153,6 +153,26 @@ impl OpaqueId {
         Ok(Self(text))
     }
 
+    /// The identifier a device's public key is derived to: the key's 64
+    /// lower-case hexadecimal digits.
+    ///
+    /// **Derived, never copied from a person's data** (`§5.1`), and minted here
+    /// rather than at the caller, because a crate that reaches the central log
+    /// may not mint one from text at all. A device's public key is public, and
+    /// its digits are inside the character set [`OpaqueId::new`] admits. This
+    /// decides nothing about the shape `§5.1` leaves open: it is one opaque
+    /// string, with no accessor for any part of it.
+    #[must_use]
+    pub fn of_device_key(public: &[u8; 32]) -> Self {
+        use core::fmt::Write as _;
+        let mut text = String::with_capacity(64);
+        for byte in public {
+            // Writing to a `String` cannot fail.
+            let _ = write!(text, "{byte:02x}");
+        }
+        Self(text)
+    }
+
     /// The identifier as text, for storing and for sending.
     ///
     /// Deliberately a whole string, and deliberately the only *accessor*: there
@@ -177,6 +197,29 @@ impl core::fmt::Display for OpaqueId {
 
 #[cfg(test)]
 mod tests {
+    /// A device's key is derived to its own identifier, the same each time,
+    /// one [`super::OpaqueId::new`] would take, and another key's differs.
+    #[test]
+    fn a_device_key_is_derived_to_an_identifier_of_its_own() {
+        let mut key = [0_u8; 32];
+        key[0] = 0xab;
+        key[31] = 0x01;
+        let derived = super::OpaqueId::of_device_key(&key);
+        assert_eq!(
+            derived.as_str(),
+            "ab00000000000000000000000000000000000000000000000000000000000001",
+            "a byte is two lower-case digits, with its leading zero"
+        );
+        assert_eq!(derived, super::OpaqueId::of_device_key(&key));
+        assert_eq!(
+            super::OpaqueId::new(derived.as_str()),
+            Ok(derived.clone()),
+            "the derived text is one the constructor of text admits"
+        );
+        key[15] = 1;
+        assert_ne!(super::OpaqueId::of_device_key(&key), derived);
+    }
+
     /// Every identifier failure says which failure it is.
     ///
     /// **All three `NC-IDS-0006` producers, asserted.** Without this, two of
@@ -873,11 +916,11 @@ mod an_opaque_identifier_holds_no_shape {
         traits.sort();
         assert_eq!(
             methods,
-            ["as_str", "new"],
-            "`OpaqueId`'s inherent surface is not the two the crate root and `as_str` \
-             describe. A second reader is a second thing a later stage can come to \
-             depend on before `NOCTUA.md §5.1` is answered, and the paragraph above \
-             the type would go on saying there is one"
+            ["as_str", "new", "of_device_key"],
+            "`OpaqueId`'s inherent surface is not the reader and the two constructors \
+             the crate root and `as_str` describe. A second reader is a second thing a \
+             later stage can come to depend on before `NOCTUA.md §5.1` is answered, and \
+             the paragraph above the type would go on saying there is one"
         );
         assert_eq!(
             traits,

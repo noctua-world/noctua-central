@@ -348,6 +348,13 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "error.ids.ceiling-not-raised",
+        [
+            "Noctua could not save where its numbering has reached, so nothing new was saved. Try again in a moment, and check the disk has room if this does not clear.",
+            "O Noctua não conseguiu salvar até onde sua numeração chegou, então nada novo foi salvo. Tente de novo em instantes e, se não resolver, veja se o disco tem espaço.",
+        ],
+    ),
+    (
         "error.ids.clock-backwards",
         [
             "This computer's clock moved backwards, so nothing can be saved until the time it skipped has passed. Check the clock settings if this does not clear.",
@@ -971,6 +978,7 @@ pub const KEYS: &[&str] = &[
     "error.db.prune-refused",
     "error.db.table-not-bounded",
     "error.db.unreachable",
+    "error.ids.ceiling-not-raised",
     "error.ids.clock-backwards",
     "error.ids.clock-out-of-range",
     "error.ids.clock-stuck",
