@@ -53,6 +53,9 @@ use windows_sys::Win32::Foundation::{
     INVALID_HANDLE_VALUE, LocalFree, TRUE, WIN32_ERROR,
 };
 use windows_sys::Win32::Security::Authorization::{GetSecurityInfo, SE_FILE_OBJECT};
+use windows_sys::Win32::Security::Cryptography::{
+    BCRYPT_USE_SYSTEM_PREFERRED_RNG, BCryptGenRandom,
+};
 use windows_sys::Win32::Security::{
     ACCESS_ALLOWED_ACE, ACE_HEADER, ACL, ACL_REVISION, AddAccessAllowedAceEx, AddAccessDeniedAceEx,
     CONTAINER_INHERIT_ACE, DACL_SECURITY_INFORMATION, GetAce, GetLengthSid, GetTokenInformation,
@@ -882,6 +885,38 @@ pub(crate) fn hold(directory: &Path, name: &str, user: &User) -> Result<File, Ju
     reason = "the interface's answer: the Unix half says what syncing a directory said"
 )]
 pub(crate) fn sync_directory(_directory: &Path) -> io::Result<()> {
+    Ok(())
+}
+
+/// `buffer` filled by the system's preferred generator, whole, or the error
+/// it answered.
+///
+/// One call is made per `u32::MAX` bytes at most, the most a single call
+/// can be handed.
+pub(crate) fn random(buffer: &mut [u8]) -> io::Result<()> {
+    for chunk in buffer.chunks_mut(u32::MAX as usize) {
+        let length = u32::try_from(chunk.len()).unwrap_or(u32::MAX);
+        // SAFETY: `chunk` is a live, writable slice of exactly `length` bytes,
+        // so the pointer and the count describe memory this call may write and
+        // nothing past it; a null algorithm handle with
+        // `BCRYPT_USE_SYSTEM_PREFERRED_RNG` asks for the system's generator and
+        // opens nothing this has to close. Nothing is allocated, so nothing is
+        // freed.
+        let status = unsafe {
+            BCryptGenRandom(
+                null_mut(),
+                chunk.as_mut_ptr(),
+                length,
+                BCRYPT_USE_SYSTEM_PREFERRED_RNG,
+            )
+        };
+        // An `NTSTATUS` below zero is an error, and none is ever a partial fill.
+        if status < 0 {
+            return Err(io::Error::other(format!(
+                "BCryptGenRandom answered {status:#010x}"
+            )));
+        }
+    }
     Ok(())
 }
 

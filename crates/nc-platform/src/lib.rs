@@ -1,7 +1,7 @@
 //! What makes a path this user's alone, on the system this was built for: who
 //! this process runs as, a directory and a file created private, an existing
-//! path judged, a profile held for one open, and a directory's entries made
-//! durable (`NOCTUA.md §2.7`).
+//! path judged, a profile held for one open, a directory's entries made
+//! durable, and bytes from the system's own generator (`NOCTUA.md §2.7`).
 //!
 //! **One interface, an implementation per system.** No code outside it
 //! decides what to do by the system it runs on, except `xtask`'s
@@ -377,6 +377,24 @@ pub fn sync_directory(directory: &Path) -> std::io::Result<()> {
     imp::sync_directory(directory)
 }
 
+/// Fills `buffer` with bytes the system's own generator draws, every one of
+/// them, or refuses.
+///
+/// **The system's, never a seed of this process's**: Unix reads
+/// `/dev/urandom`, which the kernel keeps seeded, and Windows asks
+/// `BCryptGenRandom` for the system's preferred generator. A secret drawn here
+/// — a device's seed, the token the daemon is reached by — is one no other
+/// process can predict from this one, and an answer that filled less than the
+/// whole buffer is an error rather than a key with a tail of zeros.
+///
+/// # Errors
+///
+/// [`std::io::Error`] as the system answered it, when it could not be asked or
+/// filled less than asked.
+pub fn random(buffer: &mut [u8]) -> std::io::Result<()> {
+    imp::random(buffer)
+}
+
 /// Sets the time the file `path` was last written to `at`, and leaves its
 /// bytes as they are.
 ///
@@ -446,6 +464,33 @@ fn probe_name() -> String {
 #[cfg(test)]
 mod tests {
     use super::{Judged, Kind, PROBE, judge, probe_name, testing, user_in};
+
+    /// The system's generator fills every byte it is handed, to the last, and
+    /// two draws differ.
+    #[test]
+    fn random_fills_every_byte_it_is_handed_and_two_draws_differ() {
+        let mut first = [0_u8; 32];
+        let mut second = [0_u8; 32];
+        super::random(&mut first).expect("the system's generator answers");
+        super::random(&mut second).expect("the system's generator answers");
+        assert_ne!(
+            first, [0_u8; 32],
+            "a draw came back as the zeros it was handed"
+        );
+        assert_ne!(
+            first, second,
+            "two draws of a seed's length came back alike"
+        );
+        // **To the last byte**: a fill that stopped short leaves the tail as it
+        // was handed in, which a key read whole would carry as zeros.
+        let mut long = vec![0_u8; 1 << 20];
+        super::random(&mut long).expect("the system's generator answers");
+        assert!(
+            long[long.len() - 64..].iter().any(|byte| *byte != 0),
+            "the last bytes of a long draw are the zeros it was handed"
+        );
+        super::random(&mut []).expect("nothing to fill is no error");
+    }
 
     /// A scratch directory for one test, removed however the test leaves.
     struct Scratch(std::path::PathBuf);

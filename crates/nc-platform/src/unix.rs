@@ -199,6 +199,15 @@ pub(crate) fn sync_directory(directory: &Path) -> io::Result<()> {
     std::fs::File::open(directory)?.sync_all()
 }
 
+/// `buffer` filled from `/dev/urandom`, whole, or the error that stopped it.
+///
+/// `read_exact` reads until every byte is there, so a short read is retried
+/// rather than handed back as a key with a tail of zeros.
+pub(crate) fn random(buffer: &mut [u8]) -> io::Result<()> {
+    use std::io::Read as _;
+    std::fs::File::open("/dev/urandom")?.read_exact(buffer)
+}
+
 /// The time `path` was last written, set to `at` through a handle opened to
 /// read it, which is all the owner needs here.
 pub(crate) fn set_modified(path: &Path, at: std::time::SystemTime) -> io::Result<()> {

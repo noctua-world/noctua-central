@@ -6164,6 +6164,11 @@ WEAKENINGS = [
     ("platform_unix", "hold", "one open of a profile at a time",
      "    held.lock().map_err(|error| {",
      "    Ok::<(), std::io::Error>(()).map_err(|error| {"),
+    # The bytes a device's seed and the daemon's token are drawn from: the
+    # kernel's generator, which a fill of zeros the test was handed would not be.
+    ("platform_unix", "random", "a draw is the kernel's generator",
+     '    std::fs::File::open("/dev/urandom")?.read_exact(buffer)',
+     '    std::fs::File::open("/dev/zero")?.read_exact(buffer)'),
     # **The doors other crates' suites stage a path through.** A door that
     # stages nothing leaves the refusal it is there to provoke unprovoked, and
     # the suite that asked for it red.
