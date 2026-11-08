@@ -1856,11 +1856,13 @@ pub(crate) async fn reverted_again<E: Environment>(shared: &Shared<E>) -> Result
 /// **What opening costs is the store's.** Every store compares four columns
 /// of the entries it visits and decodes none of them, and which entries those
 /// are is its own: the local journal's index `(realm, work_unit)` visits the
-/// realm's entries inside units; PostgreSQL's journal indexes the realm and
-/// the unit apart (`journal_entries_realm`, `journal_entries_work_unit`), and
-/// its planner visits every entry of the realm or every entry inside a unit of
-/// any realm, whichever it judges fewer; the store in memory visits every
-/// entry it holds.
+/// realm's entries inside units, whatever the data, since no statistics are
+/// gathered there to move the plan; PostgreSQL's journal indexes the realm
+/// and the unit apart (`journal_entries_realm`, `journal_entries_work_unit`)
+/// and the two together nowhere, and its planner reads the opening brackets
+/// and their closes each through those indexes or over the whole table, by
+/// the cost it estimates, so a recovery there may visit every entry of every
+/// realm; the store in memory visits every entry it holds.
 ///
 /// **Newest first.** A unit's reversal is held to the store holding what the
 /// unit left, and a later unit over the same key left something else — which

@@ -780,14 +780,20 @@ impl Store for Postgres {
         // resource or chain this code cannot decode hides no unit opened after
         // it, which a read of the history from its first entry does.
         //
-        // **Which entries it visits is the planner's**, between the two
-        // indexes `0001` gives, the realm's and the unit's apart: measured
-        // with `EXPLAIN` over 200,000 rows in four realms, a history mostly
-        // inside units is read through `journal_entries_realm`, every entry of
-        // the realm, and one with a tenth inside units through
+        // **Which entries it visits is the planner's**, by the cost it
+        // estimates, and for the opening brackets and their closes apart:
+        // through either of the two indexes `0001` gives, the realm's and the
+        // unit's apart, through both, or over the whole table. Measured with
+        // `EXPLAIN ANALYZE`, planned for the realm asked, over 200,000
+        // entries: in twenty realms with a fifth inside units, the openings
+        // are read through `journal_entries_realm`, every entry of the realm,
+        // and each close through `journal_entries_work_unit`; in two realms
+        // with half inside units, the openings through
         // `journal_entries_work_unit`, every entry inside a unit of any realm,
-        // filtered to this one. No index here is the local journal's
-        // `(realm, work_unit)`.
+        // and the closes over the whole table; with nine in ten inside units,
+        // both over the whole table, as over a table of a hundred entries. So
+        // a recovery here may visit every entry of every realm: no index here
+        // is the local journal's `(realm, work_unit)`.
         //
         // **Each unit once, at its first opening**, which is the order recovery
         // reverses: `append` refuses a second opening bracket, so a second one

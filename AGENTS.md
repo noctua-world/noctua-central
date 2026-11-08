@@ -2218,14 +2218,17 @@ rather than anything decided for the project, and each is a maintainer's to reop
   decode hides no unit opened after it. Its cost still grows with the history, and not
   only with what was left open: four columns of each entry visited are compared and none
   is decoded, but the local journal's index `(realm, work_unit)` visits every entry of
-  the realm inside a unit, and PostgreSQL, which indexes the realm and the unit apart
-  (`journal_entries_realm`, `journal_entries_work_unit`), visits every entry of the realm
-  or every entry inside a unit of any realm, whichever its planner judges fewer. It does
-  not look for a broken row, and logs nothing about a history it never reads:
-  `journal.verify` still stops at it and reports it (`journal.broken`), and nothing runs
-  that verification on a schedule. An opening bracket it cannot name keeps the kernel
-  shut, as the decision point's **Not answered** says. Two kernels over one journal would
-  each take the other's open units for a stopped process's; one daemon keeps one profile.
+  the realm inside a unit, whatever the data, since invariant 18 leaves the planner's
+  statistics ungathered there; and PostgreSQL, which indexes the realm and the unit apart
+  (`journal_entries_realm`, `journal_entries_work_unit`) and the two together nowhere,
+  reads the opening brackets and their closes each through those indexes or over the
+  whole table, by the cost its planner estimates, so a recovery there may visit every
+  entry of every realm. It does not look for a broken row, and logs nothing about a
+  history it never reads: `journal.verify` still stops at it and reports it
+  (`journal.broken`), and nothing runs that verification on a schedule. An opening
+  bracket it cannot name keeps the kernel shut, as the decision point's **Not answered**
+  says. Two kernels over one journal would each take the other's open units for a stopped
+  process's; one daemon keeps one profile.
 - **Nothing runs on a schedule, and nothing put off outlives the kernel.** Timers and
   events are kept on no disk. `nc-prune` is a library the pump runs over the local
   database and `limits.prune` runs when a guardian holding a quorum's approval dispatches
