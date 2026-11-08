@@ -110,7 +110,7 @@ jobs:
     #
     # That step is one of the steps `--offline` skips — measured,
     # `warn skipped: --offline, and only the running log store states its own bounds`
-    # — and the gate that holds those anchors reads `README.md`, `AGENTS.md` and
+    # — and the gate that holds those anchors reads `docs/README.md`, `AGENTS.md` and
     # the `justfile`, never this file. A `linux` job whose log store is a service
     # container, and which never passes the flag, cannot go green on any runner;
     # the `cargo xtask dev` step below is what gives it a store started with its

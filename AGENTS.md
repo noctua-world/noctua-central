@@ -250,6 +250,7 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 ├── migrations/                     HAND-WRITTEN — forward-only, numbered
 ├── local-migrations/               HAND-WRITTEN — the local SQLite database's, never mixed
 ├── docs/                           GENERATED AND COMMITTED — the surfaces of §15.3
+│   └── README.md                   HAND-WRITTEN — how to work on this repository; the root README.md presents the project
 ├── crates/
 │   ├── nc-catalog/                 GENERATED AND COMMITTED — the shared core
 │   ├── nc-catalog-compiler/        HAND-WRITTEN — what reads catalog/ and writes it
@@ -302,6 +303,8 @@ own. After a toolchain change, regenerate and diff — no gate can do that for y
 
 **Generated, and never edited by hand**: the directories `crates/nc-catalog/src/` and
 `docs/`, and one file inside a hand-written crate, `crates/nc-log/src/events.rs`.
+`docs/README.md` is the one hand-written file in them, named in `HAND_WRITTEN_FILES` in
+`crates/nc-catalog-compiler/src/lib.rs`.
 `cargo xtask check` refuses a hand edit to any of them, and a leftover in the first two
 that nothing generates any more.
 
@@ -354,7 +357,7 @@ stack's own tests, which ask docker what it resolves rather than reading one com
 and panic where docker is absent. Each prints a `warn` line, so every skip is announced
 rather than silent. It exists for a fast loop while editing, and **CI never passes it**
 (`NOCTUA.md §19.4`). `OFFLINE_SKIPS` in `xtask/src/check.rs` holds the number, and a test
-holds this file, `README.md`, the `justfile` and `--help` to it.
+holds this file, `docs/README.md`, the `justfile` and `--help` to it.
 
 **On macOS and Windows the steps that need the container stack are not applicable**
 (`NOCTUA.md §22.2`): every one of those skips but the advisory database prints a line of
@@ -2295,7 +2298,7 @@ rather than anything decided for the project, and each is a maintainer's to reop
   The number is written once, in the `expected=` of `xtask/the-checkout-shape.sh`;
   `just checkout-shape` copies this repository without its target directory to where no
   workspace marker is above it, runs the gate and asserts the count as an equality, and
-  this file, `README.md` and `xtask/canaries/README.md` are held to it. A hand-made copy
+  this file, `docs/README.md` and `xtask/canaries/README.md` are held to it. A hand-made copy
   must touch its sources first, because `xtask` bakes `CARGO_MANIFEST_DIR` in at compile
   time. Against an **empty** database the copy also fails the migration corroboration, the
   search paths and the journal's protections, and exits 1; `what_the_record_says`'s own
@@ -3141,7 +3144,7 @@ agree. So both go through one reader, and the reader gets the test.
 
 `WHAT_CI_RUNS` in `xtask/src/check.rs` names the cargo commands CI runs — the gate is not
 the only one, and the one most often left out brings up the stack the gate needs — and a
-test holds the workflow and every sentence listing them, here, in `README.md`, in the
+test holds the workflow and every sentence listing them, here, in `docs/README.md`, in the
 `justfile` and in the tool's source, to it both ways.
 
 ### A rule written twice is written once, or held together by a file

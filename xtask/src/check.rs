@@ -26,7 +26,7 @@ use crate::{database, gates, references, relative_to, ui};
 /// How many steps `--offline` skips, named once so no document can drift from it.
 ///
 /// **The number is a literal here and prose elsewhere, and prose rots where a
-/// literal does not.** `README.md`, `AGENTS.md`, the `justfile` and
+/// literal does not.** `docs/README.md`, `AGENTS.md`, the `justfile` and
 /// `xtask --help` each state it, and a step added to the run and to none of them
 /// leaves every one of them wrong at once — measured, the three documents each
 /// naming a different set of steps. The gate written for exactly this class —
@@ -1678,6 +1678,10 @@ fn stale_verdicts(
                 .is_ok_and(|text| text.contains(nc_catalog_compiler::GENERATED));
             match (expected.contains(relative.as_str()), generated) {
                 (true, _) => {}
+                // Named one by one, and held to being on disk and emitted by
+                // nothing by `every_hand_written_file_is_one_nothing_emits`.
+                (false, false)
+                    if nc_catalog_compiler::HAND_WRITTEN_FILES.contains(&relative.as_str()) => {}
                 (false, true) => problems.push(format!(
                     "{relative} carries the generated header and nothing generates it any \
                      more — delete it"
@@ -3648,7 +3652,7 @@ fn sql_files(on_disk: &[String]) -> usize {
 ///
 /// The skip is not a hole a developer can fall into: the condition is the
 /// workspace being absent, which on a developer's machine means they have
-/// cloned this repository outside `repos/`, and `README.md` and `AGENTS.md` both
+/// cloned this repository outside `repos/`, and `docs/README.md` and `AGENTS.md` both
 /// open by telling them not to.
 fn workspace_above(root: &Path) -> Option<std::path::PathBuf> {
     crate::sections::workspace_of(root)
@@ -19083,7 +19087,7 @@ mod the_frozen_path_rule {
         ("nc-catalog-compiler/docs.rs", 22, 15),
         ("nc-catalog-compiler/emit.rs", 27, 15),
         ("nc-catalog-compiler/ledger.rs", 24, 16),
-        ("nc-catalog-compiler/lib.rs", 21, 14),
+        ("nc-catalog-compiler/lib.rs", 22, 14),
         ("nc-catalog-compiler/load.rs", 52, 19),
         ("nc-catalog-compiler/messages.rs", 20, 8),
         ("nc-catalog-compiler/model.rs", 47, 16),
@@ -19199,7 +19203,7 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 660, 56),
+        ("xtask/check.rs", 661, 56),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 45, 29),
         ("xtask/database.rs", 29, 6),
@@ -21544,7 +21548,7 @@ mod the_frozen_path_rule {
     /// `ui::detail(`.
     ///
     /// That count and its `not run:` list are exactly what `AGENTS.md` and
-    /// `README.md` point a reader at to tell a full run from one where a step
+    /// `docs/README.md` point a reader at to tell a full run from one where a step
     /// announced a skip.
     ///
     /// Test code prints freely — the `#[cfg(test)]` modules are stepped over —
@@ -24005,6 +24009,19 @@ mod the_frozen_path_rule {
             verdicts(&compiled)
         );
 
+        // **A hand-written page beside the one `HAND_WRITTEN_FILES` names.** The
+        // exception is that file, not the directory it sits in.
+        let beside = scratch.join("docs/notes.md");
+        std::fs::write(&beside, "# Notes\n").expect("writable");
+        let said = verdicts(&compiled);
+        assert!(
+            said.iter()
+                .any(|verdict| verdict.contains("docs/notes.md is hand-written")),
+            "a hand-written page sat in `docs/` beside the named one and the walk \
+             did not name it: {said:#?}"
+        );
+        std::fs::remove_file(&beside).expect("this test wrote it");
+
         // **A leftover module: the scenario `stale`'s own doc names.** `build`
         // writes what changed and never deletes, so a registry entry removed
         // from `catalog/` leaves its module behind — carrying the header,
@@ -24065,6 +24082,39 @@ mod the_frozen_path_rule {
              nothing: {said:#?}",
             nc_catalog_compiler::GENERATED_FILES[0]
         );
+    }
+
+    /// Every file `HAND_WRITTEN_FILES` excuses is one that needs the excuse.
+    ///
+    /// `stale_verdicts` passes over a named file without reading it further, so
+    /// a name left behind after its file moved, or a file the catalog came to
+    /// emit, would be an exception standing for nothing. Each is on disk, sits
+    /// under a generated directory, lacks the generated header, and is emitted
+    /// by nothing.
+    #[test]
+    fn every_hand_written_file_is_one_nothing_emits() {
+        let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+        let compiled =
+            crate::build::artifacts(root, nc_catalog_compiler::ledger::Bootstrap::Refuse)
+                .expect("the catalog compiles");
+        for named in nc_catalog_compiler::HAND_WRITTEN_FILES {
+            let text = std::fs::read_to_string(root.join(named))
+                .unwrap_or_else(|error| panic!("{named} is named as hand-written: {error}"));
+            assert!(
+                nc_catalog_compiler::GENERATED_DIRECTORIES
+                    .iter()
+                    .any(|directory| named.starts_with(&format!("{directory}/"))),
+                "{named} sits under no generated directory, so naming it excuses nothing"
+            );
+            assert!(
+                !text.contains(nc_catalog_compiler::GENERATED),
+                "{named} is named as hand-written and carries the generated header"
+            );
+            assert!(
+                compiled.files.iter().all(|file| file.path != named),
+                "{named} is named as hand-written and the catalog emits it"
+            );
+        }
     }
 
     /// Every doc block that sits on an item, counted per file.
@@ -24963,7 +25013,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15144;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15149;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25033,7 +25083,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 21380;
+    const THE_REARRANGEMENTS_JUDGED: usize = 21390;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25087,7 +25137,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **463 of 21,380 are accepted by the first-line
+    /// rules the gates apply: **463 of 21,390 are accepted by the first-line
     /// rule alone, and 239 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -30863,7 +30913,7 @@ mod the_frozen_path_rule {
     /// **A per-line scan is defeated by a hard wrap, and these documents are
     /// wrapped at about eighty columns.** Measured on a per-line rule:
     /// `A local run is the whole story, because CI runs` on one line of
-    /// `README.md` and `this gate and nothing else.` on the next left
+    /// `docs/README.md` and `this gate and nothing else.` on the next left
     /// `the_documents_agree_about_what_ci_runs ... ok`, so the sentence four
     /// documents are held to could be written back by pressing return in the
     /// middle of it. `counts.rs` carries
@@ -30873,7 +30923,7 @@ mod the_frozen_path_rule {
     /// **A window of two lines is a wrap counted rather than a wrap read.** The
     /// rule wants one thing of a passage — that it name CI and make the claim —
     /// and a wrap can put those two words three lines apart. Measured, this
-    /// sentence added to `README.md` left a two-line window `ok`:
+    /// sentence added to `docs/README.md` left a two-line window `ok`:
     ///
     /// ```text
     /// A local run is the whole story, because CI
@@ -31190,7 +31240,7 @@ mod the_frozen_path_rule {
         // it up. Written as a phrase per place rather than derived, because a
         // sentence generated from the constant would agree with any constant.
         for (named, phrase) in [
-            ("README.md", "CI runs this, `cargo xtask dev` for the"),
+            ("docs/README.md", "CI runs this, `cargo xtask dev` for the"),
             ("AGENTS.md", "CI runs this, `cargo xtask dev` for the stack"),
             (
                 "justfile",
@@ -31221,12 +31271,12 @@ mod the_frozen_path_rule {
         // **Every spelling of the claim, and this file too.** A needle of the
         // single literal `CI runs this` followed by it lets `CI invokes this`
         // followed by it walk past — measured, that sentence added to
-        // `README.md` left such a test `ok` and `check passed`. And this very
+        // `docs/README.md` left such a test `ok` and `check passed`. And this very
         // file is read too: its line 1 is the passage the four other documents
         // cite as the authority, so the claim written there would be the copy
         // they all inherit.
         for named in [
-            "README.md",
+            "docs/README.md",
             "AGENTS.md",
             "justfile",
             "xtask/src/main.rs",
@@ -31312,7 +31362,10 @@ mod the_frozen_path_rule {
     /// already has beside it: these are sentences, and a rule that found them
     /// would agree with whatever they said.
     const STATES_THE_PROTECTION_COUNT: [(&str, &str); 7] = [
-        ("README.md", "the journal's {} protections never having"),
+        (
+            "docs/README.md",
+            "the journal's {} protections never having",
+        ),
         (
             "xtask/canaries/README.md",
             "the journal's {} protections never being read",
@@ -31541,7 +31594,7 @@ mod the_frozen_path_rule {
         // document is satisfied, for anchors as short as `sorts`, `pg_temp` and
         // `corrobora`, by words each of these files uses elsewhere for
         // unrelated reasons. Measured: two of the nine deleted from
-        // `README.md`'s own list, with the anchors still satisfied by prose
+        // `docs/README.md`'s own list, with the anchors still satisfied by prose
         // twenty lines above and the sentence still saying
         // `skips **nine** things`, left such a check at `check passed`. The
         // two dropped were the migration corroboration and where `pg_temp`
@@ -31556,7 +31609,7 @@ mod the_frozen_path_rule {
         // is not a comment.
         for (named, opens, comment) in [
             (
-                "README.md",
+                "docs/README.md",
                 format!("skips **{NUMBER_SPELLED}** things"),
                 false,
             ),
@@ -31635,7 +31688,7 @@ mod the_frozen_path_rule {
         // deliberately not claimed — so one phrase per file leaves the second
         // free to go stale in a file this test already opens.
         for (named, phrase) in [
-            ("README.md", format!("skips **{word}** things")),
+            ("docs/README.md", format!("skips **{word}** things")),
             ("AGENTS.md", format!("skips **{word}** things")),
             ("AGENTS.md", format!("adds its own **{word}** on top")),
             ("justfile", format!("without the {word} steps")),
@@ -31709,7 +31762,10 @@ mod the_frozen_path_rule {
             .unwrap_or_else(|| panic!("{declared} is outside the spellings written down"));
         let mut checked = 0_usize;
         let held = [
-            ("README.md", format!("the announcements are exactly {word}")),
+            (
+                "docs/README.md",
+                format!("the announcements are exactly {word}"),
+            ),
             ("AGENTS.md", format!("**{word}** announcements and a pass")),
             (
                 "xtask/canaries/README.md",
@@ -31738,7 +31794,7 @@ mod the_frozen_path_rule {
         // **And the count appears once in each of them, not merely somewhere.**
         // Holding one phrase per file leaves every other copy free: measured,
         // `expected=` and all three phrases moved together left the suite
-        // green while `README.md` read *"the announcements are exactly six"*
+        // green while `docs/README.md` read *"the announcements are exactly six"*
         // three lines above *"Five is the count on a machine…"*, and
         // `AGENTS.md` carried four more. A number held in one sentence and
         // loose in five others is the rot this census exists for, one level

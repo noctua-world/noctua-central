@@ -471,12 +471,17 @@ fn a_bar_never_reaches_the_selector_column(base: &Path) {
 /// So the walks are floored on their *subject* first. The count comes off the
 /// committed `docs/` directory, which is a different thing from the compiler's
 /// answer — the comparison relates two things, and one of them has to be free
-/// of the emitter.
+/// of the emitter. The files in `docs/` written by hand are not pages, so they
+/// are not counted.
 fn the_pages_this_catalog_has() -> usize {
     std::fs::read_dir(root().join("docs"))
         .expect("the generated pages are committed")
         .flatten()
         .filter(|entry| entry.path().extension().is_some_and(|kind| kind == "md"))
+        .filter(|entry| {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            !nc_catalog_compiler::HAND_WRITTEN_FILES.contains(&format!("docs/{name}").as_str())
+        })
         .count()
 }
 
