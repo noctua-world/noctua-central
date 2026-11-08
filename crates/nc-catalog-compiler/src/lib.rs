@@ -239,7 +239,7 @@ pub fn compile(root: &Path, bootstrap: ledger::Bootstrap) -> Result<Compiled, Ve
     })
 }
 
-/// The directories whose every file is generated.
+/// The directories whose every file is generated, but for [`HAND_WRITTEN_FILES`].
 ///
 /// `check` walks these and fails on a file carrying the generated header that
 /// nothing emits any more, and on one that lacks it. `build` writes what changed
@@ -247,6 +247,16 @@ pub fn compile(root: &Path, bootstrap: ledger::Bootstrap) -> Result<Compiled, Ve
 /// module behind, compiling, forever — and `nc-catalog`'s own manifest claims
 /// every file under `src/` is written by the build.
 pub const GENERATED_DIRECTORIES: [&str; 2] = ["crates/nc-catalog/src", "docs"];
+
+/// The hand-written files inside a generated directory, named one by one.
+///
+/// `docs/README.md` is this repository's manual for working on it: where to
+/// clone it, what it needs, the verbs, what the gate checks, and the branches.
+/// The root `README.md` presents the project, so the manual sits beside the
+/// pages it describes, where GitHub shows it on opening `docs/`. Each file here
+/// is on disk, carries no generated header, and is emitted by nothing, and a
+/// test in `check` holds all three.
+pub const HAND_WRITTEN_FILES: [&str; 1] = ["docs/README.md"];
 
 /// Where the generated developer surfaces live (`NOCTUA.md §15.3`).
 ///

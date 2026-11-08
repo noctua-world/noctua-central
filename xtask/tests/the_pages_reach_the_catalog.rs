@@ -879,6 +879,10 @@ fn every_line_of_prose_a_page_publishes_is_written_down() {
                 .extension()
                 .is_some_and(|kind| kind == "md")
         })
+        // A file written by hand is not a page the emitter authors.
+        .filter(|name| {
+            !nc_catalog_compiler::HAND_WRITTEN_FILES.contains(&format!("docs/{name}").as_str())
+        })
         .collect();
     names.sort();
     for name in &names {

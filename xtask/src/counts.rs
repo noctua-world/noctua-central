@@ -650,10 +650,13 @@ fn how_many_documents(root: &Path) -> usize {
             // generated directory and not every directory called `docs`.
             // Sharing the *list* is the point — it is the scope both are
             // counting — while the two recursions stay separate, which is what
-            // makes this a floor rather than a mirror.
-            if NOT_READ
-                .iter()
-                .any(|(named, _)| the_hole(named, &relative_to(root, &path)))
+            // makes this a floor rather than a mirror. Asked of files only, as
+            // the walk asks it: `/docs` holds the generated pages and also a
+            // hand-written `README.md` the walk reads.
+            if !path.is_dir()
+                && NOT_READ
+                    .iter()
+                    .any(|(named, _)| the_hole(named, &relative_to(root, &path)))
             {
                 continue;
             }
@@ -732,7 +735,14 @@ fn excluded(root: &Path, path: &Path) -> bool {
 /// and nothing else of the same name elsewhere. Without one it is a name, and a
 /// name is matched wherever it sits, which is what `citations.md` needs: the
 /// canary fixtures live in two directories and neither is the root.
+///
+/// A file `nc_catalog_compiler::HAND_WRITTEN_FILES` names is in no hole: it
+/// sits in the generated directory and is prose a person wrote, so the reason
+/// given for `/docs` is false of it.
 fn the_hole(entry: &str, relative: &str) -> bool {
+    if nc_catalog_compiler::HAND_WRITTEN_FILES.contains(&relative) {
+        return false;
+    }
     match entry.strip_prefix('/') {
         Some(rooted) => relative == rooted || relative.starts_with(&format!("{rooted}/")),
         None => relative == entry || relative.split('/').any(|segment| segment == entry),
@@ -2698,6 +2708,11 @@ mod tests {
         assert!(
             super::the_hole("/docs", "docs/commands.md"),
             "the generated directory is not in its own hole"
+        );
+        assert!(
+            !super::the_hole("/docs", "docs/README.md"),
+            "`docs/README.md` is hand-written and the hole written about the generated \
+             pages excuses it"
         );
         for elsewhere in ["policy/docs/README.md", "crates/nc-log/docs/README.md"] {
             assert!(

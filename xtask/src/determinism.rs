@@ -1868,7 +1868,7 @@ mod tests {
     /// `rustfmt` and `clippy` are asked for, so they are installed. The version
     /// that formats the generated files is whatever `stable` is on the day.
     ///
-    /// `README.md`, the marker's reason and `AGENTS.md`'s repository map each
+    /// `docs/README.md`, the marker's reason and `AGENTS.md`'s repository map each
     /// have to describe this correctly, and a reason that overstates is worse
     /// than none: it is the sentence a reader checks the excuse by.
     ///
@@ -1939,7 +1939,7 @@ mod tests {
             .expect(
                 "`[toolchain]` declares no component list, and the component list is what \
                  the marker in `xtask/src/build.rs`, `AGENTS.md`'s repository map and \
-                 `README.md` all say this file pins. A `components` key in any other \
+                 `docs/README.md` all say this file pins. A `components` key in any other \
                  table is a key rustup never looks at",
             )
             .iter()
@@ -1969,7 +1969,7 @@ mod tests {
         // is. Rewriting one is then a two-place edit whose second place is a
         // reader checking the new sentence against `rust-toolchain.toml`.
         //
-        // **And three, not two.** `README.md` makes the same claim in the same
+        // **And three, not two.** `docs/README.md` makes the same claim in the same
         // words — *"pins the channel and the components"* — and it is the first
         // account of this a newcomer meets.
         let words = |text: &str| text.split_whitespace().collect::<Vec<_>>().join(" ");
@@ -1993,10 +1993,10 @@ mod tests {
 
         // The whole bullet, because the claim wraps over four lines and half of
         // it says nothing on its own.
-        let readme = std::fs::read_to_string(root().join("README.md")).expect("readable");
+        let readme = std::fs::read_to_string(root().join("docs/README.md")).expect("readable");
         let opens = readme
             .find("- **Rust**, via rustup.")
-            .expect("README.md's requirements open with the toolchain");
+            .expect("docs/README.md's requirements open with the toolchain");
         let closes = readme[opens + 1..]
             .find("\n- **")
             .map_or(readme.len(), |at| opens + 1 + at);
@@ -2009,7 +2009,11 @@ mod tests {
                 "dad58095d0c1d74ab22b70fe921af3ad",
             ),
             ("AGENTS.md", &mapped, "281a4d27ce27d73c403d726137dfa78b"),
-            ("README.md", &bullet, "acd6a185e587fa606a76ddc98972c43e"),
+            (
+                "docs/README.md",
+                &bullet,
+                "acd6a185e587fa606a76ddc98972c43e",
+            ),
         ] {
             // The floor under the digest: a locator that matched an empty line
             // would pin the digest of nothing, and every rewrite would pass.

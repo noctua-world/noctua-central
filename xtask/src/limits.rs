@@ -6886,7 +6886,7 @@ mod tests {
     /// years"*. It is 146 **thousand**: `0007`, whose bound is twice as large,
     /// gets the same arithmetic right at *"292 000 years"*, so `0008` must say
     /// half of that and said a thousand times more. Nothing read it — the
-    /// written-count gate covers `AGENTS.md`, `README.md` and `CLAUDE.md`, not
+    /// written-count gate covers `AGENTS.md`, the `README.md` files and `CLAUDE.md`, not
     /// `migrations/`, and the plant that corrected the figure left
     /// `check passed`.
     ///
