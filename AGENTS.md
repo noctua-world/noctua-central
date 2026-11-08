@@ -1628,9 +1628,9 @@ pair from the same digest, in 20000–32765, below every system's ephemeral rang
 `dev::port` in `xtask/src/dev.rs` is the one reader, which `dev`, the gate's
 `DATABASE_URL` and its reader of the log store's bounds all ask, and the one place
 `docker compose` runs hands the pair to every invocation through the child's environment.
-The compose file writes no port of its own — each is `${NAME:?…}` — so a compose not
-handed the pair refuses, saying what to export, rather than binding a port another
-checkout's stack may hold. `POSTGRES_PORT` and `LOGS_PORT` move a port, a variable set
+The compose file writes no port of its own — each is `${NAME:?…}` — so a
+`docker compose up` not handed the pair refuses, saying what to export, rather than
+binding a port another checkout's stack may hold. `POSTGRES_PORT` and `LOGS_PORT` move a port, a variable set
 empty says nothing, as compose reads it, and `dev` prints the pair with the `DATABASE_URL`
 it makes. **Fail closed**: before compose runs, `dev` refuses a port variable that holds no
 port, and a port it cannot bind that this project does not publish there, naming the port

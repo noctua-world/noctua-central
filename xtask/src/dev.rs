@@ -86,10 +86,11 @@ pub(crate) fn setting((variable, default): Setting) -> String {
 /// The pair is derived from the checkout's path by `nc_channel::Checkout::stack`
 /// — the one function every name an install gives the system comes from, and
 /// the one that names this stack's compose project — and `docker-compose.yml`
-/// writes each port as `${NAME:?…}`, with nothing to fall back to: a compose
-/// run that was not handed the pair refuses, rather than binding a port
-/// another checkout's stack may hold. `POSTGRES_PORT` and `LOGS_PORT` move one,
-/// and [`port`] is the one reader.
+/// writes each port as `${NAME:?…}`, with nothing to fall back to: a
+/// `docker compose up` that was not handed the pair refuses, rather than
+/// binding a port another checkout's stack may hold. Either variable,
+/// `POSTGRES_PORT` or `LOGS_PORT`, moves its port, and the one reader of
+/// both is [`port`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Port {
     /// Where PostgreSQL listens, on loopback.
@@ -619,9 +620,9 @@ pub(crate) fn run(root: &Path, down: bool) -> Result<(), String> {
     ));
     ui::detail("both bind to loopback only; `cargo xtask dev --down` removes them and their data");
     // **What a tool outside `cargo xtask` has to be told.** The ports are this
-    // checkout's, so no file states them: a hand-run `docker compose` refuses
-    // without them, and the PostgreSQL suites and `xtask/mutants.py` read
-    // `DATABASE_URL`. So the line says what to export, whole.
+    // checkout's, so no file states them: a hand-run `docker compose up`
+    // refuses without them, and the PostgreSQL suites and `xtask/mutants.py`
+    // read `DATABASE_URL`. So the line says what to export, whole.
     ui::detail(&format!(
         "the ports are this checkout's, and `POSTGRES_PORT` and `LOGS_PORT` move them; a \
          tool outside `cargo xtask` is told them by `export POSTGRES_PORT={postgres_port} \
@@ -1128,11 +1129,11 @@ fn compose(root: &Path, args: &[&str], want: Compose) -> Result<String, String> 
         .arg("compose")
         .args(["-p", &project_for(root)])
         .args(args)
-        // **The checkout's ports, handed to every invocation.** Compose reads
-        // the whole file for `ps`, `port`, `logs` and `down` as it does for
-        // `up`, and the file writes no port of its own, so an invocation not
-        // handed the pair refuses — and one handed another pair would read a
-        // stack this checkout does not run.
+        // **The checkout's ports, handed to every invocation.** The file
+        // writes no port of its own, so `up` and `config` refuse without them,
+        // and so does `ps` of a project that is not running, while `down` and
+        // `logs` of a running one do not ask, measured. Handed to all, no
+        // invocation depends on which verbs compose resolves the file for.
         .envs(Port::ALL.map(|which| (which.variable(), port(root, which))))
         .current_dir(root);
     match want {
@@ -2106,11 +2107,11 @@ mod tests {
         ".arg(\"compose\")",
         ".args([\"-p\", &project_for(root)])",
         ".args(args)",
-        "// **The checkout's ports, handed to every invocation.** Compose reads",
-        "// the whole file for `ps`, `port`, `logs` and `down` as it does for",
-        "// `up`, and the file writes no port of its own, so an invocation not",
-        "// handed the pair refuses — and one handed another pair would read a",
-        "// stack this checkout does not run.",
+        "// **The checkout's ports, handed to every invocation.** The file",
+        "// writes no port of its own, so `up` and `config` refuse without them,",
+        "// and so does `ps` of a project that is not running, while `down` and",
+        "// `logs` of a running one do not ask, measured. Handed to all, no",
+        "// invocation depends on which verbs compose resolves the file for.",
         ".envs(Port::ALL.map(|which| (which.variable(), port(root, which))))",
         ".current_dir(root);",
         "match want {",
