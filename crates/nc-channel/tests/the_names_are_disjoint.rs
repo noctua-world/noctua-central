@@ -1,10 +1,11 @@
 //! No two installs on one computer share a name (`NOCTUA.md §17.1`).
 //!
-//! Every channel's names are derived here for two users, at a default root and
-//! under two namespaces, and compared case-folded — a pipe's name and a
-//! case-insensitive file system compare them that way: one user's installs
-//! share no name, two users' installs share none the whole machine shares, and
-//! a relocated install shares none with a real one, whoever each runs as.
+//! Every channel's names are derived here for two users, as a real install and
+//! relocated under two namespaces, all under one root, and compared case-folded
+//! — a pipe's name and a case-insensitive file system compare them that way:
+//! one user's installs share no name, two users' installs share no pipe, mutex,
+//! unit, label or task, and a relocated install shares none with a real one,
+//! whoever each runs as.
 //! **Nothing here touches the disk**: every root is a path under this
 //! crate's own directory that no test creates, so the names are computed and
 //! never made.
@@ -158,8 +159,13 @@ fn parts(layout: &Layout) -> (Named<PathBuf>, Named<String>) {
     (paths, names)
 }
 
-/// The names the whole machine shares, whoever is logged in: these alone must
+/// The names the whole machine shares that carry the user: these alone must
 /// differ between two users of one install.
+///
+/// A checkout's stack is the machine's too — one Docker daemon, one loopback —
+/// and the checkout's rather than the user's, so two users working in one
+/// checkout share its compose project and its ports, as `AGENTS.md` says under
+/// "What is deliberately not claimed".
 const MACHINE_WIDE: [&str; 5] = ["pipe", "mutex", "systemd_unit", "launchd_label", "task"];
 
 /// One install's names, as one user, ready to compare.
@@ -176,28 +182,29 @@ struct Derived {
     machine_wide: BTreeSet<String>,
 }
 
-/// Every install this file derives: the four channels at a default root and
-/// under each of two namespaces, each for two users.
+/// Every install this file derives: the four channels as a real install and
+/// relocated under each of two namespaces, each for two users.
+///
+/// **All under one root, so the namespace alone keeps them apart.** With a
+/// root of its own, a relocated install's paths differed from a real one's by
+/// the root alone, and a `layout` that left the namespace out of every path —
+/// so that a test's daemon used a real one's data, state, socket and device
+/// key — passed the comparison below.
 fn derived() -> Vec<Derived> {
     let users = ["1000", "S-1-5-21-1-2-3-1001"];
-    let roots = [
-        (None, nowhere().join("default")),
-        (
-            Some(Namespace::parse("t1").expect("a namespace")),
-            nowhere().join("t1"),
-        ),
-        (
-            Some(Namespace::parse("t2").expect("a namespace")),
-            nowhere().join("t2"),
-        ),
+    let root = nowhere().join("default");
+    let namespaces = [
+        None,
+        Some(Namespace::parse("t1").expect("a namespace")),
+        Some(Namespace::parse("t2").expect("a namespace")),
     ];
     let mut all = Vec::new();
     for user in users {
-        for (namespace, root) in &roots {
+        for namespace in &namespaces {
             for channel in channels() {
                 let install = Install {
                     channel,
-                    bases: bases_under(root),
+                    bases: bases_under(&root),
                     namespace: namespace.clone(),
                     log_endpoint: None,
                 };
@@ -220,9 +227,10 @@ fn derived() -> Vec<Derived> {
                             Channel::Development(checkout) => format!("development {checkout}"),
                             other => other.word().to_owned(),
                         },
-                        namespace
-                            .as_ref()
-                            .map_or("at the default root", Namespace::as_str)
+                        namespace.as_ref().map_or_else(
+                            || "as a real install".to_owned(),
+                            |namespace| format!("under {}", namespace.as_str())
+                        )
                     ),
                     user,
                     relocated: namespace.is_some(),
@@ -241,9 +249,11 @@ fn derived() -> Vec<Derived> {
 /// **Two installs of one user share nothing at all**: they are four channels
 /// and two namespaces on one person's account. **Nor does a test's install and
 /// a real one, whoever each runs as**, which is what keeps a test from reaching
-/// a developer's daemon. Two users' real installs may share what each keeps in
-/// a home and a `PATH` of their own — the CLI's name, the application identity —
-/// and nothing the whole machine shares.
+/// a developer's daemon. Two users' installs alike — both real, or both under
+/// one namespace — may share what each keeps in a home and a `PATH` of their
+/// own, such as the CLI's name and the application identity, and a checkout's
+/// stack, which is the checkout's; never a pipe, a mutex, a unit, a label or a
+/// task.
 #[test]
 fn no_two_installs_share_a_name_and_no_test_install_meets_a_real_one() {
     let all = derived();
@@ -839,6 +849,19 @@ fn a_refusal_quotes_the_manifest_escaped_and_cut() {
     );
     let whole = "é".repeat(64);
     assert!(refused(&whole).contains(&format!("`{whole}`")), "{whole}");
+    // **And the key written twice, which `nc-canon` quotes and this crate's
+    // sentence carries as it comes**: held to the same sixty-four.
+    let twice = Install::parse(&manifest(&format!(
+        r#","channel":"production",{key}:1,{key}:2"#,
+        key = text(&"é".repeat(100))
+    )))
+    .expect_err("a key written twice")
+    .to_string();
+    assert!(
+        twice.contains(&format!("`{}…` appears twice", "é".repeat(64)))
+            && twice.matches('é').count() == 64,
+        "{twice:?}"
+    );
 }
 
 /// A namespace is a short word of lower-case letters and digits holding a
@@ -888,6 +911,9 @@ fn a_base_is_a_plain_absolute_path() {
         )),
         PathBuf::from(format!("{}{}", good.display(), std::path::MAIN_SEPARATOR)),
         root.join("da\nta"),
+        // The two line breaks that are not control characters.
+        root.join("da\u{2028}ta"),
+        root.join("da\u{2029}ta"),
     ];
     for base in refused {
         let refusal = Bases::new(base.clone(), good.clone(), good.clone(), good.clone())

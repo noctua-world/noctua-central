@@ -50,10 +50,12 @@
 //! **`A` is the organization's GitHub home read as a domain** — the project owns
 //! no domain, and `io.github.<owner>` is the form freedesktop gives a project
 //! hosted there, with the owner's `-` written `_` because an identity's element
-//! may not hold one. **The user is in every name the whole machine shares** —
-//! pipes, mutexes, units, labels and tasks — so one person's daemon is never
-//! another's; and **the namespace is in every name at all**, so a test's install
-//! never reaches a real one.
+//! may not hold one. **The user is in every name the whole machine shares but
+//! a checkout's stack** — pipes, mutexes, units, labels and tasks — so one
+//! person's daemon is never another's; the stack's compose project and ports
+//! are the checkout's, whoever works in it. **The namespace is in every name
+//! but the default Leader**, which is the channel's, so a test's install never
+//! reaches a real one.
 //!
 //! # Why no two leaves meet
 //!
@@ -65,11 +67,12 @@
 //! character spelled out (`_` and its code point in hex, then `_`), so no user
 //! can be read as another's name or end one.
 //! `crates/nc-channel/tests/the_names_are_disjoint.rs` derives every channel's
-//! names for two users, at the default root and under two namespaces, and
-//! compares them case-folded, as a pipe name and a case-insensitive file system
-//! compare them: one user's installs share no name, two users' installs share
-//! none the whole machine shares, and a relocated install shares none with a
-//! real one, whoever each runs as.
+//! names for two users, as a real install and relocated under two namespaces,
+//! all under one root so that the namespace alone keeps a relocated install's
+//! paths apart, and compares them case-folded, as a pipe name and a
+//! case-insensitive file system compare them: one user's installs share no
+//! name, two users' installs share no pipe, mutex, unit, label or task, and a
+//! relocated install shares none with a real one, whoever each runs as.
 //!
 //! # What a relocated install leaves out
 //!
@@ -241,12 +244,14 @@ impl Checkout {
             })
     }
 
-    /// The local development stack this checkout runs: its compose project and
+    /// The local development stack this checkout names: its compose project and
     /// its ports.
     ///
     /// **The checkout's and not an install's**, because `cargo xtask dev` brings
     /// a stack up for the tree it runs in, with nothing installed; [`layout`]
-    /// hands a development install the same one, so the two cannot differ.
+    /// hands a development install the same one. `cargo xtask dev` names its
+    /// project from it, and binds the ports `POSTGRES_PORT` and `LOGS_PORT` say
+    /// rather than these.
     #[must_use]
     pub fn stack(self) -> Stack {
         let postgres = PORTS_FROM + 2 * pair_of(self.digest);
@@ -344,10 +349,10 @@ impl Namespace {
 /// installed.
 ///
 /// **Each a plain absolute path**: written as its own components spell it —
-/// no `.`, no `..`, no doubled or trailing separator, no control character —
-/// and valid UTF-8, because the manifest is text. A path that climbs or loops
-/// names one directory two ways, and every comparison of two installs' names is
-/// a comparison of their text.
+/// no `.`, no `..`, no doubled or trailing separator, no control character and
+/// no other character that ends a line — and valid UTF-8, because the manifest
+/// is text. A path that climbs or loops names one directory two ways, and every
+/// comparison of two installs' names is a comparison of their text.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Bases {
     /// What the profile keeps: its database, its blobs, its plugins, its device.
@@ -421,9 +426,16 @@ fn plain(key: &str, path: &Path) -> Result<(), ChannelError> {
             quoted(&path.to_string_lossy())
         )));
     };
-    if text.chars().any(char::is_control) {
+    // **Cc, and the two line breaks Cc leaves out**: U+2028 and U+2029 end a
+    // line wherever text is read by Unicode's rules, and a base is written into
+    // every path the profile has. Not `nc_canon::is_unsafe_in_a_message`,
+    // which refuses `\`, Windows' separator, and `"`, which a Unix path holds.
+    if text
+        .chars()
+        .any(|character| character.is_control() || matches!(character, '\u{2028}' | '\u{2029}'))
+    {
         return Err(ChannelError::Base(format!(
-            "the {key} base `{}` holds a control character",
+            "the {key} base `{}` holds a control character or a line break",
             quoted(text)
         )));
     }
@@ -485,6 +497,9 @@ impl Install {
     /// - [`ChannelError::Base`]: a base [`Bases::new`] refuses.
     /// - [`ChannelError::Namespace`]: a namespace [`Namespace::parse`] refuses.
     pub fn parse(text: &str) -> Result<Self, ChannelError> {
+        // **Carried as it comes**: of the text, `nc-canon`'s refusal quotes a
+        // key written twice and nothing else, escaped and cut at as many
+        // characters as `quoted` cuts at.
         let value = nc_canon::parse(text)
             .map_err(|error| unreadable(&format!("it is not JSON this build reads: {error}")))?;
         let mut fields = value
@@ -888,7 +903,8 @@ pub struct Layout {
 ///
 /// `user` is how the system names whoever the install runs as — the uid on
 /// Unix, the SID on Windows, as `nc_platform::User` writes it — and is carried
-/// by every name the whole machine shares.
+/// by every name the whole machine shares but the stack's, which is the
+/// checkout's.
 #[must_use]
 pub fn layout(install: &Install, user: &str) -> Layout {
     let leaf = leaf(install.channel, install.namespace.as_ref());

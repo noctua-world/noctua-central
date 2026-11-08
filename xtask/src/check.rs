@@ -19086,7 +19086,7 @@ mod the_frozen_path_rule {
         ("nc-authz/lib.rs", 30, 19),
         ("nc-authz/the_embedded_pack_decides.rs", 24, 30),
         ("nc-canon/lib.rs", 31, 40),
-        ("nc-canon/parse.rs", 16, 40),
+        ("nc-canon/parse.rs", 18, 40),
         ("nc-canon/properties.rs", 14, 0),
         ("nc-catalog-compiler/docs.rs", 22, 15),
         ("nc-catalog-compiler/emit.rs", 27, 15),
@@ -25019,7 +25019,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15351;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15357;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25038,7 +25038,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3125;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3119;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25055,7 +25055,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1027;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1025;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25089,7 +25089,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 21568;
+    const THE_REARRANGEMENTS_JUDGED: usize = 21586;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25143,7 +25143,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **463 of 21,568 are accepted by the first-line
+    /// rules the gates apply: **463 of 21,586 are accepted by the first-line
     /// rule alone, and 239 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25176,7 +25176,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1027 of
+    /// this tree offers, **1025 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -36096,7 +36096,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1731] = [
+    static OPERATORS: [(&str, &str, &str); 1738] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -36871,6 +36871,12 @@ Options:
             "canon",
             "utf16_cmp",
             "the comparison is over UTF-16 code units",
+        ),
+        ("reader", "object", "a key written twice is shown escaped"),
+        (
+            "reader",
+            "object",
+            "a key written twice is shown no longer than its bound",
         ),
         (
             "reader",
@@ -43765,6 +43771,11 @@ Options:
         ("channel", "Namespace", "a namespace holds no separator"),
         ("channel", "Namespace", "a namespace holds a digit"),
         ("channel", "plain", "a base holds no control character"),
+        (
+            "channel",
+            "plain",
+            "a base holds no line break that is not a control character",
+        ),
         ("channel", "plain", "a base is absolute"),
         (
             "channel",
@@ -43801,6 +43812,22 @@ Options:
             "channel",
             "quoted",
             "a refusal quotes no more of a manifest than its bound",
+        ),
+        ("channel", "layout", "a relocated install's data is its own"),
+        (
+            "channel",
+            "layout",
+            "a relocated install's configuration is its own",
+        ),
+        (
+            "channel",
+            "layout",
+            "a relocated install's cache is its own",
+        ),
+        (
+            "channel",
+            "layout",
+            "a relocated install's state is its own",
         ),
         ("channel", "layout", "the pipe carries the user"),
         ("channel", "layout", "a relocated install follows no feed"),
