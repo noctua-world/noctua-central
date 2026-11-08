@@ -1024,10 +1024,18 @@ mod tests {
     fn a_user_is_spelled_without_a_separator_and_never_like_another() {
         assert_eq!(spelled("1000"), "1000");
         assert_eq!(spelled("S-1-5-21-1-2-3-1001"), "S-1-5-21-1-2-3-1001");
+        assert_eq!(spelled("a.b"), "a_2e_b");
         // **Nobody is no user**: a name ending at its separator would read as
         // a name with its user cut off.
         assert_eq!(spelled(""), "_");
-        let users = ["a.b", "a_2e_b", "a/b", r"a\b", "a_b", "", "_", "é"];
+        // **The `_` on each side of a code point is what keeps two users
+        // apart**, so the users compared include pairs that meet without
+        // either one: `1.` and `\u{12e}` are both written `12e_` without the
+        // opening `_`, and `a.b` and `a\u{2eb}` are both written `a_2eb`
+        // without the closing one.
+        let users = [
+            "a.b", "a_2e_b", "a/b", r"a\b", "a_b", "", "_", "é", "1.", "\u{12e}", "a\u{2eb}",
+        ];
         let written: Vec<String> = users.iter().map(|user| spelled(user)).collect();
         for (at, one) in written.iter().enumerate() {
             assert!(

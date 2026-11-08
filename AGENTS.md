@@ -1579,10 +1579,12 @@ named every stack with before, so no volume is stranded.
 **Enforced by** `crates/nc-channel/tests/the_names_are_disjoint.rs` — which destructures
 `Layout` without `..`, so a field it does not compare does not compile, compares every
 relocated install with real ones under the same bases, so that its namespace alone keeps
-them apart, writes every spelling out, holds each refusal to its code and each place a
-refusal quotes the manifest to the escaping and the cut, and holds every path a relocated
-install derives under the bases it was handed, so a location taken from anywhere else
-fails it — the unit tests beside the digest and the user's spelling,
+them apart, writes every spelling out, asks a value of the wrong type at every key the
+manifest reads, holds each refusal to its code and each place a refusal quotes the
+manifest to the escaping and the cut, and holds every path a relocated install derives
+under the bases it was handed, so a location taken from anywhere else fails it — the unit
+tests beside the digest and the user's spelling, which compare users that would be
+written alike if either `_` around a code point were dropped,
 `a_key_written_twice_is_shown_escaped_and_cut` in `crates/nc-canon/src/parse.rs`,
 `the_project_name_does_not_move_under_a_checkout` in `xtask/src/dev.rs`, and the operators
 over `crates/nc-channel/src/lib.rs` and over `nc-canon`'s refusal of a key written twice

@@ -665,10 +665,20 @@ fn each_is_refused_with_its_code(cases: Vec<(&str, String, ErrorCode)>) {
 }
 
 /// A manifest this build cannot read as one is refused as unreadable.
+///
+/// **A value of the wrong type is asked at every key the manifest reads**,
+/// because each key is read by a call of its own, and one that fell back to a
+/// default on the wrong type would read a wrong manifest as a right one: a
+/// format written as text as format 1, a production install naming a checkout
+/// that is not text as one naming none, and a log endpoint that is not text as
+/// no endpoint.
 #[test]
 fn a_manifest_this_build_cannot_read_is_refused_as_unreadable() {
     let production = manifest(r#","channel":"production""#);
     let unreadable = ErrorCode::ChannelManifestUnreadable;
+    let base_as_a_number = production.replacen(&base_text("data"), "7", 1);
+    let bases_as_a_list =
+        format!("{{\"bases\":[],\"channel\":\"production\",\"format\":{FORMAT}}}");
     each_is_refused_with_its_code(vec![
         (
             "an unknown key",
@@ -688,13 +698,48 @@ fn a_manifest_this_build_cannot_read_is_refused_as_unreadable() {
             unreadable,
         ),
         (
+            "a format written as text",
+            production.replace(
+                &format!("\"format\":{FORMAT}"),
+                &format!("\"format\":\"{FORMAT}\""),
+            ),
+            unreadable,
+        ),
+        (
+            "a format written as true",
+            production.replace(&format!("\"format\":{FORMAT}"), "\"format\":true"),
+            unreadable,
+        ),
+        (
             "a channel written as a number",
             manifest(r#","channel":1"#),
             unreadable,
         ),
         (
+            "a checkout written as a number on a production install",
+            manifest(r#","channel":"production","checkout":1"#),
+            unreadable,
+        ),
+        (
+            "a checkout written as a number on a development install",
+            manifest(r#","channel":"development","checkout":1"#),
+            unreadable,
+        ),
+        ("bases written as a list", bases_as_a_list, unreadable),
+        ("a base written as a number", base_as_a_number, unreadable),
+        (
             "a namespace written as null",
             manifest(r#","channel":"production","namespace":null"#),
+            unreadable,
+        ),
+        (
+            "a log endpoint written as a number",
+            manifest(r#","channel":"production","log_endpoint":1"#),
+            unreadable,
+        ),
+        (
+            "a log endpoint written as null",
+            manifest(r#","channel":"production","log_endpoint":null"#),
             unreadable,
         ),
         ("no channel", manifest(""), unreadable),
