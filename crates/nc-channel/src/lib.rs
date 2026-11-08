@@ -65,9 +65,11 @@
 //! character spelled out (`_` and its code point in hex, then `_`), so no user
 //! can be read as another's name or end one.
 //! `crates/nc-channel/tests/the_names_are_disjoint.rs` derives every channel's
-//! names for two users and two namespaces and holds each set apart from the
-//! rest, case-folded, as a pipe name and a case-insensitive file system compare
-//! them.
+//! names for two users, at the default root and under two namespaces, and
+//! compares them case-folded, as a pipe name and a case-insensitive file system
+//! compare them: one user's installs share no name, two users' installs share
+//! none the whole machine shares, and a relocated install shares none with a
+//! real one, whoever each runs as.
 //!
 //! # What a relocated install leaves out
 //!
@@ -116,8 +118,9 @@ pub const NAMESPACE_MAX: usize = 16;
 /// the 5432 and the 9428 a stack started before this block still holds.
 pub const PORTS_FROM: u16 = 20_000;
 
-/// How many pairs of ports the block holds: `PORTS_FROM + 2 · 6382 + 1` is
-/// 32765, the last port below the Linux ephemeral range that a pair fits in.
+/// How many pairs of ports the block holds: the last of them ends at
+/// 32765, which is `PORTS_FROM + 2 · 6382 + 1`, inside 20000–32767 and
+/// below every system's ephemeral range.
 pub const PORT_PAIRS: u16 = 6_383;
 
 /// The domain every application identity sits under; see the crate's header.

@@ -1,9 +1,11 @@
 //! No two installs on one computer share a name (`NOCTUA.md §17.1`).
 //!
 //! Every channel's names are derived here for two users, at a default root and
-//! under two namespaces, and each set is held apart from every other,
-//! case-folded — a pipe's name and a case-insensitive file system compare them
-//! that way. **Nothing here touches the disk**: every root is a path under this
+//! under two namespaces, and compared case-folded — a pipe's name and a
+//! case-insensitive file system compare them that way: one user's installs
+//! share no name, two users' installs share none the whole machine shares, and
+//! a relocated install shares none with a real one, whoever each runs as.
+//! **Nothing here touches the disk**: every root is a path under this
 //! crate's own directory that no test creates, so the names are computed and
 //! never made.
 
@@ -753,6 +755,90 @@ fn a_manifest_holding_a_wrong_value_is_refused_with_that_values_code() {
             ErrorCode::ChannelNamespaceMalformed,
         ),
     ]);
+}
+
+/// A refusal quotes the manifest's own text escaped and cut, so no manifest
+/// forges a line of the diagnostic that refuses it.
+///
+/// **Every place a refusal quotes the manifest is asked**, because each is a
+/// `format!` of its own, and one that wrote the text as it came would reopen
+/// this for its own field alone: a key, a channel, a checkout, a base and a
+/// namespace, each holding what ends a line and what ends a field. So is the
+/// key written twice, which `nc-canon` refuses before this crate reads a key,
+/// and whose refusal this crate's sentence carries.
+#[test]
+fn a_refusal_quotes_the_manifest_escaped_and_cut() {
+    // A line feed and a line separator, which end a line, and a quote and a
+    // backslash, which end a field — each written out as its code point.
+    let hostile = "\n\u{2028}\"\\";
+    let written = "U+000AU+2028U+0022U+005C";
+    let text = |value: &str| nc_canon::Value::text(value).to_canonical();
+    let cases = [
+        (
+            "a key",
+            manifest(&format!(
+                r#","channel":"production",{}:1"#,
+                text(&format!("k{hostile}"))
+            )),
+        ),
+        (
+            "a channel",
+            manifest(&format!(r#","channel":{}"#, text(&format!("c{hostile}")))),
+        ),
+        (
+            "a checkout",
+            manifest(&format!(
+                r#","channel":"development","checkout":{}"#,
+                text(&format!("0{hostile}"))
+            )),
+        ),
+        (
+            "a base",
+            manifest(r#","channel":"production""#).replacen(
+                &base_text("data"),
+                &text(&format!("d{hostile}")),
+                1,
+            ),
+        ),
+        (
+            "a namespace",
+            manifest(&format!(
+                r#","channel":"production","namespace":{}"#,
+                text(&format!("n{hostile}"))
+            )),
+        ),
+        (
+            "a key written twice",
+            manifest(&format!(
+                r#","channel":"production",{key}:1,{key}:2"#,
+                key = text(&format!("k{hostile}"))
+            )),
+        ),
+    ];
+    for (what, written_down) in cases {
+        let refusal = Install::parse(&written_down).expect_err(what).to_string();
+        assert!(
+            !refusal.chars().any(nc_canon::is_unsafe_in_a_message),
+            "{what}: {refusal:?}"
+        );
+        assert!(refusal.contains(written), "{what}: {refusal:?}");
+    }
+    // **Cut at sixty-four characters, counted as characters and not bytes**:
+    // a channel of a hundred, opening with the four above, is quoted as its
+    // first sixty-four with each of the four written out and `…` after them,
+    // and one of exactly sixty-four is quoted whole.
+    let refused = |channel: &str| {
+        Install::parse(&manifest(&format!(r#","channel":{}"#, text(channel))))
+            .expect_err(channel)
+            .to_string()
+    };
+    let long = refused(&format!("{hostile}{}", "é".repeat(96)));
+    assert!(
+        long.contains(&format!("`{written}{}…`", "é".repeat(60))),
+        "{long:?}"
+    );
+    let whole = "é".repeat(64);
+    assert!(refused(&whole).contains(&format!("`{whole}`")), "{whole}");
 }
 
 /// A namespace is a short word of lower-case letters and digits holding a

@@ -1547,27 +1547,36 @@ the CLI's and the daemon's names, the application's identities, the update feed 
 key, the default Leader, and a checkout's compose project and ports — is derived by
 `nc_channel::layout` from an install's manifest and the user it runs as, and by nothing
 else; `cargo xtask dev` names its stack through `Checkout::stack`, which `layout` hands a
-development install too. Production, staging and two development checkouts, for two users
-and under two namespaces, share no name, compared case-folded as a pipe and a
-case-insensitive file system compare them; a relocated install — a test's — shares none
-with a real one, whoever each runs as, every path it derives lies under its root, and it
-follows no update feed and names no stack. Every name the whole machine shares carries the
-user, written in letters, digits and `-` with every other character spelled out and joined
-by a `.` no leaf holds, so no user can end a name or be read as another. A manifest is
-read only as `nc_channel::Install::parse` reads it, failing closed: a key it does not read,
-a key missing or of the wrong type, another format, an unknown channel, a checkout outside
-a development install or malformed in one, a base that is not a plain absolute path, and
-a namespace outside its alphabet are each refused with their own code in the `CHAN` area,
-and a running binary reads no location from the environment. The checkout's digest and its
-rendering are the ones `cargo xtask dev` named every stack with before, so no volume is
-stranded.
+development install too. Names are compared case-folded, as a pipe and a case-insensitive
+file system compare them. For one user, production, staging and two development checkouts,
+at the default root and under each of two namespaces, share no name. Across two users they
+share no name the whole machine shares — the pipe, the mutex, the unit, the label and the
+task; the names each user keeps in a home and a `PATH` of their own, such as the CLI's and
+the application identities, are the same for two users' installs of one channel. A
+relocated install — a test's — shares no name at all with a real one, whoever each runs as,
+every path it derives lies under its root, and it follows no update feed and names no
+stack. Every name the whole machine shares carries the user, written in letters, digits
+and `-` with every other character spelled out and joined by a `.` no leaf holds, so no
+user can end a name or be read as another. A manifest is read only as
+`nc_channel::Install::parse` reads it, failing closed: a key it does not read, a key
+missing or of the wrong type, another format, an unknown channel, a checkout outside a
+development install or malformed in one, a base that is not a plain absolute path, and a
+namespace outside its alphabet are each refused with their own code in the `CHAN` area. A
+refusal quotes at most 64 characters of the manifest's own text, with every character that
+ends a line or a field written as its code point, so no manifest forges a line of the
+diagnostic that refuses it. `nc_channel` reads no environment: every location comes from
+the bases the manifest carries. The checkout's digest and its rendering are the ones
+`cargo xtask dev` named every stack with before, so no volume is stranded.
 
 **Enforced by** `crates/nc-channel/tests/the_names_are_disjoint.rs` — which destructures
 `Layout` without `..`, so a field it does not compare does not compile, writes every
-spelling out, and holds each refusal to its code — the unit tests beside the digest and
-the user's spelling, `the_project_name_does_not_move_under_a_checkout` in
-`xtask/src/dev.rs`, and the operators over `crates/nc-channel/src/lib.rs` in
-`xtask/mutants.py`.
+spelling out, holds each refusal to its code and each place a refusal quotes the manifest
+to the escaping and the cut, and holds every path a relocated install derives under the
+bases it was handed, so a location taken from anywhere else fails it — the unit tests
+beside the digest and the user's spelling,
+`the_project_name_does_not_move_under_a_checkout` in `xtask/src/dev.rs`, and the operators
+over `crates/nc-channel/src/lib.rs` in `xtask/mutants.py`. `layout` takes an install and a
+user and nothing else.
 
 **Not answered:** a process running as the same user, which can rewrite a manifest —
 judging the file this user's alone is the reader's, and stops other accounts only; and
