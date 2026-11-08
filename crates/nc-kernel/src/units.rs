@@ -1847,13 +1847,20 @@ pub(crate) async fn reverted_again<E: Environment>(shared: &Shared<E>) -> Result
 /// store names this realm's units with an opening bracket and no closing one
 /// (`nc_journal::Store::open_units`), from the columns that say so and never
 /// from a read of the history — so a row nothing can decode hides no unit
-/// opened after it, and opening costs the realm's entries inside units, read
-/// from four columns and never decoded, rather than every realm's history —
-/// and each is held to the journal's own answer of how it closed before
-/// anything is done, so a close that landed after the store was asked is never
-/// overruled. A store that cannot name one of them — an opening bracket whose
-/// unit is not spelled as this code writes one — refuses, and the kernel does
-/// not open.
+/// opened after it — and each is held to the journal's own answer of how it
+/// closed before anything is done, so a close that landed after the store was
+/// asked is never overruled. A store that cannot name one of them — an opening
+/// bracket whose unit is not spelled as this code writes one — refuses, and the
+/// kernel does not open.
+///
+/// **What opening costs is the store's.** Every store compares four columns
+/// of the entries it visits and decodes none of them, and which entries those
+/// are is its own: the local journal's index `(realm, work_unit)` visits the
+/// realm's entries inside units; PostgreSQL's journal indexes the realm and
+/// the unit apart (`journal_entries_realm`, `journal_entries_work_unit`), and
+/// its planner visits every entry of the realm or every entry inside a unit of
+/// any realm, whichever it judges fewer; the store in memory visits every
+/// entry it holds.
 ///
 /// **Newest first.** A unit's reversal is held to the store holding what the
 /// unit left, and a later unit over the same key left something else — which

@@ -2215,14 +2215,17 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **Recovery finds what was left open, and not what is broken.** A kernel opening asks
   the journal's store which units of its realm are open (`nc_journal::Store::open_units`):
   the columns that bracket a unit, never a read of the history, so a row nothing can
-  decode hides no unit opened after it. Its cost still grows with every unit the realm
-  ever opened — each entry inside one is visited through the index `(realm, work_unit)`,
-  never decoded — and not only with what was left open. It does not look for a broken row,
-  and logs nothing about a history it never reads: `journal.verify` still stops at it and
-  reports it (`journal.broken`), and nothing runs that verification on a schedule. An
-  opening bracket it cannot name keeps the kernel shut, as the decision point's **Not
-  answered** says. Two kernels over one journal would each take the other's open units for
-  a stopped process's; one daemon keeps one profile.
+  decode hides no unit opened after it. Its cost still grows with the history, and not
+  only with what was left open: four columns of each entry visited are compared and none
+  is decoded, but the local journal's index `(realm, work_unit)` visits every entry of
+  the realm inside a unit, and PostgreSQL, which indexes the realm and the unit apart
+  (`journal_entries_realm`, `journal_entries_work_unit`), visits every entry of the realm
+  or every entry inside a unit of any realm, whichever its planner judges fewer. It does
+  not look for a broken row, and logs nothing about a history it never reads:
+  `journal.verify` still stops at it and reports it (`journal.broken`), and nothing runs
+  that verification on a schedule. An opening bracket it cannot name keeps the kernel
+  shut, as the decision point's **Not answered** says. Two kernels over one journal would
+  each take the other's open units for a stopped process's; one daemon keeps one profile.
 - **Nothing runs on a schedule, and nothing put off outlives the kernel.** Timers and
   events are kept on no disk. `nc-prune` is a library the pump runs over the local
   database and `limits.prune` runs when a guardian holding a quorum's approval dispatches

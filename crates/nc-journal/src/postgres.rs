@@ -774,12 +774,20 @@ impl Store for Postgres {
 
     async fn open_units(&self, realm: &OpaqueId) -> Result<Vec<Snowflake>, Error> {
         // **One statement, over the columns that cannot fail to decode.** The
-        // opening brackets of the realm — `journal_entries_realm` — each held
-        // to the absence of a closing one for its unit, `journal_entries_work_unit`,
-        // by the same four columns `unit_opened` and `unit_closing` ask. The
-        // rest of a row is never read, so a row whose resource or chain this
-        // code cannot decode hides no unit opened after it, which a read of the
-        // history from its first entry does.
+        // opening brackets of the realm, each held to the absence of a closing
+        // one for its unit, by the same four columns `unit_opened` and
+        // `unit_closing` ask. The rest of a row is never read, so a row whose
+        // resource or chain this code cannot decode hides no unit opened after
+        // it, which a read of the history from its first entry does.
+        //
+        // **Which entries it visits is the planner's**, between the two
+        // indexes `0001` gives, the realm's and the unit's apart: measured
+        // with `EXPLAIN` over 200,000 rows in four realms, a history mostly
+        // inside units is read through `journal_entries_realm`, every entry of
+        // the realm, and one with a tenth inside units through
+        // `journal_entries_work_unit`, every entry inside a unit of any realm,
+        // filtered to this one. No index here is the local journal's
+        // `(realm, work_unit)`.
         //
         // **Each unit once, at its first opening**, which is the order recovery
         // reverses: `append` refuses a second opening bracket, so a second one

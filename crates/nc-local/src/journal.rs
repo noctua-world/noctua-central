@@ -280,9 +280,9 @@ impl nc_journal::Store for LocalJournal {
 
     async fn open_units(&self, realm: &OpaqueId) -> Result<Vec<Snowflake>, Error> {
         // **The opening brackets of the realm with no closing one**, each unit
-        // once at its first opening, oldest first — PostgreSQL's statement,
-        // over the index `(realm, work_unit)`. No other column is read, so no
-        // row that fails to decode hides a unit.
+        // once at its first opening, oldest first — the statement PostgreSQL's
+        // store asks, here over this table's index `(realm, work_unit)`. No
+        // other column is read, so no row that fails to decode hides a unit.
         let rows: Vec<(i64, String)> = sqlx::query_as(
             "SELECT min(opening.sequence), opening.work_unit \
              FROM main.local_journal_entries AS opening \
