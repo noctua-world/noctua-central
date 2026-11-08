@@ -1584,10 +1584,17 @@ pub(crate) struct Pins {
 /// the rule about images. Neither the `DOCUMENTED` census nor the fused-summary
 /// gate can see that: both counts are conserved when one block simply holds
 /// another item's prose.
+///
+/// **Handed the checkout's ports, as `cargo xtask dev` hands them**, through
+/// the one reader in `dev.rs`: the compose file writes no port of its own, and
+/// `config` refuses to resolve without them. Measured without them on CI's
+/// Linux runner, which exports neither variable: `no image was resolved from
+/// the compose files`, while a shell that exported both passed.
 fn the_effective_stack(root: &Path) -> std::io::Result<std::process::Output> {
     #[expect(clippy::disallowed_methods, reason = "docker is driven, not printed")]
     std::process::Command::new("docker")
         .args(["compose", "--profile", "*", "config"])
+        .envs(crate::dev::Port::ALL.map(|which| (which.variable(), crate::dev::port(root, which))))
         .current_dir(root)
         .output()
 }

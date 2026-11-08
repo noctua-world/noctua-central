@@ -25021,7 +25021,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15388;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15389;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
