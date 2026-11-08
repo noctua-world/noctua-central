@@ -3131,10 +3131,10 @@ fn a_path_that_is_not_a_mount(
 /// can put a different number between the two leaves that test green: an
 /// override file, a `-f` on the command line, an entrypoint that appends its
 /// own arguments, or a container still running from before the file was edited.
-/// What a running store answers:
+/// What a running store answers, on the port `cargo xtask dev` prints:
 ///
 /// ```text
-/// $ curl -s 127.0.0.1:9428/flags
+/// $ curl -s "127.0.0.1:$LOGS_PORT/flags"
 /// -retention.maxDiskSpaceUsageBytes="8GiB"
 /// -retentionPeriod="30d"
 /// ```

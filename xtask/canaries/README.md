@@ -2597,7 +2597,7 @@ granted and required to move.
 ### The control that connects under `--offline`
 
 A control reading `url()`, which falls back to
-`postgres://…@127.0.0.1:${POSTGRES_PORT:-5432}/noctua` and probes the port,
+`postgres://…@127.0.0.1:<this checkout's port>/noctua` and probes the port,
 connects anyway under the environment `cargo xtask check --offline` hands the
 test binary, and issues `CREATE SCHEMA`, two `GRANT`s and
 `DROP SCHEMA … CASCADE` against whatever is listening, which by default is the
