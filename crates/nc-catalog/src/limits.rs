@@ -465,3 +465,19 @@ pub const KERNEL: KernelLimits = KernelLimits {
     undo_history: 100,
     confirmation_ttl_ms: 60_000,
 };
+
+/// The bounds the daemon holds itself to (`NOCTUA.md §11.1`, `§16.2`).
+///
+/// `DAEMON` is the value the daemon reads, and the only one this crate
+/// builds; the type is sealed against a struct literal, as `KernelLimits` is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct DaemonLimits {
+    /// How far past the clock the identifiers' persisted ceiling is raised, in milliseconds.
+    pub mark_lease_ms: u64,
+}
+
+/// The daemon's limits, as `catalog/limits.toml` declares them under `[daemon]`.
+pub const DAEMON: DaemonLimits = DaemonLimits {
+    mark_lease_ms: 2_000,
+};

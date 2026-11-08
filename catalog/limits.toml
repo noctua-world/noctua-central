@@ -409,3 +409,21 @@ log_ring_lines = 256
 log_line_bytes = 1_024
 undo_history = 100
 confirmation_ttl_ms = 60_000
+
+# --- The daemon (§11.1, §16.2) ---
+#
+# **The bounds the daemon holds itself to, and the only place they are
+# written.** The daemon reads `nc_catalog::DAEMON` and nothing else. Every value
+# is above zero, and the compiler holds each to the bound outside this table it
+# has to keep: the mark's lease below a day.
+
+[daemon]
+# How far past the clock the identifiers' persisted ceiling is raised (§16.2).
+# The daemon writes `now + mark_lease_ms` to its mark file before it hands out
+# a millisecond past the ceiling it holds, so a write is made at most once per
+# lease under load and never when idle, and a start after a crash waits at most
+# this long for the clock to pass the ceiling. A clean stop writes the exact
+# high-water mark instead, so a clean restart waits for nothing. Below a day,
+# which the compiler holds it to: a minter takes a mark further ahead than that
+# for a corrupt number and refuses.
+mark_lease_ms = 2_000

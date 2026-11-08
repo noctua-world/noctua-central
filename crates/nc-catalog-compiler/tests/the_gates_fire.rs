@@ -1979,6 +1979,51 @@ fn a_kernel_limit_of_zero_fails_the_build() {
     }
 }
 
+/// A daemon limit of zero fails the build.
+#[test]
+fn a_daemon_limit_of_zero_fails_the_build() {
+    let scratch = Scratch::new("daemon-zero");
+    scratch.replacing(
+        "catalog/limits.toml",
+        "mark_lease_ms = 2_000",
+        "mark_lease_ms = 0",
+    );
+    scratch.must_fail_saying("daemon-limit-zero", "`[daemon] mark_lease_ms` is zero");
+}
+
+/// A mark's lease of a day fails the build, and one a millisecond under it
+/// does not.
+///
+/// **At the boundary**: a minter takes a mark more than a day ahead of its
+/// clock for a corrupt number, so a lease of exactly a day is the first one a
+/// restart right after a raise could meet as corrupt.
+#[test]
+fn a_mark_lease_of_a_day_fails_the_build() {
+    let scratch = Scratch::new("daemon-lease-a-day");
+    scratch.replacing(
+        "catalog/limits.toml",
+        "mark_lease_ms = 2_000",
+        "mark_lease_ms = 86_400_000",
+    );
+    scratch.must_fail_saying(
+        "mark-lease-past-a-day",
+        "`[daemon] mark_lease_ms` is 86400000, which is not below a day, 86400000",
+    );
+    let under = Scratch::new("daemon-lease-under-a-day");
+    under.replacing(
+        "catalog/limits.toml",
+        "mark_lease_ms = 2_000",
+        "mark_lease_ms = 86_399_999",
+    );
+    assert!(
+        under
+            .problems()
+            .iter()
+            .all(|problem| problem.check != "mark-lease-past-a-day"),
+        "a lease under a day was refused as a day"
+    );
+}
+
 /// Every relation between two kernel limits is refused at the number where it
 /// stops holding, and not one past it.
 ///

@@ -672,7 +672,8 @@ const LIMITS_OPENING: &str = "Every bound this catalog declares. A table that ca
      entry here **fails the build** — that gate is what makes this a policy rather than \
      a habit (`§15.8`).\n\n\
      **Declared is not the same as enforced, and each part of this page has its \
-     own answer.** The kernel holds every plugin to every bound under **Kernel**. \
+     own answer.** The kernel holds every plugin to every bound under **Kernel**, \
+     and the daemon holds itself to every bound under **Daemon**. \
      A `local` table is held by `crates/nc-local`, which refuses a unit at a \
      `refuse-at-limit` bound as it commits, and by the pruner, which \
      `Kernel::pump` and the `limits.prune` command run over the local database — \
@@ -802,14 +803,15 @@ fn limits(catalog: &Catalog) -> String {
 
     out.push_str(&rate_limits(catalog));
     out.push_str(&kernel(catalog));
+    out.push_str(&daemon(catalog));
     out
 }
 
-/// One kernel limit's value, in the unit it is counted in.
+/// One kernel or daemon limit's value, in the unit it is counted in.
 ///
 /// Bytes through [`in_bytes`], like every other size on the page; anything
 /// else with the unit written after it, so no number here is bare but a count.
-fn kernel_value(limit: &crate::model::KernelLimit) -> String {
+fn limit_value(limit: &crate::model::NamedLimit) -> String {
     match (limit.unit, limit.unit.in_words()) {
         (crate::model::Unit::Bytes, _) => in_bytes(limit.value),
         (_, Some(unit)) => format!("{} {unit}", limit.value),
@@ -864,7 +866,37 @@ fn kernel(catalog: &Catalog) -> String {
             out,
             "| `{}` | {} | {} |",
             limit.name,
-            kernel_value(&limit),
+            limit_value(&limit),
+            cell(limit.bounds)
+        );
+    }
+    out
+}
+
+/// The daemon's limits, which are a section of the limits page.
+///
+/// Its own section because the daemon is not a plugin's host: these bound what
+/// the daemon does for itself, around the kernel it runs.
+fn daemon(catalog: &Catalog) -> String {
+    let mut out = String::new();
+    out.push_str("\n## Daemon\n\n");
+    out.push_str(
+        "The bounds the daemon holds itself to, read from `[daemon]` and from nowhere else \
+         (`§16.2`).\n\n\
+         **Every one is enforced by `apps/daemon`.** It raises the identifiers' persisted \
+         ceiling `mark_lease_ms` past the clock before it hands out a millisecond past the \
+         one it holds, so a daemon stopped at any instant has minted nothing above what its \
+         next start resumes at, and a start after a crash waits at most that long for the \
+         clock to pass it. The compiler holds the lease below a day, the furthest ahead a \
+         minter takes a mark to be early rather than corrupt.\n\n",
+    );
+    out.push_str("| Limit | Value | What it bounds |\n|---|---|---|\n");
+    for limit in catalog.limits.daemon.each() {
+        let _ = writeln!(
+            out,
+            "| `{}` | {} | {} |",
+            limit.name,
+            limit_value(&limit),
             cell(limit.bounds)
         );
     }

@@ -722,6 +722,7 @@ mod tests {
                 },
                 rate_limits: Vec::new(),
                 kernel: crate::model::KernelLimits::default(),
+                daemon: crate::model::DaemonLimits::default(),
             },
             commands: Vec::new(),
             events: Vec::new(),

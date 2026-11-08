@@ -19113,15 +19113,15 @@ mod the_frozen_path_rule {
         ("nc-canon/lib.rs", 31, 40),
         ("nc-canon/parse.rs", 18, 40),
         ("nc-canon/properties.rs", 14, 0),
-        ("nc-catalog-compiler/docs.rs", 22, 15),
-        ("nc-catalog-compiler/emit.rs", 27, 15),
+        ("nc-catalog-compiler/docs.rs", 23, 15),
+        ("nc-catalog-compiler/emit.rs", 28, 15),
         ("nc-catalog-compiler/ledger.rs", 24, 16),
         ("nc-catalog-compiler/lib.rs", 22, 14),
-        ("nc-catalog-compiler/load.rs", 52, 19),
+        ("nc-catalog-compiler/load.rs", 54, 19),
         ("nc-catalog-compiler/messages.rs", 20, 8),
-        ("nc-catalog-compiler/model.rs", 47, 16),
+        ("nc-catalog-compiler/model.rs", 49, 17),
         ("nc-catalog-compiler/problem.rs", 4, 9),
-        ("nc-catalog-compiler/the_gates_fire.rs", 65, 93),
+        ("nc-catalog-compiler/the_gates_fire.rs", 67, 93),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             13,
@@ -19134,7 +19134,7 @@ mod the_frozen_path_rule {
         ("nc-catalog/events.rs", 6, 3),
         ("nc-catalog/i18n.rs", 14, 1),
         ("nc-catalog/lib.rs", 0, 8),
-        ("nc-catalog/limits.rs", 16, 0),
+        ("nc-catalog/limits.rs", 18, 0),
         ("nc-catalog/notifications.rs", 7, 1),
         ("nc-catalog/the_generated_surface.rs", 10, 15),
         ("nc-channel/lib.rs", 53, 14),
@@ -19256,8 +19256,8 @@ mod the_frozen_path_rule {
         ("xtask/release.rs", 235, 13),
         ("xtask/sections.rs", 38, 10),
         ("xtask/store.rs", 29, 4),
-        ("xtask/the_pages_reach_the_catalog.rs", 37, 20),
-        ("xtask/the_registry_reaches_the_code.rs", 26, 21),
+        ("xtask/the_pages_reach_the_catalog.rs", 37, 21),
+        ("xtask/the_registry_reaches_the_code.rs", 26, 22),
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 30, 6),
         ("xtask/ui.rs", 52, 12),
         ("xtask/wall.rs", 129, 28),
@@ -22035,8 +22035,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 561 scratches this tree
-    /// builds, 474 of the 561 are removed however the test leaves and 87 are
+    /// directories accumulated in an afternoon. Of the 564 scratches this tree
+    /// builds, 477 of the 564 are removed however the test leaves and 87 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22104,7 +22104,7 @@ mod the_frozen_path_rule {
     #[cfg(test)]
     const BUILDS_A_SCRATCH: [(&str, usize, usize); 35] = [
         ("nc-catalog-compiler/ledger.rs", 1, 0),
-        ("nc-catalog-compiler/the_gates_fire.rs", 149, 149),
+        ("nc-catalog-compiler/the_gates_fire.rs", 152, 152),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             2,
@@ -25047,7 +25047,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15580;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15601;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25066,7 +25066,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3227;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3233;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25083,7 +25083,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1059;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1061;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25117,7 +25117,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 21924;
+    const THE_REARRANGEMENTS_JUDGED: usize = 21961;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25171,7 +25171,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **480 of 21,924 are accepted by the first-line
+    /// rules the gates apply: **480 of 21,961 are accepted by the first-line
     /// rule alone, and 256 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25204,7 +25204,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1059 of
+    /// this tree offers, **1061 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -36138,7 +36138,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1773] = [
+    static OPERATORS: [(&str, &str, &str); 1775] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -40213,6 +40213,16 @@ Options:
             "loader",
             "check_kernel_nonzero",
             "a kernel limit of zero is refused at either width",
+        ),
+        (
+            "loader",
+            "check_daemon",
+            "a daemon limit of zero is refused",
+        ),
+        (
+            "loader",
+            "check_daemon",
+            "a mark's lease of a day is refused",
         ),
         (
             "loader",

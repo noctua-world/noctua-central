@@ -45,8 +45,8 @@ pub use errors::{AREAS, ErrorCode, Severity};
 pub use events::{EVENTS, EventSpec, FieldKind, FieldSpec, Level};
 pub use i18n::{KEYS, Locale, message, render};
 pub use limits::{
-    ARGON2ID_DEVICE_PIN, ARGON2ID_PASSWORD, Argon2Id, Budget, Database, KERNEL, KernelLimits,
-    OnLockout, RATE_LIMITS, RateLimit, STORES, StoreLimit, Strategy, TABLES, TableLimit,
-    rate_limit,
+    ARGON2ID_DEVICE_PIN, ARGON2ID_PASSWORD, Argon2Id, Budget, DAEMON, DaemonLimits, Database,
+    KERNEL, KernelLimits, OnLockout, RATE_LIMITS, RateLimit, STORES, StoreLimit, Strategy, TABLES,
+    TableLimit, rate_limit,
 };
 pub use notifications::Notification;

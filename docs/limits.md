@@ -5,7 +5,7 @@
 
 Every bound this catalog declares. A table that can grow without bound and has no entry here **fails the build** — that gate is what makes this a policy rather than a habit (`§15.8`).
 
-**Declared is not the same as enforced, and each part of this page has its own answer.** The kernel holds every plugin to every bound under **Kernel**. A `local` table is held by `crates/nc-local`, which refuses a unit at a `refuse-at-limit` bound as it commits, and by the pruner, which `Kernel::pump` and the `limits.prune` command run over the local database — and nothing in this tree calls either on a timer yet. Nothing here prunes a `server` table, and there is no rate limiter and no key derivation, as their own sections say. This paragraph said *nothing on this page has a runner* while every `refuse-at-limit` bound under **Tables** was refused at already. One thing is enforced and is not a number — `access_records`' ordering column, which a trigger assigns (`migrations/0006_access_records_orders_by_insertion.sql`), because a bound that orders by a value a caller writes is a bound a caller can move.
+**Declared is not the same as enforced, and each part of this page has its own answer.** The kernel holds every plugin to every bound under **Kernel**, and the daemon holds itself to every bound under **Daemon**. A `local` table is held by `crates/nc-local`, which refuses a unit at a `refuse-at-limit` bound as it commits, and by the pruner, which `Kernel::pump` and the `limits.prune` command run over the local database — and nothing in this tree calls either on a timer yet. Nothing here prunes a `server` table, and there is no rate limiter and no key derivation, as their own sections say. This paragraph said *nothing on this page has a runner* while every `refuse-at-limit` bound under **Tables** was refused at already. One thing is enforced and is not a number — `access_records`' ordering column, which a trigger assigns (`migrations/0006_access_records_orders_by_insertion.sql`), because a bound that orders by a value a caller writes is a bound a caller can move.
 
 **A table is in one of two databases**, and its `Database` column says which: `server` is PostgreSQL, built by `migrations/`, and `local` is the SQLite file on the user's own machine, built by `local-migrations/`. A table whose strategy is `refuse-at-limit` is one whose oldest rows are not the pruner's to take — user state, what a plugin keeps or a blob a unit pinned, or a unit's images and notes, which an undo needs whole and which leave with their unit — so nothing prunes it by its own count: its `Maximum rows` is where its writer refuses a new row, and the refusal is the bound. `Counted over` says whose rows that number counts: a table counted over each plugin's rows in each realm holds that many for every plugin installed in every realm the machine serves, and one counted over each unit's rows that many for every unit the store holds, so its own size is the number times its owners, not the number.
 
@@ -110,3 +110,13 @@ The bounds the local kernel holds every plugin to (`§11.3`), read from `[kernel
 | `log_line_bytes` | 1 KiB (1024 bytes) | How long one line of a plugin's log may be |
 | `undo_history` | 100 | How many of a person's newest steps an undo looks through, and of their newest units a redo does |
 | `confirmation_ttl_ms` | 60000 milliseconds | How long a confirmation a person gave stays good for |
+
+## Daemon
+
+The bounds the daemon holds itself to, read from `[daemon]` and from nowhere else (`§16.2`).
+
+**Every one is enforced by `apps/daemon`.** It raises the identifiers' persisted ceiling `mark_lease_ms` past the clock before it hands out a millisecond past the one it holds, so a daemon stopped at any instant has minted nothing above what its next start resumes at, and a start after a crash waits at most that long for the clock to pass it. The compiler holds the lease below a day, the furthest ahead a minter takes a mark to be early rather than corrupt.
+
+| Limit | Value | What it bounds |
+|---|---|---|
+| `mark_lease_ms` | 2000 milliseconds | How far past the clock the identifiers' persisted ceiling is raised |

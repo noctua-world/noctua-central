@@ -3863,8 +3863,16 @@ WEAKENINGS = [
      "kernel.payload_bytes <= kernel.store_value_bytes,",
      "kernel.payload_bytes <= kernel.store_value_bytes + 1,"),
     ("loader", "check_kernel_nonzero", "a kernel limit of zero is refused at either width",
-     "        if limit.value == 0 {",
-     "        if limit.value == 0 && limit.wide {"),
+     "    for limit in kernel.each() {\n        if limit.value == 0 {",
+     "    for limit in kernel.each() {\n        if limit.value == 0 && limit.wide {"),
+    # The daemon's: a limit of zero, and a mark's lease of a day, which a
+    # minter would read back as corrupt — the boundary being the rule.
+    ("loader", "check_daemon", "a daemon limit of zero is refused",
+     "    for limit in daemon.each() {\n        if limit.value == 0 {",
+     "    for limit in daemon.each() {\n        if false {"),
+    ("loader", "check_daemon", "a mark's lease of a day is refused",
+     "    if daemon.mark_lease_ms >= A_DAY_MS {",
+     "    if daemon.mark_lease_ms > A_DAY_MS {"),
     ("loader", "check_capabilities", "a function is granted once per interface",
      "granted.insert((&entry.interface, function), &entry.name)",
      "granted.insert((&entry.name, function), &entry.name)"),

@@ -28,9 +28,9 @@ use std::path::Path;
 use serde::de::DeserializeOwned;
 
 use crate::model::{
-    Budget, CapabilityEntry, CapabilityFile, Catalog, CommandEntry, CommandFile, Email, EmailFile,
-    ErrorFile, EventEntry, EventFile, KernelLimits, Limits, Locale, LocaleFile, Notification,
-    NotificationFile, Reversibility, Strategy, UngatedEntry,
+    Budget, CapabilityEntry, CapabilityFile, Catalog, CommandEntry, CommandFile, DaemonLimits,
+    Email, EmailFile, ErrorFile, EventEntry, EventFile, KernelLimits, Limits, Locale, LocaleFile,
+    Notification, NotificationFile, Reversibility, Strategy, UngatedEntry,
 };
 use crate::problem::{Problem, line_of};
 
@@ -757,6 +757,58 @@ fn check_limits(limits: &Limits, text: &str, problems: &mut Vec<Problem>) {
     check_rate_limits(limits, text, problems);
     check_kernel_nonzero(&limits.kernel, text, problems);
     check_kernel(&limits.kernel, text, problems);
+    check_daemon(limits.daemon, text, problems);
+}
+
+/// How far ahead of the clock a persisted mark may be before a minter reads
+/// it as corrupt rather than early: `nc-ids`' plausible drift, a day.
+///
+/// **Written here and not asked of `nc-ids`**, because this compiler depends on
+/// nothing of the workspace that is built from what it writes, and `nc-ids` is;
+/// `the_lease_is_inside_the_drift_a_minter_waits_out` in `apps/daemon` holds the
+/// two to each other through the generated value.
+const A_DAY_MS: u64 = 24 * 60 * 60 * 1_000;
+
+/// The daemon's limits are numbers above zero, and the mark's lease is one a
+/// restart waits out rather than refuses.
+///
+/// **A lease of a day or more is a daemon that will not start after a crash.**
+/// The ceiling is written `mark_lease_ms` past the clock, and a minter resuming
+/// at a mark further ahead of the clock than a day takes it for a corrupt
+/// number and refuses (`MintError::MarkOutOfRange`), so a crash right after a
+/// raise would leave a profile no restart opens until somebody repairs it.
+fn check_daemon(daemon: DaemonLimits, text: &str, problems: &mut Vec<Problem>) {
+    let line = line_of(text, "[daemon]", 1);
+    for limit in daemon.each() {
+        if limit.value == 0 {
+            push(
+                problems,
+                "catalog/limits.toml",
+                line_of(text, &format!("{} = ", limit.name), 1).or(line),
+                format!("`[daemon] {}` is zero", limit.name),
+                "a daemon limit of zero is a bound that stops everything it counts — a \
+                 lease of no time is a write before every identifier — so it is never what \
+                 was meant. Give it the number the daemon should hold to (NOCTUA.md §16.2)",
+                "daemon-limit-zero",
+            );
+        }
+    }
+    if daemon.mark_lease_ms >= A_DAY_MS {
+        push(
+            problems,
+            "catalog/limits.toml",
+            line,
+            format!(
+                "`[daemon] mark_lease_ms` is {}, which is not below a day, {A_DAY_MS}",
+                daemon.mark_lease_ms
+            ),
+            "the ceiling is written that far past the clock, and a minter resuming at a mark \
+             more than a day ahead takes it for a corrupt number and refuses, so a crash \
+             right after a raise would leave a daemon that never starts again. Make \
+             `mark_lease_ms` well below a day",
+            "mark-lease-past-a-day",
+        );
+    }
 }
 
 /// The kernel's limits are numbers above zero.

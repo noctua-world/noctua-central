@@ -1648,6 +1648,18 @@ fn the_kernels_limits_are_the_ones_the_registry_declares() {
     );
 }
 
+#[test]
+fn the_daemons_limits_are_the_ones_the_registry_declares() {
+    // **Field by field, as the kernel's are**, for the same reason: the daemon
+    // reads `DAEMON` and nothing else, and the type cannot be built outside the
+    // generated crate.
+    let catalog = catalog();
+    let declared = catalog.limits.daemon;
+    let generated = nc_catalog::DAEMON;
+    assert_eq!(generated.mark_lease_ms, declared.mark_lease_ms);
+    assert_eq!(declared.each().len(), 1, "a daemon limit was added or lost");
+}
+
 /// What each field kind must become in the generated struct.
 ///
 /// **Written out here, not asked of the compiler.** The obvious version calls

@@ -218,6 +218,8 @@ pub struct Limits {
     pub rate_limits: Vec<RateLimit>,
     /// The bounds the local kernel holds every plugin to (`NOCTUA.md §11.3`).
     pub kernel: KernelLimits,
+    /// The bounds the daemon holds itself to (`NOCTUA.md §11.1`, `§16.2`).
+    pub daemon: DaemonLimits,
 }
 
 /// The bounds the local kernel holds every plugin to (`NOCTUA.md §11.3`).
@@ -360,10 +362,11 @@ impl Unit {
     }
 }
 
-/// One kernel limit as the generated crate and the page carry it.
+/// One limit of the kernel's or the daemon's, as the generated crate and the
+/// page carry it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct KernelLimit {
-    /// The key `[kernel]` writes it under, which is also the generated field.
+pub struct NamedLimit {
+    /// The key its table writes it under, which is also the generated field.
     pub name: &'static str,
     /// Its value.
     pub value: u64,
@@ -389,7 +392,7 @@ impl KernelLimits {
         reason = "one row per limit and nothing else: splitting the table would split \
                   the destructuring that makes a forgotten limit a compile error"
     )]
-    pub fn each(&self) -> Vec<KernelLimit> {
+    pub fn each(&self) -> Vec<NamedLimit> {
         let Self {
             memory_bytes,
             instances,
@@ -436,14 +439,14 @@ impl KernelLimits {
             undo_history,
             confirmation_ttl_ms,
         } = *self;
-        let wide = |name, value, unit, bounds| KernelLimit {
+        let wide = |name, value, unit, bounds| NamedLimit {
             name,
             value,
             wide: true,
             unit,
             bounds,
         };
-        let narrow = |name, value: u32, bounds| KernelLimit {
+        let narrow = |name, value: u32, bounds| NamedLimit {
             name,
             value: u64::from(value),
             wide: false,
@@ -704,6 +707,39 @@ impl KernelLimits {
                 "How long a confirmation a person gave stays good for",
             ),
         ]
+    }
+}
+
+/// The bounds the daemon holds itself to (`NOCTUA.md §11.1`, `§16.2`).
+///
+/// **Every one required, and every one a number above zero**, for the reason
+/// [`KernelLimits`] gives: a bound missing here is one the daemon would have to
+/// invent. The relations they keep with a bound outside this table are checked
+/// where they are read (`load.rs`).
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[cfg_attr(test, derive(Default))]
+#[serde(deny_unknown_fields)]
+pub struct DaemonLimits {
+    /// How far past the clock the identifiers' persisted ceiling is raised,
+    /// each time a later millisecond needs one.
+    pub mark_lease_ms: u64,
+}
+
+impl DaemonLimits {
+    /// Every limit, in the order `[daemon]` is documented in.
+    ///
+    /// **Destructured**, as [`KernelLimits::each`] is, so a field the struct
+    /// gains is a compile error here rather than a limit nothing publishes.
+    #[must_use]
+    pub fn each(&self) -> Vec<NamedLimit> {
+        let Self { mark_lease_ms } = *self;
+        vec![NamedLimit {
+            name: "mark_lease_ms",
+            value: mark_lease_ms,
+            wide: true,
+            unit: Unit::Milliseconds,
+            bounds: "How far past the clock the identifiers' persisted ceiling is raised",
+        }]
     }
 }
 
