@@ -872,19 +872,21 @@ fn without_the_canary(
 /// floor that subtracts too little and quietly stops being exact, the way one
 /// that subtracts too much saturates to zero.
 ///
-/// What is taken is exactly the walk's exclusions *within* `under`: `docs/`,
-/// `catalog/` and `xtask/` are in the walk's list and are dropped here, because
-/// `crates/ + migrations/ + plugins/` does not contain them and subtracting a
-/// directory the scope never held is the same mistake in the other direction.
+/// What is taken is exactly the walk's exclusions *within* its ground,
+/// `gates::the_error_code_ground`: `docs/`, `catalog/` and `xtask/` are in the
+/// walk's list and are dropped here, because the ground does not contain them
+/// and subtracting a directory the scope never held is the same mistake in the
+/// other direction.
 // allow-logging: `scoped_out` hands back a list of names written in this file
 fn scoped_out() -> Vec<&'static str> {
+    let ground = gates::the_error_code_ground();
     gates::OUTSIDE_THE_ERROR_CODE_SCOPE
         .iter()
         .copied()
         .filter(|excluded| {
-            excluded.starts_with("crates/")
-                || excluded.starts_with("migrations/")
-                || excluded.starts_with("plugins/")
+            ground
+                .iter()
+                .any(|tree| crate::members::under(excluded, tree))
         })
         .map(|excluded| excluded.trim_end_matches('/'))
         .collect()
@@ -908,7 +910,7 @@ fn floor_the_static_string_walk(
         root,
         lines,
         "the static-string walk",
-        &["crates", "plugins", "xtask"],
+        &crate::members::member_tree_roots().collect::<Vec<_>>(),
         &outside_the_wall,
         failures,
     );
@@ -935,9 +937,9 @@ fn floor_on_the_rust_lines(
     minus: &[&str],
     failures: &mut Vec<String>,
 ) {
-    // **Counted over the walk's own scope.** The §15.1 walk reads `crates/`,
-    // `migrations/`, `local-migrations/` and `plugins/` and nothing else — a minority of the tree's
-    // Rust lines — so a floor
+    // **Counted over the walk's own scope.** The §15.1 walk reads every tree of
+    // members, `migrations/` and `local-migrations/` and nothing else — a
+    // minority of the tree's Rust lines — so a floor
     // against the whole tree would fire on a correct run and be turned off. What
     // a floor must compare is the same ground.
     let expected: usize = if under.is_empty() {
@@ -1109,9 +1111,10 @@ fn every_code_is_what_the_registry_says_it_is(
     // crate produces no code outside its tests — and two `reserved` codes are
     // then produced by a public function with `check passed` and every printed
     // number up.
-    // Both member trees the walk reads: `crates/` and `plugins/`.
-    let expected = gates::rust_files_under(root, "crates", gates::in_the_raising_scope)
-        + gates::rust_files_under(root, "plugins", gates::in_the_raising_scope);
+    // Every tree of members the walk reads, as `MEMBER_TREES` names them.
+    let expected: usize = crate::members::trees_of_members()
+        .map(|tree| gates::rust_files_under(root, tree, gates::in_the_raising_scope))
+        .sum();
     if read != expected {
         ui::failure(&format!(
             "the code-producer walk read {read} file(s) and a second count of the same \
@@ -1222,11 +1225,11 @@ fn no_code_is_written_by_hand(root: &Path, ledger: &str, failures: &mut Vec<Stri
                     root,
                     raw,
                     "the §15.1 walk",
-                    // `plugins/` too, because it is a member tree:
-                    // the walk's scope is `gates::in_the_error_code_scope`,
-                    // and a floor over less ground than it reads is short on
-                    // a correct run.
-                    &["crates", "migrations", "local-migrations", "plugins"],
+                    // The walk's own ground, every tree of members and both
+                    // migration directories: its scope is
+                    // `gates::in_the_error_code_scope`, and a floor over less
+                    // ground than it reads is short on a correct run.
+                    &gates::the_error_code_ground(),
                     // The exclusions belong to this walk alone: passed to every
                     // caller, they would make the emitter's floor subtract more
                     // than its scope holds — measured, 6776 minus 9007,
@@ -12982,16 +12985,16 @@ fn the_hatches(root: &Path, failures: &mut Vec<String>) {
                 ui::failure(&problem);
                 failures.push("the hatch walk read nothing".to_owned());
             } else {
-                // **Over the walk's own ground.** It reads `crates/`,
-                // `plugins/` and `xtask/` and skips `xtask/canaries/`, whose
-                // whole purpose is to hold the fixtures the gates must find — so
-                // a tree-wide count would be short by exactly the canaries and
-                // the floor would fire on a correct run.
+                // **Over the walk's own ground.** It reads every member tree
+                // and skips `xtask/canaries/`, whose whole purpose is to hold
+                // the fixtures the gates must find — so a tree-wide count would
+                // be short by exactly the canaries and the floor would fire on
+                // a correct run.
                 floor_on_the_rust_lines(
                     root,
                     read,
                     "the hatch walk",
-                    &["crates", "plugins", "xtask"],
+                    &crate::members::member_tree_roots().collect::<Vec<_>>(),
                     &["xtask/canaries"],
                     failures,
                 );
@@ -19233,7 +19236,7 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 661, 56),
+        ("xtask/check.rs", 662, 56),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 45, 29),
         ("xtask/database.rs", 29, 6),
@@ -19241,12 +19244,12 @@ mod the_frozen_path_rule {
         ("xtask/dev.rs", 59, 8),
         ("xtask/docs.rs", 8, 1),
         ("xtask/every_generated_value_is_compared.rs", 30, 8),
-        ("xtask/gates.rs", 219, 33),
+        ("xtask/gates.rs", 221, 33),
         ("xtask/history.rs", 115, 3),
         ("xtask/limits.rs", 176, 59),
         ("xtask/local.rs", 79, 8),
         ("xtask/main.rs", 3, 25),
-        ("xtask/members.rs", 35, 7),
+        ("xtask/members.rs", 44, 7),
         ("xtask/plugins.rs", 25, 5),
         ("xtask/policy.rs", 57, 5),
         ("xtask/references.rs", 54, 26),
@@ -22032,8 +22035,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 559 scratches this tree
-    /// builds, 472 of the 559 are removed however the test leaves and 87 are
+    /// directories accumulated in an afternoon. Of the 561 scratches this tree
+    /// builds, 474 of the 561 are removed however the test leaves and 87 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22127,7 +22130,7 @@ mod the_frozen_path_rule {
         ("xtask/dev.rs", 1, 0),
         ("xtask/docs.rs", 2, 2),
         ("xtask/every_generated_value_is_compared.rs", 1, 0),
-        ("xtask/gates.rs", 17, 9),
+        ("xtask/gates.rs", 19, 11),
         ("xtask/history.rs", 1, 1),
         ("xtask/limits.rs", 26, 13),
         ("xtask/local.rs", 4, 4),
@@ -25044,7 +25047,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15500;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15519;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25063,7 +25066,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3190;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3196;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25080,7 +25083,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1047;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1049;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25114,7 +25117,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 21813;
+    const THE_REARRANGEMENTS_JUDGED: usize = 21845;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25168,7 +25171,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **480 of 21,813 are accepted by the first-line
+    /// rules the gates apply: **480 of 21,845 are accepted by the first-line
     /// rule alone, and 256 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25201,7 +25204,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1047 of
+    /// this tree offers, **1049 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -34271,8 +34274,18 @@ mod the_meta_gate {
         // package. A filter such as `database::` belongs to the xtask binary and
         // is held by the loop above.
         let mut panicking = std::collections::BTreeSet::new();
-        for member in std::fs::read_dir(root.join("crates")).expect("the crates are here") {
+        // Every tree of members, each skipped where it is not on disk: a
+        // suite that panics without a database panics in any of them.
+        let members = crate::members::trees_of_members()
+            .filter_map(|tree| std::fs::read_dir(root.join(tree)).ok())
+            .flatten();
+        for member in members {
             let member = member.expect("a member's directory entry reads");
+            let package = crate::members::the_member_owning(&format!(
+                "{}/",
+                crate::relative_to(root, &member.path())
+            ))
+            .map(|(_, package)| package);
             let mut walking = vec![member.path().join("tests")];
             while let Some(directory) = walking.pop() {
                 // A crate with no `tests/` has no suite to refuse with.
@@ -34288,7 +34301,7 @@ mod the_meta_gate {
                             .expect("a suite's source reads")
                             .contains("\"DATABASE_URL is not set")
                     {
-                        panicking.insert(member.file_name().to_string_lossy().into_owned());
+                        panicking.insert(package.clone().expect("a member's package"));
                     }
                 }
             }
@@ -34682,7 +34695,9 @@ mod the_meta_gate {
             .expect("Python 3 imports the meta-gate");
         let table: Vec<(String, String)> = serde_json::from_slice(&asked.stdout)
             .expect("`NEVER_REACHED` is pairs of a saying and its fix");
-        let the_code = the_rust_under(&root.join("crates"));
+        let the_code: Vec<String> = crate::members::trees_of_members()
+            .flat_map(|tree| the_rust_under(&root.join(tree)))
+            .collect();
         for (said, _) in &table {
             assert!(
                 the_code.iter().any(|text| text.contains(said.as_str())),
@@ -34810,17 +34825,13 @@ mod the_meta_gate {
     /// **One reading for the three rules that ask it.** Spelled in each as
     /// `crates/<package>/` or else `xtask`, a plugin's source, which is
     /// neither, would read as `xtask`'s, and the command that really judges it
-    /// would look like one pointed at the wrong package. A plugin under
-    /// `plugins/<dir>/` is the package `nc-plugin-<dir>`, and the plugin build
-    /// (`xtask/src/plugins.rs`) refuses one named anything else.
+    /// would look like one pointed at the wrong package. The naming is each
+    /// member tree's own, written once beside it in `MEMBER_TREES`: a plugin
+    /// under `plugins/<dir>/` is the package `nc-plugin-<dir>`, and the plugin
+    /// build (`xtask/src/plugins.rs`) refuses one named anything else.
     fn the_package_owning(relative: &str) -> String {
-        if let Some(rest) = relative.strip_prefix("crates/") {
-            return rest.split('/').next().unwrap_or_default().to_owned();
-        }
-        if let Some(rest) = relative.strip_prefix("plugins/") {
-            return format!("nc-plugin-{}", rest.split('/').next().unwrap_or_default());
-        }
-        "xtask".to_owned()
+        crate::members::the_member_owning(relative)
+            .map_or_else(|| "xtask".to_owned(), |(_, package)| package)
     }
 
     /// What a command is being asked to run: the file, its module, and the filters
@@ -35682,13 +35693,11 @@ Options:
                 continue;
             }
             let package = owner_of(suite);
-            let owns = if package == "xtask" {
-                "xtask/".to_owned()
-            } else if let Some(directory) = package.strip_prefix("nc-plugin-") {
-                format!("plugins/{directory}/")
-            } else {
-                format!("crates/{package}/")
-            };
+            // The suite's own member's directory, read with the same naming.
+            let owns = crate::members::the_member_owning(suite).map_or_else(
+                || "xtask/".to_owned(),
+                |(directory, _)| format!("{directory}/"),
+            );
             let stem = std::path::Path::new(suite)
                 .file_stem()
                 .and_then(std::ffi::OsStr::to_str)
@@ -36129,7 +36138,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1761] = [
+    static OPERATORS: [(&str, &str, &str); 1763] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -37007,16 +37016,16 @@ Options:
             "no_code_is_written_at_a_call_site",
             "run-time upper-casing: to_uppercase",
         ),
-        ("gates", "in_the_error_code_scope", "migrations/ too"),
+        ("gates", "the_error_code_ground", "migrations/ too"),
         (
             "gates",
-            "in_the_error_code_scope",
-            "plugins/ is inside the §15.1 scope",
+            "the_error_code_ground",
+            "every tree of members is inside the §15.1 scope",
         ),
         (
             "gates",
             "codes_something_raises",
-            "the raising walk opens plugins/",
+            "the raising walk opens every tree of members",
         ),
         (
             "gates",
@@ -37090,12 +37099,12 @@ Options:
         (
             "gates",
             "every_hatch_carries_its_reason",
-            "the hatch walk opens plugins/",
+            "the hatch walk opens every member tree",
         ),
         (
             "gates",
             "in_the_hatch_scope",
-            "plugins/ is inside the hatch scope",
+            "every member tree is inside the hatch scope",
         ),
         (
             "gates",
@@ -40252,7 +40261,7 @@ Options:
         ),
         (
             "gates",
-            "in_the_error_code_scope",
+            "the_error_code_ground",
             "local-migrations/ is inside the §15.1 scope",
         ),
         (
@@ -43830,6 +43839,16 @@ Options:
             "a canary directory at any member's root is one",
         ),
         (
+            "members",
+            "under",
+            "a tree's name is not a prefix of another's",
+        ),
+        (
+            "members",
+            "trees_of_members",
+            "every tree of members is one",
+        ),
+        (
             "channel",
             "digest_of",
             "the digest starts from FNV-1a's offset basis",
@@ -46570,6 +46589,37 @@ impl<T: Shown> Shown for Option<T> {
             rest = &after[close + 1..];
         }
         found
+    }
+
+    /// The runner touches every member tree before a suite runs, and nothing
+    /// else.
+    ///
+    /// **Its own list, so it is held to the one the gates read.** A source the
+    /// runner restores in a tree it does not touch keeps the timestamp the
+    /// weakened copy gave it, and cargo can run the build that saw the
+    /// weakening as the verdict on the restored tree.
+    #[test]
+    fn the_runner_touches_every_member_tree() {
+        let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+        let python = std::fs::read_to_string(root.join("xtask/mutants.py"))
+            .expect("the meta-gate is in this repository");
+        let line = python
+            .lines()
+            .find(|line| line.starts_with("TOUCH = ["))
+            .expect("the runner names what it touches");
+        let words = quoted(line);
+        assert_eq!(words.first().map(String::as_str), Some("find"), "{line}");
+        let trees: Vec<&str> = words
+            .iter()
+            .skip(1)
+            .take_while(|word| !word.starts_with('-'))
+            .map(String::as_str)
+            .collect();
+        assert_eq!(
+            trees,
+            crate::members::member_tree_roots().collect::<Vec<_>>(),
+            "`TOUCH` in `xtask/mutants.py` touches other trees than `MEMBER_TREES` names"
+        );
     }
 
     /// The rows of a table the runner writes at column zero.

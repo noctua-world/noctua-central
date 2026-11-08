@@ -1340,18 +1340,18 @@ WEAKENINGS = [
      'line.contains("to_ascii_uppercase")'),
 
     # -- the rule's scope ---------------------------------------------------
-    ("gates", "in_the_error_code_scope", "migrations/ too",
-     '        || relative.starts_with("migrations/")\n        || relative.starts_with("local-migrations/")',
-     '        || relative.starts_with("local-migrations/")'),
-    # `plugins/` is in the scope because the plugin tree is a member tree:
-    # measured without it, a hand-written code in the reference plugin passed
-    # the step.
-    ("gates", "in_the_error_code_scope", "plugins/ is inside the §15.1 scope",
-     '        || relative.starts_with("local-migrations/")\n        || relative.starts_with("plugins/"))',
-     '        || relative.starts_with("local-migrations/"))'),
-    ("gates", "codes_something_raises", "the raising walk opens plugins/",
-     '    if plugins.is_dir() {\n        walk(&plugins, &mut visit)?;',
-     '    if false {\n        walk(&plugins, &mut visit)?;'),
+    ("gates", "the_error_code_ground", "migrations/ too",
+     '    ground.extend(["migrations", "local-migrations"]);',
+     '    ground.extend(["local-migrations"]);'),
+    # Every tree of members is in the scope: measured with `plugins/` outside
+    # it, a hand-written code in the reference plugin passed the step. Kept to
+    # the first tree, the weakening is the scope spelling `crates/` alone.
+    ("gates", "the_error_code_ground", "every tree of members is inside the §15.1 scope",
+     "    let mut ground: Vec<&'static str> = crate::members::trees_of_members().collect();",
+     "    let mut ground: Vec<&'static str> = crate::members::trees_of_members().take(1).collect();"),
+    ("gates", "codes_something_raises", "the raising walk opens every tree of members",
+     '        if under.is_dir() {\n            walk(&under, &mut visit)?;',
+     '        if under.is_dir() && tree == "crates" {\n            walk(&under, &mut visit)?;'),
     # The scope is `in_the_error_code_scope` and its named list, so the
     # walk, its floor and its fixture read one rule rather than three copies.
     # Both halves are weakened here: dropping the compiler from the exclusion
@@ -1407,15 +1407,15 @@ WEAKENINGS = [
     ("gates", "every_hatch_carries_its_reason", "an attribute is code, not a string",
      'let code = bare.get(index).map_or("", |line| line.trim());',
      'let code = lines.get(index).map_or("", |line| line.trim());'),
-    # The plugin tree, in both halves of the walk: the directories it opens and
-    # the predicate every file is asked. Either alone left a reasonless allow in
-    # `plugins/reference/src/` unjudged.
-    ("gates", "every_hatch_carries_its_reason", "the hatch walk opens plugins/",
-     'for tree in ["crates", "plugins", "xtask"] {',
-     'for tree in ["crates", "xtask"] {'),
-    ("gates", "in_the_hatch_scope", "plugins/ is inside the hatch scope",
-     '        || relative.starts_with("plugins/")\n        || relative.starts_with("xtask/"))',
-     '        || relative.starts_with("xtask/"))'),
+    # Every member tree, in both halves of the walk: the directories it opens
+    # and the predicate every file is asked. Either alone, with the plugin tree
+    # left out, left a reasonless allow in `plugins/reference/src/` unjudged.
+    ("gates", "every_hatch_carries_its_reason", "the hatch walk opens every member tree",
+     '    for tree in crate::members::member_tree_roots() {\n        let root_of = root.join(tree);',
+     '    for tree in crate::members::member_tree_roots().filter(|tree| *tree != "plugins") {\n        let root_of = root.join(tree);'),
+    ("gates", "in_the_hatch_scope", "every member tree is inside the hatch scope",
+     '    crate::members::in_a_member_tree(relative)\n',
+     '    (relative.starts_with("crates/") || relative.starts_with("xtask/"))\n'),
 
     # -- is_a_test_attribute + runs + no_ignored_test: the whole suite --------
     ("gates", "is_a_test_attribute", "the last path segment, not a prefix",
@@ -3899,9 +3899,9 @@ WEAKENINGS = [
     ("limits", "one_directory_declares_its_bounds", "a table is bounded only in its own database",
      "        .filter(|table| table.database == database)\n        .map(|table| table.name)\n        .collect();",
      "        .map(|table| table.name)\n        .collect();"),
-    ("gates", "in_the_error_code_scope", "local-migrations/ is inside the §15.1 scope",
-     "        || relative.starts_with(\"local-migrations/\")\n",
-     ""),
+    ("gates", "the_error_code_ground", "local-migrations/ is inside the §15.1 scope",
+     '    ground.extend(["migrations", "local-migrations"]);',
+     '    ground.extend(["migrations"]);'),
     # More clauses of the local database, each held here so a test has to
     # decide it: a version floor, a quota one number wide for a unit that writes
     # for several, a probe
@@ -6245,8 +6245,18 @@ WEAKENINGS = [
      "        let path = at >= 2 && code[at - 2..at] == [':', ':'];",
      "        let path = false;"),
     ("gates", "directly_under_a_member", "a canary directory at any member's root is one",
-     "    inside_a_member(relative)\n        .map(|(_, inside)| inside)\n        .or_else(|| relative.strip_prefix(\"xtask/\"))",
+     "    inside_a_member(relative)\n        .map(|(_, inside)| inside)\n        .or_else(|| {\n            crate::members::trees_that_are_members()\n                .find_map(|tree| relative.strip_prefix(tree)?.strip_prefix('/'))\n        })",
      "    relative.strip_prefix(\"xtask/\")"),
+    # **The one list every gate reads where the platform's code is**
+    # (`MEMBER_TREES`): a tree's name read as a prefix of another's, and a
+    # list of trees cut short, each decided by the members' own tests and by
+    # the fixture planting in every tree the list names.
+    ("members", "under", "a tree's name is not a prefix of another's",
+     "        .is_some_and(|rest| rest.starts_with('/'))",
+     "        .is_some()"),
+    ("members", "trees_of_members", "every tree of members is one",
+     '        .filter_map(|(tree, _)| tree.strip_suffix("/*"))\n}',
+     '        .filter_map(|(tree, _)| tree.strip_suffix("/*"))\n        .take(1)\n}'),
 
     # -- channel: every name an install gives the system -------------------
     ("channel", "digest_of", "the digest starts from FNV-1a's offset basis",
@@ -6377,7 +6387,13 @@ WEAKENINGS = [
      "    }\n    out\n}"),
 ]
 
-TOUCH = ["find", "crates", "xtask", "-name", "*.rs", "-exec", "touch", "{}", "+"]
+# **Every member tree, as `MEMBER_TREES` in `xtask/src/members.rs` names them**,
+# so a source restored in any of them is one cargo builds again: a tree left out
+# here leaves its restored sources older than the build that saw the weakening.
+# `the_runner_touches_every_member_tree` in `xtask/src/check.rs` holds the two
+# lists together; `find` names a tree that is not on disk and goes on, and the
+# run ignores its exit.
+TOUCH = ["find", "crates", "plugins", "xtask", "-name", "*.rs", "-exec", "touch", "{}", "+"]
 # **Two suites, not the corpus alone.** Measured, of the clauses in `limits.rs`
 # that any test decides, **22** were decided only by `limits::tests` and **10**
 # by `corpus::` — so with the corpus alone, two thirds of that file's covered

@@ -2829,16 +2829,27 @@ mod tests {
                 .map(|held| format!("{member}/{held}/"))
                 .collect()
         };
-        let crates = directories(&root().join("crates"));
-        let mut expected = vec!["plugins/".to_owned(), "xtask/".to_owned()];
-        for name in &crates {
-            expected.push(format!("crates/{name}/"));
-            expected.extend(beside_the_code(&format!("crates/{name}")));
+        // **Every member tree, read through `MEMBER_TREES`**: each drawn, and
+        // every member of a tree of members drawn under it with what sits
+        // beside its code. A tree not on disk yet has nothing to draw.
+        let mut expected: Vec<String> = crate::members::member_tree_roots()
+            .map(|tree| format!("{tree}/"))
+            .collect();
+        let mut held: Vec<(&str, usize)> = Vec::new();
+        for tree in crate::members::trees_of_members() {
+            if !root().join(tree).is_dir() {
+                continue;
+            }
+            let members = directories(&root().join(tree));
+            for name in &members {
+                expected.push(format!("{tree}/{name}/"));
+                expected.extend(beside_the_code(&format!("{tree}/{name}")));
+            }
+            held.push((tree, members.len()));
         }
-        for name in directories(&root().join("plugins")) {
-            expected.extend(beside_the_code(&format!("plugins/{name}")));
+        for tree in crate::members::trees_that_are_members() {
+            expected.extend(beside_the_code(tree));
         }
-        expected.extend(beside_the_code("xtask"));
         let missing: Vec<&String> = expected
             .iter()
             .filter(|path| !drawn.contains(*path))
@@ -2849,18 +2860,28 @@ mod tests {
              parent, relative, with what it is for; a file in it the reference gate should \
              resolve is named by its whole path in the prose below the map"
         );
-        let crates_drawn = drawn
-            .iter()
-            .filter(|path| {
-                path.starts_with("crates/") && path.ends_with('/') && path.matches('/').count() == 2
-            })
-            .count();
-        assert_eq!(
-            (crates_drawn, crates.len() > 1),
-            (crates.len(), true),
-            "the map draws {crates_drawn} crate(s) and `crates/` holds {}: a map read \
-             against a tree it no longer describes, or a walk that found nothing",
-            crates.len()
+        // And no member drawn that the tree no longer holds, counted per tree.
+        for (tree, members) in &held {
+            let in_the_map = drawn
+                .iter()
+                .filter(|path| {
+                    path.ends_with('/')
+                        && path.matches('/').count() == 2
+                        && crate::members::under(path, tree)
+                })
+                .count();
+            assert_eq!(
+                (in_the_map, *members > 0),
+                (*members, true),
+                "the map draws {in_the_map} member(s) of `{tree}/` and the tree holds \
+                 {members}: a map read against a tree it no longer describes, or a walk that \
+                 found nothing"
+            );
+        }
+        assert!(
+            held.iter()
+                .any(|(tree, members)| *tree == "crates" && *members > 1),
+            "the map test found no crate, so it read a tree that is not this one"
         );
     }
 

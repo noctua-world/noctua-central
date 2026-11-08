@@ -277,6 +277,7 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 │   ├── nc-prune/                   one pruner, for every table (§15.8)
 │   └── nc-schema/                  a command's schema subset, selector and judge (§11.4)
 ├── plugins/                        WASM components, one directory each (§11.3)
+│   └── reference/                  the plugin the kernel is proven with
 └── xtask/                          HAND-WRITTEN — the five verbs
     └── canaries/                   NOT COMPILED — what the gates must find, and the review loop
 ```
@@ -558,9 +559,10 @@ effect; 22 is gated over the statements written today and by nothing over the ne
 
 15. **A clippy allow arrives with the paragraph that earns it.** The workspace starts with
     none. `every_hatch_carries_its_reason` refuses an `allow` or `expect` with neither a
-    `reason = "…"` argument nor a comment above it, over every `.rs` under `crates/`,
-    `plugins/` and `xtask/` but the canaries — **a new member tree joins that walk** (in
-    `xtask/src/gates.rs`), or an allow in it is never read. `#[expect]` takes the
+    `reason = "…"` argument nor a comment above it, over every `.rs` in a member tree but
+    the canaries — **a tree the manifest gains joins that walk in the same edit**, because
+    the walk reads `MEMBER_TREES` ("Where the platform's code is, is one list"), and an
+    allow outside it would never be read. `#[expect]` takes the
     argument, and a crate-level `#![allow]`, which has no item to sit on, a comment above
     (how the generated crates carry theirs). What earns an allow stays a judgement;
     `-D warnings` keeps every allow in a diff, and `#[expect]` fails once its reason stops
@@ -2799,6 +2801,22 @@ root's or a member's. **A path dependency outside the tree is refused**:
 directory no clone has; `check` reads the resolved graph for path packages outside the
 root and fails on any it does not name. The one it names is the design system, with
 `NOCTUA.md §10.11`'s reason written in the gate, since a manifest is what an edit changes.
+
+### Where the platform's code is, is one list
+
+`MEMBER_TREES` in `xtask/src/members.rs` is every tree `Cargo.toml`'s `members` names,
+held to it both ways (`the_member_trees_are_the_globs_cargo_reads`), with the naming
+that turns a member's directory into its package. Every walk and predicate that asks
+where the platform's code is reads it — the §15.1 walk and its floor, the raising walk
+and its floor, the hatch walk, the doors' feature, the static-string floor, the
+database suites the mutation runner must name, the repository map's test, the
+source-count walk, the package a mutated file belongs to, and `TOUCH` in
+`xtask/mutants.py` — so a tree the manifest gains is read by all of them in the same
+edit, and a tree not on disk is skipped rather than a panic. Spelled in each, a tree
+added beside `crates/` and `plugins/` would sit outside every one of them with each
+floor balanced, because the floor recounts the same spelling.
+`every_gate_reads_every_member_tree` plants each gate's target in every tree the list
+names, one that holds no member yet included.
 
 ### A scanner narrower than the language it scans
 

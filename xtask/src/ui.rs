@@ -935,7 +935,7 @@ mod tests {
         /// failure spells out: source added is ordinary work and the number goes
         /// up with it, but source *deleted* and a class *exempted* look
         /// identical from here, and only one of them is something to accept.
-        const THE_GROUND_THIS_READS: usize = 73_645;
+        const THE_GROUND_THIS_READS: usize = 73_709;
 
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let mut directories = vec![root.join("xtask/src")];
@@ -944,9 +944,14 @@ mod tests {
         // `crates/` alone misses them: measured, a lost `\` joining two lines of
         // `plugins/reference/src/behaviour.rs` leaves such a walk and the whole
         // gate green, while the same plant in `nc-kernel` fails it.
-        for tree in ["crates", "plugins"] {
-            let mut members: Vec<std::path::PathBuf> = std::fs::read_dir(root.join(tree))
-                .unwrap_or_else(|error| panic!("`{tree}/` is there: {error}"))
+        // **Every tree of members, as `MEMBER_TREES` names them**, and one not
+        // on disk skipped rather than a panic: a tree whose first member has
+        // not arrived has no source to read.
+        for tree in crate::members::trees_of_members() {
+            let Ok(entries) = std::fs::read_dir(root.join(tree)) else {
+                continue;
+            };
+            let mut members: Vec<std::path::PathBuf> = entries
                 .flatten()
                 .map(|entry| entry.path().join("src"))
                 .filter(|path| path.is_dir())

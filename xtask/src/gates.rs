@@ -1183,18 +1183,30 @@ fn hidden(file: &str, index: usize, by: &str) -> Finding {
 /// and a code it spells out is one the registry cannot renumber just the same
 /// — measured with `plugins/` outside the scope, `NC-JRNL-0003` written into a
 /// title in `plugins/reference/src/behaviour.rs` left this step's line
-/// identical to a clean run.
+/// identical to a clean run. **And every tree of members**, read through
+/// `MEMBER_TREES`, so a tree added beside the two is inside the walk and its
+/// floor in the same edit as the manifest.
 pub(crate) fn in_the_error_code_scope(relative: &str) -> bool {
-    if !(relative.starts_with("crates/")
-        || relative.starts_with("migrations/")
-        || relative.starts_with("local-migrations/")
-        || relative.starts_with("plugins/"))
+    if !the_error_code_ground()
+        .iter()
+        .any(|tree| crate::members::under(relative, tree))
     {
         return false;
     }
     !OUTSIDE_THE_ERROR_CODE_SCOPE
         .iter()
         .any(|excluded| relative.starts_with(excluded))
+}
+
+/// The directories `§15.1`'s walk reads, before its exclusions: every tree of
+/// members, and both migration directories.
+///
+/// The scope above and the floor in `check.rs` both ask this, so the ground
+/// one reads and the other recounts is one list.
+pub(crate) fn the_error_code_ground() -> Vec<&'static str> {
+    let mut ground: Vec<&'static str> = crate::members::trees_of_members().collect();
+    ground.extend(["migrations", "local-migrations"]);
+    ground
 }
 
 /// The crates `§15.1` must judge, written out — one entry per member crate.
@@ -1243,7 +1255,7 @@ const JUDGED_BY_THE_ERROR_CODE_RULE: [&str; 14] = [
 /// The directories `§15.1` does not judge, named rather than patterned.
 ///
 /// `catalog/`, `docs/` and `xtask/` are here for completeness of the sentence
-/// above; `crates/ + migrations/ + plugins/` does not contain them, which is why
+/// above; [`the_error_code_ground`] does not contain them, which is why
 /// `check.rs`'s floor must subtract only the two that *are* inside the scope —
 /// subtracting a directory the scope never held can saturate a floor to zero,
 /// and then it stops being a floor at all. `xtask/` is a workspace member, and
@@ -2470,10 +2482,10 @@ fn in_the_compose_files(root: &Path, findings: &mut Vec<Finding>) -> usize {
 
 /// The path below the member a file belongs to, when it is directly under one.
 ///
-/// **Every member tree cargo resolves**: the ones [`inside_a_member`] reads —
-/// `crates/*` and `plugins/*` — and `xtask`. With only `crates/*` and `xtask`
-/// named, a canary directory at a plugin's root is none to the predicates over
-/// it while a crate's is one. Used
+/// **Every member tree cargo resolves**: the trees of members
+/// [`inside_a_member`] reads, and each tree that is a member itself, `xtask`.
+/// With only `crates/*` and `xtask` named, a canary directory at a plugin's
+/// root is none to the predicates over it while a crate's is one. Used
 /// by [`inside_a_canary_directory`] for the same reason [`an_integration_test`]
 /// reads the directory directly under the member: a directory cargo treats
 /// specially is one *at* a member's root, and the word anywhere in a path is a
@@ -2481,7 +2493,10 @@ fn in_the_compose_files(root: &Path, findings: &mut Vec<Finding>) -> usize {
 fn directly_under_a_member(relative: &str) -> Option<&str> {
     inside_a_member(relative)
         .map(|(_, inside)| inside)
-        .or_else(|| relative.strip_prefix("xtask/"))
+        .or_else(|| {
+            crate::members::trees_that_are_members()
+                .find_map(|tree| relative.strip_prefix(tree)?.strip_prefix('/'))
+        })
 }
 
 /// Whether a file is itself inside a `canaries/` directory.
@@ -3456,17 +3471,22 @@ fn an_integration_test(relative: &str) -> bool {
     inside_a_member(relative).is_some_and(|(_, inside)| inside.starts_with("tests/"))
 }
 
-/// A file's member directory under `crates/` or `plugins/`, and its path inside
+/// A file's member directory under a tree of members, and its path inside
 /// that member.
 ///
-/// **Both member trees, in one place.** The raising walk, its integration-test
-/// exclusion and its per-member name map all ask this, so a member tree is
-/// inside all three or none — with `strip_prefix("crates/")` spelled in each,
-/// the plugin tree is outside all three at once.
+/// **Every tree of members, in one place.** The raising walk, its
+/// integration-test exclusion and its per-member name map all ask this, so a
+/// member tree is inside all three or none — with `strip_prefix("crates/")`
+/// spelled in each, the plugin tree is outside all three at once. The trees are
+/// the ones `MEMBER_TREES` names, so one the manifest gains is inside all three
+/// with it.
 pub(crate) fn inside_a_member(relative: &str) -> Option<(&str, &str)> {
-    ["crates/", "plugins/"].iter().find_map(|tree| {
-        let (member, inside) = relative.strip_prefix(tree)?.split_once('/')?;
-        Some((&relative[..tree.len() + member.len()], inside))
+    crate::members::trees_of_members().find_map(|tree| {
+        let (member, inside) = relative
+            .strip_prefix(tree)?
+            .strip_prefix('/')?
+            .split_once('/')?;
+        Some((&relative[..tree.len() + 1 + member.len()], inside))
     })
 }
 
@@ -3522,14 +3542,15 @@ pub(crate) fn codes_something_raises(root: &Path) -> Result<(Vec<String>, usize)
         };
         sources.push((relative, text));
     };
-    walk(&root.join("crates"), &mut visit)?;
-    // **And the plugin tree, which cargo builds like `crates/`.** A plugin that
+    // **Every tree of members, which cargo builds alike.** A plugin that
     // constructs a registry code produces it as surely as a crate does, and
-    // `docs/errors.md` would publish that code as raised by nothing. Walked
-    // when it is there: a tree with no plugin yet has nothing to read.
-    let plugins = root.join("plugins");
-    if plugins.is_dir() {
-        walk(&plugins, &mut visit)?;
+    // `docs/errors.md` would publish that code as raised by nothing. Each is
+    // walked when it is there: a tree with no member yet has nothing to read.
+    for tree in crate::members::trees_of_members() {
+        let under = root.join(tree);
+        if under.is_dir() {
+            walk(&under, &mut visit)?;
+        }
     }
 
     // The names each member gives the enum, from every file the member has.
@@ -6218,16 +6239,20 @@ struct Tally {
 /// declare would be a rule that refuses an ordinary arrangement.
 fn the_crates_that_shut_their_doors(root: &Path) -> std::collections::BTreeSet<String> {
     let mut shut = std::collections::BTreeSet::new();
-    let Ok(entries) = std::fs::read_dir(root.join("crates")) else {
-        return shut;
-    };
-    for entry in entries.flatten() {
-        let manifest = entry.path().join("Cargo.toml");
-        let Ok(text) = std::fs::read_to_string(&manifest) else {
+    // Every tree of members: a library under any of them may declare the
+    // feature, and its claim about its default surface is the same claim.
+    for tree in crate::members::trees_of_members() {
+        let Ok(entries) = std::fs::read_dir(root.join(tree)) else {
             continue;
         };
-        if text.contains("\n[features]") && text.contains(&format!("\n{DOORS_ARE_BEHIND} =")) {
-            shut.insert(crate::relative_to(root, &entry.path()));
+        for entry in entries.flatten() {
+            let manifest = entry.path().join("Cargo.toml");
+            let Ok(text) = std::fs::read_to_string(&manifest) else {
+                continue;
+            };
+            if text.contains("\n[features]") && text.contains(&format!("\n{DOORS_ARE_BEHIND} =")) {
+                shut.insert(crate::relative_to(root, &entry.path()));
+            }
         }
     }
     shut
@@ -6434,8 +6459,9 @@ pub(crate) fn every_hatch_carries_its_reason(
     // down in the same tree. Measured with `crates/` and `xtask/` walked
     // alone: `#[allow(clippy::must_use_candidate)]` with no reason in
     // `plugins/reference/src/behaviour.rs` left this step's line
-    // byte-identical to a clean run.
-    for tree in ["crates", "plugins", "xtask"] {
+    // byte-identical to a clean run. So every member tree is walked, read
+    // through `MEMBER_TREES`, and a tree the manifest gains is walked with it.
+    for tree in crate::members::member_tree_roots() {
         let root_of = root.join(tree);
         if !root_of.is_dir() {
             continue;
@@ -6601,13 +6627,10 @@ pub(crate) fn every_hatch_carries_its_reason(
 ///
 /// Split out of the walk so the fixture that plants in every real directory can
 /// ask the walk's own scope instead of restating it. The rule is the walk's
-/// own: many of the real directories are outside `crates/`, `plugins/` and
-/// `xtask/`, and an expectation that ignores that refuses a tree with nothing
-/// wrong with it.
+/// own: many of the real directories are outside every member tree, and an
+/// expectation that ignores that refuses a tree with nothing wrong with it.
 pub(crate) fn in_the_hatch_scope(relative: &str) -> bool {
-    (relative.starts_with("crates/")
-        || relative.starts_with("plugins/")
-        || relative.starts_with("xtask/"))
+    crate::members::in_a_member_tree(relative)
         // The extension is asked of the path rather than of the text — and
         // `ends_with` here is a lint in this workspace, because it decides
         // `.RS` the other way on a case-insensitive filesystem.
@@ -8712,7 +8735,7 @@ mod tests {
         let planted: Vec<(String, usize)> = all
             .iter()
             .filter(|(file, _)| {
-                (file.starts_with("crates/") || file.starts_with("plugins/"))
+                crate::members::trees_of_members().any(|tree| crate::members::under(file, tree))
                     && super::in_the_raising_scope(file)
             })
             .cloned()
@@ -8756,8 +8779,9 @@ mod tests {
         every_source_of_those_crates_is_in_the_raising_scope();
         assert_eq!(
             read,
-            super::rust_files_under(&root, "crates", super::in_the_raising_scope)
-                + super::rust_files_under(&root, "plugins", super::in_the_raising_scope),
+            crate::members::trees_of_members()
+                .map(|tree| super::rust_files_under(&root, tree, super::in_the_raising_scope))
+                .sum::<usize>(),
             "the walk read a different number of files than a second count of the same \
              ground, so something inside it is filtering"
         );
@@ -10525,6 +10549,114 @@ mod tests {
             root.display()
         );
         found
+    }
+
+    /// Every gate that asks where the platform's code is reads every member
+    /// tree, whether or not the real tree holds a member there.
+    ///
+    /// **The hole a new tree opens, tested before it opens.** The fixtures
+    /// below plant in the directories the repository really has, so a tree with
+    /// no member yet is one they never plant in, and a gate spelling `crates/`
+    /// and `plugins/` itself would pass them on the day the tree arrives. This
+    /// builds a member in every tree the list names and plants each gate's
+    /// target in each: a code written out, a code raised, a reason left off an
+    /// allow, and a crate shutting its doors behind a feature.
+    #[test]
+    fn every_gate_reads_every_member_tree() {
+        let held = crate::check::LeavesNothingBehind::new("member-trees");
+        let root = held.root.clone();
+        let write = |relative: &str, text: &str| {
+            let path = root.join(relative);
+            std::fs::create_dir_all(path.parent().expect("a parent")).expect("a writable scratch");
+            std::fs::write(&path, text).expect("a writable scratch");
+        };
+        let mut members: Vec<(String, String)> = Vec::new();
+        for (index, tree) in crate::members::trees_of_members().enumerate() {
+            let member = format!("{tree}/probe{index}");
+            write(
+                &format!("{member}/src/lib.rs"),
+                &format!(
+                    "pub const WRITTEN: &str = \"NC-KERN-424{index}\";\n\
+                     pub const fn produces() -> nc_catalog::ErrorCode {{ \
+                     nc_catalog::ErrorCode::Planted{index} }}\n\
+                     #[allow(dead_code)]\npub const PROBE: usize = 1;\n"
+                ),
+            );
+            write(
+                &format!("{member}/Cargo.toml"),
+                "[package]\nname = \"probe\"\n\n[features]\ntest-support = []\n",
+            );
+            members.push((member, format!("Planted{index}")));
+        }
+        for tree in crate::members::trees_that_are_members() {
+            write(
+                &format!("{tree}/src/probe.rs"),
+                "#[allow(dead_code)]\npub const PROBE: usize = 1;\n",
+            );
+        }
+        assert!(
+            members.len() >= 2,
+            "`MEMBER_TREES` names {} tree(s) of members, so this plants in less than the \
+             manifest builds",
+            members.len()
+        );
+
+        let (written, _, _) =
+            super::no_code_is_written_at_a_call_site(&root, &[]).expect("the scratch walks");
+        let (raised, _) = super::codes_something_raises(&root).expect("the scratch walks");
+        let (hatches, _, _) =
+            super::every_hatch_carries_its_reason(&root).expect("the scratch walks");
+        let shut = super::the_crates_that_shut_their_doors(&root);
+        for (member, code) in &members {
+            let source = format!("{member}/src/lib.rs");
+            assert!(
+                written.iter().any(|finding| finding.file == source),
+                "the §15.1 walk did not read `{member}`, a member of a tree `MEMBER_TREES` \
+                 names: {written:#?}"
+            );
+            assert!(
+                raised.contains(code),
+                "the raising walk did not read `{member}`: {raised:?}"
+            );
+            assert!(
+                hatches.iter().any(|finding| finding.file == source),
+                "the hatch walk did not read `{member}`: {hatches:#?}"
+            );
+            assert!(
+                shut.contains(member),
+                "the doors' walk did not read `{member}`'s manifest: {shut:?}"
+            );
+            assert_eq!(
+                super::inside_a_member(&source),
+                Some((member.as_str(), "src/lib.rs"))
+            );
+        }
+        for tree in crate::members::trees_that_are_members() {
+            let source = format!("{tree}/src/probe.rs");
+            assert!(
+                hatches.iter().any(|finding| finding.file == source),
+                "the hatch walk did not read `{tree}`, a member tree of its own: {hatches:#?}"
+            );
+            assert_eq!(
+                super::directly_under_a_member(&source),
+                Some("src/probe.rs")
+            );
+        }
+        // **And a tree the list names that is not on disk is skipped, not a
+        // panic**: the same walks over a tree holding one member tree only.
+        let lone = crate::check::LeavesNothingBehind::new("member-trees-lone");
+        let only = crate::members::member_tree_roots()
+            .last()
+            .expect("a member tree");
+        std::fs::create_dir_all(lone.root.join(only).join("src")).expect("a writable scratch");
+        std::fs::write(
+            lone.root.join(only).join("src/probe.rs"),
+            "#[expect(dead_code, reason = \"a probe\")]\nconst PROBE: usize = 1;\n",
+        )
+        .expect("a writable scratch");
+        assert!(super::codes_something_raises(&lone.root).is_ok());
+        assert!(super::every_hatch_carries_its_reason(&lone.root).is_ok());
+        assert!(super::the_crates_that_shut_their_doors(&lone.root).is_empty());
     }
 
     /// A defect in **every** directory the real repository has, at a line and a
