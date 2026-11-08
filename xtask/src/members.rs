@@ -52,6 +52,7 @@ pub(crate) const MEMBER_TREES: [(&str, &str); 3] =
     [("crates/*", ""), ("plugins/*", "nc-plugin-"), ("xtask", "")];
 
 /// The directory each member tree is, whether or not it holds a member yet.
+// allow-logging: `member_tree_roots` hands back the trees `MEMBER_TREES` writes in this file
 pub(crate) fn member_tree_roots() -> impl Iterator<Item = &'static str> {
     MEMBER_TREES
         .iter()
@@ -59,6 +60,7 @@ pub(crate) fn member_tree_roots() -> impl Iterator<Item = &'static str> {
 }
 
 /// The member trees each of whose children is a member: `crates`, `plugins`.
+// allow-logging: `trees_of_members` hands back the trees `MEMBER_TREES` writes in this file
 pub(crate) fn trees_of_members() -> impl Iterator<Item = &'static str> {
     MEMBER_TREES
         .iter()
@@ -66,6 +68,7 @@ pub(crate) fn trees_of_members() -> impl Iterator<Item = &'static str> {
 }
 
 /// The member trees that are a member themselves: `xtask`.
+// allow-logging: `trees_that_are_members` hands back the trees `MEMBER_TREES` writes in this file
 pub(crate) fn trees_that_are_members() -> impl Iterator<Item = &'static str> {
     MEMBER_TREES
         .iter()

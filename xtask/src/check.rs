@@ -3906,7 +3906,7 @@ fn the_excused_lines_are_counted(
 #[cfg(test)]
 const EXCUSED: [(&str, usize); 6] = [
     ("allow-reference:", 73),
-    ("allow-logging:", 80),
+    ("allow-logging:", 84),
     ("allow-nondeterminism:", 20),
     ("allow-count:", 12),
     ("nc:bounded:", 31),
@@ -3931,7 +3931,7 @@ const EXCUSED: [(&str, usize); 6] = [
 /// summed out of it rather than kept beside it — so a hatch added is one row
 /// here and two numbers the test then tells you to move.
 #[cfg(test)]
-const EXCUSED_WHERE: [(&str, &str, usize); 73] = [
+const EXCUSED_WHERE: [(&str, &str, usize); 75] = [
     (".gitignore", "allow-reference:", 5),
     ("AGENTS.md", "allow-reference:", 5),
     (
@@ -4030,12 +4030,14 @@ const EXCUSED_WHERE: [(&str, &str, usize); 73] = [
     ("xtask/src/determinism.rs", "allow-count:", 1),
     ("xtask/src/determinism.rs", "allow-logging:", 1),
     ("xtask/src/determinism.rs", "allow-nondeterminism:", 1),
+    ("xtask/src/gates.rs", "allow-logging:", 1),
     ("xtask/src/gates.rs", "allow-reference:", 11),
     ("xtask/src/limits.rs", "allow-count:", 1),
     ("xtask/src/limits.rs", "allow-logging:", 2),
     ("xtask/src/limits.rs", "allow-nondeterminism:", 1),
     ("xtask/src/limits.rs", "allow-reference:", 1),
     ("xtask/src/limits.rs", "nc:bounded:", 8),
+    ("xtask/src/members.rs", "allow-logging:", 3),
     ("xtask/src/members.rs", "allow-reference:", 2),
     ("xtask/src/plugins.rs", "allow-reference:", 1),
     ("xtask/src/policy.rs", "nc:narrows:", 1),
@@ -19143,7 +19145,7 @@ mod the_frozen_path_rule {
         ("nc-ids/against_denote.rs", 6, 6),
         ("nc-ids/base32.rs", 11, 18),
         ("nc-ids/flake.rs", 21, 26),
-        ("nc-ids/lib.rs", 47, 27),
+        ("nc-ids/lib.rs", 47, 28),
         ("nc-ids/naming.rs", 40, 37),
         ("nc-ids/properties.rs", 11, 6),
         ("nc-ids/snowflake.rs", 70, 90),
@@ -25047,7 +25049,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15601;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15603;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25066,7 +25068,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3233;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3230;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25083,7 +25085,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1061;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1060;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25117,7 +25119,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 21961;
+    const THE_REARRANGEMENTS_JUDGED: usize = 21965;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25171,7 +25173,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **480 of 21,961 are accepted by the first-line
+    /// rules the gates apply: **480 of 21,965 are accepted by the first-line
     /// rule alone, and 256 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25204,7 +25206,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1061 of
+    /// this tree offers, **1060 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a

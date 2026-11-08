@@ -1203,6 +1203,7 @@ pub(crate) fn in_the_error_code_scope(relative: &str) -> bool {
 ///
 /// The scope above and the floor in `check.rs` both ask this, so the ground
 /// one reads and the other recounts is one list.
+// allow-logging: `the_error_code_ground` hands back the trees `MEMBER_TREES` and this function write
 pub(crate) fn the_error_code_ground() -> Vec<&'static str> {
     let mut ground: Vec<&'static str> = crate::members::trees_of_members().collect();
     ground.extend(["migrations", "local-migrations"]);

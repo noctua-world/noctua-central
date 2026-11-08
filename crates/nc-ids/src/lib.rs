@@ -153,20 +153,27 @@ impl OpaqueId {
         Ok(Self(text))
     }
 
-    /// The identifier a device's public key is derived to: the key's 64
-    /// lower-case hexadecimal digits.
+    /// The identifier a device's public key is derived to: the 64 lower-case
+    /// hexadecimal digits of a domain-separated BLAKE3 digest of it.
     ///
-    /// **Derived, never copied from a person's data** (`§5.1`), and minted here
-    /// rather than at the caller, because a crate that reaches the central log
-    /// may not mint one from text at all. A device's public key is public, and
-    /// its digits are inside the character set [`OpaqueId::new`] admits. This
-    /// decides nothing about the shape `§5.1` leaves open: it is one opaque
-    /// string, with no accessor for any part of it.
+    /// **Derived, never copied** (`§5.1`), and minted here rather than at the
+    /// caller, because a crate that reaches the central log may not mint one
+    /// from text at all. **A digest, so nothing a caller hands in can be read
+    /// back out**: thirty-two bytes chosen to spell something come out as
+    /// digits that spell nothing, which is what lets the log's wall name this
+    /// a route that carries no caller text. This decides nothing about the
+    /// shape `§5.1` leaves open: it is one opaque string, with no accessor for
+    /// any part of it.
     #[must_use]
     pub fn of_device_key(public: &[u8; 32]) -> Self {
         use core::fmt::Write as _;
+        const DOMAIN: &str = "noctua-central/ids/device-identifier/v1";
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(&(DOMAIN.len() as u64).to_le_bytes());
+        hasher.update(DOMAIN.as_bytes());
+        hasher.update(public);
         let mut text = String::with_capacity(64);
-        for byte in public {
+        for byte in hasher.finalize().as_bytes() {
             // Writing to a `String` cannot fail.
             let _ = write!(text, "{byte:02x}");
         }
@@ -197,27 +204,40 @@ impl core::fmt::Display for OpaqueId {
 
 #[cfg(test)]
 mod tests {
-    /// A device's key is derived to its own identifier, the same each time,
-    /// one [`super::OpaqueId::new`] would take, and another key's differs.
+    /// A device's key is derived to an identifier of its own, the same each
+    /// time, holding none of the key's bytes.
+    ///
+    /// **And one the constructor of text would take**, so it is stored and
+    /// sent like any other.
     #[test]
     fn a_device_key_is_derived_to_an_identifier_of_its_own() {
+        use core::fmt::Write as _;
         let mut key = [0_u8; 32];
-        key[0] = 0xab;
-        key[31] = 0x01;
-        let derived = super::OpaqueId::of_device_key(&key);
+        let zero = super::OpaqueId::of_device_key(&key);
+        // **Frozen**: every journal a device keeps names its keeper this way,
+        // so a derivation that moved is every history's keeper renamed.
         assert_eq!(
-            derived.as_str(),
-            "ab00000000000000000000000000000000000000000000000000000000000001",
-            "a byte is two lower-case digits, with its leading zero"
+            zero.as_str(),
+            "e1a15cfa5b6144c05041ca067a920cc24a5099dcb9dd2e10f37b1d240d52a4a4",
+            "the derivation moved"
         );
-        assert_eq!(derived, super::OpaqueId::of_device_key(&key));
+        assert_eq!(zero, super::OpaqueId::of_device_key(&key));
         assert_eq!(
-            super::OpaqueId::new(derived.as_str()),
-            Ok(derived.clone()),
+            super::OpaqueId::new(zero.as_str()),
+            Ok(zero.clone()),
             "the derived text is one the constructor of text admits"
         );
-        key[15] = 1;
-        assert_ne!(super::OpaqueId::of_device_key(&key), derived);
+        key[31] = 1;
+        assert_ne!(super::OpaqueId::of_device_key(&key), zero);
+        // **And the bytes do not come back out**: thirty-two bytes that spell
+        // something are not in what they derive, written either way.
+        let spelled = *b"ana, born 1988-04-12, id 1234567";
+        let derived = super::OpaqueId::of_device_key(&spelled);
+        let mut hex = String::new();
+        for byte in spelled {
+            let _ = write!(hex, "{byte:02x}");
+        }
+        assert!(!derived.as_str().contains(&hex[..16]) && !derived.as_str().contains("ana"));
     }
 
     /// Every identifier failure says which failure it is.
