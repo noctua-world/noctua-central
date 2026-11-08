@@ -2541,6 +2541,21 @@ WEAKENINGS = [
      '    if health.is_empty() {\n        return Standing::NoHealthcheck(service.to_owned());\n    }',
      '    if health.is_empty() {\n        unhealthy.push(format!("{service} is starting"));\n        return Standing::NotYet;\n    }'),
 
+    # The stack's ports: the checkout's pair, moved only by its variable, and
+    # a port something else holds refused before compose runs.
+    ("dev", "of", "the log store is on the checkout's second port",
+     '            Self::Logs => stack.logs,', '            Self::Logs => stack.postgres,'),
+    ("dev", "port_of", "a port's variable moves the port",
+     '    as_compose_reads(said).unwrap_or_else(|| {', '    as_compose_reads(said.filter(|_| false)).unwrap_or_else(|| {'),
+    ("dev", "as_compose_reads", "a variable set empty says nothing",
+     '    said.filter(|said| !said.is_empty())', '    said'),
+    ("dev", "free_or_this_stacks", "port zero is not a port",
+     '.filter(|number| *number != 0)', '.filter(|_| true)'),
+    ("dev", "free_or_this_stacks", "a port something else holds is refused",
+     '    if std::net::TcpListener::bind(("127.0.0.1", number)).is_ok() {', '    if true {'),
+    ("dev", "free_or_this_stacks", "a port is this stack's only where this project publishes it",
+     'said.lines().any(|line| line.trim() == this_stacks)', '!said.is_empty()'),
+
     # -- the policy step: criterion 11 -------------------------------------
     ("policy", "the_commands_a_schema_cannot_apply", "a resource its action cannot reach is fine",
      "        if !allowed.contains(&named) {",
@@ -7037,7 +7052,9 @@ def refuse_if_the_database_is_absent():
     to sit on a database-backed file is a guard by luck; this one is by rule.
 
     The variable and the socket, because a stale URL pointing at nothing gives
-    exactly the same false kills as no URL at all.
+    exactly the same false kills as no URL at all. **Read, never derived**: the
+    stack's port is the checkout's, and a second derivation of it here would be
+    a second naming function, so a caller exports what `cargo xtask dev` prints.
     """
     url = os.environ.get("DATABASE_URL", "")
     behind = ", ".join(NEEDS_THE_DATABASE)
@@ -7047,7 +7064,7 @@ def refuse_if_the_database_is_absent():
             f"{behind}\nrefuse to run without it. A suite that cannot start fails, and a "
             "failure is\nthis file's word for `killed` — so every operator over those "
             "sources would be\nreported as covered while proving nothing. Run "
-            "`cargo xtask dev` first."
+            "`cargo xtask dev` and\nexport what it prints."
         )
         return True
     where = url.rsplit("@", 1)[-1].split("/", 1)[0]
@@ -7075,7 +7092,7 @@ def refuse_if_the_database_is_absent():
                 f"server (it replied {answer!r} to an SSLRequest). The suites that judge\n"
                 f"{behind} refuse to run without a database, and a suite that cannot start\n"
                 "fails — which this file would report as `killed` for every operator over\n"
-                "those sources. Point DATABASE_URL at the stack `cargo xtask dev` brings up."
+                "those sources. Export what `cargo xtask dev` prints for this checkout."
             )
             return True
     except (OSError, ValueError) as problem:
@@ -7083,7 +7100,8 @@ def refuse_if_the_database_is_absent():
             f"DATABASE_URL names {where} and nothing answers there ({problem}).\n"
             f"The suites that judge {behind} refuse to run without a database, and\n"
             "a suite that cannot start fails — which this file would report as `killed`\n"
-            "for every operator over those sources. Run `cargo xtask dev` first."
+            "for every operator over those sources. Run `cargo xtask dev` and export\n"
+            "what it prints."
         )
         return True
     return False

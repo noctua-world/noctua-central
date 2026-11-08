@@ -3158,7 +3158,7 @@ fn the_running_log_store_is_bounded_as_declared(
             return;
         }
     }
-    let port = crate::dev::setting(crate::dev::LOGS_PORT);
+    let port = crate::dev::port(root, crate::dev::Port::Logs);
     let held = match crate::store::flags(&port) {
         Ok(held) => held,
         Err(problem) => {
@@ -7872,7 +7872,7 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// constant**, as `OPERATORS` is: one copy rather than one per use, and nothing
 /// reads it at compile time.
 #[cfg(test)]
-static WHAT_THE_GATE_CAN_SAY: [&str; 1047] = [
+static WHAT_THE_GATE_CAN_SAY: [&str; 1050] = [
     // The workflows' bounds (`xtask/src/workflow.rs`): what `.github/` may hold,
     // the authority each workflow opens with, the pins, and how the release is
     // made; and the `CI` step's two verdicts about them.
@@ -8206,6 +8206,9 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1047] = [
     "and {} code(s) appended to catalog/errors.reserved.toml, which is permanent",
     "and {} more — `cargo deny check` prints them all",
     "both bind to loopback only; `cargo xtask dev --down` removes them and their data",
+    "127.0.0.1:{number}, where this checkout's {service} listens, is held by something this checkout's stack does not run — another checkout's stack on the same pair, or anything else listening there. Export `{variable}` with a free port and run `cargo xtask dev` again; `docker ps` says whether a stack holds it",
+    "`{variable}` is {at:?}, which is not a port. Unset it for this checkout's own, or set it to a port from 1 to 65535",
+    "the ports are this checkout's, and `POSTGRES_PORT` and `LOGS_PORT` move them; a tool outside `cargo xtask` is told them by `export POSTGRES_PORT={postgres_port} LOGS_PORT={logs_port} DATABASE_URL={}`",
     "canaries",
     "cargo answers which crates exist here, and every gate scoped by that answer stops at this manifest: the type wall does not read its source, the source-root floor does not know it exists, and the workspace lints do not apply to it. Add it to `[workspace] members`, or take it out of the tree",
     "cargo update refused: {}",
@@ -12764,9 +12767,8 @@ fn cargo_with(
 /// **And removed before it is set**, which is what makes the line below
 /// load-bearing rather than decorative. Without the removal the child inherits
 /// whatever the parent exported, so cutting the wire would be invisible to
-/// anyone with `DATABASE_URL` in their shell — and `.github/workflows/ci.yml`
-/// sets it at job level, so it would be invisible in CI, the one place the
-/// claim matters.
+/// anyone with `DATABASE_URL` in their shell — and every developer who
+/// exported what `cargo xtask dev` prints has it there.
 /// It also means the tests run against the url this gate actually probed and
 /// found listening, never against one somebody exported last week.
 ///
@@ -19214,7 +19216,7 @@ mod the_frozen_path_rule {
         ("xtask/counts.rs", 45, 29),
         ("xtask/database.rs", 29, 6),
         ("xtask/determinism.rs", 29, 11),
-        ("xtask/dev.rs", 59, 8),
+        ("xtask/dev.rs", 70, 8),
         ("xtask/docs.rs", 8, 1),
         ("xtask/every_generated_value_is_compared.rs", 30, 8),
         ("xtask/gates.rs", 219, 33),
@@ -19231,7 +19233,7 @@ mod the_frozen_path_rule {
         ("xtask/store.rs", 29, 4),
         ("xtask/the_pages_reach_the_catalog.rs", 37, 20),
         ("xtask/the_registry_reaches_the_code.rs", 26, 21),
-        ("xtask/the_stack_enforces_the_declared_bounds.rs", 30, 6),
+        ("xtask/the_stack_enforces_the_declared_bounds.rs", 32, 6),
         ("xtask/ui.rs", 52, 12),
         ("xtask/wall.rs", 129, 28),
         ("xtask/workflow.rs", 280, 23),
@@ -25019,7 +25021,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15358;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15388;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25038,7 +25040,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3119;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3128;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25055,7 +25057,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1025;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1028;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25089,7 +25091,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 21591;
+    const THE_REARRANGEMENTS_JUDGED: usize = 21634;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25143,7 +25145,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **463 of 21,591 are accepted by the first-line
+    /// rules the gates apply: **463 of 21,634 are accepted by the first-line
     /// rule alone, and 239 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25176,7 +25178,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1025 of
+    /// this tree offers, **1028 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -27514,7 +27516,7 @@ mod the_frozen_path_rule {
     /// verdicts that agree for that long are one row, and — because a prefix
     /// matches nothing the two censuses hold — every row is a shipped literal
     /// accounted for nowhere. Written out, each row is its own accounting.
-    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 487] = [
+    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 488] = [
         ("—", "compiled catalog/"),
         (
             "—",
@@ -28631,6 +28633,10 @@ mod the_frozen_path_rule {
         (
             "—",
             "both bind to loopback only; `cargo xtask dev --down` removes them and their data",
+        ),
+        (
+            "—",
+            "the ports are this checkout's, and `POSTGRES_PORT` and `LOGS_PORT` move them; a tool outside `cargo xtask` is told them by `export POSTGRES_PORT={postgres_port} LOGS_PORT={logs_port} DATABASE_URL={}`",
         ),
         (
             "—",
@@ -36096,7 +36102,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1747] = [
+    static OPERATORS: [(&str, &str, &str); 1753] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -38528,6 +38534,28 @@ Options:
             "dev",
             "standing_of",
             "no healthcheck at all is a healthcheck that has not answered yet",
+        ),
+        (
+            "dev",
+            "of",
+            "the log store is on the checkout's second port",
+        ),
+        ("dev", "port_of", "a port's variable moves the port"),
+        (
+            "dev",
+            "as_compose_reads",
+            "a variable set empty says nothing",
+        ),
+        ("dev", "free_or_this_stacks", "port zero is not a port"),
+        (
+            "dev",
+            "free_or_this_stacks",
+            "a port something else holds is refused",
+        ),
+        (
+            "dev",
+            "free_or_this_stacks",
+            "a port is this stack's only where this project publishes it",
         ),
         (
             "policy",

@@ -440,14 +440,12 @@ export NOCTUA_THE_CHECKOUT_SHAPE
 # not the developer's — so the copy fails on one line a checkout in CI never
 # would.
 #
-# On ports of its own, because two stacks bind the same two by default and the
-# second `dev` fails on the port; and with `DATABASE_URL` removed, so the gate
-# derives the copy's database from `POSTGRES_PORT` the way it does in CI. A
-# port that is taken fails `dev` loudly, in Docker's own words.
-POSTGRES_PORT=55432
-LOGS_PORT=59428
-export POSTGRES_PORT LOGS_PORT
-unset DATABASE_URL
+# On the ports its own path derives, as CI's checkout does, so neither port
+# variable is passed on: the copy's path is not the developer's, so its pair is
+# not theirs either. And with `DATABASE_URL` removed, so the gate derives the
+# copy's database from the copy's port the way it does in CI. A port something
+# else holds fails `dev` before compose runs, naming the variable that moves it.
+unset POSTGRES_PORT LOGS_PORT DATABASE_URL
 cargo xtask dev > "$scratch/check.log" 2>&1
 cargo xtask check >> "$scratch/check.log" 2>&1
 

@@ -184,8 +184,10 @@ fn main() -> ExitCode {
 ///
 /// `cargo xtask` can be run from any subdirectory — that is the entire point of
 /// the alias — so `$PWD` is not the root and reading it would make every path in
-/// this tool depend on where the developer happened to be standing.
-fn repository_root() -> PathBuf {
+/// this tool depend on where the developer happened to be standing. It is the
+/// checkout too, whose stack `cargo xtask dev` brings up on its own ports, so
+/// the gate's reader of that stack asks the same root.
+pub(crate) fn repository_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("xtask/ always has a parent")

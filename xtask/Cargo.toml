@@ -34,10 +34,11 @@ nc-local.workspace = true
 # graph already, under `nc-local`, so it adds no package; the test doors stay
 # behind `test-support`, which only the dev-dependency below turns on.
 nc-platform.workspace = true
-# **The stack's name is the checkout's, and one crate derives it.** `cargo xtask
-# dev` names its compose project from the checkout it runs in, and every
-# installed binary names everything else from the same crate, so the digest a
-# developer's volumes are named by has one implementation (`NOCTUA.md §17.1`).
+# **The stack's name and ports are the checkout's, and one crate derives them.**
+# `cargo xtask dev` names its compose project and binds its ports from the
+# checkout it runs in, and every installed binary names everything else from
+# the same crate, so the digest a developer's volumes are named by has one
+# implementation (`NOCTUA.md §17.1`).
 # It reaches neither the log nor the local database, and adds no package.
 nc-channel.workspace = true
 
