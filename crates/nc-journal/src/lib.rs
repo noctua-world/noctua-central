@@ -448,6 +448,54 @@ pub trait Store {
         realm: &nc_ids::OpaqueId,
         unit: nc_ids::Snowflake,
     ) -> impl Future<Output = Result<bool, Error>> + Send;
+
+    /// Every unit `realm` opened and has not closed, in the order their
+    /// opening brackets were written.
+    ///
+    /// **What a kernel recovers is asked here, never read from the history.**
+    /// A process stopped in the middle of a unit leaves its opening bracket and
+    /// no closing one, and a kernel opening after it reverts what the store
+    /// kept of every such unit of its realm (`NOCTUA.md §11.5`). Read from
+    /// `from(0)`, the answer costs the whole history at every opening, and it
+    /// stops at the first row the read cannot decode — so a unit opened past
+    /// that row is never found, and what the store kept of it outlives the
+    /// journal that never took it. Asked here, it is the same four columns
+    /// [`Store::unit_closing`] asks — `realm`, `work_unit`, `action` and
+    /// `result` — none of which is the part of a row that fails to decode,
+    /// which is the argument [`Store::head`] makes.
+    ///
+    /// **Required, and no implementation is provided.** One provided over
+    /// `from(0)` would be the slow path and the blind spot this exists to
+    /// close, inherited in silence by every store that did not write its own.
+    ///
+    /// **A unit is open when this realm holds an opening bracket for it and no
+    /// closing one**, by the predicates `unit_opened` and `unit_closing` ask,
+    /// the action included — an ordinary `Write` carrying
+    /// `Outcome::UnitBegun` opens nothing. Each unit is named once, at its
+    /// first opening bracket, and the oldest comes first: recovery reverts the
+    /// newest first, so the order is part of the answer.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error::Unavailable`] when the store cannot be reached, and
+    /// [`Error::Undecodable`] naming the row when an opening bracket's
+    /// `work_unit` is not the spelling this code writes of the identifier it
+    /// reads as — a unit nobody could recover by that name, which a recovery
+    /// refuses rather than skips.
+    ///
+    /// **And [`Error::Refused`], which every one of these reaches through
+    /// `unavailable`.** That function maps SQLSTATE classes 42, 28, 3D and 3F
+    /// — a missing `GRANT`, a dropped table, a schema that is not there — to
+    /// `Refused` rather than to `Unavailable`, so every one of them names it.
+    /// `Unavailable` is retryable and `Refused` is not, so a caller written
+    /// against a section naming `Unavailable` alone retries a missing
+    /// privilege for ever. Reached through a call rather than built here, which
+    /// is why `every_errors_section_names_what_its_body_builds` cannot ask for
+    /// it and it is named by hand.
+    fn open_units(
+        &self,
+        realm: &nc_ids::OpaqueId,
+    ) -> impl Future<Output = Result<Vec<nc_ids::Snowflake>, Error>> + Send;
 }
 
 /// What one read of the history returned.
@@ -1459,7 +1507,7 @@ mod verdict_tests {
             // that are exactly `/// # Errors` once trimmed, which is what
             // `grep -rhx '\s*/// # Errors' crates/nc-journal/src | wc -l`
             // counts — a scan that reads fewer has narrowed.
-            sections == 23,
+            sections == 24,
             "{sections} `# Errors` section(s) in this crate, which is not the tree this \
              is about"
         );

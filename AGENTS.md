@@ -134,8 +134,9 @@ backend services — everything `NOCTUA.md §1` describes. What is in it today:
 - **What the kernel stands on**: the one rule every declared command answers to
   (`crates/nc-schema`), the decision point it embeds (`crates/nc-authz`), the local
   app database its plugins' data is kept in (`crates/nc-local`, SQLite, built by
-  `local-migrations/`), and what makes that file and the blobs beside it one user's alone
-  on each system (`crates/nc-platform`).
+  `local-migrations/`) — the journal's store on the person's machine in the same file —
+  and what makes that file and the blobs beside it one user's alone on each system
+  (`crates/nc-platform`).
 - **What a plugin is built from**: the world's guest half (`crates/nc-guest`) and the
   reference plugin the kernel is proven with (`plugins/reference`).
 
@@ -267,7 +268,7 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 │   ├── nc-authz/                   the decision point: the embedded pack, asked (§14.2)
 │   ├── nc-kernel/                  the local kernel: the host of the plugin world (§11)
 │   │   └── wit/                    the plugin world: a byte copy of the workspace's reference
-│   ├── nc-local/                   the local app database: one SQLite file, private (§4)
+│   ├── nc-local/                   the local app database: one SQLite file, private (§4), the journal's store on the person's machine in it
 │   ├── nc-guest/                   the world's guest half, generated once for every plugin
 │   ├── nc-prune/                   one pruner, for every table (§15.8)
 │   └── nc-schema/                  a command's schema subset, selector and judge (§11.4)
@@ -386,7 +387,7 @@ fails a gate a minute or two later.
 | a policy | `policy/core/*.cedar` + `policy/core/tests/*.toml`, or `policy/packs/<profile>/*.cedar` + its `tests/*.toml` | a core file's name goes in `CORE_POLICIES` **and** each core `@id` in `CORE_RULES`, and each pack `@id` in `PACK_RULES` — all in `xtask/src/policy.rs` and all compared against the pack in both directions; every policy needs a **denial** case; every case is a row of `THE_CASES`, every clause a case pins is counted per policy in `PINNED_BY_POLICY`, and every entity added to `policy/world.json` is a row of `THE_WORLD`, in the same file; every case name is also a row of `WHAT_ELSE_THIS_TOOL_SAYS` in `xtask/src/check.rs` (its length and `THE_REST_IT_SAYS` move with it), because `THE_CASES` ships the name as a sentence; every constraint of a permit needs a case whose answer flips when it is removed — a case refused for its verb, or for its kind of principal, says `the_action_is_the_boundary` or `the_principal_is_the_boundary` — and one no request the schema can build could show working is taken out of the permit rather than given a case that cannot exist; a narrowed scope needs `// nc:narrows: <reason>`; and every `@id` is lower-case words joined by dots, `<pack>.<rule>` — its first word `core` under `policy/core/` and the profile under `policy/packs/<profile>/`, which `nc_policy::compile` refuses otherwise (`policy-id-outside-its-pack`) — none of them beginning with `kernel.` (`nc_policy::RESERVED_PREFIX`), which is the decision point's own; and each file is also an `embed!` line in `crates/nc-authz/src/embedded.rs` — in `CORE`, or in its pack's list — because a kernel decides with what it was built with, and `the_embedded_files_are_the_files_on_disk_in_both_directions` refuses a policy on disk that no line embeds, or that a line embeds in another directory's list — `CORE` is compiled into every pack carried |
 | a pack's first policy, or its next version | `policy/packs/<profile>/pack.toml` + `policy/world.json` | the manifest holds `version = <n>` alone, and it arrives with the pack's first policy — a manifest beside no policy is refused as well; every realm whose profile is that pack pins `<profile>@<n>`, so raising the version is the same edit as migrating every such realm, and a realm pinning another profile's pack is refused whether or not this tree carries its own. Each `.toml` under `policy/` is a case file inside a `tests/` directory or a manifest directly in its pack's directory, and each `.cedar` sits in `policy/core/` or in `policy/packs/<profile>/` — a decision point compiles the core and its realm's pack, so a policy beside them would pass every case and be enforced nowhere; one anywhere else is refused. A pack's first policy also gives it a list of its own in `crates/nc-authz/src/embedded.rs` and a `CARRIED` row naming its profile and its `pack.toml`: until then no kernel carries it and its realms are denied as not carried, and the same embedded-list test refuses the tree |
 | a migration with a table | `migrations/NNNN_*.sql` + `catalog/limits.toml` | `[tables.<name>]` — `strategy` and `order_by` always, plus `max_rows` and `prune_batch` when the strategy is `oldest-first`; a `policy-pack` table carries `pack_reason` instead and **no numbers**, which is what `journal_entries` does; a `refuse-at-limit` table is one whose oldest rows are not the pruner's to take — user state, or a unit's images and notes — and carries `max_rows`, where its writer refuses a new row, and `per = "plugin"` or `per = "unit"` when that writer counts each plugin's or each unit's rows rather than the table's (the compiler refuses `per` on any other strategy, and `docs/limits.md` publishes it as `Counted over`) — an ordering column that is `NOT NULL` and sorts in creation order — or `-- nc:bounded: <reason>` in the comment block above the table. The file's name is also a row of `MIGRATIONS_ON_DISK` in `xtask/src/check.rs` |
-| a local migration | `local-migrations/NNNN_*.sql` + `catalog/limits.toml` + `crates/nc-local/src/schema.rs` | SQLite, never in `migrations/`; its tables are bounded like the server's, with `database = "local"` in the entry. The file is a row of `LOCAL_MIGRATIONS_ON_DISK` with the SHA-384 `sqlx` keeps for it, and **a migration a build has carried is never edited**, a comment included — every file that build made records the checksum and is refused at every open once it differs (`NC-DB-0007`) — so a change is a new migration, and a rewrite before any release is an edit of the pin, which `check` holds each file to. Every object it builds is a row of `nc_local::schema::EXPECTED` with the BLAKE3 of the SQL SQLite stores for it and the migration that builds it (`since`): `cargo test -p nc-local` fails printing each digest until the list is updated, and `check` builds a scratch file one migration at a time and holds each step to the list, because the crate judges a file one migration behind by what its own history built. To the gate a trigger's `BEGIN … END` body is one statement, and SQLite's `[name]` and `` `name` `` are names as `"name"` is. `CREATE VIRTUAL TABLE` is refused — its rows live in shadow tables no entry can bound — and so is every statement invariant 18 lists, anywhere in the sources `WRITERS` in `xtask/src/local.rs` names: every member whose manifest takes SQLite (`sqlx` with a `sqlite` or `any` feature, or a crate that hands the file over), read whole or named in `NOT_READ` with its reason (`every_member_that_opens_the_local_database_is_read_or_named`), a SQL comment inside a string read as the gap SQLite reads it as. So is a migrator built when the store runs, which would migrate the user's file with whatever SQL sits in the daemon's working directory: `sqlx::migrate!` of this directory is the one migrator. Then **touch `crates/nc-local/src/store.rs`**: `sqlx::migrate!` embeds the directory when the crate compiles and, on stable Rust, does not tell cargo it read it, so a new file is not in the build until a source changes — `the_embedded_migrations_are_the_ones_on_disk` fails naming both lists until then |
+| a local migration | `local-migrations/NNNN_*.sql` + `catalog/limits.toml` + `crates/nc-local/src/schema.rs` | SQLite, never in `migrations/`; its tables are bounded like the server's, with `database = "local"` in the entry. The file is a row of `LOCAL_MIGRATIONS_ON_DISK` with the SHA-384 `sqlx` keeps for it, and **a migration a build has carried is never edited**, a comment included — every file that build made records the checksum and is refused at every open once it differs (`NC-DB-0007`) — so a change is a new migration, and a rewrite before any release is an edit of the pin, which `check` holds each file to. Every object it builds is a row of `nc_local::schema::EXPECTED` with the BLAKE3 of the SQL SQLite stores for it and the migration that builds it (`since`): `cargo test -p nc-local` fails printing each digest until the list is updated, and `check` builds a scratch file one migration at a time and holds each step to the list, because the crate judges a file one migration behind by what its own history built. To the gate a trigger's `BEGIN … END` body is one statement, and SQLite's `[name]` and `` `name` `` are names as `"name"` is. `CREATE VIRTUAL TABLE` is refused — its rows live in shadow tables no entry can bound — and so is every statement invariant 18 lists, anywhere in the sources `WRITERS` in `xtask/src/local.rs` names: every member whose manifest takes SQLite (`sqlx` with a `sqlite` or `any` feature, or a crate that hands the file over), read whole or named in `NOT_READ` with its reason (`every_member_that_opens_the_local_database_is_read_or_named`), a SQL comment inside a string read as the gap SQLite reads it as. So is a migrator built when the store runs, which would migrate the user's file with whatever SQL sits in the daemon's working directory: `sqlx::migrate!` of this directory is the one migrator. Then **touch `crates/nc-local/src/store.rs`**: `sqlx::migrate!` embeds the directory when the crate compiles and, on stable Rust, does not tell cargo it read it, so a new file is not in the build until a source changes — `the_embedded_migrations_are_the_ones_on_disk` fails naming both lists until then. And the tests that put a file one migration behind name the newest migration's table and number — `one_migration_behind` and `what_the_file_holds` in `crates/nc-local/tests/opening_refuses_what_it_did_not_make.rs` — while the gate's own tests in `xtask/src/local.rs` count the shipped migrations and plant one numbered past the newest |
 | a crate | `crates/<name>/` | more than the `members` glob suggests. The manifest takes `[lints]` with `workspace = true` and `version.workspace = true`, a crate with a `tests/` suite depends on itself under `[dev-dependencies]` or rustdoc cannot resolve the suite's `use`, and the crate root denies printing. Then `cargo test -p xtask --bin xtask` fails naming each list the crate has to join — the error-code scope (`JUDGED_BY_THE_ERROR_CODE_RULE` or `OUTSIDE_THE_ERROR_CODE_SCOPE`), the mutation census (`SOURCES` in `xtask/mutants.py`, or `NOT_MUTATED`), `SUITES`, `DOCUMENTED` and the source-count pins. Three lists in `xtask/src/gates.rs` are joined by hand, because nothing holds them to the crates: `JUDGED_BY_THE_RAISING_RULE`, `READ_BY_THE_HATCH_WALK` and `COVERED` — a crate taken out of all three leaves that command green |
 | a plugin | `plugins/<dir>/`: `Cargo.toml`, `plugin.toml` and `src/` | the lists a crate joins in `xtask/src/gates.rs` — `JUDGED_BY_THE_ERROR_CODE_RULE`, which the census of every member cargo resolves holds it to, and `JUDGED_BY_THE_RAISING_RULE` and `READ_BY_THE_HATCH_WALK` by hand — because the §15.1, raising and hatch walks read `plugins/` as they read `crates/`. The package is `nc-plugin-<dir>` — the plugin build refuses any other name, and the mutation runner reads the package from the path — with `crate-type = ["cdylib", "rlib"]`: what the plugin does goes in a module the host target tests, and `impl Guest` with `nc_guest::generated::export!` in an `adapter` module whose file opens with `#![cfg(target_arch = "wasm32")]`, because a host `cdylib` holding the exports does not link — the condition inside the file, since one on the `mod` line reads to the ignored-test gate as hiding every test in it. `cargo xtask build --plugins`, and `check` before the tests, builds it for `wasm32` and encodes it, refusing a component that imports anything the world `plugin` does not declare (which is what a dependency with bindings of its own brings in), then lints and documents it for that target — the only run that reads the adapter; a kernel suite loads it through `nc_kernel::component_for_tests`, which refuses a component its sources no longer build. Every `.rs` joins the mutation census, and the adapter's command is the plugin build |
 | the plugin world | `reference/noctua-kernel.wit` in the workspace, then `crates/nc-kernel/wit/noctua-kernel.wit` | the workspace's file first — it is normative — then the copy, byte for byte, then `WIT_BLAKE3` in `crates/nc-kernel/src/world.rs`. `the_kernel_world_is_the_reference_world` holds the copy to the reference wherever the workspace is there, and the digest holds it in a checkout; a new `package` version is `WORLD_VERSION` as well |
@@ -400,6 +401,7 @@ fails a gate a minute or two later.
 | a host function that waits | its interface's file under `crates/nc-kernel/src/host/` | its body, after the capability is asked, goes through `supervisor::in_time` under its `interface#function` name with `self.left()`, which holds it to `host_call_deadline_ms` or to what its call tree has left, whichever is nearer, and kills the plugin past it — every host function but `commands.dispatch`, whose command runs under its call tree's deadline and whose waits on the journal the decision point holds to the same bound (`Waits` in `crates/nc-kernel/src/dispatch.rs`) — and a case in `crates/nc-kernel/tests/isolation.rs` makes it never answer, on a paused clock, and reads the kill back as `[NC-PLUG-0006]` naming that function |
 | a note a unit keeps | `Note` in `crates/nc-kernel/src/history.rs` | its kind is its `note` field, written as canonical JSON and read back by `Note::read`, the one reader: a note of a kind it does not know, or of a known kind in another shape, is refused as a row the kernel did not write (`NC-DB-0007`), so an undo never acts on a note it misread. A note of a blob made or a request sent is written where it happens (`crate::blobs`, `crate::net`) and read here too. A unit's notes of every kind share `store_notes`' bound, and `every_note_the_history_writes_is_read_back_as_itself` holds each kind's text both ways |
 | a call the kernel asks of the store | `StoreBackend` in `crates/nc-kernel/src/backend.rs` | the same method on `nc_local::LocalStore` first — the trait answers as that store does, and is its specification — then on `MemoryBackend` beside the trait, with the same refusals in the same sentences; `crates/nc-kernel/tests/both_stores_answer_alike.rs` runs each script through both and holds the two transcripts equal, and its property test drives both through every operation, in two realms and every kind of unit, so a call the second store answers otherwise fails there — a script or a sequence that never varies what a filter selects on cannot see that filter go |
+| a call the kernel asks of the journal store | `nc_journal::Store` in `crates/nc-journal/src/lib.rs` | a **required** method — one provided over `from(0)` would be the slow path, and the blind spot of a row that does not decode, inherited in silence — answered in the same change by all three stores: `InMemory` (`memory.rs`, the specification), `Postgres` (`postgres.rs`, one statement over columns that cannot fail to decode) and `nc_local::LocalJournal` (`crates/nc-local/src/journal.rs`, every statement in that crate), and by every test store that implements the trait — `unit.rs`, `tampering.rs` and the kernel suites' wrappers. Its `# Errors` section names what each implementation builds (`every_errors_section_names_what_its_body_builds`, whose count of sections is written down), the shared scripts of `crates/nc-journal/tests/in_postgres.rs` ask it of the two stores in that crate, and `crates/nc-local/tests/the_local_journal.rs` holds the local journal's transcript to both, over written scripts and generated ones |
 | a call the kernel asks of the blobs | `BlobStore` in `crates/nc-kernel/src/blobs.rs` | the same method on `DirectoryBlobs` first — the one a daemon keeps a person's files in — then on `MemoryBlobs` beside it, which `the_two_stores_answer_one_script_alike` holds to one script; the trait is asynchronous because the disk may not answer, so a host function that calls it goes through `supervisor::in_time` like any other that waits, and a writer is moved into a write and handed back, so one a deadline abandons takes its writing with it. What a blob is to the decision point — which unit made it, whether one still holds it — is the store's, in `nc_local`'s `blobs` table, never the blob store's |
 | a kind of node a surface shows | `KINDS` in `crates/nc-kernel/src/ui.rs` | the table in that module's header is what a plugin author reads, and changes in the same edit; the kind's keys are a row of `KINDS`, a key holding a person's text is in `TEXTS` and a closed choice in `CHOICES`, so every text of every kind is held to the same bound and characters; and a test in that file keeps a tree of the new kind and refuses each rule it is held to — the interface's renderer (Stage 16) draws only the kinds this set names |
 | a kernel limit | `[kernel]` in `catalog/limits.toml`, and a field of `KernelLimits` in `crates/nc-catalog-compiler/src/model.rs` with its row in `KernelLimits::each` | every limit is required and above zero, and one that bounds another is held to it where both are written (`check_kernel` in the compiler's `load.rs`); `xtask/tests/the_registry_reaches_the_code.rs` compares every field by name, so a new one is a line there as well, and `docs/limits.md` publishes it with its unit. A plugin's manifest may lower only what `Lowering` in `crates/nc-kernel/src/limits.rs` names, and never raise it |
@@ -648,7 +650,9 @@ effect; 22 is gated over the statements written today and by nothing over the ne
     it landed; a read the journal does not take is withheld.
 
     **What a stopped process left is recovered before anything else runs**
-    (`crates/nc-kernel/src/units.rs`'s header has the order). A store that refuses a
+    (`crates/nc-kernel/src/units.rs`'s header has the order), found by asking the journal's
+    store which units of the realm are open (`nc_journal::Store::open_units`) and never by
+    reading the history. A store that refuses a
     reversal (`kernel.revert_failed`), and a process stopped between the store's commit
     and the journal's close, each leave a unit committed in the store and open in the
     journal: `Kernel::open` reverts every such unit of its realm, newest first, and closes
@@ -664,10 +668,13 @@ effect; 22 is gated over the statements written today and by nothing over the ne
     **Enforced by** `crates/nc-kernel/tests/the_decision_point.rs` — the journal refusing
     at the opening, at a top-level and a nested entry, at the close and at a read's entry,
     a close taken with its answer lost, the store refusing a reversal, a prune past a unit
-    left open, and a kernel stopped in a child process between the store's commit and the
-    journal's close and opened again — by `crates/nc-kernel/tests/units_and_history.rs`,
-    over every shape a stop leaves, and by the operators over `dispatch.rs`, `units.rs`,
-    `builtin.rs` and `pump.rs` in `xtask/mutants.py`.
+    left open, a journal whose store cannot name a unit it holds open, and a kernel stopped
+    in a child process between the store's commit and the journal's close and opened
+    again, with the pruner run over the file meanwhile or not, over PostgreSQL and over the
+    local journal — by
+    `crates/nc-kernel/tests/units_and_history.rs`, over every shape a stop leaves, each
+    over the journal in memory and over the local journal, and by the operators over
+    `dispatch.rs`, `units.rs`, `builtin.rs` and `pump.rs` in `xtask/mutants.py`.
 
 21. **The world the kernel hosts is the reference world, byte for byte.**
     `crates/nc-kernel/wit/noctua-kernel.wit`, which the host's bindings and every plugin's
@@ -684,14 +691,17 @@ effect; 22 is gated over the statements written today and by nothing over the ne
     success.** A trigger can answer success for a statement it silenced — a temporary
     `BEFORE INSERT … RAISE(IGNORE)`, or the same trigger added to `main` by another
     connection after the store opened, which neither schema check sees. So every statement
-    `crates/nc-local/src/store.rs` writes with goes through `write_exactly`, which refuses
-    any count but the one the statement had to change (`NC-DB-0007`), every transaction
-    first checks that no temporary object sits on its connection, and the pruner's SQLite
-    target refuses a `DELETE` that removed more than its batch
-    (`crates/nc-prune/src/sqlite.rs`). **Gated over the statements written today**:
+    `crates/nc-local/src/store.rs` and `crates/nc-local/src/journal.rs` write with goes
+    through `write_exactly`, which refuses any count but the one the statement had to
+    change (`NC-DB-0007`, and the journal's `NC-JRNL-0009`), every transaction first checks
+    that no temporary object sits on its connection, and the pruner's SQLite target refuses
+    a `DELETE` that removed more than its batch (`crates/nc-prune/src/sqlite.rs`). **Gated
+    over the statements written today**:
     `a_write_a_trigger_silences_is_refused_and_leaves_nothing` in
-    `crates/nc-local/tests/a_unit_lands_whole_or_not_at_all.rs` silences each in turn and
-    requires the write refused with nothing left. Its list is its own, so a new write that
+    `crates/nc-local/tests/a_unit_lands_whole_or_not_at_all.rs` silences each of the store's
+    in turn and requires the write refused with nothing left, and
+    `an_append_a_trigger_silences_is_refused_and_lands_nothing` in
+    `crates/nc-local/tests/the_local_journal.rs` the journal's. Each list is its own, so a new write that
     skips `write_exactly` and is not added there is refused by nothing — no gate reads the
     store's source for an `execute` outside it.
 
@@ -725,6 +735,7 @@ entry owns.
 | Undo used to escalate | the asker's own steps, authorized again now, refused on a conflict, compensations dispatched through the decision point | "A person undoes their own steps, with the authority they hold now" |
 | A rule swapped under the kernel | packs compiled into the binary, and a realm's pin held to them | "The pack a kernel decides with is the one it was built with" |
 | Authorization gone stale | decided again on every dispatch, and when a timer or an event comes due | "What a plugin puts off runs only under an authority decided again when it comes due" |
+| A history rewritten on the person's machine | append-only triggers, a row only at the next sequence, the link inside the insert, every row read back only as this code writes it | "The journal on the person's machine refuses to be edited, and says which units are open" |
 | Another account reading the local database | `0700` and `0600` on Unix, an access list naming the user alone on Windows, owner and link checks, `trusted_schema = OFF`, `main.`-qualified statements and append-only images | "The local database is private to its user, and refuses what it did not make" |
 | A sandbox escape through this repository's own code | no `unsafe` written anywhere but the Win32 calls of `nc-platform`'s Windows half, each beside its reason, plugins included, and what `forbid` does not reach written down | invariant 17 |
 
@@ -823,8 +834,9 @@ inside its own namespace — the plugin's code; and the dispatch itself, the nex
 `crates/nc-kernel/tests/the_decision_point.rs`, which runs every refusal against the real
 component, pack and world, reads each back from the journal and the log, runs the
 one-entry case against PostgreSQL too, and stops a kernel in a child process before and
-between the store's commit and the journal's close; and
-`crates/nc-kernel/tests/units_and_history.rs`, over every shape a stop leaves.
+between the store's commit and the journal's close, over PostgreSQL and over the local
+journal; and `crates/nc-kernel/tests/units_and_history.rs`, over every shape a stop leaves,
+over the journal in memory and the local journal alike.
 
 **Not answered:**
 
@@ -840,10 +852,13 @@ between the store's commit and the journal's close; and
 - a journal that answers a close with an error and cannot then say whether it took it: the
   unit is reverted while the journal may record it as kept, and nothing reconciles the two
   (`kernel.unit_aborted`, cause `journal_unknown`, records the reversal);
-- a unit opened past a journal row the recovery cannot read, which it does not find (the
-  read stopping is logged as `journal.broken`);
 - two kernels over one journal, each taking the other's open units for a stopped process's
   — one daemon keeps one profile;
+- an opening bracket that names its unit in a spelling this code never writes, which the
+  journal's store refuses by name (`NC-JRNL-0001`), so the realm's kernel does not open
+  until somebody repairs the journal by hand: a party that can only insert writes one on
+  the server, where `journal_entries.work_unit` holds any text, and whoever can write the
+  local file writes one there;
 - the public-read allowlist `NOCTUA.md §14.2` permits, which this kernel does not
   implement: every read is decided by Cedar in process, a bypass would be a second path
   buying nothing, and the web backend's middleware (Stage 22) is the first surface that
@@ -1312,6 +1327,61 @@ header.
 
 What it does not answer is under **What is deliberately not claimed**.
 
+### The journal on the person's machine refuses to be edited, and says which units are open
+
+`nc_local::LocalJournal` (`crates/nc-local/src/journal.rs`, whose header has the rules)
+keeps the hash-chained history of every realm the profile holds in the local file, beside
+the plugin store: `local_journal_entries`, built by
+`local-migrations/0004_local_journal.sql`, with the server's columns and bounds.
+
+**Guaranteed:**
+
+- **Append-only and dense, by the table.** `BEFORE UPDATE` and `BEFORE DELETE` triggers
+  refuse an edit and a deletion from any connection — a `DELETE` with no `WHERE` included,
+  since a table with a delete trigger is never truncated — under `trusted_schema = OFF`,
+  and a `BEFORE INSERT` trigger refuses a row anywhere but at the next sequence (the
+  server's `0010`), so a row planted at the top of the range cannot end the history. The
+  sequence, the hash and the link are held to the server's bounds by `CHECK`s too, which a
+  connection can switch off with `PRAGMA ignore_check_constraints` and no schema change;
+  no pragma switches off a trigger.
+- **One statement per append.** The link, the sequence and the unit's brackets are the
+  `WHERE` of the `INSERT`, inside a `BEGIN IMMEDIATE` holding the file's one writer, and a
+  refused entry is diagnosed in the same transaction — so every refusal is the one the
+  store in memory gives, and `Contended` is never this store's answer. The count goes
+  through `write_exactly` and the temporary-object check comes first (invariant 22).
+- **A row this code did not write is named where it lies.** `nc_journal::Entry` stays
+  sealed: each row is read back through `Entry::chain` over its stored link and held to
+  its stored hash, and every column the chain hashes only as the text this code writes.
+  One that fails is where `from` stops and what `tail` refuses as `Undecodable`
+  (`NC-JRNL-0001`), at its own sequence, and `journal.verify` reports it there as a
+  tampered row (`NC-JRNL-0002`).
+- **Which units are open is asked of four columns** — the realm, the unit, the action
+  and the outcome, over the index `(realm, work_unit)` — so no row that fails to decode
+  hides a unit opened after it, and a recovery visits the realm's entries inside units,
+  never decoded, rather than every realm's history. An opening bracket whose unit is not
+  spelled as this code writes one is refused by name, never skipped (`NC-JRNL-0001`).
+
+**Enforced by** `crates/nc-local/tests/the_local_journal.rs` — the triggers from a
+connection of its own, rows planted past the next sequence with the checks on and off, a
+forged link, an insert a trigger silences, a planted row nothing can decode, one whose
+hash is not its contents' and an opening bracket naming its unit as this code never
+writes one, a history read back by the next open, and the transcript held to the store in
+memory over written and generated scripts and to PostgreSQL's where the stack runs — by
+the kernel's recovery suites run over it (`units_and_history.rs`, and in
+`the_decision_point.rs` the stopped child, with and without the pruner run over the file
+meanwhile, and the kernel that does not open over that bracket), and by the operators over
+`journal.rs` in `xtask/mutants.py`.
+
+**Not answered:** a process running as the same user, which can drop the triggers and edit
+or delete any row — SQLite has no roles; a shortened history or a rewritten tail, which a
+chain cannot show without an anchor off this machine (`NOCTUA.md §14.9`; `nc-journal`'s
+header); a party that can only insert choosing how an open unit closed, as on the server;
+the same party inserting an opening bracket that names its unit in a spelling this code
+never writes, which keeps every kernel of that realm from opening until somebody repairs
+the file by hand — refused rather than skipped, because skipped it might be the unit a
+stopped process left; and retention, which is the realm's pack's to state and nothing
+applies yet (`catalog/limits.toml`, `policy-pack`).
+
 ### The central log cannot contain user data
 
 Not "must not". **Cannot.** `LogValue` is implemented for integers, booleans, durations,
@@ -1410,7 +1480,7 @@ migration's.
 ### A record the journal refuses is the caller's defect, not the store's
 
 Every rule about what a journal accepts belongs to the journal, not to one store:
-`readable_record` holds them for both `Store` implementations — a NUL in `action`,
+`readable_record` holds them for every `Store` implementation — a NUL in `action`,
 `deciding_policy` or `policy_pack`; a `recorded_at` or `policy_epoch` above `i64::MAX`; a
 resource nested past what the reader follows. The refusal names the field and its own
 code, `NC-JRNL-0005`, not retryable — an unstorable record is refused the same way forever
@@ -2142,14 +2212,23 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **Plugins can time one another**: they share one process, one machine and one bus, one
   top-level call tree at a time, and nothing pads, batches or randomises a wait — the
   reason the kernel's crate header names timing between plugins as unanswered.
-- **Recovery reads the realm's whole history each time a kernel opens**, because the
-  journal's stores answer how one unit closed and not which are open:
-  `crate::units::recover` reads every entry from the first, a cost growing with the
-  history, and stops at a row it cannot decode (logged as `journal.broken`), so a unit
-  opened past it is not found. A store question for the open units closes both, and the
-  journal's store on the person's machine (Stage 13) is where to answer it. Two kernels
-  over one journal would each take the other's open units for a stopped process's; one
-  daemon keeps one profile.
+- **Recovery finds what was left open, and not what is broken.** A kernel opening asks
+  the journal's store which units of its realm are open (`nc_journal::Store::open_units`):
+  the columns that bracket a unit, never a read of the history, so a row nothing can
+  decode hides no unit opened after it. Its cost still grows with the history, and not
+  only with what was left open: four columns of each entry visited are compared and none
+  is decoded, but the local journal's index `(realm, work_unit)` visits every entry of
+  the realm inside a unit, whatever the data, since invariant 18 leaves the planner's
+  statistics ungathered there; and PostgreSQL, which indexes the realm and the unit apart
+  (`journal_entries_realm`, `journal_entries_work_unit`) and the two together nowhere,
+  reads the opening brackets and their closes each through those indexes or over the
+  whole table, by the cost its planner estimates, so a recovery there may visit every
+  entry of every realm. It does not look for a broken row, and logs nothing about a
+  history it never reads: `journal.verify` still stops at it and reports it
+  (`journal.broken`), and nothing runs that verification on a schedule. An opening
+  bracket it cannot name keeps the kernel shut, as the decision point's **Not answered**
+  says. Two kernels over one journal would each take the other's open units for a stopped
+  process's; one daemon keeps one profile.
 - **Nothing runs on a schedule, and nothing put off outlives the kernel.** Timers and
   events are kept on no disk. `nc-prune` is a library the pump runs over the local
   database and `limits.prune` runs when a guardian holding a quorum's approval dispatches
@@ -2223,7 +2302,10 @@ rather than anything decided for the project, and each is a maintainer's to reop
   `NOCTUA.md §14.9` lists in cost order for a later stage. An `INSERT`-only party can also
   write a `unit-committed` bracket for a unit still open, locking its writer out while the
   history reads clean and making `Store::unit_closing` report the forger's outcome;
-  closing that needs the digest **keyed**.
+  closing that needs the digest **keyed**. And it can write a `unit-begun` bracket naming
+  its unit in a spelling this code never writes — `journal_entries.work_unit` holds any
+  text — which `Store::open_units` refuses by name, so no kernel of that realm opens until
+  the row is repaired by hand.
 - **The append-only triggers rest on a function their owner can replace**: all three call
   `journal_is_append_only()`, and one `CREATE OR REPLACE FUNCTION` with an empty body
   needs **function ownership only** — every trigger still there and still

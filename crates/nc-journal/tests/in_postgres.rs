@@ -1019,6 +1019,189 @@ async fn a_row_this_code_cannot_read_stops_the_unit_being_closed_and_says_which_
     finish(pool).await;
 }
 
+/// One entry of `realm`'s under `action`, ending as `result` in `unit`,
+/// chained onto the store's head and appended through the store.
+///
+/// **The head, never the tail**: chaining needs the last sequence and hash,
+/// neither of which is the part of a row a second connection poisons.
+async fn entered<S: nc_journal::Store>(
+    store: &mut S,
+    realm: &str,
+    action: &str,
+    result: Outcome,
+    unit: Snowflake,
+) {
+    let head = store.head().await.expect("the head reads");
+    let mut record = entry_record(action);
+    record.result = result;
+    record.realm = id(realm);
+    record.work_unit = Some(unit);
+    let sequence = head.map_or(0, |(sequence, _)| sequence + 1);
+    store
+        .append(Entry::chain(sequence, head.map(|(_, hash)| hash), record))
+        .await
+        .expect("the history is well formed");
+}
+
+/// The units a realm left open are named once each, oldest first, in
+/// PostgreSQL too — and a row past which a read of the history stops hides
+/// none of them.
+///
+/// **The in-memory store's case, against the store that runs**, every clause
+/// of the two brackets decided by an entry that shares all but one of them,
+/// with two rows a second connection wrote: one this code cannot read, in the
+/// middle — `from(0)` stops at it, and a recovery that read the history found
+/// no unit opened past it — and a second opening bracket of a unit already
+/// open, which the store's own `INSERT` refuses and which must not name the
+/// unit twice.
+#[tokio::test]
+async fn the_units_a_realm_left_open_are_named_past_a_row_a_read_stops_at() {
+    const SCHEMA: &str = "nc_test_open_units";
+    let Some(pool) = pool(SCHEMA).await else {
+        return;
+    };
+    let mut store = store_in(&pool, SCHEMA);
+    let unit = |text: &str| Snowflake::from_crockford(text).expect("a test unit");
+    let (kept, left, lookalike, aborted, unclosed, denied, there) = (
+        unit("01J8XK2M9P51"),
+        unit("01J8XK2M9P52"),
+        unit("01J8XK2M9P53"),
+        unit("01J8XK2M9P54"),
+        unit("01J8XK2M9P55"),
+        unit("01J8XK2M9P56"),
+        unit("01J8XK2M9P57"),
+    );
+    let (opens, closes) = (nc_journal::unit::OPENS, nc_journal::unit::CLOSES);
+    for (realm, action, result, unit) in [
+        ("realm-1", opens, Outcome::UnitBegun, kept),
+        ("realm-1", opens, Outcome::UnitBegun, left),
+        ("realm-1", "Write", Outcome::UnitBegun, lookalike),
+        ("realm-1", closes, Outcome::UnitCommitted, kept),
+    ] {
+        entered(&mut store, realm, action, result, unit).await;
+    }
+    let (poisoned, link) = store.head().await.expect("the head reads").expect("a head");
+    let (poisoned, link) = (poisoned + 1, nc_canon::to_hex(&link));
+    insert_foreign(&pool, poisoned, &link, "Read", "quarantined", None).await;
+    for (realm, action, result, unit) in [
+        ("realm-1", opens, Outcome::UnitBegun, aborted),
+        ("realm-1", closes, Outcome::UnitAborted, aborted),
+        ("realm-1", opens, Outcome::Denied, denied),
+        ("realm-2", opens, Outcome::UnitBegun, there),
+        ("realm-2", closes, Outcome::UnitCommitted, left),
+        ("realm-1", opens, Outcome::UnitBegun, unclosed),
+        ("realm-1", "Write", Outcome::UnitCommitted, unclosed),
+    ] {
+        entered(&mut store, realm, action, result, unit).await;
+    }
+    let (last, link) = store.head().await.expect("the head reads").expect("a head");
+    insert_foreign(
+        &pool,
+        last + 1,
+        &nc_canon::to_hex(&link),
+        opens,
+        Outcome::UnitBegun.as_str(),
+        Some(&left.to_crockford()),
+    )
+    .await;
+    let read = store.from(0).await.expect("the history reads");
+    assert_eq!(
+        read.stopped_at.map(|(sequence, _)| sequence),
+        Some(poisoned),
+        "a read of the history stops at the row it cannot decode"
+    );
+    assert_eq!(
+        store.open_units(&id("realm-1")).await,
+        Ok(vec![left, unclosed]),
+        "what a kernel of realm-1 recovers"
+    );
+    assert_eq!(store.open_units(&id("realm-2")).await, Ok(vec![there]));
+    assert_eq!(store.open_units(&id("realm-3")).await, Ok(Vec::new()));
+    finish(pool).await;
+}
+
+/// An opening bracket a second connection wrote, naming its unit as this
+/// code never writes one, is refused by name when the realm is asked which
+/// units are open, and another realm's answer is untouched — in PostgreSQL as
+/// in the local journal.
+///
+/// **Refused, not skipped**, for the reason the local journal's case gives:
+/// read leniently, `01j8xk2m9p52` is a unit no question finds by its canonical
+/// text, and skipped, a unit a stopped process left might be the one dropped.
+/// `journal_entries.work_unit` holds any text, so a party that can only insert
+/// can write this row — the residual `AGENTS.md` names beside the closing
+/// bracket such a party forges.
+#[tokio::test]
+async fn an_opening_naming_its_unit_as_this_code_never_writes_one_is_refused_by_name() {
+    const SCHEMA: &str = "nc_test_respelled_opening";
+    let Some(pool) = pool(SCHEMA).await else {
+        return;
+    };
+    let mut store = store_in(&pool, SCHEMA);
+    let unit = |text: &str| Snowflake::from_crockford(text).expect("a test unit");
+    let (open, there) = (unit("01J8XK2M9P51"), unit("01J8XK2M9P52"));
+    let opens = nc_journal::unit::OPENS;
+    entered(&mut store, "realm-1", opens, Outcome::UnitBegun, open).await;
+    entered(&mut store, "realm-2", opens, Outcome::UnitBegun, there).await;
+    let (last, link) = store.head().await.expect("the head reads").expect("a head");
+    insert_foreign(
+        &pool,
+        last + 1,
+        &nc_canon::to_hex(&link),
+        opens,
+        Outcome::UnitBegun.as_str(),
+        Some(&there.to_crockford().to_lowercase()),
+    )
+    .await;
+    let refused = store.open_units(&id("realm-1")).await;
+    assert!(
+        matches!(&refused, Err(nc_journal::Error::Undecodable { sequence, why })
+            if *sequence == last + 1
+                && why.contains("01j8xk2m9p52")
+                && why.contains("not an identifier as this code writes one")),
+        "{refused:?}"
+    );
+    assert_eq!(
+        refused.as_ref().map_err(nc_journal::Error::code),
+        Err(nc_catalog::ErrorCode::JournalChainBroken)
+    );
+    assert_eq!(
+        store.open_units(&id("realm-2")).await,
+        Ok(vec![there]),
+        "another realm's units are asked of its own rows"
+    );
+    finish(pool).await;
+}
+
+/// A row a second connection writes, at `sequence` and linked to `link`.
+///
+/// It opens the unit spelled `unit` when one is named, and is otherwise a row
+/// of the outcome `result` — one this code does not know, which no read of it
+/// decodes.
+async fn insert_foreign(
+    pool: &sqlx::PgPool,
+    sequence: u64,
+    link: &str,
+    action: &str,
+    result: &str,
+    unit: Option<&str>,
+) {
+    sqlx::query(
+        "INSERT INTO journal_entries (sequence, realm, principal, actor_chain, action, \
+         resource, result, work_unit, recorded_at, prev_hash, hash) \
+         VALUES ($1, 'realm-1', 'principal-1', '[]'::jsonb, $2, 'null', $3, $4, 1, $5, $6)",
+    )
+    .bind(i64::try_from(sequence).expect("a short test history"))
+    .bind(action)
+    .bind(result)
+    .bind(unit)
+    .bind(link)
+    .bind("ab".repeat(32))
+    .execute(pool)
+    .await
+    .expect("the triggers refuse UPDATE, DELETE and TRUNCATE, not INSERT");
+}
+
 /// The triggers are there, always enabled, and call a function that refuses.
 ///
 /// **Behaviour alone does not check the append-only guarantee**, because
@@ -1342,6 +1525,18 @@ async fn the_two_stores_agree_about_the_brackets(
                 .await
                 .expect("readable"),
             "`{name}`: the two stores disagree about how {asked} closed in {which}"
+        );
+    }
+    // **And which units are open, in both realms the scripts write**: a
+    // kernel opening over either store recovers what this names, newest first,
+    // so the list and its order are the answer.
+    for which in ["realm-1", "realm-2"] {
+        let realm = id(which);
+        assert_eq!(
+            memory.open_units(&realm).await.expect("readable"),
+            postgres.open_units(&realm).await.expect("readable"),
+            "`{name}`: the two stores disagree about which units are open in {which}, \
+             and a kernel opening recovers what that answer names"
         );
     }
 }
@@ -1733,7 +1928,9 @@ fn the_scripts_about_the_closed_unit_guard(unit: Snowflake) -> Vec<(String, Vec<
 }
 
 #[tokio::test]
-/// One script, both stores, entry for entry — including which refusal.
+/// One script, both stores, entry for entry — including which refusal — and
+/// what each then says about every unit's brackets, which units are open
+/// among them.
 ///
 /// **The comparison the "both stores answer alike" argument needs.** With each
 /// store tested on its own and nothing driving one sequence through both, the

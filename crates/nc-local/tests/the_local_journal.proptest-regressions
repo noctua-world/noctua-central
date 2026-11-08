@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 08d6a029dc34920f9a33b24acb1d4bda0d831210e19ea87fd2da2eefea9dbcd6 # shrinks to script = [Step { realm: 1, action: "kernel.begin", result: UnitCommitted, unit: Some(2), place: Next, link: Head }, Step { realm: 1, action: "kernel.begin", result: UnitBegun, unit: Some(2), place: Next, link: Head }]
+cc 74827d89e0031c691de87a090c121016fab4b389a37b1cadf329bd192e9eab44 # shrinks to script = [Step { realm: 0, action: "kernel.begin", result: UnitBegun, unit: Some(0), place: Next, link: Head }]

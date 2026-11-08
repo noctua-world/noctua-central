@@ -62,7 +62,7 @@ Level: `debug`
 
 ## `journal.broken`
 
-Verification failed, or the read of the history a kernel recovers from as it opens stopped at an entry it could not decode, and at which entry
+Verification of the journal's chain failed, and at which entry
 
 Level: `error`
 

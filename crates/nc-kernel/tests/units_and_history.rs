@@ -166,19 +166,43 @@ fn directory_over(world: &str, pack: &Pdp) -> MemoryDirectory {
     directory
 }
 
-/// A kernel over the local database, the journal in memory, the [`Still`]
-/// clock and the world's directory, which a test can shift.
+/// A kernel over the local database, the journal's store `J` — the one in
+/// memory unless a test says otherwise — the [`Still`] clock and the world's
+/// directory, which a test can shift.
 #[derive(Debug)]
-struct Env;
+struct Env<J = nc_journal::InMemory>(core::marker::PhantomData<J>);
 
-impl Environment for Env {
+impl<J: History> Environment for Env<J> {
     type Store = LocalStore;
     type Blobs = Arc<MemoryBlobs>;
-    type Journal = nc_journal::InMemory;
+    type Journal = J;
     type Clock = Still;
     type Directory = Shifting;
     type Log = Arc<Captured>;
     type Transport = nc_kernel::net::Scripted;
+}
+
+/// Where a stopped process's history is kept, and the kernel opened after it
+/// reads it: the journal in memory, or the local database's own
+/// (`nc_local::LocalJournal`), which is the daemon's.
+///
+/// **Every recovery case runs over both**, so what a kernel opening finds open
+/// is what the store a daemon keeps answers, and not only the specification's.
+trait History: nc_journal::Store + Clone + core::fmt::Debug + Send + Sync + 'static {
+    /// The history kept beside `store`.
+    fn beside(store: &LocalStore) -> Self;
+}
+
+impl History for nc_journal::InMemory {
+    fn beside(_: &LocalStore) -> Self {
+        Self::default()
+    }
+}
+
+impl History for nc_local::LocalJournal {
+    fn beside(store: &LocalStore) -> Self {
+        store.journal()
+    }
 }
 
 /// A scratch directory for one test, removed however the test leaves.
@@ -208,8 +232,8 @@ impl Scratch {
 }
 
 /// A kernel and everything a test reads beside it.
-struct Fixture {
-    kernel: Kernel<Env>,
+struct Fixture<J: History = nc_journal::InMemory> {
+    kernel: Kernel<Env<J>>,
     store: LocalStore,
     blobs: Arc<MemoryBlobs>,
     log: Arc<Captured>,
@@ -367,13 +391,13 @@ async fn opened_granting(
 /// The reference plugin is granted what `granted` lists and loaded under
 /// `limits`, its peer beside it when `with_the_peer`, once the kernel has
 /// opened — and recovered whatever `history` left open.
-async fn opened_over(
+async fn opened_over<J: History>(
     store: LocalStore,
-    history: nc_journal::InMemory,
+    history: J,
     limits: &str,
     with_the_peer: bool,
     granted: &str,
-) -> Fixture {
+) -> Fixture<J> {
     let pack = family();
     let world = MemoryDirectory::from_world(WORLD, &pack).expect("the world is valid");
     let shift = Arc::new(AtomicBool::new(false));
@@ -457,7 +481,7 @@ async fn in_memory() -> LocalStore {
         .expect("the local database opens in memory")
 }
 
-impl Fixture {
+impl<J: History> Fixture<J> {
     /// Dispatches `command` with `args` as `ana`, the guardian who owns the
     /// note `photo`.
     async fn as_ana(&self, command: &str, args: &str) -> Result<String, Refusal> {
@@ -1018,9 +1042,10 @@ fn taken_back(key: &str, held: &str) -> Vec<StagedWrite> {
     vec![a_write(key, Expect::Value(Some(kept_as(held))), None)]
 }
 
-/// The history a process stopped in every shape leaves, and the units it
-/// left in it, its store's half committed to `store`.
-async fn left_in_every_shape(store: &LocalStore) -> (nc_journal::InMemory, Shapes) {
+/// The history a process stopped in every shape leaves, kept as `J` keeps it
+/// beside `store`, and the units it left in it, its store's half committed to
+/// `store`.
+async fn left_in_every_shape<J: History>(store: &LocalStore) -> (J, Shapes) {
     let world = MemoryDirectory::from_world(WORLD, &family()).expect("the world is valid");
     // **The stopped process's own keeper**: whoever brackets a unit is the
     // journal's to name, and the world's `ana` is one no hatch is needed for.
@@ -1032,7 +1057,7 @@ async fn left_in_every_shape(store: &LocalStore) -> (nc_journal::InMemory, Shape
         )
     };
     let mut stopped = nc_journal::Journal::new(
-        nc_journal::InMemory::default(),
+        J::beside(store),
         world.realm_id("home").expect("home is a realm"),
         ana.clone(),
         minter(9),
@@ -1098,9 +1123,9 @@ async fn left_in_every_shape(store: &LocalStore) -> (nc_journal::InMemory, Shape
 ///
 /// Both are `person`'s, the undo committed in the store as the step was, and
 /// their store's half is committed to `store`.
-async fn an_undo_left_open(
+async fn an_undo_left_open<J: History>(
     store: &LocalStore,
-    journal: &mut nc_journal::Journal<nc_journal::InMemory, Still>,
+    journal: &mut nc_journal::Journal<J, Still>,
     person: &OpaqueId,
 ) -> (Snowflake, Snowflake) {
     let undone = journal
@@ -1187,8 +1212,24 @@ async fn nothing_left_open_is_kept(store: &LocalStore, left: &Shapes) {
 /// is that realm's to recover and stays as it was.
 #[tokio::test]
 async fn a_unit_left_open_by_a_stopped_process_is_reverted_when_the_kernel_opens() {
+    every_shape_a_stop_leaves_is_recovered::<nc_journal::InMemory>().await;
+}
+
+/// The same, over the local database's own journal: the history a daemon
+/// keeps, in the file whose units the recovery reverts.
+#[tokio::test]
+async fn a_unit_a_stopped_process_left_open_in_the_local_journal_is_reverted_when_the_kernel_opens()
+{
+    every_shape_a_stop_leaves_is_recovered::<nc_local::LocalJournal>().await;
+}
+
+/// Every shape a stop can leave, recovered by a kernel opening over the
+/// history `J` keeps — the case
+/// `a_unit_left_open_by_a_stopped_process_is_reverted_when_the_kernel_opens`
+/// documents.
+async fn every_shape_a_stop_leaves_is_recovered<J: History>() {
     let store = in_memory().await;
-    let (history, left) = left_in_every_shape(&store).await;
+    let (history, left) = left_in_every_shape::<J>(&store).await;
     let fixture = opened_over(store, history, "", false, GRANTED).await;
     nothing_left_open_is_kept(&fixture.store, &left).await;
     // The journal closes each as aborted, the newest first, and no other.
@@ -1357,7 +1398,7 @@ fn reversed_as(
     .to_canonical()
 }
 
-impl Fixture {
+impl<J: History> Fixture<J> {
     /// Undoes `ana`'s newest step.
     async fn undo(&self) -> Result<String, Refusal> {
         self.as_ana("kernel.undo", "{}").await
@@ -3441,25 +3482,25 @@ async fn an_undo_whose_compensation_makes_the_blob_its_step_made_is_kept() {
 /// and `blobs`, opened as a daemon opens one over what a process before it
 /// left, with no plugin loaded — or why it did not open: the realm a kernel of
 /// `home` shares the file with.
-async fn office_opening(
+async fn office_opening<J: History>(
     store: LocalStore,
-    history: nc_journal::InMemory,
+    history: J,
     blobs: Arc<MemoryBlobs>,
     log: Arc<Captured>,
-) -> Result<Kernel<Env>, nc_kernel::OpenError> {
+) -> Result<Kernel<Env<J>>, nc_kernel::OpenError> {
     a_kernel_of("office", store, history, blobs, log, 0).await
 }
 
 /// A kernel of `realm` over `store`, `history` and `blobs`, logging to `log`,
 /// its clock `later` milliseconds past [`NOW_MS`].
-async fn a_kernel_of(
+async fn a_kernel_of<J: History>(
     realm: &str,
     store: LocalStore,
-    history: nc_journal::InMemory,
+    history: J,
     blobs: Arc<MemoryBlobs>,
     log: Arc<Captured>,
     later: u64,
-) -> Result<Kernel<Env>, nc_kernel::OpenError> {
+) -> Result<Kernel<Env<J>>, nc_kernel::OpenError> {
     let pack = family();
     let world = MemoryDirectory::from_world(WORLD, &pack).expect("the world is valid");
     let clock = Still::new();
@@ -3487,11 +3528,15 @@ async fn a_kernel_of(
 }
 
 /// The journal of the realm `office`'s process, under ana's keeping, on a
-/// clock of its own: what a test commits that process's units against.
-fn the_office_journal(clock: Still) -> nc_journal::Journal<nc_journal::InMemory, Still> {
+/// clock of its own, its history kept as `J` keeps it beside `store`: what a
+/// test commits that process's units against.
+fn the_office_journal<J: History>(
+    store: &LocalStore,
+    clock: Still,
+) -> nc_journal::Journal<J, Still> {
     let world = MemoryDirectory::from_world(WORLD, &family()).expect("the world is valid");
     nc_journal::Journal::new(
-        nc_journal::InMemory::default(),
+        J::beside(store),
         world.realm_id("office").expect("office is a realm"),
         id_of(&world, "ana"),
         Minter::new(MachineFlake::from_value(9).expect("a flake"), clock),
@@ -3509,11 +3554,31 @@ fn the_office_journal(clock: Still) -> nc_journal::Journal<nc_journal::InMemory,
 /// aborted and its write stay.
 #[tokio::test]
 async fn a_unit_another_realm_left_open_is_reverted_though_a_realm_pruned_meanwhile() {
+    a_unit_another_realm_left_open_is_reverted_though_a_realm_pruned_meanwhile_over::<
+        nc_journal::InMemory,
+    >()
+    .await;
+}
+
+/// The same, over the local database's own journal, which a daemon keeps.
+#[tokio::test]
+async fn a_unit_another_realm_left_open_is_reverted_though_a_realm_pruned_meanwhile_over_the_local_journal()
+ {
+    a_unit_another_realm_left_open_is_reverted_though_a_realm_pruned_meanwhile_over::<
+        nc_local::LocalJournal,
+    >()
+    .await;
+}
+
+/// `a_unit_another_realm_left_open_is_reverted_though_a_realm_pruned_meanwhile`, over the history `J` keeps.
+async fn a_unit_another_realm_left_open_is_reverted_though_a_realm_pruned_meanwhile_over<
+    J: History,
+>() {
     let store = in_memory().await;
     let world = MemoryDirectory::from_world(WORLD, &family()).expect("the world is valid");
     let ana = id_of(&world, "ana");
     let office = world.realm_id("office").expect("office is a realm");
-    let mut stopped = the_office_journal(Still::new());
+    let mut stopped = the_office_journal::<J>(&store, Still::new());
     // `office`'s process stopped between the store's commit and the journal's
     // close of this unit.
     let left = stopped
@@ -3524,7 +3589,7 @@ async fn a_unit_another_realm_left_open_is_reverted_though_a_realm_pruned_meanwh
     step.meta.realm = office.clone();
     committed_held(&store, &step).await;
     filled_past_the_bound_after(&store, left, 0).await;
-    let at_home = opened(store.clone(), "", false).await;
+    let at_home = opened_over(store.clone(), J::beside(&store), "", false, GRANTED).await;
     let pumped = at_home.kernel.pump().await;
     assert_eq!(pumped.prune_refused, None, "{pumped:?}");
     assert!(pumped.pruned > 0, "{pumped:?}");
@@ -3576,12 +3641,30 @@ async fn a_unit_another_realm_left_open_is_reverted_though_a_realm_pruned_meanwh
 /// unit it does not hold, and `office`'s kernel refuse to open, every time.
 #[tokio::test]
 async fn a_realm_opens_over_its_undo_left_open_though_a_realm_pruned_meanwhile() {
+    a_realm_opens_over_its_undo_left_open_though_a_realm_pruned_meanwhile_over::<
+        nc_journal::InMemory,
+    >()
+    .await;
+}
+
+/// The same, over the local database's own journal, which a daemon keeps.
+#[tokio::test]
+async fn a_realm_opens_over_its_undo_left_open_though_a_realm_pruned_meanwhile_over_the_local_journal()
+ {
+    a_realm_opens_over_its_undo_left_open_though_a_realm_pruned_meanwhile_over::<
+        nc_local::LocalJournal,
+    >()
+    .await;
+}
+
+/// `a_realm_opens_over_its_undo_left_open_though_a_realm_pruned_meanwhile`, over the history `J` keeps.
+async fn a_realm_opens_over_its_undo_left_open_though_a_realm_pruned_meanwhile_over<J: History>() {
     let store = in_memory().await;
     let world = MemoryDirectory::from_world(WORLD, &family()).expect("the world is valid");
     let ana = id_of(&world, "ana");
     let office = world.realm_id("office").expect("office is a realm");
     let clock = Still::new();
-    let mut stopped = the_office_journal(clock.clone());
+    let mut stopped = the_office_journal::<J>(&store, clock.clone());
     let undone = stopped
         .open_unit("reference.note.put")
         .await
@@ -3609,7 +3692,7 @@ async fn a_realm_opens_over_its_undo_left_open_though_a_realm_pruned_meanwhile()
     );
     undoing.meta.realm = office.clone();
     committed_held(&store, &undoing).await;
-    let at_home = opened(store.clone(), "", false).await;
+    let at_home = opened_over(store.clone(), J::beside(&store), "", false, GRANTED).await;
     let pumped = at_home.kernel.pump().await;
     assert_eq!(pumped.prune_refused, None, "{pumped:?}");
     assert!(pumped.pruned > 0, "{pumped:?}");
@@ -3651,12 +3734,32 @@ async fn a_realm_opens_over_its_undo_left_open_though_a_realm_pruned_meanwhile()
 /// commit the step again as holding it.
 #[tokio::test]
 async fn a_blob_an_undo_left_open_took_the_pin_off_survives_another_realms_sweep() {
+    a_blob_an_undo_left_open_took_the_pin_off_survives_another_realms_sweep_over::<
+        nc_journal::InMemory,
+    >()
+    .await;
+}
+
+/// The same, over the local database's own journal, which a daemon keeps.
+#[tokio::test]
+async fn a_blob_an_undo_left_open_took_the_pin_off_survives_another_realms_sweep_over_the_local_journal()
+ {
+    a_blob_an_undo_left_open_took_the_pin_off_survives_another_realms_sweep_over::<
+        nc_local::LocalJournal,
+    >()
+    .await;
+}
+
+/// `a_blob_an_undo_left_open_took_the_pin_off_survives_another_realms_sweep`, over the history `J` keeps.
+async fn a_blob_an_undo_left_open_took_the_pin_off_survives_another_realms_sweep_over<
+    J: History,
+>() {
     let store = in_memory().await;
     let blobs = Arc::new(MemoryBlobs::default());
     let world = MemoryDirectory::from_world(WORLD, &family()).expect("the world is valid");
     let ana = id_of(&world, "ana");
     let office = world.realm_id("office").expect("office is a realm");
-    let mut stopped = the_office_journal(Still::new());
+    let mut stopped = the_office_journal::<J>(&store, Still::new());
     let bytes = b"office bytes";
     let writer = blobs.create().await.expect("a writer");
     let (writer, written) = blobs.write(writer, bytes.to_vec()).await;
@@ -3707,7 +3810,7 @@ async fn a_blob_an_undo_left_open_took_the_pin_off_survives_another_realms_sweep
     let at_home = a_kernel_of(
         "home",
         store.clone(),
-        nc_journal::InMemory::default(),
+        J::beside(&store),
         Arc::clone(&blobs),
         Arc::new(Captured::default()),
         nc_catalog::KERNEL.blob_orphan_grace_ms + 1,
@@ -3763,11 +3866,23 @@ async fn a_unit_kept_holds_nothing_once_its_close_is_heard() {
 /// and letting go of its unit leaves — and keeps those of another realm.
 #[tokio::test]
 async fn a_kernel_opening_lets_go_of_what_its_realm_closed_and_nothing_else() {
+    a_kernel_opening_lets_go_of_what_its_realm_closed_and_nothing_else_over::<nc_journal::InMemory>().await;
+}
+
+/// The same, over the local database's own journal, which a daemon keeps.
+#[tokio::test]
+async fn a_kernel_opening_lets_go_of_what_its_realm_closed_and_nothing_else_over_the_local_journal()
+{
+    a_kernel_opening_lets_go_of_what_its_realm_closed_and_nothing_else_over::<nc_local::LocalJournal>().await;
+}
+
+/// `a_kernel_opening_lets_go_of_what_its_realm_closed_and_nothing_else`, over the history `J` keeps.
+async fn a_kernel_opening_lets_go_of_what_its_realm_closed_and_nothing_else_over<J: History>() {
     let store = in_memory().await;
     let world = MemoryDirectory::from_world(WORLD, &family()).expect("the world is valid");
     let ana = id_of(&world, "ana");
     let office = world.realm_id("office").expect("office is a realm");
-    let mut journal = the_office_journal(Still::new());
+    let mut journal = the_office_journal::<J>(&store, Still::new());
     let closed = journal
         .open_unit("reference.note.put")
         .await
@@ -3862,6 +3977,13 @@ impl nc_journal::Store for Holding {
         unit: Snowflake,
     ) -> impl Future<Output = Result<bool, nc_journal::Error>> + Send {
         self.inner.unit_opened(realm, unit)
+    }
+
+    fn open_units(
+        &self,
+        realm: &OpaqueId,
+    ) -> impl Future<Output = Result<Vec<Snowflake>, nc_journal::Error>> + Send {
+        self.inner.open_units(realm)
     }
 }
 
@@ -3984,8 +4106,22 @@ async fn another_realms_sweep_leaves_the_bytes_a_unit_in_flight_made() {
 /// is the kernel's own guard for two that do not.
 #[tokio::test]
 async fn a_realms_recovery_leaves_another_realms_unit_of_the_same_number() {
+    a_realms_recovery_leaves_another_realms_unit_of_the_same_number_over::<nc_journal::InMemory>()
+        .await;
+}
+
+/// The same, over the local database's own journal, which a daemon keeps.
+#[tokio::test]
+async fn a_realms_recovery_leaves_another_realms_unit_of_the_same_number_over_the_local_journal() {
+    a_realms_recovery_leaves_another_realms_unit_of_the_same_number_over::<nc_local::LocalJournal>(
+    )
+    .await;
+}
+
+/// `a_realms_recovery_leaves_another_realms_unit_of_the_same_number`, over the history `J` keeps.
+async fn a_realms_recovery_leaves_another_realms_unit_of_the_same_number_over<J: History>() {
     let store = in_memory().await;
-    let at_home = opened(store.clone(), "", false).await;
+    let at_home = opened_over(store.clone(), J::beside(&store), "", false, GRANTED).await;
     at_home
         .as_ana("reference.note.put", &photo("kept at home"))
         .await
@@ -3999,7 +4135,7 @@ async fn a_realms_recovery_leaves_another_realms_unit_of_the_same_number() {
         .collect();
     let world = MemoryDirectory::from_world(WORLD, &family()).expect("the world is valid");
     let mut stopped = nc_journal::Journal::new(
-        nc_journal::InMemory::default(),
+        J::beside(&store),
         world.realm_id("office").expect("office is a realm"),
         id_of(&world, "ana"),
         Minter::new(MachineFlake::from_value(3).expect("a flake"), Still::new()),

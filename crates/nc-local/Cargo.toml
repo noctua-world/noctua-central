@@ -34,6 +34,11 @@ nc-ids.workspace = true
 # A value and a note are held to nc-canon's canonical text before they are
 # written, so what the store hands back is what the kernel hashed.
 nc-canon.workspace = true
+# **The journal's store on the person's machine** (`LocalJournal`): the trait
+# it answers, the entry it reads back and the refusals it answers with are the
+# journal's, and every statement stays in this crate. `nc-journal` reaches
+# neither this crate nor `nc-log`, so there is no cycle and no wall crossed.
+nc-journal.workspace = true
 # The expected schema is held as the BLAKE3 of each object's SQL rather than as
 # the SQL, so no statement that builds a table is written in this crate's
 # sources — which is what `cargo xtask check`'s source gate refuses.

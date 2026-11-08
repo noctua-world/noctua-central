@@ -1893,7 +1893,12 @@ fn a_table_that_refuses_at_its_limit_names_a_limit_and_nothing_else() {
 fn a_limit_counted_per_owner_belongs_to_a_refusing_writer() {
     for (table, after) in [
         ("access_records", "order_by = \"recorded\"\n"),
-        ("journal_entries", "order_by = \"sequence\"\n"),
+        // The server's journal's own entry: the local journal's orders by the
+        // same column, and is told from it by the strategy written above.
+        (
+            "journal_entries",
+            "strategy = \"policy-pack\"\norder_by = \"sequence\"\n",
+        ),
     ] {
         let scratch = Scratch::new(&format!("per-owner-{table}"));
         scratch.edit("catalog/limits.toml", |text| {

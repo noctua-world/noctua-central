@@ -771,6 +771,68 @@ impl Store for Postgres {
         .map_err(|error| unavailable(&error))?;
         Ok(closing.as_deref().and_then(Outcome::parse))
     }
+
+    async fn open_units(&self, realm: &OpaqueId) -> Result<Vec<Snowflake>, Error> {
+        // **One statement, over the columns that cannot fail to decode.** The
+        // opening brackets of the realm, each held to the absence of a closing
+        // one for its unit, by the same four columns `unit_opened` and
+        // `unit_closing` ask. The rest of a row is never read, so a row whose
+        // resource or chain this code cannot decode hides no unit opened after
+        // it, which a read of the history from its first entry does.
+        //
+        // **Which entries it visits is the planner's**, by the cost it
+        // estimates, for the opening brackets and their closes apart, and the
+        // choice moves with what the table holds and with whether the prepared
+        // statement is planned for the values asked or for any: through
+        // `0001`'s index on the realm (`journal_entries_realm`), its index on
+        // the unit (`journal_entries_work_unit`), both, or over the whole
+        // table. So a recovery here may visit every entry of every realm: no
+        // index here is the local journal's `(realm, work_unit)`.
+        //
+        // **Each unit once, at its first opening**, which is the order recovery
+        // reverses: `append` refuses a second opening bracket, so a second one
+        // is a row written around this store, and it neither repeats the unit
+        // nor moves it.
+        let rows: Vec<(i64, String)> = sqlx::query_as(
+            "SELECT MIN(opening.sequence), opening.work_unit FROM journal_entries AS opening \
+             WHERE opening.realm = $1 AND opening.action = $2 AND opening.result = $3 \
+             AND opening.work_unit IS NOT NULL \
+             AND NOT EXISTS (SELECT 1 FROM journal_entries AS closing \
+             WHERE closing.realm = opening.realm AND closing.work_unit = opening.work_unit \
+             AND closing.action = $4 AND closing.result = ANY($5)) \
+             GROUP BY opening.work_unit ORDER BY MIN(opening.sequence)",
+        )
+        .bind(realm.as_str())
+        .bind(crate::unit::OPENS)
+        .bind(Outcome::UnitBegun.as_str())
+        .bind(crate::unit::CLOSES)
+        .bind(vec![
+            Outcome::UnitCommitted.as_str().to_owned(),
+            Outcome::UnitAborted.as_str().to_owned(),
+        ])
+        .fetch_all(&mut *self.reachable().await?)
+        .await
+        .map_err(|error| unavailable(&error))?;
+        rows.into_iter()
+            .map(|(sequence, unit)| {
+                // **Read back as it was written**, for the reason `entry_from`
+                // gives: the Crockford reader is lenient, and a respelled unit
+                // is one `unit_closing` never finds by its canonical text, so
+                // read leniently it would be recovered as open for ever.
+                match Snowflake::from_crockford(&unit) {
+                    Ok(read) if read.to_crockford() == unit => Ok(read),
+                    _ => Err(Error::Undecodable {
+                        sequence: u64::try_from(sequence).unwrap_or(u64::MAX),
+                        why: format!(
+                            "the opening bracket names the work unit `{unit}`, which is not \
+                             an identifier as this code writes one, so no unit by that name \
+                             can be recovered"
+                        ),
+                    }),
+                }
+            })
+            .collect()
+    }
 }
 
 /// Why a row could not be decoded, without the sentence that says it was not.

@@ -293,6 +293,46 @@ impl Store for InMemory {
             .map(|entry| entry.record.result);
         core::future::ready(Ok(closing))
     }
+
+    fn open_units(
+        &self,
+        realm: &nc_ids::OpaqueId,
+    ) -> impl Future<Output = Result<Vec<nc_ids::Snowflake>, Error>> + Send {
+        // **The two brackets by the predicates `unit_opened` and
+        // `unit_closing` ask**, the realm and the action included: an ordinary
+        // `Write` carrying `UnitBegun` opens nothing, and a bracket in another
+        // realm's history closes nothing here. **In the order of the first
+        // opening**, and each unit once — what PostgreSQL's
+        // `GROUP BY … ORDER BY MIN(sequence)` answers.
+        let mut opened: Vec<nc_ids::Snowflake> = Vec::new();
+        let mut closed = std::collections::BTreeSet::new();
+        for entry in self
+            .entries
+            .iter()
+            .filter(|entry| &entry.record.realm == realm)
+        {
+            let Some(unit) = entry.record.work_unit else {
+                continue;
+            };
+            let record = &entry.record;
+            if record.action == crate::unit::OPENS
+                && record.result == crate::Outcome::UnitBegun
+                && !opened.contains(&unit)
+            {
+                opened.push(unit);
+            }
+            if record.action == crate::unit::CLOSES
+                && matches!(
+                    record.result,
+                    crate::Outcome::UnitCommitted | crate::Outcome::UnitAborted
+                )
+            {
+                closed.insert(unit);
+            }
+        }
+        opened.retain(|unit| !closed.contains(unit));
+        core::future::ready(Ok(opened))
+    }
 }
 
 #[cfg(test)]
@@ -324,6 +364,95 @@ mod tests {
                 found: 3
             })
         );
+    }
+
+    /// One entry of `realm`'s under `action`, ending as `result` in `unit`,
+    /// chained and appended.
+    async fn entered(
+        store: &mut InMemory,
+        realm: &str,
+        action: &str,
+        result: Outcome,
+        unit: nc_ids::Snowflake,
+    ) {
+        let sequence = u64::try_from(store.entries.len()).expect("a short test history");
+        let mut record = Record::new(
+            OpaqueId::new("user-1").expect("a test identifier"),
+            action,
+            Value::Null,
+            result,
+            sequence,
+        );
+        record.realm = OpaqueId::new(realm).expect("a test identifier");
+        record.work_unit = Some(unit);
+        let previous = store
+            .tail()
+            .await
+            .expect("readable")
+            .map(|entry| entry.hash);
+        store
+            .append(Entry::chain(sequence, previous, record))
+            .await
+            .expect("the history is well formed");
+    }
+
+    /// The units a realm left open are those it opened and never closed, each
+    /// named once, the oldest first.
+    ///
+    /// **Every clause of the two brackets, decided by an entry that shares all
+    /// but one of them**: an ordinary action carrying the opening's outcome, a
+    /// begin that was denied, a close in another realm, an ordinary action
+    /// carrying a close's outcome, a unit aborted and one committed, and a unit
+    /// whose opening bracket was written twice around the store — which
+    /// recovery would otherwise revert twice. This is what a kernel opening
+    /// over a stopped process's history recovers, newest first.
+    #[tokio::test]
+    async fn the_units_a_realm_left_open_are_named_once_each_oldest_first() {
+        let unit = |text: &str| nc_ids::Snowflake::from_crockford(text).expect("a test unit");
+        let (kept, left, lookalike, aborted, unclosed, denied, there, twice) = (
+            unit("01J8XK2M9P51"),
+            unit("01J8XK2M9P52"),
+            unit("01J8XK2M9P53"),
+            unit("01J8XK2M9P54"),
+            unit("01J8XK2M9P55"),
+            unit("01J8XK2M9P56"),
+            unit("01J8XK2M9P57"),
+            unit("01J8XK2M9P58"),
+        );
+        let (opens, closes) = (crate::unit::OPENS, crate::unit::CLOSES);
+        let mut store = InMemory::default();
+        for (realm, action, result, unit) in [
+            ("realm-1", opens, Outcome::UnitBegun, kept),
+            ("realm-1", opens, Outcome::UnitBegun, left),
+            ("realm-1", "Write", Outcome::UnitBegun, lookalike),
+            ("realm-1", closes, Outcome::UnitCommitted, kept),
+            ("realm-1", opens, Outcome::UnitBegun, aborted),
+            ("realm-1", closes, Outcome::UnitAborted, aborted),
+            ("realm-1", opens, Outcome::Denied, denied),
+            ("realm-2", opens, Outcome::UnitBegun, there),
+            ("realm-2", closes, Outcome::UnitCommitted, left),
+            ("realm-1", opens, Outcome::UnitBegun, unclosed),
+            ("realm-1", "Write", Outcome::UnitCommitted, unclosed),
+            ("realm-1", "Read", Outcome::Allowed, twice),
+        ] {
+            entered(&mut store, realm, action, result, unit).await;
+        }
+        // The last entry rewritten into a second opening of `left`, which no
+        // append would take.
+        let last = u64::try_from(store.len() - 1).expect("a short test history");
+        store.tamper(last, |entry| {
+            entry.record.action = opens.to_owned();
+            entry.record.result = Outcome::UnitBegun;
+            entry.record.work_unit = Some(left);
+        });
+        let realm = |text: &str| OpaqueId::new(text).expect("an identifier");
+        assert_eq!(
+            store.open_units(&realm("realm-1")).await,
+            Ok(vec![left, unclosed]),
+            "what a kernel of realm-1 recovers"
+        );
+        assert_eq!(store.open_units(&realm("realm-2")).await, Ok(vec![there]));
+        assert_eq!(store.open_units(&realm("realm-3")).await, Ok(Vec::new()));
     }
 
     /// One entry, chained and appended, so a test can start from a history.

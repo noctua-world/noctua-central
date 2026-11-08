@@ -4477,7 +4477,7 @@ pub(crate) struct Asserted {
 /// away, and an old wrap built from a new value are each a finding naming the
 /// file; what it **cannot** do is follow a value to where it came from, which
 /// is the reading a row records and no walk makes.
-pub(crate) const ASSERTED_STATEMENTS: [Asserted; 8] = [
+pub(crate) const ASSERTED_STATEMENTS: [Asserted; 9] = [
     // `query` is `COLUMNS`, a constant of the same file, with a `FROM` and an
     // `ORDER BY` written beside it; nothing a caller passes reaches the text.
     Asserted {
@@ -4530,6 +4530,14 @@ pub(crate) const ASSERTED_STATEMENTS: [Asserted; 8] = [
     // over the two statements.
     Asserted {
         file: "crates/nc-kernel/tests/the_decision_point.rs",
+        calls: 1,
+        from: &["statement"],
+    },
+    // The local journal's PostgreSQL leg, the same shape: one schema per
+    // script, named from a literal, the process id and the script's number,
+    // dropped and created in one loop over the two statements.
+    Asserted {
+        file: "crates/nc-local/tests/the_local_journal.rs",
         calls: 1,
         from: &["statement"],
     },
