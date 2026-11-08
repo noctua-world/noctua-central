@@ -18,6 +18,7 @@ Each table below says where its own bound comes from, in its own last column or 
 | `access_records` | `server` | `oldest-first` | `recorded` | 500000 | the whole table | 50000 | — |
 | `blobs` | `local` | `refuse-at-limit` | `created_unit` | 1000000 | the whole table | — | — |
 | `journal_entries` | `server` | `policy-pack` | `sequence` | none | — | — | audit retention for journal_entries is a per-realm policy-pack property (§15.8), so no number here can bound this table without one day pruning below what a pack promised. Until the stage that reads packs arrives, no pack declares a retention and this table grows without limit — which is a gap with a date on it rather than a bound. |
+| `local_journal_entries` | `local` | `policy-pack` | `sequence` | none | — | — | audit retention for local_journal_entries is a per-realm policy-pack property (§15.8), as it is for the server's journal_entries, so no number here can bound this table without one day pruning below what a pack promised. Until the stage that reads packs arrives, no pack declares a retention and this table grows without limit — which is a gap with a date on it rather than a bound. |
 | `store_entries` | `local` | `refuse-at-limit` | `rev_unit` | 100000 | each plugin's rows in each realm | — | — |
 | `store_notes` | `local` | `refuse-at-limit` | `unit` | 10000 | each unit's rows | — | — |
 | `store_units` | `local` | `oldest-first` | `unit` | 100000 | the whole table | 10000 | — |

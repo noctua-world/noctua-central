@@ -887,6 +887,13 @@ impl nc_journal::Store for ShortStore {
     ) -> Result<Option<Outcome>, nc_journal::Error> {
         self.0.store().unit_closing(realm, unit).await
     }
+
+    async fn open_units(
+        &self,
+        realm: &nc_ids::OpaqueId,
+    ) -> Result<Vec<nc_ids::Snowflake>, nc_journal::Error> {
+        self.0.store().open_units(realm).await
+    }
 }
 
 /// A store that reports no tail while still returning every entry.
@@ -933,6 +940,13 @@ impl nc_journal::Store for ForgetfulStore {
         unit: nc_ids::Snowflake,
     ) -> Result<Option<Outcome>, nc_journal::Error> {
         self.0.store().unit_closing(realm, unit).await
+    }
+
+    async fn open_units(
+        &self,
+        realm: &nc_ids::OpaqueId,
+    ) -> Result<Vec<nc_ids::Snowflake>, nc_journal::Error> {
+        self.0.store().open_units(realm).await
     }
 }
 
@@ -984,6 +998,13 @@ impl nc_journal::Store for FailingStore {
         unit: nc_ids::Snowflake,
     ) -> Result<Option<Outcome>, nc_journal::Error> {
         self.inner.unit_closing(realm, unit).await
+    }
+
+    async fn open_units(
+        &self,
+        realm: &nc_ids::OpaqueId,
+    ) -> Result<Vec<nc_ids::Snowflake>, nc_journal::Error> {
+        self.inner.open_units(realm).await
     }
 }
 
@@ -1183,6 +1204,38 @@ impl nc_journal::Store for TailIsOneBehind {
                     )
             })
             .map(|entry| entry.record.result);
+        async move { Ok(answer) }
+    }
+
+    // The third the trait requires, written the same way and for the same
+    // reason: the two brackets by the predicates above, each unit once at its
+    // first opening, and none of this file's cases asks it.
+    fn open_units(
+        &self,
+        realm: &nc_ids::OpaqueId,
+    ) -> impl core::future::Future<Output = Result<Vec<nc_ids::Snowflake>, nc_journal::Error>> + Send
+    {
+        let in_realm = |entry: &&Entry| entry.record.realm == *realm;
+        let mut answer: Vec<nc_ids::Snowflake> = Vec::new();
+        for entry in self.entries.iter().filter(in_realm) {
+            if let Some(unit) = entry.record.work_unit
+                && entry.record.action == nc_journal::unit::OPENS
+                && entry.record.result == nc_journal::Outcome::UnitBegun
+                && !answer.contains(&unit)
+            {
+                answer.push(unit);
+            }
+        }
+        answer.retain(|unit| {
+            !self.entries.iter().filter(in_realm).any(|entry| {
+                entry.record.work_unit == Some(*unit)
+                    && entry.record.action == nc_journal::unit::CLOSES
+                    && matches!(
+                        entry.record.result,
+                        nc_journal::Outcome::UnitCommitted | nc_journal::Outcome::UnitAborted
+                    )
+            })
+        });
         async move { Ok(answer) }
     }
 }

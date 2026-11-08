@@ -115,9 +115,7 @@
 //! it took it, whose unit is reverted while the journal may record it as kept
 //! — the journal only grows, so the two stay apart, the store's state is what
 //! the history acts on, and `kernel.unit_aborted` with the cause
-//! `journal_unknown` is the record of the reversal; a unit opened past a row
-//! of the journal the recovery cannot read, which it does not find — the read
-//! stopping there is logged as `journal.broken`; a reversal the store refuses
+//! `journal_unknown` is the record of the reversal; a reversal the store refuses
 //! for good, because a later unit that was kept changed what the unit wrote —
 //! which only a kernel that went on after `kernel.revert_failed` lets happen —
 //! and which keeps the kernel from opening until somebody repairs it; the
@@ -1845,14 +1843,14 @@ pub(crate) async fn reverted_again<E: Environment>(shared: &Shared<E>) -> Result
 /// `kernel.recovered` with `[NC-KERN-0016]`, saying whether anything was
 /// reverted.
 ///
-/// **Read from the history, then asked again of the journal.** No store
-/// answers which units are open, so they are read from the realm's entries —
-/// an opening bracket with no closing one — and each is held to the journal's
-/// own answer of how it closed before anything is done, so a close the read
-/// did not show is never overruled. A read that stops at an entry it cannot
-/// decode finds no unit opened past it, and is never silent about it: it is
-/// logged as `journal.broken`, at that entry, with the code a verification
-/// gives an entry it cannot read.
+/// **Asked of the journal's store, then asked again of the journal.** The
+/// store names this realm's units with an opening bracket and no closing one
+/// (`nc_journal::Store::open_units`), from the columns that say so and never
+/// from a read of the history — so a row nothing can decode hides no unit
+/// opened after it, and opening costs what is left open rather than the whole
+/// history — and each is held to the journal's own answer of how it closed
+/// before anything is done, so a close that landed after the store was asked
+/// is never overruled.
 ///
 /// **Newest first.** A unit's reversal is held to the store holding what the
 /// unit left, and a later unit over the same key left something else — which
@@ -1863,33 +1861,26 @@ pub(crate) async fn reverted_again<E: Environment>(shared: &Shared<E>) -> Result
 /// # Errors
 ///
 /// The first refusal, with its code, and nothing after it is recovered: the
-/// journal could not be read, could not say how a unit closed or did not take
-/// its close; or the store could not read a unit, or refused its reversal —
+/// journal could not say which units are open or how one closed, or did not
+/// take its close; or the store could not read a unit, or refused its reversal —
 /// logged as `kernel.revert_failed` — and then that unit stays as it was.
 pub(crate) async fn recover<E: Environment>(shared: &Shared<E>) -> Result<(), Refusal> {
-    let read = shared
+    let open = shared
         .journal
         .lock()
         .await
         .store()
-        .from(0)
+        .open_units(&shared.realm)
         .await
         .map_err(|error| {
             Refusal::new(
                 RefusalKind::Unavailable,
                 error.code(),
-                "the journal could not be read, so the units a stopped process left open in it \
-                 could not be found"
+                "the journal could not say which units a stopped process left open in it"
                     .to_owned(),
             )
         })?;
-    if let Some((sequence, _)) = read.stopped_at {
-        shared.log.record(&nc_log::events::JournalBroken {
-            sequence,
-            code: ErrorCode::JournalEntryTampered,
-        });
-    }
-    for unit in left_open(&read.entries, &shared.realm).into_iter().rev() {
+    for unit in open.into_iter().rev() {
         let closing = shared
             .journal
             .lock()
@@ -2007,35 +1998,6 @@ async fn let_go_of_what_closed<E: Environment>(shared: &Shared<E>) -> Result<(),
         }
     }
     Ok(())
-}
-
-/// The units `entries` open in `realm` and never close, in the order they
-/// were opened.
-///
-/// An opening is a `kernel.begin` bracket begun and a close a `kernel.unit`
-/// one committed or aborted — the brackets `nc_journal::unit` writes — of the
-/// realm this kernel serves, and of no other.
-fn left_open(entries: &[nc_journal::Entry], realm: &nc_ids::OpaqueId) -> Vec<Snowflake> {
-    let (mut opened, mut seen, mut closed) = (Vec::new(), BTreeSet::new(), BTreeSet::new());
-    for entry in entries {
-        let record = &entry.record;
-        let Some(unit) = record.work_unit.filter(|_| record.realm == *realm) else {
-            continue;
-        };
-        match (record.action.as_str(), record.result) {
-            (nc_journal::unit::OPENS, Outcome::UnitBegun) => {
-                if seen.insert(unit) {
-                    opened.push(unit);
-                }
-            }
-            (nc_journal::unit::CLOSES, Outcome::UnitCommitted | Outcome::UnitAborted) => {
-                closed.insert(unit);
-            }
-            _ => {}
-        }
-    }
-    opened.retain(|unit| !closed.contains(unit));
-    opened
 }
 
 #[cfg(test)]
@@ -3170,67 +3132,5 @@ mod tests {
             "kernel.undo",
             "an undo is shown as one, whatever its compensations labelled"
         );
-    }
-
-    /// A unit is left open when the realm asked about opened it and never
-    /// closed it: each once, in the order opened.
-    ///
-    /// Not one another realm opened, nor one closed either way, nor an entry
-    /// that carries the outcome of an opening under another action — which is
-    /// not a bracket, and opens nothing.
-    #[tokio::test]
-    async fn a_unit_is_left_open_when_its_realm_opened_it_and_never_closed_it() {
-        use nc_journal::{Closing, InMemory, Journal, Outcome, Record};
-
-        let pdp = nc_authz::Pdp::embedded("family").expect("the family pack is carried");
-        let world =
-            nc_authz::MemoryDirectory::from_world(include_str!("../../../policy/world.json"), &pdp)
-                .expect("the world loads");
-        let (home, office) = (
-            world.realm_id("home").expect("home is a realm"),
-            world.realm_id("office").expect("office is a realm"),
-        );
-        let keeper = world
-            .principal(nc_authz::PrincipalKind::User, "ana")
-            .expect("ana is a user of the world")
-            .id()
-            .clone();
-        let minter = |flake| {
-            nc_ids::Minter::new(
-                nc_ids::MachineFlake::from_value(flake).expect("a flake"),
-                nc_ids::SystemClock,
-            )
-        };
-        let mut journal =
-            Journal::new(InMemory::default(), home.clone(), keeper.clone(), minter(5));
-        let kept = journal.open_unit("kept").await.expect("opened");
-        let first = journal.open_unit("left first").await.expect("opened");
-        journal
-            .close_unit(kept, Closing::Committed)
-            .await
-            .expect("closed");
-        let aborted = journal.open_unit("aborted").await.expect("opened");
-        journal
-            .close_unit(aborted, Closing::Aborted)
-            .await
-            .expect("closed");
-        let second = journal.open_unit("left second").await.expect("opened");
-        let mut lookalike = Record::new(
-            keeper.clone(),
-            "Write",
-            nc_canon::Value::Null,
-            Outcome::UnitBegun,
-            0,
-        );
-        lookalike.work_unit = Some(journal.mint_unit().expect("a unit"));
-        journal.record(lookalike).await.expect("recorded");
-        let mut there = Journal::new(journal.store().clone(), office.clone(), keeper, minter(6));
-        let elsewhere = there
-            .open_unit("left in another realm")
-            .await
-            .expect("opened");
-        let entries = there.store().all();
-        assert_eq!(super::left_open(entries, &home), [first, second]);
-        assert_eq!(super::left_open(entries, &office), [elsewhere]);
     }
 }

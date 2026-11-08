@@ -568,7 +568,15 @@ async fn a_run_over_the_local_database_reads_the_local_tables_alone() {
                 "{}",
                 pruned.table
             ),
-            _ => assert_eq!(
+            // **The local journal**: its retention is the realm's pack's, so
+            // the run counts nothing in it and removes nothing from it.
+            Strategy::PolicyPack => assert_eq!(
+                (pruned.before, pruned.removed, &pruned.left_alone),
+                (None, 0, &Some(Untouched::APolicyPackBoundsIt)),
+                "{}",
+                pruned.table
+            ),
+            Strategy::OldestFirst => assert_eq!(
                 (pruned.before, pruned.removed, &pruned.left_alone),
                 (Some(0), 0, &None),
                 "{}",

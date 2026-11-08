@@ -2487,7 +2487,7 @@ const MIGRATIONS_ON_DISK: [&str; 12] = [
 /// before it made refused at each open. A change to a migration a build carried is a new
 /// migration; a rewrite before any release is an edit of its pin, here. The
 /// pin also sees a `sqlx` that computes its checksums otherwise.
-const LOCAL_MIGRATIONS_ON_DISK: [(&str, &str); 3] = [
+const LOCAL_MIGRATIONS_ON_DISK: [(&str, &str); 4] = [
     (
         "0001_plugin_store.sql",
         "e4f8dc74d2e625fd5c1f529d3ca3ea6ef5f2bfa8f789869ec40a2b2c645cf9f529fd7ec1c34c64b8f0ac7abb0c83fe02",
@@ -2499,6 +2499,10 @@ const LOCAL_MIGRATIONS_ON_DISK: [(&str, &str); 3] = [
     (
         "0003_unit_holds.sql",
         "aea60060279d91bab93a70175ea6ee87c81ef6fc9ecdb847fa731a00948f60e1206199b3ab9f3dd271d33f265d20a32f",
+    ),
+    (
+        "0004_local_journal.sql",
+        "5b87828b77db89a98539cf1d49db3f950490763ae66819d4615462e1759011596095fc0309d59b55c4706d7660466c55",
     ),
 ];
 
@@ -3899,7 +3903,7 @@ fn the_excused_lines_are_counted(
 #[cfg(test)]
 const EXCUSED: [(&str, usize); 6] = [
     ("allow-reference:", 73),
-    ("allow-logging:", 79),
+    ("allow-logging:", 80),
     ("allow-nondeterminism:", 20),
     ("allow-count:", 12),
     ("nc:bounded:", 31),
@@ -3924,7 +3928,7 @@ const EXCUSED: [(&str, usize); 6] = [
 /// summed out of it rather than kept beside it — so a hatch added is one row
 /// here and two numbers the test then tells you to move.
 #[cfg(test)]
-const EXCUSED_WHERE: [(&str, &str, usize); 72] = [
+const EXCUSED_WHERE: [(&str, &str, usize); 73] = [
     (".gitignore", "allow-reference:", 5),
     ("AGENTS.md", "allow-reference:", 5),
     (
@@ -3978,6 +3982,11 @@ const EXCUSED_WHERE: [(&str, &str, usize); 72] = [
         1,
     ),
     ("crates/nc-log/src/value.rs", "allow-logging:", 2),
+    (
+        "crates/nc-local/tests/the_local_journal.rs",
+        "allow-logging:",
+        1,
+    ),
     (
         "crates/nc-log/tests/every_event_reaches_the_store.rs",
         "allow-logging:",
@@ -4064,7 +4073,7 @@ const EXCUSED_WHERE: [(&str, &str, usize); 72] = [
 /// a string literal. That is why this is a written-down list rather than a rule
 /// — it says where the hatches are, and never that any of them is earned.
 #[cfg(test)]
-const EXCUSED_IN: [(&str, usize); 47] = [
+const EXCUSED_IN: [(&str, usize); 48] = [
     (".gitignore", 5),
     ("AGENTS.md", 5),
     ("crates/nc-catalog-compiler/src/ledger.rs", 2),
@@ -4085,6 +4094,7 @@ const EXCUSED_IN: [(&str, usize); 47] = [
     ("crates/nc-kernel/tests/the_decision_point.rs", 1),
     ("crates/nc-kernel/tests/units_and_history.rs", 1),
     ("crates/nc-kernel/tests/where_a_blob_is.rs", 1),
+    ("crates/nc-local/tests/the_local_journal.rs", 1),
     ("crates/nc-log/src/value.rs", 2),
     ("crates/nc-log/tests/every_event_reaches_the_store.rs", 1),
     ("crates/nc-policy/src/lib.rs", 5),
@@ -5621,7 +5631,7 @@ fn the_tools_that_judge_the_whole_tree() -> Vec<(&'static str, Vec<&'static str>
 /// every run — measured, one token changed.
 /// A suite that stops asking fails the offline run outright, which is visible; a
 /// suite that stops *saying* is the one nothing would notice.
-const ANNOUNCES_NO_DATABASE: [(&str, &str, &str, usize); 5] = [
+const ANNOUNCES_NO_DATABASE: [(&str, &str, &str, usize); 6] = [
     (
         "crates/nc-journal/tests/in_postgres.rs",
         "var_os(\"NC_NO_STACK\").is_some()",
@@ -5639,6 +5649,14 @@ const ANNOUNCES_NO_DATABASE: [(&str, &str, &str, usize); 5] = [
     // kernel stopped in a child process over it.
     (
         "crates/nc-kernel/tests/the_decision_point.rs",
+        "var_os(\"NC_NO_STACK\").is_some()",
+        "skipped, no database",
+        1,
+    ),
+    // The local journal held to PostgreSQL's, script for script: the third
+    // store of the transcript, which only a database can answer for.
+    (
+        "crates/nc-local/tests/the_local_journal.rs",
         "var_os(\"NC_NO_STACK\").is_some()",
         "skipped, no database",
         1,
@@ -7696,7 +7714,7 @@ fn ends_in_a_backslash(path: &str) -> bool {
 /// failure is silent.
 ///
 /// Each is a crate and the file cargo announces as `Running tests/<name>`.
-const SUITES: [(&str, &str); 33] = [
+const SUITES: [(&str, &str); 34] = [
     ("nc-authz", "the_embedded_pack_decides.rs"),
     ("nc-canon", "properties.rs"),
     ("nc-catalog", "the_generated_surface.rs"),
@@ -7736,6 +7754,10 @@ const SUITES: [(&str, &str); 33] = [
     // kill test among them, which runs this suite's own binary as its child.
     ("nc-local", "a_unit_lands_whole_or_not_at_all.rs"),
     ("nc-local", "opening_refuses_what_it_did_not_make.rs"),
+    // The journal kept in the same file: append-only, its link and its
+    // brackets in the insert, rows read back only as written, and every call
+    // held to the store in memory and to PostgreSQL's where a database runs.
+    ("nc-local", "the_local_journal.rs"),
     // The crate's public entry point, `Log::record`, driven end to end: the
     // other line tests drive `Log::line` against hand-written events declared
     // inside `lib.rs`, so they construct none of the generated event structs.
@@ -17052,7 +17074,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         ("nc-ids", 3),
         ("nc-journal", 5),
         ("nc-kernel", 11),
-        ("nc-local", 3),
+        ("nc-local", 4),
         ("nc-log", 2),
         ("nc-platform", 1),
         ("nc-plugin-reference", 1),
@@ -19076,7 +19098,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 148] = [
+    const DOCUMENTED: [(&str, usize, usize); 150] = [
         ("nc-authz/directory.rs", 28, 13),
         ("nc-authz/embedded.rs", 12, 4),
         ("nc-authz/lib.rs", 30, 19),
@@ -19118,13 +19140,13 @@ mod the_frozen_path_rule {
         ("nc-ids/snowflake.rs", 56, 80),
         ("nc-journal/across_threads.rs", 2, 5),
         ("nc-journal/entry.rs", 31, 16),
-        ("nc-journal/in_postgres.rs", 71, 108),
-        ("nc-journal/lib.rs", 71, 23),
-        ("nc-journal/memory.rs", 20, 11),
-        ("nc-journal/postgres.rs", 21, 11),
-        ("nc-journal/tampering.rs", 69, 60),
+        ("nc-journal/in_postgres.rs", 74, 109),
+        ("nc-journal/lib.rs", 72, 23),
+        ("nc-journal/memory.rs", 22, 12),
+        ("nc-journal/postgres.rs", 21, 12),
+        ("nc-journal/tampering.rs", 69, 64),
         ("nc-journal/the_declared_command.rs", 1, 1),
-        ("nc-journal/unit.rs", 30, 37),
+        ("nc-journal/unit.rs", 30, 40),
         ("nc-kernel/activation.rs", 23, 67),
         ("nc-kernel/backend.rs", 35, 38),
         ("nc-kernel/bindings.rs", 34, 8),
@@ -19159,21 +19181,23 @@ mod the_frozen_path_rule {
         ("nc-kernel/pump.rs", 9, 2),
         ("nc-kernel/registry.rs", 36, 24),
         ("nc-kernel/supervisor.rs", 58, 12),
-        ("nc-kernel/the_decision_point.rs", 165, 75),
+        ("nc-kernel/the_decision_point.rs", 171, 76),
         ("nc-kernel/the_reference_plugin_activates.rs", 14, 0),
-        ("nc-kernel/the_rest_of_the_world.rs", 51, 59),
+        ("nc-kernel/the_rest_of_the_world.rs", 51, 60),
         ("nc-kernel/timers.rs", 18, 5),
         ("nc-kernel/ui.rs", 43, 15),
-        ("nc-kernel/units.rs", 115, 18),
-        ("nc-kernel/units_and_history.rs", 130, 39),
+        ("nc-kernel/units.rs", 113, 18),
+        ("nc-kernel/units_and_history.rs", 144, 44),
         ("nc-kernel/where_a_blob_is.rs", 40, 36),
         ("nc-kernel/world.rs", 4, 1),
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 52, 15),
-        ("nc-local/lib.rs", 12, 8),
+        ("nc-local/journal.rs", 25, 11),
+        ("nc-local/lib.rs", 12, 9),
         ("nc-local/open.rs", 19, 6),
         ("nc-local/opening_refuses_what_it_did_not_make.rs", 64, 4),
         ("nc-local/schema.rs", 23, 2),
-        ("nc-local/store.rs", 82, 12),
+        ("nc-local/store.rs", 83, 12),
+        ("nc-local/the_local_journal.rs", 29, 12),
         ("nc-log/events.rs", 22, 110),
         ("nc-log/every_event_reaches_the_store.rs", 4, 1),
         ("nc-log/lib.rs", 19, 25),
@@ -22002,8 +22026,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 548 scratches this tree
-    /// builds, 461 of the 548 are removed however the test leaves and 87 are
+    /// directories accumulated in an afternoon. Of the 556 scratches this tree
+    /// builds, 469 of the 556 are removed however the test leaves and 87 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22069,7 +22093,7 @@ mod the_frozen_path_rule {
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 34] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 35] = [
         ("nc-catalog-compiler/ledger.rs", 1, 0),
         ("nc-catalog-compiler/the_gates_fire.rs", 149, 149),
         (
@@ -22078,13 +22102,14 @@ mod the_frozen_path_rule {
             2,
         ),
         ("nc-kernel/blobs.rs", 10, 10),
-        ("nc-kernel/the_decision_point.rs", 3, 3),
+        ("nc-kernel/the_decision_point.rs", 4, 4),
         ("nc-kernel/the_rest_of_the_world.rs", 2, 2),
         ("nc-kernel/units_and_history.rs", 3, 3),
         ("nc-kernel/where_a_blob_is.rs", 3, 3),
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 26, 26),
         ("nc-local/open.rs", 4, 4),
         ("nc-local/opening_refuses_what_it_did_not_make.rs", 43, 43),
+        ("nc-local/the_local_journal.rs", 7, 7),
         ("nc-platform/lib.rs", 14, 14),
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
         ("nc-prune/in_sqlite.rs", 13, 13),
@@ -25013,7 +25038,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15149;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15269;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25032,7 +25057,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3079;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3138;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25049,7 +25074,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1011;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1029;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25066,7 +25091,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [73, 16, 31, 32, 87];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [83, 16, 34, 35, 90];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -25083,7 +25108,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 21390;
+    const THE_REARRANGEMENTS_JUDGED: usize = 21573;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25101,7 +25126,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 463;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 482;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -25137,8 +25162,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **463 of 21,390 are accepted by the first-line
-    /// rule alone, and 239 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **482 of 21,573 are accepted by the first-line
+    /// rule alone, and 258 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -25159,8 +25184,8 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **73 ascending sorts, 16 descending, 31
-    /// swaps, 32 rotations and 87 reversals** — so the reversal is the largest
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **83 ascending sorts, 16 descending, 34
+    /// swaps, 35 rotations and 90 reversals** — so the reversal is the largest
     /// part of it, not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
@@ -25170,7 +25195,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1011 of
+    /// this tree offers, **1029 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -32906,7 +32931,8 @@ mod every_report_wire {
             &[
                 ("local-migrations/0001_first.sql", "SELECT 1;\n"),
                 ("local-migrations/0002_second.sql", "SELECT 1;\n"),
-                ("local-migrations/0004_fourth.sql", "SELECT 1;\n"),
+                ("local-migrations/0003_third.sql", "SELECT 1;\n"),
+                ("local-migrations/0005_fifth.sql", "SELECT 1;\n"),
             ],
         );
         let mut failures = Vec::new();
@@ -33332,7 +33358,7 @@ mod the_meta_gate {
     /// own doc: a module directory may be called anything. Every row here is a
     /// prefix of a workspace-relative path, anchored at its start, so what it
     /// excuses is what it names.
-    const NOT_MUTATED: [(&str, &str); 40] = [
+    const NOT_MUTATED: [(&str, &str); 41] = [
         (
             "crates/nc-platform/src/windows.rs",
             "another system's: the Windows half of what makes a path private, \
@@ -33583,6 +33609,13 @@ mod the_meta_gate {
             "a suite: opening the local database over directories and files made \
              to be refused, and over a file tampered with after it was built. The \
              rules are in `open.rs` and `schema.rs`, both edited by the runner",
+        ),
+        (
+            "crates/nc-local/tests/the_local_journal.rs",
+            "a suite: the journal kept in the local file, held to the store in \
+             memory and to PostgreSQL's, with rows planted and triggers added from \
+             a connection of its own. What it drives is `journal.rs`, edited by the \
+             runner under the crate's own command, which builds this suite",
         ),
         (
             "crates/nc-log/tests/every_event_reaches_the_store.rs",
@@ -36042,7 +36075,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 162,
+            walked, 164,
             "{walked} Rust source(s) were walked, and this tree holds 119. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -36082,7 +36115,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1703] = [
+    static OPERATORS: [(&str, &str, &str); 1715] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -42998,7 +43031,7 @@ Options:
         (
             "kernel_units",
             "recover",
-            "recovery reads the history from its start",
+            "recovery asks the journal which of this realm's units are open",
         ),
         (
             "kernel_units",
@@ -43041,24 +43074,76 @@ Options:
             "a unit recovered is logged with its code",
         ),
         (
-            "kernel_units",
-            "left_open",
+            "memory",
+            "open_units",
             "a unit another realm opened is not this realm's to recover",
         ),
         (
-            "kernel_units",
-            "left_open",
+            "memory",
+            "open_units",
             "an entry that is not a bracket opens nothing",
         ),
         (
-            "kernel_units",
-            "left_open",
-            "a unit closed as aborted is closed",
+            "memory",
+            "open_units",
+            "a begin that was not begun opens nothing",
         ),
         (
-            "kernel_units",
-            "left_open",
-            "a unit closed is not left open",
+            "memory",
+            "open_units",
+            "a unit is named once, at its first opening",
+        ),
+        ("memory", "open_units", "a unit closed as aborted is closed"),
+        (
+            "memory",
+            "open_units",
+            "only a closing bracket closes a unit",
+        ),
+        ("memory", "open_units", "a unit closed is not left open"),
+        (
+            "journal_store",
+            "open_units",
+            "PostgreSQL names the open units of the realm asked about alone",
+        ),
+        (
+            "journal_store",
+            "open_units",
+            "PostgreSQL leaves a unit closed out of the open ones",
+        ),
+        (
+            "local_journal",
+            "append",
+            "an entry lands only where the next one goes",
+        ),
+        (
+            "local_journal",
+            "append",
+            "no entry lands in a unit this realm has closed",
+        ),
+        (
+            "local_journal",
+            "append",
+            "an append something silenced is refused",
+        ),
+        (
+            "local_journal",
+            "append",
+            "a temporary object on the connection stops an append",
+        ),
+        (
+            "local_journal",
+            "why_nothing_landed",
+            "a link that does not follow the tail is told as one",
+        ),
+        (
+            "local_journal",
+            "entry_from",
+            "a row whose stored hash is not its contents' is refused",
+        ),
+        (
+            "local_journal",
+            "open_units",
+            "the local journal names the open units of the realm asked about alone",
         ),
         (
             "kernel_units",
@@ -43108,7 +43193,7 @@ Options:
         (
             "kernel_units",
             "recover",
-            "a read of the history cut short is logged",
+            "every unit a stopped process left open is recovered",
         ),
         (
             "kernel_units",

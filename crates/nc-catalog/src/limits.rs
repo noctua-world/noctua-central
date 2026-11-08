@@ -72,6 +72,14 @@ pub const TABLES: &[TableLimit] = &[
         prune_batch: None,
     },
     TableLimit {
+        name: "local_journal_entries",
+        database: Database::LocalFile,
+        strategy: Strategy::PolicyPack,
+        order_by: "sequence",
+        max_rows: None,
+        prune_batch: None,
+    },
+    TableLimit {
         name: "store_entries",
         database: Database::LocalFile,
         strategy: Strategy::RefuseAtLimit,

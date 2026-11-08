@@ -2162,7 +2162,7 @@ mod tests {
     fn the_local_migrations_build_exactly_the_listed_schema() {
         let built = super::the_local_schema(root()).expect("the shipped migrations");
         assert_eq!(built.objects, nc_local::schema::EXPECTED.len());
-        assert_eq!(built.migrations, 3);
+        assert_eq!(built.migrations, 4);
         assert!(built.sqlite.starts_with("3."), "{}", built.sqlite);
     }
 
@@ -2263,7 +2263,7 @@ mod tests {
 
         let added = edited("added", |into| {
             std::fs::write(
-                into.join("0004_more.sql"),
+                into.join("0005_more.sql"),
                 "CREATE TABLE extra (id INTEGER PRIMARY KEY);\n",
             )
             .expect("written");
@@ -2291,7 +2291,7 @@ mod tests {
     fn a_row_whose_foreign_key_names_nothing_is_refused() {
         let orphaned = edited("orphaned", |into| {
             std::fs::write(
-                into.join("0004_an_orphan.sql"),
+                into.join("0005_an_orphan.sql"),
                 "-- no-transaction\nPRAGMA foreign_keys = OFF;\n\
                  INSERT INTO store_notes (unit, seq, note) VALUES (1, 0, '1');\n",
             )
@@ -2306,7 +2306,7 @@ mod tests {
     fn a_migration_that_does_not_apply_is_refused() {
         let broken = edited("broken", |into| {
             std::fs::write(
-                into.join("0004_broken.sql"),
+                into.join("0005_broken.sql"),
                 "CREATE TABLE store_units (x);\n",
             )
             .expect("written");

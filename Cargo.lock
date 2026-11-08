@@ -1796,6 +1796,7 @@ dependencies = [
  "nc-canon",
  "nc-catalog",
  "nc-ids",
+ "nc-journal",
  "nc-local",
  "nc-platform",
  "proptest",

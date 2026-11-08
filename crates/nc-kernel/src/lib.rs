@@ -288,18 +288,18 @@ impl<E: Environment> Kernel<E> {
     /// aborted, what the store kept of it — a process stopped between the
     /// store's commit and the journal's close — reverted first, newest first,
     /// and each is logged as `kernel.recovered` with `[NC-KERN-0016]`. So a
-    /// kernel opens over a store holding nothing of a unit it found open. **Not
-    /// of one it did not find**: the history is read from its first entry, and
-    /// a unit opened past an entry that read cannot decode is not found — the
-    /// read stopping there is logged as `journal.broken`, with the code a
-    /// verification gives that entry — and the cases `crate::units` names as
-    /// not answered are not closed here either.
+    /// kernel opens over a store holding nothing of a unit it found open, and it
+    /// finds every one the journal's store names as open
+    /// (`nc_journal::Store::open_units`), which no entry the journal cannot
+    /// decode hides. The cases `crate::units` names as not answered are not
+    /// closed here.
     ///
     /// # Errors
     ///
     /// [`OpenError::Engine`] when wasmtime refuses the engine's configuration,
     /// and [`OpenError::Unrecovered`] when a unit left open could not be
-    /// recovered: the journal could not be read or would not take its close,
+    /// recovered: the journal could not say which units are open or would not
+    /// take a close,
     /// or the store could not be read or refused its reversal, which is logged
     /// as `kernel.revert_failed`. Nothing runs over a store holding what the
     /// journal never kept, so the kernel does not open, and opening it again
