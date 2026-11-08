@@ -10,7 +10,9 @@
 //!
 //! [`MemoryDirectory`] is the one this stage runs: the world of
 //! `policy/world.json`, the grants and epochs a test gives it, and nothing
-//! else. The directory over the grants table is Stage 22's.
+//! else. The directory over the grants table is Stage 22's. A profile's
+//! `world.json` is read by [`LocalWorld::parse`] into the realm and the person
+//! a daemon decides as, and that directory over the rest.
 //!
 //! # What it answers (`§2.4`)
 //!
@@ -349,6 +351,111 @@ impl MemoryDirectory {
     }
 }
 
+/// What a profile decides as: one realm, the person every dispatch is decided
+/// for, and the world of entities around them (`NOCTUA.md §5.13`).
+///
+/// **One canonical document**, the profile's `world.json`:
+/// `{"person":…,"realm":…,"world":[…]}`, the world written as Cedar's JSON
+/// entity list and loaded with the decision point's schema. The realm and the
+/// person are minted here, as every principal is, and only for entities the
+/// world holds — the person inside that realm — so a profile cannot name a
+/// principal it has no entity for, and the daemon, which reaches the central
+/// log, mints neither.
+#[derive(Debug)]
+pub struct LocalWorld {
+    realm: OpaqueId,
+    person: Principal,
+    directory: MemoryDirectory,
+}
+
+/// The keys a world file holds, and no other.
+const WORLD_KEYS: [&str; 3] = ["person", "realm", "world"];
+
+impl LocalWorld {
+    /// The world `text` says, read as the decision point `pdp` reads entities.
+    ///
+    /// # Errors
+    ///
+    /// [`DirectoryError::Malformed`] for text that is not one canonical JSON
+    /// object holding the three keys and nothing else, a realm or a person
+    /// that is not text, a world that is not a list or that the schema does
+    /// not load, a realm the world does not hold, and a person it does not
+    /// hold inside that realm.
+    pub fn parse(text: &str, pdp: &Pdp) -> Result<Self, DirectoryError> {
+        let malformed = |why: String| DirectoryError::Malformed(why);
+        let value = nc_canon::parse(text)
+            .map_err(|error| malformed(format!("a world file is not JSON this reads: {error}")))?;
+        // **Written one way**: the installer writes it canonically, so a file
+        // in any other spelling is one something else wrote.
+        if value.to_canonical() != text {
+            return Err(malformed(
+                "a world file is not written canonically, as the installer writes one".to_owned(),
+            ));
+        }
+        let nc_canon::Value::Object(fields) = &value else {
+            return Err(malformed("a world file is not one object".to_owned()));
+        };
+        if let Some(key) = fields
+            .keys()
+            .find(|key| !WORLD_KEYS.contains(&key.as_str()))
+        {
+            return Err(malformed(format!(
+                "a world file holds the key {key:?}, which it does not read"
+            )));
+        }
+        let named = |key: &str| match fields.get(key) {
+            Some(nc_canon::Value::Text(name)) => Ok(name.as_str()),
+            _ => Err(malformed(format!(
+                "a world file's {key:?} is missing or not text"
+            ))),
+        };
+        let (realm, person) = (named("realm")?, named("person")?);
+        let Some(world @ nc_canon::Value::Array(_)) = fields.get("world") else {
+            return Err(malformed(
+                "a world file's \"world\" is missing or not a list of entities".to_owned(),
+            ));
+        };
+        let directory = MemoryDirectory::from_world(&world.to_canonical(), pdp)?;
+        let minted = directory
+            .realm_id(realm)
+            .ok_or_else(|| malformed(format!("the world holds no realm {realm:?}")))?;
+        let inside = uid(PrincipalKind::User.type_name(), person)
+            .zip(uid(REALM, realm))
+            .is_some_and(|(user, realm)| directory.holds_in(&user, &realm));
+        let principal = directory
+            .principal(PrincipalKind::User, person)
+            .filter(|_| inside)
+            .ok_or_else(|| {
+                malformed(format!(
+                    "the world holds no person {person:?} inside the realm {realm:?}"
+                ))
+            })?;
+        Ok(Self {
+            realm: minted,
+            person: principal,
+            directory,
+        })
+    }
+
+    /// The realm every dispatch is decided in.
+    #[must_use]
+    pub const fn realm(&self) -> &OpaqueId {
+        &self.realm
+    }
+
+    /// The person every dispatch is decided as.
+    #[must_use]
+    pub const fn person(&self) -> &Principal {
+        &self.person
+    }
+
+    /// The directory over the world's entities, which a kernel is opened with.
+    #[must_use]
+    pub fn into_directory(self) -> MemoryDirectory {
+        self.directory
+    }
+}
+
 /// A string attribute of an entity, or nothing when it has none of that name and type.
 fn text_of(entity: &Entity, attribute: &str) -> Option<String> {
     match entity.attr(attribute) {
@@ -395,7 +502,77 @@ impl Directory for MemoryDirectory {
 mod tests {
     use std::collections::BTreeSet;
 
-    use super::PrincipalKind;
+    use super::{DirectoryError, LocalWorld, PrincipalKind};
+
+    /// The entities every policy case is about, which a development profile's
+    /// world is written from.
+    const WORLD: &str = include_str!("../../../policy/world.json");
+
+    /// A world file as the installer writes one: `realm`, `person` and the
+    /// entities, canonical.
+    fn written(realm: &str, person: &str) -> String {
+        let world = nc_canon::parse(WORLD).expect("the policy world is JSON");
+        let mut fields = std::collections::BTreeMap::new();
+        fields.insert("realm".to_owned(), nc_canon::Value::Text(realm.to_owned()));
+        fields.insert(
+            "person".to_owned(),
+            nc_canon::Value::Text(person.to_owned()),
+        );
+        fields.insert("world".to_owned(), world);
+        nc_canon::Value::Object(fields).to_canonical()
+    }
+
+    fn refused(text: &str) -> String {
+        let pdp = crate::Pdp::embedded("family").expect("the family pack is carried");
+        match LocalWorld::parse(text, &pdp) {
+            Err(DirectoryError::Malformed(why)) => why,
+            other => panic!("a world file was not refused as malformed: {other:?}"),
+        }
+    }
+
+    /// A world file names its realm and its person, each minted for an entity
+    /// the world holds, and the directory over the rest.
+    #[test]
+    fn a_world_file_names_the_realm_and_the_person_it_decides_as() {
+        let pdp = crate::Pdp::embedded("family").expect("the family pack is carried");
+        let world = LocalWorld::parse(&written("home", "ana"), &pdp).expect("the world reads");
+        assert_eq!(world.realm().as_str(), "home");
+        assert_eq!(world.person().kind(), PrincipalKind::User);
+        assert_eq!(world.person().id().as_str(), "ana");
+        let directory = world.into_directory();
+        assert!(directory.principal(PrincipalKind::User, "bruno").is_some());
+    }
+
+    /// Each way a world file is not one this reads is refused, by what it is.
+    #[test]
+    fn a_world_file_that_is_not_one_this_reads_is_refused() {
+        let good = written("home", "ana");
+        assert!(refused("not json").contains("not JSON"));
+        assert!(refused(&format!(" {good}")).contains("canonically"));
+        assert!(refused("[]").contains("not one object"));
+        let extra = good.replacen("{\"person\"", "{\"grant\":\"g.current\",\"person\"", 1);
+        assert!(refused(&extra).contains("\"grant\""), "{}", refused(&extra));
+        let no_realm = good.replacen(",\"realm\":\"home\"", "", 1);
+        assert!(refused(&no_realm).contains("\"realm\" is missing"));
+        let numbered = good.replacen("\"person\":\"ana\"", "\"person\":7", 1);
+        assert!(refused(&numbered).contains("\"person\" is missing or not text"));
+        assert!(
+            refused("{\"person\":\"ana\",\"realm\":\"home\",\"world\":{}}").contains("not a list")
+        );
+        // A list the schema does not load is the schema's refusal, by Cedar's
+        // own words, and none of this reader's.
+        let unloaded = refused("{\"person\":\"ana\",\"realm\":\"home\",\"world\":[{\"uid\":1}]}");
+        assert!(
+            !unloaded.starts_with("a world file") && !unloaded.starts_with("the world holds"),
+            "{unloaded}"
+        );
+        assert!(refused(&written("nowhere", "ana")).contains("no realm \"nowhere\""));
+        assert!(refused(&written("home", "zed")).contains("no person \"zed\""));
+        // **A person of another realm is not this realm's**: `mallory` is the
+        // world's, in `office`, and a profile deciding in `home` as her would
+        // decide as a principal the realm does not hold.
+        assert!(refused(&written("home", "mallory")).contains("inside the realm \"home\""));
+    }
 
     #[test]
     fn every_kind_of_principal_is_a_principal_type_the_schema_declares() {

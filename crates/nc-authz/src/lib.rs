@@ -68,8 +68,8 @@ mod directory;
 mod embedded;
 
 pub use directory::{
-    Directory, DirectoryError, GrantFacts, MemoryDirectory, Principal, PrincipalKind, RealmFacts,
-    Slice,
+    Directory, DirectoryError, GrantFacts, LocalWorld, MemoryDirectory, Principal, PrincipalKind,
+    RealmFacts, Slice,
 };
 
 /// Declares the sentinel module, and lists every sentinel it declares in its `ALL`.

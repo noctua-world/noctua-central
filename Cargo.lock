@@ -1688,6 +1688,7 @@ version = "0.1.0-rc.1"
 dependencies = [
  "cedar-policy",
  "nc-authz",
+ "nc-canon",
  "nc-catalog",
  "nc-ids",
  "nc-policy",

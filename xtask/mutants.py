@@ -3224,6 +3224,17 @@ WEAKENINGS = [
     ("authz_directory", "principal", "a principal is minted only for an entity the world holds",
      "        self.world.get(&uid(kind.type_name(), id)?)?;\n        Some(Principal",
      "        Some(Principal"),
+    # A profile's world file: one spelling, three keys, and a person of the
+    # realm it names — each refused otherwise by `nc-authz`'s own tests.
+    ("authz_directory", "parse", "a world file in another spelling is refused",
+     "        if value.to_canonical() != text {",
+     "        if false {"),
+    ("authz_directory", "parse", "a key a world file does not read is refused",
+     "            .find(|key| !WORLD_KEYS.contains(&key.as_str()))\n",
+     "            .find(|_| false)\n"),
+    ("authz_directory", "parse", "the person is one of the realm's",
+     "            .filter(|_| inside)\n",
+     ""),
     ("authz_embedded", "carried", "a profile selects only its own pack",
      "    CARRIED.iter().find(|pack| pack.profile == profile)",
      "    CARRIED.iter().find(|_| true)"),

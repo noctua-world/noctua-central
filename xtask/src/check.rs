@@ -19106,7 +19106,7 @@ mod the_frozen_path_rule {
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
     const DOCUMENTED: [(&str, usize, usize); 152] = [
-        ("nc-authz/directory.rs", 28, 13),
+        ("nc-authz/directory.rs", 38, 15),
         ("nc-authz/embedded.rs", 12, 4),
         ("nc-authz/lib.rs", 30, 19),
         ("nc-authz/the_embedded_pack_decides.rs", 24, 30),
@@ -25047,7 +25047,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15567;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15580;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25066,7 +25066,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3218;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3227;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25083,7 +25083,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1056;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1059;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25117,7 +25117,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 21911;
+    const THE_REARRANGEMENTS_JUDGED: usize = 21924;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25171,7 +25171,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **480 of 21,911 are accepted by the first-line
+    /// rules the gates apply: **480 of 21,924 are accepted by the first-line
     /// rule alone, and 256 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25204,7 +25204,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1056 of
+    /// this tree offers, **1059 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -36138,7 +36138,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1770] = [
+    static OPERATORS: [(&str, &str, &str); 1773] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -39326,6 +39326,21 @@ Options:
             "authz_directory",
             "principal",
             "a principal is minted only for an entity the world holds",
+        ),
+        (
+            "authz_directory",
+            "parse",
+            "a world file in another spelling is refused",
+        ),
+        (
+            "authz_directory",
+            "parse",
+            "a key a world file does not read is refused",
+        ),
+        (
+            "authz_directory",
+            "parse",
+            "the person is one of the realm's",
         ),
         (
             "authz_embedded",
