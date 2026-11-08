@@ -676,10 +676,9 @@ fn each_is_refused_with_its_code(cases: Vec<(&str, String, ErrorCode)>) {
 fn a_manifest_this_build_cannot_read_is_refused_as_unreadable() {
     let production = manifest(r#","channel":"production""#);
     let unreadable = ErrorCode::ChannelManifestUnreadable;
-    let base_as_a_number = production.replacen(&base_text("data"), "7", 1);
     let bases_as_a_list =
         format!("{{\"bases\":[],\"channel\":\"production\",\"format\":{FORMAT}}}");
-    each_is_refused_with_its_code(vec![
+    let mut cases = vec![
         (
             "an unknown key",
             manifest(r#","channel":"production","port":1"#),
@@ -726,7 +725,6 @@ fn a_manifest_this_build_cannot_read_is_refused_as_unreadable() {
             unreadable,
         ),
         ("bases written as a list", bases_as_a_list, unreadable),
-        ("a base written as a number", base_as_a_number, unreadable),
         (
             "a namespace written as null",
             manifest(r#","channel":"production","namespace":null"#),
@@ -743,12 +741,40 @@ fn a_manifest_this_build_cannot_read_is_refused_as_unreadable() {
             unreadable,
         ),
         ("no channel", manifest(""), unreadable),
+    ];
+    // Each of the four bases is read by a call of its own too, so each is
+    // asked twice: written as a number, and taken out of a manifest that
+    // still holds the other three.
+    for (key, as_a_number, taken_out) in [
+        ("cache", "a cache base written as a number", "no cache base"),
         (
-            "a missing base",
-            production.replacen(&format!("\"cache\":{},", base_text("cache")), "", 1),
-            unreadable,
+            "config",
+            "a configuration base written as a number",
+            "no configuration base",
         ),
-    ]);
+        ("data", "a data base written as a number", "no data base"),
+        ("state", "a state base written as a number", "no state base"),
+    ] {
+        let others: Vec<String> = ["cache", "config", "data", "state"]
+            .into_iter()
+            .filter(|other| *other != key)
+            .map(|other| format!("\"{other}\":{}", base_text(other)))
+            .collect();
+        cases.push((
+            as_a_number,
+            production.replacen(&base_text(key), "7", 1),
+            unreadable,
+        ));
+        cases.push((
+            taken_out,
+            format!(
+                "{{\"bases\":{{{}}},\"channel\":\"production\",\"format\":{FORMAT}}}",
+                others.join(",")
+            ),
+            unreadable,
+        ));
+    }
+    each_is_refused_with_its_code(cases);
 }
 
 /// A manifest holding a wrong value is refused with that value's own code.

@@ -36096,7 +36096,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1743] = [
+    static OPERATORS: [(&str, &str, &str); 1747] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -43802,6 +43802,26 @@ Options:
             "channel",
             "Install",
             "a checkout outside a development install is refused",
+        ),
+        (
+            "channel",
+            "Install",
+            "a data base that is missing or not text is refused",
+        ),
+        (
+            "channel",
+            "Install",
+            "a configuration base that is missing or not text is refused",
+        ),
+        (
+            "channel",
+            "Install",
+            "a cache base that is missing or not text is refused",
+        ),
+        (
+            "channel",
+            "Install",
+            "a state base that is missing or not text is refused",
         ),
         (
             "channel",
