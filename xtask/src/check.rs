@@ -19330,7 +19330,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 152] = [
+    const DOCUMENTED: [(&str, usize, usize); 153] = [
         ("nc-authz/directory.rs", 28, 13),
         ("nc-authz/embedded.rs", 12, 4),
         ("nc-authz/lib.rs", 30, 19),
@@ -19437,7 +19437,8 @@ mod the_frozen_path_rule {
         ("nc-log/lib.rs", 19, 25),
         ("nc-log/ship.rs", 106, 50),
         ("nc-log/value.rs", 18, 36),
-        ("nc-platform/lib.rs", 45, 21),
+        ("nc-platform/lib.rs", 45, 22),
+        ("nc-platform/service.rs", 155, 18),
         ("nc-platform/testing.rs", 24, 1),
         ("nc-platform/unix.rs", 46, 2),
         ("nc-platform/windows.rs", 84, 11),
@@ -19461,7 +19462,7 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 672, 56),
+        ("xtask/check.rs", 675, 56),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 45, 29),
         ("xtask/database.rs", 30, 6),
@@ -22260,8 +22261,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 565 scratches this tree
-    /// builds, 478 of the 565 are removed however the test leaves and 87 are
+    /// directories accumulated in an afternoon. Of the 571 scratches this tree
+    /// builds, 484 of the 571 are removed however the test leaves and 87 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22327,7 +22328,7 @@ mod the_frozen_path_rule {
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 35] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 36] = [
         ("nc-catalog-compiler/ledger.rs", 1, 0),
         ("nc-catalog-compiler/the_gates_fire.rs", 149, 149),
         (
@@ -22345,6 +22346,7 @@ mod the_frozen_path_rule {
         ("nc-local/opening_refuses_what_it_did_not_make.rs", 43, 43),
         ("nc-local/the_local_journal.rs", 9, 9),
         ("nc-platform/lib.rs", 14, 14),
+        ("nc-platform/service.rs", 6, 6),
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
         ("nc-prune/in_sqlite.rs", 13, 13),
         ("xtask/build.rs", 8, 8),
@@ -25307,7 +25309,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15583;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15877;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25326,7 +25328,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3202;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3369;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25343,7 +25345,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1051;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1109;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25377,7 +25379,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 21952;
+    const THE_REARRANGEMENTS_JUDGED: usize = 22317;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25395,7 +25397,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 480;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 481;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -25431,7 +25433,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **480 of 21,952 are accepted by the first-line
+    /// rules the gates apply: **481 of 22,317 are accepted by the first-line
     /// rule alone, and 256 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25464,7 +25466,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1051 of
+    /// this tree offers, **1109 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -34382,56 +34384,131 @@ mod the_meta_gate {
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let python = std::fs::read_to_string(root.join("xtask/mutants.py"))
             .expect("the meta-gate is in this repository");
-        // Quoted, because this file's prose names the same filters in backticks
-        // and a rule that read those would be about the comments.
-        //
-        // **Line by line, because this file opens with a `"""` docstring.**
-        // Pairing quotes across the whole text starts one quote out of step at
-        // the first line and stays there, and reads `0 suite filter(s)` from a
-        // file full of them.
-        let mut filters: Vec<String> = Vec::new();
-        for line in python.lines() {
-            for word in quoted(line) {
-                if word.ends_with("::")
-                    && word.len() > 2
-                    && word[..word.len() - 2]
-                        .chars()
-                        .all(|letter| letter.is_ascii_lowercase() || letter == '_')
-                {
-                    filters.push(word);
-                }
-            }
-        }
-        filters.sort();
-        filters.dedup();
+        let default = the_runners_default_command(&python);
+        let fallback = default
+            .windows(2)
+            .find(|pair| pair[0] == "-p")
+            .map(|pair| pair[1].clone())
+            .expect("the runner's default command names its package");
+        let filters = the_filters_and_their_packages(&python, &fallback);
         assert!(
             filters.len() > 10,
             "{} suite filter(s) were read from the runner, which is not this runner — \
              every finding this rule can make is read out of one",
             filters.len()
         );
-        for filter in &filters {
+        for (filter, package) in &filters {
             let named = filter.trim_end_matches("::");
-            // The module may belong to `xtask` or to the crate whose own suite
-            // decides a source; both are `<package root>/src/<name>.rs`.
-            let candidates = [
-                root.join(format!("xtask/src/{named}.rs")),
-                root.join(format!("crates/nc-catalog-compiler/src/{named}.rs")),
-            ];
-            let found = candidates.iter().find(|path| path.is_file());
-            let Some(path) = found else {
-                panic!(
-                    "the runner narrows a command with `{filter}`, and no module of \
-                     that name is in this tree. A filter that names nothing runs \
-                     nothing, and every operator behind it comes back SURVIVED with \
-                     the summary reporting the filter it was given"
-                );
-            };
-            let text = std::fs::read_to_string(path).expect("a module is readable");
+            // **In the package the command names, and nowhere else**: a module
+            // of that name in another crate is one the command never runs, so
+            // the filter would narrow it to nothing all the same.
+            let path = root
+                .join(the_sources_of(package))
+                .join(format!("{named}.rs"));
+            assert!(
+                path.is_file(),
+                "the runner narrows a command of `{package}` with `{filter}`, and \
+                 `{package}` has no module of that name. A filter that names nothing \
+                 runs nothing, and every operator behind it comes back SURVIVED with \
+                 the summary reporting the filter it was given"
+            );
+            let text = std::fs::read_to_string(&path).expect("a module is readable");
             assert!(
                 text.contains("#[test]"),
                 "the runner narrows a command with `{filter}`, and that module holds \
                  no test. A filter is only worth the tests it selects"
+            );
+        }
+    }
+
+    /// Every suite filter the runner quotes, beside the package it narrows.
+    ///
+    /// **The package is the one quoted after a quoted `-p` on the filter's own
+    /// line.** A line naming none is a filter of the runner's default command,
+    /// whose package is `fallback`: the `SUITES` rows, and the lines of a row
+    /// written one word a line, whose `-p` is a line of its own. A row of
+    /// another package written that way is read as `fallback`'s and refused,
+    /// never resolved in a crate its command does not run.
+    ///
+    /// Quoted, because the runner's prose names the same filters in backticks
+    /// and a rule that read those would be about the comments; and line by
+    /// line, because the runner opens with a `"""` docstring, and quotes paired
+    /// across the whole text start one out of step and stay there.
+    fn the_filters_and_their_packages(python: &str, fallback: &str) -> Vec<(String, String)> {
+        let mut filters: Vec<(String, String)> = Vec::new();
+        for line in python.lines() {
+            let words = quoted(line);
+            let package = words
+                .windows(2)
+                .find(|pair| pair[0] == "-p")
+                .map_or(fallback, |pair| pair[1].as_str());
+            for word in &words {
+                if word.ends_with("::")
+                    && word.len() > 2
+                    && word[..word.len() - 2]
+                        .chars()
+                        .all(|letter| letter.is_ascii_lowercase() || letter == '_')
+                {
+                    filters.push((word.clone(), package.to_owned()));
+                }
+            }
+        }
+        filters.sort();
+        filters.dedup();
+        filters
+    }
+
+    /// Where the sources of `package` are: the way back from [`the_package_owning`].
+    fn the_sources_of(package: &str) -> String {
+        if package == "xtask" {
+            return "xtask/src".to_owned();
+        }
+        if let Some(plugin) = package.strip_prefix("nc-plugin-") {
+            return format!("plugins/{plugin}/src");
+        }
+        format!("crates/{package}/src")
+    }
+
+    /// A suite filter is resolved in the package its own command names.
+    ///
+    /// **And never in another crate that happens to hold a module of that
+    /// name**: `service::` names a module of `nc-platform`, and on a line of
+    /// the default command, whose package is `xtask`, it narrows that command
+    /// to nothing.
+    #[test]
+    fn a_suite_filter_is_resolved_in_the_package_its_command_names() {
+        let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+        let rows = "    \"policy\": [\"corpus::\", \"service::\"],\n    \
+                    \"service\": [\"cargo\", \"test\", \"-q\", \"-p\", \"nc-platform\", \"--\", \
+                    \"service::\", \"--skip\", \"with_the_manager\"],\n";
+        let filters = the_filters_and_their_packages(rows, "xtask");
+        let read = |filter: &str, package: &str| (filter.to_owned(), package.to_owned());
+        assert_eq!(
+            filters,
+            [
+                read("corpus::", "xtask"),
+                read("service::", "nc-platform"),
+                read("service::", "xtask"),
+            ]
+        );
+        let resolved = |package: &str| {
+            root.join(the_sources_of(package))
+                .join("service.rs")
+                .is_file()
+        };
+        assert!(
+            resolved("nc-platform") && !resolved("xtask"),
+            "`service::` resolved where its command does not run it"
+        );
+        for package in [
+            "xtask",
+            "nc-platform",
+            "nc-catalog-compiler",
+            "nc-plugin-reference",
+        ] {
+            assert_eq!(
+                the_package_owning(&format!("{}/lib.rs", the_sources_of(package))),
+                package
             );
         }
     }
@@ -36654,7 +36731,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 166,
+            walked, 167,
             "{walked} Rust source(s) were walked, and this tree holds 119. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -36694,7 +36771,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1785] = [
+    static OPERATORS: [(&str, &str, &str); 1824] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -44644,6 +44721,197 @@ Options:
         ("channel", "spelled", "a spelled character opens with `_`"),
         ("channel", "spelled", "a spelled character closes with `_`"),
         ("channel", "spelled", "nobody is written as somebody"),
+        (
+            "platform_service",
+            "systemd_word",
+            "a `%` in a unit is written twice",
+        ),
+        (
+            "platform_service",
+            "systemd_word",
+            "a `$` in a unit is written twice",
+        ),
+        (
+            "platform_service",
+            "systemd_word",
+            "a quote inside a unit's word is escaped",
+        ),
+        (
+            "platform_service",
+            "systemd_word",
+            "a backslash inside a unit's word is escaped",
+        ),
+        (
+            "platform_service",
+            "systemd_unit",
+            "a description keeps its `%` from systemd's specifiers",
+        ),
+        (
+            "platform_service",
+            "systemd_unit",
+            "a unit restarts on failure",
+        ),
+        (
+            "platform_service",
+            "xml_text",
+            "an `&` in XML is its entity",
+        ),
+        ("platform_service", "xml_text", "a `<` in XML is its entity"),
+        (
+            "platform_service",
+            "windows_argument",
+            "a run of backslashes before a quote is doubled",
+        ),
+        (
+            "platform_service",
+            "windows_argument",
+            "a word holding a space is quoted",
+        ),
+        (
+            "platform_service",
+            "windows_argument",
+            "the backslashes before the closing quote are doubled",
+        ),
+        (
+            "platform_service",
+            "task_xml",
+            "a `%` is refused where Task Scheduler expands it",
+        ),
+        (
+            "platform_service",
+            "utf16_with_its_mark",
+            "a task's XML carries its byte-order mark",
+        ),
+        (
+            "platform_service",
+            "in_an_absolute_entry",
+            "a relative entry of PATH is never searched",
+        ),
+        (
+            "platform_service",
+            "found",
+            "the runtime directory is handed to systemctl where it is unset",
+        ),
+        (
+            "platform_service",
+            "found",
+            "a relative runtime directory is not taken",
+        ),
+        (
+            "platform_service",
+            "ran_since",
+            "a restart of systemd's is counted, not assumed",
+        ),
+        (
+            "platform_service",
+            "ran_since",
+            "a run of launchd's is counted, not assumed",
+        ),
+        (
+            "platform_service",
+            "ran_since",
+            "a task ran again only when its last run moved",
+        ),
+        (
+            "platform_service",
+            "running",
+            "a unit runs only with a process",
+        ),
+        (
+            "platform_service",
+            "from_launchctl_print",
+            "a line of a nested block is not the service's own",
+        ),
+        (
+            "platform_service",
+            "launchd_labels",
+            "the services block alone is read",
+        ),
+        (
+            "platform_service",
+            "csv_fields",
+            "a doubled quote inside a field is one quote",
+        ),
+        (
+            "platform_service",
+            "takes",
+            "a systemd name ends in `.service`",
+        ),
+        (
+            "platform_service",
+            "is_a_plain_name",
+            "a name opens with a letter or a digit",
+        ),
+        (
+            "platform_service",
+            "described",
+            "a control character is refused",
+        ),
+        (
+            "platform_service",
+            "described",
+            "a program is an absolute path",
+        ),
+        (
+            "platform_service",
+            "under",
+            "a listing is narrowed to the prefix asked",
+        ),
+        (
+            "platform_service",
+            "not_held",
+            "a name the manager holds is never registered over",
+        ),
+        (
+            "platform_service",
+            "a_refused_load_leaves_it_loaded",
+            "a refused bootstrap takes back its file alone",
+        ),
+        (
+            "platform_service",
+            "found",
+            "a relative SystemRoot is not taken",
+        ),
+        (
+            "platform_service",
+            "is_an_absolute_windows_path",
+            "a root on no drive is not absolute",
+        ),
+        (
+            "platform_service",
+            "loaded",
+            "a registration its manager took stands whatever its copy",
+        ),
+        (
+            "platform_service",
+            "running",
+            "a task that refused a repetition still runs",
+        ),
+        (
+            "platform_service",
+            "from_schtasks",
+            "a task's row is held to the task asked",
+        ),
+        (
+            "platform_service",
+            "owner_lives",
+            "a scratch whose owner holds its lock is kept",
+        ),
+        (
+            "platform_service",
+            "too_new",
+            "a scratch whose age cannot be read is too new",
+        ),
+        (
+            "platform_service",
+            "sweep_scratches",
+            "a scratch too new to judge is left alone",
+        ),
+        (
+            "platform_service",
+            "sweep_scratches",
+            "a sweep keeps to its checkout's prefix",
+        ),
     ];
 
     /// The prefix Python reads in front of the quote at `at`, lower-cased.
@@ -47415,7 +47683,17 @@ impl<T: Shown> Shown for Option<T> {
                 .and_then(|at| names.get(at + 1))
                 .cloned()
         };
-        after("--")
+        // **A `--skip` narrows too, and is no filter**: read as the word after
+        // `--`, `-- --skip with_the_manager` was a narrowing to `--skip`. What
+        // it names is left out, and the phrase says so after whatever the rest
+        // of the command runs.
+        let skipped = names
+            .windows(2)
+            .filter(|pair| pair[0] == "--skip")
+            .map(|pair| format!("except {}", pair[1]));
+        let narrowed = after("--")
+            .filter(|word| word != "--skip")
+            .map(|filter| filter.trim_end_matches(':').to_owned())
             .or_else(|| after("--test"))
             .or_else(|| after("--bin"))
             .or_else(|| {
@@ -47423,7 +47701,9 @@ impl<T: Shown> Shown for Option<T> {
                     .iter()
                     .any(|word| word == "--lib")
                     .then(|| "unit tests".to_owned())
-            })
+            });
+        let said: Vec<String> = narrowed.into_iter().chain(skipped).collect();
+        (!said.is_empty()).then(|| said.join(" "))
     }
 
     /// The phrase for a source's first command, with its second half checked off.
