@@ -62,6 +62,8 @@ Every error this platform declares. A code is **append-only**: it identifies one
 | `NC-IPC-0013` | warning | yes | yes | none | A connection past `ipc_connections_max` was closed as soon as it was accepted | Noctua already has as many connections open as it allows. Close one and try again. | O Noctua já tem abertas tantas conexões quanto permite. Feche uma e tente de novo. |
 | `NC-IPC-0014` | warning | yes | yes | none | Nothing answers at the endpoint: no daemon of the channel is listening | Noctua is not running, so nothing answered. Start it and try again. | O Noctua não está em execução, então nada respondeu. Inicie-o e tente de novo. |
 | `NC-IPC-0015` | error | yes | yes | none | The endpoint could not be bound, accepted on or reached: the system did not answer | Noctua could not open the place it is reached through. Try again. | O Noctua não conseguiu abrir o lugar por onde é alcançado. Tente de novo. |
+| `NC-IPC-0016` | error | no | yes | none | A value was longer than `ipc_frame_max_bytes` as a frame, so nothing of it was sent | Noctua had more to send at once than a connection carries, so it sent none of it. | O Noctua tinha mais para enviar de uma só vez do que uma conexão leva, então não enviou nada disso. |
+| `NC-IPC-0017` | warning | yes | yes | none | A peer took nothing written to it for `ipc_silent_after_ms`, and its connection was dropped | The other side stopped taking what Noctua sent, so the connection to Noctua was closed. Try again. | O outro lado parou de receber o que o Noctua enviava, então a conexão com o Noctua foi fechada. Tente de novo. |
 | `NC-JRNL-0001` | critical | no | yes | none | The journal's hash chain is broken at an entry | The activity history does not add up, so Noctua stopped rather than continue. Nothing was changed. Contact whoever set up your Noctua. | O histórico de atividades não confere, então o Noctua parou em vez de continuar. Nada foi alterado. Fale com quem instalou o seu Noctua. |
 | `NC-JRNL-0002` | critical | no | yes | none | An entry's hash does not match the entry's own contents | One entry in the activity history has been altered since it was written. Nothing was changed now. Contact whoever set up your Noctua. | Um registro do histórico de atividades foi alterado depois de ter sido escrito. Nada foi alterado agora. Fale com quem instalou o seu Noctua. |
 | `NC-JRNL-0003` | critical | yes | yes | none | The journal store did not answer | The activity history is not answering right now. Try again in a moment. | O histórico de atividades não está respondendo agora. Tente de novo em instantes. |
@@ -155,7 +157,7 @@ An area with no codes is a reservation: the prefix is spoken for and the subsyst
 | `DMN` | 7 | The daemon: the profile it keeps, the device it mints on, and the identifiers' mark (§11.1, §16.2) |
 | `GW` | none yet | The public gateway: ingress, rate limiting, transport |
 | `IDS` | 9 | Identifiers: Snowflake, the machine flake, file names |
-| `IPC` | 15 | The IPC channel a daemon is reached through: its endpoint, its frames, the handshake that proves both ends, and the heartbeat (§11.1) |
+| `IPC` | 17 | The IPC channel a daemon is reached through: its endpoint, its frames, the handshake that proves both ends, and the heartbeat (§11.1) |
 | `JRNL` | 10 | The command journal and its hash chain |
 | `KERN` | 24 | The local kernel and command dispatch |
 | `LOG` | 2 | The central log and its shipper |

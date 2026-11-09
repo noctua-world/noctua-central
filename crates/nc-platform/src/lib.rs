@@ -1004,6 +1004,32 @@ mod tests {
         super::ipc::Endpoint::new(&scratch.0, scratch.0.join("s"), pipe_named(name))
     }
 
+    /// What `future` comes to, or a failure naming `what` once a minute has
+    /// passed without it: a test whose other end never came fails, rather
+    /// than holding the gate until its job's own timeout.
+    async fn within<F: core::future::Future>(what: &str, future: F) -> F::Output {
+        tokio::time::timeout(std::time::Duration::from_secs(60), future)
+            .await
+            .unwrap_or_else(|_| panic!("{what} did not come within a minute"))
+    }
+
+    /// One connection to `endpoint`, made by a client of `user`'s and
+    /// accepted by `listener`, and what each end came to — within a minute,
+    /// so a client that fails before it reaches the listener fails the test.
+    async fn connection(
+        listener: &mut super::ipc::Listener,
+        endpoint: &super::ipc::Endpoint,
+        user: &super::User,
+    ) -> (
+        Result<super::ipc::Accepted, super::ipc::Refused>,
+        Result<(super::ipc::Stream, super::ipc::Peer), super::ipc::Refused>,
+    ) {
+        within("a connection, accepted and made,", async {
+            tokio::join!(listener.accept(), super::ipc::connect(endpoint, user))
+        })
+        .await
+    }
+
     /// A child process this test started, killed and waited for however the
     /// test leaves.
     struct Child(std::process::Child);
@@ -1036,6 +1062,12 @@ mod tests {
         }
     }
 
+    /// The name a child of [`the_peer_is_the_process_at_the_other_end_and_not_this_one`]
+    /// is run by.
+    ///
+    /// That test holds its own name to it: renamed alone, the child would run
+    /// no test and connect to nothing.
+    const PEER_TEST: &str = "tests::the_peer_is_the_process_at_the_other_end_and_not_this_one";
     /// The role a child of [`the_peer_is_the_process_at_the_other_end_and_not_this_one`]
     /// plays: `connect`, or `serve`.
     const CHILD_ROLE: &str = "NC_PLATFORM_IPC_CHILD_ROLE";
@@ -1049,16 +1081,14 @@ mod tests {
     /// This test binary, run again as a child playing `role` at `endpoint`.
     #[expect(
         clippy::disallowed_methods,
-        reason = "the other end of a connection has to be another process for its id to be                   told from this one's; the child is this same test binary, its output                   discarded"
+        reason = "the other end of a connection has to be another process for its id to be \
+                  told from this one's; the child is this same test binary, its output \
+                  discarded"
     )]
     fn spawned(role: &str, endpoint: &super::ipc::Endpoint) -> Child {
         Child(
             std::process::Command::new(std::env::current_exe().expect("this test binary"))
-                .args([
-                    "--exact",
-                    "tests::the_peer_is_the_process_at_the_other_end_and_not_this_one",
-                    "--test-threads=1",
-                ])
+                .args(["--exact", PEER_TEST, "--test-threads=1"])
                 .env(CHILD_ROLE, role)
                 .env(CHILD_RUNTIME, &endpoint.runtime)
                 .env(CHILD_SOCKET, &endpoint.socket)
@@ -1123,8 +1153,7 @@ mod tests {
         runtime().block_on(async {
             let mut listener =
                 super::ipc::Listener::bind(&endpoint, &user, &instance, 4).expect("bound");
-            let (accepted, connected) =
-                tokio::join!(listener.accept(), super::ipc::connect(&endpoint, &user));
+            let (accepted, connected) = connection(&mut listener, &endpoint, &user).await;
             let mut accepted = accepted.expect("accepted");
             let (mut client, server) = connected.expect("connected");
             assert_eq!(
@@ -1155,6 +1184,12 @@ mod tests {
             as_the_child(&role);
             return;
         }
+        // libtest runs each test on a thread of its name.
+        assert_eq!(
+            std::thread::current().name(),
+            Some(PEER_TEST),
+            "this test's child is run by another name"
+        );
         let scratch = Scratch::new("ipc-child-connects");
         let user = user_in(&scratch.0).expect("private");
         let endpoint = endpoint_in(&scratch, "child-connects");
@@ -1163,7 +1198,9 @@ mod tests {
             let mut listener =
                 super::ipc::Listener::bind(&endpoint, &user, &instance, 4).expect("bound");
             let child = spawned("connect", &endpoint);
-            let accepted = listener.accept().await.expect("the child's connection");
+            let accepted = within("the connecting child", listener.accept())
+                .await
+                .expect("the child's connection");
             assert_eq!(
                 accepted.peer.pid,
                 child.0.id(),
@@ -1200,9 +1237,12 @@ mod tests {
             // measured on a macOS runner, a connection closed first left the
             // child's accept with no peer to name.
             let mut heard = [0_u8; 1];
-            tokio::io::AsyncReadExt::read_exact(&mut stream, &mut heard)
-                .await
-                .expect("the child accepted");
+            within(
+                "the serving child's word",
+                tokio::io::AsyncReadExt::read_exact(&mut stream, &mut heard),
+            )
+            .await
+            .expect("the child accepted");
             child
         });
         assert!(child.ended_well(), "the serving child failed");
@@ -1402,18 +1442,21 @@ mod tests {
             // the first listener's to accept first, closed already: measured on
             // a macOS runner, which no longer names a peer that has closed, it
             // is refused there. The listener goes on accepting either way.
-            let (accepted, connected) = tokio::join!(
-                async {
-                    match first.accept().await {
-                        Ok(accepted) => accepted,
-                        Err(_) => first
-                            .accept()
-                            .await
-                            .expect("the first listener still accepts"),
-                    }
-                },
-                super::ipc::connect(&endpoint, &user)
-            );
+            let (accepted, connected) = within("a connection to the first listener", async {
+                tokio::join!(
+                    async {
+                        match first.accept().await {
+                            Ok(accepted) => accepted,
+                            Err(_) => first
+                                .accept()
+                                .await
+                                .expect("the first listener still accepts"),
+                        }
+                    },
+                    super::ipc::connect(&endpoint, &user)
+                )
+            })
+            .await;
             drop(accepted);
             connected.expect("and is reached");
         });
@@ -1502,15 +1545,13 @@ mod tests {
                 super::ipc::Listener::bind(&endpoint, &user, &instance, 2).expect("bound");
             let mut open = Vec::new();
             for _ in 0..2 {
-                let (accepted, connected) =
-                    tokio::join!(listener.accept(), super::ipc::connect(&endpoint, &user));
+                let (accepted, connected) = connection(&mut listener, &endpoint, &user).await;
                 open.push((
                     accepted.expect("within the bound"),
                     connected.expect("reached"),
                 ));
             }
-            let (past, connected) =
-                tokio::join!(listener.accept(), super::ipc::connect(&endpoint, &user));
+            let (past, connected) = connection(&mut listener, &endpoint, &user).await;
             assert!(
                 matches!(past, Err(super::ipc::Refused::Busy { connections: 2 })),
                 "a connection past the bound was {past:?}"
@@ -1518,14 +1559,95 @@ mod tests {
             let (mut closed, _) = connected.expect("reached, and then closed");
             let mut buffer = [0_u8; 1];
             assert!(
-                !matches!(closed.read(&mut buffer).await, Ok(read) if read > 0),
+                !matches!(
+                    within("the end of a connection past the bound", closed.read(&mut buffer)).await,
+                    Ok(read) if read > 0
+                ),
                 "a connection past the bound was not closed"
             );
             drop(open.remove(0));
-            let (accepted, connected) =
-                tokio::join!(listener.accept(), super::ipc::connect(&endpoint, &user));
+            let (accepted, connected) = connection(&mut listener, &endpoint, &user).await;
             accepted.expect("one closed made room");
             connected.expect("reached");
+        });
+    }
+
+    /// A dead socket another user owns is refused and left as it was, where
+    /// the endpoint is a name on disk: a bind replaces only this user's.
+    ///
+    /// **Judged with a forged user**, since no test can make a socket another
+    /// user owns: what a bind makes of a real other account's socket is this
+    /// same judgement, handed `testing::someone_else` as the user it runs as.
+    #[test]
+    fn a_dead_socket_another_user_owns_is_refused_and_left_as_it_was() {
+        let scratch = Scratch::new("ipc-foreign");
+        let user = user_in(&scratch.0).expect("private");
+        let endpoint = endpoint_in(&scratch, "foreign");
+        testing::leave_a_dead_endpoint(&endpoint).expect("a dead endpoint");
+        let other = testing::someone_else(&user);
+        let before = testing::ENDPOINT_ON_DISK
+            .then(|| testing::identity(&endpoint.socket).expect("the dead socket"));
+        match (
+            testing::ENDPOINT_ON_DISK,
+            testing::judge_what_stands_at(&endpoint, &other),
+        ) {
+            (true, Err(super::ipc::Refused::NotPrivate(refused))) => {
+                let refused = refused.to_string();
+                assert!(
+                    refused.contains(&format!("belongs to user {user}"))
+                        && refused.contains(&format!("runs as user {other}")),
+                    "{refused}"
+                );
+            }
+            (false, Ok(())) => {}
+            (_, verdict) => panic!("a dead socket another user owns was {verdict:?}"),
+        }
+        testing::judge_what_stands_at(&endpoint, &user)
+            .expect("this user's own dead socket is one a bind asks");
+        if let Some(before) = before {
+            assert_eq!(
+                testing::identity(&endpoint.socket).expect("still there"),
+                before,
+                "a dead socket was changed by being judged"
+            );
+        }
+    }
+
+    /// An accept given up before a client came leaves the listener as it
+    /// was: the next client is accepted, with a connection open and with none.
+    ///
+    /// **The instance a pipe waits with is what is at stake**: given up with
+    /// it taken out of the listener, the name stood with none of the
+    /// listener's instances behind it, and the next accept made a first
+    /// instance, which the system refuses while a connection holds the name.
+    #[test]
+    fn an_accept_given_up_before_a_client_came_leaves_the_listener_listening() {
+        let scratch = Scratch::new("ipc-given-up");
+        let user = user_in(&scratch.0).expect("private");
+        let endpoint = endpoint_in(&scratch, "given-up");
+        let instance = super::hold(&scratch.0, "instance.lock", &user).expect("held");
+        runtime().block_on(async {
+            let mut listener =
+                super::ipc::Listener::bind(&endpoint, &user, &instance, 4).expect("bound");
+            let mut open = Vec::new();
+            for open_already in 0..2 {
+                let given_up =
+                    tokio::time::timeout(std::time::Duration::from_millis(50), listener.accept())
+                        .await;
+                assert!(
+                    given_up.is_err(),
+                    "an accept no client came to was {given_up:?}"
+                );
+                assert!(
+                    testing::endpoint_is_as_created(&listener),
+                    "with {open_already} open, an accept given up left no instance waiting"
+                );
+                let (accepted, connected) = connection(&mut listener, &endpoint, &user).await;
+                open.push((
+                    accepted.expect("the next client is accepted"),
+                    connected.expect("and reaches the listener"),
+                ));
+            }
         });
     }
 

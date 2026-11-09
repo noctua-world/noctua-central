@@ -476,6 +476,51 @@ async fn a_hello_replayed_from_another_connection_is_refused() {
     assert_eq!(goodbye, ErrorCode::IpcClientUnproven.code());
 }
 
+/// A challenge and a welcome recorded from one connection are refused on the
+/// next: the client draws a nonce of its own, and the daemon's proof is over it.
+///
+/// **The stand-in chooses the daemon's nonce**, by sending the recorded
+/// challenge again, so the client's nonce is all that tells the recorded
+/// welcome from one made for this connection.
+#[tokio::test(start_paused = true)]
+async fn a_welcome_replayed_from_another_connection_is_refused() {
+    let token = Token::fresh().expect("a token");
+    let welcome = welcome();
+    let (daemon, client) = tokio::io::duplex(1 << 12);
+    let (daemon, daemons) = Recorded::new(daemon);
+    let (served, connected) = tokio::join!(
+        nc_ipc::serve(daemon, &token, &welcome),
+        nc_ipc::connect(client, &token)
+    );
+    drop((served.expect("served"), connected.expect("connected")));
+    let recorded = daemons.lock().expect("the record").clone();
+    let recorded = frames_of(&recorded).await;
+    let sent = |kind: &str| {
+        recorded
+            .iter()
+            .find(|frame| field(frame, "type") == Value::text(kind))
+            .cloned()
+            .unwrap_or_else(|| panic!("the daemon's {kind}"))
+    };
+    let (challenge, welcomed) = (sent("challenge"), sent("welcome"));
+    let (mut daemon, client) = tokio::io::duplex(1 << 12);
+    let replaying = async {
+        frame::write(&mut daemon, &challenge).await.expect("sent");
+        frame::read(&mut daemon)
+            .await
+            .expect("read")
+            .expect("a hello");
+        frame::write(&mut daemon, &welcomed).await.expect("sent");
+        the_goodbye(&mut daemon).await
+    };
+    let (verdict, goodbye) = tokio::join!(nc_ipc::connect(client, &token), replaying);
+    assert!(
+        matches!(verdict, Err(IpcError::DaemonUnproven)),
+        "{verdict:?}"
+    );
+    assert_eq!(goodbye, ErrorCode::IpcDaemonUnproven.code());
+}
+
 #[tokio::test(start_paused = true)]
 async fn a_token_has_one_spelling_and_its_debug_says_nothing_of_it() {
     let token = Token::fresh().expect("a token");

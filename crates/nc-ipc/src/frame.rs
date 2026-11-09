@@ -8,7 +8,8 @@
 //! JSON `nc-canon` parses, or not exactly the text `nc-canon` writes for the
 //! value it parses to, is refused once it is read: there is one spelling of
 //! every message, so what one end hashes, logs or compares is what the other
-//! sent. A writer refuses to send what a reader would refuse.
+//! sent. A writer refuses to send what a reader would refuse, as a refusal of
+//! its own: nothing claimed the length, and nothing of it is written.
 //!
 //! **A connection that ends at a frame's boundary has closed; one that ends
 //! inside a frame was lost**, and the two are told apart.
@@ -85,24 +86,40 @@ pub async fn read<R: AsyncRead + Unpin>(
 ///
 /// # Errors
 ///
-/// [`IpcError::TooLarge`] for a value whose canonical text is longer than the
-/// bound, which no reader would take, and [`IpcError::Lost`] when it could not
-/// be written.
+/// [`IpcError::Unsendable`] for a value whose canonical text is longer than
+/// the bound, which no reader would take, with nothing written; and
+/// [`IpcError::Lost`] when it could not be written.
 pub async fn write<W: AsyncWrite + Unpin>(
     writer: &mut W,
     value: &nc_canon::Value,
 ) -> Result<(), IpcError> {
+    put(writer, &encode(value)?).await
+}
+
+/// The bytes of `value`'s frame: its length, big-endian, and its canonical text.
+///
+/// Made before anything is written, so a value too long for one is refused
+/// while nothing of it has been sent.
+pub(crate) fn encode(value: &nc_canon::Value) -> Result<Vec<u8>, IpcError> {
     let text = value.to_canonical();
     let length = u64::try_from(text.len()).unwrap_or(u64::MAX);
     if length > MOST {
-        return Err(IpcError::TooLarge { length });
+        return Err(IpcError::Unsendable { length });
     }
-    let prefix = u32::try_from(length).map_err(|_| IpcError::TooLarge { length })?;
+    let prefix = u32::try_from(length).map_err(|_| IpcError::Unsendable { length })?;
     let mut frame = Vec::with_capacity(4 + text.len());
     frame.extend_from_slice(&prefix.to_be_bytes());
     frame.extend_from_slice(text.as_bytes());
+    Ok(frame)
+}
+
+/// Writes the bytes of a frame [`encode`] made, and flushes them.
+pub(crate) async fn put<W: AsyncWrite + Unpin>(
+    writer: &mut W,
+    frame: &[u8],
+) -> Result<(), IpcError> {
     let lost =
         |error: std::io::Error| IpcError::Lost(format!("a frame could not be written: {error}"));
-    writer.write_all(&frame).await.map_err(lost)?;
+    writer.write_all(frame).await.map_err(lost)?;
     writer.flush().await.map_err(lost)
 }

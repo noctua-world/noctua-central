@@ -370,6 +370,10 @@ impl Listener {
     /// **One refused is closed, and answered for**: the caller decides what
     /// to log and asks again, and the listener goes on listening either way.
     ///
+    /// **It may be given up**, as the branch of a `select!` that lost: an
+    /// accept dropped before a client came leaves the listener as it was,
+    /// waiting for the next.
+    ///
     /// # Errors
     ///
     /// [`Refused::Peer`] and [`Refused::NoProcess`] for a connection whose

@@ -579,6 +579,20 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "error.ipc.unread",
+        [
+            "The other side stopped taking what Noctua sent, so the connection to Noctua was closed. Try again.",
+            "O outro lado parou de receber o que o Noctua enviava, então a conexão com o Noctua foi fechada. Tente de novo.",
+        ],
+    ),
+    (
+        "error.ipc.unsendable",
+        [
+            "Noctua had more to send at once than a connection carries, so it sent none of it.",
+            "O Noctua tinha mais para enviar de uma só vez do que uma conexão leva, então não enviou nada disso.",
+        ],
+    ),
+    (
         "error.journal.chain-broken",
         [
             "The activity history does not add up, so Noctua stopped rather than continue. Nothing was changed. Contact whoever set up your Noctua.",
@@ -1179,6 +1193,8 @@ pub const KEYS: &[&str] = &[
     "error.ipc.protocol",
     "error.ipc.silent",
     "error.ipc.unreachable",
+    "error.ipc.unread",
+    "error.ipc.unsendable",
     "error.journal.chain-broken",
     "error.journal.contended",
     "error.journal.entry-tampered",

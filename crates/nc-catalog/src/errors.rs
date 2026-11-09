@@ -163,6 +163,10 @@ pub enum ErrorCode {
     IpcUnreachable,
     /// NC-IPC-0015 — The endpoint could not be bound, accepted on or reached: the system did not answer
     IpcEndpointUnavailable,
+    /// NC-IPC-0016 — A value was longer than `ipc_frame_max_bytes` as a frame, so nothing of it was sent
+    IpcUnsendable,
+    /// NC-IPC-0017 — A peer took nothing written to it for `ipc_silent_after_ms`, and its connection was dropped
+    IpcUnread,
     /// NC-JRNL-0001 — The journal's hash chain is broken at an entry
     JournalChainBroken,
     /// NC-JRNL-0002 — An entry's hash does not match the entry's own contents
@@ -369,6 +373,8 @@ impl ErrorCode {
         Self::IpcBusy,
         Self::IpcUnreachable,
         Self::IpcEndpointUnavailable,
+        Self::IpcUnsendable,
+        Self::IpcUnread,
         Self::JournalChainBroken,
         Self::JournalEntryTampered,
         Self::JournalUnavailable,
@@ -502,6 +508,8 @@ impl ErrorCode {
             Self::IpcBusy => "NC-IPC-0013",
             Self::IpcUnreachable => "NC-IPC-0014",
             Self::IpcEndpointUnavailable => "NC-IPC-0015",
+            Self::IpcUnsendable => "NC-IPC-0016",
+            Self::IpcUnread => "NC-IPC-0017",
             Self::JournalChainBroken => "NC-JRNL-0001",
             Self::JournalEntryTampered => "NC-JRNL-0002",
             Self::JournalUnavailable => "NC-JRNL-0003",
@@ -636,6 +644,8 @@ impl ErrorCode {
             Self::IpcBusy => "IPC",
             Self::IpcUnreachable => "IPC",
             Self::IpcEndpointUnavailable => "IPC",
+            Self::IpcUnsendable => "IPC",
+            Self::IpcUnread => "IPC",
             Self::JournalChainBroken => "JRNL",
             Self::JournalEntryTampered => "JRNL",
             Self::JournalUnavailable => "JRNL",
@@ -843,6 +853,12 @@ impl ErrorCode {
             }
             Self::IpcEndpointUnavailable => {
                 "The endpoint could not be bound, accepted on or reached: the system did not answer"
+            }
+            Self::IpcUnsendable => {
+                "A value was longer than `ipc_frame_max_bytes` as a frame, so nothing of it was sent"
+            }
+            Self::IpcUnread => {
+                "A peer took nothing written to it for `ipc_silent_after_ms`, and its connection was dropped"
             }
             Self::JournalChainBroken => "The journal's hash chain is broken at an entry",
             Self::JournalEntryTampered => "An entry's hash does not match the entry's own contents",
@@ -1088,6 +1104,8 @@ impl ErrorCode {
             Self::IpcBusy => "error.ipc.busy",
             Self::IpcUnreachable => "error.ipc.unreachable",
             Self::IpcEndpointUnavailable => "error.ipc.endpoint-unavailable",
+            Self::IpcUnsendable => "error.ipc.unsendable",
+            Self::IpcUnread => "error.ipc.unread",
             Self::JournalChainBroken => "error.journal.chain-broken",
             Self::JournalEntryTampered => "error.journal.entry-tampered",
             Self::JournalUnavailable => "error.journal.unavailable",
@@ -1222,6 +1240,8 @@ impl ErrorCode {
             Self::IpcBusy => Severity::Warning,
             Self::IpcUnreachable => Severity::Warning,
             Self::IpcEndpointUnavailable => Severity::Error,
+            Self::IpcUnsendable => Severity::Error,
+            Self::IpcUnread => Severity::Warning,
             Self::JournalChainBroken => Severity::Critical,
             Self::JournalEntryTampered => Severity::Critical,
             Self::JournalUnavailable => Severity::Critical,
@@ -1356,6 +1376,8 @@ impl ErrorCode {
             Self::IpcBusy => true,
             Self::IpcUnreachable => true,
             Self::IpcEndpointUnavailable => true,
+            Self::IpcUnsendable => false,
+            Self::IpcUnread => true,
             Self::JournalChainBroken => false,
             Self::JournalEntryTampered => false,
             Self::JournalUnavailable => true,
@@ -1490,6 +1512,8 @@ impl ErrorCode {
             Self::IpcBusy => &[],
             Self::IpcUnreachable => &[],
             Self::IpcEndpointUnavailable => &[],
+            Self::IpcUnsendable => &[],
+            Self::IpcUnread => &[],
             Self::JournalChainBroken => &[],
             Self::JournalEntryTampered => &[],
             Self::JournalUnavailable => &[],

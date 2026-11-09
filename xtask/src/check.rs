@@ -19240,12 +19240,12 @@ mod the_frozen_path_rule {
         ("nc-ids/properties.rs", 11, 6),
         ("nc-ids/snowflake.rs", 70, 90),
         ("nc-ipc/connection.rs", 13, 9),
-        ("nc-ipc/endpoint.rs", 3, 5),
-        ("nc-ipc/frame.rs", 3, 0),
-        ("nc-ipc/frames.rs", 5, 7),
+        ("nc-ipc/endpoint.rs", 4, 5),
+        ("nc-ipc/frame.rs", 5, 0),
+        ("nc-ipc/frames.rs", 7, 6),
         ("nc-ipc/handshake.rs", 10, 0),
-        ("nc-ipc/handshake.rs", 11, 15),
-        ("nc-ipc/heartbeat.rs", 9, 11),
+        ("nc-ipc/handshake.rs", 12, 15),
+        ("nc-ipc/heartbeat.rs", 12, 19),
         ("nc-ipc/lib.rs", 9, 15),
         ("nc-ipc/message.rs", 41, 5),
         ("nc-journal/across_threads.rs", 2, 5),
@@ -19314,10 +19314,10 @@ mod the_frozen_path_rule {
         ("nc-log/ship.rs", 106, 50),
         ("nc-log/value.rs", 18, 36),
         ("nc-platform/ipc.rs", 20, 13),
-        ("nc-platform/lib.rs", 73, 21),
-        ("nc-platform/testing.rs", 27, 1),
-        ("nc-platform/unix.rs", 67, 2),
-        ("nc-platform/windows.rs", 114, 11),
+        ("nc-platform/lib.rs", 78, 21),
+        ("nc-platform/testing.rs", 28, 1),
+        ("nc-platform/unix.rs", 68, 2),
+        ("nc-platform/windows.rs", 115, 11),
         ("nc-policy/an_entity_type_is_a_name_cedar_parses.rs", 7, 3),
         ("nc-policy/cases.rs", 10, 13),
         ("nc-policy/lib.rs", 103, 20),
@@ -22146,8 +22146,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 620 scratches this tree
-    /// builds, 533 of the 620 are removed however the test leaves and 87 are
+    /// directories accumulated in an afternoon. Of the 622 scratches this tree
+    /// builds, 535 of the 622 are removed however the test leaves and 87 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22238,7 +22238,7 @@ mod the_frozen_path_rule {
         ("nc-local/open.rs", 4, 4),
         ("nc-local/opening_refuses_what_it_did_not_make.rs", 43, 43),
         ("nc-local/the_local_journal.rs", 9, 9),
-        ("nc-platform/lib.rs", 25, 25),
+        ("nc-platform/lib.rs", 27, 27),
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
         ("nc-prune/in_sqlite.rs", 13, 13),
         ("xtask/build.rs", 8, 8),
@@ -25166,7 +25166,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 16319;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 16361;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25185,7 +25185,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3595;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3616;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25202,7 +25202,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1188;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1195;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25236,7 +25236,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 22582;
+    const THE_REARRANGEMENTS_JUDGED: usize = 22649;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25290,7 +25290,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **480 of 22,582 are accepted by the first-line
+    /// rules the gates apply: **480 of 22,649 are accepted by the first-line
     /// rule alone, and 256 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25323,7 +25323,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1188 of
+    /// this tree offers, **1195 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -36662,7 +36662,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1863] = [
+    static OPERATORS: [(&str, &str, &str); 1867] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -44826,6 +44826,11 @@ Options:
         (
             "platform_unix",
             "a_socket_of_its_own",
+            "only a socket of this user's is replaced",
+        ),
+        (
+            "platform_unix",
+            "a_socket_of_its_own",
             "a link at the socket's name is refused as one",
         ),
         ("platform_unix", "bind", "the socket is made private"),
@@ -44861,7 +44866,7 @@ Options:
         ),
         (
             "ipc_frame",
-            "write",
+            "encode",
             "a writer refuses what no reader would take",
         ),
         (
@@ -44890,6 +44895,7 @@ Options:
             "a side says why before it closes",
         ),
         ("ipc_lib", "prove", "a proof is over the daemon's nonce"),
+        ("ipc_lib", "prove", "a proof is over the client's nonce"),
         ("ipc_lib", "prove", "a proof is keyed by the token"),
         (
             "ipc_lib",
@@ -44903,8 +44909,18 @@ Options:
         ),
         (
             "ipc_connection",
+            "writing",
+            "a write the peer does not take in time ends the connection",
+        ),
+        (
+            "ipc_connection",
             "reading",
             "a peer silent past the bound is dropped",
+        ),
+        (
+            "ipc_connection",
+            "reading",
+            "a connection whose writer gave up is over",
         ),
         (
             "ipc_connection",

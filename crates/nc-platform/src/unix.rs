@@ -442,6 +442,22 @@ pub(crate) fn leave_a_dead_endpoint(endpoint: &Endpoint) -> io::Result<()> {
     Ok(())
 }
 
+/// What a bind makes of what stands at `endpoint`'s path for `user`.
+///
+/// The very judgement [`bind`] makes before it asks whether anything answers
+/// there, handed a user a test cannot be.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn judge_what_stands_at(endpoint: &Endpoint, user: &User) -> Result<(), Refused> {
+    let path = &endpoint.socket;
+    let found = std::fs::symlink_metadata(path).map_err(|error| {
+        Refused::Failed(Failed::new(
+            format!("`{}` could not be read", path.display()),
+            error,
+        ))
+    })?;
+    a_socket_of_its_own(path, &found, user)
+}
+
 /// What a path lets in: its mode bits.
 #[cfg(any(test, feature = "test-support"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

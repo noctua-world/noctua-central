@@ -44,6 +44,25 @@ impl Scratch {
     }
 }
 
+/// One connection to `endpoint`, made by a client of `user`'s and accepted by `listener`.
+///
+/// What each end came to, within a minute: a client that fails before it
+/// reaches the listener fails the test rather than hangs it.
+async fn connection(
+    listener: &mut nc_platform::ipc::Listener,
+    endpoint: &nc_platform::ipc::Endpoint,
+    user: &nc_platform::User,
+) -> (
+    Result<nc_platform::ipc::Accepted, nc_platform::ipc::Refused>,
+    Result<(nc_platform::ipc::Stream, nc_platform::ipc::Peer), nc_platform::ipc::Refused>,
+) {
+    tokio::time::timeout(std::time::Duration::from_secs(60), async {
+        tokio::join!(listener.accept(), nc_platform::ipc::connect(endpoint, user))
+    })
+    .await
+    .expect("a connection, accepted and made, within a minute")
+}
+
 #[test]
 fn the_catalogs_connections_fit_the_pipes_instances() {
     let bound = usize::try_from(nc_catalog::DAEMON.ipc_connections_max).expect("a count");
@@ -71,10 +90,7 @@ async fn the_daemons_listener_holds_the_catalogs_bound_and_the_handshake_crosses
 
     // The first connection proves itself and is answered, through the
     // system's endpoint.
-    let (accepted, connected) = tokio::join!(
-        listener.accept(),
-        nc_platform::ipc::connect(&endpoint, &user)
-    );
+    let (accepted, connected) = connection(&mut listener, &endpoint, &user).await;
     let accepted = accepted.expect("accepted");
     let (stream, _) = connected.expect("connected");
     let (served, connected) = tokio::join!(
@@ -94,19 +110,13 @@ async fn the_daemons_listener_holds_the_catalogs_bound_and_the_handshake_crosses
     let first = (served, client);
     let mut rest = Vec::new();
     while rest.len() + 1 < bound {
-        let (accepted, connected) = tokio::join!(
-            listener.accept(),
-            nc_platform::ipc::connect(&endpoint, &user)
-        );
+        let (accepted, connected) = connection(&mut listener, &endpoint, &user).await;
         rest.push((
             accepted.expect("within the bound"),
             connected.expect("reached"),
         ));
     }
-    let (past, connected) = tokio::join!(
-        listener.accept(),
-        nc_platform::ipc::connect(&endpoint, &user)
-    );
+    let (past, connected) = connection(&mut listener, &endpoint, &user).await;
     match past.map_err(nc_ipc::IpcError::from) {
         Err(refused) => assert_eq!(refused.code(), nc_catalog::ErrorCode::IpcBusy, "{refused}"),
         Ok(accepted) => panic!("a connection past `ipc_connections_max` was {accepted:?}"),

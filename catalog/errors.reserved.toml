@@ -19,8 +19,8 @@
 # sentences replaced — with the gate green.
 
 [meta]
-checksum = "6e675d1e8b23c2198f0810cd80fb68020bf1f9777b96dc2d70021e3604a27c61"
-count = 127
+checksum = "78a607b612bf8b0d231c2cd9fd030d5b010eec165e83a99ad061f88158a4d3ff"
+count = 129
 
 [reserved]
 "NC-BLOB-0001" = "error.blob.malformed-hash — warning — retryable:false — params:[] — A blob was named by text that is not a BLAKE3 hash"
@@ -76,6 +76,8 @@ count = 127
 "NC-IPC-0013" = "error.ipc.busy — warning — retryable:true — params:[] — A connection past `ipc_connections_max` was closed as soon as it was accepted"
 "NC-IPC-0014" = "error.ipc.unreachable — warning — retryable:true — params:[] — Nothing answers at the endpoint: no daemon of the channel is listening"
 "NC-IPC-0015" = "error.ipc.endpoint-unavailable — error — retryable:true — params:[] — The endpoint could not be bound, accepted on or reached: the system did not answer"
+"NC-IPC-0016" = "error.ipc.unsendable — error — retryable:false — params:[] — A value was longer than `ipc_frame_max_bytes` as a frame, so nothing of it was sent"
+"NC-IPC-0017" = "error.ipc.unread — warning — retryable:true — params:[] — A peer took nothing written to it for `ipc_silent_after_ms`, and its connection was dropped"
 "NC-JRNL-0001" = "error.journal.chain-broken — critical — retryable:false — params:[] — The journal's hash chain is broken at an entry"
 "NC-JRNL-0002" = "error.journal.entry-tampered — critical — retryable:false — params:[] — An entry's hash does not match the entry's own contents"
 "NC-JRNL-0003" = "error.journal.unavailable — critical — retryable:true — params:[] — The journal store did not answer"

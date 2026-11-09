@@ -428,7 +428,7 @@ fails a gate a minute or two later.
 | a kind of node a surface shows | `KINDS` in `crates/nc-kernel/src/ui.rs` | the table in that module's header is what a plugin author reads, and changes in the same edit; the kind's keys are a row of `KINDS`, a key holding a person's text is in `TEXTS` and a closed choice in `CHOICES`, so every text of every kind is held to the same bound and characters; and a test in that file keeps a tree of the new kind and refuses each rule it is held to — the interface's renderer (Stage 16) draws only the kinds this set names |
 | a name the system sees | a field of `Layout` in `crates/nc-channel/src/lib.rs`, derived in `layout` and in the table of that crate's header | a line of `parts` in `crates/nc-channel/tests/the_names_are_disjoint.rs`, which destructures `Layout` without `..` and does not compile until the field is read — what it reads is held apart from every other install's name, case-folded; a name the whole machine shares carries the user and is a row of `MACHINE_WIDE` there too, unless it is a checkout's stack's, which is the checkout's; its spelling is written out in `each_name_is_spelled_as_the_crate_header_writes_it`; a relocated install's must carry its namespace and lie under its root, or be `None` as the update feed and the stack are; and nothing outside the crate spells one — `cargo xtask dev` names its stack's project and binds its ports through `Checkout::stack`, and `POSTGRES_PORT` or `LOGS_PORT` only moves a port |
 | a kernel limit | `[kernel]` in `catalog/limits.toml`, and a field of `KernelLimits` in `crates/nc-catalog-compiler/src/model.rs` with its row in `KernelLimits::each` | every limit is required and above zero, and one that bounds another is held to it where both are written (`check_kernel` in the compiler's `load.rs`); `xtask/tests/the_registry_reaches_the_code.rs` compares every field by name, so a new one is a line there as well, and `docs/limits.md` publishes it with its unit. A plugin's manifest may lower only what `Lowering` in `crates/nc-kernel/src/limits.rs` names, and never raise it |
-| an IPC message | `crates/nc-ipc/src/message.rs` — a variant of `Request` or `Answer`, or a message of the handshake — and the module header of `crates/nc-ipc/src/lib.rs` | its encoding and its reading in the same file, the reading **strict**: every field it holds taken by `Fields` and `done()` refusing the rest, so a field an older build does not read is a refusal rather than a value dropped in silence; a message the handshake reads names the protocol first, and a change of what an existing message means is a new `PROTOCOL`, never the same number; a case in `crates/nc-ipc/tests/` that sends it through a real `serve` and `connect`, and one that sends it malformed by hand through `nc_ipc::frame`. Whatever the daemon answers is held to `ipc_frame_max_bytes`, which the compiler holds above the kernel's `payload_bytes` and the envelope of 64 KiB `crates/nc-catalog-compiler/src/load.rs` names, so an answer that may grow without bound — the registry, a status — is a frame refused, not one cut short |
+| an IPC message | `crates/nc-ipc/src/message.rs` — a variant of `Request` or `Answer`, or a message of the handshake — and the module header of `crates/nc-ipc/src/lib.rs` | its encoding and its reading in the same file, the reading **strict**: every field it holds taken by `Fields` and `done()` refusing the rest, so a field an older build does not read is a refusal rather than a value dropped in silence; a message the handshake reads names the protocol first, and a change of what an existing message means is a new `PROTOCOL`, never the same number; a case in `crates/nc-ipc/tests/` that sends it through a real `serve` and `connect`, and one that sends it malformed by hand through `nc_ipc::frame`. Whatever the daemon answers is held to `ipc_frame_max_bytes`, which the compiler holds above the kernel's `payload_bytes` and the envelope of 64 KiB `crates/nc-catalog-compiler/src/load.rs` names, so an answer that may grow without bound — the registry, a status — is refused to the daemon before anything of it is sent (`NC-IPC-0016`), its request still waiting for an answer the daemon can send instead, and never a frame cut short |
 | a daemon limit | `[daemon]` in `catalog/limits.toml`, and a field of `DaemonLimits` in `crates/nc-catalog-compiler/src/model.rs` with its row in `DaemonLimits::each` | every limit is required and above zero, and one that must keep a bound outside its table is held to it where it is written (`check_daemon` and `check_daemon_ipc` in the compiler's `load.rs`, with a failing case in `crates/nc-catalog-compiler/tests/the_gates_fire.rs` at the boundary): `mark_lease_ms` below the day past which a minter reads a mark as corrupt, `ipc_frame_max_bytes` at least the kernel's `payload_bytes` and the frame's envelope, `ipc_silent_after_ms` above two `ipc_heartbeat_ms`, and `ipc_connections_max` at most 252, what a Windows pipe's instances hold with one waiting and one past the bound. `xtask/tests/the_registry_reaches_the_code.rs` compares every field by name and counts them, `xtask/tests/every_generated_value_is_compared.rs` counts the generated surface, and `docs/limits.md` publishes it under **Daemon** with its unit, whose prose `xtask/tests/the_pages_reach_the_catalog.rs` pins. The daemon and `crates/nc-ipc` read `nc_catalog::DAEMON` and take no value of the type from a caller |
 
 Two things are true of all of them:
@@ -1723,7 +1723,9 @@ system runs.
   read, is never the pipe's; remote clients are rejected; and the pipe holds the
   connections allowed, one instance waiting for the next client and one for the
   connection past the bound, the next made before a refused one goes, so the name never
-  stands without one of the listener's instances behind it.
+  stands without one of the listener's instances behind it. The instance waits where the
+  listener keeps it, so an accept given up before a client came — the branch of a
+  `select!` that lost — leaves it waiting for the next, as a socket's accept does.
 - **Each end reads the other off the system, and refuses before anything crosses.** The
   listener reads the user and the process of each client — a socket's peer credentials,
   a pipe's client process and the user its token names, in one synchronous call — and a
@@ -1741,8 +1743,12 @@ and never this process's own whichever end the child is, the peer predicate refu
 another user can reach the runtime directory refused with nothing bound, the endpoint
 read back as made (the socket's mode, the pipe's one entry), a name at the limit bound
 and one past it refused naming the limit, an endpoint something answers at not taken, a
-dead socket replaced and a file or a link at its name left as it was, the bound and a
-connection closed to make room — by `crates/nc-ipc/tests/endpoint.rs`, which binds the
+dead socket replaced and a file or a link at its name left as it was, a dead socket
+another user owns refused and left as it was (judged with `testing::someone_else` as the
+user a bind runs as), an accept given up before a client came leaving the listener
+listening with a connection open and with none, the bound and a connection closed to
+make room, each wait of theirs bounded so a lost other end fails rather than hangs — by
+`crates/nc-ipc/tests/endpoint.rs`, which binds the
 daemon's listener at the catalog's bound and runs the handshake across it, and by the
 operators over `ipc.rs` and `unix.rs` in `xtask/mutants.py`.
 
@@ -1767,14 +1773,18 @@ and a client asks through, over any stream: the endpoint's, or a test's.
   length and that many bytes; a length of zero (`NC-IPC-0002`) or above
   `ipc_frame_max_bytes` (`NC-IPC-0001`) is refused from the prefix alone, before anything
   is allocated for it, and a body that is not exactly the text `nc-canon` writes for its
-  value is refused (`NC-IPC-0002`), so there is one spelling of every message; a writer
-  refuses to send what a reader would refuse. A connection ending inside a frame was lost
-  (`NC-IPC-0003`); one ending at its boundary has closed.
+  value is refused (`NC-IPC-0002`), so there is one spelling of every message. What a
+  reader would refuse is never sent: a request or an answer too long for a frame is
+  refused to the side that would send it before anything of it is written
+  (`NC-IPC-0016`), and the connection goes on, a request still waiting for its answer. A
+  connection ending inside a frame was lost (`NC-IPC-0003`); one ending at its boundary
+  has closed.
 - **The handshake proves both ends, and the token never crosses the wire.** The daemon's
   challenge carries its nonce; the client's proof is BLAKE3 keyed by the token over the
   client's domain and both nonces; the daemon's is keyed the same way over a domain of its
   own. Each is compared in constant time (`blake3::Hash`'s equality), so a replayed hello —
-  its proof over another challenge — and a client's proof reflected back as the daemon's
+  its proof over another challenge — a replayed challenge and welcome — the welcome's
+  proof over another client's nonce — and a client's proof reflected back as the daemon's
   are each refused: a client that cannot prove it is turned away before a request is read
   (`NC-IPC-0005`), and a client sends nothing past its hello to a daemon that cannot
   (`NC-IPC-0006`). Another protocol is refused as that (`NC-IPC-0004`), a message holding
@@ -1786,18 +1796,24 @@ and a client asks through, over any stream: the endpoint's, or a test's.
   abandoned before its answer leaves the connection refusing to be asked again, rather
   than handing the late answer to the next request. Each side pings after
   `ipc_heartbeat_ms` of its own silence — while a dispatch runs, too — and drops a peer
-  silent for `ipc_silent_after_ms` (`NC-IPC-0008`), and a write the peer does not take in
-  that time ends the connection. Every bound is the catalog's, read by the crate itself.
+  silent for `ipc_silent_after_ms` (`NC-IPC-0008`); and a write the peer does not take in
+  that time ends the connection however the peer pings (`NC-IPC-0017`), the writer telling
+  the reader, so both halves of the stream are let go. Every bound is the catalog's, read
+  by the crate itself.
 
 **Enforced by** `crates/nc-ipc/tests/frames.rs` (round trips and every cut of a frame, a
 length past the bound refused with the writer still open, the bound itself taken, each
-spelling that is not canonical, a dispatch and its answer at the kernel's whole payload),
-`handshake.rs` (a wrong, a missing and a replayed proof, another token, another protocol,
-an unread field, a forged and a reflected daemon proof, a welcome naming no process, both
-ends' deadline on a paused clock, and every byte either end wrote held to hold neither
-the token nor its text), `heartbeat.rs` (a relay between a real client and a real daemon
-swallowing either side or repeating its next message: a silent peer dropped at the
-bound, from either end, after the pings, a dispatch outlasting the bound waited for,
+spelling that is not canonical, a value past the bound refused by its writer with nothing
+written, a request and an answer too long for a frame refused to their sender with the
+connection going on, a dispatch and its answer at the kernel's whole payload),
+`handshake.rs` (a wrong, a missing and a replayed proof, a replayed challenge and
+welcome, another token, another protocol, an unread field, a forged and a reflected
+daemon proof, a welcome naming no process, both ends' deadline on a paused clock, and
+every byte either end wrote held to hold neither the token nor its text), `heartbeat.rs`
+(a relay between a real client and a real daemon swallowing either side, passing only its
+pings, repeating its next message or reading nothing more of it: a silent peer dropped at
+the bound, from either end, after the pings, a peer that pings and takes nothing dropped
+at the bound with the daemon's stream let go, a dispatch outlasting the bound waited for,
 pipelining and an unasked answer refused), and the operators over the crate's sources in
 `xtask/mutants.py`.
 

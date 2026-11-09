@@ -271,3 +271,20 @@ pub fn endpoint_is_as_created(listener: &crate::ipc::Listener) -> bool {
 pub fn leave_a_dead_endpoint(endpoint: &crate::ipc::Endpoint) -> io::Result<()> {
     imp::leave_a_dead_endpoint(endpoint)
 }
+
+/// What a bind makes of what stands at `endpoint`'s name for `user`, before
+/// it asks whether anything answers there: on Unix the very judgement a bind
+/// makes of the socket's path, so a test can hand it a user it cannot be; on
+/// Windows nothing, since a pipe's name is the system's.
+///
+/// # Errors
+///
+/// [`crate::ipc::Refused::NotPrivate`] for anything at the name but a socket
+/// of `user`'s, which a bind leaves as it was, and
+/// [`crate::ipc::Refused::Failed`] where the name could not be read.
+pub fn judge_what_stands_at(
+    endpoint: &crate::ipc::Endpoint,
+    user: &User,
+) -> Result<(), crate::ipc::Refused> {
+    imp::judge_what_stands_at(endpoint, &user.0)
+}

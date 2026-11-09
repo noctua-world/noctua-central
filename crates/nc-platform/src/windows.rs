@@ -1191,22 +1191,33 @@ fn owner_of(handle: HANDLE) -> io::Result<Sid> {
 ///
 /// **Read in this one synchronous call**, with no await between the
 /// questions.
+///
+/// **The instance waits for its client where the listener keeps it**, and is
+/// taken out only once a client came: an accept given up before then — the
+/// branch of a `select!` that lost — leaves it waiting for the next, as
+/// tokio's `connect` may be given up. Taken out first, a dropped accept would
+/// leave the name with none of this listener's instances behind it, and the
+/// next accept refused as the first instance while a connection held it.
 pub(crate) async fn accept(listener: &mut Listener) -> io::Result<(Stream, Said)> {
-    let pending = match listener.next.take() {
-        Some(pending) => pending,
+    let waiting = match listener.next.take() {
+        Some(waiting) => waiting,
         // Made as a first instance again, which refuses a name another
         // process made since this listener's last instance went.
         None => instance(&listener.name, &listener.user, listener.instances, true)?,
     };
-    let connected = pending.connect().await;
+    let waiting = listener.next.insert(waiting);
+    let connected = waiting.connect().await;
     // The next instance before this one can go, so the name is never left
-    // without one of this listener's instances behind it.
-    listener.next = Some(instance(
-        &listener.name,
-        &listener.user,
-        listener.instances,
-        false,
-    )?);
+    // without one of this listener's instances behind it; one that could not
+    // be made leaves none, and the next accept makes a first instance again.
+    let next = match instance(&listener.name, &listener.user, listener.instances, false) {
+        Ok(next) => next,
+        Err(error) => {
+            listener.next = None;
+            return Err(error);
+        }
+    };
+    let pending = core::mem::replace(waiting, next);
     connected?;
     let pid = client_process(&pending)?;
     let said = Said {
@@ -1291,6 +1302,20 @@ pub(crate) fn endpoint_is_as_created(listener: &Listener, user: &User) -> bool {
     reason = "the interface's answer: the Unix half says what binding a socket said"
 )]
 pub(crate) const fn leave_a_dead_endpoint(_endpoint: &Endpoint) -> io::Result<()> {
+    Ok(())
+}
+
+/// Nothing to judge: a pipe's name is the system's, and a bind reads nothing
+/// at the socket's path.
+#[cfg(any(test, feature = "test-support"))]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "the interface's answer: the Unix half says what it made of the socket's path"
+)]
+pub(crate) const fn judge_what_stands_at(
+    _endpoint: &Endpoint,
+    _user: &User,
+) -> Result<(), Refused> {
     Ok(())
 }
 

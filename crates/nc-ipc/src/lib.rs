@@ -9,7 +9,8 @@
 //!   `ipc_frame_max_bytes`, is refused from the prefix alone, before anything
 //!   is allocated for it, and text that is not exactly what `nc-canon` writes
 //!   for the value it parses to is refused too: there is one spelling of every
-//!   message.
+//!   message. A value too long for a frame is refused to its sender, and
+//!   nothing of it is sent.
 //! - **The handshake** ([`serve`], [`connect`]). The daemon sends a challenge:
 //!   the protocol it speaks and a nonce of its own. The client answers with
 //!   its nonce and its proof, BLAKE3 keyed by the token over the client's
@@ -26,7 +27,8 @@
 //!   answered is refused, and so is an answer nobody asked for.
 //! - **The heartbeat** ([`Client`], [`Served`]): each side pings after
 //!   `ipc_heartbeat_ms` of its own silence, while a dispatch runs as well as
-//!   between requests, and drops a peer silent for `ipc_silent_after_ms`.
+//!   between requests, and drops a peer silent for `ipc_silent_after_ms`, or
+//!   one that takes nothing written to it for as long.
 //!
 //! **Before closing for a reason it can name, a side says goodbye** with the
 //! code, so the other end refuses with the daemon's word rather than a closed
@@ -41,7 +43,8 @@
 //! request to what cannot prove it to the client; the token itself is never
 //! sent, so neither end learns it from the other; a peer cannot make the
 //! reader allocate more than one frame's bound, queue more than one request,
-//! or hold a connection open without speaking.
+//! or hold a connection open without speaking or without taking what it is
+//! sent.
 //!
 //! # What it does not
 //!
@@ -138,9 +141,15 @@ impl Drop for Token {
 /// Why a connection was refused, closed or not made.
 #[derive(Debug)]
 pub enum IpcError {
-    /// A frame claimed more than `ipc_frame_max_bytes`.
+    /// A frame read claimed more than `ipc_frame_max_bytes`.
     TooLarge {
         /// What its prefix claimed.
+        length: u64,
+    },
+    /// A value this side was to send is longer than `ipc_frame_max_bytes`
+    /// as a frame, so nothing of it was sent.
+    Unsendable {
+        /// How long its frame's body would have been.
         length: u64,
     },
     /// A frame that is not one message of the protocol, or one where the
@@ -162,6 +171,8 @@ pub enum IpcError {
     Slow,
     /// The peer was silent for `ipc_silent_after_ms`.
     Silent,
+    /// The peer took nothing written to it for `ipc_silent_after_ms`.
+    Unread,
     /// The other end closed the connection saying why, by its code.
     TurnedAway(ErrorCode),
     /// The endpoint refused: to be bound, to accept, or to be reached.
@@ -175,6 +186,7 @@ impl IpcError {
         use nc_platform::ipc::Refused;
         match self {
             Self::TooLarge { .. } => ErrorCode::IpcFrameTooLarge,
+            Self::Unsendable { .. } => ErrorCode::IpcUnsendable,
             Self::Malformed(_) => ErrorCode::IpcMalformed,
             Self::Lost(_) => ErrorCode::IpcLost,
             Self::Protocol { .. } => ErrorCode::IpcProtocol,
@@ -182,6 +194,7 @@ impl IpcError {
             Self::DaemonUnproven => ErrorCode::IpcDaemonUnproven,
             Self::Slow => ErrorCode::IpcHandshakeSlow,
             Self::Silent => ErrorCode::IpcSilent,
+            Self::Unread => ErrorCode::IpcUnread,
             Self::TurnedAway(code) => *code,
             Self::Endpoint(refused) => match refused {
                 Refused::NotPrivate(_) => ErrorCode::IpcEndpointNotPrivate,
@@ -212,6 +225,12 @@ impl core::fmt::Display for IpcError {
                  refused from its prefix, before any of it was read",
                 nc_catalog::DAEMON.ipc_frame_max_bytes
             ),
+            Self::Unsendable { length } => write!(
+                formatter,
+                "a value to be sent is {length} bytes as a frame, and `ipc_frame_max_bytes` \
+                 is {}; nothing of it was sent",
+                nc_catalog::DAEMON.ipc_frame_max_bytes
+            ),
             Self::Malformed(what) | Self::Lost(what) => write!(formatter, "{what}"),
             Self::Protocol { theirs } => write!(
                 formatter,
@@ -237,6 +256,12 @@ impl core::fmt::Display for IpcError {
                 formatter,
                 "the other end said nothing for `ipc_silent_after_ms`, {} milliseconds, so \
                  the connection was dropped",
+                nc_catalog::DAEMON.ipc_silent_after_ms
+            ),
+            Self::Unread => write!(
+                formatter,
+                "the other end took nothing written to it for `ipc_silent_after_ms`, {} \
+                 milliseconds, so the connection was dropped",
                 nc_catalog::DAEMON.ipc_silent_after_ms
             ),
             Self::TurnedAway(code) => write!(

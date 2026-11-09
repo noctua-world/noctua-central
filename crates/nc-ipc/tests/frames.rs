@@ -139,15 +139,72 @@ async fn text_that_is_not_the_canonical_spelling_of_its_value_is_refused() {
     }
 }
 
+/// A writer refuses a value no reader would take, writes nothing of it, and
+/// says so as its own refusal — not as a reader's of a length claimed.
 #[tokio::test(start_paused = true)]
 async fn a_writer_refuses_a_value_no_reader_would_take_and_writes_nothing() {
     let past = Value::text("a".repeat(usize::try_from(MOST).expect("a size") - 1));
     let mut written = Vec::new();
     match frame::write(&mut written, &past).await {
-        Err(IpcError::TooLarge { length }) => assert_eq!(length, MOST + 1),
+        Err(refused @ IpcError::Unsendable { length }) => {
+            assert_eq!(length, MOST + 1);
+            assert_eq!(refused.code(), nc_catalog::ErrorCode::IpcUnsendable);
+            assert!(refused.to_string().contains("was sent"), "{refused}");
+        }
         other => panic!("a value past the bound was {other:?}"),
     }
     assert!(written.is_empty(), "a refused frame was partly written");
+}
+
+/// A request and an answer too long for a frame are each refused to its sender.
+///
+/// The connection goes on: the client may ask again, and the request still
+/// waits for an answer the daemon can send.
+#[tokio::test(start_paused = true)]
+async fn a_value_too_long_for_a_frame_is_refused_to_its_sender_and_the_connection_goes_on() {
+    let too_long = Value::object([(
+        "p",
+        Value::text("a".repeat(usize::try_from(MOST).expect("a size"))),
+    )]);
+    let token = Token::fresh().expect("a token");
+    let welcome = welcome();
+    let (daemon, client) = tokio::io::duplex(1 << 16);
+    let (served, connected) = tokio::join!(
+        nc_ipc::serve(daemon, &token, &welcome),
+        nc_ipc::connect(client, &token)
+    );
+    let mut served = served.expect("served");
+    let (mut client, _) = connected.expect("connected");
+    let refused = client
+        .ask(&Request::Dispatch {
+            command: "reference.notes.put".to_owned(),
+            args: too_long.clone(),
+        })
+        .await;
+    assert!(
+        matches!(refused, Err(IpcError::Unsendable { .. })),
+        "a request too long for a frame was {refused:?}"
+    );
+    let answer = Answer::Result(Value::object([("ok", Value::Bool(true))]));
+    // Bounded, on the paused clock: a client refused its next request would
+    // leave the daemon waiting for it while both ends ping.
+    let patience = std::time::Duration::from_millis(nc_catalog::DAEMON.ipc_silent_after_ms * 3);
+    let (asked, ()) = tokio::join!(client.ask(&Request::Status), async {
+        let heard = tokio::time::timeout(patience, served.next())
+            .await
+            .expect("the client asks again after its refused request");
+        assert_eq!(heard.expect("read"), Some(Request::Status));
+        let refused = served.answer(&Answer::Result(too_long.clone())).await;
+        assert!(
+            matches!(refused, Err(IpcError::Unsendable { .. })),
+            "an answer too long for a frame was {refused:?}"
+        );
+        served
+            .answer(&answer)
+            .await
+            .expect("the request still waits for an answer");
+    });
+    assert_eq!(asked.expect("answered"), answer);
 }
 
 /// A dispatch's answer carrying the kernel's whole payload, and a dispatch

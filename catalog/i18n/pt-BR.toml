@@ -168,6 +168,8 @@ dir   = "ltr"
 "error.ipc.busy" = "O Noctua já tem abertas tantas conexões quanto permite. Feche uma e tente de novo."
 "error.ipc.unreachable" = "O Noctua não está em execução, então nada respondeu. Inicie-o e tente de novo."
 "error.ipc.endpoint-unavailable" = "O Noctua não conseguiu abrir o lugar por onde é alcançado. Tente de novo."
+"error.ipc.unsendable" = "O Noctua tinha mais para enviar de uma só vez do que uma conexão leva, então não enviou nada disso."
+"error.ipc.unread" = "O outro lado parou de receber o que o Noctua enviava, então a conexão com o Noctua foi fechada. Tente de novo."
 
 # --- The entries that prove the catalog's mechanism ---
 "notification.catalog.mechanism.title" = "O Noctua está funcionando"
