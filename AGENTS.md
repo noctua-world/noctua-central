@@ -1726,8 +1726,8 @@ area at the first thing it cannot vouch for.
   high-water mark.
 
 **Enforced by** the unit tests of each module in `apps/daemon/src/` — a missing, reachable
-and malformed manifest, a manifest in a directory another account can reach refused with
-nothing made in it, a manifest read through a link beside the file that runs, the
+and malformed manifest, a manifest in a directory another account can reach refused and
+left as it was, a manifest read through a link beside the file that runs, the
 profile's data, configuration, cache, state, log and runtime directories each made private
 and judged again, a missing base not made on the way, a world copied, replaced and
 refused, in the profile as well as on its way in, a copy left beside the world removed and

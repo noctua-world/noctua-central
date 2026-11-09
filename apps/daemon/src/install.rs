@@ -221,7 +221,7 @@ mod tests {
     }
 
     /// A manifest in a directory another account can reach is not read, and
-    /// nothing is made in the directory to find out who runs the binary.
+    /// the directory is left holding what it held, as it was.
     #[test]
     fn a_manifest_in_a_directory_another_user_can_reach_is_refused() {
         let scratch = Scratch::new("open");
