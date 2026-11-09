@@ -256,7 +256,7 @@ const MESSAGE: usize = 8;
 /// passes cargo's multi-line stderr straight through.
 ///
 /// ```text
-///   error nothing is listening for PostgreSQL at 127.0.0.1:5432. …
+///   error nothing is listening for PostgreSQL at 127.0.0.1:<this checkout's port>. …
 /// Run `cargo xtask dev` to bring the stack up, or …
 /// ```
 ///
@@ -935,7 +935,7 @@ mod tests {
         /// failure spells out: source added is ordinary work and the number goes
         /// up with it, but source *deleted* and a class *exempted* look
         /// identical from here, and only one of them is something to accept.
-        const THE_GROUND_THIS_READS: usize = 75_067;
+        const THE_GROUND_THIS_READS: usize = 75_170;
 
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let mut directories = vec![root.join("xtask/src")];

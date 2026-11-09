@@ -18,9 +18,11 @@
 //!
 //! **It passes no `.env`.** Docker Compose would read one from beside the
 //! compose file, which is inside the repository, and `cargo xtask check` fails
-//! on a `.env` at any depth (`NOCTUA.md §15.5`). Every variable the compose file
-//! reads has a default, so the stack comes up with none set; a developer who
-//! wants different values exports them, and `.env.example` says how.
+//! on a `.env` at any depth (`NOCTUA.md §15.5`). Every credential the compose
+//! file reads has a default there, and its two ports are handed to it by this
+//! file — the checkout's, from `nc_channel` ([`Port`]) — so the stack comes up
+//! with none set; a developer who wants different values exports them, and the
+//! example environment, `.env.example`, says how.
 
 use std::path::Path;
 use std::process::Command;
@@ -39,9 +41,10 @@ const HEALTH_TIMEOUT_SECONDS: u64 = 120;
 /// when nothing does.
 ///
 /// **Written once, and held to the compose file.** `docker-compose.yml`
-/// declares each as `${NAME:-value}`, and `dev.rs`, `database.rs::default_url`
-/// and `check.rs` all read them; a default copied into each reader and held to
-/// nothing drifts. Measured without
+/// declares each as `${NAME:-value}`, and `dev.rs` and `database.rs::default_url`
+/// both read them; a default copied into each reader and held to nothing
+/// drifts. The two ports are not settings: they are the checkout's ([`Port`]).
+/// Measured without
 /// `the_settings_this_tool_reads_are_the_ones_the_stack_declares`, `POSTGRES_DB`'s
 /// default in this file alone changed to `"central"`: `check passed` with no warn
 /// line, and `cargo xtask dev` then failed outright —
@@ -60,29 +63,113 @@ pub(crate) const POSTGRES_USER: Setting = ("POSTGRES_USER", "noctua");
 pub(crate) const POSTGRES_PASSWORD: Setting = ("POSTGRES_PASSWORD", "noctua");
 /// Which database.
 pub(crate) const POSTGRES_DB: Setting = ("POSTGRES_DB", "noctua");
-/// Where PostgreSQL listens, on loopback.
-pub(crate) const POSTGRES_PORT: Setting = ("POSTGRES_PORT", "5432");
-/// Where the log store listens, on loopback.
-pub(crate) const LOGS_PORT: Setting = ("LOGS_PORT", "9428");
 
-/// Every one of them, so a test can read the set rather than five names.
+/// Every one of them, so a test can read the set rather than three names.
 ///
 /// A reverse loop over `docker-compose.yml` is what makes this a set rather than
-/// a sample: a sixth `${NAME:-value}` added to the stack and not added here is a
+/// a sample: a fourth `${NAME:-value}` added to the stack and not added here is a
 /// setting the tools do not read, which is the same stack-with-two-configurations
 /// the paragraph above measures.
 #[cfg(test)]
-pub(crate) const THE_STACK_SETTINGS: [Setting; 5] = [
-    POSTGRES_USER,
-    POSTGRES_PASSWORD,
-    POSTGRES_DB,
-    POSTGRES_PORT,
-    LOGS_PORT,
-];
+pub(crate) const THE_STACK_SETTINGS: [Setting; 3] = [POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB];
 
 /// What the environment says, or what the stack is without it.
 pub(crate) fn setting((variable, default): Setting) -> String {
-    std::env::var(variable).unwrap_or_else(|_| default.to_owned())
+    as_compose_reads(std::env::var(variable).ok()).unwrap_or_else(|| default.to_owned())
+}
+
+/// One of the stack's two ports: which of the checkout's pair it is, the
+/// variable that moves it, and the service that publishes it.
+///
+/// **The checkout's, and not a setting with a default.** Two checkouts at one
+/// default bind one port, so the second `dev` cannot come up beside the first.
+/// The pair is derived from the checkout's path by `nc_channel::Checkout::stack`
+/// — the one function every name an install gives the system comes from, and
+/// the one that names this stack's compose project — and `docker-compose.yml`
+/// writes each port as `${NAME:?…}`, with nothing to fall back to: a
+/// `docker compose up` that was not handed the pair refuses, rather than
+/// binding a port another checkout's stack may hold. Either variable,
+/// `POSTGRES_PORT` or `LOGS_PORT`, moves its port, and the one reader of
+/// both is [`port`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Port {
+    /// Where PostgreSQL listens, on loopback.
+    Postgres,
+    /// Where the log store listens, on loopback.
+    Logs,
+}
+
+/// What each port is called, which of the pair it is, and who publishes it.
+impl Port {
+    /// Both, so every reader hands compose the pair and a test reads the set.
+    pub(crate) const ALL: [Self; 2] = [Self::Postgres, Self::Logs];
+
+    /// The variable that moves it.
+    pub(crate) const fn variable(self) -> &'static str {
+        match self {
+            Self::Postgres => "POSTGRES_PORT",
+            Self::Logs => "LOGS_PORT",
+        }
+    }
+
+    /// Which of the checkout's pair it is when its variable says nothing.
+    const fn of(self, stack: &nc_channel::Stack) -> u16 {
+        match self {
+            Self::Postgres => stack.postgres,
+            Self::Logs => stack.logs,
+        }
+    }
+
+    /// The service that publishes it, and the port inside that service's
+    /// container it publishes, as `docker-compose.yml` writes both.
+    const fn published_by(self) -> (&'static str, &'static str) {
+        // **What `dev` asks `docker compose port` with**, to tell its own stack
+        // from another holder of a port it cannot bind, so a wrong answer here
+        // refuses every `dev` over a running stack. Measured with the two arms
+        // swapped: the suites that judge this file passed, 138 of 138, and
+        // `cargo xtask dev` over this checkout's running stack refused its own
+        // PostgreSQL port as *held by something this checkout's stack does not
+        // run*. `each_port_is_asked_of_the_service_that_publishes_it` holds both
+        // halves to the compose file.
+        match self {
+            Self::Postgres => ("postgres", "5432"),
+            Self::Logs => ("logs", "9428"),
+        }
+    }
+}
+
+/// The port this checkout's stack binds for `which`: what its variable says,
+/// and the checkout's when it says nothing.
+///
+/// **The one reader**, for `dev`, `database.rs::default_url` and the log
+/// store's bounds in `check.rs` alike, and for every compose invocation this
+/// file makes: a port read one way where the stack comes up and another where
+/// the tools look for it is the stack with two configurations the paragraph on
+/// [`Setting`] measures.
+pub(crate) fn port(root: &Path, which: Port) -> String {
+    port_of(root, which, std::env::var(which.variable()).ok())
+}
+
+/// The port [`port`] reads, with what the variable says handed in, so a test
+/// can hand it either answer without setting this process's environment.
+fn port_of(root: &Path, which: Port, said: Option<String>) -> String {
+    as_compose_reads(said).unwrap_or_else(|| {
+        which
+            .of(&nc_channel::Checkout::of(root).stack())
+            .to_string()
+    })
+}
+
+/// What a variable says, read as compose reads it: one set empty says nothing.
+///
+/// **One rule for the tools and the stack.** Compose reads `${NAME:-value}`
+/// as its default and `${NAME:?…}` as missing when `NAME` is set empty, and
+/// the example environment writes the two ports empty — so a copy of it
+/// sourced whole leaves every port the checkout's, here as there. Read as a
+/// value, an empty `POSTGRES_PASSWORD` would be the empty password here and the
+/// default, `noctua`, in the stack: two configurations of one stack.
+fn as_compose_reads(said: Option<String>) -> Option<String> {
+    said.filter(|said| !said.is_empty())
 }
 
 /// The url of the stack `docker-compose.yml` brings up.
@@ -504,22 +591,33 @@ pub(crate) fn run(root: &Path, down: bool) -> Result<(), String> {
     // `up -d` prints `Found orphan containers … --remove-orphans` *above* the
     // `ok` line where nobody reads it. The wait below then reports that orphan
     // as an unhealthy service of this stack and spends the whole timeout on it.
+    //
+    // **And its ports are free, or already its own, before compose is asked.**
+    // A pair another stack holds would fail `up` in Docker's words, about a
+    // port the developer never chose; asked here, it fails naming the variable
+    // that moves it.
+    for which in Port::ALL {
+        let (service, inside) = which.published_by();
+        free_or_this_stacks(which, &port(root, which), || {
+            compose_output(root, &["port", service, inside]).ok()
+        })?;
+    }
     compose_command(root, &["up", "-d", "--remove-orphans"])?;
     ui::ok("the stack is starting");
     wait_for_health(root)?;
 
-    let logs_port = setting(LOGS_PORT);
-    // **Through the table, like its neighbour.** Reading the variable itself
-    // with an inline `"5432"` would be another copy of a default the stack
-    // declares once — and this is the port `migrate` connects to *and* the port
-    // the success line prints. `database.rs::default_url` reads all four
-    // through `setting` and carries the paragraph saying why; this reader, the
-    // one that decides where the migrations land, does the same.
-    // Measured with the literal written `"5433"` and without
+    let logs_port = port(root, Port::Logs);
+    // **Through the one reader, like its neighbour.** Reading the variable
+    // itself with an inline port would be another copy of what the stack is
+    // handed — and this is the port `migrate` connects to *and* the port the
+    // success line prints. `database.rs::default_url` reads it through `port`
+    // too; this reader, the one that decides where the migrations land, does
+    // the same. Measured, with a setting read through its own `env::var` and
+    // an inline `"5433"`, and without
     // `every_setting_is_read_through_the_table_that_declares_it`: `check passed`,
     // byte-identical to a clean run, while `cargo xtask dev` brought the stack up
     // on one port and tried to migrate another.
-    let postgres_port = setting(POSTGRES_PORT);
+    let postgres_port = port(root, Port::Postgres);
     the_log_store_is_serving(&logs_port)?;
     migrate(root, &postgres_port)?;
     ui::gap();
@@ -529,6 +627,16 @@ pub(crate) fn run(root: &Path, down: bool) -> Result<(), String> {
         "log store   http://127.0.0.1:{logs_port}/select/vmui/  (interactive, live tailing)"
     ));
     ui::detail("both bind to loopback only; `cargo xtask dev --down` removes them and their data");
+    // **What a tool outside `cargo xtask` has to be told.** The ports are this
+    // checkout's, so no file states them: a hand-run `docker compose up`
+    // refuses without them, and the PostgreSQL suites and `xtask/mutants.py`
+    // read `DATABASE_URL`. So the line says what to export, whole.
+    ui::detail(&format!(
+        "the ports are this checkout's, and `POSTGRES_PORT` and `LOGS_PORT` move them; a \
+         tool outside `cargo xtask` is told them by `export POSTGRES_PORT={postgres_port} \
+         LOGS_PORT={logs_port} DATABASE_URL={}`",
+        stack_url(&postgres_port)
+    ));
     // **Which stack, said out loud.** The project name carries this checkout's
     // path (see `project_for`), so a machine with two checkouts has two of these
     // and `docker compose ls` is where a developer goes looking. A name nothing
@@ -539,6 +647,95 @@ pub(crate) fn run(root: &Path, down: bool) -> Result<(), String> {
         project_for(root)
     ));
     Ok(())
+}
+
+/// A port this checkout's stack is about to bind is free, or already its own.
+///
+/// **Asked before compose, so the refusal names what moves the port.** Two
+/// checkouts whose digests fall on one pair of the block
+/// (`nc_channel::PORT_PAIRS`), or anything else listening on one of the pair,
+/// fail `up` in Docker's words — `port is already allocated` — about a port
+/// the developer never chose. Asked here, the same collision is a sentence
+/// naming the port, the service, and the variable that moves it.
+///
+/// **A port held by this project is this stack's.** A second `dev` over a
+/// running stack is the ordinary case, and refusing it would refuse every run
+/// after the first, so a port that cannot be bound is asked of compose —
+/// `published`, whose answer is what `docker compose port` prints for this
+/// project — and only then, so a free port costs no docker call. What it does
+/// not tell apart is a listener that is gone by the time compose binds, or
+/// one that arrives in between: compose then fails as it always did, and its
+/// message names both variables.
+///
+/// # Errors
+///
+/// Returns why: the variable does not hold a port, or the port cannot be
+/// bound and this project does not publish it there.
+fn free_or_this_stacks(
+    which: Port,
+    at: &str,
+    published: impl FnOnce() -> Option<String>,
+) -> Result<(), String> {
+    let variable = which.variable();
+    let Some(number) = at.parse::<u16>().ok().filter(|number| *number != 0) else {
+        return Err(format!(
+            "`{variable}` is {at:?}, which is not a port. Unset it for this checkout's own, \
+             or set it to a port from 1 to 65535"
+        ));
+    };
+    let bound = std::net::TcpListener::bind(("127.0.0.1", number)).map(drop);
+    bound_or_this_stacks(which, number, bound, published)
+}
+
+/// What binding one port of the pair answered, judged: free, this stack's
+/// own, or refused with the reason the bind gave.
+///
+/// **Held only when the bind says the port is in use.** A bind fails for more
+/// reasons than a listener: a port below 1024 is refused to a user without
+/// the privilege, and an address this system does not have is refused as
+/// unavailable, with nothing listening and a rootful Docker still able to
+/// publish the port. Read as held, each was refused as *held by something
+/// this checkout's stack does not run*. Measured with `POSTGRES_PORT=543`
+/// and nothing listening there: that sentence, about a holder `docker ps`
+/// cannot show. So the refusal carries the bind's own error, and names a
+/// holder only for `AddrInUse`.
+///
+/// **The bind's answer is handed in**, as what compose publishes is, so a
+/// test hands it each answer, a free port included, which a test cannot
+/// otherwise make without releasing one, and asks no docker.
+///
+/// # Errors
+///
+/// Returns why the port cannot be this stack's: something holds it, or the
+/// bind was refused for the reason it gives.
+fn bound_or_this_stacks(
+    which: Port,
+    number: u16,
+    bound: std::io::Result<()>,
+    published: impl FnOnce() -> Option<String>,
+) -> Result<(), String> {
+    let Err(error) = bound else {
+        return Ok(());
+    };
+    let this_stacks = format!("127.0.0.1:{number}");
+    if published().is_some_and(|said| said.lines().any(|line| line.trim() == this_stacks)) {
+        return Ok(());
+    }
+    let (service, _) = which.published_by();
+    let variable = which.variable();
+    if error.kind() == std::io::ErrorKind::AddrInUse {
+        return Err(format!(
+            "127.0.0.1:{number}, where this checkout's {service} listens, is held by \
+             something this checkout's stack does not run — another checkout's stack on the \
+             same pair, or anything else listening there. Export `{variable}` with a free \
+             port and run `cargo xtask dev` again; `docker ps` says whether a stack holds it"
+        ));
+    }
+    Err(format!(
+        "127.0.0.1:{number}, where this checkout's {service} listens, could not be bound to \
+         ask whether it is free ({error}), and this checkout's stack does not publish it. \
+         Export `{variable}` with a port this user can bind and run `cargo xtask dev` again"
+    ))
 }
 
 /// The log store answers `GET /health`, asked from outside the container.
@@ -783,9 +980,11 @@ fn wait_for_health(root: &Path) -> Result<(), String> {
 /// `Checkout::stack`, the one place the digest and its rendering are written,
 /// and the one a development install's layout is handed too.
 ///
-/// The two stacks still cannot run at once — both bind 127.0.0.1:5432 — and that
-/// is the point: the second `dev` fails on the port, loudly, instead of quietly
-/// migrating the first's database.
+/// **And so are its ports**, from the same digest ([`Port`]), so two
+/// checkouts' stacks run at once. Two whose digests fall on one pair, or a
+/// port anything else holds, fail the second `dev` before compose runs,
+/// naming the variable that moves the port, instead of quietly migrating the
+/// first's database.
 fn project_for(root: &Path) -> String {
     nc_channel::Checkout::of(root).stack().project
 }
@@ -977,6 +1176,12 @@ fn compose(root: &Path, args: &[&str], want: Compose) -> Result<String, String> 
         .arg("compose")
         .args(["-p", &project_for(root)])
         .args(args)
+        // **The checkout's ports, handed to every invocation.** The file
+        // writes no port of its own, so `up` and `config` refuse without them,
+        // and so does `ps` of a project that is not running, while `down` and
+        // `logs` of a running one do not ask, measured. Handed to all, no
+        // invocation depends on which verbs compose resolves the file for.
+        .envs(Port::ALL.map(|which| (which.variable(), port(root, which))))
         .current_dir(root);
     match want {
         Compose::Through => {
@@ -1872,7 +2077,7 @@ mod tests {
     /// gap a defect walks through — the one measured beside the comparison in
     /// that test.
     #[cfg(test)]
-    const THE_RUNNER_AS_WRITTEN: [&str; 109] = [
+    const THE_RUNNER_AS_WRITTEN: [&str; 115] = [
         "// **And a caller cannot name a project either.** The block below is held",
         "// whole, and `.args(args)` sits inside it — so the one channel the pin",
         "// leaves open is the slice itself: `compose_command(root, &[\"--project-name\",",
@@ -1949,6 +2154,12 @@ mod tests {
         ".arg(\"compose\")",
         ".args([\"-p\", &project_for(root)])",
         ".args(args)",
+        "// **The checkout's ports, handed to every invocation.** The file",
+        "// writes no port of its own, so `up` and `config` refuse without them,",
+        "// and so does `ps` of a project that is not running, while `down` and",
+        "// `logs` of a running one do not ask, measured. Handed to all, no",
+        "// invocation depends on which verbs compose resolves the file for.",
+        ".envs(Port::ALL.map(|which| (which.variable(), port(root, which))))",
         ".current_dir(root);",
         "match want {",
         "Compose::Through => {",
@@ -2689,6 +2900,291 @@ mod tests {
         );
     }
 
+    /// A checkout's stack binds the checkout's ports, unless a variable moves
+    /// one.
+    ///
+    /// **The half of "two checkouts' stacks run at once" this file decides.**
+    /// `nc_channel` derives the pair and its own suite holds the formula; what
+    /// is decided here is that the stack takes it. Each case would pass a
+    /// reader that did otherwise — a fixed port for every checkout, the two
+    /// ports swapped, the variable ignored, or an empty variable read as a
+    /// port — only if that case were not here.
+    #[test]
+    fn a_stack_binds_its_checkouts_ports_unless_a_variable_moves_one() {
+        use super::Port;
+        use std::path::Path;
+
+        let one = Path::new("/nonexistent/one/noctua-central");
+        let other = Path::new("/nonexistent/other/noctua-central");
+        let (ones, others) = (
+            nc_channel::Checkout::of(one).stack(),
+            nc_channel::Checkout::of(other).stack(),
+        );
+        for (root, stack) in [(one, &ones), (other, &others)] {
+            assert_eq!(
+                super::port_of(root, Port::Postgres, None),
+                stack.postgres.to_string(),
+                "PostgreSQL is not on the port this checkout derives"
+            );
+            assert_eq!(
+                super::port_of(root, Port::Logs, None),
+                stack.logs.to_string(),
+                "the log store is not on the port this checkout derives"
+            );
+            // **Set empty is unset**, as compose reads `${NAME:?…}`: an
+            // `.env.example` sourced whole writes both ports empty.
+            for which in Port::ALL {
+                assert_eq!(
+                    super::port_of(root, which, Some(String::new())),
+                    super::port_of(root, which, None),
+                    "`{}` set empty moved the port",
+                    which.variable()
+                );
+                assert_eq!(
+                    super::port_of(root, which, Some("5433".to_owned())),
+                    "5433",
+                    "`{}` did not move the port",
+                    which.variable()
+                );
+            }
+        }
+        // **Two checkouts, two pairs**, which is the point; these two paths'
+        // digests fall on different pairs of the block.
+        let taken: std::collections::BTreeSet<String> = [one, other]
+            .iter()
+            .flat_map(|root| Port::ALL.map(|which| super::port_of(root, which, None)))
+            .collect();
+        assert_eq!(
+            taken.len(),
+            4,
+            "two checkouts' stacks share a port: {taken:?}"
+        );
+        // And the settings read the same rule.
+        assert_eq!(super::as_compose_reads(Some(String::new())), None);
+        assert_eq!(super::as_compose_reads(None), None);
+        assert_eq!(
+            super::as_compose_reads(Some("hunter2".to_owned())),
+            Some("hunter2".to_owned())
+        );
+    }
+
+    /// A port something else holds fails `dev` naming the variable that moves
+    /// it, and one this stack holds is its own.
+    ///
+    /// **Against a real listener, held for the whole test**, so the port
+    /// cannot be free; the free case is not driven, because a port released to
+    /// prove it free is one any parallel test may take. What compose says this
+    /// project publishes is handed in, so no docker is asked.
+    #[test]
+    fn a_port_something_else_holds_fails_naming_the_variable_that_moves_it() {
+        use super::Port;
+
+        let held = std::net::TcpListener::bind("127.0.0.1:0").expect("a loopback port is free");
+        let port = held
+            .local_addr()
+            .expect("a bound listener has an address")
+            .port();
+        let at = port.to_string();
+        for which in Port::ALL {
+            let refused = super::free_or_this_stacks(which, &at, || None)
+                .expect_err("a port held by a listener this project does not run");
+            assert!(
+                refused.contains(&format!("`{}`", which.variable()))
+                    && refused.contains(&format!("127.0.0.1:{port}")),
+                "the refusal does not name the port and the variable that moves it: {refused}"
+            );
+            // **This project's own**, as `docker compose port` prints it: a
+            // second `dev` over a running stack.
+            assert_eq!(
+                super::free_or_this_stacks(which, &at, || Some(format!("127.0.0.1:{port}\n"))),
+                Ok(()),
+                "a port this stack publishes was refused, so every `dev` after the first fails"
+            );
+            // Published by this project, but on another port: not this one.
+            for elsewhere in [format!("127.0.0.1:{port}0\n"), format!("0.0.0.0:{port}\n")] {
+                assert!(
+                    super::free_or_this_stacks(which, &at, || Some(elsewhere.clone())).is_err(),
+                    "`{}` was read as this stack holding 127.0.0.1:{port}",
+                    elsewhere.trim()
+                );
+            }
+            // **And a variable that holds no port** is refused by name before
+            // anything is bound.
+            for wrong in ["abc", "0", "65536", "-1", " 20000"] {
+                let refused =
+                    super::free_or_this_stacks(which, wrong, || None).expect_err("not a port");
+                assert!(
+                    refused.contains(&format!("`{}` is", which.variable())),
+                    "{wrong:?} was refused without naming its variable: {refused}"
+                );
+            }
+        }
+        drop(held);
+    }
+
+    /// A port is called held only when its bind says something holds it, and
+    /// a bind refused for another reason is refused with that reason.
+    ///
+    /// **This found a real bug, by review.** Every failed bind was read as a
+    /// holder, so a port refused to an unprivileged user, or an address this
+    /// system lacks, was refused as *held by something this checkout's stack
+    /// does not run* with nothing listening there. Measured with
+    /// `POSTGRES_PORT=543`. The bind's answer is handed in, so each kind is
+    /// driven without a privileged port, and so is a free port, which a real
+    /// bind proves only by releasing one that another test may take.
+    #[test]
+    fn a_bind_refused_for_another_reason_is_refused_with_that_reason() {
+        use super::Port;
+        use std::io::{Error, ErrorKind};
+
+        for which in Port::ALL {
+            let variable = format!("`{}`", which.variable());
+            // **Free, and compose never asked**: a free port costs no docker
+            // call.
+            assert_eq!(
+                super::bound_or_this_stacks(which, 21_000, Ok(()), || {
+                    panic!("compose was asked whether it publishes a port that is free")
+                }),
+                Ok(()),
+                "a port the bind took was refused, so no stack can come up"
+            );
+            for kind in [
+                ErrorKind::AddrInUse,
+                ErrorKind::PermissionDenied,
+                ErrorKind::AddrNotAvailable,
+            ] {
+                let said = format!("what the bind said, {kind:?}");
+                // **This project's own, whatever the bind said**: a second
+                // `dev` over a running stack.
+                assert_eq!(
+                    super::bound_or_this_stacks(
+                        which,
+                        543,
+                        Err(Error::new(kind, said.clone())),
+                        || { Some("127.0.0.1:543\n".to_owned()) }
+                    ),
+                    Ok(()),
+                    "a port this stack publishes was refused after a bind answering {kind:?}"
+                );
+                let refused = super::bound_or_this_stacks(
+                    which,
+                    543,
+                    Err(Error::new(kind, said.clone())),
+                    || None,
+                )
+                .expect_err("a port that cannot be bound and that this stack does not publish");
+                assert!(
+                    refused.contains("127.0.0.1:543") && refused.contains(&variable),
+                    "the refusal after {kind:?} does not name the port and {variable}: {refused}"
+                );
+                assert_eq!(
+                    refused.contains("is held by something"),
+                    kind == ErrorKind::AddrInUse,
+                    "after a bind answering {kind:?}, the refusal names a holder when and \
+                     only when the port is in use: {refused}"
+                );
+                assert!(
+                    kind == ErrorKind::AddrInUse || refused.contains(&said),
+                    "the refusal after {kind:?} does not say what the bind said: {refused}"
+                );
+            }
+        }
+    }
+
+    /// Each port is asked of the service that publishes it, at the port inside
+    /// that service's container.
+    ///
+    /// **What `dev` hands `docker compose port`**, held to the compose file
+    /// both ways: the service [`super::Port::published_by`] names publishes
+    /// the port's variable at the container port it names, and no other
+    /// service reads that variable. **This found a real bug's hiding place,
+    /// by review**: with the two arms swapped the suites that judge this file
+    /// passed, 138 of 138, and `dev` over a running stack refused its own
+    /// port. CI's one `dev` runs on a fresh runner, where both ports are free
+    /// and the ask is never made.
+    #[test]
+    fn each_port_is_asked_of_the_service_that_publishes_it() {
+        let compose = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../docker-compose.yml"
+        ))
+        .expect("this repository has a compose file");
+        // Each service's lines, as (indentation, text): a service is a key two
+        // in under `services:`, and its block runs to the next key at that
+        // depth or less. **What compose reads, and not its comments.**
+        let mut services: std::collections::BTreeMap<&str, Vec<(usize, &str)>> =
+            std::collections::BTreeMap::new();
+        let mut under_services = false;
+        let mut current: Option<&str> = None;
+        for line in compose.lines() {
+            let text = line.trim();
+            if text.is_empty() || text.starts_with('#') {
+                continue;
+            }
+            let depth = line.len() - line.trim_start().len();
+            if depth == 0 {
+                under_services = text == "services:";
+                current = None;
+            } else if under_services && depth == 2 {
+                let name = text.strip_suffix(':').unwrap_or(text);
+                services.insert(name, Vec::new());
+                current = Some(name);
+            } else if let Some(lines) = current.and_then(|name| services.get_mut(name)) {
+                lines.push((depth, text));
+            }
+        }
+        assert!(
+            services.len() >= super::Port::ALL.len(),
+            "the scan read {:?} as the compose file's services, fewer than the stack's \
+             ports, so it read the wrong text",
+            services.keys().collect::<Vec<_>>()
+        );
+        for which in super::Port::ALL {
+            let (service, inside) = which.published_by();
+            let variable = which.variable();
+            let lines = services.get(service).unwrap_or_else(|| {
+                panic!(
+                    "`{variable}` is asked of the service `{service}`, which \
+                     `docker-compose.yml` does not declare: {:?}",
+                    services.keys().collect::<Vec<_>>()
+                )
+            });
+            // The items of its `ports:` list, and nothing below another key.
+            let key = lines
+                .iter()
+                .position(|(_, text)| *text == "ports:")
+                .unwrap_or_else(|| panic!("`{service}` publishes no port at all"));
+            let published: Vec<&str> = lines[key + 1..]
+                .iter()
+                .take_while(|(depth, _)| *depth > lines[key].0)
+                .filter_map(|(_, text)| text.strip_prefix("- "))
+                .collect();
+            let (opens, closes) = (
+                format!("\"127.0.0.1:${{{variable}:?"),
+                format!("}}:{inside}\""),
+            );
+            assert!(
+                published.iter().any(|item| {
+                    item.strip_prefix(&opens)
+                        .and_then(|rest| rest.strip_suffix(&closes))
+                        .is_some_and(|why| !why.contains('}'))
+                }),
+                "`{service}` does not publish `{variable}` from its container's port \
+                 {inside}, so `docker compose port {service} {inside}` cannot answer where \
+                 this stack holds it, and every `dev` over a running stack refuses its own \
+                 port: {published:?}"
+            );
+            let read = format!("${{{variable}");
+            for (other, lines) in &services {
+                assert!(
+                    *other == service || !lines.iter().any(|(_, text)| text.contains(&read)),
+                    "`{other}` reads `{variable}` too, which `{service}` publishes, so two \
+                     services answer for one port"
+                );
+            }
+        }
+    }
+
     use super::the_log_store_is_serving;
     use std::io::{Read as _, Write as _};
 
@@ -2940,27 +3436,99 @@ mod tests {
         //
         // A literal name inside `std::env::var` is what a bypass looks like;
         // `setting` itself reads the variable it is handed, so it holds none.
-        let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/dev.rs"))
-            .expect("this file is a file in this crate");
-        // **Comments only.** Spending the string contents too would remove a
-        // variable's name, which lives *inside* the string it is read with — the
-        // very text the scan is looking for — and the scan then passes against
-        // the planted bypass, measured. A scanner that reads a literal as code
-        // is a familiar shape; this is its mirror, and the one that stays green.
-        let code = crate::gates::without_comments(&source, "//");
-        for (variable, default) in super::THE_STACK_SETTINGS {
-            assert!(
-                !code.contains(&format!("env::var(\"{variable}\")")),
-                "`{variable}` is read here with its own `env::var` rather than through \
-                 `setting`, so the default beside it is a copy of `{default}` that \
-                 nothing holds to the stack"
-            );
-        }
+        //
+        // **Every Rust file of every member, not this one.** `database.rs::
+        // default_url` and `check.rs`'s reader of the log store's bounds read the
+        // stack's settings and its ports too, and a bypass in either passes in
+        // every shell that exports what `dev` prints. Measured: both ports read
+        // with their own `env::var` beside a fixed fallback, and the modules that
+        // judge the three files passed 448 tests of 448. Those two readers are
+        // held to `port` by their own modules' tests; this refuses a read by
+        // name anywhere in the tree, a reader not written yet included.
+        let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+        let named: Vec<&str> = super::THE_STACK_SETTINGS
+            .iter()
+            .map(|(variable, _)| *variable)
+            .chain(super::Port::ALL.map(super::Port::variable))
+            .collect();
+        let mut read: Vec<String> = Vec::new();
+        let mut bypasses: Vec<(String, String)> = Vec::new();
+        let mut this_file = String::new();
+        crate::gates::walk(root, &mut |path| {
+            if path.extension().is_none_or(|kind| kind != "rs") {
+                return;
+            }
+            let relative = crate::relative_to(root, path);
+            let text = match std::fs::read_to_string(path) {
+                Ok(text) => text,
+                // A file another test removed between the listing and the
+                // read is not source.
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
+                Err(error) => panic!("`{relative}` is not readable: {error}"),
+            };
+            // **Comments only.** Spending the string contents too would remove a
+            // variable's name, which lives *inside* the string it is read with —
+            // the very text the scan is looking for — and the scan then passes
+            // against the planted bypass, measured. A scanner that reads a
+            // literal as code is a familiar shape; this is its mirror, and the
+            // one that stays green. Whitespace goes, which no name holds.
+            let code: String = crate::gates::without_comments(&text, "//")
+                .chars()
+                .filter(|character| !character.is_whitespace())
+                .collect();
+            for variable in &named {
+                for bypass in [
+                    format!("var(\"{variable}\")"),
+                    format!("var_os(\"{variable}\")"),
+                    format!("env!(\"{variable}\")"),
+                    format!("setting((\"{variable}\""),
+                ] {
+                    if code.contains(&bypass) {
+                        bypasses.push((relative.clone(), bypass));
+                    }
+                }
+            }
+            if relative == "xtask/src/dev.rs" {
+                this_file = code;
+            }
+            read.push(relative);
+        })
+        .expect("the tree is readable");
+        // **And the ports, which no default stands beside.** A port read by its
+        // name falls back to whatever its reader writes there — a fixed port,
+        // which is two checkouts' stacks on one — rather than to the checkout's
+        // pair `port` derives.
+        assert!(
+            bypasses.is_empty(),
+            "{bypasses:?} (a file, and what it reads) read a variable of the stack by name \
+             rather than through `setting` with the row the table declares, or `port` for \
+             either port. A setting read that way falls back to a copy of its default that \
+             nothing holds to the stack, and a port to whatever its reader writes there \
+             rather than this checkout's port"
+        );
         // The floor: a scan that spent the whole file would report no bypass
         // whatever this file said.
         assert!(
-            code.contains("fn setting("),
-            "the scan read no code at all, so it agrees with any file"
+            this_file.contains("fnsetting("),
+            "the scan read no code of this file, so it agrees with any file"
+        );
+        // **Every member tree, not the files that read the stack today.** A walk
+        // that stopped at `xtask/` would still read all three.
+        let members = crate::members::members(root).expect("cargo lists this workspace");
+        let unread: Vec<&str> = members
+            .iter()
+            .map(|member| member.path.as_str())
+            .filter(|tree| {
+                !read
+                    .iter()
+                    .any(|file| file.starts_with(&format!("{tree}/")))
+            })
+            .collect();
+        assert!(
+            unread.is_empty() && members.len() > 10,
+            "{} member(s) cargo resolves, and no Rust file was read under {unread:?}, so a \
+             variable of the stack read by name there is one this scan never sees",
+            members.len()
         );
     }
 
@@ -3074,8 +3642,16 @@ mod tests {
     /// **Both directions, because one is a sample.** Forwards: every setting
     /// this file declares is declared in the compose file with the same default.
     /// Backwards: every `${NAME:-value}` the compose file substitutes is one of
-    /// them — a sixth added to the stack and not added here is a setting the
+    /// them — a fourth added to the stack and not added here is a setting the
     /// tools do not read, which is the same stack with two configurations.
+    ///
+    /// **The ports, which have no default to agree on.** Each is the
+    /// checkout's ([`super::Port`]), so the compose file writes it
+    /// `${NAME:?…}` — required, with nothing to fall back to — and never
+    /// `${NAME:-…}`, whose default is a port two checkouts' stacks would share;
+    /// and its message names `cargo xtask dev`, because the developer who meets
+    /// it ran compose by hand. Any other spelling of a variable is one neither
+    /// list reads, and refused as well.
     #[test]
     fn the_settings_this_tool_reads_are_the_ones_the_stack_declares() {
         let compose = std::fs::read_to_string(concat!(
@@ -3083,47 +3659,126 @@ mod tests {
             "/../docker-compose.yml"
         ))
         .expect("this repository has a compose file");
-        // `${NAME:-value}`, read as the compose file substitutes it.
-        let mut declared: std::collections::BTreeMap<String, String> =
+        // **What compose reads, and not its comments**, which compose never
+        // substitutes and this file's prose spells variables in.
+        let read: String = compose
+            .lines()
+            .filter(|line| !line.trim_start().starts_with('#'))
+            .collect::<Vec<_>>()
+            .join("\n");
+        // `${NAME:-value}` and `${NAME:?why}`, read as the compose file
+        // substitutes them.
+        let mut defaulted: std::collections::BTreeMap<String, String> =
             std::collections::BTreeMap::new();
-        let mut rest = compose.as_str();
+        let mut required: std::collections::BTreeMap<String, String> =
+            std::collections::BTreeMap::new();
+        let mut otherwise: Vec<String> = Vec::new();
+        let mut rest = read.as_str();
         while let Some(at) = rest.find("${") {
             rest = &rest[at + 2..];
             let Some(close) = rest.find('}') else { break };
             let (inside, after) = rest.split_at(close);
             rest = &after[1..];
-            let Some((name, default)) = inside.split_once(":-") else {
-                continue;
-            };
-            declared.insert(name.to_owned(), default.to_owned());
+            if let Some((name, default)) = inside.split_once(":-") {
+                defaulted.insert(name.to_owned(), default.to_owned());
+            } else if let Some((name, why)) = inside.split_once(":?") {
+                required.insert(name.to_owned(), why.to_owned());
+            } else {
+                otherwise.push(inside.to_owned());
+            }
         }
         assert!(
-            declared.len() >= super::THE_STACK_SETTINGS.len(),
+            otherwise.is_empty(),
+            "`docker-compose.yml` substitutes {otherwise:?} with neither a default nor a \
+             requirement, so what it reads unset is the empty text"
+        );
+        assert!(
+            defaulted.len() + required.len()
+                >= super::THE_STACK_SETTINGS.len() + super::Port::ALL.len(),
             "the compose file substitutes {} variable(s), which is fewer than this file \
-             declares — the scan above read the wrong text: {declared:?}",
-            declared.len()
+             declares — the scan above read the wrong text: {defaulted:?} {required:?}",
+            defaulted.len() + required.len()
         );
         for (variable, default) in super::THE_STACK_SETTINGS {
             assert_eq!(
-                declared.get(variable).map(String::as_str),
+                defaulted.get(variable).map(String::as_str),
                 Some(default),
                 "`{variable}` is `{default}` here and `{:?}` in `docker-compose.yml`, so \
                  `cargo xtask dev` brings up one stack and the tools talk to another",
-                declared.get(variable)
+                defaulted.get(variable)
             );
         }
-        let unread: Vec<&String> = declared
+        for which in super::Port::ALL {
+            let variable = which.variable();
+            let why = required.get(variable);
+            assert!(
+                why.is_some_and(|why| why.contains("cargo xtask dev")),
+                "`docker-compose.yml` reads `{variable}` as {:?} and not as required with a \
+                 message naming `cargo xtask dev`, so a stack not handed this checkout's \
+                 port comes up on whatever its default is — two checkouts on one port",
+                defaulted.get(variable).or(why)
+            );
+        }
+        let unread: Vec<&String> = defaulted
             .keys()
             .filter(|name| {
                 !super::THE_STACK_SETTINGS
                     .iter()
                     .any(|(variable, _)| *variable == name.as_str())
             })
+            .chain(required.keys().filter(|name| {
+                !super::Port::ALL
+                    .iter()
+                    .any(|which| which.variable() == name.as_str())
+            }))
             .collect();
         assert!(
             unread.is_empty(),
             "`docker-compose.yml` reads {unread:?}, which this file does not declare — a \
              setting the stack takes and the tools do not is how the two come apart"
+        );
+    }
+
+    /// The example environment declares what this tool reads, in both
+    /// directions.
+    ///
+    /// **Every setting with its default, every port empty, and nothing else.**
+    /// A port written there would be one checkout's, and a developer who
+    /// sources it in a second checkout binds that one's stack on the first's
+    /// port — the collision the ports are derived to avoid — and so would the
+    /// `DATABASE_URL` it once wrote out, which carries a port. `cargo xtask dev`
+    /// prints both instead.
+    /// Backwards, a variable declared there that this file does not read is one
+    /// a developer sets and watches do nothing; forwards, one this file reads
+    /// and the example leaves out is one nobody is told about.
+    #[test]
+    fn the_example_environment_declares_what_this_tool_reads() {
+        let example =
+            std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../.env.example"))
+                .expect("this repository has an example environment");
+        let mut written: std::collections::BTreeMap<String, String> =
+            std::collections::BTreeMap::new();
+        for line in example.lines().map(str::trim) {
+            if line.starts_with('#') {
+                continue;
+            }
+            if let Some((name, value)) = line.split_once('=') {
+                written.insert(name.trim().to_owned(), value.trim().to_owned());
+            }
+        }
+        let mut expected: std::collections::BTreeMap<String, String> = super::THE_STACK_SETTINGS
+            .iter()
+            .map(|(variable, default)| ((*variable).to_owned(), (*default).to_owned()))
+            .collect();
+        for which in super::Port::ALL {
+            expected.insert(which.variable().to_owned(), String::new());
+        }
+        assert_eq!(
+            written, expected,
+            "`.env.example` declares what is on the left and this file reads what is on the \
+             right: every setting with the default compose falls back to, every port empty \
+             because it is the checkout's, and nothing else — a `DATABASE_URL` written out \
+             carries one checkout's port"
         );
     }
 

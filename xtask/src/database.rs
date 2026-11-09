@@ -73,12 +73,15 @@ fn asking_about_the_protected_tables(sql: &str) -> String {
 /// Where the local stack puts PostgreSQL.
 ///
 /// **The same four variables `cargo xtask dev` reads, with the same
-/// defaults.** With the url hardcoded, `POSTGRES_PORT=5433 cargo xtask dev`
-/// succeeds and `POSTGRES_PORT=5433 cargo xtask check` then tells the developer
-/// to run `cargo xtask dev` — the command they have just run. `dev.rs` names
-/// the rule: a stack whose operator variables the tool that brings it up does
-/// not read is a stack with two configurations, and this is one of the tools
-/// that has to read them.
+/// defaults, and this checkout's port.** With the url hardcoded,
+/// `POSTGRES_PORT=5433 cargo xtask dev` succeeds and
+/// `POSTGRES_PORT=5433 cargo xtask check` then tells the developer to run
+/// `cargo xtask dev` — the command they have just run. `dev.rs` names the rule:
+/// a stack whose operator variables the tool that brings it up does not read
+/// is a stack with two configurations, and this is one of the tools that has
+/// to read them. The port is the checkout's unless `POSTGRES_PORT` moves it,
+/// read through `dev::port` for the checkout this tool was built in — which is
+/// the one `cargo xtask dev` brings up, in CI as on a developer's machine.
 ///
 /// `DATABASE_URL` still wins when it is set, because a developer pointing the
 /// gate at another server is saying so explicitly.
@@ -90,7 +93,7 @@ fn default_url() -> String {
     let user = crate::dev::setting(crate::dev::POSTGRES_USER);
     let password = crate::dev::setting(crate::dev::POSTGRES_PASSWORD);
     let database = crate::dev::setting(crate::dev::POSTGRES_DB);
-    let port = crate::dev::setting(crate::dev::POSTGRES_PORT);
+    let port = crate::dev::port(&crate::repository_root(), crate::dev::Port::Postgres);
     format!("postgres://{user}:{password}@127.0.0.1:{port}/{database}")
 }
 
@@ -1315,6 +1318,67 @@ mod tests {
         assert_eq!(host_and_port("postgres://127.0.0.1:nope/x"), None);
     }
 
+    /// The url the gate falls back to is on this checkout's PostgreSQL port.
+    ///
+    /// **Read as text, because no run that exports the port can see it read
+    /// another way.** `default_url` is asked only where `DATABASE_URL` is
+    /// unset, and a shell that exports what `cargo xtask dev` prints exports
+    /// `POSTGRES_PORT` too, which `dev::port` answers there. A reader that
+    /// takes the variable itself and falls back to a fixed port agrees with it
+    /// in every such shell, and in CI's `linux` job, which exports neither,
+    /// asks for PostgreSQL on a port `dev` brought no stack up on. Measured:
+    /// with the port read as `std::env::var("POSTGRES_PORT")` falling back to
+    /// `"5432"`, and the log store's reader in `check.rs` bypassed the same
+    /// way, `corpus::`, `limits::`, `database::`, `dev::`, `gates::` and
+    /// `check::` passed 448 of 448.
+    ///
+    /// So the body is held to the one reader, asked for this checkout's
+    /// PostgreSQL port, as the only port it has: one binding, the one the url
+    /// is written with, and nothing else in it reading the environment.
+    #[test]
+    fn the_default_url_is_on_this_checkouts_postgres_port() {
+        let source =
+            std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/database.rs"))
+                .expect("this file is a file in this crate");
+        // **Comments only.** The needles below are string literals, and a
+        // comment naming one would pay for a binding that has gone.
+        let code = crate::gates::without_comments(&source, "//");
+        let opened = code
+            .find(&format!("\nfn {}(", "default_url"))
+            .expect("`default_url` is a function of this file");
+        let rest = &code[opened..];
+        let body: String = rest[..rest.find("\n}\n").unwrap_or(rest.len())]
+            .chars()
+            .filter(|character| !character.is_whitespace())
+            .collect();
+        let reader = format!(
+            "letport=crate::dev::{}(&crate::repository_root(),crate::dev::Port::Postgres);",
+            "port"
+        );
+        assert!(
+            body.contains(&reader),
+            "`default_url` does not take its port from `dev::port` for this checkout's \
+             PostgreSQL, so where `POSTGRES_PORT` is unset it asks for a stack on a port \
+             `cargo xtask dev` did not bring one up on: {body}"
+        );
+        assert_eq!(
+            body.matches("letport").count(),
+            1,
+            "`default_url` binds a port more than once, so the one the url is written \
+             with need not be the one `dev::port` answered: {body}"
+        );
+        assert!(
+            body.contains("@127.0.0.1:{port}/"),
+            "the url `default_url` writes does not carry the port `dev::port` answered: \
+             {body}"
+        );
+        assert!(
+            !body.contains("env::"),
+            "`default_url` reads the environment itself, beside the two tables that read \
+             it for the stack: {body}"
+        );
+    }
+
     /// The `row security` row the shipped query reports for the scratch table.
     async fn measured(pool: &sqlx::PgPool, schema: &str) -> String {
         let query = super::asking_about_the_protected_tables(super::THE_PROTECTIONS);
@@ -1428,7 +1492,7 @@ mod tests {
     #[test]
     fn a_grant_this_query_is_written_for_moves_its_own_number() {
         // **`--offline` is the flag, and `url()` does not read it.** `url()`
-        // falls back to `postgres://…@127.0.0.1:${POSTGRES_PORT:-5432}/noctua`
+        // falls back to `postgres://…@127.0.0.1:<this checkout's port>/noctua`
         // and probes the port, so under the environment `cargo xtask check
         // --offline` hands the test binary — `DATABASE_URL` removed, `NC_NO_STACK`
         // set — a test that asks only `url()` connects anyway and issues

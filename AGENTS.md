@@ -334,6 +334,11 @@ cargo xtask release --channel staging --dry-run   # what a channel would release
 cargo xtask release --channel staging   # gate, then write its version and changelog
 ```
 
+`cargo xtask dev` brings the stack up on this checkout's two ports and prints them, with
+the `DATABASE_URL` they make: a tool outside `cargo xtask` — a hand-run `docker compose`,
+the PostgreSQL suites run alone, `xtask/mutants.py` — is told them by exporting what it
+prints. `POSTGRES_PORT` and `LOGS_PORT` move a port.
+
 `cargo xtask check` judges the history too — every commit reachable from `HEAD` and every
 blob ever reachable ("The history says what each change is, credits no agent, and stays
 small") — so it needs the whole of it: a shallow clone is refused, CI checks out with
@@ -416,7 +421,7 @@ fails a gate a minute or two later.
 | a call the kernel asks of the journal store | `nc_journal::Store` in `crates/nc-journal/src/lib.rs` | a **required** method — one provided over `from(0)` would be the slow path, and the blind spot of a row that does not decode, inherited in silence — answered in the same change by all three stores: `InMemory` (`memory.rs`, the specification), `Postgres` (`postgres.rs`, one statement over columns that cannot fail to decode) and `nc_local::LocalJournal` (`crates/nc-local/src/journal.rs`, every statement in that crate), and by every test store that implements the trait — `unit.rs`, `tampering.rs` and the kernel suites' wrappers. Its `# Errors` section names what each implementation builds (`every_errors_section_names_what_its_body_builds`, whose count of sections is written down), the shared scripts of `crates/nc-journal/tests/in_postgres.rs` ask it of the two stores in that crate, and `crates/nc-local/tests/the_local_journal.rs` holds the local journal's transcript to both, over written scripts and generated ones |
 | a call the kernel asks of the blobs | `BlobStore` in `crates/nc-kernel/src/blobs.rs` | the same method on `DirectoryBlobs` first — the one a daemon keeps a person's files in — then on `MemoryBlobs` beside it, which `the_two_stores_answer_one_script_alike` holds to one script; the trait is asynchronous because the disk may not answer, so a host function that calls it goes through `supervisor::in_time` like any other that waits, and a writer is moved into a write and handed back, so one a deadline abandons takes its writing with it. What a blob is to the decision point — which unit made it, whether one still holds it — is the store's, in `nc_local`'s `blobs` table, never the blob store's |
 | a kind of node a surface shows | `KINDS` in `crates/nc-kernel/src/ui.rs` | the table in that module's header is what a plugin author reads, and changes in the same edit; the kind's keys are a row of `KINDS`, a key holding a person's text is in `TEXTS` and a closed choice in `CHOICES`, so every text of every kind is held to the same bound and characters; and a test in that file keeps a tree of the new kind and refuses each rule it is held to — the interface's renderer (Stage 16) draws only the kinds this set names |
-| a name the system sees | a field of `Layout` in `crates/nc-channel/src/lib.rs`, derived in `layout` and in the table of that crate's header | a line of `parts` in `crates/nc-channel/tests/the_names_are_disjoint.rs`, which destructures `Layout` without `..` and does not compile until the field is read — what it reads is held apart from every other install's name, case-folded; a name the whole machine shares carries the user and is a row of `MACHINE_WIDE` there too, unless it is a checkout's stack's, which is the checkout's; its spelling is written out in `each_name_is_spelled_as_the_crate_header_writes_it`; a relocated install's must carry its namespace and lie under its root, or be `None` as the update feed and the stack are; and nothing outside the crate spells one but a checkout's stack ports — `cargo xtask dev` names its stack's project through `Checkout::stack`, and binds the ports `POSTGRES_PORT` and `LOGS_PORT` say, 5432 and 9428 when neither is set, rather than the ones `Stack` derives |
+| a name the system sees | a field of `Layout` in `crates/nc-channel/src/lib.rs`, derived in `layout` and in the table of that crate's header | a line of `parts` in `crates/nc-channel/tests/the_names_are_disjoint.rs`, which destructures `Layout` without `..` and does not compile until the field is read — what it reads is held apart from every other install's name, case-folded; a name the whole machine shares carries the user and is a row of `MACHINE_WIDE` there too, unless it is a checkout's stack's, which is the checkout's; its spelling is written out in `each_name_is_spelled_as_the_crate_header_writes_it`; a relocated install's must carry its namespace and lie under its root, or be `None` as the update feed and the stack are; and nothing outside the crate spells one — `cargo xtask dev` names its stack's project and binds its ports through `Checkout::stack`, and `POSTGRES_PORT` or `LOGS_PORT` only moves a port |
 | a kernel limit | `[kernel]` in `catalog/limits.toml`, and a field of `KernelLimits` in `crates/nc-catalog-compiler/src/model.rs` with its row in `KernelLimits::each` | every limit is required and above zero, and one that bounds another is held to it where both are written (`check_kernel` in the compiler's `load.rs`); `xtask/tests/the_registry_reaches_the_code.rs` compares every field by name, so a new one is a line there as well, and `docs/limits.md` publishes it with its unit. A plugin's manifest may lower only what `Lowering` in `crates/nc-kernel/src/limits.rs` names, and never raise it |
 | a daemon limit | `[daemon]` in `catalog/limits.toml`, and a field of `DaemonLimits` in `crates/nc-catalog-compiler/src/model.rs` with its row in `DaemonLimits::each` | every limit is required and above zero, and one that must keep a bound outside its table is held to it where it is written (`check_daemon` in the compiler's `load.rs`, with a failing case in `crates/nc-catalog-compiler/tests/the_gates_fire.rs` at the boundary): `mark_lease_ms` below the day past which a minter reads a mark as corrupt. `xtask/tests/the_registry_reaches_the_code.rs` compares every field by name and counts them, `xtask/tests/every_generated_value_is_compared.rs` counts the generated surface, and `docs/limits.md` publishes it under **Daemon** with its unit, whose prose `xtask/tests/the_pages_reach_the_catalog.rs` pins. The daemon reads `nc_catalog::DAEMON` and takes no value of the type from its caller |
 
@@ -493,8 +498,9 @@ effect; 22 is gated over the statements written today and by nothing over the ne
 
 7. **Every setting `.env.example` declares is read by something**, or a developer changes
    a line that does nothing. `check` reads the tree with comments stripped and fails on an
-   unread name, and a test holds each value to the default `docker-compose.yml` falls back
-   to and `DATABASE_URL` to exactly the four values above it, assembled.
+   unread name, and a test holds each credential to the default `docker-compose.yml` falls
+   back to, and each port to an empty value the compose file requires, since both ports
+   are the checkout's — so no `DATABASE_URL` is written there either, carrying one.
 
 8. **A trigger names its own table, and its path searches `pg_temp` last.** PostgreSQL
    resolves a relation in the temporary schema before `search_path`, and every role can
@@ -1628,9 +1634,9 @@ the CLI's and the daemon's names, the application's identities, the update feed 
 key, the default Leader, and a checkout's compose project — is derived by
 `nc_channel::layout` from an install's manifest and the user it runs as, and by nothing
 else; `cargo xtask dev` names its stack through `Checkout::stack`, which `layout` hands a
-development install too. A checkout's stack ports are derived there as well, and are not
-the ones its stack binds: those are what `POSTGRES_PORT` and `LOGS_PORT` say, 5432 and
-9428 when neither is set ("The stack belongs to this checkout"). Names are compared
+development install too. A checkout's stack ports are derived there as well, and are the
+ones its stack binds unless `POSTGRES_PORT` or `LOGS_PORT` moves one ("The stack belongs
+to this checkout"). Names are compared
 case-folded, as a pipe and a case-insensitive file system compare them. For one user,
 production, staging and two development checkouts, each as a real install and relocated
 under each of two namespaces, all under the same bases, share no name but the default
@@ -1762,8 +1768,8 @@ the daemon leaves undone is under **What is deliberately not claimed**.
 
 ### The stack binds to loopback and nothing else
 
-`docker-compose.yml` publishes `127.0.0.1:5432` and `127.0.0.1:9428`, never `0.0.0.0` or a
-bare `5432:5432`, which looks narrower and is the widest. The log store has no
+`docker-compose.yml` publishes both of its ports on `127.0.0.1` and nowhere else, never on
+`0.0.0.0` or as a bare `5432:5432`, which looks narrower and is the widest. The log store has no
 authentication and is not meant to: `NOCTUA.md §18.5` chose a store on the same machine
 because **the cheapest way to guarantee no user data leaves it is for there to be nowhere
 else for it to go**. `every_published_port_is_bound_to_loopback` reads and counts every
@@ -1779,20 +1785,78 @@ either would remove the other's containers *and volumes*; a constant name makes 
 unconditional. `dev` derives the name from the canonicalized checkout path, through
 `nc_channel::Checkout::stack` ("Every name an install gives the system comes from one
 function, and a test's install never meets a real one's"), and prints it
-(`docker compose ls` says which stack is whose). Two checkouts **at their defaults**
-cannot run at once — both bind `${POSTGRES_PORT:-5432}` — and the second `dev` fails on
-the port loudly instead of migrating the first's database; `POSTGRES_PORT` and `LOGS_PORT`
-are what the compose file interpolates, so that is a default and not a limit.
+(`docker compose ls` says which stack is whose).
+
+**And so do its ports, so two checkouts' stacks run at once.** `Checkout::stack` derives a
+pair from the same digest, in 20000–32765, below every system's ephemeral range;
+`dev::port` in `xtask/src/dev.rs` is the one reader, which `dev`, the gate's
+`DATABASE_URL`, its image gate and its reader of the log store's bounds all ask. Both places
+`cargo xtask` runs `docker compose` — `dev::compose`, which every verb of `dev` goes
+through, and the image gate's `the_effective_stack` in `xtask/src/gates.rs` — hand the
+pair from that reader to every invocation through the child's environment, and the stack
+suite's `projection_of` hands each checkout the pair `nc_channel` derives for it.
+The compose file writes no port of its own — each is `${NAME:?…}` — so a
+`docker compose up` not handed the pair refuses, saying what to export, rather than
+binding a port another checkout's stack may hold. `POSTGRES_PORT` and `LOGS_PORT` move a port, a variable set
+empty says nothing, as compose reads it, and `dev` prints the pair with the `DATABASE_URL`
+it makes. **Fail closed**: before compose runs, `dev` refuses a port variable that holds no
+port, and a port it cannot bind that this project does not publish there, naming the port
+and the variable that moves it. It names a holder — two checkouts whose digests fall on one
+pair, or anything else listening there — only when the bind says the port is in use; a bind
+refused for another reason, a port below 1024 to a user without the privilege among them,
+is refused with the bind's own error. Its own stack is told apart by asking
+`docker compose port` of the service that publishes the port, at the container port it
+publishes from.
+
+**Enforced by** `two_checkouts_resolve_to_stacks_that_share_no_port_and_no_project` in
+`xtask/tests/the_stack_enforces_the_declared_bounds.rs`, which resolves two checkouts'
+compose configurations with the pairs `nc_channel` derives and holds their projects and
+published ports apart; `the_settings_this_tool_reads_are_the_ones_the_stack_declares` and
+`the_example_environment_declares_what_this_tool_reads` in `xtask/src/dev.rs`, which hold
+the compose file and `.env.example` to the reader both ways — every port required and none
+defaulted, and both written empty in the example, which writes no url;
+`a_stack_binds_its_checkouts_ports_unless_a_variable_moves_one`,
+`a_port_something_else_holds_fails_naming_the_variable_that_moves_it` and
+`a_bind_refused_for_another_reason_is_refused_with_that_reason` beside them, and
+`each_port_is_asked_of_the_service_that_publishes_it`, which holds the service and the
+container port `dev` asks compose about to the compose file; the pinned runner
+(`the_block_that_decides_isolation_is_the_one_written_down`);
+`every_compose_this_tree_starts_is_handed_the_checkouts_ports` in `xtask/src/gates.rs`,
+which reads every Rust file of every member, holds each `docker compose` it starts to that
+hand-off with no other call on the child's environment, and names the three places — read
+as text, because a run in a shell that exports what `dev` prints cannot see a hand-off
+missing, and only one with neither variable, as in the `linux` job, refuses it;
+`the_default_url_is_on_this_checkouts_postgres_port` in `xtask/src/database.rs` and
+`the_log_store_is_asked_for_its_bounds_on_this_checkouts_port` in `xtask/src/check.rs`,
+which hold the gate's two other readers to `dev::port`, each asked for its own port and
+asked nothing else, as text and for the same reason;
+`every_setting_is_read_through_the_table_that_declares_it` in `xtask/src/dev.rs`, which
+refuses a setting or a port read by its name — through `env::var`, `var_os`, `env!`, or a
+row of its own handed to `setting` — in every Rust file of every member; and the `linux`
+job, which sets no `DATABASE_URL`, so the gate's url is derived from the runner's checkout
+as `dev`'s stack was.
+
+**Not answered:** a port taken between `dev`'s look and compose's bind, which compose then
+refuses in its own words, naming both variables; a port below 1024 that a rootful Docker
+could publish, which `dev` refuses because this user cannot bind it to ask; two accounts in
+one checkout, which share its stack (**What is deliberately not claimed**); a
+`docker compose` typed by hand, which is handed whatever ports its shell exports; and one
+the census cannot read as a compose — a program not written as the literal `"docker"`, or a
+verb assembled from pieces — which `dev.rs` refuses in that file, where every process it
+starts is counted and its runner is pinned whole, and nothing refuses in another; and a
+port read by a name built at run time, as `dev::port` itself reads it, which the census of
+names cannot tell from that reader.
 
 ### Secrets are environment variables, and `.env` is not a file here
 
 `.env.example` is committed and says **not** to copy it: it lists what the stack reads,
-with the values a developer would otherwise be told. `docker-compose.yml` defaults every
-variable *it* uses, so `cargo xtask dev` brings the stack up with nothing copied.
-`DATABASE_URL` is read by nothing in the stack and by everything beside it: `dev` derives
-it from the stack it started and prints it, and `check` and the PostgreSQL tests take it
-from the environment. A committed environment file is invariant 2's; `.env.example`'s
-names and values are invariant 7's.
+with the values a developer would otherwise be told, and the ports empty, because they
+are the checkout's. `docker-compose.yml` defaults every credential it uses and is handed
+its ports by `cargo xtask dev`, so the stack comes up with nothing copied. `DATABASE_URL`
+is read by nothing in the stack and by everything beside it: `dev` derives it from the
+stack it started and prints it, `check` takes it from the environment and derives the same
+when it is unset, and hands it to the PostgreSQL tests. A committed environment file is
+invariant 2's; `.env.example`'s names and values are invariant 7's.
 
 **The compose file's vocabulary is closed**: every key is written down with the reason it
 is allowed, or it is a finding — and so is what a service is handed inside `environment:`
@@ -2450,7 +2514,8 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **A checkout is 32 bits of its path's digest**, kept because it already names every
   developer's compose volumes: two checkouts whose paths share a digest are one checkout
   to every name, and two whose digests fall on one pair of the port block
-  (`nc_channel::PORT_PAIRS`) are derived the same stack ports.
+  (`nc_channel::PORT_PAIRS`) are derived the same stack ports, which the second
+  `cargo xtask dev` refuses by name until one of them is moved.
 - **The stack is the checkout's, not its user's**: two accounts working in one checkout
   directory share one compose project and its ports, on a Docker daemon and a loopback
   the machine shares, and none of the three carries the user.
@@ -3483,9 +3548,9 @@ answered** holds them. Each says what would close it.
   `flush=True` on that line.
 - **It needs `DATABASE_URL` exported**: `cargo xtask` derives the address when the
   variable is unset (`default_url` in `xtask/src/database.rs`) and the runner does not,
-  and its refusal sends a caller whose stack is up to `cargo xtask dev`, which sets
-  nothing — export the value `.env.example` writes out. *Closes with* the runner deriving
-  it as the gate does.
+  since its port is the checkout's and a second derivation would be a second naming
+  function — export what `cargo xtask dev` prints. *Closes with* the runner asking the
+  gate for the url rather than deriving it.
 - **A kill is a suite that went red, not a test that did**: no test is recorded per
   operator, so a suite that starts failing mid-run is a kill for every operator after it,
   and only the closing control pass sees that, refusing the whole run. *Closes with* each

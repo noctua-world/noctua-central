@@ -250,8 +250,8 @@ impl Checkout {
     /// **The checkout's and not an install's**, because `cargo xtask dev` brings
     /// a stack up for the tree it runs in, with nothing installed; [`layout`]
     /// hands a development install the same one. `cargo xtask dev` names its
-    /// project from it, and binds the ports `POSTGRES_PORT` and `LOGS_PORT` say
-    /// rather than these.
+    /// project from it and binds these ports, unless the variable it reads for
+    /// either moves it.
     #[must_use]
     pub fn stack(self) -> Stack {
         let postgres = PORTS_FROM + 2 * pair_of(self.digest);

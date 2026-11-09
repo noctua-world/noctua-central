@@ -136,12 +136,12 @@ jobs:
     # `-h "$(hostname -i …)"` is refused. A wrong `POSTGRES_PASSWORD` would leave
     # CI healthy and every application connection failing — the shape
     # `docker-compose.yml`'s own health check is written against.
-    env:
-      # The URL `cargo xtask dev` prints, against the stack it brings up, and
-      # the address the compose file binds written as the same string:
-      # `localhost` would agree with `127.0.0.1` only by resolving to the
-      # runner's own loopback.
-      DATABASE_URL: postgres://noctua:noctua@127.0.0.1:5432/noctua
+    #
+    # **No `DATABASE_URL` here.** The stack's ports are the checkout's, derived
+    # from its path, so `cargo xtask dev` brings this runner's stack up on the
+    # pair its checkout derives, and `cargo xtask check`, finding the variable
+    # unset, derives the same url from the same checkout. A url written here
+    # would name a port this checkout's stack does not bind.
     # Reading the tree, which the checkout needs, and nothing else.
     permissions:
       contents: read

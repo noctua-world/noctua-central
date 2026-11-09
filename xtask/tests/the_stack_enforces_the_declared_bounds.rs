@@ -549,26 +549,9 @@ fn every_published_port_is_bound_to_loopback() {
     // from the default projection entirely — measured, one with
     // `network_mode: host` and `ports: ["0.0.0.0:5433:5432"]` left all three
     // assertions below green while `docker compose --profile debug up` publishes
-    // it on every interface.
-    #[expect(
-        clippy::disallowed_methods,
-        reason = "a tool this gate drives; its output is read, not printed"
-    )]
-    let resolved = std::process::Command::new("docker")
-        .args(["compose", "--profile", "*", "config"])
-        .current_dir(root())
-        .output()
-        .expect(
-            "docker is what resolves overrides, `extends`, anchors and variables into the \
-             stack that actually runs; a text scan of one file is the bypass this test \
-             exists to close",
-        );
-    assert!(
-        resolved.status.success(),
-        "`docker compose config` refused the stack: {}",
-        String::from_utf8_lossy(&resolved.stderr)
-    );
-    let resolved = String::from_utf8_lossy(&resolved.stdout);
+    // it on every interface. [`projection_of`] asks with every profile, and
+    // with this checkout's ports, as `cargo xtask dev` hands them.
+    let resolved = resolved_stack();
     let mut published = 0_usize;
     // **How many ports the stack publishes**, counted apart from how many name
     // an address. The rule below is a predicate on `host_ip:` lines, and a
@@ -701,18 +684,112 @@ fn every_published_port_is_bound_to_loopback() {
     );
 }
 
+/// Two checkouts resolve to two stacks that share no port and no project.
+///
+/// **What lets two checkouts' stacks run at once, asked of what docker
+/// resolves.** Each checkout's project and pair are derived by `nc_channel`,
+/// handed to compose as `cargo xtask dev` hands them, and read back from the
+/// projection. A compose file that published a port of its own — a literal,
+/// or a default it falls back to while the variable is handed under another
+/// name — publishes it for both checkouts, and a project that did not follow
+/// the checkout names one stack for both: either way the second `dev` meets
+/// the first's stack, on its port or under its name.
+///
+/// The second checkout is this repository at another path, which is all a
+/// second checkout is; one that is not there is named by its path as written,
+/// on every system. Of two such paths on different pairs of the block, the one
+/// whose pair is not this checkout's is taken: two checkouts whose digests
+/// fall on one pair are derived one pair, which `AGENTS.md` writes under "What
+/// is deliberately not claimed", and which `cargo xtask dev` refuses by name.
+#[test]
+fn two_checkouts_resolve_to_stacks_that_share_no_port_and_no_project() {
+    if !the_stack_was_asked() {
+        return;
+    }
+    let here = this_checkouts();
+    let other = [
+        "/nonexistent/one/noctua-central",
+        "/nonexistent/other/noctua-central",
+    ]
+    .map(|path| nc_channel::Checkout::of(Path::new(path)).stack());
+    assert_ne!(
+        other[0].postgres, other[1].postgres,
+        "the two candidates for a second checkout share a pair, so either may be this one's"
+    );
+    let there = other
+        .into_iter()
+        .find(|stack| stack.postgres != here.postgres)
+        .expect("of two pairs, one is not this checkout's");
+    let mut projects = std::collections::BTreeSet::new();
+    let mut ports = std::collections::BTreeSet::new();
+    for stack in [&here, &there] {
+        let resolved = projection_of(stack, &[]);
+        let named: Vec<&str> = resolved
+            .lines()
+            .filter_map(|line| line.strip_prefix("name: "))
+            .map(str::trim)
+            .collect();
+        assert_eq!(
+            named,
+            [stack.project.as_str()],
+            "the stack handed `{}` resolves under another project",
+            stack.project
+        );
+        let published: std::collections::BTreeSet<u16> = resolved
+            .lines()
+            .filter_map(|line| line.trim().strip_prefix("published:"))
+            .map(|port| {
+                port.trim()
+                    .trim_matches(['"', '\''])
+                    .parse()
+                    .expect("a published port is a number")
+            })
+            .collect();
+        assert_eq!(
+            published,
+            [stack.postgres, stack.logs].into_iter().collect(),
+            "`{}` was handed {} and {} and publishes {published:?}: the compose file binds \
+             a port of its own rather than the checkout's",
+            stack.project,
+            stack.postgres,
+            stack.logs
+        );
+        assert!(
+            projects.insert(stack.project.clone()),
+            "two checkouts resolve to the one project `{}`",
+            stack.project
+        );
+        for port in published {
+            assert!(
+                ports.insert(port),
+                "two checkouts' stacks both publish {port}, so the second `dev` cannot bind it"
+            );
+        }
+    }
+    assert_eq!(
+        (projects.len(), ports.len()),
+        (2, 4),
+        "two checkouts resolved to {projects:?} on {ports:?}"
+    );
+}
+
 /// The example environment says what the stack reads, and it is checked.
 ///
 /// **Its values, and not only its names.** The gate refuses a committed
 /// `.env`, and `no_unread_variable` refuses a variable in `.env.example` that
-/// no file reads — both about *names*. The numbers and words beside them are
-/// what this test judges, and `.env.example` makes two claims about them in its
-/// own prose: that "every variable `docker-compose.yml` reads is defaulted there to
-/// the value below", and that `DATABASE_URL` is "derived from the four above".
-/// Neither survives an edit to one side. Change `POSTGRES_PORT` to `5433` and
-/// the file ships a `DATABASE_URL` pointing at a port nothing listens on, with
-/// a sentence above it saying the two agree — and the first person to read it
-/// is a new developer, who has no way to know which half is right.
+/// no file reads — both about *names*. The words beside them are what this
+/// test judges, and `.env.example` makes two claims about them in its own
+/// prose: that every credential `docker-compose.yml` reads "is defaulted there
+/// to the value below", and that the ports are not written there, because they
+/// are the checkout's. Neither survives an edit to one side. Measured before
+/// the ports were the checkout's, `POSTGRES_PORT` changed to `5433` on one side
+/// shipped a `DATABASE_URL` pointing at a port nothing listened on, with a
+/// sentence above it saying the two agree — and the first person to read it is
+/// a new developer, who has no way to know which half is right.
+///
+/// **So no url is written there either**: `DATABASE_URL` carries a port, and a
+/// port written in the example is one checkout's, which a second checkout's
+/// developer would export beside the first's stack.
 #[test]
 fn the_example_environment_agrees_with_the_compose_defaults() {
     let compose = std::fs::read_to_string(root().join("docker-compose.yml")).expect("readable");
@@ -734,17 +811,35 @@ fn the_example_environment_agrees_with_the_compose_defaults() {
     // The floor: a file whose variables stopped parsing would agree with every
     // default by having none to disagree.
     assert!(
-        set.len() >= 6,
+        set.len() >= 5,
         "`.env.example` parsed as {} variable(s), so this test compared almost nothing",
         set.len()
     );
 
-    // Claim one: what compose falls back to is what this file says.
-    let mut compared = 0_usize;
+    // Claim one: what compose falls back to is what this file says, and what
+    // compose requires — a port, which is the checkout's — this file leaves
+    // empty. **Every variable it declares is one of the two**, so one compose
+    // does not read is a finding here as well as in `no_unread_variable`.
+    let mut defaulted = 0_usize;
+    let mut required = 0_usize;
     for (name, _) in &set {
-        let Some((_, after)) = compose.split_once(&format!("${{{name}:-")) else {
-            // `DATABASE_URL` is the one compose does not read; the file says so.
+        if compose.contains(&format!("${{{name}:?")) {
+            assert_eq!(
+                value(name),
+                "",
+                "`docker-compose.yml` requires `{name}`, which is the checkout's, and \
+                 `.env.example` writes it `{}` — one checkout's port, which a developer \
+                 in a second checkout exports beside the first's stack",
+                value(name)
+            );
+            required += 1;
             continue;
+        }
+        let Some((_, after)) = compose.split_once(&format!("${{{name}:-")) else {
+            panic!(
+                "`.env.example` declares `{name}`, which `docker-compose.yml` neither \
+                 defaults nor requires"
+            );
         };
         let default = after
             .split('}')
@@ -759,27 +854,21 @@ fn the_example_environment_agrees_with_the_compose_defaults() {
              a developer who changes one is told nothing",
             value(name)
         );
-        compared += 1;
+        defaulted += 1;
     }
     assert!(
-        compared >= 5,
-        "{compared} variable(s) were compared against a compose default, and this stack \
-         reads more than that: the `${{NAME:-` form is what this looks for, so a compose \
-         file that stopped using it would pass by matching nothing"
+        defaulted >= 3 && required == 2,
+        "{defaulted} variable(s) were compared against a compose default and {required} \
+         against a requirement, and this stack reads three credentials and two ports: \
+         the `${{NAME:-` and `${{NAME:?` forms are what this looks for, so a compose file \
+         that stopped using them would pass by matching nothing"
     );
 
-    // Claim two: `DATABASE_URL` is the four above it, assembled.
-    assert_eq!(
-        value("DATABASE_URL"),
-        format!(
-            "postgres://{}:{}@127.0.0.1:{}/{}",
-            value("POSTGRES_USER"),
-            value("POSTGRES_PASSWORD"),
-            value("POSTGRES_PORT"),
-            value("POSTGRES_DB")
-        ),
-        "`.env.example` says `DATABASE_URL` is derived from the four above it, and it is \
-         not: what ships points somewhere the rest of the file does not describe"
+    // Claim two: no url, because a url carries a port.
+    assert!(
+        set.iter().all(|(name, _)| name != "DATABASE_URL"),
+        "`.env.example` writes `DATABASE_URL` out, and its port is one checkout's: \
+         `cargo xtask dev` prints this checkout's url instead"
     );
 }
 
@@ -915,19 +1004,34 @@ fn the_compose_file_still_holds_what_it_was_fixed_to_hold() {
     }
 }
 
-/// What `docker compose config` prints for this tree, with `also` on the end.
+/// The stack of the checkout this suite was built in, as `nc_channel` derives
+/// it: its compose project and its two ports.
+fn this_checkouts() -> nc_channel::Stack {
+    nc_channel::Checkout::of(&root()).stack()
+}
+
+/// What `docker compose config` prints for `stack`, with `also` on the end.
 ///
-/// Its own function because the projection is asked for twice and the two
-/// requests differ by one flag; a second copy of a spawn is a second place for
-/// the arguments to drift.
-fn projection(also: &[&str]) -> String {
+/// Its own function because the projection is asked for several times and the
+/// requests differ by a flag and a checkout; a second copy of a spawn is a
+/// second place for the arguments to drift.
+///
+/// **Handed the stack's project and its ports, as `cargo xtask dev` hands
+/// them** when neither variable is set: the compose file writes no port of its
+/// own and refuses to resolve without them, and the child is handed them
+/// through its environment — a test never sets its own process's. What the
+/// variables say in the environment this suite runs in is not asked, so a
+/// developer's own `POSTGRES_PORT` moves nothing here.
+fn projection_of(stack: &nc_channel::Stack, also: &[&str]) -> String {
     #[expect(
         clippy::disallowed_methods,
         reason = "a tool this gate drives; its output is read, not printed"
     )]
     let resolved = std::process::Command::new("docker")
-        .args(["compose", "--profile", "*", "config"])
+        .args(["compose", "-p", &stack.project, "--profile", "*", "config"])
         .args(also)
+        .env("POSTGRES_PORT", stack.postgres.to_string())
+        .env("LOGS_PORT", stack.logs.to_string())
         .current_dir(root())
         .output()
         .expect(
@@ -950,7 +1054,7 @@ fn projection(also: &[&str]) -> String {
 /// sees none of that. `every_published_port_is_bound_to_loopback` resolves
 /// through this for that reason, and so does the security vocabulary.
 fn resolved_stack() -> String {
-    projection(&[])
+    projection_of(&this_checkouts(), &[])
 }
 
 /// The same stack with no variable filled in.
@@ -976,7 +1080,7 @@ fn resolved_stack() -> String {
 /// [`every_healthcheck_asks_something`], which judges the interpolated one,
 /// printed `ok`.
 fn declared_stack() -> String {
-    projection(&["--no-interpolate"])
+    projection_of(&this_checkouts(), &["--no-interpolate"])
 }
 
 /// The path of keys leading to each line of a YAML document, by indentation.
