@@ -261,6 +261,9 @@ async fn a_daemon_that_says_nothing_is_dropped_by_the_client_at_the_silence_boun
 /// that can end this connection.
 #[tokio::test(start_paused = true)]
 async fn a_peer_that_takes_nothing_written_to_it_is_dropped_at_the_silence_bound() {
+    // **This found a real defect.** The writer gave up alone, and the reader,
+    // still hearing the pings, kept the connection — and its slot of
+    // `ipc_connections_max` — open for as long as the client pinged.
     let (mut served, mut client, relay) = through_a_relay().await;
     // Longer than the relay's buffer, so a writer the relay does not read
     // from waits.
