@@ -4076,6 +4076,33 @@ WEAKENINGS = [
     ("check", "what_the_count_leaves_out", "the count line need not say what the system stood aside",
      "    if !the_suites_not_applicable(has).is_empty() {",
      "    if the_suites_not_applicable(has).len() > THE_SUITES_A_SYSTEM_STANDS_ASIDE.len() {"),
+    # The advisories `deny.toml` leaves out of the audit: exactly the ones
+    # `THE_ADVISORIES_LEFT_OUT` names, in its order, each with a reason, read
+    # from the document cargo-deny reads. The id comparisons and the reason
+    # requirement are killed by
+    # `an_advisory_is_left_out_only_when_the_gate_names_it_with_a_reason`, the
+    # parse refusals by `a_deny_toml_cargo_deny_cannot_read_is_a_finding`.
+    ("check", "the_advisories_left_out_are_the_listed_ones", "no fewer advisories are left out than the gate names",
+     "    if written != THE_ADVISORIES_LEFT_OUT {",
+     "    if written.len() > THE_ADVISORIES_LEFT_OUT.len() {"),
+    ("check", "the_advisories_left_out_are_the_listed_ones", "no advisory is left out that the gate does not name",
+     "    if written != THE_ADVISORIES_LEFT_OUT {",
+     "    if !THE_ADVISORIES_LEFT_OUT.iter().all(|id| written.contains(id)) {"),
+    ("check", "the_advisories_left_out_are_the_listed_ones", "an advisory left out with no reason is refused",
+     "        if !reasoned {",
+     "        if false {"),
+    ("check", "the_advisories_left_out", "an empty reason is no reason",
+     "                    reason.is_some_and(|reason| !reason.trim().is_empty()),",
+     "                    reason.is_some(),"),
+    ("check", "the_advisories_left_out", "a bare id is an entry with no reason",
+     "            toml::Value::String(id) => Ok((id.clone(), false)),",
+     "            toml::Value::String(id) => Ok((id.clone(), true)),"),
+    ("check", "the_advisories_left_out", "a deny.toml that is not TOML is not read as one",
+     "        .map_err(|error| error.message().trim().to_owned())?;",
+     "        .unwrap_or_default();"),
+    ("check", "the_advisories_left_out_are_the_listed_ones", "a deny.toml the audit cannot read is a finding",
+     "            return false;\n        }\n    };\n    let mut held = true;",
+     "            return true;\n        }\n    };\n    let mut held = true;"),
     # -- the decision point, the units of work and the log --------------------
     ("kernel_dispatch", "spend", "a call tree nests no deeper than its depth",
      "        if depth > usize::try_from(KERNEL.dispatch_depth).unwrap_or(usize::MAX) {",
