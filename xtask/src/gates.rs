@@ -1589,7 +1589,9 @@ pub(crate) struct Pins {
 /// the one reader in `dev.rs`: the compose file writes no port of its own, and
 /// `config` refuses to resolve without them. Measured without them on CI's
 /// Linux runner, which exports neither variable: `no image was resolved from
-/// the compose files`, while a shell that exported both passed.
+/// the compose files`, while a shell that exported both passed. So the
+/// hand-off is held as text, by the census of every `docker compose` the tree
+/// starts in this file's tests, which no exported variable hides.
 fn the_effective_stack(root: &Path) -> std::io::Result<std::process::Output> {
     #[expect(clippy::disallowed_methods, reason = "docker is driven, not printed")]
     std::process::Command::new("docker")
@@ -8091,6 +8093,268 @@ mod tests {
                 .any(|member| member.path.starts_with("plugins/")),
             "no member cargo lists is a plugin, so the manifests this read are not the \
              ones the check above was blind to"
+        );
+    }
+
+    /// The two ways a `docker compose` is handed the checkout's ports, as the
+    /// census below reads them: with no whitespace, and with `crate::dev::`
+    /// read as `dev.rs` itself writes it.
+    ///
+    /// The first is the one reader, which `dev`'s runner and the image gate
+    /// ask. The second is for a suite outside this binary, which cannot reach
+    /// `dev` and hands the pair `nc_channel::Checkout::stack` derives, as the
+    /// stack suite's projection does.
+    const HAND_OFFS: [&str; 2] = [
+        ".envs(Port::ALL.map(|which|(which.variable(),port(root,which))))",
+        ".env(\"POSTGRES_PORT\",stack.postgres.to_string()).env(\"LOGS_PORT\",stack.logs.to_string())",
+    ];
+
+    /// How many `docker compose` invocations `code` starts, and which of them,
+    /// by ordinal, are not handed the checkout's ports.
+    ///
+    /// **Split out so the hole can be tested.** Over the tree as it is, this
+    /// meets three invocations that are all handed the pair, so a predicate
+    /// that accepts everything agrees with every one of them.
+    ///
+    /// An invocation is a literal `Command::new("docker…")` and the text after
+    /// it up to the call that runs it — `.output()`, `.status()` or
+    /// `.spawn()` — or up to the next process the code starts. It is a compose
+    /// when that text names `"compose"` or the program is `docker-compose`. It
+    /// is handed the pair when that text holds one of [`HAND_OFFS`] and no
+    /// other call on the child's environment: a later `.env` of either
+    /// variable, or an `env_clear`, undoes the hand-off without removing a
+    /// character of it.
+    fn the_compose_starts_not_handed_the_ports(code: &str) -> (usize, Vec<usize>) {
+        let on_the_environment = |text: &str| {
+            [".env(", ".envs(", ".env_remove(", ".env_clear("]
+                .iter()
+                .map(|call| text.matches(call).count())
+                .sum::<usize>()
+        };
+        let mut started = 0_usize;
+        let mut bare = Vec::new();
+        let mut chunks = code.split("Command::new(\"docker");
+        chunks.next();
+        for chunk in chunks {
+            let runs = [".output()", ".status()", ".spawn()", "Command::new("]
+                .iter()
+                .filter_map(|call| chunk.find(call))
+                .min()
+                .unwrap_or(chunk.len());
+            let built: String = chunk[..runs]
+                .replace("crate::dev::", "")
+                .chars()
+                .filter(|character| !character.is_whitespace())
+                .collect();
+            if !(built.starts_with("-compose\"") || built.contains("\"compose\"")) {
+                continue;
+            }
+            started += 1;
+            let handed = HAND_OFFS.iter().any(|hand_off| {
+                built.contains(hand_off)
+                    && on_the_environment(&built) == on_the_environment(hand_off)
+            });
+            if !handed {
+                bare.push(started);
+            }
+        }
+        (started, bare)
+    }
+
+    /// A compose is handed the ports only by a hand-off nothing after it undoes.
+    ///
+    /// The cases the tree holds none of, each a shape a slip takes: the
+    /// hand-off missing, given to something else, overridden, or given the
+    /// ports of a checkout that is not this one. A predicate that accepted
+    /// all of them would agree with the tree, which is why they are here.
+    #[test]
+    fn a_compose_is_handed_the_ports_only_by_a_hand_off_nothing_undoes() {
+        let reader = ".envs(crate::dev::Port::ALL.map(|which| (which.variable(), \
+                      crate::dev::port(root, which))))";
+        let config = "std::process::Command::new(\"docker\").args([\"compose\", \"config\"])";
+        let suite = ".env(\"POSTGRES_PORT\", stack.postgres.to_string())\
+                     .env(\"LOGS_PORT\", stack.logs.to_string())";
+        for (code, expected, what) in [
+            (
+                format!("{config}{reader}.current_dir(root).output()"),
+                (1, vec![]),
+                "the image gate as it is written",
+            ),
+            (
+                format!("{config}.current_dir(root).output()"),
+                (1, vec![1]),
+                "the image gate as it was before CI found it",
+            ),
+            (
+                format!("let said = {config}.output();\ncommand{reader};"),
+                (1, vec![1]),
+                "a hand-off after the run, which reaches nothing that ran",
+            ),
+            (
+                format!("let up = {config};\nlet other = Command::new(\"sh\"){reader};"),
+                (1, vec![1]),
+                "a hand-off to the next process, which is not this one's",
+            ),
+            (
+                format!("{config}{reader}.env(\"POSTGRES_PORT\", \"5432\").output()"),
+                (1, vec![1]),
+                "a variable set after the hand-off, which compose reads instead",
+            ),
+            (
+                format!("{config}{reader}.env_clear().output()"),
+                (1, vec![1]),
+                "an environment cleared after the hand-off",
+            ),
+            (
+                format!(
+                    "{config}.envs(crate::dev::Port::ALL.map(|which| (which.variable(), \
+                     crate::dev::port(Path::new(\"/\"), which)))).output()"
+                ),
+                (1, vec![1]),
+                "the ports of a checkout at `/`, which is not this one",
+            ),
+            (
+                format!("{config}{reader}.output();\n{config}.output()"),
+                (2, vec![2]),
+                "two invocations, each judged for itself",
+            ),
+            (
+                format!("Command::new(\"docker-compose\").arg(\"config\"){reader}.output()"),
+                (1, vec![]),
+                "the standalone program, handed the pair",
+            ),
+            (
+                "Command::new(\"docker-compose\").arg(\"up\").output()".to_owned(),
+                (1, vec![1]),
+                "the standalone program, handed nothing",
+            ),
+            (
+                format!("{config}{suite}.current_dir(root()).output()"),
+                (1, vec![]),
+                "a suite handing the pair `nc_channel` derives",
+            ),
+            (
+                format!("{config}.env(\"POSTGRES_PORT\", stack.postgres.to_string()).output()"),
+                (1, vec![1]),
+                "a suite handing one port of the two",
+            ),
+            (
+                format!(
+                    "let mut command = Command::new(\"docker\");\ncommand.arg(\"compose\")\
+                     .args(args){}.current_dir(root);\nmatch want {{ _ => command.status() }}",
+                    reader.replace("crate::dev::", "")
+                ),
+                (1, vec![]),
+                "the runner's shape, a builder named and run below",
+            ),
+            (
+                "std::process::Command::new(\"docker\").args([\"image\", \"inspect\", tag])\
+                 .output()"
+                    .to_owned(),
+                (0, vec![]),
+                "a `docker` that is not compose",
+            ),
+        ] {
+            assert_eq!(
+                the_compose_starts_not_handed_the_ports(&code),
+                expected,
+                "{what}, in:\n{code}"
+            );
+        }
+    }
+
+    /// Every `docker compose` this tree starts is handed the checkout's ports.
+    ///
+    /// **Read where it is written, because no run that has the variables can
+    /// see it missing.** `docker-compose.yml` writes each port as `${NAME:?…}`,
+    /// so a `config` or an `up` not handed the pair refuses — unless the shell
+    /// that started it exports `POSTGRES_PORT` and `LOGS_PORT`, which is every
+    /// shell `cargo xtask dev` has told to. Measured: the image gate's
+    /// `docker compose config`, written without the hand-off, passed the full
+    /// check where both were exported and failed CI's `linux` job, which
+    /// exports neither, with `no image was resolved from the compose files`.
+    /// A test cannot take a variable out of its own process, so the
+    /// invocation is judged as text.
+    ///
+    /// **Every Rust file of every member cargo resolves**, through the one walk
+    /// the gates use. The invocation that was missed is in this file, not
+    /// beside `dev`'s runner, and a census of one file is how it was missed.
+    /// The places compose is started from are named, so a fourth is a line to
+    /// change here after handing it the pair, and a place that goes is not
+    /// balanced by one that arrives.
+    #[test]
+    fn every_compose_this_tree_starts_is_handed_the_checkouts_ports() {
+        let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+        let mut read: Vec<String> = Vec::new();
+        let mut starts: Vec<(String, usize)> = Vec::new();
+        let mut bare: Vec<(String, usize)> = Vec::new();
+        super::walk(root, &mut |path| {
+            if path.extension().is_none_or(|kind| kind != "rs") {
+                return;
+            }
+            let relative = super::relative_to(root, path);
+            let text = match std::fs::read_to_string(path) {
+                Ok(text) => text,
+                // A file another test removed between the listing and the
+                // read is not source.
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
+                Err(error) => panic!("`{relative}` is not readable: {error}"),
+            };
+            let (started, unhanded) =
+                the_compose_starts_not_handed_the_ports(&super::without_comments(&text, "//"));
+            if started > 0 {
+                starts.push((relative.clone(), started));
+            }
+            bare.extend(unhanded.into_iter().map(|nth| (relative.clone(), nth)));
+            read.push(relative);
+        })
+        .expect("the tree is readable");
+        assert!(
+            bare.is_empty(),
+            "{bare:?} (a file, and which compose in it) start `docker compose` without \
+             handing it the checkout's ports. The compose file writes no port of its own, \
+             so the call refuses wherever neither `POSTGRES_PORT` nor `LOGS_PORT` is \
+             exported — CI's `linux` job among them — and passes in every shell that \
+             exports what `cargo xtask dev` prints, which is how the image gate's went \
+             unseen. Hand it `.envs(crate::dev::Port::ALL.map(|which| (which.variable(), \
+             crate::dev::port(root, which))))` — or, from a suite outside this binary, \
+             the pair `nc_channel::Checkout::stack` derives, as `projection_of` does — \
+             and no other call on its environment"
+        );
+        starts.sort();
+        assert_eq!(
+            starts,
+            [
+                ("xtask/src/dev.rs".to_owned(), 1),
+                ("xtask/src/gates.rs".to_owned(), 1),
+                (
+                    "xtask/tests/the_stack_enforces_the_declared_bounds.rs".to_owned(),
+                    1
+                ),
+            ],
+            "`docker compose` is started from these places, and the ones that hand it \
+             the checkout's ports are `dev::compose`, the image gate's \
+             `the_effective_stack` and the stack suite's `projection_of`. A new one is \
+             handed the pair through `dev::port` and named here; one gone is a reader of \
+             the stack this census no longer sees"
+        );
+        // **Every member tree, not the files that happen to start compose.** A
+        // walk that stopped at `xtask/` would still find all three.
+        let members = crate::members::members(root).expect("cargo lists this workspace");
+        let unread: Vec<&str> = members
+            .iter()
+            .map(|member| member.path.as_str())
+            .filter(|tree| {
+                !read
+                    .iter()
+                    .any(|file| file.starts_with(&format!("{tree}/")))
+            })
+            .collect();
+        assert!(
+            unread.is_empty() && members.len() > 10,
+            "{} member(s) cargo resolves, and no Rust file was read under {unread:?}, so a \
+             compose started there would never be asked for the ports",
+            members.len()
         );
     }
 

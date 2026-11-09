@@ -1626,8 +1626,11 @@ function, and a test's install never meets a real one's"), and prints it
 **And so do its ports, so two checkouts' stacks run at once.** `Checkout::stack` derives a
 pair from the same digest, in 20000–32765, below every system's ephemeral range;
 `dev::port` in `xtask/src/dev.rs` is the one reader, which `dev`, the gate's
-`DATABASE_URL` and its reader of the log store's bounds all ask, and the one place
-`docker compose` runs hands the pair to every invocation through the child's environment.
+`DATABASE_URL`, its image gate and its reader of the log store's bounds all ask. Both places
+`cargo xtask` runs `docker compose` — `dev::compose`, which every verb of `dev` goes
+through, and the image gate's `the_effective_stack` in `xtask/src/gates.rs` — hand the
+pair from that reader to every invocation through the child's environment, and the stack
+suite's `projection_of` hands each checkout the pair `nc_channel` derives for it.
 The compose file writes no port of its own — each is `${NAME:?…}` — so a
 `docker compose up` not handed the pair refuses, saying what to export, rather than
 binding a port another checkout's stack may hold. `POSTGRES_PORT` and `LOGS_PORT` move a port, a variable set
@@ -1646,14 +1649,22 @@ the compose file and `.env.example` to the reader both ways — every port requi
 none defaulted, and both written empty in the example, which writes no url;
 `a_stack_binds_its_checkouts_ports_unless_a_variable_moves_one` and
 `a_port_something_else_holds_fails_naming_the_variable_that_moves_it` beside them; the
-pinned runner (`the_block_that_decides_isolation_is_the_one_written_down`); and the
+pinned runner (`the_block_that_decides_isolation_is_the_one_written_down`);
+`every_compose_this_tree_starts_is_handed_the_checkouts_ports` in `xtask/src/gates.rs`,
+which reads every Rust file of every member, holds each `docker compose` it starts to that
+hand-off with no other call on the child's environment, and names the three places — read
+as text, because a run in a shell that exports what `dev` prints cannot see a hand-off
+missing, and only one with neither variable, as in the `linux` job, refuses it; and the
 `linux` job, which sets no `DATABASE_URL`, so the gate's url is derived from the runner's
 checkout as `dev`'s stack was.
 
 **Not answered:** a port taken between `dev`'s look and compose's bind, which compose then
 refuses in its own words, naming both variables; two accounts in one checkout, which share
-its stack (**What is deliberately not claimed**); and a `docker compose` typed by hand,
-which is handed whatever ports its shell exports.
+its stack (**What is deliberately not claimed**); a `docker compose` typed by hand, which is
+handed whatever ports its shell exports; and one the census cannot read as a compose — a
+program not written as the literal `"docker"`, or a verb assembled from pieces — which
+`dev.rs` refuses in that file, where every process it starts is counted and its runner is
+pinned whole, and nothing refuses in another.
 
 ### Secrets are environment variables, and `.env` is not a file here
 

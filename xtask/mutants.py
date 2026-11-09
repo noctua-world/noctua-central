@@ -2461,6 +2461,10 @@ WEAKENINGS = [
      "key.trim_end().trim_matches(['\"', '\\''])", "key.trim_end()"),
     ("gates", "the_effective_stack", "every profile, not the default projection",
      '.args(["compose", "--profile", "*", "config"])', '.args(["compose", "config"])'),
+    ("gates", "the_effective_stack", "the image gate is handed the checkout's ports",
+     '        .envs(crate::dev::Port::ALL.map(|which| (which.variable(), crate::dev::port(root, which))))\n'
+     '        .current_dir(root)',
+     '        .current_dir(root)'),
     ("gates", "the_image_on", "the resolved line is indented",
      "let (key, rest) = line.trim().split_once(':')?;",
      "let (key, rest) = line.split_once(':')?;"),

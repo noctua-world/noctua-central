@@ -19219,7 +19219,7 @@ mod the_frozen_path_rule {
         ("xtask/dev.rs", 70, 8),
         ("xtask/docs.rs", 8, 1),
         ("xtask/every_generated_value_is_compared.rs", 30, 8),
-        ("xtask/gates.rs", 219, 33),
+        ("xtask/gates.rs", 223, 33),
         ("xtask/history.rs", 115, 3),
         ("xtask/limits.rs", 176, 59),
         ("xtask/local.rs", 79, 8),
@@ -25021,7 +25021,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15389;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15399;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25091,7 +25091,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 21634;
+    const THE_REARRANGEMENTS_JUDGED: usize = 21654;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25145,7 +25145,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **463 of 21,634 are accepted by the first-line
+    /// rules the gates apply: **463 of 21,654 are accepted by the first-line
     /// rule alone, and 239 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -36102,7 +36102,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1753] = [
+    static OPERATORS: [(&str, &str, &str); 1754] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -38443,6 +38443,11 @@ Options:
             "gates",
             "the_effective_stack",
             "every profile, not the default projection",
+        ),
+        (
+            "gates",
+            "the_effective_stack",
+            "the image gate is handed the checkout's ports",
         ),
         ("gates", "the_image_on", "the resolved line is indented"),
         (
