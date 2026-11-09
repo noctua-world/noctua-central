@@ -335,6 +335,11 @@ fn a_socket_of_its_own(path: &Path, found: &Metadata, user: &User) -> Result<(),
 /// replaced; one something answers at is taken; anything else is refused and
 /// left as it was. The caller holds the profile's instance lock, so no daemon
 /// of the profile is between its stop and its socket's removal.
+///
+/// **Whether something answers is asked by connecting**, so a live listener is
+/// handed that connection, closed at once: macOS no longer names a peer that
+/// has closed, so its accept refuses it, and Linux, which still does, hands it
+/// over as any other.
 pub(crate) fn bind(
     endpoint: &Endpoint,
     user: &User,

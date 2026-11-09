@@ -1094,6 +1094,12 @@ mod tests {
                 let mut listener = super::ipc::Listener::bind(&endpoint, &user, &instance, 4)
                     .expect("the child binds");
                 let mut accepted = listener.accept().await.expect("the parent connects");
+                // Said once the parent has been read off the system: macOS no
+                // longer names a peer that has closed, so the parent waits for
+                // this before it closes.
+                tokio::io::AsyncWriteExt::write_all(&mut accepted.stream, b"!")
+                    .await
+                    .expect("the parent hears it");
                 until_closed(&mut accepted.stream).await;
             } else {
                 let (mut stream, _) = super::ipc::connect(&endpoint, &user)
@@ -1153,10 +1159,10 @@ mod tests {
         let user = user_in(&scratch.0).expect("private");
         let endpoint = endpoint_in(&scratch, "child-connects");
         let instance = super::hold(&scratch.0, "instance.lock", &user).expect("held");
-        runtime().block_on(async {
+        let mut child = runtime().block_on(async {
             let mut listener =
                 super::ipc::Listener::bind(&endpoint, &user, &instance, 4).expect("bound");
-            let mut child = spawned("connect", &endpoint);
+            let child = spawned("connect", &endpoint);
             let accepted = listener.accept().await.expect("the child's connection");
             assert_eq!(
                 accepted.peer.pid,
@@ -1164,18 +1170,22 @@ mod tests {
                 "the client read is not the child"
             );
             assert_ne!(accepted.peer.pid, std::process::id());
-            drop(accepted);
-            assert!(child.ended_well(), "the connecting child failed");
+            child
         });
+        // **Waited for once the runtime is gone**, never on it: a pipe's handle
+        // is closed only as the runtime driving it lets it go, so a wait that
+        // blocked that runtime would wait for itself — measured on a Windows
+        // runner, the child never saw its connection end.
+        assert!(child.ended_well(), "the connecting child failed");
 
         // The child's own lock, on a directory of its own: this process holds
         // the first one's.
         let second = Scratch::new("ipc-child-serves");
         let endpoint = endpoint_in(&second, "child-serves");
-        runtime().block_on(async {
-            let mut child = spawned("serve", &endpoint);
+        let mut child = runtime().block_on(async {
+            let child = spawned("serve", &endpoint);
             let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
-            let (stream, server) = loop {
+            let (mut stream, server) = loop {
                 match super::ipc::connect(&endpoint, &user).await {
                     Ok(connected) => break connected,
                     Err(super::ipc::Refused::Nobody(_)) if std::time::Instant::now() < deadline => {
@@ -1186,9 +1196,16 @@ mod tests {
             };
             assert_eq!(server.pid, child.0.id(), "the server read is not the child");
             assert_ne!(server.pid, std::process::id());
-            drop(stream);
-            assert!(child.ended_well(), "the serving child failed");
+            // Closed only once the child has read this end off the system:
+            // measured on a macOS runner, a connection closed first left the
+            // child's accept with no peer to name.
+            let mut heard = [0_u8; 1];
+            tokio::io::AsyncReadExt::read_exact(&mut stream, &mut heard)
+                .await
+                .expect("the child accepted");
+            child
         });
+        assert!(child.ended_well(), "the serving child failed");
     }
 
     /// The peer predicate refuses a user that is not this one, naming both
@@ -1381,9 +1398,23 @@ mod tests {
                 Err(super::ipc::Refused::Taken { name }) => assert_eq!(name, endpoint.name()),
                 other => panic!("an endpoint something answers at was {other:?}"),
             }
-            let (accepted, connected) =
-                tokio::join!(first.accept(), super::ipc::connect(&endpoint, &user));
-            accepted.expect("the first listener still accepts");
+            // **The refused bind asked by connecting**, and that connection is
+            // the first listener's to accept first, closed already: measured on
+            // a macOS runner, which no longer names a peer that has closed, it
+            // is refused there. The listener goes on accepting either way.
+            let (accepted, connected) = tokio::join!(
+                async {
+                    match first.accept().await {
+                        Ok(accepted) => accepted,
+                        Err(_) => first
+                            .accept()
+                            .await
+                            .expect("the first listener still accepts"),
+                    }
+                },
+                super::ipc::connect(&endpoint, &user)
+            );
+            drop(accepted);
             connected.expect("and is reached");
         });
     }
