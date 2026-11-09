@@ -2043,12 +2043,13 @@ program reach a channel's daemon through.
 - **It confirms nothing.** The CLI acts as the profile's person, so the kernel refuses
   every command that cannot be undone with `NC-KERN-0006`, which ends the run in an exit
   code of its own (4): what it needs is a person in the Noctua window (`NOCTUA.md §11.1`).
-- **What the daemon says is escaped.** A plugin's label, a refusal's sentence, a result,
-  a schema's annotations, names and options, and every word a person typed that a refusal
-  repeats are printed with each character `nc_schema::unseen` answers for written as
-  `\u{…}`, so nothing printed moves the cursor, clears the screen, starts a forged line or
-  turns the rest of one around; and `nc_schema` already refuses those characters in a
-  schema's titles, descriptions, names and options once their escapes are decoded.
+- **What the daemon says is escaped.** A command's name, a plugin's label, a refusal's
+  sentence, a result, a schema's annotations, names and options, and every word a person
+  typed that a refusal repeats are printed with each character `nc_schema::unseen` answers
+  for written as `\u{…}`, so nothing printed moves the cursor, clears the screen, starts a
+  forged line or turns the rest of one around; and `nc_schema` already refuses those
+  characters in a schema's titles, descriptions, names and options once their escapes are
+  decoded.
 
 **Enforced by** the unit tests of each module in `apps/cli/src/` — the client's and a
 run's against a daemon in-process, in a scratch install, that answers as a script says:
@@ -2056,8 +2057,9 @@ nothing listening, a handshake proving nobody, a token another account can reach
 in a directory it can reach, each left as it was, a token missing and each way one is
 malformed, a welcome naming another process and another channel, each answer of a
 dispatch to its row of the exit table and an answer of another kind, help on the exit
-codes with no daemon, and a command line, a command and arguments refused with nothing
-dispatched — by `apps/cli/tests/arguments_from_schemas.rs`, by the tests of
+codes with no daemon, help on everything showing the grammar and the verbs with none,
+and a command line, a command and arguments refused with nothing dispatched — by
+`apps/cli/tests/arguments_from_schemas.rs`, by the tests of
 `crates/nc-channel/src/found.rs`, by
 `a_character_a_reader_sees_nothing_of_is_refused_once_its_escape_is_decoded` in
 `crates/nc-schema/src/lib.rs`, and by the operators over those sources in

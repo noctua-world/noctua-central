@@ -19363,11 +19363,11 @@ mod the_frozen_path_rule {
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/client.rs", 38, 13),
         ("cli/exit.rs", 9, 2),
-        ("cli/help.rs", 14, 3),
+        ("cli/help.rs", 17, 3),
         ("cli/lib.rs", 1, 6),
         ("cli/main.rs", 6, 5),
         ("cli/render.rs", 20, 4),
-        ("cli/run.rs", 19, 5),
+        ("cli/run.rs", 21, 5),
         ("daemon/device.rs", 22, 5),
         ("daemon/install.rs", 14, 6),
         ("daemon/lib.rs", 7, 8),
@@ -22326,8 +22326,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 654 scratches this tree
-    /// builds, 567 of the 654 are removed however the test leaves and 87 are
+    /// directories accumulated in an afternoon. Of the 655 scratches this tree
+    /// builds, 568 of the 655 are removed however the test leaves and 87 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22395,7 +22395,7 @@ mod the_frozen_path_rule {
     #[cfg(test)]
     const BUILDS_A_SCRATCH: [(&str, usize, usize); 47] = [
         ("cli/client.rs", 7, 7),
-        ("cli/run.rs", 5, 5),
+        ("cli/run.rs", 6, 6),
         ("daemon/device.rs", 7, 7),
         ("daemon/install.rs", 8, 8),
         ("daemon/main.rs", 3, 3),
@@ -25385,7 +25385,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 17033;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 17039;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25404,7 +25404,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4039;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4048;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25421,7 +25421,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1345;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1348;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25455,7 +25455,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 23371;
+    const THE_REARRANGEMENTS_JUDGED: usize = 23379;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25509,7 +25509,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **481 of 23,371 are accepted by the first-line
+    /// rules the gates apply: **481 of 23,379 are accepted by the first-line
     /// rule alone, and 256 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25542,7 +25542,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1345 of
+    /// this tree offers, **1348 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -37245,7 +37245,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1962] = [
+    static OPERATORS: [(&str, &str, &str); 1966] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -45995,6 +45995,26 @@ Options:
             "cli_lib",
             "unfound",
             "no install ends a run in its own outcome",
+        ),
+        (
+            "cli_help",
+            "everything",
+            "a command's name is escaped in the list of every command",
+        ),
+        (
+            "cli_help",
+            "command",
+            "a command's name is escaped in its own help",
+        ),
+        (
+            "cli_run",
+            "run",
+            "help on everything shows the grammar when no registry is read",
+        ),
+        (
+            "cli_run",
+            "unlisted",
+            "under `--json` help with no registry is the refusal alone",
         ),
     ];
 

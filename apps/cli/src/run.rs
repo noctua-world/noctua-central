@@ -3,12 +3,14 @@
 //!
 //! **In this order, and each step refuses before the next one starts**: the
 //! command line is read before anything is asked ([`crate::args::read`]);
-//! help on the exit codes and the verbs is answered without a daemon; for
-//! anything else the daemon is reached and proven ([`crate::client`]), its
-//! registry read, the command found there and its arguments read against the
-//! schema it lists and held to it, and only then is the command dispatched —
-//! so a command line the CLI cannot read, a command the registry does not
-//! hold and arguments the schema refuses each reach no kernel.
+//! help on the exit codes and the verbs is answered without a daemon, and help
+//! on everything shows the grammar and the verbs when no registry can be read,
+//! beside the refusal and in its exit code; for anything else the daemon is
+//! reached and proven ([`crate::client`]), its registry read, the command
+//! found there and its arguments read against the schema it lists and held to
+//! it, and only then is the command dispatched — so a command line the CLI
+//! cannot read, a command the registry does not hold and arguments the schema
+//! refuses each reach no kernel.
 //!
 //! **The CLI acts as the profile's person and confirms nothing** (`§11.1`):
 //! a command that cannot be undone is refused by the kernel with
@@ -17,7 +19,7 @@
 
 use std::ffi::OsString;
 
-use nc_catalog::ErrorCode;
+use nc_catalog::{ErrorCode, Locale};
 use nc_channel::found::Found;
 use nc_schema::Schema;
 
@@ -44,9 +46,27 @@ pub fn run(argv: &[OsString], found: &Found, env: &Env) -> Outcome {
     let ended = match line.asked {
         Asked::Help(Topic::ExitCodes) => Ok(render::shown(line.json, exit::table())),
         Asked::Help(Topic::Verbs) => Ok(render::shown(line.json, help::verbs())),
+        Asked::Help(Topic::Everything) => {
+            on_a_runtime(found, line.json, env, Asked::Help(Topic::Everything))
+                .or_else(|failure| Ok(unlisted(found, line.json, locale, &failure)))
+        }
         asked => on_a_runtime(found, line.json, env, asked),
     };
     ended.unwrap_or_else(|failure| render::failed(line.json, locale, &failure))
+}
+
+/// Help on everything with no registry to read: the grammar and the verbs, which
+/// need no daemon, on standard output, and the refusal, in its code, on standard error.
+fn unlisted(found: &Found, json: bool, locale: Locale, failure: &Failure) -> Outcome {
+    let refused = render::failed(json, locale, failure);
+    if json {
+        // `--json` writes one document, and a program reads the refusal.
+        return refused;
+    }
+    Outcome {
+        stdout: help::unlisted(&found.layout.cli),
+        ..refused
+    }
 }
 
 /// Whether the options before the command ask for `--json`, read before the
@@ -273,6 +293,54 @@ mod tests {
         );
         let outcome = super::run(&argv(&["help", "help"]), &installed.found, &english());
         assert_eq!(outcome.stdout, crate::help::verbs());
+    }
+
+    /// Help on everything with no registry to read still shows the grammar
+    /// and the verbs, and ends in the refusal's own code.
+    ///
+    /// Nothing listening is 9 and a handshake proving nobody 10, as a command
+    /// would end; under `--json` the one document is the refusal. A person
+    /// whose daemon is down reads the grammar this way, the way a verb that
+    /// starts the daemon will be found.
+    #[test]
+    fn help_with_no_daemon_shows_the_grammar_and_the_verbs() {
+        let installed = Scratch::new("hnd");
+        installed.token(&Token::fresh().expect("a token"));
+        let grammar = crate::help::unlisted(&installed.found.layout.cli);
+        let unreachable = ErrorCode::IpcUnreachable.code();
+        for line in [&[][..], &["help"], &["--help"]] {
+            let outcome = super::run(&argv(line), &installed.found, &english());
+            assert_eq!(outcome.exit, Exit::Unreachable, "{line:?}: {outcome:?}");
+            assert_eq!(outcome.stdout, grammar, "{line:?}");
+            assert!(
+                outcome.stderr.starts_with(&format!("error[{unreachable}]")),
+                "{line:?}: {}",
+                outcome.stderr
+            );
+        }
+        let outcome = super::run(&argv(&["--json", "help"]), &installed.found, &english());
+        assert_eq!(outcome.exit, Exit::Unreachable, "{outcome:?}");
+        let document = nc_canon::parse(outcome.stdout.trim_end()).expect("one document");
+        assert_eq!(document.to_canonical(), outcome.stdout.trim_end());
+        assert!(
+            outcome.stdout.starts_with("{\"error\":"),
+            "{}",
+            outcome.stdout
+        );
+        assert_eq!(outcome.stderr, "");
+        let daemon = Scripted::serve(
+            &installed,
+            Script {
+                token: Token::fresh().expect("another token"),
+                welcome: installed.welcome(),
+                connections: vec![Vec::new()],
+            },
+        );
+        let outcome = super::run(&argv(&["help"]), &installed.found, &english());
+        assert_eq!(outcome.exit, Exit::Refused, "{outcome:?}");
+        assert_eq!(outcome.stdout, grammar);
+        assert!(!outcome.stderr.is_empty(), "{outcome:?}");
+        assert_eq!(daemon.heard(), [] as [Request; 0]);
     }
 
     /// A command line the CLI cannot read is refused before anything is

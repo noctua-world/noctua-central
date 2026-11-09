@@ -1,6 +1,7 @@
 //! What help says (`NOCTUA.md §20.2`, `§20.5`): the CLI's own grammar and
-//! verbs, fixed and in English, and every command the daemon's registry holds,
-//! with the arguments its schema declares.
+//! verbs, fixed and in English, shown whether a daemon answers or not, and
+//! every command the daemon's registry holds, with the arguments its schema
+//! declares.
 //!
 //! **The registry is the one list**: help names every command the daemon
 //! would run and none it would not, and a command's arguments are read from
@@ -73,13 +74,19 @@ fn description(name: &str, locale: Locale) -> Option<String> {
         .map(str::to_owned)
 }
 
+/// The grammar and the verbs, which help shows whether a daemon answers or not.
+fn grammar(cli: &str) -> String {
+    let mut text = usage(cli);
+    text.push('\n');
+    text.push_str(&verbs());
+    text
+}
+
 /// Help on everything: the grammar, the verbs, and every command the registry
 /// holds, by its name and its title.
 #[must_use]
 pub fn everything(cli: &str, commands: &[Listed], locale: Locale) -> String {
-    let mut text = usage(cli);
-    text.push('\n');
-    text.push_str(&verbs());
+    let mut text = grammar(cli);
     text.push_str("\nCommands:\n");
     let names: Vec<String> = commands
         .iter()
@@ -100,6 +107,19 @@ pub fn everything(cli: &str, commands: &[Listed], locale: Locale) -> String {
         text,
         "\n`{cli} help <command>` says what a command takes, and `{cli} help {EXIT_CODES}` what \
          each exit code means.\n"
+    );
+    text
+}
+
+/// Help on everything when the daemon's registry could not be read: the
+/// grammar and the verbs, and where the commands would have been.
+#[must_use]
+pub fn unlisted(cli: &str) -> String {
+    let mut text = grammar(cli);
+    let _ = write!(
+        text,
+        "\nCommands:\n  none shown: they are the daemon's registry, which could not be read; the \
+         error says why, and `{cli} help` lists them once the daemon answers\n"
     );
     text
 }
@@ -256,12 +276,14 @@ mod tests {
 
     /// Help on everything lists every command the registry holds, by its name
     /// and its title — the catalog's in the environment's language, a
-    /// plugin's label escaped — with the grammar and the verbs.
+    /// plugin's name and label escaped — with the grammar and the verbs.
     #[test]
     fn help_on_everything_lists_every_command_by_its_name_and_title() {
         let commands = [
             listed("journal.verify", "command.journal.verify.title", EMPTY),
             listed("reference.note.get", "Read a note\u{1b}[2J", EMPTY),
+            listed("reference.\u{1b}[2Jwipe.do", "Wipe", EMPTY),
+            listed("reference.\u{202e}eton.get", "Turned", EMPTY),
         ];
         for locale in [Locale::En, Locale::PtBR] {
             let text = super::everything("noctua-staging", &commands, locale);
@@ -271,11 +293,25 @@ mod tests {
             assert!(text.contains(verify), "{text}");
             assert!(text.contains("reference.note.get"), "{text}");
             assert!(text.contains("Read a note\\u{1b}[2J"), "{text}");
+            assert!(text.contains("  reference.\\u{1b}[2Jwipe.do "), "{text}");
+            assert!(text.contains("  reference.\\u{202e}eton.get "), "{text}");
             assert!(!text.contains('\u{1b}'), "{text}");
+            assert!(!text.contains('\u{202e}'), "{text}");
             assert!(text.contains("noctua-staging [--json] <command>"), "{text}");
             assert!(text.contains(&super::verbs()), "{text}");
         }
         assert!(super::everything("noctua", &[], Locale::En).contains("holds no command"));
+    }
+
+    /// Help with no registry to read still shows the grammar and the verbs,
+    /// and says where the commands would have been.
+    #[test]
+    fn help_without_a_registry_is_the_grammar_and_the_verbs() {
+        let text = super::unlisted("noctua-staging");
+        assert!(text.contains(&super::usage("noctua-staging")), "{text}");
+        assert!(text.contains(&super::verbs()), "{text}");
+        assert!(text.contains("none shown"), "{text}");
+        assert!(text.contains("`noctua-staging help` lists them"), "{text}");
     }
 
     /// Help on a command shows its title and description and every argument
@@ -315,6 +351,25 @@ mod tests {
             assert!(text.contains(expected), "`{expected}` is not in:\n{text}");
         }
         assert!(!text.contains('\u{202e}'), "{text}");
+        let turned = super::command(
+            "noctua",
+            &listed("reference.\u{1b}[2J\u{202e}eton.put", "Put", EMPTY),
+            &Schema::compile(EMPTY).expect("inside the subset"),
+            Locale::En,
+        );
+        for expected in [
+            "reference.\\u{1b}[2J\\u{202e}eton.put — Put\n",
+            "  noctua reference.\\u{1b}[2J\\u{202e}eton.put [arguments]\n",
+        ] {
+            assert!(
+                turned.contains(expected),
+                "`{expected}` is not in:\n{turned}"
+            );
+        }
+        assert!(
+            !turned.contains('\u{1b}') && !turned.contains('\u{202e}'),
+            "{turned}"
+        );
         let order: Vec<usize> = [
             "--note",
             "--mode",

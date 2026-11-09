@@ -7071,6 +7071,18 @@ WEAKENINGS = [
     ("cli_lib", "unfound", "no install ends a run in its own outcome",
      "        exit: exit::Exit::NoInstall,",
      "        exit: exit::Exit::Failed,"),
+    ("cli_help", "everything", "a command's name is escaped in the list of every command",
+     "        .map(|listed| escaped(&listed.name))",
+     "        .map(|listed| listed.name.clone())"),
+    ("cli_help", "command", "a command's name is escaped in its own help",
+     "    let name = escaped(&listed.name);",
+     "    let name = listed.name.clone();"),
+    ("cli_run", "run", "help on everything shows the grammar when no registry is read",
+     "                .or_else(|failure| Ok(unlisted(found, line.json, locale, &failure)))\n",
+     ""),
+    ("cli_run", "unlisted", "under `--json` help with no registry is the refusal alone",
+     "        return refused;\n",
+     ""),
 ]
 
 # **Every member tree, as `MEMBER_TREES` in `xtask/src/members.rs` names them**,
