@@ -28,7 +28,8 @@
 //! - **The heartbeat** ([`Client`], [`Served`]): each side pings after
 //!   `ipc_heartbeat_ms` of its own silence, while a dispatch runs as well as
 //!   between requests, and drops a peer silent for `ipc_silent_after_ms`, or
-//!   one that takes nothing written to it for as long.
+//!   one that leaves a write to it waiting as long — which a write does only
+//!   once the system's buffer for the connection is full.
 //!
 //! **Before closing for a reason it can name, a side says goodbye** with the
 //! code, so the other end refuses with the daemon's word rather than a closed
@@ -43,15 +44,19 @@
 //! request to what cannot prove it to the client; the token itself is never
 //! sent, so neither end learns it from the other; a peer cannot make the
 //! reader allocate more than one frame's bound, queue more than one request,
-//! or hold a connection open without speaking or without taking what it is
-//! sent.
+//! hold a connection open without speaking, or leave a write to it waiting
+//! past the silence bound.
 //!
 //! # What it does not
 //!
 //! A process running as the same user, which can read the token from the
 //! runtime directory and speak for anybody — authorization is what resists it
-//! (`§14`); and the channel's confidentiality from such a process, which is
-//! the endpoint's (`nc_platform::ipc`): nothing here is encrypted.
+//! (`§14`); the channel's confidentiality from such a process, which is the
+//! endpoint's (`nc_platform::ipc`): nothing here is encrypted; and a peer that
+//! pings and reads nothing, which holds its connection until this side's
+//! writes fill the system's buffer for it — between requests, a ping each
+//! `ipc_heartbeat_ms`, so minutes on a Linux socket and hours on a Windows
+//! pipe.
 
 #![deny(clippy::print_stdout, clippy::print_stderr, clippy::dbg_macro)]
 // Every doctest of this crate forbids `unsafe` as the crate does: a
@@ -171,7 +176,8 @@ pub enum IpcError {
     Slow,
     /// The peer was silent for `ipc_silent_after_ms`.
     Silent,
-    /// The peer took nothing written to it for `ipc_silent_after_ms`.
+    /// A write to the peer waited `ipc_silent_after_ms`, the system's buffer
+    /// for the connection full and the peer taking nothing from it.
     Unread,
     /// The other end closed the connection saying why, by its code.
     TurnedAway(ErrorCode),

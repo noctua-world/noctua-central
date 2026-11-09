@@ -1229,7 +1229,7 @@ retryable = false
 # a log is queried by which part of the connection it was (`§15.1`): the
 # endpoint (0009 to 0015), a frame read (0001 to 0003) or one this side would
 # not send (0016), the handshake (0004 to 0007) and the heartbeat (0008, and
-# 0017 for a peer that takes nothing). **Retryable where the same attempt may
+# 0017 for a write a peer left waiting). **Retryable where the same attempt may
 # succeed later** — a connection lost, a handshake or a peer too slow, a daemon
 # not yet listening or holding every connection it allows, the system not
 # answering — and not where it met what it was: a peer of another user, a
@@ -1360,8 +1360,10 @@ severity = "error"
 retryable = false
 
 [[error]]
-# A peer that pings and never reads would otherwise hold its connection, and
-# one of `ipc_connections_max`, for as long as it pinged.
+# A write waits only once the system's buffer for the connection is full, so a
+# peer that pings and reads nothing holds its connection, and one of
+# `ipc_connections_max`, until this side's writes fill that buffer; this is
+# what ends it then, where it would otherwise last as long as the peer pinged.
 code = "NC-IPC-0017"
 description = "A peer took nothing written to it for `ipc_silent_after_ms`, and its connection was dropped"
 message = "error.ipc.unread"

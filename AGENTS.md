@@ -1794,12 +1794,14 @@ and a client asks through, over any stream: the endpoint's, or a test's.
 - **One request at a time, and a heartbeat both ways.** A request before the last one was
   answered, and an answer nobody asked for, close the connection (`NC-IPC-0002`); a request
   abandoned before its answer leaves the connection refusing to be asked again, rather
-  than handing the late answer to the next request. Each side pings after
-  `ipc_heartbeat_ms` of its own silence — while a dispatch runs, too — and drops a peer
-  silent for `ipc_silent_after_ms` (`NC-IPC-0008`); and a write the peer does not take in
-  that time ends the connection however the peer pings (`NC-IPC-0017`), the writer telling
-  the reader, so both halves of the stream are let go. Every bound is the catalog's, read
-  by the crate itself.
+  than handing the late answer to the next request, and one the connection could not send
+  abandons nothing, so every call after the daemon is gone is refused as lost
+  (`NC-IPC-0003`), which a caller may retry. Each side pings after `ipc_heartbeat_ms` of
+  its own silence — while a dispatch runs, too — and drops a peer silent for
+  `ipc_silent_after_ms` (`NC-IPC-0008`); and a write that waits that long ends the
+  connection however the peer pings (`NC-IPC-0017`), the writer telling the reader, so
+  both halves of the stream are let go. Every bound is the catalog's, read by the crate
+  itself.
 
 **Enforced by** `crates/nc-ipc/tests/frames.rs` (round trips and every cut of a frame, a
 length past the bound refused with the writer still open, the bound itself taken, each
@@ -1812,17 +1814,23 @@ daemon proof, a welcome naming no process, both ends' deadline on a paused clock
 every byte either end wrote held to hold neither the token nor its text), `heartbeat.rs`
 (a relay between a real client and a real daemon swallowing either side, passing only its
 pings, repeating its next message or reading nothing more of it: a silent peer dropped at
-the bound, from either end, after the pings, a peer that pings and takes nothing dropped
-at the bound with the daemon's stream let go, a dispatch outlasting the bound waited for,
-pipelining and an unasked answer refused), and the operators over the crate's sources in
-`xtask/mutants.py`.
+the bound, from either end, after the pings, a write longer than the relay buffers left
+waiting by a peer that pings ending the connection at the bound with the daemon's stream
+let go, every request after the daemon is gone refused as lost, a dispatch outlasting the
+bound waited for, pipelining and an unasked answer refused), and the operators over the
+crate's sources in `xtask/mutants.py`.
 
 **Not answered:** a process running as the same user, which can read the token from the
 runtime directory and speak for anybody — authorization re-decides every dispatch (`§14`);
 the confidentiality of a connection from such a process, which is the endpoint's: nothing
-is encrypted; and a peer slow to speak inside its bounds, which holds one of
-`ipc_connections_max` for as long as it pings. Who writes the token and the process it
-is read by are the daemon's and the CLI's, under **What is deliberately not claimed**.
+is encrypted; a peer slow to speak inside its bounds, which holds one of
+`ipc_connections_max` for as long as it pings; and a peer that pings and reads nothing,
+which holds one as well until a write waits on it — only once the daemon's writes fill the
+system's buffer for the connection, which between requests, a ping each
+`ipc_heartbeat_ms`, takes minutes on a Linux socket and hours on a Windows pipe. Only this
+user reaches the endpoint, so both are a same-user residual. Who writes the token and the
+process it is read by are the daemon's and the CLI's, under **What is deliberately not
+claimed**.
 
 ### A daemon starts only on a profile that is its user's alone, and mints nothing it cannot resume above
 
@@ -2682,6 +2690,13 @@ rather than anything decided for the project, and each is a maintainer's to reop
   than this process's own — so a reader answering this process's credentials is caught,
   and one answering a third process's would be caught only where that process ran as
   another user.
+- **A peer that pings and reads nothing is dropped late**: a write waits only once the
+  system's buffer for the connection is full, and between requests the daemon writes
+  nothing but a ping each `ipc_heartbeat_ms`, so such a peer holds its connection, and one
+  of `ipc_connections_max`, until those pings fill the buffer — minutes on a Linux socket,
+  hours on a Windows pipe — and only then does `NC-IPC-0017` end it. Only this user
+  reaches the endpoint, so this is what a process running as that user can do, as it can
+  speak slowly inside every bound.
 - **A device's seed is wiped as far as safe Rust can say**: the key `ed25519-dalek` holds
   zeroizes itself, and the copies read from the file are overwritten and passed through
   `core::hint::black_box`, which no compiler promises to honour.
