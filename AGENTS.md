@@ -415,6 +415,7 @@ fails a gate a minute or two later.
 | a kind of node a surface shows | `KINDS` in `crates/nc-kernel/src/ui.rs` | the table in that module's header is what a plugin author reads, and changes in the same edit; the kind's keys are a row of `KINDS`, a key holding a person's text is in `TEXTS` and a closed choice in `CHOICES`, so every text of every kind is held to the same bound and characters; and a test in that file keeps a tree of the new kind and refuses each rule it is held to — the interface's renderer (Stage 16) draws only the kinds this set names |
 | a name the system sees | a field of `Layout` in `crates/nc-channel/src/lib.rs`, derived in `layout` and in the table of that crate's header | a line of `parts` in `crates/nc-channel/tests/the_names_are_disjoint.rs`, which destructures `Layout` without `..` and does not compile until the field is read — what it reads is held apart from every other install's name, case-folded; a name the whole machine shares carries the user and is a row of `MACHINE_WIDE` there too, unless it is a checkout's stack's, which is the checkout's; its spelling is written out in `each_name_is_spelled_as_the_crate_header_writes_it`; a relocated install's must carry its namespace and lie under its root, or be `None` as the update feed and the stack are; and nothing outside the crate spells one — `cargo xtask dev` names its stack's project and binds its ports through `Checkout::stack`, and `POSTGRES_PORT` or `LOGS_PORT` only moves a port |
 | a kernel limit | `[kernel]` in `catalog/limits.toml`, and a field of `KernelLimits` in `crates/nc-catalog-compiler/src/model.rs` with its row in `KernelLimits::each` | every limit is required and above zero, and one that bounds another is held to it where both are written (`check_kernel` in the compiler's `load.rs`); `xtask/tests/the_registry_reaches_the_code.rs` compares every field by name, so a new one is a line there as well, and `docs/limits.md` publishes it with its unit. A plugin's manifest may lower only what `Lowering` in `crates/nc-kernel/src/limits.rs` names, and never raise it |
+| an advisory left out of the audit | `[advisories] ignore` in `deny.toml`, and `THE_ADVISORIES_LEFT_OUT` in `xtask/src/check.rs` | only one the lock cannot get past and that is argued not to reach this tree: the entry's `reason` says in one sentence why and when it leaves, the paragraph above `ignore` gives the argument, and the bullet of **What is deliberately not claimed** it rests on says so. The gate holds the list to the constant, in its order, and refuses an entry with no reason however TOML spells it; cargo-deny warns `advisory-not-detected` for an entry no crate matches while `[advisories] unused-ignored-advisory` is `warn`, which `deny.toml` writes out and `THE_AUDIT_IS_NOT_NARROWED` holds, and the warning fails the dependency step, so the change that moves the lock past the advisory takes it out of both lists |
 
 Two things are true of all of them:
 
@@ -622,17 +623,20 @@ effect; 22 is gated over the statements written today and by nothing over the ne
     **Gated twice, in `xtask/src/local.rs`**, whose header lists every refusal. `check`
     applies the directory to a scratch file one migration at a time and holds each step to
     the list, with `integrity_check`, `foreign_key_check`, the header's `application_id`
-    and the SQLite floor. A source gate, over every member whose manifest takes SQLite —
-    `sqlx`'s `any` feature included, a test holding the gate's list to them — refuses any
-    statement that builds or changes the schema, attaches a database or touches
-    `writable_schema`; undoes the connection's hardening, through SQL, the pragma door or
-    `sqlx`'s own option, every value judged as SQLite reads it and the list held both ways
-    to the pragmas `crates/nc-local` sets; sets a pragma under a key no literal reads as
-    one; copies the file out with `VACUUM` or points SQLite's files at a directory; loads
-    an extension; gathers the planner's statistics (`ANALYZE`, `PRAGMA optimize`,
-    `optimize_on_close`); sets `application_id` or `schema_version`; or writes
-    `_sqlx_migrations`. A `#[cfg(test)]` arm, field or item hides only itself: the region
-    closes at the comma, semicolon or brace that ends what the attribute governs.
+    and the SQLite floor. The file's directory is made private to this user by the call
+    that makes it, and a name already there is refused rather than reused or cleared, so
+    the gate's SQLite reads no database or `-wal` another account wrote. A source gate,
+    over every member whose manifest takes SQLite — `sqlx`'s `any` feature included, a test
+    holding the gate's list to them — refuses any statement that builds or changes the
+    schema, attaches a database or touches `writable_schema`; undoes the connection's
+    hardening, through SQL, the pragma door or `sqlx`'s own option, every value judged as
+    SQLite reads it and the list held both ways to the pragmas `crates/nc-local` sets; sets
+    a pragma under a key no literal reads as one; copies the file out with `VACUUM` or
+    points SQLite's files at a directory; loads an extension; gathers the planner's
+    statistics (`ANALYZE`, `PRAGMA optimize`, `optimize_on_close`); sets `application_id`
+    or `schema_version`; or writes `_sqlx_migrations`. A `#[cfg(test)]` arm, field or item
+    hides only itself: the region closes at the comma, semicolon or brace that ends what
+    the attribute governs.
 
 19. **The kernel's bounds on a plugin are the catalog's, and a plugin can only lower
     them.** `[kernel]` in `catalog/limits.toml` is generated as `nc_catalog::KERNEL` and
@@ -2381,20 +2385,29 @@ rather than anything decided for the project, and each is a maintainer's to reop
   for where it ran is recorded and logged the same way, as `kernel.host_call_refused`. Not
   logged: the `activate` refusals of a plugin whose load is then refused, there being no
   slot to name it by — the load's own refusal is what its caller is told.
-- **The local database stops other accounts, not the account it belongs to.** SQLite has
-  no roles: a process running as the same user can `DROP TRIGGER` and rewrite the images,
-  or race the owner and mode checks between check and open, and the next open's refusal of
-  a changed schema is detection, not prevention. An administrator, and a disk read offline
+- **The local database stops other accounts, not the account it belongs to.** SQLite has no
+  roles: a process running as the same user can `DROP TRIGGER` and rewrite the images, or
+  race the owner and mode checks between check and open, and the next open's refusal of a
+  changed schema is detection, not prevention. An administrator, and a disk read offline
   without full-disk encryption, are not answered — the file is not encrypted. SQLite's
-  `DEFENSIVE` flag and an authorizer are out of `sqlx`'s safe API's reach, and nothing
-  here runs SQL this repository did not write — the premise the bundled SQLite's floor
-  (3.50.2, CVE-2025-6965) and the later FTS5 advisories rest on. The blobs' directory
-  stops the same people and no more. An open leaves a `-shm` it gave a `-wal` that had
-  none (an index holding no data) beside a file it then refuses, and leaves what it made
-  before it judged the path it refuses: the database file, when it was missing and a
-  companion is then refused, and on Windows the profile's lock file
-  (`nc_local::LOCK_NAME`), made before the database file is judged. It waits without
-  bound for another open of the profile, so a process stopped mid-open holds every other.
+  `DEFENSIVE` flag and an authorizer are out of `sqlx`'s safe API's reach, and nothing here
+  runs SQL this repository did not write — the premise the bundled SQLite's floor (3.50.2,
+  CVE-2025-6965) and the later FTS5 advisories rest on. The bundled SQLite (3.51.3) is
+  below 3.54.0, which fixes CVE-2026-119375: a database opened with a `-wal` whose page
+  size differs from its own returns uninitialized page-cache memory. The pair that needs is
+  written only by the account the process runs as, the one this bullet does not answer:
+  every database the shipped code opens goes through `nc_local`, which holds the directory,
+  the file and each companion to this user's alone before SQLite reads them, and the gate's
+  own scratch is a directory `xtask/src/local.rs` makes private and refuses to find.
+  `deny.toml` leaves RUSTSEC-2026-0459 out of the audit on that ground until the lock can
+  reach `libsqlite3-sys` 0.39. A test suite's scratch directory is one it made itself, with
+  the mode its umask gives, so a group that umask lets write there is not answered for the
+  tests. The blobs' directory stops the same people and no more. An open leaves a `-shm` it
+  gave a `-wal` that had none (an index holding no data) beside a file it then refuses, and
+  leaves what it made before it judged the path it refuses: the database file, when it was
+  missing and a companion is then refused, and on Windows the profile's lock file
+  (`nc_local::LOCK_NAME`), made before the database file is judged. It waits without bound
+  for another open of the profile, so a process stopped mid-open holds every other.
 - **On Windows, the system's own can read or take anything** — the Administrators group,
   `SYSTEM`, and any process holding the backup or the take-ownership privilege —
   whatever the access list says: Windows' counterpart of root, which no access list
@@ -3031,21 +3044,22 @@ deliberately not claimed").
   App's token, enters an environment, or reads a secret or a step's output, and no file
   CI reaches but `release.yml` publishes or stands the release's gate aside ("The release
   job is what `release.yml` says, and the App's token reaches its last step alone").
-- **Every `cargo install` is one crate, locked, at an exact version**,
-  `cargo install --locked name@X.Y.Z` and no other word, in every file CI reaches, read
-  as a command is however its line is written: a crate named with no version, or with a
-  range such as `@0.20`, is whatever crates.io holds on the day, and its code runs in the
-  job that installs it, the release's gate among them; a second crate on the line is one
-  no version names, and `--git`, `--path`, `--registry` or `--index` takes the code from
-  where no version on crates.io describes it. `cargo-deny`'s version is written in six
-  places and moved in one commit: the three installs of `ci.yml`, the gate job of
-  `release.yml`, `THE_RELEASE_STEPS` in `xtask/src/workflow.rs`, which holds that line
-  for line, and that line's row in `WHAT_ELSE_THIS_TOOL_SAYS` in `xtask/src/check.rs`,
-  the census of the sentences the tool ships. The rule's test takes its install from
-  `THE_RELEASE_STEPS` and fails when `ci.yml` holds no such line, as the release's own rule
-  fails when `release.yml`'s gate does not; the three lines of `ci.yml` are not held to one
-  another. `deny.toml`'s comment on `unsound` names the version whose default it read, and
-  is read again against the new one.
+- **Every `cargo install` is one crate, locked, at an exact version**, `cargo install
+  --locked name@X.Y.Z` and no other word, in every file CI reaches, read as a command is
+  however its line is written: a crate named with no version, or with a range such as
+  `@0.20`, is whatever crates.io holds on the day, and its code runs in the job that
+  installs it, the release's gate among them; a second crate on the line is one no version
+  names, and `--git`, `--path`, `--registry` or `--index` takes the code from where no
+  version on crates.io describes it. `cargo-deny`'s version is written in six places and
+  moved in one commit: the three installs of `ci.yml`, the gate job of `release.yml`,
+  `THE_RELEASE_STEPS` in `xtask/src/workflow.rs`, which holds that line for line, and that
+  line's row in `WHAT_ELSE_THIS_TOOL_SAYS` in `xtask/src/check.rs`, the census of the
+  sentences the tool ships. The rule's test takes its install from `THE_RELEASE_STEPS` and
+  fails when `ci.yml` holds no such line, as the release's own rule fails when
+  `release.yml`'s gate does not; the three lines of `ci.yml` are not held to one another.
+  `deny.toml`'s comment on `unsound` names the version whose default it read, and the
+  paragraph above `yanked` the version whose `advisory-not-detected` warning it measured,
+  and both are read again against the new one.
 - **Actions are an allowlist, not a needle**: an action judging anything of ours is a
   second gate whatever it is called — a linting action such as
   `giraffate/clippy-action@v1` <!-- allow-reference: names `giraffate/clippy-action@v1` — an action this repository does not use -->
