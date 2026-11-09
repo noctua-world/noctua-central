@@ -118,6 +118,18 @@ fn random_hex() -> Value {
     Value::text(nc_canon::to_hex(&bytes))
 }
 
+/// What `future` comes to, or a failure naming `what` once three silences
+/// have passed on the paused clock without it.
+async fn within<F: core::future::Future>(what: &str, future: F) -> F::Output {
+    // Both ends of a connection ping for as long as it lives, and the paused
+    // clock leaps to each ping, so an end that never came would spin this
+    // suite until its job's own timeout rather than fail it.
+    let silence = std::time::Duration::from_millis(nc_catalog::DAEMON.ipc_silent_after_ms);
+    tokio::time::timeout(silence * 3, future)
+        .await
+        .unwrap_or_else(|_| panic!("{what} did not come within three silences"))
+}
+
 /// The code of the goodbye the next frame of `stream` is, and that nothing
 /// follows it.
 async fn the_goodbye<S: tokio::io::AsyncRead + Unpin>(stream: &mut S) -> String {
@@ -138,18 +150,24 @@ async fn a_client_holding_the_token_is_welcomed_and_its_request_answered() {
     let token = Token::fresh().expect("a token");
     let (daemon, client) = tokio::io::duplex(1 << 12);
     let welcome = welcome();
-    let (served, connected) = tokio::join!(
-        nc_ipc::serve(daemon, &token, &welcome),
-        nc_ipc::connect(client, &token)
-    );
+    let (served, connected) = within("a handshake", async {
+        tokio::join!(
+            nc_ipc::serve(daemon, &token, &welcome),
+            nc_ipc::connect(client, &token)
+        )
+    })
+    .await;
     let mut served = served.expect("the client proved itself");
     let (mut client, welcomed) = connected.expect("the daemon proved itself");
     assert_eq!(welcomed, welcome, "the welcome is what the daemon said");
     let status = Answer::Status(Value::object([("state", Value::text("running"))]));
-    let (asked, ()) = tokio::join!(client.ask(&Request::Status), async {
-        assert_eq!(served.next().await.expect("read"), Some(Request::Status));
-        served.answer(&status).await.expect("answered");
-    });
+    let (asked, ()) = within("a request and its answer", async {
+        tokio::join!(client.ask(&Request::Status), async {
+            assert_eq!(served.next().await.expect("read"), Some(Request::Status));
+            served.answer(&status).await.expect("answered");
+        })
+    })
+    .await;
     assert_eq!(asked.expect("answered"), status);
 }
 
@@ -177,7 +195,10 @@ async fn a_client_whose_proof_is_wrong_or_missing_is_turned_away_before_a_reques
             let _ = frame::write(&mut client, &message("status", Vec::new())).await;
             (challenge, the_goodbye(&mut client).await)
         };
-        let (verdict, (challenge, goodbye)) = tokio::join!(serving, by_hand);
+        let (verdict, (challenge, goodbye)) = within("a client driven by hand", async {
+            tokio::join!(serving, by_hand)
+        })
+        .await;
         match verdict {
             Err(error) => assert_eq!(error.code(), refused, "{error}"),
             Ok(_) => panic!("a client whose proof is {proof:?} was served"),
@@ -209,7 +230,10 @@ async fn a_hello_holding_a_field_the_protocol_does_not_read_is_refused() {
         frame::write(&mut client, &hello).await.expect("sent");
         the_goodbye(&mut client).await
     };
-    let (verdict, goodbye) = tokio::join!(nc_ipc::serve(daemon, &token, &welcome), by_hand);
+    let (verdict, goodbye) = within("a client driven by hand", async {
+        tokio::join!(nc_ipc::serve(daemon, &token, &welcome), by_hand)
+    })
+    .await;
     match verdict {
         Err(refused @ IpcError::Malformed(_)) => {
             assert!(refused.to_string().contains("`user`"), "{refused}");
@@ -240,7 +264,10 @@ async fn a_client_of_another_protocol_is_refused_as_that() {
         frame::write(&mut client, &hello).await.expect("sent");
         the_goodbye(&mut client).await
     };
-    let (verdict, goodbye) = tokio::join!(nc_ipc::serve(daemon, &token, &welcome), by_hand);
+    let (verdict, goodbye) = within("a client driven by hand", async {
+        tokio::join!(nc_ipc::serve(daemon, &token, &welcome), by_hand)
+    })
+    .await;
     match verdict {
         Err(IpcError::Protocol { theirs: 2 }) => {}
         other => panic!("a client of protocol 2 was {other:?}"),
@@ -256,16 +283,19 @@ async fn either_end_gives_up_on_a_silent_other_at_the_handshakes_bound() {
     // A client that reads the challenge and says nothing.
     let (daemon, mut client) = tokio::io::duplex(1 << 12);
     let began = tokio::time::Instant::now();
-    let (verdict, ()) = tokio::join!(nc_ipc::serve(daemon, &token, &welcome), async {
-        frame::read(&mut client)
-            .await
-            .expect("read")
-            .expect("a challenge");
-        assert_eq!(
-            the_goodbye(&mut client).await,
-            ErrorCode::IpcHandshakeSlow.code()
-        );
-    });
+    let (verdict, ()) = within("a daemon giving up on a silent client", async {
+        tokio::join!(nc_ipc::serve(daemon, &token, &welcome), async {
+            frame::read(&mut client)
+                .await
+                .expect("read")
+                .expect("a challenge");
+            assert_eq!(
+                the_goodbye(&mut client).await,
+                ErrorCode::IpcHandshakeSlow.code()
+            );
+        })
+    })
+    .await;
     assert!(matches!(verdict, Err(IpcError::Slow)), "{verdict:?}");
     assert_eq!(
         began.elapsed(),
@@ -275,7 +305,11 @@ async fn either_end_gives_up_on_a_silent_other_at_the_handshakes_bound() {
     // A daemon that says nothing at all.
     let (_daemon, client) = tokio::io::duplex(1 << 12);
     let began = tokio::time::Instant::now();
-    let verdict = nc_ipc::connect(client, &token).await;
+    let verdict = within(
+        "a client giving up on a silent daemon",
+        nc_ipc::connect(client, &token),
+    )
+    .await;
     assert!(matches!(verdict, Err(IpcError::Slow)), "{verdict:?}");
     assert_eq!(
         began.elapsed(),
@@ -318,7 +352,10 @@ async fn a_daemon_whose_proof_is_forged_or_reflected_is_sent_nothing_more() {
             frame::write(&mut daemon, &welcome).await.expect("sent");
             the_goodbye(&mut daemon).await
         };
-        let (verdict, goodbye) = tokio::join!(nc_ipc::connect(client, &token), by_hand);
+        let (verdict, goodbye) = within("a daemon driven by hand", async {
+            tokio::join!(nc_ipc::connect(client, &token), by_hand)
+        })
+        .await;
         match verdict {
             Err(IpcError::DaemonUnproven) => {}
             other => panic!("a daemon reflecting={reflected} was {other:?}"),
@@ -360,7 +397,10 @@ async fn a_welcome_naming_no_process_is_refused() {
         frame::write(&mut daemon, &welcome).await.expect("sent");
         the_goodbye(&mut daemon).await
     };
-    let (verdict, goodbye) = tokio::join!(nc_ipc::connect(client, &token), by_hand);
+    let (verdict, goodbye) = within("a daemon driven by hand", async {
+        tokio::join!(nc_ipc::connect(client, &token), by_hand)
+    })
+    .await;
     match verdict {
         Err(refused @ IpcError::Malformed(_)) => {
             assert!(refused.to_string().contains("no process"), "{refused}");
@@ -376,10 +416,13 @@ async fn a_client_holding_another_token_is_told_why_it_was_turned_away() {
     let ours = Token::fresh().expect("a token");
     let theirs = Token::fresh().expect("another token");
     let welcome = welcome();
-    let (served, connected) = tokio::join!(
-        nc_ipc::serve(daemon, &ours, &welcome),
-        nc_ipc::connect(client, &theirs)
-    );
+    let (served, connected) = within("a handshake over two tokens", async {
+        tokio::join!(
+            nc_ipc::serve(daemon, &ours, &welcome),
+            nc_ipc::connect(client, &theirs)
+        )
+    })
+    .await;
     assert!(
         matches!(served, Err(IpcError::ClientUnproven)),
         "{served:?}"
@@ -401,26 +444,32 @@ async fn the_tokens_bytes_cross_the_wire_in_no_frame() {
     let (daemon, daemons) = Recorded::new(daemon);
     let (client, clients) = Recorded::new(client);
     let welcome = welcome();
-    let (served, connected) = tokio::join!(
-        nc_ipc::serve(daemon, &token, &welcome),
-        nc_ipc::connect(client, &token)
-    );
+    let (served, connected) = within("a handshake", async {
+        tokio::join!(
+            nc_ipc::serve(daemon, &token, &welcome),
+            nc_ipc::connect(client, &token)
+        )
+    })
+    .await;
     let mut served = served.expect("served");
     let (mut client, _) = connected.expect("connected");
     let request = Request::Dispatch {
         command: "journal.verify".to_owned(),
         args: Value::object([("from", Value::Integer(0))]),
     };
-    let (asked, ()) = tokio::join!(client.ask(&request), async {
-        served.next().await.expect("read").expect("a request");
-        served
-            .answer(&Answer::Result(Value::object([(
-                "verified",
-                Value::Integer(0),
-            )])))
-            .await
-            .expect("answered");
-    });
+    let (asked, ()) = within("a request and its answer", async {
+        tokio::join!(client.ask(&request), async {
+            served.next().await.expect("read").expect("a request");
+            served
+                .answer(&Answer::Result(Value::object([(
+                    "verified",
+                    Value::Integer(0),
+                )])))
+                .await
+                .expect("answered");
+        })
+    })
+    .await;
     asked.expect("answered");
     drop((client, served));
     for (end, written) in [("the daemon", daemons), ("the client", clients)] {
@@ -448,10 +497,13 @@ async fn a_hello_replayed_from_another_connection_is_refused() {
     let welcome = welcome();
     let (daemon, client) = tokio::io::duplex(1 << 12);
     let (client, clients) = Recorded::new(client);
-    let (served, connected) = tokio::join!(
-        nc_ipc::serve(daemon, &token, &welcome),
-        nc_ipc::connect(client, &token)
-    );
+    let (served, connected) = within("a handshake", async {
+        tokio::join!(
+            nc_ipc::serve(daemon, &token, &welcome),
+            nc_ipc::connect(client, &token)
+        )
+    })
+    .await;
     drop((served.expect("served"), connected.expect("connected")));
     let recorded = clients.lock().expect("the record").clone();
     let hello = frames_of(&recorded)
@@ -468,7 +520,10 @@ async fn a_hello_replayed_from_another_connection_is_refused() {
         frame::write(&mut client, &hello).await.expect("sent");
         the_goodbye(&mut client).await
     };
-    let (verdict, goodbye) = tokio::join!(nc_ipc::serve(daemon, &token, &welcome), replaying);
+    let (verdict, goodbye) = within("a replayed hello", async {
+        tokio::join!(nc_ipc::serve(daemon, &token, &welcome), replaying)
+    })
+    .await;
     assert!(
         matches!(verdict, Err(IpcError::ClientUnproven)),
         "{verdict:?}"
@@ -488,10 +543,13 @@ async fn a_welcome_replayed_from_another_connection_is_refused() {
     let welcome = welcome();
     let (daemon, client) = tokio::io::duplex(1 << 12);
     let (daemon, daemons) = Recorded::new(daemon);
-    let (served, connected) = tokio::join!(
-        nc_ipc::serve(daemon, &token, &welcome),
-        nc_ipc::connect(client, &token)
-    );
+    let (served, connected) = within("a handshake", async {
+        tokio::join!(
+            nc_ipc::serve(daemon, &token, &welcome),
+            nc_ipc::connect(client, &token)
+        )
+    })
+    .await;
     drop((served.expect("served"), connected.expect("connected")));
     let recorded = daemons.lock().expect("the record").clone();
     let recorded = frames_of(&recorded).await;
@@ -513,7 +571,10 @@ async fn a_welcome_replayed_from_another_connection_is_refused() {
         frame::write(&mut daemon, &welcomed).await.expect("sent");
         the_goodbye(&mut daemon).await
     };
-    let (verdict, goodbye) = tokio::join!(nc_ipc::connect(client, &token), replaying);
+    let (verdict, goodbye) = within("a replayed challenge and welcome", async {
+        tokio::join!(nc_ipc::connect(client, &token), replaying)
+    })
+    .await;
     assert!(
         matches!(verdict, Err(IpcError::DaemonUnproven)),
         "{verdict:?}"

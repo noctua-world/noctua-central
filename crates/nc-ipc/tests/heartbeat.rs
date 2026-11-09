@@ -23,6 +23,18 @@ use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt as _};
 const SILENCE: std::time::Duration =
     std::time::Duration::from_millis(nc_catalog::DAEMON.ipc_silent_after_ms);
 
+/// What `future` comes to, or a failure naming `what` once five silences
+/// have passed on the paused clock without it.
+async fn within<F: core::future::Future>(what: &str, future: F) -> F::Output {
+    // Five, because the longest wait a test here asks for is a dispatch of
+    // three. Both ends ping for as long as their connection lives, and the
+    // paused clock leaps to each ping, so an end that never came would spin
+    // this suite until its job's own timeout rather than fail it.
+    tokio::time::timeout(SILENCE * 5, future)
+        .await
+        .unwrap_or_else(|_| panic!("{what} did not come within five silences"))
+}
+
 /// What a relay does to the frames one way.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Rule {
@@ -165,10 +177,13 @@ async fn through_a_relay() -> (Served, Client, Relay) {
     tokio::spawn(pass(daemon_reads, client_writes, Arc::clone(&to_client)));
     let token = Token::fresh().expect("a token");
     let welcome = welcome();
-    let (served, connected) = tokio::join!(
-        nc_ipc::serve(daemon, &token, &welcome),
-        nc_ipc::connect(client, &token)
-    );
+    let (served, connected) = within("a handshake through the relay", async {
+        tokio::join!(
+            nc_ipc::serve(daemon, &token, &welcome),
+            nc_ipc::connect(client, &token)
+        )
+    })
+    .await;
     (
         served.expect("served"),
         connected.expect("connected").0,
@@ -195,10 +210,13 @@ async fn directly() -> (Served, Client) {
     let (daemon, client) = tokio::io::duplex(1 << 16);
     let token = Token::fresh().expect("a token");
     let welcome = welcome();
-    let (served, connected) = tokio::join!(
-        nc_ipc::serve(daemon, &token, &welcome),
-        nc_ipc::connect(client, &token)
-    );
+    let (served, connected) = within("a handshake", async {
+        tokio::join!(
+            nc_ipc::serve(daemon, &token, &welcome),
+            nc_ipc::connect(client, &token)
+        )
+    })
+    .await;
     (served.expect("served"), connected.expect("connected").0)
 }
 
@@ -212,7 +230,7 @@ async fn a_client_that_says_nothing_is_dropped_at_the_silence_bound_and_told_why
     let (mut served, mut client, relay) = through_a_relay().await;
     relay.to_daemon.set(Rule::Swallow);
     let began = tokio::time::Instant::now();
-    match served.next().await {
+    match within("the daemon dropping a silent client", served.next()).await {
         Err(refused @ IpcError::Silent) => assert_eq!(refused.code(), ErrorCode::IpcSilent),
         other => panic!("a silent client was {other:?}"),
     }
@@ -228,7 +246,7 @@ async fn a_client_that_says_nothing_is_dropped_at_the_silence_bound_and_told_why
         relay.to_client.pings.load(Ordering::SeqCst) >= expected,
         "the daemon did not ping after each heartbeat of its own silence"
     );
-    match client.ask(&Request::Status).await {
+    match within("the dropped client's request", client.ask(&Request::Status)).await {
         Err(IpcError::TurnedAway(code)) => assert_eq!(code, ErrorCode::IpcSilent),
         other => panic!("a client the daemon dropped was {other:?}"),
     }
@@ -239,7 +257,10 @@ async fn a_daemon_that_says_nothing_is_dropped_by_the_client_at_the_silence_boun
     let (mut served, mut client, relay) = through_a_relay().await;
     relay.to_client.set(Rule::Swallow);
     let began = tokio::time::Instant::now();
-    let (asked, heard) = tokio::join!(client.ask(&Request::Status), served.next());
+    let (asked, heard) = within("the client dropping a silent daemon", async {
+        tokio::join!(client.ask(&Request::Status), served.next())
+    })
+    .await;
     assert_eq!(heard.expect("read"), Some(Request::Status));
     match asked {
         Err(IpcError::Silent) => {}
@@ -280,7 +301,11 @@ async fn a_write_a_peer_leaves_waiting_for_the_silence_bound_ends_its_connection
             .expect("the connection ended");
         (began.elapsed(), ended, pinged)
     };
-    let (_, (waited, ended, pinged)) = tokio::join!(client.ask(&Request::Status), serving);
+    let (_, (waited, ended, pinged)) =
+        within("the end of a connection whose writer waits", async {
+            tokio::join!(client.ask(&Request::Status), serving)
+        })
+        .await;
     match ended {
         Err(refused @ IpcError::Unread) => assert_eq!(refused.code(), ErrorCode::IpcUnread),
         other => panic!("a peer that took nothing was {other:?}"),
@@ -315,7 +340,12 @@ async fn every_request_after_the_daemon_is_gone_is_refused_as_lost() {
             ))
             .await;
         }
-        match client.ask(&Request::Status).await {
+        match within(
+            "a request to a daemon that is gone",
+            client.ask(&Request::Status),
+        )
+        .await
+        {
             Err(refused @ IpcError::Lost(_)) => {
                 assert_eq!(refused.code(), ErrorCode::IpcLost);
                 assert!(refused.code().retryable(), "a lost connection is retried");
@@ -329,17 +359,25 @@ async fn every_request_after_the_daemon_is_gone_is_refused_as_lost() {
 async fn two_ends_that_only_ping_keep_their_connection_through_any_silence() {
     let (mut served, mut client) = directly().await;
     tokio::time::sleep(SILENCE * 10).await;
-    let (asked, ()) = tokio::join!(client.ask(&Request::Registry), async {
-        assert_eq!(served.next().await.expect("read"), Some(Request::Registry));
-        served
-            .answer(&Answer::Registry(Vec::new()))
-            .await
-            .expect("answered");
-    });
+    let (asked, ()) = within("a request after the silence", async {
+        tokio::join!(client.ask(&Request::Registry), async {
+            assert_eq!(served.next().await.expect("read"), Some(Request::Registry));
+            served
+                .answer(&Answer::Registry(Vec::new()))
+                .await
+                .expect("answered");
+        })
+    })
+    .await;
     assert_eq!(asked.expect("answered"), Answer::Registry(Vec::new()));
     drop(client);
     assert_eq!(
-        served.next().await.expect("closed"),
+        within(
+            "the end of a connection whose client was let go",
+            served.next()
+        )
+        .await
+        .expect("closed"),
         None,
         "a client gone at a frame's boundary is the end, not an error"
     );
@@ -353,12 +391,15 @@ async fn a_dispatch_that_outlasts_the_silence_bound_is_waited_for() {
         args: Value::object(Vec::<(&str, Value)>::new()),
     };
     let answer = Answer::Result(Value::object(Vec::<(&str, Value)>::new()));
-    let (asked, ()) = tokio::join!(client.ask(&request), async {
-        assert_eq!(served.next().await.expect("read"), Some(request.clone()));
-        // The daemon is busy for three silences, and its heartbeat goes on.
-        tokio::time::sleep(SILENCE * 3).await;
-        served.answer(&answer).await.expect("answered");
-    });
+    let (asked, ()) = within("a dispatch of three silences", async {
+        tokio::join!(client.ask(&request), async {
+            assert_eq!(served.next().await.expect("read"), Some(request.clone()));
+            // The daemon is busy for three silences, and its heartbeat goes on.
+            tokio::time::sleep(SILENCE * 3).await;
+            served.answer(&answer).await.expect("answered");
+        })
+    })
+    .await;
     assert_eq!(asked.expect("waited for"), answer);
 }
 
@@ -366,20 +407,25 @@ async fn a_dispatch_that_outlasts_the_silence_bound_is_waited_for() {
 async fn a_request_before_the_last_one_was_answered_is_refused() {
     let (mut served, mut client, relay) = through_a_relay().await;
     relay.to_daemon.set(Rule::RepeatTheNext);
-    let (asked, ()) = tokio::join!(client.ask(&Request::Status), async {
-        assert_eq!(served.next().await.expect("read"), Some(Request::Status));
-        match served.next().await {
-            Err(refused @ IpcError::Malformed(_)) => {
-                assert!(
-                    refused
-                        .to_string()
-                        .contains("before the last one was answered"),
-                    "{refused}"
-                );
+    let (asked, ()) = within("a request and its repeat", async {
+        tokio::join!(client.ask(&Request::Status), async {
+            assert_eq!(served.next().await.expect("read"), Some(Request::Status));
+            match served.next().await {
+                Err(refused @ IpcError::Malformed(_)) => {
+                    assert!(
+                        refused
+                            .to_string()
+                            .contains("before the last one was answered"),
+                        "{refused}"
+                    );
+                }
+                other => {
+                    panic!("a second request before the first was answered was {other:?}")
+                }
             }
-            other => panic!("a second request before the first was answered was {other:?}"),
-        }
-    });
+        })
+    })
+    .await;
     match asked {
         Err(IpcError::TurnedAway(code)) => assert_eq!(code, ErrorCode::IpcMalformed),
         other => panic!("the client of a refused connection was {other:?}"),
@@ -390,12 +436,20 @@ async fn a_request_before_the_last_one_was_answered_is_refused() {
 async fn an_answer_nobody_asked_for_is_refused() {
     let (mut served, mut client, relay) = through_a_relay().await;
     relay.to_client.set(Rule::RepeatTheNext);
-    let (asked, ()) = tokio::join!(client.ask(&Request::Status), async {
-        served.next().await.expect("read").expect("a request");
-        served.answer(&status()).await.expect("answered");
-    });
+    let (asked, ()) = within("a request and its answer", async {
+        tokio::join!(client.ask(&Request::Status), async {
+            served.next().await.expect("read").expect("a request");
+            served.answer(&status()).await.expect("answered");
+        })
+    })
+    .await;
     assert_eq!(asked.expect("the first answer is the request's"), status());
-    match client.ask(&Request::Status).await {
+    match within(
+        "a request after a repeated answer",
+        client.ask(&Request::Status),
+    )
+    .await
+    {
         Err(refused @ IpcError::Malformed(_)) => {
             assert!(
                 refused.to_string().contains("nobody asked for"),
@@ -409,7 +463,7 @@ async fn an_answer_nobody_asked_for_is_refused() {
 #[tokio::test(start_paused = true)]
 async fn the_daemon_answers_only_a_request_it_was_handed() {
     let (mut served, _client) = directly().await;
-    match served.answer(&status()).await {
+    match within("an answer with no request", served.answer(&status())).await {
         Err(IpcError::Malformed(_)) => {}
         other => panic!("an answer with no request waiting was {other:?}"),
     }
@@ -422,14 +476,24 @@ async fn a_request_abandoned_before_its_answer_leaves_the_connection_unasked() {
         std::time::Duration::from_millis(1),
         client.ask(&Request::Status),
     );
-    let (abandoned, heard) = tokio::join!(abandoned, served.next());
+    let (abandoned, heard) = within("an abandoned request", async {
+        tokio::join!(abandoned, served.next())
+    })
+    .await;
     assert!(
         abandoned.is_err(),
         "the request was answered, and not abandoned"
     );
     assert_eq!(heard.expect("read"), Some(Request::Status));
-    served.answer(&status()).await.expect("answered late");
-    match client.ask(&Request::Registry).await {
+    within("a late answer", served.answer(&status()))
+        .await
+        .expect("answered late");
+    match within(
+        "a request after an abandoned one",
+        client.ask(&Request::Registry),
+    )
+    .await
+    {
         Err(IpcError::Malformed(_)) => {}
         other => panic!("a connection with an answer on its way was asked again: {other:?}"),
     }

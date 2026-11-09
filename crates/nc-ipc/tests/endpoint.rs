@@ -93,17 +93,25 @@ async fn the_daemons_listener_holds_the_catalogs_bound_and_the_handshake_crosses
     let (accepted, connected) = connection(&mut listener, &endpoint, &user).await;
     let accepted = accepted.expect("accepted");
     let (stream, _) = connected.expect("connected");
-    let (served, connected) = tokio::join!(
-        nc_ipc::serve(accepted.stream, &token, &welcome),
-        nc_ipc::connect(stream, &token)
-    );
+    let (served, connected) = tokio::time::timeout(std::time::Duration::from_secs(60), async {
+        tokio::join!(
+            nc_ipc::serve(accepted.stream, &token, &welcome),
+            nc_ipc::connect(stream, &token)
+        )
+    })
+    .await
+    .expect("a handshake across the endpoint within a minute");
     let mut served = served.expect("served");
     let (mut client, welcomed) = connected.expect("welcomed");
     assert_eq!(welcomed, welcome);
-    let (asked, ()) = tokio::join!(client.ask(&Request::Stop), async {
-        assert_eq!(served.next().await.expect("read"), Some(Request::Stop));
-        served.answer(&Answer::Stopping).await.expect("answered");
-    });
+    let (asked, ()) = tokio::time::timeout(std::time::Duration::from_secs(60), async {
+        tokio::join!(client.ask(&Request::Stop), async {
+            assert_eq!(served.next().await.expect("read"), Some(Request::Stop));
+            served.answer(&Answer::Stopping).await.expect("answered");
+        })
+    })
+    .await
+    .expect("a request and its answer across the endpoint within a minute");
     assert_eq!(asked.expect("answered"), Answer::Stopping);
 
     // The rest of the bound, each connection held open, then one past it.

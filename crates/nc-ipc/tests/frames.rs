@@ -28,6 +28,18 @@ async fn read_of(bytes: &[u8]) -> Result<Option<Value>, IpcError> {
     frame::read(&mut reader).await
 }
 
+/// What `future` comes to, or a failure naming `what` once three silences
+/// have passed on the paused clock without it.
+async fn within<F: core::future::Future>(what: &str, future: F) -> F::Output {
+    // Both ends of a connection ping for as long as it lives, and the paused
+    // clock leaps to each ping, so an end that never came would spin this
+    // suite until its job's own timeout rather than fail it.
+    let silence = std::time::Duration::from_millis(nc_catalog::DAEMON.ipc_silent_after_ms);
+    tokio::time::timeout(silence * 3, future)
+        .await
+        .unwrap_or_else(|_| panic!("{what} did not come within three silences"))
+}
+
 #[tokio::test(start_paused = true)]
 async fn a_value_round_trips_through_one_frame_of_its_canonical_text() {
     let values = [
@@ -169,41 +181,43 @@ async fn a_value_too_long_for_a_frame_is_refused_to_its_sender_and_the_connectio
     let token = Token::fresh().expect("a token");
     let welcome = welcome();
     let (daemon, client) = tokio::io::duplex(1 << 16);
-    let (served, connected) = tokio::join!(
-        nc_ipc::serve(daemon, &token, &welcome),
-        nc_ipc::connect(client, &token)
-    );
+    let (served, connected) = within("a handshake", async {
+        tokio::join!(
+            nc_ipc::serve(daemon, &token, &welcome),
+            nc_ipc::connect(client, &token)
+        )
+    })
+    .await;
     let mut served = served.expect("served");
     let (mut client, _) = connected.expect("connected");
-    let refused = client
-        .ask(&Request::Dispatch {
-            command: "reference.notes.put".to_owned(),
-            args: too_long.clone(),
-        })
-        .await;
+    let too_long_a_request = Request::Dispatch {
+        command: "reference.notes.put".to_owned(),
+        args: too_long.clone(),
+    };
+    let refused = within("a request too long", client.ask(&too_long_a_request)).await;
     assert!(
         matches!(refused, Err(IpcError::Unsendable { .. })),
         "a request too long for a frame was {refused:?}"
     );
     let answer = Answer::Result(Value::object([("ok", Value::Bool(true))]));
-    // Bounded, on the paused clock: a client refused its next request would
-    // leave the daemon waiting for it while both ends ping.
-    let patience = std::time::Duration::from_millis(nc_catalog::DAEMON.ipc_silent_after_ms * 3);
-    let (asked, ()) = tokio::join!(client.ask(&Request::Status), async {
-        let heard = tokio::time::timeout(patience, served.next())
-            .await
-            .expect("the client asks again after its refused request");
-        assert_eq!(heard.expect("read"), Some(Request::Status));
-        let refused = served.answer(&Answer::Result(too_long.clone())).await;
-        assert!(
-            matches!(refused, Err(IpcError::Unsendable { .. })),
-            "an answer too long for a frame was {refused:?}"
-        );
-        served
-            .answer(&answer)
-            .await
-            .expect("the request still waits for an answer");
-    });
+    // A client refused its next request would leave the daemon waiting for it
+    // while both ends ping.
+    let (asked, ()) = within("the client's request after its refused one", async {
+        tokio::join!(client.ask(&Request::Status), async {
+            let heard = served.next().await;
+            assert_eq!(heard.expect("read"), Some(Request::Status));
+            let refused = served.answer(&Answer::Result(too_long.clone())).await;
+            assert!(
+                matches!(refused, Err(IpcError::Unsendable { .. })),
+                "an answer too long for a frame was {refused:?}"
+            );
+            served
+                .answer(&answer)
+                .await
+                .expect("the request still waits for an answer");
+        })
+    })
+    .await;
     assert_eq!(asked.expect("answered"), answer);
 }
 
@@ -223,10 +237,13 @@ async fn a_dispatch_and_its_answer_at_the_kernels_whole_payload_each_cross_one_f
     let token = Token::fresh().expect("a token");
     let welcome = welcome();
     let (daemon, client) = tokio::io::duplex(1 << 16);
-    let (served, connected) = tokio::join!(
-        nc_ipc::serve(daemon, &token, &welcome),
-        nc_ipc::connect(client, &token)
-    );
+    let (served, connected) = within("a handshake", async {
+        tokio::join!(
+            nc_ipc::serve(daemon, &token, &welcome),
+            nc_ipc::connect(client, &token)
+        )
+    })
+    .await;
     let mut served = served.expect("served");
     let (mut client, _) = connected.expect("connected");
     let request = Request::Dispatch {
@@ -234,11 +251,14 @@ async fn a_dispatch_and_its_answer_at_the_kernels_whole_payload_each_cross_one_f
         args: largest.clone(),
     };
     let answer = Answer::Result(largest);
-    let (asked, ()) = tokio::join!(client.ask(&request), async {
-        let heard = served.next().await.expect("a request").expect("one");
-        assert_eq!(heard, request);
-        served.answer(&answer).await.expect("answered");
-    });
+    let (asked, ()) = within("a request and its answer at the whole payload", async {
+        tokio::join!(client.ask(&request), async {
+            let heard = served.next().await.expect("a request").expect("one");
+            assert_eq!(heard, request);
+            served.answer(&answer).await.expect("answered");
+        })
+    })
+    .await;
     assert_eq!(asked.expect("the answer"), answer);
 }
 
@@ -269,7 +289,10 @@ async fn a_frame_read_from_a_stream_leaves_the_next_one_whole() {
         reader.read_to_end(&mut rest).await.expect("read");
         (one, two, rest)
     };
-    let ((), (one, two, rest)) = tokio::join!(sending, reading);
+    let ((), (one, two, rest)) = within("two frames through a stream", async {
+        tokio::join!(sending, reading)
+    })
+    .await;
     assert_eq!((one, two), (Some(first), Some(second)));
     assert!(rest.is_empty(), "a frame left bytes of its own behind");
 }

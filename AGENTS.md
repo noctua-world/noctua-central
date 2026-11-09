@@ -1817,9 +1817,11 @@ every byte either end wrote held to hold neither the token nor its text), `heart
 pings, repeating its next message or reading nothing more of it: a silent peer dropped at
 the bound, from either end, after the pings, a write longer than the relay buffers left
 waiting by a peer that pings ending the connection at the bound with the daemon's stream
-let go, every request after the daemon is gone refused as lost, a dispatch outlasting the
-bound waited for, pipelining and an unasked answer refused), and the operators over the
-crate's sources in `xtask/mutants.py`.
+let go, every request after the daemon is gone refused as lost, a client let go ending
+the daemon's connection at a frame's boundary, a dispatch outlasting the bound waited
+for, pipelining and an unasked answer refused) — every wait in the three bounded, so an
+end that never comes fails the suite rather than spinning the paused clock through its
+pings — and the operators over the crate's sources in `xtask/mutants.py`.
 
 **Not answered:** a process running as the same user, which can read the token from the
 runtime directory and speak for anybody — authorization re-decides every dispatch (`§14`);
