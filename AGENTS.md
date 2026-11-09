@@ -622,17 +622,20 @@ effect; 22 is gated over the statements written today and by nothing over the ne
     **Gated twice, in `xtask/src/local.rs`**, whose header lists every refusal. `check`
     applies the directory to a scratch file one migration at a time and holds each step to
     the list, with `integrity_check`, `foreign_key_check`, the header's `application_id`
-    and the SQLite floor. A source gate, over every member whose manifest takes SQLite —
-    `sqlx`'s `any` feature included, a test holding the gate's list to them — refuses any
-    statement that builds or changes the schema, attaches a database or touches
-    `writable_schema`; undoes the connection's hardening, through SQL, the pragma door or
-    `sqlx`'s own option, every value judged as SQLite reads it and the list held both ways
-    to the pragmas `crates/nc-local` sets; sets a pragma under a key no literal reads as
-    one; copies the file out with `VACUUM` or points SQLite's files at a directory; loads
-    an extension; gathers the planner's statistics (`ANALYZE`, `PRAGMA optimize`,
-    `optimize_on_close`); sets `application_id` or `schema_version`; or writes
-    `_sqlx_migrations`. A `#[cfg(test)]` arm, field or item hides only itself: the region
-    closes at the comma, semicolon or brace that ends what the attribute governs.
+    and the SQLite floor. The file's directory is made private to this user by the call
+    that makes it, and a name already there is refused rather than reused or cleared, so
+    the gate's SQLite reads no database or `-wal` another account wrote. A source gate,
+    over every member whose manifest takes SQLite — `sqlx`'s `any` feature included, a test
+    holding the gate's list to them — refuses any statement that builds or changes the
+    schema, attaches a database or touches `writable_schema`; undoes the connection's
+    hardening, through SQL, the pragma door or `sqlx`'s own option, every value judged as
+    SQLite reads it and the list held both ways to the pragmas `crates/nc-local` sets; sets
+    a pragma under a key no literal reads as one; copies the file out with `VACUUM` or
+    points SQLite's files at a directory; loads an extension; gathers the planner's
+    statistics (`ANALYZE`, `PRAGMA optimize`, `optimize_on_close`); sets `application_id`
+    or `schema_version`; or writes `_sqlx_migrations`. A `#[cfg(test)]` arm, field or item
+    hides only itself: the region closes at the comma, semicolon or brace that ends what
+    the attribute governs.
 
 19. **The kernel's bounds on a plugin are the catalog's, and a plugin can only lower
     them.** `[kernel]` in `catalog/limits.toml` is generated as `nc_catalog::KERNEL` and

@@ -6275,6 +6275,21 @@ WEAKENINGS = [
     ("local_gates", "migrates_from_elsewhere", "only the one embedded migrator is let through",
      "        .filter(|(_, text)| text.trim() == EMBEDDED)\n",
      "        .filter(|(_, text)| text.contains(\"MIGRATOR\"))\n"),
+    # The gate's scratch, where it opens a SQLite file with
+    # `create_if_missing`: made private by the call that makes it, and a
+    # directory already there refused, never reused and never cleared. The
+    # first two are killed by
+    # `a_scratch_directory_that_already_exists_is_refused_and_nothing_is_opened_in_it`,
+    # the third by `the_scratch_directory_the_gate_makes_is_this_users_alone`.
+    ("local_gates", "at", "a scratch directory found is refused, not reused",
+     "            Ok(()) => Ok(Self(root)),\n",
+     "            Ok(()) => Ok(Self(root)),\n            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists && root.is_dir() => Ok(Self(root)),\n"),
+    ("local_gates", "at", "a scratch directory found is never cleared",
+     "    fn at(root: PathBuf) -> Result<Self, String> {\n",
+     "    fn at(root: PathBuf) -> Result<Self, String> {\n        let _ = std::fs::remove_dir_all(&root);\n"),
+    ("local_gates", "at", "the gate's scratch directory is private to this user",
+     "        match nc_platform::create_private_directory(&root) {",
+     "        match std::fs::create_dir(&root) {"),
     ("gates", "pragmas_set", "the pragma door called as a path is read",
      "        let path = at >= 2 && code[at - 2..at] == [':', ':'];",
      "        let path = false;"),

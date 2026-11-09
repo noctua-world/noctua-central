@@ -7894,7 +7894,7 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// constant**, as `OPERATORS` is: one copy rather than one per use, and nothing
 /// reads it at compile time.
 #[cfg(test)]
-static WHAT_THE_GATE_CAN_SAY: [&str; 1051] = [
+static WHAT_THE_GATE_CAN_SAY: [&str; 1053] = [
     // The workflows' bounds (`xtask/src/workflow.rs`): what `.github/` may hold,
     // the authority each workflow opens with, the pins, and how the release is
     // made; and the `CI` step's two verdicts about them.
@@ -8870,7 +8870,9 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1051] = [
     "`{arrived}` is in `{directory}/` and is not written down: a migration is added to that list in the same change that adds the file, or the list stops being a record of what is there",
     "`{gone}` is written down as a migration this repository has and is not in `{directory}/`: what ran against every database that applied it is now a file nobody can read, and on a database that has applied nothing — which is what every CI run starts with, and what no user's machine can be asked about — no other check here can tell",
     "`{named}` is named in `WRITERS` in xtask/src/local.rs and is not on disk, so the source gate over local SQL reads nothing there",
+    "`{}` could not be made private to this user ({error}), and the gate opens no SQLite file in a directory it did not make. Check that the temporary directory exists and that this user can write in it",
     "`{}` is created in {here} and its entry in catalog/limits.toml says `database = \"{there}\"`",
+    "`{}` was already there, so this run did not make it, and the gate opens no SQLite file in a directory it did not make: a database and its `-wal` that another account left there would be read as the gate's own. Remove it if it is yours, which a run that was killed leaves, and run the gate again",
     "a migrations directory could not be read",
     "a scratch SQLite file could not be opened: {error}",
     "local SQL",
@@ -19307,7 +19309,7 @@ mod the_frozen_path_rule {
         ("xtask/gates.rs", 223, 33),
         ("xtask/history.rs", 115, 3),
         ("xtask/limits.rs", 176, 59),
-        ("xtask/local.rs", 79, 8),
+        ("xtask/local.rs", 83, 8),
         ("xtask/main.rs", 3, 25),
         ("xtask/members.rs", 35, 7),
         ("xtask/plugins.rs", 25, 5),
@@ -22095,8 +22097,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 559 scratches this tree
-    /// builds, 472 of the 559 are removed however the test leaves and 87 are
+    /// directories accumulated in an afternoon. Of the 561 scratches this tree
+    /// builds, 474 of the 561 are removed however the test leaves and 87 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22193,7 +22195,7 @@ mod the_frozen_path_rule {
         ("xtask/gates.rs", 17, 9),
         ("xtask/history.rs", 1, 1),
         ("xtask/limits.rs", 26, 13),
-        ("xtask/local.rs", 4, 4),
+        ("xtask/local.rs", 6, 6),
         ("xtask/members.rs", 1, 0),
         ("xtask/policy.rs", 5, 2),
         ("xtask/references.rs", 4, 1),
@@ -22341,6 +22343,25 @@ mod the_frozen_path_rule {
             "a tuple `Self` constructor in a file that declares the `Drop` was read as \
              unguarded — the spelling `corpus.rs` uses"
         );
+        // **And one that may refuse**, handing back the guard or the reason it
+        // made nothing — the spelling `local.rs` uses, whose scratch is never a
+        // directory it found.
+        assert!(
+            guards_its_scratch(
+                "fn new(name: &str) -> Result<Self, String> { Self::at(root) }",
+                true
+            ),
+            "a constructor answering `Result<Self, _>` in a file that declares the `Drop` \
+             was read as unguarded"
+        );
+        // **A `Self` in the body is not one in the signature.** A function
+        // that hands back nothing and builds the type inside a closure is not
+        // the type's constructor.
+        assert!(
+            !guards_its_scratch("fn probe() { let made = || -> Self { Self(root) }; }", true),
+            "a function whose signature hands back no `Self` was read as that type's \
+             constructor"
+        );
         // **And a body that mentions `Self` without returning it is not a
         // constructor.** Of two textual spellings, the braced one matches every
         // constructor rustfmt writes, so the other decides nothing; this is the
@@ -22403,10 +22424,26 @@ mod the_frozen_path_rule {
     /// without it any function returning `Self` counts as guarded whether or
     /// not its file implements a `Drop` at all.
     fn guards_its_scratch(body: &str, declares_a_guard: bool) -> bool {
+        // **What the signature hands back names `Self`**, read between the
+        // arrow and the body's first brace: `-> Self` and
+        // `-> Result<Self, String>` alike. The gate's own scratch in
+        // `xtask/src/local.rs` refuses a directory it did not make, so its
+        // constructor answers the guard or the refusal, and a reading of
+        // `-> Self` alone counted it as a scratch with no guard.
         REMOVES_ITS_SCRATCH_ON_THE_WAY_OUT
             .iter()
             .any(|guard| body.contains(&format!("{guard}::new(")))
-            || (declares_a_guard && body.contains("-> Self"))
+            || (declares_a_guard
+                && body
+                    .split_once('{')
+                    .and_then(|(signature, _)| signature.split_once("->"))
+                    .is_some_and(|(_, handed_back)| {
+                        handed_back
+                            .split(|character: char| {
+                                !character.is_alphanumeric() && character != '_'
+                            })
+                            .any(|word| word == "Self")
+                    }))
     }
 
     /// Both readings of the scratch sites, from one walk.
@@ -25107,7 +25144,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15556;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15563;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25177,7 +25214,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 21901;
+    const THE_REARRANGEMENTS_JUDGED: usize = 21916;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25231,7 +25268,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **480 of 21,901 are accepted by the first-line
+    /// rules the gates apply: **480 of 21,916 are accepted by the first-line
     /// rule alone, and 256 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -36196,7 +36233,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1773] = [
+    static OPERATORS: [(&str, &str, &str); 1776] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -43937,6 +43974,21 @@ Options:
             "local_gates",
             "migrates_from_elsewhere",
             "only the one embedded migrator is let through",
+        ),
+        (
+            "local_gates",
+            "at",
+            "a scratch directory found is refused, not reused",
+        ),
+        (
+            "local_gates",
+            "at",
+            "a scratch directory found is never cleared",
+        ),
+        (
+            "local_gates",
+            "at",
+            "the gate's scratch directory is private to this user",
         ),
         (
             "gates",
