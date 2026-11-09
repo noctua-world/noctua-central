@@ -1686,16 +1686,21 @@ area at the first thing it cannot vouch for.
 **Guaranteed:**
 
 - **An install names itself, and nothing else does.** The manifest is read beside the
-  canonicalized executable, judged this user's alone with `nc_platform::judge`, and read
-  only as `nc_channel::Install::parse` reads it; a binary with none refuses
-  (`NC-CHAN-0006`) rather than fall back to a channel built in, and one another account can
-  reach is not read (`NC-CHAN-0007`).
-- **The profile is the user's alone from its first moment.** Each directory the layout
-  names is made private one level at a time — never a parent on the way — or judged so,
-  and anything else refuses the start with it left as it was (`NC-DMN-0001`); so is every
-  file of it a start reads — the seed, the device's record, the world and the mark — judged
+  canonicalized executable, in a directory judged this user's alone by
+  `nc_platform::user_in` — the one way to the user a start runs as — each time the install
+  is read; it is judged so itself with `nc_platform::judge`, and read only as
+  `nc_channel::Install::parse` reads it. A binary with none refuses (`NC-CHAN-0006`) rather
+  than fall back to a channel built in, and a manifest another account can reach, or one in
+  a directory another account can reach, is not read (`NC-CHAN-0007`).
+- **The profile is the user's alone from its first moment.** Its data, configuration,
+  cache and state directories, and the log and runtime ones under the state one, are each
+  made private one level at a time — never a parent on the way — or judged so, and
+  anything else refuses the start with it left as it was (`NC-DMN-0001`); so is every file
+  of it a start reads — the seed, the device's record, the world and the mark — judged
   before it is read, and the data and configuration directories `--initialize` writes a
-  seed and a world into, judged before anything is written there, with the same code.
+  seed and a world into, judged before anything is written there, with the same code. The
+  plugins directory under the data one is not among them: no start makes, judges or reads
+  it yet (under **What is deliberately not claimed**).
 - **A device is drawn once and never again.** Its seed is 32 bytes from the system's own
   generator, written into a file created private that refuses any name already there, so
   it is never overwritten and its flake, `MachineFlake::candidate(public, 0)`, never
@@ -1721,16 +1726,18 @@ area at the first thing it cannot vouch for.
   high-water mark.
 
 **Enforced by** the unit tests of each module in `apps/daemon/src/` — a missing, reachable
-and malformed manifest, a manifest read through a link beside the file that runs, every
-directory the layout names made private and judged again, a missing base not made on the
-way, a world copied, replaced and refused, in the profile as well as on its way in, a copy
-left beside the world removed and one another account can reach refused, a configuration
-and a data directory another account can reach refused before a world or a seed is
-written into them, a seed drawn once and never again, a record lost and written from its
-seed, each way a record is not the seed's, a seed, a record, a world and a mark another
-account can reach refused and left as they were, a raise read back from the other slot, a
-mark nothing raised read again as a first start, a torn and a corrupt slot, the minter a
-first and a resumed start hands back raising the mark before it mints past it
+and malformed manifest, a manifest in a directory another account can reach refused with
+nothing made in it, a manifest read through a link beside the file that runs, the
+profile's data, configuration, cache, state, log and runtime directories each made private
+and judged again, a missing base not made on the way, a world copied, replaced and
+refused, in the profile as well as on its way in, a copy left beside the world removed and
+one another account can reach refused, a configuration and a data directory another
+account can reach refused before a world or a seed is written into them, a seed drawn once
+and never again, a record lost and written from its seed, each way a record is not the
+seed's, a seed, a record, a world and a mark another account can reach refused and left as
+they were, a raise read back from the other slot, a mark nothing raised read again as a
+first start, a torn and a corrupt slot, the minter a first and a resumed start hands back
+raising the mark before it mints past it
 (`a_minter_from_a_start_raises_the_mark_before_it_hands_out_past_it`), a clock behind the
 mark by less than the lease, by exactly it and by a millisecond more, by more than the
 lease and by more than a day, the catalog's lease inside the drift a minter waits out, and
@@ -2452,8 +2459,10 @@ rather than anything decided for the project, and each is a maintainer's to reop
   `noctua-daemon` answers `--initialize` and nothing else, so no channel's daemon keeps
   running or serves its kernel. The local journal's newest unit is the start's to read and
   hand to `nc_daemon::mark::minter`, and nothing reads it yet, so no start resumes above a
-  unit the mark does not cover; and no stop calls `nc_ids::Minter::settle_ceiling`, so none
-  writes the exact high-water mark yet.
+  unit the mark does not cover; no stop calls `nc_ids::Minter::settle_ceiling`, so none
+  writes the exact high-water mark yet; and no start makes, judges or reads the plugins
+  directory under the data one (`nc_channel::Layout::plugins`), because nothing loads a
+  plugin from it yet.
 - **A device's seed is wiped as far as safe Rust can say**: the key `ed25519-dalek` holds
   zeroizes itself, and the copies read from the file are overwritten and passed through
   `core::hint::black_box`, which no compiler promises to honour.

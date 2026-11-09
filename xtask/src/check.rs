@@ -19120,7 +19120,7 @@ mod the_frozen_path_rule {
     /// Every file: the doc blocks that sit on an item, and the items with none.
     const DOCUMENTED: [(&str, usize, usize); 160] = [
         ("daemon/device.rs", 22, 5),
-        ("daemon/install.rs", 13, 6),
+        ("daemon/install.rs", 14, 6),
         ("daemon/lib.rs", 7, 8),
         ("daemon/main.rs", 14, 6),
         ("daemon/mark.rs", 25, 15),
@@ -22065,8 +22065,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 600 scratches this tree
-    /// builds, 513 of the 600 are removed however the test leaves and 87 are
+    /// directories accumulated in an afternoon. Of the 601 scratches this tree
+    /// builds, 514 of the 601 are removed however the test leaves and 87 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22134,7 +22134,7 @@ mod the_frozen_path_rule {
     #[cfg(test)]
     const BUILDS_A_SCRATCH: [(&str, usize, usize); 42] = [
         ("daemon/device.rs", 7, 7),
-        ("daemon/install.rs", 7, 7),
+        ("daemon/install.rs", 8, 8),
         ("daemon/main.rs", 3, 3),
         ("daemon/mark.rs", 7, 7),
         ("daemon/profile.rs", 8, 8),
@@ -25084,7 +25084,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15839;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15840;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25103,7 +25103,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3391;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3394;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25120,7 +25120,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1116;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1117;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25154,7 +25154,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 22173;
+    const THE_REARRANGEMENTS_JUDGED: usize = 22174;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25208,7 +25208,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **480 of 22,173 are accepted by the first-line
+    /// rules the gates apply: **480 of 22,174 are accepted by the first-line
     /// rule alone, and 256 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25241,7 +25241,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1116 of
+    /// this tree offers, **1117 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -36526,7 +36526,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1807] = [
+    static OPERATORS: [(&str, &str, &str); 1808] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -44456,6 +44456,11 @@ Options:
             "daemon_install",
             "beside",
             "the manifest is read beside the canonical executable",
+        ),
+        (
+            "daemon_install",
+            "beside",
+            "a directory another account can reach is the manifest's refusal",
         ),
         (
             "daemon_install",

@@ -220,6 +220,43 @@ mod tests {
         );
     }
 
+    /// A manifest in a directory another account can reach is not read, and
+    /// nothing is made in the directory to find out who runs the binary.
+    #[test]
+    fn a_manifest_in_a_directory_another_user_can_reach_is_refused() {
+        let scratch = Scratch::new("open");
+        scratch.manifest(&scratch.a_good_manifest());
+        let opened = nc_platform::testing::open_to_another_user(&scratch.0)
+            .expect("the install's directory is opened to another user");
+        let refusal = refused(&scratch.executable());
+        assert_eq!(
+            refusal.code(),
+            ErrorCode::ChannelManifestNotPrivate,
+            "{refusal}"
+        );
+        assert!(refusal.to_string().contains(&opened), "{opened}: {refusal}");
+        let mut held: Vec<String> = std::fs::read_dir(&scratch.0)
+            .expect("the directory is listed")
+            .map(|entry| {
+                entry
+                    .expect("an entry")
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        held.sort();
+        assert_eq!(
+            held,
+            [nc_channel::MANIFEST, "noctua-daemon"],
+            "something was made in a directory that was refused"
+        );
+        assert!(
+            !nc_platform::testing::is_private(&scratch.0),
+            "the directory is left as it was"
+        );
+    }
+
     /// A manifest `nc_channel::Install::parse` refuses is refused with its code.
     #[test]
     fn a_manifest_the_channel_refuses_is_refused_with_its_code() {

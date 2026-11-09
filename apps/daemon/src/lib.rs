@@ -8,9 +8,10 @@
 //!   executable, judged this user's alone and read by
 //!   `nc_channel::Install::parse`. There is no channel built in to fall back to:
 //!   a binary with no manifest refuses before it reads anything else.
-//! - **The profile** ([`profile`]): every directory the install's layout
-//!   names, created private one level at a time or judged so, and the world
-//!   file the daemon decides as — its realm and its person (`§5.13`).
+//! - **The profile** ([`profile`]): its data, configuration, cache and state
+//!   directories and the log and runtime ones under the state one, created
+//!   private one level at a time or judged so, and the world file the daemon
+//!   decides as — its realm and its person (`§5.13`).
 //! - **The device** ([`device`]): the seed the installer drew and the flake
 //!   derived from it. The daemon reads them and never creates them.
 //! - **The mark** ([`mark`]): the ceiling no identifier is minted past before
