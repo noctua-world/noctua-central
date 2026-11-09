@@ -1807,6 +1807,10 @@ WEAKENINGS = [
     ("check", "the_unopinioned", "the flags a store answered are not read",
      "    held.names()\n        .filter(|name| {",
      "    held.names()\n        .take(0)\n        .filter(|name| {"),
+    ("check", "the_running_log_store_is_bounded_as_declared",
+     "the log store is asked on this checkout's port",
+     "    let port = crate::dev::port(root, crate::dev::Port::Logs);",
+     '    let port = crate::dev::setting(("LOGS_PORT", "9428"));'),
 
     # -- repaired clauses, each with an operator --
     # A repair is the most likely source of the next defect, so a repaired
@@ -2733,6 +2737,9 @@ WEAKENINGS = [
     ("database", "configured_schema", "the schema option is percent-decoded",
      "        .map(percent_decoded)",
      "        .map(str::to_owned)"),
+    ("database", "default_url", "the default url is on this checkout's port",
+     "    let port = crate::dev::port(&crate::repository_root(), crate::dev::Port::Postgres);",
+     '    let port = crate::dev::setting(("POSTGRES_PORT", "5432"));'),
     ("pack", "coverage", "an allow case is not a denial test",
      "        if case.decision != Expected::Deny {",
      "        if false {"),

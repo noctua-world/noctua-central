@@ -3226,39 +3226,99 @@ mod tests {
         //
         // A literal name inside `std::env::var` is what a bypass looks like;
         // `setting` itself reads the variable it is handed, so it holds none.
-        let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/dev.rs"))
-            .expect("this file is a file in this crate");
-        // **Comments only.** Spending the string contents too would remove a
-        // variable's name, which lives *inside* the string it is read with — the
-        // very text the scan is looking for — and the scan then passes against
-        // the planted bypass, measured. A scanner that reads a literal as code
-        // is a familiar shape; this is its mirror, and the one that stays green.
-        let code = crate::gates::without_comments(&source, "//");
-        for (variable, default) in super::THE_STACK_SETTINGS {
-            assert!(
-                !code.contains(&format!("env::var(\"{variable}\")")),
-                "`{variable}` is read here with its own `env::var` rather than through \
-                 `setting`, so the default beside it is a copy of `{default}` that \
-                 nothing holds to the stack"
-            );
-        }
-        // **And the ports, which no default stands beside.** A port read with
-        // its own `env::var` falls back to whatever its reader writes there —
-        // a fixed port, which is two checkouts' stacks on one — rather than to
-        // the checkout's pair `port` derives.
-        for which in super::Port::ALL {
-            let variable = which.variable();
-            assert!(
-                !code.contains(&format!("env::var(\"{variable}\")")),
-                "`{variable}` is read here with its own `env::var` rather than through \
-                 `port`, so what it falls back to is not this checkout's port"
-            );
-        }
+        //
+        // **Every Rust file of every member, not this one.** `database.rs::
+        // default_url` and `check.rs`'s reader of the log store's bounds read the
+        // stack's settings and its ports too, and a bypass in either passes in
+        // every shell that exports what `dev` prints. Measured: both ports read
+        // with their own `env::var` beside a fixed fallback, and the modules that
+        // judge the three files passed 448 tests of 448. Those two readers are
+        // held to `port` by their own modules' tests; this refuses a read by
+        // name anywhere in the tree, a reader not written yet included.
+        let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+        let named: Vec<&str> = super::THE_STACK_SETTINGS
+            .iter()
+            .map(|(variable, _)| *variable)
+            .chain(super::Port::ALL.map(super::Port::variable))
+            .collect();
+        let mut read: Vec<String> = Vec::new();
+        let mut bypasses: Vec<(String, String)> = Vec::new();
+        let mut this_file = String::new();
+        crate::gates::walk(root, &mut |path| {
+            if path.extension().is_none_or(|kind| kind != "rs") {
+                return;
+            }
+            let relative = crate::relative_to(root, path);
+            let text = match std::fs::read_to_string(path) {
+                Ok(text) => text,
+                // A file another test removed between the listing and the
+                // read is not source.
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
+                Err(error) => panic!("`{relative}` is not readable: {error}"),
+            };
+            // **Comments only.** Spending the string contents too would remove a
+            // variable's name, which lives *inside* the string it is read with —
+            // the very text the scan is looking for — and the scan then passes
+            // against the planted bypass, measured. A scanner that reads a
+            // literal as code is a familiar shape; this is its mirror, and the
+            // one that stays green. Whitespace goes, which no name holds.
+            let code: String = crate::gates::without_comments(&text, "//")
+                .chars()
+                .filter(|character| !character.is_whitespace())
+                .collect();
+            for variable in &named {
+                for bypass in [
+                    format!("var(\"{variable}\")"),
+                    format!("var_os(\"{variable}\")"),
+                    format!("env!(\"{variable}\")"),
+                    format!("setting((\"{variable}\""),
+                ] {
+                    if code.contains(&bypass) {
+                        bypasses.push((relative.clone(), bypass));
+                    }
+                }
+            }
+            if relative == "xtask/src/dev.rs" {
+                this_file = code;
+            }
+            read.push(relative);
+        })
+        .expect("the tree is readable");
+        // **And the ports, which no default stands beside.** A port read by its
+        // name falls back to whatever its reader writes there — a fixed port,
+        // which is two checkouts' stacks on one — rather than to the checkout's
+        // pair `port` derives.
+        assert!(
+            bypasses.is_empty(),
+            "{bypasses:?} (a file, and what it reads) read a variable of the stack by name \
+             rather than through `setting` with the row the table declares, or `port` for \
+             either port. A setting read that way falls back to a copy of its default that \
+             nothing holds to the stack, and a port to whatever its reader writes there \
+             rather than this checkout's port"
+        );
         // The floor: a scan that spent the whole file would report no bypass
         // whatever this file said.
         assert!(
-            code.contains("fn setting("),
-            "the scan read no code at all, so it agrees with any file"
+            this_file.contains("fnsetting("),
+            "the scan read no code of this file, so it agrees with any file"
+        );
+        // **Every member tree, not the files that read the stack today.** A walk
+        // that stopped at `xtask/` would still read all three.
+        let members = crate::members::members(root).expect("cargo lists this workspace");
+        let unread: Vec<&str> = members
+            .iter()
+            .map(|member| member.path.as_str())
+            .filter(|tree| {
+                !read
+                    .iter()
+                    .any(|file| file.starts_with(&format!("{tree}/")))
+            })
+            .collect();
+        assert!(
+            unread.is_empty() && members.len() > 10,
+            "{} member(s) cargo resolves, and no Rust file was read under {unread:?}, so a \
+             variable of the stack read by name there is one this scan never sees",
+            members.len()
         );
     }
 

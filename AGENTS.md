@@ -1654,9 +1654,16 @@ pinned runner (`the_block_that_decides_isolation_is_the_one_written_down`);
 which reads every Rust file of every member, holds each `docker compose` it starts to that
 hand-off with no other call on the child's environment, and names the three places — read
 as text, because a run in a shell that exports what `dev` prints cannot see a hand-off
-missing, and only one with neither variable, as in the `linux` job, refuses it; and the
-`linux` job, which sets no `DATABASE_URL`, so the gate's url is derived from the runner's
-checkout as `dev`'s stack was.
+missing, and only one with neither variable, as in the `linux` job, refuses it;
+`the_default_url_is_on_this_checkouts_postgres_port` in `xtask/src/database.rs` and
+`the_log_store_is_asked_for_its_bounds_on_this_checkouts_port` in `xtask/src/check.rs`,
+which hold the gate's two other readers to `dev::port`, each asked for its own port and
+asked nothing else, as text and for the same reason;
+`every_setting_is_read_through_the_table_that_declares_it` in `xtask/src/dev.rs`, which
+refuses a setting or a port read by its name — through `env::var`, `var_os`, `env!`, or a
+row of its own handed to `setting` — in every Rust file of every member; and the `linux`
+job, which sets no `DATABASE_URL`, so the gate's url is derived from the runner's checkout
+as `dev`'s stack was.
 
 **Not answered:** a port taken between `dev`'s look and compose's bind, which compose then
 refuses in its own words, naming both variables; two accounts in one checkout, which share
@@ -1664,7 +1671,8 @@ its stack (**What is deliberately not claimed**); a `docker compose` typed by ha
 handed whatever ports its shell exports; and one the census cannot read as a compose — a
 program not written as the literal `"docker"`, or a verb assembled from pieces — which
 `dev.rs` refuses in that file, where every process it starts is counted and its runner is
-pinned whole, and nothing refuses in another.
+pinned whole, and nothing refuses in another; and a port read by a name built at run time,
+as `dev::port` itself reads it, which the census of names cannot tell from that reader.
 
 ### Secrets are environment variables, and `.env` is not a file here
 

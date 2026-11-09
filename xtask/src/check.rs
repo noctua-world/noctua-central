@@ -14427,6 +14427,66 @@ mod tests {
         }
     }
 
+    /// The log store is asked for its bounds on this checkout's port.
+    ///
+    /// **Read as text, because no run that exports the port can see it read
+    /// another way.** A shell that exports what `cargo xtask dev` prints
+    /// exports `LOGS_PORT`, which `dev::port` answers there. A reader that
+    /// takes the variable itself and falls back to a fixed port agrees with it
+    /// in every such shell, and where it is not exported — CI's `linux` job —
+    /// asks a port this checkout's stack is not on, which another checkout's
+    /// store may hold and answer for. Measured: with the port read as
+    /// `std::env::var("LOGS_PORT")` falling back to `"9428"`, and
+    /// `database.rs::default_url` bypassed the same way, `corpus::`,
+    /// `limits::`, `database::`, `dev::`, `gates::` and `check::` passed 448
+    /// of 448.
+    ///
+    /// So the body is held to the one reader, asked for this checkout's log
+    /// store port, as the only port it has: one binding, the one both
+    /// questions to the store are asked on, and nothing else in it reading
+    /// the environment.
+    #[test]
+    fn the_log_store_is_asked_for_its_bounds_on_this_checkouts_port() {
+        let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/check.rs"))
+            .expect("this file is readable");
+        // The signature is assembled, so this test is not the function it finds.
+        let signature = format!("fn {}(", "the_running_log_store_is_bounded_as_declared");
+        let body: String = the_body_of(&source, &signature)
+            .chars()
+            .filter(|character| !character.is_whitespace())
+            .collect();
+        let reader = format!(
+            "letport=crate::dev::{}(root,crate::dev::Port::Logs);",
+            "port"
+        );
+        assert!(
+            body.contains(&reader),
+            "the log store's bounds are not read on the port `dev::port` gives this \
+             checkout's log store, so where `LOGS_PORT` is unset they are asked of a store \
+             `cargo xtask dev` did not bring up: {body}"
+        );
+        assert_eq!(
+            body.matches("letport").count(),
+            1,
+            "the log store's reader binds a port more than once, so the one it asks need \
+             not be the one `dev::port` answered: {body}"
+        );
+        for asked in [
+            "crate::store::flags(&port)",
+            "crate::store::a_line_survives_the_round_trip(&port,&tag)",
+        ] {
+            assert!(
+                body.contains(asked),
+                "the log store's reader no longer asks `{asked}`, so that question goes to \
+                 a port other than the one `dev::port` answered: {body}"
+            );
+        }
+        assert!(
+            !body.contains("env::"),
+            "the log store's reader reads the environment itself: {body}"
+        );
+    }
+
     /// A migration on disk that the record does not hold is reported.
     ///
     /// **The other half of the record.** `what_the_record_says` walks the record
@@ -19211,10 +19271,10 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 661, 56),
+        ("xtask/check.rs", 662, 56),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 45, 29),
-        ("xtask/database.rs", 29, 6),
+        ("xtask/database.rs", 30, 6),
         ("xtask/determinism.rs", 29, 11),
         ("xtask/dev.rs", 70, 8),
         ("xtask/docs.rs", 8, 1),
@@ -25021,7 +25081,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15399;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15405;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25091,7 +25151,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 21654;
+    const THE_REARRANGEMENTS_JUDGED: usize = 21664;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25145,7 +25205,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **463 of 21,654 are accepted by the first-line
+    /// rules the gates apply: **463 of 21,664 are accepted by the first-line
     /// rule alone, and 239 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -36102,7 +36162,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1754] = [
+    static OPERATORS: [(&str, &str, &str); 1756] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -37501,6 +37561,11 @@ Options:
             "the flags a store answered are not read",
         ),
         (
+            "check",
+            "the_running_log_store_is_bounded_as_declared",
+            "the log store is asked on this checkout's port",
+        ),
+        (
             "dev",
             "names_its_project",
             "a project name pinned once is pinned everywhere",
@@ -38771,6 +38836,11 @@ Options:
             "database",
             "configured_schema",
             "the schema option is percent-decoded",
+        ),
+        (
+            "database",
+            "default_url",
+            "the default url is on this checkout's port",
         ),
         ("pack", "coverage", "an allow case is not a denial test"),
         (
