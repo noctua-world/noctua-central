@@ -13,12 +13,15 @@
 //! arrives before the last one was answered, and the client's reader an
 //! answer nobody asked for, each saying goodbye with `NC-IPC-0002` and closing.
 //!
-//! **A write the peer does not take within `ipc_silent_after_ms` ends the
-//! connection too** (`NC-IPC-0017`): the writer lets go of its half and tells
-//! the reader, which stops and hands the caller why, so a peer that pings and
-//! never reads holds neither half of the stream open. A value too long for a
-//! frame is refused to the caller before it is handed to the writer
-//! (`NC-IPC-0016`), and the connection is left as it was.
+//! **A write that waits `ipc_silent_after_ms` ends the connection too**
+//! (`NC-IPC-0017`): the writer lets go of its half and tells the reader, which
+//! stops and hands the caller why, so neither half of the stream outlives it.
+//! A write waits only once the system's buffer for the connection is full, so
+//! a peer that pings and reads nothing is dropped only when this side's writes
+//! have filled that buffer — with nothing but a ping each `ipc_heartbeat_ms`
+//! between requests, minutes on a Linux socket and hours on a Windows pipe. A
+//! value too long for a frame is refused to the caller before it is handed to
+//! the writer (`NC-IPC-0016`), and the connection is left as it was.
 //!
 //! Dropping a [`Client`] or a [`Served`] closes the connection: the reader
 //! stops, and the writer sends what it was handed and shuts its half.
@@ -47,8 +50,8 @@ const fn heartbeat() -> std::time::Duration {
     std::time::Duration::from_millis(nc_catalog::DAEMON.ipc_heartbeat_ms)
 }
 
-/// How long a peer may say nothing, or take nothing, before the connection
-/// to it is dropped: `ipc_silent_after_ms`.
+/// How long a peer may say nothing, or leave a write to it waiting, before
+/// the connection to it is dropped: `ipc_silent_after_ms`.
 const fn silence() -> std::time::Duration {
     std::time::Duration::from_millis(nc_catalog::DAEMON.ipc_silent_after_ms)
 }
@@ -239,8 +242,10 @@ impl Client {
     /// [`IpcError::Unsendable`] for a request too long for a frame, which
     /// leaves the connection as it was; [`IpcError::Silent`] for a daemon
     /// silent past `ipc_silent_after_ms`, and [`IpcError::Unread`] for one that
-    /// took nothing in that time; [`IpcError::TurnedAway`] for a daemon that
-    /// closed saying why, [`IpcError::Lost`] for one that closed without, and
+    /// left a write to it waiting that long; [`IpcError::TurnedAway`] for a
+    /// daemon that closed saying why, [`IpcError::Lost`] for one that closed
+    /// without — on every call after it, too; [`IpcError::TooLarge`] for a
+    /// frame from the daemon claiming more than `ipc_frame_max_bytes`; and
     /// [`IpcError::Malformed`] for an answer that is not one — or a call made
     /// after one was abandoned.
     pub async fn ask(&mut self, request: &Request) -> Result<Answer, IpcError> {
@@ -254,9 +259,12 @@ impl Client {
         // Its frame made first, so one too long is refused before anything
         // of this connection changes.
         let frame = frame::encode(&request.to_value())?;
-        self.abandoned = true;
         self.connection.awaiting.store(true, Ordering::SeqCst);
         self.connection.send(frame).await?;
+        // Marked only once the writer holds the request: a send that failed,
+        // or was given up, handed it nothing, so no answer is on its way and
+        // the next call is not refused as one after an abandoned request.
+        self.abandoned = true;
         let answer = match self.connection.inbox.recv().await {
             None => Err(IpcError::Lost(
                 "the daemon closed the connection before it answered".to_owned(),
@@ -289,8 +297,8 @@ impl Served {
     /// # Errors
     ///
     /// [`IpcError::Silent`] for a client silent past `ipc_silent_after_ms`,
-    /// [`IpcError::Unread`] for one that took nothing written to it in that
-    /// time, [`IpcError::Malformed`] for a request that is not one or one
+    /// [`IpcError::Unread`] for one that left a write to it waiting that long,
+    /// [`IpcError::Malformed`] for a request that is not one or one
     /// before the last was answered, and [`IpcError::TurnedAway`],
     /// [`IpcError::TooLarge`] and [`IpcError::Lost`] as the frames answer.
     pub async fn next(&mut self) -> Result<Option<Request>, IpcError> {

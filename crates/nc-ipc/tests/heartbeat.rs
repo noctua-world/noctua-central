@@ -260,7 +260,7 @@ async fn a_daemon_that_says_nothing_is_dropped_by_the_client_at_the_silence_boun
 /// not — so the daemon's reader always hears it: the writer's own bound is all
 /// that can end this connection.
 #[tokio::test(start_paused = true)]
-async fn a_peer_that_takes_nothing_written_to_it_is_dropped_at_the_silence_bound() {
+async fn a_write_a_peer_leaves_waiting_for_the_silence_bound_ends_its_connection() {
     // **This found a real defect.** The writer gave up alone, and the reader,
     // still hearing the pings, kept the connection — and its slot of
     // `ipc_connections_max` — open for as long as the client pinged.
@@ -294,6 +294,35 @@ async fn a_peer_that_takes_nothing_written_to_it_is_dropped_at_the_silence_bound
         relay.to_daemon.pings.load(Ordering::SeqCst) > pinged,
         "the client did not ping while the daemon's writer waited"
     );
+}
+
+/// Every request after the daemon is gone is refused as a lost connection,
+/// on the call that meets it and on each after it, so a caller may retry.
+#[tokio::test(start_paused = true)]
+async fn every_request_after_the_daemon_is_gone_is_refused_as_lost() {
+    // **A real defect, found by asking exactly this.** A request whose send
+    // failed, the writer gone already, was marked abandoned all the same, so
+    // the call after it was refused as `NC-IPC-0002`, which is not retryable,
+    // rather than as the lost connection it was.
+    let (served, mut client) = directly().await;
+    drop(served);
+    for asked in 0..3 {
+        if asked == 1 {
+            // By two heartbeats on, the client's writer has met the closed
+            // stream, so each call from here finds it gone.
+            tokio::time::sleep(std::time::Duration::from_millis(
+                nc_catalog::DAEMON.ipc_heartbeat_ms * 2,
+            ))
+            .await;
+        }
+        match client.ask(&Request::Status).await {
+            Err(refused @ IpcError::Lost(_)) => {
+                assert_eq!(refused.code(), ErrorCode::IpcLost);
+                assert!(refused.code().retryable(), "a lost connection is retried");
+            }
+            other => panic!("request {asked} after the daemon was gone was {other:?}"),
+        }
+    }
 }
 
 #[tokio::test(start_paused = true)]

@@ -1463,9 +1463,15 @@ mod tests {
     }
 
     /// A dead socket of this user's is replaced, and anything else at the
-    /// endpoint's name is refused and left as it was — where the endpoint is a
-    /// name on disk; where it is not, the name at the socket's path is
-    /// nothing a bind reads, and is left alone.
+    /// endpoint's name — a file, a link, a dead socket another user owns — is
+    /// refused and left as it was, where the endpoint is a name on disk; where
+    /// it is not, the name at the socket's path is nothing a bind reads, and is
+    /// left alone.
+    ///
+    /// **Another user's socket is judged with a forged user**, since no test
+    /// can make a socket another user owns: what a bind makes of a real other
+    /// account's socket is this same judgement, handed `testing::someone_else`
+    /// as the user it runs as.
     #[test]
     fn a_dead_socket_is_replaced_and_anything_else_at_the_name_is_left_as_it_was() {
         use std::io::Write as _;
@@ -1483,6 +1489,28 @@ mod tests {
                 ),
                 "a dead endpoint answered"
             );
+            if testing::ENDPOINT_ON_DISK {
+                let before = testing::identity(&endpoint.socket).expect("the dead socket");
+                let other = testing::someone_else(&user);
+                match testing::judge_what_stands_at(&endpoint, &other) {
+                    Err(super::ipc::Refused::NotPrivate(refused)) => {
+                        let refused = refused.to_string();
+                        assert!(
+                            refused.contains(&format!("belongs to user {user}"))
+                                && refused.contains(&format!("runs as user {other}")),
+                            "{refused}"
+                        );
+                    }
+                    verdict => panic!("a dead socket another user owns was {verdict:?}"),
+                }
+                testing::judge_what_stands_at(&endpoint, &user)
+                    .expect("this user's own dead socket is one a bind asks");
+                assert_eq!(
+                    testing::identity(&endpoint.socket).expect("still there"),
+                    before,
+                    "a dead socket was changed by being judged"
+                );
+            }
             drop(
                 super::ipc::Listener::bind(&endpoint, &user, &instance, 4)
                     .expect("a dead socket of this user's is replaced"),
@@ -1570,47 +1598,6 @@ mod tests {
             accepted.expect("one closed made room");
             connected.expect("reached");
         });
-    }
-
-    /// A dead socket another user owns is refused and left as it was, where
-    /// the endpoint is a name on disk: a bind replaces only this user's.
-    ///
-    /// **Judged with a forged user**, since no test can make a socket another
-    /// user owns: what a bind makes of a real other account's socket is this
-    /// same judgement, handed `testing::someone_else` as the user it runs as.
-    #[test]
-    fn a_dead_socket_another_user_owns_is_refused_and_left_as_it_was() {
-        let scratch = Scratch::new("ipc-foreign");
-        let user = user_in(&scratch.0).expect("private");
-        let endpoint = endpoint_in(&scratch, "foreign");
-        testing::leave_a_dead_endpoint(&endpoint).expect("a dead endpoint");
-        let other = testing::someone_else(&user);
-        let before = testing::ENDPOINT_ON_DISK
-            .then(|| testing::identity(&endpoint.socket).expect("the dead socket"));
-        match (
-            testing::ENDPOINT_ON_DISK,
-            testing::judge_what_stands_at(&endpoint, &other),
-        ) {
-            (true, Err(super::ipc::Refused::NotPrivate(refused))) => {
-                let refused = refused.to_string();
-                assert!(
-                    refused.contains(&format!("belongs to user {user}"))
-                        && refused.contains(&format!("runs as user {other}")),
-                    "{refused}"
-                );
-            }
-            (false, Ok(())) => {}
-            (_, verdict) => panic!("a dead socket another user owns was {verdict:?}"),
-        }
-        testing::judge_what_stands_at(&endpoint, &user)
-            .expect("this user's own dead socket is one a bind asks");
-        if let Some(before) = before {
-            assert_eq!(
-                testing::identity(&endpoint.socket).expect("still there"),
-                before,
-                "a dead socket was changed by being judged"
-            );
-        }
     }
 
     /// An accept given up before a client came leaves the listener as it
