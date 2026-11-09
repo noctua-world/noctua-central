@@ -487,10 +487,16 @@ pub(crate) mod scripted {
                     bound.send(()).expect("the test waits for the bind");
                     let mut heard = Vec::new();
                     for answers in script.connections {
-                        let accepted = tokio::time::timeout(WAIT, listener.accept())
+                        // A client that closed before the listener read who it
+                        // is — one that refused before its handshake, whose
+                        // peer macOS no longer names once it has gone — is a
+                        // connection this script has nothing to serve.
+                        let Ok(accepted) = tokio::time::timeout(WAIT, listener.accept())
                             .await
                             .expect("a client within the wait")
-                            .expect("accepted");
+                        else {
+                            continue;
+                        };
                         let Ok(mut served) = tokio::time::timeout(
                             WAIT,
                             nc_ipc::serve(accepted.stream, &script.token, &script.welcome),
