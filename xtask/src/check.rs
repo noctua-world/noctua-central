@@ -7911,7 +7911,7 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// constant**, as `OPERATORS` is: one copy rather than one per use, and nothing
 /// reads it at compile time.
 #[cfg(test)]
-static WHAT_THE_GATE_CAN_SAY: [&str; 1051] = [
+static WHAT_THE_GATE_CAN_SAY: [&str; 1059] = [
     // The workflows' bounds (`xtask/src/workflow.rs`): what `.github/` may hold,
     // the authority each workflow opens with, the pins, and how the release is
     // made; and the `CI` step's two verdicts about them.
@@ -8295,12 +8295,20 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1051] = [
     "declared setting",
     "declared setting",
     "deny.toml is not in this tree, so the dependency audit runs on cargo-deny's defaults and nothing here decides its scope",
-    "deny.toml sets `{key} = {value}` and the audit needs `{needed}`. The default was measured hiding {hid}, and cargo-deny prints the same transcript either way",
+    "deny.toml sets `{key} = {value}` and the audit needs `{needed}`. At another value the key was measured hiding {hid}, and cargo-deny prints the same transcript either way",
     "deny.toml sets `{key} = {refused}`, and this audit needs it not to: that was measured hiding {hid}",
     "deny.toml names `{key}` as `{value}`, and this audit needs that list empty or \
      unwritten: what it holds is taken out of the audit without the transcript \
      changing, which was measured hiding {hid}",
-    "deny.toml sets no `{key}`, so cargo-deny's default decides the audit's scope. That default was measured hiding {hid}, and it prints the same transcript either way",
+    "deny.toml sets no `{key}`, so cargo-deny's default decides the audit's scope, and the audit needs `{needed}` written out. At another value the key was measured hiding {hid}, and cargo-deny prints the same transcript either way",
+    // The advisories `deny.toml` leaves out, read as the document cargo-deny
+    // reads: what a file it cannot read is, and the two ways a list falls short.
+    "`advisories.ignore` is a value of type {}, not a list",
+    "`advisories` is a value of type {}, not a table",
+    "an entry of `advisories.ignore` is a value of type {}, neither an id nor a table",
+    "deny.toml cannot be read as cargo-deny reads it ({problem}), so which advisories it leaves out of the audit is unknown. Write it as TOML whose `[advisories] ignore` is a list of tables, each an `id` and a `reason`",
+    "deny.toml leaves `{id}` out of the audit with no reason beside it. Give its entry a `reason` saying why the advisory does not reach this tree, and argue it above `ignore`",
+    "deny.toml leaves {written:?} out of the audit and `THE_ADVISORIES_LEFT_OUT` in xtask/src/check.rs names {THE_ADVISORIES_LEFT_OUT:?}. An entry hides {hid}, so it is written in both lists or in neither, and leaves both in the change that moves the lock past it",
     "deny.toml",
     "dependency audit",
     "dependency audit",
@@ -8887,7 +8895,9 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1051] = [
     "`{arrived}` is in `{directory}/` and is not written down: a migration is added to that list in the same change that adds the file, or the list stops being a record of what is there",
     "`{gone}` is written down as a migration this repository has and is not in `{directory}/`: what ran against every database that applied it is now a file nobody can read, and on a database that has applied nothing — which is what every CI run starts with, and what no user's machine can be asked about — no other check here can tell",
     "`{named}` is named in `WRITERS` in xtask/src/local.rs and is not on disk, so the source gate over local SQL reads nothing there",
+    "`{}` could not be made private to this user ({error}), and the gate opens no SQLite file in a directory it did not make. Check that the temporary directory exists and that this user can write in it",
     "`{}` is created in {here} and its entry in catalog/limits.toml says `database = \"{there}\"`",
+    "`{}` was already there, so this run did not make it, and the gate opens no SQLite file in a directory it did not make: a database and its `-wal` that another account left there would be read as the gate's own. Remove it if it is yours, which a run that was killed leaves, and run the gate again",
     "a migrations directory could not be read",
     "a scratch SQLite file could not be opened: {error}",
     "local SQL",
@@ -11167,7 +11177,7 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 725] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 727] = [
     // The workflows' bounds: their remedies, the release job's steps as
     // `THE_RELEASE_STEPS` writes them, the environment and the line that hands
     // the token on, a step's words when it is missing, and the clean line.
@@ -11284,7 +11294,9 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 725] = [
     "`{recipe}` runs a cargo command holding `{{{{{inside}}}}}`, which this gate reads as text and cannot resolve — a variable in the body is how the gate a developer types becomes a different gate with the name and the description above it unchanged. A recipe's own parameters are declared in its header; this one is not",
     "`{recipe}` is the name a developer types and `{named}` is what this body runs. The description above it is the whole of what `just --list` prints, so a recipe that changes what it runs goes on saying what it used to do — and `check` carrying `--offline` is the smaller gate wearing the gate's name",
     "every yanked crate, which is usually a broken release or a fix that came without an advisory",
-    "whatever advisory is named in it, and the file says there is deliberately no list",
+    "whatever advisory is named in it, with `advisories ok` printed over it",
+    "an ignored advisory no crate matches any more, which stays out of the audit with `advisories ok` printed over it",
+    "the advisories `THE_ADVISORIES_LEFT_OUT` names, each with a reason",
     "whatever licence is named in it, one crate at a time and without moving `allow`",
     "    pub fn send(&self, _line: String) {} }\n",
     "  fn fields(&self) -> Vec<(&'static str, Field)>; }\n",
@@ -12259,9 +12271,32 @@ impl Audit {
     }
 }
 
+/// The advisories `deny.toml` leaves out of the audit, by id, in the order the
+/// file writes them.
+///
+/// **Each entry is one advisory the audit stops reporting.** cargo-deny prints
+/// `advisories ok` with the advisory still in the lockfile, so an entry is a
+/// decision that the advisory does not reach this tree: its reason is written
+/// in the entry and its argument above `ignore` in `deny.toml`.
+/// `RUSTSEC-2026-0459` needs a database and a `-wal` another account wrote,
+/// and every database the shipped code and the gate open is judged or made
+/// this user's own first.
+///
+/// **The list empties when the lock reaches the patched release.** An entry no
+/// crate matches makes cargo-deny warn `advisory-not-detected` while
+/// `unused-ignored-advisory` is `warn`, which [`THE_AUDIT_IS_NOT_NARROWED`]
+/// holds, and the warning fails the dependency step, so the change that moves
+/// the lock to `libsqlite3-sys` 0.39 takes the entry out of `deny.toml` and
+/// out of this list.
+const THE_ADVISORIES_LEFT_OUT: [&str; 1] = ["RUSTSEC-2026-0459"];
+
+/// What the `ignore` row of [`THE_AUDIT_IS_NOT_NARROWED`] needs.
+const ONLY_THE_ADVISORIES_LEFT_OUT: &str =
+    "the advisories `THE_ADVISORIES_LEFT_OUT` names, each with a reason";
+
 /// The `deny.toml` keys whose default silently narrows the audit.
 ///
-/// Each is the key, the value the audit needs, and what its **default** was
+/// Each is the key, the value the audit needs, and what a narrower setting was
 /// measured hiding. `deny.toml` argues for each in prose, and prose is not a
 /// gate: without this list, flipping one back to cargo-deny's default leaves
 /// `ok advisories, licences, bans and sources` and `check passed` byte for byte
@@ -12274,16 +12309,17 @@ impl Audit {
 /// the direction that matters. These are the keys whose value or whose *default*
 /// silently shrinks what the audit decides, each measured hiding crates or
 /// warnings, and each written down in the file it governs.
-const THE_AUDIT_IS_NOT_NARROWED: [(&str, &str, &str); 13] = [
+const THE_AUDIT_IS_NOT_NARROWED: [(&str, &str, &str); 14] = [
     // **Three keys `deny.toml` argues for at length.** Measured with this row
     // gone: `yanked = "allow"` in the shipped file leaves every deny.toml test
     // green and `cargo deny check advisories` prints `advisories ok` with no
     // warning at all, so the six lines above that key arguing a yank is
     // "usually a broken release or a security fix that arrived without an
     // advisory" would be enforced by nobody. `ignore` and
-    // `exceptions` are the same shape from the other side: both are lists whose
-    // *emptiness* is the claim, and an entry in either narrows the audit
-    // silently.
+    // `exceptions` are the same shape from the other side: both are lists, and
+    // an entry in either narrows the audit silently. `exceptions` claims its
+    // emptiness; `ignore` claims exactly the advisories the gate's own list
+    // names, each with a reason.
     (
         "yanked",
         "\"deny\"",
@@ -12291,8 +12327,21 @@ const THE_AUDIT_IS_NOT_NARROWED: [(&str, &str, &str); 13] = [
     ),
     (
         "ignore",
-        "empty",
-        "whatever advisory is named in it, and the file says there is deliberately no list",
+        ONLY_THE_ADVISORIES_LEFT_OUT,
+        "whatever advisory is named in it, with `advisories ok` printed over it",
+    ),
+    // **And the key an entry of `ignore` expires by.** cargo-deny warns
+    // `advisory-not-detected` for an ignored advisory no crate matches only
+    // while this key is not `allow`. Measured with no row for it, cargo-deny
+    // 0.20.2: one line, `unused-ignored-advisory = "allow"`, kept an advisory
+    // no crate matched in the list with `advisories ok` and no warning, and the
+    // list still equalled `THE_ADVISORIES_LEFT_OUT`, so the row above passed.
+    // Its default is `warn`, the value asked for here, written out as this file
+    // writes its other defaults; cargo-deny refuses the key in any other table.
+    (
+        "unused-ignored-advisory",
+        "\"warn\"",
+        "an ignored advisory no crate matches any more, which stays out of the audit with `advisories ok` printed over it",
     ),
     (
         "exceptions",
@@ -12430,7 +12479,7 @@ fn the_setting_for(text: &str, key: &str) -> Option<String> {
 /// `tomllib` returns the identical table for all three spellings.
 ///
 /// Matching the bare spelling alone would answer `None` for the others. For
-/// the four rows of `THE_AUDIT_IS_NOT_NARROWED` whose need is `"empty"`, `None`
+/// the rows of `THE_AUDIT_IS_NOT_NARROWED` whose need is `"empty"`, `None`
 /// is read as *nothing to say* — deliberately, because a key nobody wrote is a
 /// key nobody narrowed — so quoting the key would turn the narrowing invisible
 /// while cargo-deny goes on obeying it.
@@ -12472,6 +12521,108 @@ fn the_crates_the_licence_check_read(output: &str) -> Option<usize> {
     })
 }
 
+/// Each entry of `deny.toml`'s `[advisories] ignore`: the advisory it names,
+/// and whether a reason that says something is written beside it.
+///
+/// **From the parsed document, because TOML spells one list many ways.** A
+/// bare, a quoted and a literal key, a dotted key at the top, the inline array
+/// and `[[advisories.ignore]]` are one value to cargo-deny, and a line reader
+/// knows only the spellings it was written for. An entry with no `id` names no
+/// advisory — cargo-deny reads `{ crate = … }` as a yanked crate let through —
+/// and stands in the list as the entry itself, so no list the gate writes
+/// equals it.
+///
+/// # Errors
+///
+/// What cargo-deny could not read either: a file that is not TOML, an
+/// `advisories` that is not a table, an `ignore` that is not a list, and an
+/// entry that is neither an id nor a table.
+fn the_advisories_left_out(text: &str) -> Result<Vec<(String, bool)>, String> {
+    let document = text
+        .parse::<toml::Table>()
+        .map_err(|error| error.message().trim().to_owned())?;
+    let Some(advisories) = document.get("advisories") else {
+        return Ok(Vec::new());
+    };
+    let Some(advisories) = advisories.as_table() else {
+        return Err(format!(
+            "`advisories` is a value of type {}, not a table",
+            advisories.type_str()
+        ));
+    };
+    let Some(ignore) = advisories.get("ignore") else {
+        return Ok(Vec::new());
+    };
+    let Some(entries) = ignore.as_array() else {
+        return Err(format!(
+            "`advisories.ignore` is a value of type {}, not a list",
+            ignore.type_str()
+        ));
+    };
+    entries
+        .iter()
+        .map(|entry| match entry {
+            // A bare id is an entry with no reason: cargo-deny accepts it, and
+            // this audit does not.
+            toml::Value::String(id) => Ok((id.clone(), false)),
+            toml::Value::Table(fields) => {
+                let reason = fields.get("reason").and_then(toml::Value::as_str);
+                Ok((
+                    fields
+                        .get("id")
+                        .and_then(toml::Value::as_str)
+                        .map_or_else(|| entry.to_string(), str::to_owned),
+                    reason.is_some_and(|reason| !reason.trim().is_empty()),
+                ))
+            }
+            other => Err(format!(
+                "an entry of `advisories.ignore` is a value of type {}, neither an id nor a table",
+                other.type_str()
+            )),
+        })
+        .collect()
+}
+
+/// Whether `deny.toml` leaves out what [`THE_ADVISORIES_LEFT_OUT`] names.
+///
+/// Exactly those advisories, in its order, each with a reason beside it; each
+/// way the file falls short is said as a failure of its own.
+fn the_advisories_left_out_are_the_listed_ones(text: &str, hid: &str) -> bool {
+    let entries = match the_advisories_left_out(text) {
+        Ok(entries) => entries,
+        Err(problem) => {
+            ui::failure(&format!(
+                "deny.toml cannot be read as cargo-deny reads it ({problem}), so which \
+                 advisories it leaves out of the audit is unknown. Write it as TOML whose \
+                 `[advisories] ignore` is a list of tables, each an `id` and a `reason`"
+            ));
+            return false;
+        }
+    };
+    let mut held = true;
+    for (id, reasoned) in &entries {
+        if !reasoned {
+            ui::failure(&format!(
+                "deny.toml leaves `{id}` out of the audit with no reason beside it. Give \
+                 its entry a `reason` saying why the advisory does not reach this tree, \
+                 and argue it above `ignore`"
+            ));
+            held = false;
+        }
+    }
+    let written: Vec<&str> = entries.iter().map(|(id, _)| id.as_str()).collect();
+    if written != THE_ADVISORIES_LEFT_OUT {
+        ui::failure(&format!(
+            "deny.toml leaves {written:?} out of the audit and `THE_ADVISORIES_LEFT_OUT` \
+             in xtask/src/check.rs names {THE_ADVISORIES_LEFT_OUT:?}. An entry hides \
+             {hid}, so it is written in both lists or in neither, and leaves both in the \
+             change that moves the lock past it"
+        ));
+        held = false;
+    }
+    held
+}
+
 /// The audit still asks for the whole tree, and not cargo-deny's default slice.
 fn the_audit_is_not_narrowed(root: &Path, failures: &mut Vec<String>) {
     let Ok(text) = std::fs::read_to_string(root.join("deny.toml")) else {
@@ -12484,6 +12635,17 @@ fn the_audit_is_not_narrowed(root: &Path, failures: &mut Vec<String>) {
     };
     let mut narrowed = false;
     for (key, needed, hid) in THE_AUDIT_IS_NOT_NARROWED {
+        // **A list that holds what the gate's own list names, and no more.**
+        // `ignore` is judged as the document cargo-deny reads rather than line
+        // by line, so a bare, quoted or literal key, the inline array and
+        // `[[advisories.ignore]]` are one value, and a key in another table is
+        // not mistaken for it.
+        if needed == ONLY_THE_ADVISORIES_LEFT_OUT {
+            if !the_advisories_left_out_are_the_listed_ones(&text, hid) {
+                narrowed = true;
+            }
+            continue;
+        }
         // **A key that must not be set at all.** `[graph] exclude-dev` prunes
         // the graph the whole audit reads, so what this file needs from it is
         // silence: cargo-deny's own default keeps dev-dependencies in, and the
@@ -12506,11 +12668,11 @@ fn the_audit_is_not_narrowed(root: &Path, failures: &mut Vec<String>) {
         // is not written at all is a claim this rule has nothing to say about.
         if needed == "empty" {
             // **And the array-of-tables spelling, which is the same document.**
-            // `[[advisories.ignore]]` with an `id` under it parses to exactly
-            // what `ignore = [{ id = … }]` parses to, and no line of it begins
-            // with `ignore =` — so a line reader answers `None` and the branch
-            // treats absence as nothing to say. Measured that way: an advisory
-            // silenced with the audit reported whole.
+            // `[[licenses.exceptions]]` with a `crate` under it parses to
+            // exactly what `exceptions = [{ crate = … }]` parses to, and no
+            // line of it begins with `exceptions =` — so a line reader answers
+            // `None` and the branch treats absence as nothing to say, while
+            // cargo-deny lets that crate's licence through.
             let as_a_table = format!("[[{key}");
             let written = the_setting_for(&text, key)
                 .filter(|value| value.replace(' ', "") != "[]")
@@ -12537,15 +12699,16 @@ fn the_audit_is_not_narrowed(root: &Path, failures: &mut Vec<String>) {
             Some(value) => {
                 ui::failure(&format!(
                     "deny.toml sets `{key} = {value}` and the audit needs `{needed}`. \
-                     The default was measured hiding {hid}, and cargo-deny prints the \
-                     same transcript either way"
+                     At another value the key was measured hiding {hid}, and cargo-deny \
+                     prints the same transcript either way"
                 ));
                 narrowed = true;
             }
             None => {
                 ui::failure(&format!(
                     "deny.toml sets no `{key}`, so cargo-deny's default decides the \
-                     audit's scope. That default was measured hiding {hid}, and it \
+                     audit's scope, and the audit needs `{needed}` written out. At \
+                     another value the key was measured hiding {hid}, and cargo-deny \
                      prints the same transcript either way"
                 ));
                 narrowed = true;
@@ -12596,12 +12759,14 @@ fn dependencies(root: &Path, offline: bool, failures: &mut Vec<String>, audit: A
                 // **A failure, not a warning line.** Criterion 1 is "no failures
                 // **and no warnings**", and a gate that printed them and passed
                 // would leave that sentence enforced by nobody. Every warning
-                // cargo-deny emits here is
-                // a statement that the `bans.skip` list has rotted:
-                // `unmatched-skip` names a crate that left the tree,
-                // `unnecessary-skip` one that no longer has two versions, and
-                // `duplicate` one that acquired a second. Each is a list to
-                // correct, which is exactly what a gate is for.
+                // cargo-deny emits here names a `deny.toml` list that has
+                // rotted: `unmatched-skip` names a crate that left the tree,
+                // `unnecessary-skip` one that no longer has two versions,
+                // `duplicate` one that acquired a second, and
+                // `advisory-not-detected` an entry of `[advisories] ignore` no
+                // crate in the lock matches any more, which is how an advisory
+                // left out of the audit leaves it. Each is a list to correct,
+                // which is exactly what a gate is for.
                 ui::failure(&format!(
                     "{} dependency warning(s), and criterion 1 is no failures and no \
                      warnings. Each names a `deny.toml` entry to correct",
@@ -19189,7 +19354,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 170] = [
+    const DOCUMENTED: [(&str, usize, usize); 171] = [
         ("daemon/device.rs", 22, 5),
         ("daemon/install.rs", 14, 6),
         ("daemon/lib.rs", 7, 8),
@@ -19314,7 +19479,8 @@ mod the_frozen_path_rule {
         ("nc-log/ship.rs", 106, 50),
         ("nc-log/value.rs", 18, 36),
         ("nc-platform/ipc.rs", 20, 13),
-        ("nc-platform/lib.rs", 77, 21),
+        ("nc-platform/lib.rs", 77, 22),
+        ("nc-platform/service.rs", 155, 18),
         ("nc-platform/testing.rs", 28, 1),
         ("nc-platform/unix.rs", 68, 2),
         ("nc-platform/windows.rs", 115, 11),
@@ -19338,7 +19504,7 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 672, 57),
+        ("xtask/check.rs", 685, 57),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 45, 29),
         ("xtask/database.rs", 30, 6),
@@ -19349,7 +19515,7 @@ mod the_frozen_path_rule {
         ("xtask/gates.rs", 225, 33),
         ("xtask/history.rs", 115, 3),
         ("xtask/limits.rs", 176, 59),
-        ("xtask/local.rs", 79, 8),
+        ("xtask/local.rs", 83, 8),
         ("xtask/main.rs", 3, 25),
         ("xtask/members.rs", 44, 7),
         ("xtask/plugins.rs", 25, 5),
@@ -22146,8 +22312,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 621 scratches this tree
-    /// builds, 534 of the 621 are removed however the test leaves and 87 are
+    /// directories accumulated in an afternoon. Of the 633 scratches this tree
+    /// builds, 546 of the 633 are removed however the test leaves and 87 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22213,7 +22379,7 @@ mod the_frozen_path_rule {
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 43] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 44] = [
         ("daemon/device.rs", 7, 7),
         ("daemon/install.rs", 8, 8),
         ("daemon/main.rs", 3, 3),
@@ -22239,10 +22405,11 @@ mod the_frozen_path_rule {
         ("nc-local/opening_refuses_what_it_did_not_make.rs", 43, 43),
         ("nc-local/the_local_journal.rs", 9, 9),
         ("nc-platform/lib.rs", 26, 26),
+        ("nc-platform/service.rs", 6, 6),
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
         ("nc-prune/in_sqlite.rs", 13, 13),
         ("xtask/build.rs", 8, 8),
-        ("xtask/check.rs", 38, 26),
+        ("xtask/check.rs", 42, 30),
         ("xtask/corpus.rs", 15, 15),
         ("xtask/counts.rs", 7, 0),
         ("xtask/determinism.rs", 6, 0),
@@ -22252,7 +22419,7 @@ mod the_frozen_path_rule {
         ("xtask/gates.rs", 19, 11),
         ("xtask/history.rs", 1, 1),
         ("xtask/limits.rs", 26, 13),
-        ("xtask/local.rs", 4, 4),
+        ("xtask/local.rs", 6, 6),
         ("xtask/members.rs", 1, 0),
         ("xtask/policy.rs", 5, 2),
         ("xtask/references.rs", 4, 1),
@@ -22400,6 +22567,25 @@ mod the_frozen_path_rule {
             "a tuple `Self` constructor in a file that declares the `Drop` was read as \
              unguarded — the spelling `corpus.rs` uses"
         );
+        // **And one that may refuse**, handing back the guard or the reason it
+        // made nothing — the spelling `local.rs` uses, whose scratch is never a
+        // directory it found.
+        assert!(
+            guards_its_scratch(
+                "fn new(name: &str) -> Result<Self, String> { Self::at(root) }",
+                true
+            ),
+            "a constructor answering `Result<Self, _>` in a file that declares the `Drop` \
+             was read as unguarded"
+        );
+        // **A `Self` in the body is not one in the signature.** A function
+        // that hands back nothing and builds the type inside a closure is not
+        // the type's constructor.
+        assert!(
+            !guards_its_scratch("fn probe() { let made = || -> Self { Self(root) }; }", true),
+            "a function whose signature hands back no `Self` was read as that type's \
+             constructor"
+        );
         // **And a body that mentions `Self` without returning it is not a
         // constructor.** Of two textual spellings, the braced one matches every
         // constructor rustfmt writes, so the other decides nothing; this is the
@@ -22462,10 +22648,26 @@ mod the_frozen_path_rule {
     /// without it any function returning `Self` counts as guarded whether or
     /// not its file implements a `Drop` at all.
     fn guards_its_scratch(body: &str, declares_a_guard: bool) -> bool {
+        // **What the signature hands back names `Self`**, read between the
+        // arrow and the body's first brace: `-> Self` and
+        // `-> Result<Self, String>` alike. The gate's own scratch in
+        // `xtask/src/local.rs` refuses a directory it did not make, so its
+        // constructor answers the guard or the refusal, and a reading of
+        // `-> Self` alone counted it as a scratch with no guard.
         REMOVES_ITS_SCRATCH_ON_THE_WAY_OUT
             .iter()
             .any(|guard| body.contains(&format!("{guard}::new(")))
-            || (declares_a_guard && body.contains("-> Self"))
+            || (declares_a_guard
+                && body
+                    .split_once('{')
+                    .and_then(|(signature, _)| signature.split_once("->"))
+                    .is_some_and(|(_, handed_back)| {
+                        handed_back
+                            .split(|character: char| {
+                                !character.is_alphanumeric() && character != '_'
+                            })
+                            .any(|word| word == "Self")
+                    }))
     }
 
     /// Both readings of the scratch sites, from one walk.
@@ -25166,7 +25368,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 16364;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 16685;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25185,7 +25387,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3630;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3800;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25202,7 +25404,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1199;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1258;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25236,7 +25438,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 22651;
+    const THE_REARRANGEMENTS_JUDGED: usize = 23067;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25254,7 +25456,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 480;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 481;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -25290,7 +25492,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **480 of 22,651 are accepted by the first-line
+    /// rules the gates apply: **481 of 23,067 are accepted by the first-line
     /// rule alone, and 256 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25323,7 +25525,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1199 of
+    /// this tree offers, **1258 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -27060,11 +27262,11 @@ mod the_frozen_path_rule {
             if needed != "empty" {
                 continue;
             }
-            // **TOML 1.0's three spellings of one key.** `ignore`, `"ignore"`
-            // and `'ignore'` are the same key — verified against the reference
+            // **TOML 1.0's three spellings of one key.** `exclude`, `"exclude"`
+            // and `'exclude'` are the same key — verified against the reference
             // parser, and cargo-deny deserializes that document — and a reader
             // that knows only the bare one reads a narrowing written with the
-            // key quoted as *no key at all*, which these four rows deliberately
+            // key quoted as *no key at all*, which these rows deliberately
             // treat as nothing to say, so cargo-deny obeys a narrowing the gate
             // cannot see.
             for (label, written, reported) in [
@@ -27157,7 +27359,10 @@ mod the_frozen_path_rule {
             );
         }
         for (key, needed, _hid) in super::THE_AUDIT_IS_NOT_NARROWED {
-            if needed.starts_with("not ") || needed == "empty" {
+            if needed.starts_with("not ")
+                || needed == "empty"
+                || needed == super::ONLY_THE_ADVISORIES_LEFT_OUT
+            {
                 continue;
             }
             // **The value the array names, not `true`.** A plant that writes
@@ -27192,7 +27397,10 @@ mod the_frozen_path_rule {
         // and the diagnostic would quote a value that is correct and say the
         // audit needs it. Too strong is the other way to be wrong.
         for (key, needed, _hid) in super::THE_AUDIT_IS_NOT_NARROWED {
-            if needed.starts_with("not ") || needed == "empty" {
+            if needed.starts_with("not ")
+                || needed == "empty"
+                || needed == super::ONLY_THE_ADVISORIES_LEFT_OUT
+            {
                 continue;
             }
             let annotated = shipped.replace(
@@ -27229,6 +27437,286 @@ mod the_frozen_path_rule {
         let mut failures = Vec::new();
         super::the_audit_is_not_narrowed(&scratch, &mut failures);
         assert_eq!(failures, vec!["deny.toml".to_owned()]);
+        drop(held);
+    }
+
+    /// The shipped `deny.toml` with its `ignore` list replaced by `written`.
+    fn ignoring(shipped: &str, written: &str) -> String {
+        let start = shipped
+            .find("\nignore = [")
+            .expect("the shipped file writes its `ignore` list inline");
+        let close = start
+            + shipped[start..]
+                .find("\n]\n")
+                .expect("and closes it on a line of its own");
+        format!("{}\n{written}{}", &shipped[..start], &shipped[close + 2..])
+    }
+
+    /// Whether the audit judges `planted`, written as a scratch `deny.toml`,
+    /// narrowed; and that it says so in its one verdict when it does.
+    fn narrowed(scratch: &std::path::Path, planted: &str) -> bool {
+        let _ = std::fs::remove_dir_all(scratch);
+        std::fs::create_dir_all(scratch).expect("writable");
+        std::fs::write(scratch.join("deny.toml"), planted).expect("writable");
+        let mut failures = Vec::new();
+        super::the_audit_is_not_narrowed(scratch, &mut failures);
+        if failures.is_empty() {
+            return false;
+        }
+        assert_eq!(
+            failures,
+            vec!["the dependency audit is narrowed".to_owned()]
+        );
+        true
+    }
+
+    /// An advisory is left out of the audit only when the gate's list names
+    /// it, with a reason beside it.
+    ///
+    /// **Every way an entry hides more than the argument covers.** cargo-deny
+    /// accepted each of these, measured with 0.20.2: a bare id and an entry
+    /// whose reason is missing or empty print `advisories ok` like an argued
+    /// one, an extra id that matches nothing is a warning, and a `crate` entry
+    /// lets a yanked crate through while the advisory stays an error.
+    #[test]
+    fn an_advisory_is_left_out_only_when_the_gate_names_it_with_a_reason() {
+        let held = super::LeavesNothingBehind::new("scratch");
+        let shipped = std::fs::read_to_string(
+            std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/..")).join("deny.toml"),
+        )
+        .expect("this repository has a deny.toml");
+        let [left_out] = super::THE_ADVISORIES_LEFT_OUT;
+        let another = "RUSTSEC-2099-0001";
+        let entry = |id: &str| format!("{{ id = \"{id}\", reason = \"it does not reach here\" }}");
+        for (label, written, reported) in [
+            ("the list emptied", "ignore = []".to_owned(), true),
+            ("the key taken out", String::new(), true),
+            (
+                "an extra advisory",
+                format!("ignore = [{}, {}]", entry(left_out), entry(another)),
+                true,
+            ),
+            (
+                "another advisory in its place",
+                format!("ignore = [{}]", entry(another)),
+                true,
+            ),
+            (
+                "the entry as a bare id, with no reason",
+                format!("ignore = [\"{left_out}\"]"),
+                true,
+            ),
+            (
+                "the entry as a table with no reason",
+                format!("ignore = [{{ id = \"{left_out}\" }}]"),
+                true,
+            ),
+            (
+                "the entry with an empty reason",
+                format!("ignore = [{{ id = \"{left_out}\", reason = \"\" }}]"),
+                true,
+            ),
+            (
+                "the entry with a blank reason",
+                format!("ignore = [{{ id = \"{left_out}\", reason = \"  \" }}]"),
+                true,
+            ),
+            (
+                "a yanked crate let through in its place",
+                "ignore = [{ crate = \"libsqlite3-sys\", reason = \"planted\" }]".to_owned(),
+                true,
+            ),
+            (
+                "the one entry, with its reason",
+                format!("ignore = [{}]", entry(left_out)),
+                false,
+            ),
+        ] {
+            let planted = ignoring(&shipped, &written);
+            assert_ne!(planted, shipped, "{label}: nothing was planted");
+            assert_eq!(
+                narrowed(&held.root, &planted),
+                reported,
+                "`{written}` ({label}) was judged the other way"
+            );
+        }
+        // And the file this repository ships passes, so the rule is about an
+        // entry the argument does not cover and not about every entry.
+        assert!(
+            !narrowed(&held.root, &shipped),
+            "this repository's own deny.toml was reported as narrowed"
+        );
+        drop(held);
+    }
+
+    /// The advisories left out are one list however TOML spells it, and only
+    /// the list cargo-deny reads.
+    ///
+    /// **A line reader knows the spellings it was written for.** The key quoted
+    /// or written as a literal, and the entries written as
+    /// `[[advisories.ignore]]` with no `ignore =` line at all, are the same
+    /// value to cargo-deny; an `ignore` in another table is not that value.
+    #[test]
+    fn the_advisories_left_out_are_one_list_however_toml_spells_it() {
+        let held = super::LeavesNothingBehind::new("scratch");
+        let shipped = std::fs::read_to_string(
+            std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/..")).join("deny.toml"),
+        )
+        .expect("this repository has a deny.toml");
+        let [left_out] = super::THE_ADVISORIES_LEFT_OUT;
+        let one = format!("{{ id = \"{left_out}\", reason = \"it does not reach here\" }}");
+        let extra = "{ id = \"RUSTSEC-2099-0001\", reason = \"planted\" }";
+        let tables = |entries: &[(&str, &str)]| -> String {
+            let appended: Vec<String> = entries
+                .iter()
+                .map(|(id, reason)| {
+                    format!("\n[[advisories.ignore]]\nid = \"{id}\"\nreason = \"{reason}\"\n")
+                })
+                .collect();
+            format!("{}{}", ignoring(&shipped, ""), appended.concat())
+        };
+        for (label, planted, reported) in [
+            (
+                "the key quoted, with an extra entry",
+                ignoring(&shipped, &format!("\"ignore\" = [{one}, {extra}]")),
+                true,
+            ),
+            (
+                "the key a literal, with an extra entry",
+                ignoring(&shipped, &format!("'ignore' = [{one}, {extra}]")),
+                true,
+            ),
+            (
+                "an extra entry as a table of its own",
+                tables(&[
+                    (left_out, "it does not reach here"),
+                    ("RUSTSEC-2099-0001", "planted"),
+                ]),
+                true,
+            ),
+            (
+                "the one entry as a table, with an empty reason",
+                tables(&[(left_out, "")]),
+                true,
+            ),
+            (
+                "the key quoted, with the one entry",
+                ignoring(&shipped, &format!("\"ignore\" = [{one}]")),
+                false,
+            ),
+            (
+                "the one entry as a table, with its reason",
+                tables(&[(left_out, "it does not reach here")]),
+                false,
+            ),
+            (
+                "an empty `ignore` in another table",
+                shipped.replace("[graph]", "[graph]\nignore = []"),
+                false,
+            ),
+        ] {
+            assert_ne!(planted, shipped, "{label}: nothing was planted");
+            assert_eq!(
+                narrowed(&held.root, &planted),
+                reported,
+                "{label} was judged the other way:\n{planted}"
+            );
+        }
+        drop(held);
+    }
+
+    /// A `deny.toml` that cargo-deny could not read is a finding, and says
+    /// which advisories it leaves out is unknown.
+    ///
+    /// **Not a list read as empty.** Today the empty list differs from the
+    /// gate's and is refused anyway; once the gate's list empties, a file
+    /// whose `ignore` cannot be read would pass as one that leaves nothing out.
+    #[test]
+    fn a_deny_toml_cargo_deny_cannot_read_is_a_finding() {
+        let held = super::LeavesNothingBehind::new("scratch");
+        let shipped = std::fs::read_to_string(
+            std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/..")).join("deny.toml"),
+        )
+        .expect("this repository has a deny.toml");
+        let [left_out] = super::THE_ADVISORIES_LEFT_OUT;
+        // The table renamed, so that `advisories` is written once, as a value:
+        // written twice, the file is not TOML, which is the first case below.
+        let renamed = shipped.replace("\n[advisories]\n", "\n[not-advisories]\n");
+        assert_ne!(
+            renamed, shipped,
+            "the shipped file has no `[advisories]` line"
+        );
+        for (label, planted) in [
+            ("a line that is not TOML", format!("{shipped}\nnot a key\n")),
+            (
+                "an `advisories` that is not a table",
+                format!("advisories = 7\n{renamed}"),
+            ),
+            (
+                "an `ignore` that is not a list",
+                ignoring(&shipped, &format!("ignore = \"{left_out}\"")),
+            ),
+            (
+                "an entry that is neither an id nor a table",
+                ignoring(
+                    &shipped,
+                    &format!("ignore = [{{ id = \"{left_out}\", reason = \"r\" }}, 7]"),
+                ),
+            ),
+        ] {
+            assert!(
+                super::the_advisories_left_out(&planted).is_err(),
+                "{label} was read as a list"
+            );
+            assert!(narrowed(&held.root, &planted), "{label} was not reported");
+        }
+        assert_eq!(
+            super::the_advisories_left_out(&shipped),
+            Ok(vec![(left_out.to_owned(), true)]),
+            "the shipped file is read as something else"
+        );
+        drop(held);
+    }
+
+    /// The warning that ends an ignored advisory's exclusion cannot be turned
+    /// off.
+    ///
+    /// **The expiry, held rather than assumed.** An entry of `ignore` leaves
+    /// the audit once no crate matches it only because cargo-deny then warns
+    /// `advisory-not-detected`. Measured with 0.20.2, `allow` keeps that entry
+    /// ignored with `advisories ok` and no warning, while the list still equals
+    /// the gate's and its own row passes.
+    #[test]
+    fn the_warning_that_expires_an_ignored_advisory_cannot_be_turned_off() {
+        let held = super::LeavesNothingBehind::new("scratch");
+        let shipped = std::fs::read_to_string(
+            std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/..")).join("deny.toml"),
+        )
+        .expect("this repository has a deny.toml");
+        let written = "\nunused-ignored-advisory = \"warn\"\n";
+        for (label, line) in [
+            ("turned off", "\nunused-ignored-advisory = \"allow\"\n"),
+            (
+                "turned off in a literal string",
+                "\nunused-ignored-advisory = 'allow'\n",
+            ),
+            (
+                "turned off under a quoted key",
+                "\n\"unused-ignored-advisory\" = \"allow\"\n",
+            ),
+            ("left to cargo-deny's default", "\n"),
+        ] {
+            let planted = shipped.replace(written, line);
+            assert_ne!(planted, shipped, "the warning {label}: nothing was planted");
+            assert!(
+                narrowed(&held.root, &planted),
+                "the warning {label} was not reported"
+            );
+        }
+        assert!(
+            !narrowed(&held.root, &shipped),
+            "the shipped file, which writes the key at cargo-deny's own default, was refused"
+        );
         drop(held);
     }
 
@@ -27536,7 +28024,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 725;
+    const THE_REST_IT_SAYS: usize = 727;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -27684,7 +28172,7 @@ mod the_frozen_path_rule {
     /// verdicts that agree for that long are one row, and — because a prefix
     /// matches nothing the two censuses hold — every row is a shipped literal
     /// accounted for nowhere. Written out, each row is its own accounting.
-    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 488] = [
+    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 491] = [
         ("—", "compiled catalog/"),
         (
             "—",
@@ -28656,6 +29144,18 @@ mod the_frozen_path_rule {
         ),
         ("—", "documentation of {documented} test target(s)"),
         (
+            "Err(problem) =>",
+            "deny.toml cannot be read as cargo-deny reads it ({problem}), so which advisories it leaves out of the audit is unknown. Write it as TOML whose `[advisories] ignore` is a list of tables, each an `id` and a `reason`",
+        ),
+        (
+            "if !reasoned",
+            "deny.toml leaves `{id}` out of the audit with no reason beside it. Give its entry a `reason` saying why the advisory does not reach this tree, and argue it above `ignore`",
+        ),
+        (
+            "if written != THE_ADVISORIES_LEFT_OUT",
+            "deny.toml leaves {written:?} out of the audit and `THE_ADVISORIES_LEFT_OUT` in xtask/src/check.rs names {THE_ADVISORIES_LEFT_OUT:?}. An entry hides {hid}, so it is written in both lists or in neither, and leaves both in the change that moves the lock past it",
+        ),
+        (
             "let Ok(text) = std::fs::read_to_string(root.join(\"deny.toml\")) else",
             "deny.toml is not in this tree, so the dependency audit runs on cargo-deny's defaults and nothing here decides its scope",
         ),
@@ -28675,11 +29175,11 @@ mod the_frozen_path_rule {
         ),
         (
             "Some(value) =>",
-            "deny.toml sets `{key} = {value}` and the audit needs `{needed}`. The default was measured hiding {hid}, and cargo-deny prints the same transcript either way",
+            "deny.toml sets `{key} = {value}` and the audit needs `{needed}`. At another value the key was measured hiding {hid}, and cargo-deny prints the same transcript either way",
         ),
         (
             "None =>",
-            "deny.toml sets no `{key}`, so cargo-deny's default decides the audit's scope. That default was measured hiding {hid}, and it prints the same transcript either way",
+            "deny.toml sets no `{key}`, so cargo-deny's default decides the audit's scope, and the audit needs `{needed}` written out. At another value the key was measured hiding {hid}, and cargo-deny prints the same transcript either way",
         ),
         ("if narrowed", "the dependency audit is narrowed"),
         ("Some(read) if read > 0 =>", "{}, over {read} crate(s)"),
@@ -34030,86 +34530,141 @@ mod the_meta_gate {
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let python = std::fs::read_to_string(root.join("xtask/mutants.py"))
             .expect("the meta-gate is in this repository");
-        // Quoted, because this file's prose names the same filters in backticks
-        // and a rule that read those would be about the comments.
-        //
-        // **Line by line, because this file opens with a `"""` docstring.**
-        // Pairing quotes across the whole text starts one quote out of step at
-        // the first line and stays there, and reads `0 suite filter(s)` from a
-        // file full of them.
-        let mut filters: Vec<String> = Vec::new();
-        for line in python.lines() {
-            for word in quoted(line) {
-                if word.ends_with("::")
-                    && word.len() > 2
-                    && word[..word.len() - 2]
-                        .chars()
-                        .all(|letter| letter.is_ascii_lowercase() || letter == '_')
-                {
-                    filters.push(word);
-                }
-            }
-        }
-        filters.sort();
-        filters.dedup();
+        let default = the_runners_default_command(&python);
+        let fallback = default
+            .windows(2)
+            .find(|pair| pair[0] == "-p")
+            .map(|pair| pair[1].clone())
+            .expect("the runner's default command names its package");
+        let filters = the_filters_and_their_packages(&python, &fallback);
         assert!(
             filters.len() > 10,
             "{} suite filter(s) were read from the runner, which is not this runner — \
              every finding this rule can make is read out of one",
             filters.len()
         );
-        // **And the package of every row that carries the filter**, read from
-        // cargo's member list: a command `-p nc-daemon -- mark::` narrows to a
-        // module of `nc-daemon`, wherever its member tree is, and a filter
-        // resolved only against fixed roots names nothing of an app's.
-        let members = crate::members::members(root).expect("cargo lists this workspace");
-        let mut carried_by: Vec<(String, std::path::PathBuf)> = Vec::new();
-        for table in ["ELSEWHERE = {", "ALSO_RUN = {"] {
-            for row in runner_rows(&python, table) {
-                let Some(package) = row
-                    .windows(2)
-                    .find(|pair| pair[0] == "-p")
-                    .map(|pair| pair[1].clone())
-                else {
-                    continue;
-                };
-                let member = members
-                    .iter()
-                    .find(|member| member.name == package)
-                    .unwrap_or_else(|| panic!("the runner names `-p {package}`, not a member"));
-                for word in row.iter().filter(|word| word.ends_with("::")) {
-                    carried_by.push((word.clone(), root.join(&member.path).join("src")));
-                }
-            }
-        }
-        for filter in &filters {
+        for (filter, package) in &filters {
             let named = filter.trim_end_matches("::");
-            // The module may belong to `xtask` or to the crate whose own suite
-            // decides a source; both are `<package root>/src/<name>.rs`.
-            let mut candidates = vec![
-                root.join(format!("xtask/src/{named}.rs")),
-                root.join(format!("crates/nc-catalog-compiler/src/{named}.rs")),
-            ];
-            candidates.extend(
-                carried_by
-                    .iter()
-                    .filter(|(word, _)| word == filter)
-                    .map(|(_, sources)| sources.join(format!("{named}.rs"))),
+            // **In the package the command names, and nowhere else**: a module
+            // of that name in another crate is one the command never runs, so
+            // the filter would narrow it to nothing all the same.
+            let path = root
+                .join(the_sources_of(package))
+                .join(format!("{named}.rs"));
+            assert!(
+                path.is_file(),
+                "the runner narrows a command of `{package}` with `{filter}`, and \
+                 `{package}` has no module of that name. A filter that names nothing \
+                 runs nothing, and every operator behind it comes back SURVIVED with \
+                 the summary reporting the filter it was given"
             );
-            let found = candidates.iter().find(|path| path.is_file());
-            let Some(path) = found else {
-                panic!(
-                    "the runner narrows a command with `{filter}`, and no module of \
-                     that name is in this tree. A filter that names nothing runs \
-                     nothing, and every operator behind it comes back SURVIVED with \
-                     the summary reporting the filter it was given"
-                );
-            };
-            let text = std::fs::read_to_string(path).expect("a module is readable");
+            let text = std::fs::read_to_string(&path).expect("a module is readable");
             assert!(
                 text.contains("#[test]"),
                 "the runner narrows a command with `{filter}`, and that module holds \
                  no test. A filter is only worth the tests it selects"
+            );
+        }
+    }
+
+    /// Every suite filter the runner quotes, beside the package it narrows.
+    ///
+    /// **The package is the one quoted after a quoted `-p` on the filter's own
+    /// line.** A line naming none is a filter of the runner's default command,
+    /// whose package is `fallback`: the `SUITES` rows, and the lines of a row
+    /// written one word a line, whose `-p` is a line of its own. A row of
+    /// another package written that way is read as `fallback`'s and refused,
+    /// never resolved in a crate its command does not run.
+    ///
+    /// Quoted, because the runner's prose names the same filters in backticks
+    /// and a rule that read those would be about the comments; and line by
+    /// line, because the runner opens with a `"""` docstring, and quotes paired
+    /// across the whole text start one out of step and stay there.
+    fn the_filters_and_their_packages(python: &str, fallback: &str) -> Vec<(String, String)> {
+        let mut filters: Vec<(String, String)> = Vec::new();
+        for line in python.lines() {
+            let words = quoted(line);
+            let package = words
+                .windows(2)
+                .find(|pair| pair[0] == "-p")
+                .map_or(fallback, |pair| pair[1].as_str());
+            for word in &words {
+                if word.ends_with("::")
+                    && word.len() > 2
+                    && word[..word.len() - 2]
+                        .chars()
+                        .all(|letter| letter.is_ascii_lowercase() || letter == '_')
+                {
+                    filters.push((word.clone(), package.to_owned()));
+                }
+            }
+        }
+        filters.sort();
+        filters.dedup();
+        filters
+    }
+
+    /// Where the sources of `package` are: the way back from [`the_package_owning`].
+    fn the_sources_of(package: &str) -> String {
+        // Through `MEMBER_TREES`, so an app's package resolves as a crate's and
+        // a plugin's do; a name two trees could spell is the one on disk.
+        let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+        crate::members::MEMBER_TREES
+            .iter()
+            .find_map(|(tree, prefix)| {
+                let directory = match tree.strip_suffix("/*") {
+                    Some(parent) => format!("{parent}/{}", package.strip_prefix(prefix)?),
+                    None => (*tree == package).then(|| (*tree).to_owned())?,
+                };
+                root.join(&directory)
+                    .join("Cargo.toml")
+                    .is_file()
+                    .then(|| format!("{directory}/src"))
+            })
+            .unwrap_or_else(|| panic!("`{package}` is the package of no member tree"))
+    }
+
+    /// A suite filter is resolved in the package its own command names.
+    ///
+    /// **And never in another crate that happens to hold a module of that
+    /// name**: `service::` names a module of `nc-platform`, and on a line of
+    /// the default command, whose package is `xtask`, it narrows that command
+    /// to nothing.
+    #[test]
+    fn a_suite_filter_is_resolved_in_the_package_its_command_names() {
+        let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+        let rows = "    \"policy\": [\"corpus::\", \"service::\"],\n    \
+                    \"service\": [\"cargo\", \"test\", \"-q\", \"-p\", \"nc-platform\", \"--\", \
+                    \"service::\", \"--skip\", \"with_the_manager\"],\n";
+        let filters = the_filters_and_their_packages(rows, "xtask");
+        let read = |filter: &str, package: &str| (filter.to_owned(), package.to_owned());
+        assert_eq!(
+            filters,
+            [
+                read("corpus::", "xtask"),
+                read("service::", "nc-platform"),
+                read("service::", "xtask"),
+            ]
+        );
+        let resolved = |package: &str| {
+            root.join(the_sources_of(package))
+                .join("service.rs")
+                .is_file()
+        };
+        assert!(
+            resolved("nc-platform") && !resolved("xtask"),
+            "`service::` resolved where its command does not run it"
+        );
+        for package in [
+            "xtask",
+            "nc-platform",
+            "nc-catalog-compiler",
+            "nc-plugin-reference",
+            "nc-daemon",
+        ] {
+            assert_eq!(
+                the_package_owning(&format!("{}/lib.rs", the_sources_of(package))),
+                package
             );
         }
     }
@@ -36622,7 +37177,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 184,
+            walked, 185,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -36662,7 +37217,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1870] = [
+    static OPERATORS: [(&str, &str, &str); 1921] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -41098,6 +41653,51 @@ Options:
             "the count line need not say what the system stood aside",
         ),
         (
+            "check",
+            "the_advisories_left_out_are_the_listed_ones",
+            "no fewer advisories are left out than the gate names",
+        ),
+        (
+            "check",
+            "the_advisories_left_out_are_the_listed_ones",
+            "no advisory is left out that the gate does not name",
+        ),
+        (
+            "check",
+            "the_advisories_left_out_are_the_listed_ones",
+            "an advisory left out with no reason is refused",
+        ),
+        (
+            "check",
+            "the_advisories_left_out",
+            "an empty reason is no reason",
+        ),
+        (
+            "check",
+            "the_advisories_left_out",
+            "a bare id is an entry with no reason",
+        ),
+        (
+            "check",
+            "the_advisories_left_out",
+            "a deny.toml that is not TOML is not read as one",
+        ),
+        (
+            "check",
+            "the_advisories_left_out",
+            "an `advisories` that is not a table is not read as empty",
+        ),
+        (
+            "check",
+            "the_advisories_left_out_are_the_listed_ones",
+            "a deny.toml the audit cannot read is a finding",
+        ),
+        (
+            "check",
+            "THE_AUDIT_IS_NOT_NARROWED",
+            "the warning that expires an ignored advisory stays on",
+        ),
+        (
             "kernel_dispatch",
             "spend",
             "a call tree nests no deeper than its depth",
@@ -44465,6 +45065,21 @@ Options:
             "only the one embedded migrator is let through",
         ),
         (
+            "local_gates",
+            "at",
+            "a scratch directory found is refused, not reused",
+        ),
+        (
+            "local_gates",
+            "at",
+            "a scratch directory found is never cleared",
+        ),
+        (
+            "local_gates",
+            "at",
+            "the gate's scratch directory is private to this user",
+        ),
+        (
             "gates",
             "pragmas_set",
             "the pragma door called as a path is read",
@@ -44996,6 +45611,197 @@ Options:
             "loader",
             "check_daemon_ipc",
             "the connections fit a pipe's instances",
+        ),
+        (
+            "platform_service",
+            "systemd_word",
+            "a `%` in a unit is written twice",
+        ),
+        (
+            "platform_service",
+            "systemd_word",
+            "a `$` in a unit is written twice",
+        ),
+        (
+            "platform_service",
+            "systemd_word",
+            "a quote inside a unit's word is escaped",
+        ),
+        (
+            "platform_service",
+            "systemd_word",
+            "a backslash inside a unit's word is escaped",
+        ),
+        (
+            "platform_service",
+            "systemd_unit",
+            "a description keeps its `%` from systemd's specifiers",
+        ),
+        (
+            "platform_service",
+            "systemd_unit",
+            "a unit restarts on failure",
+        ),
+        (
+            "platform_service",
+            "xml_text",
+            "an `&` in XML is its entity",
+        ),
+        ("platform_service", "xml_text", "a `<` in XML is its entity"),
+        (
+            "platform_service",
+            "windows_argument",
+            "a run of backslashes before a quote is doubled",
+        ),
+        (
+            "platform_service",
+            "windows_argument",
+            "a word holding a space is quoted",
+        ),
+        (
+            "platform_service",
+            "windows_argument",
+            "the backslashes before the closing quote are doubled",
+        ),
+        (
+            "platform_service",
+            "task_xml",
+            "a `%` is refused where Task Scheduler expands it",
+        ),
+        (
+            "platform_service",
+            "utf16_with_its_mark",
+            "a task's XML carries its byte-order mark",
+        ),
+        (
+            "platform_service",
+            "in_an_absolute_entry",
+            "a relative entry of PATH is never searched",
+        ),
+        (
+            "platform_service",
+            "found",
+            "the runtime directory is handed to systemctl where it is unset",
+        ),
+        (
+            "platform_service",
+            "found",
+            "a relative runtime directory is not taken",
+        ),
+        (
+            "platform_service",
+            "ran_since",
+            "a restart of systemd's is counted, not assumed",
+        ),
+        (
+            "platform_service",
+            "ran_since",
+            "a run of launchd's is counted, not assumed",
+        ),
+        (
+            "platform_service",
+            "ran_since",
+            "a task ran again only when its last run moved",
+        ),
+        (
+            "platform_service",
+            "running",
+            "a unit runs only with a process",
+        ),
+        (
+            "platform_service",
+            "from_launchctl_print",
+            "a line of a nested block is not the service's own",
+        ),
+        (
+            "platform_service",
+            "launchd_labels",
+            "the services block alone is read",
+        ),
+        (
+            "platform_service",
+            "csv_fields",
+            "a doubled quote inside a field is one quote",
+        ),
+        (
+            "platform_service",
+            "takes",
+            "a systemd name ends in `.service`",
+        ),
+        (
+            "platform_service",
+            "is_a_plain_name",
+            "a name opens with a letter or a digit",
+        ),
+        (
+            "platform_service",
+            "described",
+            "a control character is refused",
+        ),
+        (
+            "platform_service",
+            "described",
+            "a program is an absolute path",
+        ),
+        (
+            "platform_service",
+            "under",
+            "a listing is narrowed to the prefix asked",
+        ),
+        (
+            "platform_service",
+            "not_held",
+            "a name the manager holds is never registered over",
+        ),
+        (
+            "platform_service",
+            "a_refused_load_leaves_it_loaded",
+            "a refused bootstrap takes back its file alone",
+        ),
+        (
+            "platform_service",
+            "found",
+            "a relative SystemRoot is not taken",
+        ),
+        (
+            "platform_service",
+            "is_an_absolute_windows_path",
+            "a root on no drive is not absolute",
+        ),
+        (
+            "platform_service",
+            "loaded",
+            "a registration its manager took stands whatever its copy",
+        ),
+        (
+            "platform_service",
+            "running",
+            "a task that refused a repetition still runs",
+        ),
+        (
+            "platform_service",
+            "from_schtasks",
+            "a task's row is held to the task asked",
+        ),
+        (
+            "platform_service",
+            "owner_lives",
+            "a scratch whose owner holds its lock is kept",
+        ),
+        (
+            "platform_service",
+            "too_new",
+            "a scratch whose age cannot be read is too new",
+        ),
+        (
+            "platform_service",
+            "sweep_scratches",
+            "a scratch too new to judge is left alone",
+        ),
+        (
+            "platform_service",
+            "sweep_scratches",
+            "a sweep keeps to its checkout's prefix",
         ),
     ];
 
@@ -47799,7 +48605,17 @@ impl<T: Shown> Shown for Option<T> {
                 .and_then(|at| names.get(at + 1))
                 .cloned()
         };
-        after("--")
+        // **A `--skip` narrows too, and is no filter**: read as the word after
+        // `--`, `-- --skip with_the_manager` was a narrowing to `--skip`. What
+        // it names is left out, and the phrase says so after whatever the rest
+        // of the command runs.
+        let skipped = names
+            .windows(2)
+            .filter(|pair| pair[0] == "--skip")
+            .map(|pair| format!("except {}", pair[1]));
+        let narrowed = after("--")
+            .filter(|word| word != "--skip")
+            .map(|filter| filter.trim_end_matches(':').to_owned())
             .or_else(|| after("--test"))
             .or_else(|| after("--bin"))
             .or_else(|| {
@@ -47807,7 +48623,9 @@ impl<T: Shown> Shown for Option<T> {
                     .iter()
                     .any(|word| word == "--lib")
                     .then(|| "unit tests".to_owned())
-            })
+            });
+        let said: Vec<String> = narrowed.into_iter().chain(skipped).collect();
+        (!said.is_empty()).then(|| said.join(" "))
     }
 
     /// The phrase for a source's first command, with its second half checked off.

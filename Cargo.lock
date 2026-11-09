@@ -1913,6 +1913,7 @@ dependencies = [
 name = "nc-platform"
 version = "0.1.0-rc.1"
 dependencies = [
+ "nc-channel",
  "nc-platform",
  "tokio",
  "windows-sys 0.61.2",

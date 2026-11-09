@@ -274,7 +274,7 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 │   ├── nc-log/                     the central log's type wall (§15.4)
 │   │   ├── events.rs              in src/ — GENERATED, one struct per event
 │   │   └── fixtures/               the files that MUST NOT COMPILE
-│   ├── nc-platform/                a path one user's alone, per system (§2.7) — THE ONE `unsafe`
+│   ├── nc-platform/                a path one user's alone, and a program the service manager restores, per system (§2.7) — THE ONE `unsafe`
 │   ├── nc-channel/                 every name an install gives the system, from one function (§17.1)
 │   ├── nc-ipc/                     the protocol a daemon is reached through: frames, the handshake, the heartbeat (§11.1)
 │   ├── nc-policy/                  the pack's compiler, validator and case runner
@@ -427,9 +427,11 @@ fails a gate a minute or two later.
 | a call the kernel asks of the blobs | `BlobStore` in `crates/nc-kernel/src/blobs.rs` | the same method on `DirectoryBlobs` first — the one a daemon keeps a person's files in — then on `MemoryBlobs` beside it, which `the_two_stores_answer_one_script_alike` holds to one script; the trait is asynchronous because the disk may not answer, so a host function that calls it goes through `supervisor::in_time` like any other that waits, and a writer is moved into a write and handed back, so one a deadline abandons takes its writing with it. What a blob is to the decision point — which unit made it, whether one still holds it — is the store's, in `nc_local`'s `blobs` table, never the blob store's |
 | a kind of node a surface shows | `KINDS` in `crates/nc-kernel/src/ui.rs` | the table in that module's header is what a plugin author reads, and changes in the same edit; the kind's keys are a row of `KINDS`, a key holding a person's text is in `TEXTS` and a closed choice in `CHOICES`, so every text of every kind is held to the same bound and characters; and a test in that file keeps a tree of the new kind and refuses each rule it is held to — the interface's renderer (Stage 16) draws only the kinds this set names |
 | a name the system sees | a field of `Layout` in `crates/nc-channel/src/lib.rs`, derived in `layout` and in the table of that crate's header | a line of `parts` in `crates/nc-channel/tests/the_names_are_disjoint.rs`, which destructures `Layout` without `..` and does not compile until the field is read — what it reads is held apart from every other install's name, case-folded; a name the whole machine shares carries the user and is a row of `MACHINE_WIDE` there too, unless it is a checkout's stack's, which is the checkout's; its spelling is written out in `each_name_is_spelled_as_the_crate_header_writes_it`; a relocated install's must carry its namespace and lie under its root, or be `None` as the update feed and the stack are; and nothing outside the crate spells one — `cargo xtask dev` names its stack's project and binds its ports through `Checkout::stack`, and `POSTGRES_PORT` or `LOGS_PORT` only moves a port |
+| a restorer's shape | its generator in `crates/nc-platform/src/service.rs` — `systemd_unit`, `launchd_plist` or `task_xml` — and the table of restorers in that module's header | the generator's text is written out whole in the module's tests, and every character its format reads specially is escaped there or refused when the service is described; what each restorer does is measured, not assumed, so a change to one is measured again on its system's runner by the scratch services in `with_the_manager` in the same file — the test binary registered under this checkout's test prefix, killed, and read back through the manager's own counters — and `NOCTUA.md §17.3` says what each system's restorer is |
 | a kernel limit | `[kernel]` in `catalog/limits.toml`, and a field of `KernelLimits` in `crates/nc-catalog-compiler/src/model.rs` with its row in `KernelLimits::each` | every limit is required and above zero, and one that bounds another is held to it where both are written (`check_kernel` in the compiler's `load.rs`); `xtask/tests/the_registry_reaches_the_code.rs` compares every field by name, so a new one is a line there as well, and `docs/limits.md` publishes it with its unit. A plugin's manifest may lower only what `Lowering` in `crates/nc-kernel/src/limits.rs` names, and never raise it |
 | an IPC message | `crates/nc-ipc/src/message.rs` — a variant of `Request` or `Answer`, or a message of the handshake — and the module header of `crates/nc-ipc/src/lib.rs` | its encoding and its reading in the same file, the reading **strict**: every field it holds taken by `Fields` and `done()` refusing the rest, so a field an older build does not read is a refusal rather than a value dropped in silence; a message the handshake reads names the protocol first, and a change of what an existing message means is a new `PROTOCOL`, never the same number; a case in `crates/nc-ipc/tests/` that sends it through a real `serve` and `connect`, and one that sends it malformed by hand through `nc_ipc::frame`. Whatever the daemon answers is held to `ipc_frame_max_bytes`, which the compiler holds above the kernel's `payload_bytes` and the envelope of 64 KiB `crates/nc-catalog-compiler/src/load.rs` names, so an answer that may grow without bound — the registry, a status — is refused to the daemon before anything of it is sent (`NC-IPC-0016`), its request still waiting for an answer the daemon can send instead, and never a frame cut short |
 | a daemon limit | `[daemon]` in `catalog/limits.toml`, and a field of `DaemonLimits` in `crates/nc-catalog-compiler/src/model.rs` with its row in `DaemonLimits::each` | every limit is required and above zero, and one that must keep a bound outside its table is held to it where it is written (`check_daemon` and `check_daemon_ipc` in the compiler's `load.rs`, with a failing case in `crates/nc-catalog-compiler/tests/the_gates_fire.rs` at the boundary): `mark_lease_ms` below the day past which a minter reads a mark as corrupt, `ipc_frame_max_bytes` at least the kernel's `payload_bytes` and the frame's envelope, `ipc_silent_after_ms` above two `ipc_heartbeat_ms`, and `ipc_connections_max` at most 252, what a Windows pipe's instances hold with one waiting and one past the bound. `xtask/tests/the_registry_reaches_the_code.rs` compares every field by name and counts them, `xtask/tests/every_generated_value_is_compared.rs` counts the generated surface, and `docs/limits.md` publishes it under **Daemon** with its unit, whose prose `xtask/tests/the_pages_reach_the_catalog.rs` pins. The daemon and `crates/nc-ipc` read `nc_catalog::DAEMON` and take no value of the type from a caller |
+| an advisory left out of the audit | `[advisories] ignore` in `deny.toml`, and `THE_ADVISORIES_LEFT_OUT` in `xtask/src/check.rs` | only one the lock cannot get past and that is argued not to reach this tree: the entry's `reason` says in one sentence why and when it leaves, the paragraph above `ignore` gives the argument, and the bullet of **What is deliberately not claimed** it rests on says so. The gate holds the list to the constant, in its order, and refuses an entry with no reason however TOML spells it; cargo-deny warns `advisory-not-detected` for an entry no crate matches while `[advisories] unused-ignored-advisory` is `warn`, which `deny.toml` writes out and `THE_AUDIT_IS_NOT_NARROWED` holds, and the warning fails the dependency step, so the change that moves the lock past the advisory takes it out of both lists |
 
 Two things are true of all of them:
 
@@ -641,17 +643,20 @@ effect; 22 is gated over the statements written today and by nothing over the ne
     **Gated twice, in `xtask/src/local.rs`**, whose header lists every refusal. `check`
     applies the directory to a scratch file one migration at a time and holds each step to
     the list, with `integrity_check`, `foreign_key_check`, the header's `application_id`
-    and the SQLite floor. A source gate, over every member whose manifest takes SQLite —
-    `sqlx`'s `any` feature included, a test holding the gate's list to them — refuses any
-    statement that builds or changes the schema, attaches a database or touches
-    `writable_schema`; undoes the connection's hardening, through SQL, the pragma door or
-    `sqlx`'s own option, every value judged as SQLite reads it and the list held both ways
-    to the pragmas `crates/nc-local` sets; sets a pragma under a key no literal reads as
-    one; copies the file out with `VACUUM` or points SQLite's files at a directory; loads
-    an extension; gathers the planner's statistics (`ANALYZE`, `PRAGMA optimize`,
-    `optimize_on_close`); sets `application_id` or `schema_version`; or writes
-    `_sqlx_migrations`. A `#[cfg(test)]` arm, field or item hides only itself: the region
-    closes at the comma, semicolon or brace that ends what the attribute governs.
+    and the SQLite floor. The file's directory is made private to this user by the call
+    that makes it, and a name already there is refused rather than reused or cleared, so
+    the gate's SQLite reads no database or `-wal` another account wrote. A source gate,
+    over every member whose manifest takes SQLite — `sqlx`'s `any` feature included, a test
+    holding the gate's list to them — refuses any statement that builds or changes the
+    schema, attaches a database or touches `writable_schema`; undoes the connection's
+    hardening, through SQL, the pragma door or `sqlx`'s own option, every value judged as
+    SQLite reads it and the list held both ways to the pragmas `crates/nc-local` sets; sets
+    a pragma under a key no literal reads as one; copies the file out with `VACUUM` or
+    points SQLite's files at a directory; loads an extension; gathers the planner's
+    statistics (`ANALYZE`, `PRAGMA optimize`, `optimize_on_close`); sets `application_id`
+    or `schema_version`; or writes `_sqlx_migrations`. A `#[cfg(test)]` arm, field or item
+    hides only itself: the region closes at the comma, semicolon or brace that ends what
+    the attribute governs.
 
 19. **The kernel's bounds on a plugin are the catalog's, and a plugin can only lower
     them.** `[kernel]` in `catalog/limits.toml` is generated as `nc_catalog::KERNEL` and
@@ -1918,6 +1923,84 @@ seed's first write, which leaves a seed of another length that no start and no
 hand; a disk that answers a sync before the bytes are on it; and an administrator. What
 the daemon leaves undone is under **What is deliberately not claimed**.
 
+### A program registered with the service manager runs as it was described, and a test's registration is its own
+
+**Guaranteed.** `nc_platform::service` writes a program's definition in the format its
+system's manager reads — a systemd user unit, a launch agent's property list, a scheduled
+task's XML in UTF-16 — and asks the manager's own tool, named by an absolute path:
+`systemctl` from the absolute entries of `PATH` alone, `/bin/launchctl`, and `schtasks.exe`
+under `%SystemRoot%`, so a relative entry of `PATH` never chooses what runs. Every value a
+definition carries is escaped for the format that reads it — systemd's `%`, `$`, `\` and
+`"` in each quoted word of `ExecStart`, XML's five characters in a plist and in a task, and a
+task's arguments first quoted as Windows splits a command line — and what no escape carries
+is refused when the service is described: a control character anywhere, a program that is
+not an absolute path, a name outside letters, digits, `.`, `_` and `-` or not opening with a
+letter or a digit, so no name is read by a tool as one of its options, and a `%` in what a
+task runs, which Task Scheduler expands and has no form for. A `SystemRoot` that is not an
+absolute path is refused rather than read from the current directory. A definition file is
+created new and private, never through a link and never over one already there. **A
+registration never replaces a service**, whoever registered it: a name the manager already
+holds is refused before anything is written, `schtasks` is never handed the `/F` that would
+replace a task, and a registration the manager refuses takes back only what it made — its
+file, and on systemd the unit its failed start left loaded — never the service of that name
+someone else holds; one the manager took is registered whatever becomes of the copy of a
+task's XML that Task Scheduler no longer reads, which `unregister` removes when it cannot
+be removed then. A task stores no credential: it runs with the user's own interactive
+token, at least privilege. What each manager is told to restore is what its system's hosted
+runner measured (`NOCTUA.md §17.3`).
+
+**A test's registration never meets a real one.** The suites that register a real service —
+`with_the_manager`, in the module's tests — register a scratch program, the test binary
+started again, under a name that opens with `noctua-dev-test-`, the checkout's digest and
+`-`, and carries the process and a nonce: a shape no install's name takes. On systemd its
+unit is written only in `$XDG_RUNTIME_DIR/systemd/user`, which the user manager forgets at
+the next boot; under launchd its plist stays in the test's scratch and is bootstrapped from
+there; on Windows its task sits in the root folder under that prefix. A guard unregisters
+each however the test leaves, and each test first sweeps this checkout's leftovers whose
+owner is dead — told by a lock the owner holds for as long as it lives, in a scratch every
+run of the checkout keeps in `nc-registered` under the checkout's own `target`, whatever
+its environment names as temporary, never by a pid that may since name another process, and
+only once the scratch is a minute old, so a scratch whose owner has not yet taken its lock
+is never read as dead — so a run killed half way is cleaned by the next run of the same
+checkout, and a live run, of this checkout or another, is never touched. The sweep unregisters only a name under this checkout's prefix, held
+twice: by the listing, which launchd and Task Scheduler answer with every service they hold,
+and again before each name is unregistered. So `cargo xtask check` on Linux
+registers short-lived units with the developer's own user manager, under that prefix, and
+needs one running. The tests never enable lingering, never reload the manager, and never
+stop, start, enable or mask a unit they did not register.
+
+**Enforced by** the module's tests in `crates/nc-platform/src/service.rs` — each
+generator's text written out whole, each escape and each refusal by its words, each
+manager's counters and listing read from recorded answers, the commands each manager is
+asked, the tool found only in an absolute entry of `PATH` or under an absolute
+`SystemRoot`, a listing narrowed to its prefix, a name the manager holds refused, a
+registration the manager took standing whatever becomes of its copy, a task's counters
+read by place in another display language, the scratches in the checkout's own `target`,
+and the sweep's judgement of a scratch whose owner lives, one dead, one never locked, one
+too new and another checkout's — by the two scratch services in `with_the_manager`, run on
+Linux, macOS and Windows in CI: one killed and restored as a new instance, read through the
+manager's own counter and the instance's record of itself, having been handed its
+arguments character for character through the format's escaping, and registered over in
+vain, by the registrar and, under launchd and Task Scheduler, by the manager's own load,
+with its instance still the one running, and on Windows killed past a repetition refused
+while it ran and read as down until the next, a status Windows writes in English agreeing
+with the last result at every wait; one that exits 0 left down, or started again by Task
+Scheduler's repetition, then started when asked within twenty seconds, which no
+repetition meets; and each gone from the manager once unregistered, its definition with
+it — and by the operators over `nc-platform`'s sources in `xtask/mutants.py`, whose
+commands skip the two that register.
+
+**Not answered:** a process running as the same user, which can rewrite or remove any
+definition, register a program of its own under any name — the test prefix included — or
+stop the manager's restorer, and can race a registration between the name being asked and
+the definition being loaded; whoever the system lets past every access list; registering a
+task, on Windows, as a user who is not an administrator, which no runner measures, the
+hosted one being elevated; a task's counters on a Windows whose display language is not
+English, which no runner has; and a test's task left where nothing runs this checkout's
+tests again (both under **What is deliberately not claimed**). Which program is registered for a channel,
+and how an explicit stop silences every restorer (`NOCTUA.md §17.5`), are the daemon's and
+its installer's, which register nothing yet.
+
 ### The stack binds to loopback and nothing else
 
 `docker-compose.yml` publishes both of its ports on `127.0.0.1` and nowhere else, never on
@@ -2627,20 +2710,29 @@ rather than anything decided for the project, and each is a maintainer's to reop
   for where it ran is recorded and logged the same way, as `kernel.host_call_refused`. Not
   logged: the `activate` refusals of a plugin whose load is then refused, there being no
   slot to name it by — the load's own refusal is what its caller is told.
-- **The local database stops other accounts, not the account it belongs to.** SQLite has
-  no roles: a process running as the same user can `DROP TRIGGER` and rewrite the images,
-  or race the owner and mode checks between check and open, and the next open's refusal of
-  a changed schema is detection, not prevention. An administrator, and a disk read offline
+- **The local database stops other accounts, not the account it belongs to.** SQLite has no
+  roles: a process running as the same user can `DROP TRIGGER` and rewrite the images, or
+  race the owner and mode checks between check and open, and the next open's refusal of a
+  changed schema is detection, not prevention. An administrator, and a disk read offline
   without full-disk encryption, are not answered — the file is not encrypted. SQLite's
-  `DEFENSIVE` flag and an authorizer are out of `sqlx`'s safe API's reach, and nothing
-  here runs SQL this repository did not write — the premise the bundled SQLite's floor
-  (3.50.2, CVE-2025-6965) and the later FTS5 advisories rest on. The blobs' directory
-  stops the same people and no more. An open leaves a `-shm` it gave a `-wal` that had
-  none (an index holding no data) beside a file it then refuses, and leaves what it made
-  before it judged the path it refuses: the database file, when it was missing and a
-  companion is then refused, and on Windows the profile's lock file
-  (`nc_local::LOCK_NAME`), made before the database file is judged. It waits without
-  bound for another open of the profile, so a process stopped mid-open holds every other.
+  `DEFENSIVE` flag and an authorizer are out of `sqlx`'s safe API's reach, and nothing here
+  runs SQL this repository did not write — the premise the bundled SQLite's floor (3.50.2,
+  CVE-2025-6965) and the later FTS5 advisories rest on. The bundled SQLite (3.51.3) is
+  below 3.54.0, which fixes CVE-2026-119375: a database opened with a `-wal` whose page
+  size differs from its own returns uninitialized page-cache memory. The pair that needs is
+  written only by the account the process runs as, the one this bullet does not answer:
+  every database the shipped code opens goes through `nc_local`, which holds the directory,
+  the file and each companion to this user's alone before SQLite reads them, and the gate's
+  own scratch is a directory `xtask/src/local.rs` makes private and refuses to find.
+  `deny.toml` leaves RUSTSEC-2026-0459 out of the audit on that ground until the lock can
+  reach `libsqlite3-sys` 0.39. A test suite's scratch directory is one it made itself, with
+  the mode its umask gives, so a group that umask lets write there is not answered for the
+  tests. The blobs' directory stops the same people and no more. An open leaves a `-shm` it
+  gave a `-wal` that had none (an index holding no data) beside a file it then refuses, and
+  leaves what it made before it judged the path it refuses: the database file, when it was
+  missing and a companion is then refused, and on Windows the profile's lock file
+  (`nc_local::LOCK_NAME`), made before the database file is judged. It waits without bound
+  for another open of the profile, so a process stopped mid-open holds every other.
 - **On Windows, the system's own can read or take anything** — the Administrators group,
   `SYSTEM`, and any process holding the backup or the take-ownership privilege —
   whatever the access list says: Windows' counterpart of root, which no access list
@@ -2707,6 +2799,26 @@ rather than anything decided for the project, and each is a maintainer's to reop
   a relocated install shares its channel's — the default is one chord per channel
   (`NOCTUA.md §12.8`), and the configuration that refuses the collision is the
   interface's (Stage 16).
+- **A Linux machine without a running user manager cannot pass `check`**, as one without
+  docker cannot: the service manager's suites register a scratch unit with it, and a
+  container or a login that has none refuses them, in `systemctl`'s own words.
+- **Windows restores whatever stopped**: Task Scheduler cannot tell a crash from a clean
+  exit, so its restorer starts a program that exited 0 again within a minute, and what keeps
+  a program down there is the program's own mark (`NOCTUA.md §17.3`).
+- **launchd's domain is the graphical one**, `gui/<uid>`: a session with none, a login over
+  SSH alone, has no domain to bootstrap an agent into, and registering fails there.
+- **A test's task outlives a run killed half way, on Windows**, and keeps running: unlike a
+  unit in the runtime directory, which the next boot forgets, or an agent bootstrapped from
+  a scratch, which the next logout does, a task in the root folder survives reboots and
+  starts the test binary every minute and at each logon until this checkout's tests run
+  again and sweep it, and without end once the checkout is deleted, since no other sweep
+  reaches it. It is removed by hand, each name `schtasks /Query /FO CSV /NH` lists under
+  that prefix, with `schtasks /Delete /TN \noctua-dev-test-<checkout>-<pid>-<nonce> /F`.
+- **A task's counters are measured in English alone**: `Counters` reads a task's columns
+  by their place, held to the task's own name, and whether it runs by its last result, so
+  no word Windows translates is judged — and the hosted runner writes English, so a display
+  language that orders those columns otherwise, or writes a last result some other way,
+  is not one any run has shown.
 
 **The journal and the central log**
 
@@ -3330,21 +3442,22 @@ deliberately not claimed").
   App's token, enters an environment, or reads a secret or a step's output, and no file
   CI reaches but `release.yml` publishes or stands the release's gate aside ("The release
   job is what `release.yml` says, and the App's token reaches its last step alone").
-- **Every `cargo install` is one crate, locked, at an exact version**,
-  `cargo install --locked name@X.Y.Z` and no other word, in every file CI reaches, read
-  as a command is however its line is written: a crate named with no version, or with a
-  range such as `@0.20`, is whatever crates.io holds on the day, and its code runs in the
-  job that installs it, the release's gate among them; a second crate on the line is one
-  no version names, and `--git`, `--path`, `--registry` or `--index` takes the code from
-  where no version on crates.io describes it. `cargo-deny`'s version is written in six
-  places and moved in one commit: the three installs of `ci.yml`, the gate job of
-  `release.yml`, `THE_RELEASE_STEPS` in `xtask/src/workflow.rs`, which holds that line
-  for line, and that line's row in `WHAT_ELSE_THIS_TOOL_SAYS` in `xtask/src/check.rs`,
-  the census of the sentences the tool ships. The rule's test takes its install from
-  `THE_RELEASE_STEPS` and fails when `ci.yml` holds no such line, as the release's own rule
-  fails when `release.yml`'s gate does not; the three lines of `ci.yml` are not held to one
-  another. `deny.toml`'s comment on `unsound` names the version whose default it read, and
-  is read again against the new one.
+- **Every `cargo install` is one crate, locked, at an exact version**, `cargo install
+  --locked name@X.Y.Z` and no other word, in every file CI reaches, read as a command is
+  however its line is written: a crate named with no version, or with a range such as
+  `@0.20`, is whatever crates.io holds on the day, and its code runs in the job that
+  installs it, the release's gate among them; a second crate on the line is one no version
+  names, and `--git`, `--path`, `--registry` or `--index` takes the code from where no
+  version on crates.io describes it. `cargo-deny`'s version is written in six places and
+  moved in one commit: the three installs of `ci.yml`, the gate job of `release.yml`,
+  `THE_RELEASE_STEPS` in `xtask/src/workflow.rs`, which holds that line for line, and that
+  line's row in `WHAT_ELSE_THIS_TOOL_SAYS` in `xtask/src/check.rs`, the census of the
+  sentences the tool ships. The rule's test takes its install from `THE_RELEASE_STEPS` and
+  fails when `ci.yml` holds no such line, as the release's own rule fails when
+  `release.yml`'s gate does not; the three lines of `ci.yml` are not held to one another.
+  `deny.toml`'s comment on `unsound` names the version whose default it read, and the
+  paragraph above `yanked` the version whose `advisory-not-detected` warning it measured,
+  and both are read again against the new one.
 - **Actions are an allowlist, not a needle**: an action judging anything of ours is a
   second gate whatever it is called — a linting action such as
   `giraffate/clippy-action@v1` <!-- allow-reference: names `giraffate/clippy-action@v1` — an action this repository does not use -->

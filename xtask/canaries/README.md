@@ -584,7 +584,8 @@ which builds that plugin into what the kernel loads, the local database's
 `lib.rs`, `open.rs`, `schema.rs` and `store.rs` and the journal it keeps,
 `journal.rs`, what makes that database's
 files private on the system it runs on — `nc-platform`'s `lib.rs`, `unix.rs`
-and the test doors `testing.rs` — the endpoint a daemon is reached through,
+and the test doors `testing.rs` — the program a service manager is told to
+start and restore, its `service.rs`, the endpoint a daemon is reached through,
 `nc-platform`'s `ipc.rs`, the protocol over it, `nc-ipc`'s `lib.rs`, `frame.rs`,
 `message.rs`, `handshake.rs` and `connection.rs`, every name an install gives the system,
 `nc-channel`'s `lib.rs`, the daemon's `lib.rs`, `main.rs`, `install.rs`,

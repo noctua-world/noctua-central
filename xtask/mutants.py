@@ -484,6 +484,14 @@ SOURCES = {
     "platform": os.path.join(ROOT, "crates/nc-platform/src/lib.rs"),
     "platform_unix": os.path.join(ROOT, "crates/nc-platform/src/unix.rs"),
     "platform_testing": os.path.join(ROOT, "crates/nc-platform/src/testing.rs"),
+    # **A program registered with this system's service manager**: the three
+    # generators and the escaping each format needs, the commands each manager
+    # is asked and the readers of what it answers. Decided by the module's own
+    # tests over texts written out whole and answers recorded from each
+    # manager — never by the two beside them that register a real service,
+    # which the command below skips, since a run of those per operator would
+    # register a unit with the developer's manager hundreds of times.
+    "platform_service": os.path.join(ROOT, "crates/nc-platform/src/service.rs"),
     "local_schema": os.path.join(ROOT, "crates/nc-local/src/schema.rs"),
     "local_store": os.path.join(ROOT, "crates/nc-local/src/store.rs"),
     # **The journal's store on the person's machine**: the link and a unit's
@@ -4145,6 +4153,44 @@ WEAKENINGS = [
     ("check", "what_the_count_leaves_out", "the count line need not say what the system stood aside",
      "    if !the_suites_not_applicable(has).is_empty() {",
      "    if the_suites_not_applicable(has).len() > THE_SUITES_A_SYSTEM_STANDS_ASIDE.len() {"),
+    # The advisories `deny.toml` leaves out of the audit: exactly the ones
+    # `THE_ADVISORIES_LEFT_OUT` names, in its order, each with a reason, read
+    # from the document cargo-deny reads. The id comparisons and the reason
+    # requirement are killed by
+    # `an_advisory_is_left_out_only_when_the_gate_names_it_with_a_reason`, the
+    # parse refusals by `a_deny_toml_cargo_deny_cannot_read_is_a_finding`.
+    ("check", "the_advisories_left_out_are_the_listed_ones", "no fewer advisories are left out than the gate names",
+     "    if written != THE_ADVISORIES_LEFT_OUT {",
+     "    if written.len() > THE_ADVISORIES_LEFT_OUT.len() {"),
+    ("check", "the_advisories_left_out_are_the_listed_ones", "no advisory is left out that the gate does not name",
+     "    if written != THE_ADVISORIES_LEFT_OUT {",
+     "    if !THE_ADVISORIES_LEFT_OUT.iter().all(|id| written.contains(id)) {"),
+    ("check", "the_advisories_left_out_are_the_listed_ones", "an advisory left out with no reason is refused",
+     "        if !reasoned {",
+     "        if false {"),
+    ("check", "the_advisories_left_out", "an empty reason is no reason",
+     "                    reason.is_some_and(|reason| !reason.trim().is_empty()),",
+     "                    reason.is_some(),"),
+    ("check", "the_advisories_left_out", "a bare id is an entry with no reason",
+     "            toml::Value::String(id) => Ok((id.clone(), false)),",
+     "            toml::Value::String(id) => Ok((id.clone(), true)),"),
+    ("check", "the_advisories_left_out", "a deny.toml that is not TOML is not read as one",
+     "        .map_err(|error| error.message().trim().to_owned())?;",
+     "        .unwrap_or_default();"),
+    ("check", "the_advisories_left_out", "an `advisories` that is not a table is not read as empty",
+     "        return Err(format!(\n            \"`advisories` is a value of type {}, not a table\",\n            advisories.type_str()\n        ));",
+     "        return Ok(Vec::new());"),
+    ("check", "the_advisories_left_out_are_the_listed_ones", "a deny.toml the audit cannot read is a finding",
+     "            return false;\n        }\n    };\n    let mut held = true;",
+     "            return true;\n        }\n    };\n    let mut held = true;"),
+    # And the key an entry of `ignore` expires by, held at `warn`: a row that
+    # refused only the stricter value leaves `allow` free to keep a stale entry
+    # ignored, and the loops over the rows plant neither `allow` nor the key
+    # removed under it. Killed by
+    # `the_warning_that_expires_an_ignored_advisory_cannot_be_turned_off`.
+    ("check", "THE_AUDIT_IS_NOT_NARROWED", "the warning that expires an ignored advisory stays on",
+     '        "unused-ignored-advisory",\n        "\\"warn\\"",',
+     '        "unused-ignored-advisory",\n        "not \\"deny\\"",'),
     # -- the decision point, the units of work and the log --------------------
     ("kernel_dispatch", "spend", "a call tree nests no deeper than its depth",
      "        if depth > usize::try_from(KERNEL.dispatch_depth).unwrap_or(usize::MAX) {",
@@ -6349,6 +6395,21 @@ WEAKENINGS = [
     ("local_gates", "migrates_from_elsewhere", "only the one embedded migrator is let through",
      "        .filter(|(_, text)| text.trim() == EMBEDDED)\n",
      "        .filter(|(_, text)| text.contains(\"MIGRATOR\"))\n"),
+    # The gate's scratch, where it opens a SQLite file with
+    # `create_if_missing`: made private by the call that makes it, and a
+    # directory already there refused, never reused and never cleared. The
+    # first two are killed by
+    # `a_scratch_directory_that_already_exists_is_refused_and_nothing_is_opened_in_it`,
+    # the third by `the_scratch_directory_the_gate_makes_is_this_users_alone`.
+    ("local_gates", "at", "a scratch directory found is refused, not reused",
+     "            Ok(()) => Ok(Self(root)),\n",
+     "            Ok(()) => Ok(Self(root)),\n            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists && root.is_dir() => Ok(Self(root)),\n"),
+    ("local_gates", "at", "a scratch directory found is never cleared",
+     "    fn at(root: PathBuf) -> Result<Self, String> {\n",
+     "    fn at(root: PathBuf) -> Result<Self, String> {\n        let _ = std::fs::remove_dir_all(&root);\n"),
+    ("local_gates", "at", "the gate's scratch directory is private to this user",
+     "        match nc_platform::create_private_directory(&root) {",
+     "        match std::fs::create_dir(&root) {"),
     ("gates", "pragmas_set", "the pragma door called as a path is read",
      "        let path = at >= 2 && code[at - 2..at] == [':', ':'];",
      "        let path = false;"),
@@ -6747,6 +6808,125 @@ WEAKENINGS = [
     ("loader", "check_daemon_ipc", "the connections fit a pipe's instances",
      "    if u64::from(daemon.ipc_connections_max).saturating_add(2) > PIPE_INSTANCES {",
      "    if u64::from(daemon.ipc_connections_max).saturating_add(1) > PIPE_INSTANCES {"),
+
+    # -- platform_service: a program registered with the service manager ---
+    ("platform_service", "systemd_word", "a `%` in a unit is written twice",
+     "'%' => out.push_str(\"%%\"),",
+     "'%' => out.push('%'),"),
+    ("platform_service", "systemd_word", "a `$` in a unit is written twice",
+     "'$' => out.push_str(\"$$\"),",
+     "'$' => out.push('$'),"),
+    ("platform_service", "systemd_word", "a quote inside a unit's word is escaped",
+     "'\"' => out.push_str(\"\\\\\\\"\"),",
+     "'\"' => out.push('\"'),"),
+    ("platform_service", "systemd_word", "a backslash inside a unit's word is escaped",
+     "'\\\\' => out.push_str(\"\\\\\\\\\"),",
+     "'\\\\' => out.push('\\\\'),"),
+    ("platform_service", "systemd_unit", "a description keeps its `%` from systemd's specifiers",
+     "service.description.replace('%', \"%%\"),",
+     "service.description.clone(),"),
+    ("platform_service", "systemd_unit", "a unit restarts on failure",
+     "         ExecStart={}\\n\\\n         Restart=on-failure\\n\\",
+     "         ExecStart={}\\n\\\n         Restart=no\\n\\"),
+    ("platform_service", "xml_text", "an `&` in XML is its entity",
+     "'&' => out.push_str(\"&amp;\"),",
+     "'&' => out.push('&'),"),
+    ("platform_service", "xml_text", "a `<` in XML is its entity",
+     "'<' => out.push_str(\"&lt;\"),",
+     "'<' => out.push('<'),"),
+    ("platform_service", "windows_argument", "a run of backslashes before a quote is doubled",
+     "out.extend(core::iter::repeat_n('\\\\', backslashes + 1));",
+     "out.extend(core::iter::repeat_n('\\\\', 1));"),
+    ("platform_service", "windows_argument", "a word holding a space is quoted",
+     "argument.contains([' ', '\\t', '\"'])",
+     "argument.contains(['\\t', '\"'])"),
+    ("platform_service", "windows_argument", "the backslashes before the closing quote are doubled",
+     "        out.extend(core::iter::repeat_n('\\\\', backslashes));\n",
+     "        out.extend(core::iter::repeat_n('\\\\', 0));\n"),
+    ("platform_service", "task_xml", "a `%` is refused where Task Scheduler expands it",
+     "service.words().find(|word| word.contains('%'))",
+     "service.words().find(|_| false)"),
+    ("platform_service", "utf16_with_its_mark", "a task's XML carries its byte-order mark",
+     "let mut bytes = vec![0xFF, 0xFE];",
+     "let mut bytes = Vec::new();"),
+    ("platform_service", "in_an_absolute_entry", "a relative entry of PATH is never searched",
+     ".filter(|entry| entry.is_absolute())",
+     ".filter(|_| true)"),
+    ("platform_service", "found", "the runtime directory is handed to systemctl where it is unset",
+     "vec![(\"XDG_RUNTIME_DIR\".to_owned(), runtime)],",
+     "Vec::new(),"),
+    ("platform_service", "found", "a relative runtime directory is not taken",
+     ".filter(|runtime| runtime.is_absolute());",
+     ".filter(|_| true);"),
+    ("platform_service", "ran_since", "a restart of systemd's is counted, not assumed",
+     "=> restarts > was,",
+     "=> restarts >= was,"),
+    ("platform_service", "ran_since", "a run of launchd's is counted, not assumed",
+     "=> runs > was,",
+     "=> runs >= was,"),
+    ("platform_service", "ran_since", "a task ran again only when its last run moved",
+     "last_run != was",
+     "last_run == was"),
+    ("platform_service", "running", "a unit runs only with a process",
+     "active_state == \"active\" && *main_pid != 0",
+     "active_state == \"active\""),
+    ("platform_service", "from_launchctl_print", "a line of a nested block is not the service's own",
+     "let Some(property) = line.strip_prefix('\\t') else {",
+     "let Some(property) = Some(line.trim_start()) else {"),
+    ("platform_service", "launchd_labels", "the services block alone is read",
+     "inside = trimmed == \"services = {\";",
+     "inside = true;"),
+    ("platform_service", "csv_fields", "a doubled quote inside a field is one quote",
+     "'\"' if quoted && characters.peek() == Some(&'\"') => {",
+     "'\"' if false => {"),
+    ("platform_service", "takes", "a systemd name ends in `.service`",
+     "Self::Systemd => name.strip_suffix(\".service\"),",
+     "Self::Systemd => Some(name),"),
+    ("platform_service", "is_a_plain_name", "a name opens with a letter or a digit",
+     ".is_some_and(|first| first.is_ascii_alphanumeric())",
+     ".is_some_and(|_| true)"),
+    ("platform_service", "described", "a control character is refused",
+     "if word.chars().any(char::is_control) {",
+     "if false {"),
+    ("platform_service", "described", "a program is an absolute path",
+     "if !program.is_absolute() {",
+     "if false {"),
+    ("platform_service", "under", "a listing is narrowed to the prefix asked",
+     "    listed.retain(|name| name.starts_with(prefix));\n",
+     ""),
+    ("platform_service", "not_held", "a name the manager holds is never registered over",
+     "    if held {",
+     "    if false {"),
+    ("platform_service", "a_refused_load_leaves_it_loaded", "a refused bootstrap takes back its file alone",
+     "matches!(self, Self::Systemd)",
+     "matches!(self, Self::Systemd | Self::Launchd)"),
+    ("platform_service", "found", "a relative SystemRoot is not taken",
+     ".filter(|root| is_an_absolute_windows_path(root))",
+     ".filter(|root| !root.is_empty())"),
+    ("platform_service", "is_an_absolute_windows_path", "a root on no drive is not absolute",
+     "root.starts_with(\"\\\\\\\\\")",
+     "root.starts_with('\\\\')"),
+    ("platform_service", "loaded", "a registration its manager took stands whatever its copy",
+     "        if self.manager == Manager::TaskScheduler {\n            drop(remove_if_there(&path));\n        }",
+     "        if self.manager == Manager::TaskScheduler {\n            remove_if_there(&path)?;\n        }"),
+    ("platform_service", "running", "a task that refused a repetition still runs",
+     "matches!(*last_result, TASK_RUNNING | REFUSED_WHILE_RUNNING)",
+     "matches!(*last_result, TASK_RUNNING)"),
+    ("platform_service", "from_schtasks", "a task's row is held to the task asked",
+     "if !named?.eq_ignore_ascii_case(name) {",
+     "if named?.is_empty() {"),
+    ("platform_service", "owner_lives", "a scratch whose owner holds its lock is kept",
+     ".is_ok_and(|lock| matches!(lock.try_lock(), Err(std::fs::TryLockError::WouldBlock)))",
+     ".is_ok_and(|_| false)"),
+    ("platform_service", "too_new", "a scratch whose age cannot be read is too new",
+     "age.is_none_or(|age| age < new_for)",
+     "age.is_some_and(|age| age < new_for)"),
+    ("platform_service", "sweep_scratches", "a scratch too new to judge is left alone",
+     "&& !too_new_to_judge(&path, new_for)",
+     ""),
+    ("platform_service", "sweep_scratches", "a sweep keeps to its checkout's prefix",
+     ".is_some_and(|name| name.starts_with(prefix));",
+     ".is_some();"),
 ]
 
 # **Every member tree, as `MEMBER_TREES` in `xtask/src/members.rs` names them**,
@@ -7043,10 +7223,17 @@ ELSEWHERE = {
     "local_store": ["cargo", "test", "-q", "-p", "nc-local"],
     "local_journal": ["cargo", "test", "-q", "-p", "nc-local"],
     # Each system's privacy, by its own crate's tests first, and then — in
-    # `ALSO_RUN` — by the local database's suites that stand on it.
-    "platform": ["cargo", "test", "-q", "-p", "nc-platform"],
-    "platform_unix": ["cargo", "test", "-q", "-p", "nc-platform"],
-    "platform_testing": ["cargo", "test", "-q", "-p", "nc-platform"],
+    # `ALSO_RUN` — by the local database's suites that stand on it. **All of
+    # the crate but the two tests that register a real service**, which judge
+    # no clause of these files and would register a unit with the developer's
+    # manager twice for each operator.
+    "platform": ["cargo", "test", "-q", "-p", "nc-platform", "--", "--skip", "with_the_manager"],
+    "platform_unix": ["cargo", "test", "-q", "-p", "nc-platform", "--", "--skip", "with_the_manager"],
+    "platform_testing": ["cargo", "test", "-q", "-p", "nc-platform", "--", "--skip", "with_the_manager"],
+    # **The service manager's module, by its own tests alone**: the
+    # generators' texts, the escaping, the readers and the commands — and not
+    # the two that register a real service, which judge none of its clauses.
+    "platform_service": ["cargo", "test", "-q", "-p", "nc-platform", "--", "service::", "--skip", "with_the_manager"],
     # The pruner's crate, whose `in_sqlite.rs` needs no service.
     "prune_sqlite": ["cargo", "test", "-q", "-p", "nc-prune"],
     # **Built, not tested.** Each of these is compiled for `wasm32` alone, so
@@ -7643,14 +7830,25 @@ def refuse_if_a_suite_fails_unweakened(when):
 def judged_by(names):
     """The suite a command in `ELSEWHERE` actually runs, named as a reader would."""
     package = names[names.index("-p") + 1]
-    if "--" in names and names.index("--") + 1 < len(names):
-        return f"{package}'s {names[names.index('--') + 1].rstrip(':')}"
+    # **A `--skip` narrows too, and is no filter.** Read as the word after
+    # `--`, `-- --skip with_the_manager` named the run "nc-platform's --skip":
+    # what it runs is whatever the rest of the command selects but the tests it
+    # skips, and those are named after it as what is left out.
+    after = names[names.index("--") + 1:] if "--" in names else []
+    skipped = [after[at + 1] for at in range(len(after) - 1) if after[at] == "--skip"]
+    filters = [
+        word for at, word in enumerate(after)
+        if word != "--skip" and (at == 0 or after[at - 1] != "--skip")
+    ]
+    but = "".join(f" except {name}" for name in skipped)
+    if filters:
+        return f"{package}'s {filters[0].rstrip(':')}{but}"
     if "--lib" in names:
-        return f"{package}'s unit tests"
+        return f"{package}'s unit tests{but}"
     # **And a named integration target.** One entry runs
     # `--test the_registry_reaches_the_code`, which is not "all of xtask".
     if "--test" in names and names.index("--test") + 1 < len(names):
-        return f"{package}'s {names[names.index('--test') + 1]} suite"
+        return f"{package}'s {names[names.index('--test') + 1]} suite{but}"
     # **And `--bin`, which narrows as hard as any of them.** `xtask` has five
     # test targets — the binary and four in `xtask/tests/` — so
     # `-p xtask --bin xtask` runs one of five, which is not "all of xtask"
@@ -7659,8 +7857,8 @@ def judged_by(names):
     # per operator to run a test that cannot fail. A sentence that hides the
     # narrowing hides the price with it.
     if "--bin" in names and names.index("--bin") + 1 < len(names):
-        return f"{package}'s {names[names.index('--bin') + 1]} binary"
-    return f"all of {package}"
+        return f"{package}'s {names[names.index('--bin') + 1]} binary{but}"
+    return f"all of {package}{but}"
 
 
 def the_summary():
