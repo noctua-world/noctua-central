@@ -4119,9 +4119,9 @@ const EXCUSED_IN: [(&str, usize); 48] = [
     ("xtask/src/corpus.rs", 5),
     ("xtask/src/counts.rs", 11),
     ("xtask/src/determinism.rs", 3),
-    ("xtask/src/gates.rs", 11),
+    ("xtask/src/gates.rs", 12),
     ("xtask/src/limits.rs", 13),
-    ("xtask/src/members.rs", 2),
+    ("xtask/src/members.rs", 5),
     ("xtask/src/plugins.rs", 1),
     ("xtask/src/policy.rs", 1),
     ("xtask/src/references.rs", 26),
@@ -7719,7 +7719,7 @@ fn ends_in_a_backslash(path: &str) -> bool {
 /// failure is silent.
 ///
 /// Each is a crate and the file cargo announces as `Running tests/<name>`.
-const SUITES: [(&str, &str); 35] = [
+const SUITES: [(&str, &str); 37] = [
     ("nc-authz", "the_embedded_pack_decides.rs"),
     ("nc-canon", "properties.rs"),
     ("nc-catalog", "the_generated_surface.rs"),
@@ -7728,6 +7728,11 @@ const SUITES: [(&str, &str); 35] = [
     // The one naming function, over every channel, two users and two
     // namespaces: it touches no disk and spawns nothing.
     ("nc-channel", "the_names_are_disjoint.rs"),
+    // The daemon's binary, copied into a scratch install beside a manifest.
+    ("nc-daemon", "the_binary_prepares_a_profile.rs"),
+    // A child of the test binary killed while it mints behind the real mark,
+    // and a start from what it left with the clock moved back.
+    ("nc-daemon", "the_mark_survives_a_crash.rs"),
     ("nc-ids", "against_denote.rs"),
     ("nc-ids", "properties.rs"),
     ("nc-journal", "across_threads.rs"),
@@ -15665,19 +15670,24 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     /// `no crate outside nc-log depends on it`.
     #[test]
     fn the_walls_scope_is_read_by_something_that_would_notice_it_changing() {
-        // Today, and stated as the fact it is: the kernel is the one crate
-        // that depends on `nc-log`, so the scope is the log's own source and
-        // the kernel's, and the consumer count is one. A crate that takes the
-        // dependency changes both here, in the same change as the code.
+        // Today, and stated as the fact it is: the kernel and the daemon are
+        // the crates that depend on `nc-log`, so the scope is the log's own
+        // source, the daemon's and the kernel's, and the consumer count is two.
+        // A crate that takes the dependency changes both here, in the same
+        // change as the code.
         let scope = crates_that_can_log(root()).expect("cargo reads this workspace");
         assert_eq!(
             scope,
-            vec!["crates/nc-kernel".to_owned(), LOG_CRATE.to_owned()],
+            vec![
+                "apps/daemon".to_owned(),
+                "crates/nc-kernel".to_owned(),
+                LOG_CRATE.to_owned()
+            ],
             "{scope:?}"
         );
         assert_eq!(
             scope.len().saturating_sub(1),
-            1,
+            2,
             "the sentence `check` prints counts consumers, not the list's length"
         );
 
@@ -16884,7 +16894,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 
         // And the real manifest, or the assertions above are about a shape
         // nothing here is written in.
-        assert_eq!(members_of(root()), 17);
+        assert_eq!(members_of(root()), 18);
 
         // **Zero when cargo cannot say**, rather than a number invented from a
         // tree that is not a workspace; the caller reads the members itself and
@@ -17073,12 +17083,13 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     /// against — four sets compared with a set the same call produces. A bound
     /// under it shrinks with the run it is judging, which is the shape this
     /// table exists to refuse.
-    const SOURCE_ROOTS: [(&str, usize); 17] = [
+    const SOURCE_ROOTS: [(&str, usize); 18] = [
         ("nc-authz", 2),
         ("nc-canon", 2),
         ("nc-catalog", 2),
         ("nc-catalog-compiler", 3),
         ("nc-channel", 2),
+        ("nc-daemon", 4),
         ("nc-guest", 1),
         ("nc-ids", 3),
         ("nc-journal", 5),
@@ -19107,7 +19118,15 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 152] = [
+    const DOCUMENTED: [(&str, usize, usize); 160] = [
+        ("daemon/device.rs", 20, 5),
+        ("daemon/install.rs", 12, 6),
+        ("daemon/lib.rs", 7, 8),
+        ("daemon/main.rs", 2, 0),
+        ("daemon/mark.rs", 22, 15),
+        ("daemon/profile.rs", 15, 5),
+        ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
+        ("daemon/the_mark_survives_a_crash.rs", 12, 12),
         ("nc-authz/directory.rs", 38, 15),
         ("nc-authz/embedded.rs", 12, 4),
         ("nc-authz/lib.rs", 30, 19),
@@ -19238,7 +19257,7 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 662, 56),
+        ("xtask/check.rs", 663, 57),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 45, 29),
         ("xtask/database.rs", 29, 6),
@@ -20242,11 +20261,13 @@ mod the_frozen_path_rule {
                 );
             }
         }
+        // **Every root cargo declares, read**: a member with a library and a
+        // binary has two, and each one is a crate the lint level stops at.
         assert_eq!(
             read,
-            built.len(),
-            "the walk read {read} crate root(s) and cargo builds {}",
-            built.len()
+            roots.len(),
+            "the walk read {read} crate root(s) and cargo declares {}",
+            roots.len()
         );
     }
 
@@ -22037,8 +22058,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 564 scratches this tree
-    /// builds, 477 of the 564 are removed however the test leaves and 87 are
+    /// directories accumulated in an afternoon. Of the 587 scratches this tree
+    /// builds, 500 of the 587 are removed however the test leaves and 87 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22104,7 +22125,13 @@ mod the_frozen_path_rule {
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 35] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 41] = [
+        ("daemon/device.rs", 5, 5),
+        ("daemon/install.rs", 5, 5),
+        ("daemon/mark.rs", 4, 4),
+        ("daemon/profile.rs", 5, 5),
+        ("daemon/the_binary_prepares_a_profile.rs", 2, 2),
+        ("daemon/the_mark_survives_a_crash.rs", 2, 2),
         ("nc-catalog-compiler/ledger.rs", 1, 0),
         ("nc-catalog-compiler/the_gates_fire.rs", 152, 152),
         (
@@ -25049,7 +25076,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15603;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15795;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25068,7 +25095,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3230;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3326;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25085,7 +25112,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1060;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1093;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25119,7 +25146,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 21965;
+    const THE_REARRANGEMENTS_JUDGED: usize = 22121;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25173,7 +25200,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **480 of 21,965 are accepted by the first-line
+    /// rules the gates apply: **480 of 22,121 are accepted by the first-line
     /// rule alone, and 256 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25206,7 +25233,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1060 of
+    /// this tree offers, **1093 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -25969,6 +25996,27 @@ mod the_frozen_path_rule {
         );
     }
 
+    /// How many members build a library and a binary both, once each is shown
+    /// to: an app is a library its suites drive and a thin binary.
+    ///
+    /// **Written down, so the floor is still from outside**: a member gaining
+    /// a second root is a row here, and a kind dropped from `is_documented`
+    /// still leaves the count short.
+    #[cfg(test)]
+    fn the_members_with_a_library_and_a_binary(members: &[crate::members::Member]) -> usize {
+        const A_LIBRARY_AND_A_BINARY: [&str; 1] = ["apps/daemon"];
+        for both in A_LIBRARY_AND_A_BINARY {
+            assert!(
+                members
+                    .iter()
+                    .any(|member| member.path == both && member.documented.len() == 2),
+                "`{both}` is written down as building a library and a binary, and cargo \
+                 does not document two roots for it"
+            );
+        }
+        A_LIBRARY_AND_A_BINARY.len()
+    }
+
     /// A `documentation` step that read part of the tree is reported, not
     /// printed `ok`.
     ///
@@ -25986,6 +26034,7 @@ mod the_frozen_path_rule {
     fn a_documentation_step_that_read_part_of_the_tree_is_reported() {
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let members = crate::members::members(root).expect("cargo can read this workspace");
+        let both = the_members_with_a_library_and_a_binary(&members);
         let declared: Vec<String> = members
             .iter()
             .flat_map(|member| member.documented.clone())
@@ -26009,9 +26058,10 @@ mod the_frozen_path_rule {
         // count too; this is that.
         assert_eq!(
             declared.len(),
-            members.len(),
+            members.len() + both,
             "cargo builds {} member(s) and {} documented source root(s) are declared. \
-             Every member of this workspace has one library or binary root, so these \
+             Every member of this workspace has one library or binary root but the ones \
+             written down with both, so these \
              two disagreeing means `members::is_documented` no longer names a kind \
              cargo builds — and the set this test compares against would then shrink \
              with the run it is judging, which is the one thing it exists to refuse: \
@@ -31979,7 +32029,7 @@ mod the_frozen_path_rule {
     /// The third column is how few files that tree may hold and still be worth
     /// asking about: a walk that reached one file proves nothing about a tree of
     /// hundreds, and `.cargo/` really does hold one.
-    const WHAT_MAY_SIT_UNDER: [(&str, &[&str], usize); 10] = [
+    const WHAT_MAY_SIT_UNDER: [(&str, &[&str], usize); 11] = [
         // The `cargo xtask` alias, and nothing else.
         (".cargo", &["toml"], 1),
         // The workflow. Composite actions and scripts would be more kinds, and
@@ -32004,6 +32054,9 @@ mod the_frozen_path_rule {
         // the kernel reads — every plugin is a crate, and nothing else sits
         // here.
         ("plugins", &["rs", "toml"], 4),
+        // The binaries a person's machine runs: each one's sources and its
+        // cargo manifest, and nothing else.
+        ("apps", &["rs", "toml"], 4),
         // Policies, the schema, the world the cases are decided against, the
         // packs' prose, the case files and each pack's `pack.toml`. Where a
         // `.toml` may sit is `nc-policy`'s rule: a case file inside a `tests/`
@@ -32132,7 +32185,7 @@ mod the_frozen_path_rule {
     /// The both-directions assertions below keep each row honest: a kind pinned
     /// to a name must be a kind its tree is allowed to hold at all, and the name
     /// must be a file of that kind.
-    const ONLY_UNDER_THIS_NAME: [(&str, &str, &str); 13] = [
+    const ONLY_UNDER_THIS_NAME: [(&str, &str, &str); 14] = [
         // The `cargo xtask` alias, and nothing else. The file cargo reads a
         // registry token from is a `.toml` in this very directory, which is
         // what makes the extension's allowance here an allowance for one name.
@@ -32158,6 +32211,8 @@ mod the_frozen_path_rule {
         // two TOML files a plugin has, both at its own root.
         ("plugins", "toml", "Cargo.toml"),
         ("plugins", "toml", "plugin.toml"),
+        // An app's cargo manifest, at its own root, and the one TOML file it has.
+        ("apps", "toml", "Cargo.toml"),
         // The gate's own manifest.
         ("xtask", "toml", "Cargo.toml"),
         // The meta-gate, which is the one Python file in this repository.
@@ -33369,7 +33424,7 @@ mod the_meta_gate {
     /// own doc: a module directory may be called anything. Every row here is a
     /// prefix of a workspace-relative path, anchored at its start, so what it
     /// excuses is what it names.
-    const NOT_MUTATED: [(&str, &str); 42] = [
+    const NOT_MUTATED: [(&str, &str); 44] = [
         (
             "crates/nc-platform/src/windows.rs",
             "another system's: the Windows half of what makes a path private, \
@@ -33437,6 +33492,23 @@ mod the_meta_gate {
              properties rather than examples. Its writer `lib.rs` and its reader \
              `parse.rs` are both edited by the runner, and a weakening of this \
              file would remove evidence rather than uncover an undecided clause",
+        ),
+        (
+            "apps/daemon/tests/the_binary_prepares_a_profile.rs",
+            "a suite: the daemon's binary run as a process, refusing an invocation \
+             it does not answer and a start outside an install, and preparing a \
+             profile from a copy beside a manifest. The sources it drives, \
+             `main.rs` and `lib.rs`, are edited by the runner under the package's \
+             own command, which builds this suite, and a weakening of this file \
+             would remove evidence rather than uncover an undecided clause",
+        ),
+        (
+            "apps/daemon/tests/the_mark_survives_a_crash.rs",
+            "a suite: a child of the test binary killed while it mints behind the \
+             real mark, and a start from what it left with the clock moved back. \
+             The source it drives, `mark.rs`, is edited by the runner under the \
+             package's own command, which builds this suite, and a weakening of \
+             this file would remove evidence rather than uncover an undecided clause",
         ),
         (
             "crates/nc-channel/tests/the_names_are_disjoint.rs",
@@ -35346,9 +35418,12 @@ Options:
         // Three kinds, and the file's path says which: a `tests/` file is its
         // own integration target named for its stem, `xtask/src/` is the
         // binary, and everything else is its crate's library.
+        // An app's binary is the `main.rs` at the root of its sources, beside
+        // the library its other sources are.
         let (is_test, is_binary) = (
             relative.contains("/tests/"),
-            relative.starts_with("xtask/src/"),
+            relative.starts_with("xtask/src/")
+                || (crate::members::under(relative, "apps") && relative.ends_with("/src/main.rs")),
         );
         let names_it = the_package_selection_covers(command, package);
         let excluded = command.iter().enumerate().any(|(at, word)| {
@@ -35633,6 +35708,10 @@ Options:
                 // doors, which the suites of other crates call.
                 "crates/nc-platform/src/unix.rs".to_owned(),
                 "crates/nc-platform/src/testing.rs".to_owned(),
+                // The daemon's binary and its library root, whose refusals the
+                // binary's suite and each module's tests hold.
+                "apps/daemon/src/main.rs".to_owned(),
+                "apps/daemon/src/lib.rs".to_owned(),
             ],
             "the sources carrying no `#[test]` of their own are not the ones written \
              down. A file that stops carrying tests leaves this rule asking nothing of \
@@ -36100,8 +36179,8 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 166,
-            "{walked} Rust source(s) were walked, and this tree holds 119. A filter \
+            walked, 174,
+            "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
         );
@@ -36140,7 +36219,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1775] = [
+    static OPERATORS: [(&str, &str, &str); 1793] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -44048,6 +44127,76 @@ Options:
         ("channel", "spelled", "a spelled character opens with `_`"),
         ("channel", "spelled", "a spelled character closes with `_`"),
         ("channel", "spelled", "nobody is written as somebody"),
+        (
+            "daemon_main",
+            "main",
+            "an invocation the binary does not answer is refused",
+        ),
+        ("daemon_main", "main", "a refusal is a failure"),
+        ("daemon_main", "main", "--initialize alone is answered"),
+        ("daemon_lib", "code", "a profile with no device says so"),
+        (
+            "daemon_lib",
+            "judged",
+            "a path refused is not this user's alone",
+        ),
+        (
+            "daemon_install",
+            "beside",
+            "no manifest beside the binary is said as none",
+        ),
+        (
+            "daemon_install",
+            "manifest_judged",
+            "a manifest another account can reach is the manifest's refusal",
+        ),
+        (
+            "daemon_profile",
+            "prepare",
+            "a directory already there is judged",
+        ),
+        (
+            "daemon_profile",
+            "copy_world",
+            "a world is read before it is copied in",
+        ),
+        ("daemon_device", "read", "a record is the seed's key"),
+        (
+            "daemon_device",
+            "read",
+            "a record's flake is its key's candidate",
+        ),
+        (
+            "daemon_device",
+            "record_of",
+            "a record is read only as it is written",
+        ),
+        (
+            "daemon_mark",
+            "decode",
+            "a slot that does not check is passed over",
+        ),
+        ("daemon_mark", "open", "the newest whole slot wins"),
+        (
+            "daemon_mark",
+            "write",
+            "a write goes to the slot that is not newest",
+        ),
+        (
+            "daemon_mark",
+            "raise",
+            "a raise writes the ceiling a lease past",
+        ),
+        (
+            "daemon_mark",
+            "barrier",
+            "a start resumes past the larger of the two",
+        ),
+        (
+            "daemon_mark",
+            "minter",
+            "only a clock back by more than the lease is logged",
+        ),
     ];
 
     /// The prefix Python reads in front of the quote at `at`, lower-cased.

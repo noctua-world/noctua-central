@@ -1085,12 +1085,11 @@ fn log_events(catalog: &Catalog) -> String {
          twelve of its characters are the caller’s. The source gate refuses the \
          conversion at a logging call site, which is where it is visible; \
          `crates/nc-log/src/value.rs` states the residual, and `NOCTUA.md §5.1` owns it.\n\n\
-         **`nc-kernel` is the one crate outside `nc-log` that logs.** It emits every \
-         `kernel.*` event below, `net.refused`, `journal.verified` and `journal.broken`; \
-         every other event \
-         is declared for a later stage, and `cargo xtask check` counts the crates that may \
-         log beside their logging call sites. The types and the guarantee are real today; \
-         the traffic is the kernel's alone.",
+         **`nc-kernel` and `nc-daemon` are the crates outside `nc-log` that log.** The \
+         kernel emits every `kernel.*` event below, `net.refused`, `journal.verified` and \
+         `journal.broken`; the daemon emits `ids.clock_backwards`; every other event is \
+         declared for a later stage, and `cargo xtask check` counts the crates that may \
+         log beside their logging call sites. The types and the guarantee are real today.",
     );
     // **Sorted, like the generated crate.** `emit.rs` clones and sorts before
     // it writes the Rust; walking the `Vec` in file order instead opens

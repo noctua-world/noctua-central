@@ -504,6 +504,18 @@ SOURCES = {
     # that crate's own tests, which derive the names of every channel and touch
     # no disk but to canonicalize a path.
     "channel": os.path.join(ROOT, "crates/nc-channel/src/lib.rs"),
+    # **The daemon's profile**: which code each refusal carries, the install
+    # read beside the executable, the profile's directories and world, the
+    # device's seed and record, the identifiers' mark, and the binary's own
+    # invocation. Decided by the package's tests: each module's unit tests, the
+    # binary run from a scratch install, and a child killed while it mints, all
+    # inside scratch directories and none touching a unit or a service.
+    "daemon_main": os.path.join(ROOT, "apps/daemon/src/main.rs"),
+    "daemon_lib": os.path.join(ROOT, "apps/daemon/src/lib.rs"),
+    "daemon_install": os.path.join(ROOT, "apps/daemon/src/install.rs"),
+    "daemon_profile": os.path.join(ROOT, "apps/daemon/src/profile.rs"),
+    "daemon_device": os.path.join(ROOT, "apps/daemon/src/device.rs"),
+    "daemon_mark": os.path.join(ROOT, "apps/daemon/src/mark.rs"),
 }
 
 # (source, predicate, label, from, to). `from` must appear exactly once in it.
@@ -6430,6 +6442,61 @@ WEAKENINGS = [
     ("channel", "spelled", "nobody is written as somebody",
      "        out.push('_');\n    }\n    out\n}",
      "    }\n    out\n}"),
+    # -- the daemon: its install, profile, device and mark --------------------
+    ("daemon_main", "main", "an invocation the binary does not answer is refused",
+     "            return ExitCode::from(2);",
+     "            return ExitCode::SUCCESS;"),
+    ("daemon_main", "main", "a refusal is a failure",
+     "            say(&format!(\"noctua-daemon: {refused}\"));\n            ExitCode::FAILURE",
+     "            say(&format!(\"noctua-daemon: {refused}\"));\n            ExitCode::SUCCESS"),
+    ("daemon_main", "main", "--initialize alone is answered",
+     "        [initialize] if initialize == \"--initialize\" => None,",
+     "        [initialize] if initialize == \"--initialise\" => None,"),
+    ("daemon_lib", "code", "a profile with no device says so",
+     "            Self::NoDevice { .. } => ErrorCode::DaemonNoDevice,",
+     "            Self::NoDevice { .. } => ErrorCode::DaemonNoWorld,"),
+    ("daemon_lib", "judged", "a path refused is not this user's alone",
+     "            nc_platform::Judged::Refused(refused) => Self::NotPrivate(refused),",
+     "            nc_platform::Judged::Refused(refused) => Self::ManifestNotPrivate(refused),"),
+    ("daemon_install", "beside", "no manifest beside the binary is said as none",
+     "        Err(Judged::Failed(failed)) if failed.error().kind() == std::io::ErrorKind::NotFound => {\n            return Err(Refused::NoManifest { path: manifest });",
+     "        Err(Judged::Failed(failed)) if false => {\n            return Err(Refused::NoManifest { path: manifest });"),
+    ("daemon_install", "manifest_judged", "a manifest another account can reach is the manifest's refusal",
+     "        Judged::Refused(refused) => Refused::ManifestNotPrivate(refused),",
+     "        Judged::Refused(refused) => Refused::NotPrivate(refused),"),
+    ("daemon_profile", "prepare", "a directory already there is judged",
+     "                nc_platform::judge(directory, Kind::Directory, user).map_err(Refused::judged)?;",
+     "                let _ = nc_platform::judge(directory, Kind::Directory, user);"),
+    ("daemon_profile", "copy_world", "a world is read before it is copied in",
+     "    read_world(from, &text)?;\n",
+     ""),
+    ("daemon_device", "read", "a record is the seed's key",
+     "        if recorded != public {",
+     "        if false {"),
+    ("daemon_device", "read", "a record's flake is its key's candidate",
+     "        if candidate.value() != flake {",
+     "        if false {"),
+    ("daemon_device", "record_of", "a record is read only as it is written",
+     "    if value.to_canonical() != text {",
+     "    if false {"),
+    ("daemon_mark", "decode", "a slot that does not check is passed over",
+     "    if slot.len() != SLOT || slot[16..] != checksum(head) {",
+     "    if slot.len() != SLOT {"),
+    ("daemon_mark", "open", "the newest whole slot wins",
+     "            .max_by_key(|(_, (generation, _))| *generation);",
+     "            .min_by_key(|(_, (generation, _))| *generation);"),
+    ("daemon_mark", "write", "a write goes to the slot that is not newest",
+     "        let slot = 1 - self.newest;",
+     "        let slot = self.newest;"),
+    ("daemon_mark", "raise", "a raise writes the ceiling a lease past",
+     "        let ceiling = at_least.checked_add(self.lease_ms).ok_or(CeilingRefused)?;",
+     "        let ceiling = at_least.checked_add(0).ok_or(CeilingRefused)?;"),
+    ("daemon_mark", "barrier", "a start resumes past the larger of the two",
+     "    mark.max(unit)",
+     "    mark.or(unit)"),
+    ("daemon_mark", "minter", "only a clock back by more than the lease is logged",
+     "                if drift > lease && !logged {",
+     "                if !logged {"),
 ]
 
 # **Every member tree, as `MEMBER_TREES` in `xtask/src/members.rs` names them**,
@@ -6438,7 +6505,7 @@ WEAKENINGS = [
 # `the_runner_touches_every_member_tree` in `xtask/src/check.rs` holds the two
 # lists together; `find` names a tree that is not on disk and goes on, and the
 # run ignores its exit.
-TOUCH = ["find", "crates", "plugins", "xtask", "-name", "*.rs", "-exec", "touch", "{}", "+"]
+TOUCH = ["find", "crates", "plugins", "apps", "xtask", "-name", "*.rs", "-exec", "touch", "{}", "+"]
 # **Two suites, not the corpus alone.** Measured, of the clauses in `limits.rs`
 # that any test decides, **22** were decided only by `limits::tests` and **10**
 # by `corpus::` — so with the corpus alone, two thirds of that file's covered
@@ -6557,6 +6624,12 @@ ELSEWHERE = {
     # holds every name, the ports and the manifest. Neither spawns a process
     # or registers anything with a system.
     "channel": ["cargo", "test", "-q", "-p", "nc-channel"],
+    "daemon_main": ["cargo", "test", "-q", "-p", "nc-daemon"],
+    "daemon_lib": ["cargo", "test", "-q", "-p", "nc-daemon"],
+    "daemon_install": ["cargo", "test", "-q", "-p", "nc-daemon"],
+    "daemon_profile": ["cargo", "test", "-q", "-p", "nc-daemon"],
+    "daemon_device": ["cargo", "test", "-q", "-p", "nc-daemon"],
+    "daemon_mark": ["cargo", "test", "-q", "-p", "nc-daemon"],
     # The whole crate, both targets: the unit tests hold the layout and the
     # alphabet, and `crates/nc-ids/tests/properties.rs` and
     # `crates/nc-ids/tests/against_denote.rs` hold the round trips. A weakening

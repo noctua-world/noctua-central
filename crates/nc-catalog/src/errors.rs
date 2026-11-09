@@ -83,6 +83,10 @@ pub enum ErrorCode {
     ChannelBaseMalformed,
     /// NC-CHAN-0005 — An install manifest's namespace is not one to sixteen lower-case letters and digits holding a digit
     ChannelNamespaceMalformed,
+    /// NC-CHAN-0006 — No install manifest is beside this executable, so it names no channel and does not run
+    ChannelNoManifest,
+    /// NC-CHAN-0007 — The install manifest, or the directory holding it, is not this user's alone, so it was not read
+    ChannelManifestNotPrivate,
     /// NC-DB-0001 — The database did not answer
     DbUnreachable,
     /// NC-DB-0002 — A migration failed to apply
@@ -97,6 +101,20 @@ pub enum ErrorCode {
     DbLocalOpenRefused,
     /// NC-DB-0007 — The local database is not the one this build expects, so it was not used
     DbLocalSchemaUnexpected,
+    /// NC-DMN-0001 — A folder or a file of the daemon's profile is not this user's alone, so the daemon did not use it
+    DaemonProfileNotPrivate,
+    /// NC-DMN-0002 — A folder or a file of the daemon's profile could not be read or made
+    DaemonProfileUnavailable,
+    /// NC-DMN-0003 — The daemon's profile holds no device, and the daemon never makes one
+    DaemonNoDevice,
+    /// NC-DMN-0004 — The daemon's device is not one this build wrote: a seed of another length, or a record that is not the seed's
+    DaemonDeviceUnreadable,
+    /// NC-DMN-0005 — The daemon's profile names no realm and no person to decide as, so the daemon did not start
+    DaemonNoWorld,
+    /// NC-DMN-0006 — The daemon's world file is not one this build reads, or names a person its realm does not hold
+    DaemonWorldUnreadable,
+    /// NC-DMN-0007 — The identifiers' mark is unreadable in both of its slots, so the daemon did not start
+    DaemonMarkUnreadable,
     /// NC-IDS-0001 — The clock moved backwards, so minting would repeat an identifier it has issued
     IdsClockBackwards,
     /// NC-IDS-0002 — This millisecond's sequence was exhausted and minting waited
@@ -281,6 +299,8 @@ impl ErrorCode {
         Self::ChannelCheckoutMalformed,
         Self::ChannelBaseMalformed,
         Self::ChannelNamespaceMalformed,
+        Self::ChannelNoManifest,
+        Self::ChannelManifestNotPrivate,
         Self::DbUnreachable,
         Self::DbMigrationFailed,
         Self::DbPruneFailed,
@@ -288,6 +308,13 @@ impl ErrorCode {
         Self::DbPruneRefused,
         Self::DbLocalOpenRefused,
         Self::DbLocalSchemaUnexpected,
+        Self::DaemonProfileNotPrivate,
+        Self::DaemonProfileUnavailable,
+        Self::DaemonNoDevice,
+        Self::DaemonDeviceUnreadable,
+        Self::DaemonNoWorld,
+        Self::DaemonWorldUnreadable,
+        Self::DaemonMarkUnreadable,
         Self::IdsClockBackwards,
         Self::IdsSequenceExhausted,
         Self::IdsFlakeExhausted,
@@ -390,6 +417,8 @@ impl ErrorCode {
             Self::ChannelCheckoutMalformed => "NC-CHAN-0003",
             Self::ChannelBaseMalformed => "NC-CHAN-0004",
             Self::ChannelNamespaceMalformed => "NC-CHAN-0005",
+            Self::ChannelNoManifest => "NC-CHAN-0006",
+            Self::ChannelManifestNotPrivate => "NC-CHAN-0007",
             Self::DbUnreachable => "NC-DB-0001",
             Self::DbMigrationFailed => "NC-DB-0002",
             Self::DbPruneFailed => "NC-DB-0003",
@@ -397,6 +426,13 @@ impl ErrorCode {
             Self::DbPruneRefused => "NC-DB-0005",
             Self::DbLocalOpenRefused => "NC-DB-0006",
             Self::DbLocalSchemaUnexpected => "NC-DB-0007",
+            Self::DaemonProfileNotPrivate => "NC-DMN-0001",
+            Self::DaemonProfileUnavailable => "NC-DMN-0002",
+            Self::DaemonNoDevice => "NC-DMN-0003",
+            Self::DaemonDeviceUnreadable => "NC-DMN-0004",
+            Self::DaemonNoWorld => "NC-DMN-0005",
+            Self::DaemonWorldUnreadable => "NC-DMN-0006",
+            Self::DaemonMarkUnreadable => "NC-DMN-0007",
             Self::IdsClockBackwards => "NC-IDS-0001",
             Self::IdsSequenceExhausted => "NC-IDS-0002",
             Self::IdsFlakeExhausted => "NC-IDS-0003",
@@ -500,6 +536,8 @@ impl ErrorCode {
             Self::ChannelCheckoutMalformed => "CHAN",
             Self::ChannelBaseMalformed => "CHAN",
             Self::ChannelNamespaceMalformed => "CHAN",
+            Self::ChannelNoManifest => "CHAN",
+            Self::ChannelManifestNotPrivate => "CHAN",
             Self::DbUnreachable => "DB",
             Self::DbMigrationFailed => "DB",
             Self::DbPruneFailed => "DB",
@@ -507,6 +545,13 @@ impl ErrorCode {
             Self::DbPruneRefused => "DB",
             Self::DbLocalOpenRefused => "DB",
             Self::DbLocalSchemaUnexpected => "DB",
+            Self::DaemonProfileNotPrivate => "DMN",
+            Self::DaemonProfileUnavailable => "DMN",
+            Self::DaemonNoDevice => "DMN",
+            Self::DaemonDeviceUnreadable => "DMN",
+            Self::DaemonNoWorld => "DMN",
+            Self::DaemonWorldUnreadable => "DMN",
+            Self::DaemonMarkUnreadable => "DMN",
             Self::IdsClockBackwards => "IDS",
             Self::IdsSequenceExhausted => "IDS",
             Self::IdsFlakeExhausted => "IDS",
@@ -620,6 +665,12 @@ impl ErrorCode {
             Self::ChannelNamespaceMalformed => {
                 "An install manifest's namespace is not one to sixteen lower-case letters and digits holding a digit"
             }
+            Self::ChannelNoManifest => {
+                "No install manifest is beside this executable, so it names no channel and does not run"
+            }
+            Self::ChannelManifestNotPrivate => {
+                "The install manifest, or the directory holding it, is not this user's alone, so it was not read"
+            }
             Self::DbUnreachable => "The database did not answer",
             Self::DbMigrationFailed => "A migration failed to apply",
             Self::DbPruneFailed => "Pruning a table did not finish, and a later run may",
@@ -632,6 +683,27 @@ impl ErrorCode {
             }
             Self::DbLocalSchemaUnexpected => {
                 "The local database is not the one this build expects, so it was not used"
+            }
+            Self::DaemonProfileNotPrivate => {
+                "A folder or a file of the daemon's profile is not this user's alone, so the daemon did not use it"
+            }
+            Self::DaemonProfileUnavailable => {
+                "A folder or a file of the daemon's profile could not be read or made"
+            }
+            Self::DaemonNoDevice => {
+                "The daemon's profile holds no device, and the daemon never makes one"
+            }
+            Self::DaemonDeviceUnreadable => {
+                "The daemon's device is not one this build wrote: a seed of another length, or a record that is not the seed's"
+            }
+            Self::DaemonNoWorld => {
+                "The daemon's profile names no realm and no person to decide as, so the daemon did not start"
+            }
+            Self::DaemonWorldUnreadable => {
+                "The daemon's world file is not one this build reads, or names a person its realm does not hold"
+            }
+            Self::DaemonMarkUnreadable => {
+                "The identifiers' mark is unreadable in both of its slots, so the daemon did not start"
             }
             Self::IdsClockBackwards => {
                 "The clock moved backwards, so minting would repeat an identifier it has issued"
@@ -858,6 +930,8 @@ impl ErrorCode {
             Self::ChannelCheckoutMalformed => "error.channel.checkout-malformed",
             Self::ChannelBaseMalformed => "error.channel.base-malformed",
             Self::ChannelNamespaceMalformed => "error.channel.namespace-malformed",
+            Self::ChannelNoManifest => "error.channel.no-manifest",
+            Self::ChannelManifestNotPrivate => "error.channel.manifest-not-private",
             Self::DbUnreachable => "error.db.unreachable",
             Self::DbMigrationFailed => "error.db.migration-failed",
             Self::DbPruneFailed => "error.db.prune-failed",
@@ -865,6 +939,13 @@ impl ErrorCode {
             Self::DbPruneRefused => "error.db.prune-refused",
             Self::DbLocalOpenRefused => "error.db.local-open-refused",
             Self::DbLocalSchemaUnexpected => "error.db.local-schema-unexpected",
+            Self::DaemonProfileNotPrivate => "error.daemon.profile-not-private",
+            Self::DaemonProfileUnavailable => "error.daemon.profile-unavailable",
+            Self::DaemonNoDevice => "error.daemon.no-device",
+            Self::DaemonDeviceUnreadable => "error.daemon.device-unreadable",
+            Self::DaemonNoWorld => "error.daemon.no-world",
+            Self::DaemonWorldUnreadable => "error.daemon.world-unreadable",
+            Self::DaemonMarkUnreadable => "error.daemon.mark-unreadable",
             Self::IdsClockBackwards => "error.ids.clock-backwards",
             Self::IdsSequenceExhausted => "error.ids.sequence-exhausted",
             Self::IdsFlakeExhausted => "error.ids.flake-exhausted",
@@ -968,6 +1049,8 @@ impl ErrorCode {
             Self::ChannelCheckoutMalformed => Severity::Error,
             Self::ChannelBaseMalformed => Severity::Error,
             Self::ChannelNamespaceMalformed => Severity::Error,
+            Self::ChannelNoManifest => Severity::Error,
+            Self::ChannelManifestNotPrivate => Severity::Critical,
             Self::DbUnreachable => Severity::Critical,
             Self::DbMigrationFailed => Severity::Critical,
             Self::DbPruneFailed => Severity::Error,
@@ -975,6 +1058,13 @@ impl ErrorCode {
             Self::DbPruneRefused => Severity::Error,
             Self::DbLocalOpenRefused => Severity::Critical,
             Self::DbLocalSchemaUnexpected => Severity::Critical,
+            Self::DaemonProfileNotPrivate => Severity::Critical,
+            Self::DaemonProfileUnavailable => Severity::Error,
+            Self::DaemonNoDevice => Severity::Error,
+            Self::DaemonDeviceUnreadable => Severity::Critical,
+            Self::DaemonNoWorld => Severity::Error,
+            Self::DaemonWorldUnreadable => Severity::Error,
+            Self::DaemonMarkUnreadable => Severity::Critical,
             Self::IdsClockBackwards => Severity::Error,
             Self::IdsSequenceExhausted => Severity::Info,
             Self::IdsFlakeExhausted => Severity::Critical,
@@ -1078,6 +1168,8 @@ impl ErrorCode {
             Self::ChannelCheckoutMalformed => false,
             Self::ChannelBaseMalformed => false,
             Self::ChannelNamespaceMalformed => false,
+            Self::ChannelNoManifest => false,
+            Self::ChannelManifestNotPrivate => false,
             Self::DbUnreachable => true,
             Self::DbMigrationFailed => false,
             Self::DbPruneFailed => true,
@@ -1085,6 +1177,13 @@ impl ErrorCode {
             Self::DbPruneRefused => false,
             Self::DbLocalOpenRefused => false,
             Self::DbLocalSchemaUnexpected => false,
+            Self::DaemonProfileNotPrivate => false,
+            Self::DaemonProfileUnavailable => true,
+            Self::DaemonNoDevice => false,
+            Self::DaemonDeviceUnreadable => false,
+            Self::DaemonNoWorld => false,
+            Self::DaemonWorldUnreadable => false,
+            Self::DaemonMarkUnreadable => false,
             Self::IdsClockBackwards => true,
             Self::IdsSequenceExhausted => false,
             Self::IdsFlakeExhausted => false,
@@ -1188,6 +1287,8 @@ impl ErrorCode {
             Self::ChannelCheckoutMalformed => &[],
             Self::ChannelBaseMalformed => &[],
             Self::ChannelNamespaceMalformed => &[],
+            Self::ChannelNoManifest => &[],
+            Self::ChannelManifestNotPrivate => &[],
             Self::DbUnreachable => &[],
             Self::DbMigrationFailed => &[],
             Self::DbPruneFailed => &[],
@@ -1195,6 +1296,13 @@ impl ErrorCode {
             Self::DbPruneRefused => &[],
             Self::DbLocalOpenRefused => &[],
             Self::DbLocalSchemaUnexpected => &[],
+            Self::DaemonProfileNotPrivate => &[],
+            Self::DaemonProfileUnavailable => &[],
+            Self::DaemonNoDevice => &[],
+            Self::DaemonDeviceUnreadable => &[],
+            Self::DaemonNoWorld => &[],
+            Self::DaemonWorldUnreadable => &[],
+            Self::DaemonMarkUnreadable => &[],
             Self::IdsClockBackwards => &[],
             Self::IdsSequenceExhausted => &[],
             Self::IdsFlakeExhausted => &[],
@@ -1325,6 +1433,10 @@ pub const AREAS: &[(&str, &str)] = &[
     (
         "DB",
         "Databases: PostgreSQL's connections, migrations and pruning, and the local SQLite file",
+    ),
+    (
+        "DMN",
+        "The daemon: the profile it keeps, the device it mints on, and the identifiers' mark (§11.1, §16.2)",
     ),
     (
         "GW",

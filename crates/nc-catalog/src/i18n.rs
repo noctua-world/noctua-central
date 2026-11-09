@@ -278,6 +278,13 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "error.channel.manifest-not-private",
+        [
+            "The file saying which installation this is could be changed by another account on this computer, so Noctua did not read it. Install Noctua again.",
+            "O arquivo que diz qual instalação é esta poderia ser alterado por outra conta deste computador, então o Noctua não o leu. Instale o Noctua de novo.",
+        ],
+    ),
+    (
         "error.channel.manifest-unreadable",
         [
             "Noctua could not read the file that says which installation this is, so it stopped before doing anything. Install Noctua again.",
@@ -292,10 +299,66 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "error.channel.no-manifest",
+        [
+            "This copy of Noctua has no file saying which installation it is, so it stopped before doing anything. Install Noctua again.",
+            "Esta cópia do Noctua não tem o arquivo que diz qual instalação ela é, então parou antes de fazer qualquer coisa. Instale o Noctua de novo.",
+        ],
+    ),
+    (
         "error.channel.unknown",
         [
             "This installation names a release channel Noctua does not know, so it stopped before doing anything. Install Noctua again.",
             "Esta instalação indica um canal de versões que o Noctua não conhece, então ele parou antes de fazer qualquer coisa. Instale o Noctua novamente.",
+        ],
+    ),
+    (
+        "error.daemon.device-unreadable",
+        [
+            "This computer's identity in Noctua is damaged, so Noctua did not start. Install Noctua again.",
+            "A identidade deste computador no Noctua está danificada, então o Noctua não iniciou. Instale o Noctua de novo.",
+        ],
+    ),
+    (
+        "error.daemon.mark-unreadable",
+        [
+            "Noctua could not read how far it has numbered what it saves, so it did not start rather than risk numbering something twice.",
+            "O Noctua não conseguiu ler até onde já numerou o que salva, então não iniciou para não arriscar numerar algo duas vezes.",
+        ],
+    ),
+    (
+        "error.daemon.no-device",
+        [
+            "This installation has no identity for this computer yet, so Noctua did not start. Install Noctua again.",
+            "Esta instalação ainda não tem uma identidade para este computador, então o Noctua não iniciou. Instale o Noctua de novo.",
+        ],
+    ),
+    (
+        "error.daemon.no-world",
+        [
+            "Noctua does not know whose it is on this computer yet, so it did not start.",
+            "O Noctua ainda não sabe de quem é neste computador, então não iniciou.",
+        ],
+    ),
+    (
+        "error.daemon.profile-not-private",
+        [
+            "A folder or file where Noctua keeps your data could be reached by another account on this computer, so Noctua did not use it and left it as it was.",
+            "Uma pasta ou arquivo onde o Noctua guarda seus dados poderia ser acessado por outra conta deste computador, então o Noctua não o usou e o deixou como estava.",
+        ],
+    ),
+    (
+        "error.daemon.profile-unavailable",
+        [
+            "Noctua could not read or create a folder where it keeps your data. Check that the disk has room and is connected, then try again.",
+            "O Noctua não conseguiu ler ou criar uma pasta onde guarda seus dados. Veja se o disco tem espaço e está conectado e tente de novo.",
+        ],
+    ),
+    (
+        "error.daemon.world-unreadable",
+        [
+            "The file saying whose Noctua this is could not be read, so Noctua did not start.",
+            "O arquivo que diz de quem é este Noctua não pôde ser lido, então o Noctua não iniciou.",
         ],
     ),
     (
@@ -968,9 +1031,18 @@ pub const KEYS: &[&str] = &[
     "error.canon.unparsable",
     "error.channel.base-malformed",
     "error.channel.checkout-malformed",
+    "error.channel.manifest-not-private",
     "error.channel.manifest-unreadable",
     "error.channel.namespace-malformed",
+    "error.channel.no-manifest",
     "error.channel.unknown",
+    "error.daemon.device-unreadable",
+    "error.daemon.mark-unreadable",
+    "error.daemon.no-device",
+    "error.daemon.no-world",
+    "error.daemon.profile-not-private",
+    "error.daemon.profile-unavailable",
+    "error.daemon.world-unreadable",
     "error.db.local-open-refused",
     "error.db.local-schema-unexpected",
     "error.db.migration-failed",

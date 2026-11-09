@@ -8,8 +8,12 @@ resolver = "3"
 # `plugins/*` beside the crates, because a plugin is a member: the host target
 # lints, documents and tests its `behaviour` like any other crate, and
 # `cargo xtask check` builds it again for `wasm32-unknown-unknown` as a
-# component (`xtask/src/plugins.rs`).
-members = ["crates/*", "plugins/*", "xtask"]
+# component (`xtask/src/plugins.rs`). `apps/*` holds the binaries a person's
+# machine runs — the daemon first — each a library its suites drive and a thin
+# binary (`NOCTUA.md §10.2`). Every gate that asks where the platform's code is
+# reads these trees from `MEMBER_TREES` in `xtask/src/members.rs`, which is held
+# to this line both ways.
+members = ["crates/*", "plugins/*", "apps/*", "xtask"]
 
 [workspace.package]
 version = "0.1.0-rc.1"
@@ -178,6 +182,10 @@ nc-platform = { path = "crates/nc-platform" }
 # never does**: the kernel reaches the central log, whose wall refuses a crate
 # that can reach it minting one from text.
 nc-authz = { path = "crates/nc-authz" }
+# The local kernel (`NOCTUA.md §11`), taken by the daemon that runs it and by
+# nothing else shipped: its `LogSink` is the one sink the daemon's own events and
+# the kernel's are written to.
+nc-kernel = { path = "crates/nc-kernel" }
 # The guest half of the kernel's world, generated once: every plugin calls the
 # `export!` this crate's `generate!` emits, and none runs the generator itself
 # (`crates/nc-guest/src/lib.rs` says why that keeps `forbid(unsafe_code)` whole).
@@ -330,6 +338,18 @@ url = "2.5"
 # identity, canonical round-trip — and `§19.2` puts those under property test.
 # Already `noctua-colors`'.
 proptest = "1.11"
+
+# A device's key (`NOCTUA.md §16.2`): the Ed25519 public key a profile's flake
+# and its journal's keeper derive from, and the key iroh takes as the device's
+# identity in Stage 25 (`§13.2`), at the major iroh pins. A cryptographic primitive is what `§2.3`
+# names as not viable in-house. **`default-features = false`, `zeroize` alone**:
+# no `rand_core`, because the seed is drawn by `nc_platform::random` from the
+# system's own generator, which keeps a third `rand_core` out of the graph; no
+# `fast`, because one public key derived at each start needs no precomputed
+# tables; and `zeroize`, so a key is wiped when it is dropped. Its family —
+# `curve25519-dalek`, `ed25519`, `signature`, `subtle` — arrives with it, each
+# named in `AGENTS.md`'s table.
+ed25519-dalek = { version = "3.0", default-features = false, features = ["zeroize"] }
 
 # The ledger's checksum, which is what catches an edit made outside the compiler.
 # `NOCTUA.md §16.2` and `§14.9` both name BLAKE3, and it is already

@@ -47,9 +47,15 @@ use std::path::Path;
 /// a panic**: a checkout copied without one, or a tree whose first member has
 /// not arrived, is a tree with nothing to read. The second field is the
 /// package's prefix: a plugin under `plugins/<dir>` is `nc-plugin-<dir>`,
-/// which the plugin build refuses any other name for.
-pub(crate) const MEMBER_TREES: [(&str, &str); 3] =
-    [("crates/*", ""), ("plugins/*", "nc-plugin-"), ("xtask", "")];
+/// which the plugin build refuses any other name for, and an app under
+/// `apps/<dir>` is `nc-<dir>`, so the daemon in `apps/daemon` is the package
+/// named after it.
+pub(crate) const MEMBER_TREES: [(&str, &str); 4] = [
+    ("crates/*", ""),
+    ("plugins/*", "nc-plugin-"),
+    ("apps/*", "nc-"),
+    ("xtask", ""),
+];
 
 /// The directory each member tree is, whether or not it holds a member yet.
 // allow-logging: `member_tree_roots` hands back the trees `MEMBER_TREES` writes in this file
@@ -59,7 +65,7 @@ pub(crate) fn member_tree_roots() -> impl Iterator<Item = &'static str> {
         .map(|(tree, _)| tree.strip_suffix("/*").unwrap_or(tree))
 }
 
-/// The member trees each of whose children is a member: `crates`, `plugins`.
+/// The trees each of whose children is a member: `crates`, `plugins`, `apps`.
 // allow-logging: `trees_of_members` hands back the trees `MEMBER_TREES` writes in this file
 pub(crate) fn trees_of_members() -> impl Iterator<Item = &'static str> {
     MEMBER_TREES
@@ -987,11 +993,11 @@ mod tests {
         );
         assert_eq!(
             super::member_tree_roots().collect::<Vec<_>>(),
-            ["crates", "plugins", "xtask"]
+            ["crates", "plugins", "apps", "xtask"]
         );
         assert_eq!(
             super::trees_of_members().collect::<Vec<_>>(),
-            ["crates", "plugins"]
+            ["crates", "plugins", "apps"]
         );
         assert_eq!(
             super::trees_that_are_members().collect::<Vec<_>>(),
@@ -1013,6 +1019,10 @@ mod tests {
         assert_eq!(
             owned("plugins/reference/src/behaviour.rs"),
             pair("plugins/reference", "nc-plugin-reference")
+        );
+        assert_eq!(
+            owned("apps/daemon/src/mark.rs"),
+            pair("apps/daemon", "nc-daemon")
         );
         assert_eq!(owned("xtask/src/check.rs"), pair("xtask", "xtask"));
         // A file at a tree's root belongs to no member of it, and a directory
@@ -1201,9 +1211,9 @@ mod tests {
             paths.contains(&"crates/nc-log") && paths.contains(&"xtask"),
             "{paths:?}"
         );
-        // The floor is a real number, not `> 0`: this workspace has seventeen
+        // The floor is a real number, not `> 0`: this workspace has eighteen
         // members and a resolution that lost one is the defect being closed.
-        assert_eq!(found.len(), 17, "{paths:?}");
+        assert_eq!(found.len(), 18, "{paths:?}");
         // And `nc-log` does not depend on itself, so the consumer count this
         // feeds cannot be inflated by the log's own manifest.
         assert!(

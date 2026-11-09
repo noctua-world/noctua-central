@@ -670,7 +670,7 @@ const PROSE: [(&str, &str); 149] = [
     ),
     (
         "log-events.md",
-        "**`nc-kernel` is the one crate outside `nc-log` that logs.** It emits every `kernel.*` event below, `net.refused`, `journal.verified` and `journal.broken`; every other event is declared for a later stage, and `cargo xtask check` counts the crates that may log beside their logging call sites. The types and the guarantee are real today; the traffic is the kernel's alone.",
+        "**`nc-kernel` and `nc-daemon` are the crates outside `nc-log` that log.** The kernel emits every `kernel.*` event below, `net.refused`, `journal.verified` and `journal.broken`; the daemon emits `ids.clock_backwards`; every other event is declared for a later stage, and `cargo xtask check` counts the crates that may log beside their logging call sites. The types and the guarantee are real today.",
     ),
     ("log-events.md", "## `db.migrated`"),
     ("log-events.md", "Migrations were applied"),
@@ -2775,22 +2775,23 @@ fn every_variant_is_published_as_the_word_it_names() {
     );
 }
 
-/// The events `docs/log-events.md` says the kernel emits are the events the
-/// kernel records, both ways.
+/// The events `docs/log-events.md` says each crate that logs emits are the
+/// events its sources record, both ways.
 ///
 /// **A pin cannot see an omission.** A sentence naming every `kernel.*` event,
 /// `journal.verified` and `journal.broken` while
 /// `crates/nc-kernel/src/dispatch.rs` records `net.refused` beside them is held
 /// as written by the prose pin above, omission and all. Measured, with that
 /// sentence on the page: this test red, with `net.refused` on the kernel's side
-/// alone. So the names are read from both sides: every `nc_log::events::`
-/// type a kernel source names, put back into the dotted name the catalog
-/// gives it, against `kernel.*` and every event the sentence names.
+/// alone. So the names are read from both sides, for the kernel and for the
+/// daemon each: every `nc_log::events::` type its sources name, put back into
+/// the dotted name the catalog gives it, against what the sentence says it
+/// emits.
 #[test]
-fn the_events_the_page_says_the_kernel_emits_are_the_ones_it_records() {
+fn the_events_the_page_says_each_logger_emits_are_the_ones_it_records() {
     fn sources(directory: &Path, into: &mut Vec<PathBuf>) {
         for entry in std::fs::read_dir(directory)
-            .expect("the kernel's sources are readable")
+            .expect("a logger's sources are readable")
             .flatten()
         {
             let path = entry.path();
@@ -2814,60 +2815,75 @@ fn the_events_the_page_says_the_kernel_emits_are_the_ones_it_records() {
             .collect()
     };
     let catalog = catalog();
-    let mut files = Vec::new();
-    sources(&root().join("crates/nc-kernel/src"), &mut files);
-    assert!(files.len() > 10, "the kernel's sources were not found");
-    let text: String = files
-        .iter()
-        .map(|file| std::fs::read_to_string(file).expect("a kernel source is readable"))
-        .collect();
-    let recorded: std::collections::BTreeSet<&str> = catalog
-        .events
-        .iter()
-        .map(|entry| entry.name.as_str())
-        .filter(|name| {
-            let named = format!("nc_log::events::{}", type_of(name));
-            text.match_indices(&named).any(|(at, _)| {
-                !text[at + named.len()..].starts_with(|c: char| c.is_alphanumeric() || c == '_')
+    let recorded_in = |directory: &str| -> std::collections::BTreeSet<String> {
+        let mut files = Vec::new();
+        sources(&root().join(directory), &mut files);
+        assert!(!files.is_empty(), "`{directory}` holds no source");
+        let text: String = files
+            .iter()
+            .map(|file| std::fs::read_to_string(file).expect("a source is readable"))
+            .collect();
+        catalog
+            .events
+            .iter()
+            .map(|entry| entry.name.clone())
+            .filter(|name| {
+                let named = format!("nc_log::events::{}", type_of(name));
+                text.match_indices(&named).any(|(at, _)| {
+                    !text[at + named.len()..].starts_with(|c: char| c.is_alphanumeric() || c == '_')
+                })
             })
-        })
-        .collect();
-    assert!(
-        recorded.contains("kernel.plugin_killed"),
-        "no kernel event was found recorded, so this compares nothing: {recorded:?}"
-    );
+            .collect()
+    };
     let published = page("log-events.md");
     let sentence = published
         .lines()
         .find(|line| {
-            line.starts_with("**`nc-kernel` is the one crate outside `nc-log` that logs.**")
+            line.starts_with(
+                "**`nc-kernel` and `nc-daemon` are the crates outside `nc-log` that log.**",
+            )
         })
-        .expect("the page says which crate logs");
-    let emits = sentence
-        .split_once("It emits ")
-        .and_then(|(_, rest)| rest.split_once(';'))
-        .map(|(named, _)| named)
-        .expect("the sentence says what the kernel emits");
-    let named: Vec<&str> = emits.split('`').skip(1).step_by(2).collect();
-    assert!(named.contains(&"kernel.*"), "{sentence}");
-    let said: std::collections::BTreeSet<&str> = catalog
-        .events
-        .iter()
-        .map(|entry| entry.name.as_str())
-        .filter(|name| name.starts_with("kernel.") || named.contains(name))
-        .collect();
-    for name in &named {
+        .expect("the page says which crates log");
+    let emitted = |by: &str| -> Vec<&str> {
+        let (named, _) = sentence
+            .split_once(by)
+            .and_then(|(_, rest)| rest.split_once(';'))
+            .unwrap_or_else(|| panic!("the sentence says what {by:?}: {sentence}"));
+        named.split('`').skip(1).step_by(2).collect()
+    };
+    for (by, directory, wildcard) in [
+        ("The kernel emits ", "crates/nc-kernel/src", Some("kernel.")),
+        ("the daemon emits ", "apps/daemon/src", None),
+    ] {
+        let named = emitted(by);
+        let recorded = recorded_in(directory);
         assert!(
-            *name == "kernel.*" || catalog.events.iter().any(|entry| entry.name == *name),
-            "the page says the kernel emits `{name}`, which the catalog does not declare"
+            !recorded.is_empty(),
+            "no event was found recorded in `{directory}`"
+        );
+        for name in &named {
+            assert!(
+                name.ends_with(".*") || catalog.events.iter().any(|entry| entry.name == *name),
+                "the page says {by:?}`{name}`, which the catalog does not declare"
+            );
+        }
+        let said: std::collections::BTreeSet<String> = catalog
+            .events
+            .iter()
+            .map(|entry| entry.name.clone())
+            .filter(|name| {
+                wildcard.is_some_and(|prefix| {
+                    named.contains(&format!("{prefix}*").as_str()) && name.starts_with(prefix)
+                }) || named.contains(&name.as_str())
+            })
+            .collect();
+        assert_eq!(
+            said, recorded,
+            "`docs/log-events.md` says {by:?}the first set and `{directory}` records the \
+             second: an event on one side only is a sentence a reader trusts about a log \
+             line that is, or is not, there"
         );
     }
-    assert_eq!(
-        said, recorded,
-        "`docs/log-events.md` says the kernel emits the first set and its sources \
-         record the second: an event on one side only is a sentence a reader trusts \
-         about a log line that is, or is not, there"
-    );
 }
 
 /// What the limits page says holds its tables is there to hold them.

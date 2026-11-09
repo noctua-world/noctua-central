@@ -150,6 +150,15 @@ dir   = "ltr"
 "error.channel.checkout-malformed" = "This installation names the development copy it was built from wrongly, so Noctua stopped before doing anything. Install Noctua again."
 "error.channel.base-malformed" = "This installation names a folder that is not written as a full, plain path, so Noctua stopped before doing anything. Install Noctua again."
 "error.channel.namespace-malformed" = "This installation's name for running beside others is not one Noctua accepts, so it stopped before doing anything. Install Noctua again."
+"error.channel.no-manifest" = "This copy of Noctua has no file saying which installation it is, so it stopped before doing anything. Install Noctua again."
+"error.channel.manifest-not-private" = "The file saying which installation this is could be changed by another account on this computer, so Noctua did not read it. Install Noctua again."
+"error.daemon.profile-not-private" = "A folder or file where Noctua keeps your data could be reached by another account on this computer, so Noctua did not use it and left it as it was."
+"error.daemon.profile-unavailable" = "Noctua could not read or create a folder where it keeps your data. Check that the disk has room and is connected, then try again."
+"error.daemon.no-device" = "This installation has no identity for this computer yet, so Noctua did not start. Install Noctua again."
+"error.daemon.device-unreadable" = "This computer's identity in Noctua is damaged, so Noctua did not start. Install Noctua again."
+"error.daemon.no-world" = "Noctua does not know whose it is on this computer yet, so it did not start."
+"error.daemon.world-unreadable" = "The file saying whose Noctua this is could not be read, so Noctua did not start."
+"error.daemon.mark-unreadable" = "Noctua could not read how far it has numbered what it saves, so it did not start rather than risk numbering something twice."
 
 # --- The catalog's own mechanism entries ---
 # These two pairs exist to prove the generated typed handles resolve in both

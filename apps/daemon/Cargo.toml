@@ -1,0 +1,52 @@
+[package]
+name = "nc-daemon"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "The daemon a channel runs: the install it names itself by, its profile, its device and the identifiers' mark."
+
+# **A library and a thin binary.** What the daemon does is the library's, so
+# the suites in `tests/` drive it in-process and a mutation of it is judged by
+# the library's own tests; `noctua-daemon` reads its arguments and prints.
+[[bin]]
+name = "noctua-daemon"
+path = "src/main.rs"
+
+[dependencies]
+# The codes every refusal carries (`NOCTUA.md §15.1`), and `DAEMON`, the bounds
+# the daemon holds itself to.
+nc-catalog.workspace = true
+# The install's manifest and every name it derives (`§17.1`).
+nc-channel.workspace = true
+# Who runs this, a path judged this user's alone, a file and a directory created
+# private, and the system's random bytes a device's seed is drawn from.
+nc-platform.workspace = true
+# The minter, its ceiling and the flake (`§16.2`).
+nc-ids.workspace = true
+# The world a profile decides as, read with the pack its realm selects.
+nc-authz.workspace = true
+# A device's record and a world file, read as the one canonical form.
+nc-canon.workspace = true
+# The event a clock moved back is logged as, and the sink the kernel is opened
+# with, which the daemon writes its own events to as well.
+nc-log.workspace = true
+nc-kernel.workspace = true
+# A device's key (`§16.2`): the public key its flake and its identifier derive
+# from. `default-features = false` and `zeroize` alone, so no `rand_core` — the
+# seed is drawn by `nc-platform` — and the key is wiped when it is dropped.
+ed25519-dalek.workspace = true
+# The checksum each slot of the identifiers' mark carries.
+blake3.workspace = true
+
+[dev-dependencies]
+# **Itself, so the documentation gate can read this crate's integration
+# tests**, as every crate with a `tests/` suite does.
+nc-daemon = { path = "." }
+# The doors a test stages a path through, and the capture a test reads the
+# daemon's events back from.
+nc-platform = { workspace = true, features = ["test-support"] }
+nc-kernel = { workspace = true, features = ["test-support"] }
+
+[lints]
+workspace = true

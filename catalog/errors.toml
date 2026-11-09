@@ -47,6 +47,7 @@ IDS  = "Identifiers: Snowflake, the machine flake, file names"
 JRNL = "The command journal and its hash chain"
 POL  = "Policy packs: loading, validation, evaluation"
 CHAN = "Channels and installs: the manifest an install names itself by, and every name derived from it (§17.1)"
+DMN  = "The daemon: the profile it keeps, the device it mints on, and the identifiers' mark (§11.1, §16.2)"
 
 # --- The journal (§14.9) ---
 
@@ -1130,4 +1131,93 @@ code = "NC-CHAN-0005"
 description = "An install manifest's namespace is not one to sixteen lower-case letters and digits holding a digit"
 message = "error.channel.namespace-malformed"
 severity = "error"
+retryable = false
+
+[[error]]
+# What every binary refuses before it reads anything else: no manifest beside
+# the executable it runs as. **No channel is built in to fall back to** — a
+# default would make every binary a build leaves behind a live client of the
+# developer's own channel — so this is the answer, and installing again is the
+# fix.
+code = "NC-CHAN-0006"
+description = "No install manifest is beside this executable, so it names no channel and does not run"
+message = "error.channel.no-manifest"
+severity = "error"
+retryable = false
+
+[[error]]
+# The manifest names every directory the profile is kept in, so one another
+# account could write chooses where this user's device seed and world are read
+# from. Judged by `nc_platform::judge` and left as it was.
+code = "NC-CHAN-0007"
+description = "The install manifest, or the directory holding it, is not this user's alone, so it was not read"
+message = "error.channel.manifest-not-private"
+severity = "critical"
+retryable = false
+
+# --- The daemon (§11.1, §16.2) ---
+#
+# What a daemon refuses to start on, each by what it found, so a log is
+# queried by which part of the profile it was (`§15.1`). **Only the one that is
+# the filesystem's answer is retryable**: the rest are the profile's contents,
+# which reading again reads the same.
+
+[[error]]
+code = "NC-DMN-0001"
+description = "A folder or a file of the daemon's profile is not this user's alone, so the daemon did not use it"
+message = "error.daemon.profile-not-private"
+severity = "critical"
+retryable = false
+
+[[error]]
+# A disk that is full or read-only for a moment, a base directory unmounted:
+# the same start may succeed once it is back.
+code = "NC-DMN-0002"
+description = "A folder or a file of the daemon's profile could not be read or made"
+message = "error.daemon.profile-unavailable"
+severity = "error"
+retryable = true
+
+[[error]]
+# The installer draws the device's seed and records its flake; the daemon
+# never makes one (§16.2), because a seed it drew on a profile that lost its
+# own would be a new device with a new flake, minting beside the old one.
+code = "NC-DMN-0003"
+description = "The daemon's profile holds no device, and the daemon never makes one"
+message = "error.daemon.no-device"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-DMN-0004"
+description = "The daemon's device is not one this build wrote: a seed of another length, or a record that is not the seed's"
+message = "error.daemon.device-unreadable"
+severity = "critical"
+retryable = false
+
+[[error]]
+# §5.13: a daemon decides for one person of one realm, read from the world
+# file the installer copies in, and nothing makes one up for a person with no
+# account.
+code = "NC-DMN-0005"
+description = "The daemon's profile names no realm and no person to decide as, so the daemon did not start"
+message = "error.daemon.no-world"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-DMN-0006"
+description = "The daemon's world file is not one this build reads, or names a person its realm does not hold"
+message = "error.daemon.world-unreadable"
+severity = "error"
+retryable = false
+
+[[error]]
+# Neither slot of the mark is whole, so the daemon cannot know which
+# identifiers it handed out, and does not start rather than resume from
+# nothing — the one way to repeat one (§16.2).
+code = "NC-DMN-0007"
+description = "The identifiers' mark is unreadable in both of its slots, so the daemon did not start"
+message = "error.daemon.mark-unreadable"
+severity = "critical"
 retryable = false

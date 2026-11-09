@@ -7677,6 +7677,8 @@ mod the_exemption_is_one_directory {
             "crates/nc-prune/src/lib.rs",
             "crates/nc-schema/src/lib.rs",
             "plugins/reference/src/lib.rs",
+            "apps/daemon/src/lib.rs",
+            "apps/daemon/src/main.rs",
             "xtask/src/main.rs",
             // The fixtures' own crate, outside the fixtures directory.
             "crates/nc-log/src/ship.rs",
