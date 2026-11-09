@@ -10,6 +10,15 @@
 # iptables rule that bypasses a host firewall*, so a laptop on a café network
 # would be serving an unauthenticated database to the room. This is the one line
 # that prevents it, and it is the reason each port is written the long way.
+#
+# **No port is written here either.** Each checkout's stack has a pair of its
+# own, derived from the checkout's path by `nc_channel::Checkout::stack`, so two
+# checkouts' stacks run at once; `cargo xtask dev` hands the pair to every
+# compose invocation it makes, and prints it. A port here to fall back to would
+# be one every checkout falls back to, so each is required instead, and a
+# `docker compose up` run by hand that was not handed them refuses, saying what
+# to export.
+# `POSTGRES_PORT` and `LOGS_PORT` move one.
 
 # **No `name:` here, deliberately.** `-p` on the command line wins over one —
 # `cargo xtask dev` is safe either way — but with a fixed name a bare
@@ -36,7 +45,7 @@ services:
     image: postgres:18-alpine@sha256:d3e1620b530c944afa6e887d22eb899824da68e19c52024bf98f5220c88a65b2
     restart: unless-stopped
     ports:
-      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:?is this checkout's, so export the ports cargo xtask dev prints}:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-noctua}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-noctua}
@@ -120,7 +129,7 @@ services:
     image: victoriametrics/victoria-logs:v1.52.0@sha256:47b820890d64c4575a2a0a46415dcd8a4fd59a0f1fcd6a377693d7aea639442e
     restart: unless-stopped
     ports:
-      - "127.0.0.1:${LOGS_PORT:-9428}:9428"
+      - "127.0.0.1:${LOGS_PORT:?is this checkout's, so export the ports cargo xtask dev prints}:9428"
     command:
       - "--storageDataPath=/victoria-logs-data"
       # The bounds `catalog/limits.toml` declares for this store. They are here

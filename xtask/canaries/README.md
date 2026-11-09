@@ -584,7 +584,8 @@ which builds that plugin into what the kernel loads, the local database's
 `lib.rs`, `open.rs`, `schema.rs` and `store.rs` and the journal it keeps,
 `journal.rs`, what makes that database's
 files private on the system it runs on — `nc-platform`'s `lib.rs`, `unix.rs`
-and the test doors `testing.rs` — `nc-prune`'s `sqlite.rs`, and
+and the test doors `testing.rs` — every name an install gives the system,
+`nc-channel`'s `lib.rs`, `nc-prune`'s `sqlite.rs`, and
 `local.rs`, which builds that database's schema from its migrations, and restores **all of them** before each mutation: its first multi-file version
 restored only the one it was editing, so sixteen weakenings were reported killed
 by a corpus that had not seen them.
@@ -2597,7 +2598,7 @@ granted and required to move.
 ### The control that connects under `--offline`
 
 A control reading `url()`, which falls back to
-`postgres://…@127.0.0.1:${POSTGRES_PORT:-5432}/noctua` and probes the port,
+`postgres://…@127.0.0.1:<this checkout's port>/noctua` and probes the port,
 connects anyway under the environment `cargo xtask check --offline` hands the
 test binary, and issues `CREATE SCHEMA`, two `GRANT`s and
 `DROP SCHEMA … CASCADE` against whatever is listening, which by default is the

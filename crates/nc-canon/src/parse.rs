@@ -141,6 +141,13 @@ pub const MAX_DEPTH: usize = 64;
 /// [`Value::depth`]: crate::Value::depth
 pub const MAX_NESTING: usize = MAX_DEPTH + 1;
 
+/// The most characters of a key written twice that its refusal shows.
+///
+/// **A key is as long as the text holding it, and the refusal is not**: it is
+/// logged, and quoted by whoever reads the text, so the key is cut past this
+/// many of its own characters and `…` says so.
+const KEY_SHOWN_AT_MOST: usize = 64;
+
 struct Reader<'a> {
     bytes: &'a [u8],
     at: usize,
@@ -253,8 +260,16 @@ impl Reader<'_> {
                 // hash over the survivor would not match a hash over the other.
                 self.at = at;
                 // The key escaped: a duplicate key holding a newline would put
-                // one in the message that refuses it.
-                let shown: String = key.chars().map(crate::shown).collect();
+                // one in the message that refuses it. And cut, counted in its
+                // own characters before any is escaped.
+                let mut shown: String = key
+                    .chars()
+                    .take(KEY_SHOWN_AT_MOST)
+                    .map(crate::shown)
+                    .collect();
+                if key.chars().nth(KEY_SHOWN_AT_MOST).is_some() {
+                    shown.push('…');
+                }
                 return Err(self.error(&format!("`{shown}` appears twice in one object")));
             }
             self.skip_whitespace();
@@ -694,6 +709,40 @@ mod tests {
     fn a_duplicate_key_is_refused() {
         let error = parse(r#"{"a":1,"a":2}"#).expect_err("must refuse");
         assert!(error.what.contains('a'), "{error}");
+    }
+
+    /// A key written twice is shown escaped and cut, because it is the text's.
+    ///
+    /// **Whoever quotes the refusal quotes the key**: `nc-channel` carries it
+    /// into a manifest's refusal, which writes no character that ends a line
+    /// or a field and no more than sixty-four of the manifest's characters.
+    #[test]
+    fn a_key_written_twice_is_shown_escaped_and_cut() {
+        // A line feed and a line separator, a quote and a backslash, each
+        // written out as its code point.
+        let error = parse(r#"{"k\n\u2028\"\\":1,"k\n\u2028\"\\":2}"#).expect_err("a key twice");
+        assert!(
+            error
+                .what
+                .contains("`kU+000AU+2028U+0022U+005C` appears twice"),
+            "{error}"
+        );
+        // Counted in characters, not bytes: a key of a hundred two-byte
+        // characters shows its first sixty-four and `…`, and one of exactly
+        // sixty-four shows whole.
+        let twice = |key: &str| {
+            parse(&format!(r#"{{"{key}":1,"{key}":2}}"#))
+                .expect_err("a key twice")
+                .what
+        };
+        assert_eq!(
+            twice(&"é".repeat(100)),
+            format!("`{}…` appears twice in one object", "é".repeat(64))
+        );
+        assert_eq!(
+            twice(&"é".repeat(64)),
+            format!("`{}` appears twice in one object", "é".repeat(64))
+        );
     }
 
     #[test]

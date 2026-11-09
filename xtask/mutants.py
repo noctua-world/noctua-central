@@ -498,6 +498,12 @@ SOURCES = {
     # The gates over the local database — its schema built from the files on
     # disk, and the SQL its crates may write — decided by their own module.
     "local_gates": os.path.join(ROOT, "xtask/src/local.rs"),
+    # **Every name an install gives the system**, and the manifest an install
+    # names itself by: the frozen digest and its rendering, the port block, the
+    # leaf, the user's spelling and every refusal of a manifest. Decided by
+    # that crate's own tests, which derive the names of every channel and touch
+    # no disk but to canonicalize a path.
+    "channel": os.path.join(ROOT, "crates/nc-channel/src/lib.rs"),
 }
 
 # (source, predicate, label, from, to). `from` must appear exactly once in it.
@@ -1183,6 +1189,12 @@ WEAKENINGS = [
      "fn utf16_cmp(left: &str, right: &str) -> Ordering {\n    return left.cmp(right);"),
 
     # -- reader: what a hostile document may say ----------------------------
+    ("reader", "object", "a key written twice is shown escaped",
+     "                    .map(crate::shown)\n",
+     "                    .map(String::from)\n"),
+    ("reader", "object", "a key written twice is shown no longer than its bound",
+     "                    .take(KEY_SHOWN_AT_MOST)\n",
+     "                    .take(usize::MAX)\n"),
     ("reader", "unicode_escape", "the high-surrogate range reaches its last value",
      "        if (0xd800..0xdc00).contains(&high) {",
      "        if (0xd800..0xdbff).contains(&high) {"),
@@ -1801,6 +1813,10 @@ WEAKENINGS = [
     ("check", "the_unopinioned", "the flags a store answered are not read",
      "    held.names()\n        .filter(|name| {",
      "    held.names()\n        .take(0)\n        .filter(|name| {"),
+    ("check", "the_running_log_store_is_bounded_as_declared",
+     "the log store is asked on this checkout's port",
+     "    let port = crate::dev::port(root, crate::dev::Port::Logs);",
+     '    let port = crate::dev::setting(("LOGS_PORT", "9428"));'),
 
     # -- repaired clauses, each with an operator --
     # A repair is the most likely source of the next defect, so a repaired
@@ -2455,6 +2471,10 @@ WEAKENINGS = [
      "key.trim_end().trim_matches(['\"', '\\''])", "key.trim_end()"),
     ("gates", "the_effective_stack", "every profile, not the default projection",
      '.args(["compose", "--profile", "*", "config"])', '.args(["compose", "config"])'),
+    ("gates", "the_effective_stack", "the image gate is handed the checkout's ports",
+     '        .envs(crate::dev::Port::ALL.map(|which| (which.variable(), crate::dev::port(root, which))))\n'
+     '        .current_dir(root)',
+     '        .current_dir(root)'),
     ("gates", "the_image_on", "the resolved line is indented",
      "let (key, rest) = line.trim().split_once(':')?;",
      "let (key, rest) = line.split_once(':')?;"),
@@ -2534,6 +2554,29 @@ WEAKENINGS = [
     ("dev", "standing_of", "no healthcheck at all is a healthcheck that has not answered yet",
      '    if health.is_empty() {\n        return Standing::NoHealthcheck(service.to_owned());\n    }',
      '    if health.is_empty() {\n        unhealthy.push(format!("{service} is starting"));\n        return Standing::NotYet;\n    }'),
+
+    # The stack's ports: the checkout's pair, moved only by its variable, a
+    # port something else holds refused before compose runs, and a port asked
+    # of the service that publishes it.
+    ("dev", "of", "the log store is on the checkout's second port",
+     '            Self::Logs => stack.logs,', '            Self::Logs => stack.postgres,'),
+    ("dev", "port_of", "a port's variable moves the port",
+     '    as_compose_reads(said).unwrap_or_else(|| {', '    as_compose_reads(said.filter(|_| false)).unwrap_or_else(|| {'),
+    ("dev", "as_compose_reads", "a variable set empty says nothing",
+     '    said.filter(|said| !said.is_empty())', '    said'),
+    ("dev", "free_or_this_stacks", "port zero is not a port",
+     '.filter(|number| *number != 0)', '.filter(|_| true)'),
+    ("dev", "free_or_this_stacks", "a port something else holds is refused",
+     '    let bound = std::net::TcpListener::bind(("127.0.0.1", number)).map(drop);',
+     '    let bound = std::net::TcpListener::bind(("127.0.0.1", number)).map(drop).or(Ok(()));'),
+    ("dev", "bound_or_this_stacks", "a port is this stack's only where this project publishes it",
+     'said.lines().any(|line| line.trim() == this_stacks)', '!said.is_empty()'),
+    ("dev", "bound_or_this_stacks", "a port is held only when its bind says it is in use",
+     '    if error.kind() == std::io::ErrorKind::AddrInUse {', '    if true {'),
+    ("dev", "published_by", "the log store's port is asked of the service that publishes it",
+     '            Self::Logs => ("logs", "9428"),', '            Self::Logs => ("postgres", "9428"),'),
+    ("dev", "published_by", "a port is asked at the container port its service publishes",
+     '            Self::Postgres => ("postgres", "5432"),', '            Self::Postgres => ("postgres", "9428"),'),
 
     # -- the policy step: criterion 11 -------------------------------------
     ("policy", "the_commands_a_schema_cannot_apply", "a resource its action cannot reach is fine",
@@ -2708,6 +2751,9 @@ WEAKENINGS = [
     ("database", "configured_schema", "the schema option is percent-decoded",
      "        .map(percent_decoded)",
      "        .map(str::to_owned)"),
+    ("database", "default_url", "the default url is on this checkout's port",
+     "    let port = crate::dev::port(&crate::repository_root(), crate::dev::Port::Postgres);",
+     '    let port = crate::dev::setting(("POSTGRES_PORT", "5432"));'),
     ("pack", "coverage", "an allow case is not a denial test",
      "        if case.decision != Expected::Deny {",
      "        if false {"),
@@ -6235,6 +6281,134 @@ WEAKENINGS = [
     ("gates", "directly_under_a_member", "a canary directory at any member's root is one",
      "    inside_a_member(relative)\n        .map(|(_, inside)| inside)\n        .or_else(|| relative.strip_prefix(\"xtask/\"))",
      "    relative.strip_prefix(\"xtask/\")"),
+
+    # -- channel: every name an install gives the system -------------------
+    ("channel", "digest_of", "the digest starts from FNV-1a's offset basis",
+     "    let mut hash: u32 = 0x811c_9dc5;",
+     "    let mut hash: u32 = 0x811c_9dc4;"),
+    ("channel", "digest_of", "the digest multiplies by FNV's prime",
+     "        hash = hash.wrapping_mul(0x0100_0193);",
+     "        hash = hash.wrapping_mul(0x0100_0195);"),
+    ("channel", "fmt", "a checkout is written with its leading zeros",
+     "        write!(formatter, \"{:08x}\", self.digest)",
+     "        write!(formatter, \"{:x}\", self.digest)"),
+    ("channel", "Checkout", "a checkout's path is canonicalized first",
+     "        let path = std::fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());",
+     "        let path = root.to_path_buf();"),
+    ("channel", "Checkout", "a checkout is eight digits, not at least eight",
+     "        let digits = text.len() == 8",
+     "        let digits = text.len() >= 8"),
+    ("channel", "Checkout", "a checkout's digits are lower-case",
+     "                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte));",
+     "                .all(|byte| byte.is_ascii_hexdigit());"),
+    ("channel", "stack", "the log store's port is PostgreSQL's plus one",
+     "            logs: postgres + 1,",
+     "            logs: postgres + 2,"),
+    ("channel", "pair_of", "the block wraps at its last pair",
+     "    (digest % u32::from(PORT_PAIRS)) as u16",
+     "    (digest % (u32::from(PORT_PAIRS) + 1)) as u16"),
+    ("channel", "leader", "staging holds Control as well as Alt",
+     "                modifiers: &[Modifier::Control, Modifier::Alt],",
+     "                modifiers: &[Modifier::Alt],"),
+    ("channel", "Namespace", "a namespace is bounded in length",
+     "            && text.len() <= NAMESPACE_MAX",
+     "            && text.len() <= NAMESPACE_MAX + 1"),
+    ("channel", "Namespace", "a namespace holds no separator",
+     "                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit());",
+     "                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-');"),
+    ("channel", "Namespace", "a namespace holds a digit",
+     "        if !text.bytes().any(|byte| byte.is_ascii_digit()) {",
+     "        if false {"),
+    ("channel", "plain", "a base holds no control character",
+     "        .any(|character| character.is_control() || matches!(character, '\\u{2028}' | '\\u{2029}'))\n",
+     "        .any(|character| matches!(character, '\\u{2028}' | '\\u{2029}'))\n"),
+    ("channel", "plain", "a base holds no line break that is not a control character",
+     "        .any(|character| character.is_control() || matches!(character, '\\u{2028}' | '\\u{2029}'))\n",
+     "        .any(|character| character.is_control())\n"),
+    ("channel", "plain", "a base is absolute",
+     "    if !path.is_absolute() {",
+     "    if false {"),
+    ("channel", "plain", "a base is spelled as its components spell it",
+     "    if spelled.as_os_str() != path.as_os_str()\n",
+     "    if false\n"),
+    ("channel", "plain", "a base that climbs is refused",
+     "            .any(|component| component == Component::ParentDir)",
+     "            .any(|_| false)"),
+    ("channel", "Install", "a key the manifest does not read is refused",
+     "        only_known(&fields, &KEYS, \"\")?;\n",
+     ""),
+    ("channel", "Install", "a manifest of another format is refused",
+     "        if format != FORMAT {",
+     "        if false {"),
+    ("channel", "Install", "a checkout that is not text is refused",
+     "        let checkout = optional_text(&mut fields, \"checkout\")?;",
+     "        let checkout = optional_text(&mut fields, \"checkout\").unwrap_or_default();"),
+    ("channel", "Install", "a checkout outside a development install is refused",
+     "            (\"production\" | \"staging\", Some(_)) => {",
+     "            (\"production\" | \"staging\", Some(_)) if false => {"),
+    ("channel", "Install", "a data base that is missing or not text is refused",
+     "            base(\"data\")?,",
+     "            base(\"data\").unwrap_or_default(),"),
+    ("channel", "Install", "a configuration base that is missing or not text is refused",
+     "            base(\"config\")?,",
+     "            base(\"config\").unwrap_or_default(),"),
+    ("channel", "Install", "a cache base that is missing or not text is refused",
+     "            base(\"cache\")?,",
+     "            base(\"cache\").unwrap_or_default(),"),
+    ("channel", "Install", "a state base that is missing or not text is refused",
+     "            base(\"state\")?,",
+     "            base(\"state\").unwrap_or_default(),"),
+    ("channel", "Install", "a log endpoint that is not text is refused",
+     "        let log_endpoint = optional_text(&mut fields, \"log_endpoint\")?;",
+     "        let log_endpoint = optional_text(&mut fields, \"log_endpoint\").unwrap_or_default();"),
+    ("channel", "Install", "a development install writes its checkout",
+     "            fields.push((\"checkout\", Value::text(checkout.to_string())));",
+     "            let _ = checkout;"),
+    ("channel", "integer", "a whole number written otherwise is refused",
+     "        Some(_) => Err(unreadable(&format!(\"its `{key}` is not a whole number\"))),",
+     "        Some(_) => Ok(FORMAT),"),
+    ("channel", "quoted", "a refusal escapes what it quotes of a manifest",
+     "        .map(nc_canon::shown)\n",
+     "        .map(String::from)\n"),
+    ("channel", "quoted", "a refusal quotes no more of a manifest than its bound",
+     "        .take(QUOTED_AT_MOST)\n",
+     "        .take(usize::MAX)\n"),
+    ("channel", "layout", "a relocated install's data is its own",
+     "    let data = install.bases.data.join(&leaf);",
+     "    let data = install.bases.data.join(self::leaf(install.channel, None));"),
+    ("channel", "layout", "a relocated install's configuration is its own",
+     "    let config = install.bases.config.join(&leaf);",
+     "    let config = install.bases.config.join(self::leaf(install.channel, None));"),
+    ("channel", "layout", "a relocated install's cache is its own",
+     "    let cache = install.bases.cache.join(&leaf);",
+     "    let cache = install.bases.cache.join(self::leaf(install.channel, None));"),
+    ("channel", "layout", "a relocated install's state is its own",
+     "    let state = install.bases.state.join(&leaf);",
+     "    let state = install.bases.state.join(self::leaf(install.channel, None));"),
+    ("channel", "layout", "the pipe carries the user",
+     "        pipe: format!(r\"\\\\.\\pipe\\{leaf}.{user}\"),",
+     "        pipe: format!(r\"\\\\.\\pipe\\{leaf}\"),"),
+    ("channel", "layout", "a relocated install follows no feed",
+     "            Channel::Production | Channel::Staging if !relocated => Some(Update {",
+     "            Channel::Production | Channel::Staging => Some(Update {"),
+    ("channel", "layout", "a relocated install names no stack",
+     "            Channel::Development(checkout) if !relocated => Some(checkout.stack()),",
+     "            Channel::Development(checkout) => Some(checkout.stack()),"),
+    ("channel", "leaf", "a namespace is a part of its own",
+     "        leaf.push('-');",
+     "        leaf.push('_');"),
+    ("channel", "spelled", "a user keeps its hyphens",
+     "        if character.is_ascii_alphanumeric() || character == '-' {",
+     "        if character.is_ascii_alphanumeric() {"),
+    ("channel", "spelled", "a spelled character opens with `_`",
+     "            let _ = write!(out, \"_{:x}_\", u32::from(character));",
+     "            let _ = write!(out, \"{:x}_\", u32::from(character));"),
+    ("channel", "spelled", "a spelled character closes with `_`",
+     "            let _ = write!(out, \"_{:x}_\", u32::from(character));",
+     "            let _ = write!(out, \"_{:x}\", u32::from(character));"),
+    ("channel", "spelled", "nobody is written as somebody",
+     "        out.push('_');\n    }\n    out\n}",
+     "    }\n    out\n}"),
 ]
 
 TOUCH = ["find", "crates", "xtask", "-name", "*.rs", "-exec", "touch", "{}", "+"]
@@ -6351,6 +6525,11 @@ ELSEWHERE = {
     # asked.
     "canon": ["cargo", "test", "-q", "-p", "nc-canon"],
     "reader": ["cargo", "test", "-q", "-p", "nc-canon"],
+    # The whole crate, both targets: the unit tests hold the digest and the
+    # user's spelling, and `crates/nc-channel/tests/the_names_are_disjoint.rs`
+    # holds every name, the ports and the manifest. Neither spawns a process
+    # or registers anything with a system.
+    "channel": ["cargo", "test", "-q", "-p", "nc-channel"],
     # The whole crate, both targets: the unit tests hold the layout and the
     # alphabet, and `crates/nc-ids/tests/properties.rs` and
     # `crates/nc-ids/tests/against_denote.rs` hold the round trips. A weakening
@@ -6941,7 +7120,9 @@ def refuse_if_the_database_is_absent():
     to sit on a database-backed file is a guard by luck; this one is by rule.
 
     The variable and the socket, because a stale URL pointing at nothing gives
-    exactly the same false kills as no URL at all.
+    exactly the same false kills as no URL at all. **Read, never derived**: the
+    stack's port is the checkout's, and a second derivation of it here would be
+    a second naming function, so a caller exports what `cargo xtask dev` prints.
     """
     url = os.environ.get("DATABASE_URL", "")
     behind = ", ".join(NEEDS_THE_DATABASE)
@@ -6951,7 +7132,7 @@ def refuse_if_the_database_is_absent():
             f"{behind}\nrefuse to run without it. A suite that cannot start fails, and a "
             "failure is\nthis file's word for `killed` — so every operator over those "
             "sources would be\nreported as covered while proving nothing. Run "
-            "`cargo xtask dev` first."
+            "`cargo xtask dev` and\nexport what it prints."
         )
         return True
     where = url.rsplit("@", 1)[-1].split("/", 1)[0]
@@ -6979,7 +7160,7 @@ def refuse_if_the_database_is_absent():
                 f"server (it replied {answer!r} to an SSLRequest). The suites that judge\n"
                 f"{behind} refuse to run without a database, and a suite that cannot start\n"
                 "fails — which this file would report as `killed` for every operator over\n"
-                "those sources. Point DATABASE_URL at the stack `cargo xtask dev` brings up."
+                "those sources. Export what `cargo xtask dev` prints for this checkout."
             )
             return True
     except (OSError, ValueError) as problem:
@@ -6987,7 +7168,8 @@ def refuse_if_the_database_is_absent():
             f"DATABASE_URL names {where} and nothing answers there ({problem}).\n"
             f"The suites that judge {behind} refuse to run without a database, and\n"
             "a suite that cannot start fails — which this file would report as `killed`\n"
-            "for every operator over those sources. Run `cargo xtask dev` first."
+            "for every operator over those sources. Run `cargo xtask dev` and export\n"
+            "what it prints."
         )
         return True
     return False

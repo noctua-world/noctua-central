@@ -1,0 +1,29 @@
+[package]
+name = "nc-channel"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "Every name an install gives the system, from its manifest and one function."
+
+[dependencies]
+# A refusal of a manifest carries its catalog code, because a binary that will
+# not start is what a person reports and a log is queried by (`NOCTUA.md §15.1`).
+nc-catalog.workspace = true
+# **The manifest is canonical JSON, read and written by the one implementation of
+# it.** A second reader of JSON here would accept what `nc-canon` refuses — a
+# duplicate key, a number past `i64` — and an installer and a daemon that read one
+# file two ways are two programs that disagree about which install they are.
+nc-canon.workspace = true
+
+[dev-dependencies]
+# **Itself, so the documentation gate can read this crate's integration
+# tests.** `cargo doc` documents lib and bin targets only, so a broken
+# intra-doc link in `tests/` passes it green — and
+# `cargo rustdoc --test` cannot resolve a `use` of the crate under test
+# unless the package depends on itself here. Cargo resolves it to this
+# same unit, so nothing is built twice.
+nc-channel = { path = "." }
+
+[lints]
+workspace = true

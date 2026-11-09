@@ -19,8 +19,8 @@
 # sentences replaced — with the gate green.
 
 [meta]
-checksum = "9e13a11778893afad9a6ba74a95b83976e4423aa564d46d8b29a0790346bc9de"
-count = 97
+checksum = "8a4b717fe574da4b8dfd8c0a383efabc4b35da0cefe4e2056563a5767c639cb7"
+count = 102
 
 [reserved]
 "NC-BLOB-0001" = "error.blob.malformed-hash — warning — retryable:false — params:[] — A blob was named by text that is not a BLAKE3 hash"
@@ -31,6 +31,11 @@ count = 97
 "NC-BLOB-0006" = "error.blob.no-peers — info — retryable:false — params:[] — A blob was announced and no peer was there to tell"
 "NC-CANON-0001" = "error.canon.unparsable — error — retryable:false — params:[] — A payload is not the canonical form this platform carries"
 "NC-CANON-0002" = "error.canon.number — error — retryable:false — params:[] — A payload holds a number this model cannot represent"
+"NC-CHAN-0001" = "error.channel.manifest-unreadable — error — retryable:false — params:[] — An install manifest is not one this build reads: not a JSON object, a key it does not know or lacks, a value of the wrong type, or another format"
+"NC-CHAN-0002" = "error.channel.unknown — error — retryable:false — params:[] — An install manifest names a channel this build does not know"
+"NC-CHAN-0003" = "error.channel.checkout-malformed — error — retryable:false — params:[] — An install manifest's checkout is missing from a development install, present in another channel's, or not eight lower-case hexadecimal digits"
+"NC-CHAN-0004" = "error.channel.base-malformed — error — retryable:false — params:[] — An install manifest names a base directory that is not a plain absolute path"
+"NC-CHAN-0005" = "error.channel.namespace-malformed — error — retryable:false — params:[] — An install manifest's namespace is not one to sixteen lower-case letters and digits holding a digit"
 "NC-DB-0001" = "error.db.unreachable — critical — retryable:true — params:[] — The database did not answer"
 "NC-DB-0002" = "error.db.migration-failed — critical — retryable:false — params:[] — A migration failed to apply"
 "NC-DB-0003" = "error.db.prune-failed — error — retryable:true — params:[] — Pruning a table did not finish, and a later run may"

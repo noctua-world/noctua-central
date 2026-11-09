@@ -3135,10 +3135,10 @@ fn a_path_that_is_not_a_mount(
 /// can put a different number between the two leaves that test green: an
 /// override file, a `-f` on the command line, an entrypoint that appends its
 /// own arguments, or a container still running from before the file was edited.
-/// What a running store answers:
+/// What a running store answers, on the port `cargo xtask dev` prints:
 ///
 /// ```text
-/// $ curl -s 127.0.0.1:9428/flags
+/// $ curl -s "127.0.0.1:$LOGS_PORT/flags"
 /// -retention.maxDiskSpaceUsageBytes="8GiB"
 /// -retentionPeriod="30d"
 /// ```
@@ -3162,7 +3162,7 @@ fn the_running_log_store_is_bounded_as_declared(
             return;
         }
     }
-    let port = crate::dev::setting(crate::dev::LOGS_PORT);
+    let port = crate::dev::port(root, crate::dev::Port::Logs);
     let held = match crate::store::flags(&port) {
         Ok(held) => held,
         Err(problem) => {
@@ -7714,12 +7714,15 @@ fn ends_in_a_backslash(path: &str) -> bool {
 /// failure is silent.
 ///
 /// Each is a crate and the file cargo announces as `Running tests/<name>`.
-const SUITES: [(&str, &str); 34] = [
+const SUITES: [(&str, &str); 35] = [
     ("nc-authz", "the_embedded_pack_decides.rs"),
     ("nc-canon", "properties.rs"),
     ("nc-catalog", "the_generated_surface.rs"),
     ("nc-catalog-compiler", "the_gates_fire.rs"),
     ("nc-catalog-compiler", "the_order_on_disk_stays_on_disk.rs"),
+    // The one naming function, over every channel, two users and two
+    // namespaces: it touches no disk and spawns nothing.
+    ("nc-channel", "the_names_are_disjoint.rs"),
     ("nc-ids", "against_denote.rs"),
     ("nc-ids", "properties.rs"),
     ("nc-journal", "across_threads.rs"),
@@ -7891,7 +7894,7 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// constant**, as `OPERATORS` is: one copy rather than one per use, and nothing
 /// reads it at compile time.
 #[cfg(test)]
-static WHAT_THE_GATE_CAN_SAY: [&str; 1047] = [
+static WHAT_THE_GATE_CAN_SAY: [&str; 1051] = [
     // The workflows' bounds (`xtask/src/workflow.rs`): what `.github/` may hold,
     // the authority each workflow opens with, the pins, and how the release is
     // made; and the `CI` step's two verdicts about them.
@@ -8225,6 +8228,10 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1047] = [
     "and {} code(s) appended to catalog/errors.reserved.toml, which is permanent",
     "and {} more — `cargo deny check` prints them all",
     "both bind to loopback only; `cargo xtask dev --down` removes them and their data",
+    "127.0.0.1:{number}, where this checkout's {service} listens, is held by something this checkout's stack does not run — another checkout's stack on the same pair, or anything else listening there. Export `{variable}` with a free port and run `cargo xtask dev` again; `docker ps` says whether a stack holds it",
+    "127.0.0.1:{number}, where this checkout's {service} listens, could not be bound to ask whether it is free ({error}), and this checkout's stack does not publish it. Export `{variable}` with a port this user can bind and run `cargo xtask dev` again",
+    "`{variable}` is {at:?}, which is not a port. Unset it for this checkout's own, or set it to a port from 1 to 65535",
+    "the ports are this checkout's, and `POSTGRES_PORT` and `LOGS_PORT` move them; a tool outside `cargo xtask` is told them by `export POSTGRES_PORT={postgres_port} LOGS_PORT={logs_port} DATABASE_URL={}`",
     "canaries",
     "cargo answers which crates exist here, and every gate scoped by that answer stops at this manifest: the type wall does not read its source, the source-root floor does not know it exists, and the workspace lints do not apply to it. Add it to `[workspace] members`, or take it out of the tree",
     "cargo update refused: {}",
@@ -12783,9 +12790,8 @@ fn cargo_with(
 /// **And removed before it is set**, which is what makes the line below
 /// load-bearing rather than decorative. Without the removal the child inherits
 /// whatever the parent exported, so cutting the wire would be invisible to
-/// anyone with `DATABASE_URL` in their shell — and `.github/workflows/ci.yml`
-/// sets it at job level, so it would be invisible in CI, the one place the
-/// claim matters.
+/// anyone with `DATABASE_URL` in their shell — and every developer who
+/// exported what `cargo xtask dev` prints has it there.
 /// It also means the tests run against the url this gate actually probed and
 /// found listening, never against one somebody exported last week.
 ///
@@ -14442,6 +14448,66 @@ mod tests {
                 source.matches(needle.as_str()).count()
             );
         }
+    }
+
+    /// The log store is asked for its bounds on this checkout's port.
+    ///
+    /// **Read as text, because no run that exports the port can see it read
+    /// another way.** A shell that exports what `cargo xtask dev` prints
+    /// exports `LOGS_PORT`, which `dev::port` answers there. A reader that
+    /// takes the variable itself and falls back to a fixed port agrees with it
+    /// in every such shell, and where it is not exported — CI's `linux` job —
+    /// asks a port this checkout's stack is not on, which another checkout's
+    /// store may hold and answer for. Measured: with the port read as
+    /// `std::env::var("LOGS_PORT")` falling back to `"9428"`, and
+    /// `database.rs::default_url` bypassed the same way, `corpus::`,
+    /// `limits::`, `database::`, `dev::`, `gates::` and `check::` passed 448
+    /// of 448.
+    ///
+    /// So the body is held to the one reader, asked for this checkout's log
+    /// store port, as the only port it has: one binding, the one both
+    /// questions to the store are asked on, and nothing else in it reading
+    /// the environment.
+    #[test]
+    fn the_log_store_is_asked_for_its_bounds_on_this_checkouts_port() {
+        let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/check.rs"))
+            .expect("this file is readable");
+        // The signature is assembled, so this test is not the function it finds.
+        let signature = format!("fn {}(", "the_running_log_store_is_bounded_as_declared");
+        let body: String = the_body_of(&source, &signature)
+            .chars()
+            .filter(|character| !character.is_whitespace())
+            .collect();
+        let reader = format!(
+            "letport=crate::dev::{}(root,crate::dev::Port::Logs);",
+            "port"
+        );
+        assert!(
+            body.contains(&reader),
+            "the log store's bounds are not read on the port `dev::port` gives this \
+             checkout's log store, so where `LOGS_PORT` is unset they are asked of a store \
+             `cargo xtask dev` did not bring up: {body}"
+        );
+        assert_eq!(
+            body.matches("letport").count(),
+            1,
+            "the log store's reader binds a port more than once, so the one it asks need \
+             not be the one `dev::port` answered: {body}"
+        );
+        for asked in [
+            "crate::store::flags(&port)",
+            "crate::store::a_line_survives_the_round_trip(&port,&tag)",
+        ] {
+            assert!(
+                body.contains(asked),
+                "the log store's reader no longer asks `{asked}`, so that question goes to \
+                 a port other than the one `dev::port` answered: {body}"
+            );
+        }
+        assert!(
+            !body.contains("env::"),
+            "the log store's reader reads the environment itself: {body}"
+        );
     }
 
     /// A migration on disk that the record does not hold is reported.
@@ -16876,7 +16942,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 
         // And the real manifest, or the assertions above are about a shape
         // nothing here is written in.
-        assert_eq!(members_of(root()), 16);
+        assert_eq!(members_of(root()), 17);
 
         // **Zero when cargo cannot say**, rather than a number invented from a
         // tree that is not a workspace; the caller reads the members itself and
@@ -17065,11 +17131,12 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     /// against — four sets compared with a set the same call produces. A bound
     /// under it shrinks with the run it is judging, which is the shape this
     /// table exists to refuse.
-    const SOURCE_ROOTS: [(&str, usize); 16] = [
+    const SOURCE_ROOTS: [(&str, usize); 17] = [
         ("nc-authz", 2),
         ("nc-canon", 2),
         ("nc-catalog", 2),
         ("nc-catalog-compiler", 3),
+        ("nc-channel", 2),
         ("nc-guest", 1),
         ("nc-ids", 3),
         ("nc-journal", 5),
@@ -19098,13 +19165,13 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 150] = [
+    const DOCUMENTED: [(&str, usize, usize); 152] = [
         ("nc-authz/directory.rs", 28, 13),
         ("nc-authz/embedded.rs", 12, 4),
         ("nc-authz/lib.rs", 30, 19),
         ("nc-authz/the_embedded_pack_decides.rs", 24, 30),
         ("nc-canon/lib.rs", 31, 40),
-        ("nc-canon/parse.rs", 16, 40),
+        ("nc-canon/parse.rs", 18, 40),
         ("nc-canon/properties.rs", 14, 0),
         ("nc-catalog-compiler/docs.rs", 22, 15),
         ("nc-catalog-compiler/emit.rs", 27, 15),
@@ -19130,6 +19197,8 @@ mod the_frozen_path_rule {
         ("nc-catalog/limits.rs", 16, 0),
         ("nc-catalog/notifications.rs", 7, 1),
         ("nc-catalog/the_generated_surface.rs", 10, 15),
+        ("nc-channel/lib.rs", 53, 14),
+        ("nc-channel/the_names_are_disjoint.rs", 26, 0),
         ("nc-guest/lib.rs", 1, 0),
         ("nc-ids/against_denote.rs", 6, 6),
         ("nc-ids/base32.rs", 11, 18),
@@ -19227,15 +19296,15 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 661, 56),
+        ("xtask/check.rs", 662, 56),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 45, 29),
-        ("xtask/database.rs", 29, 6),
+        ("xtask/database.rs", 30, 6),
         ("xtask/determinism.rs", 29, 11),
-        ("xtask/dev.rs", 60, 8),
+        ("xtask/dev.rs", 73, 8),
         ("xtask/docs.rs", 8, 1),
         ("xtask/every_generated_value_is_compared.rs", 30, 8),
-        ("xtask/gates.rs", 219, 33),
+        ("xtask/gates.rs", 223, 33),
         ("xtask/history.rs", 115, 3),
         ("xtask/limits.rs", 176, 59),
         ("xtask/local.rs", 79, 8),
@@ -19249,7 +19318,7 @@ mod the_frozen_path_rule {
         ("xtask/store.rs", 29, 4),
         ("xtask/the_pages_reach_the_catalog.rs", 37, 20),
         ("xtask/the_registry_reaches_the_code.rs", 26, 21),
-        ("xtask/the_stack_enforces_the_declared_bounds.rs", 30, 6),
+        ("xtask/the_stack_enforces_the_declared_bounds.rs", 32, 6),
         ("xtask/ui.rs", 52, 12),
         ("xtask/wall.rs", 129, 28),
         ("xtask/workflow.rs", 280, 23),
@@ -25038,7 +25107,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15291;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15556;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25057,7 +25126,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3150;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3199;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25074,7 +25143,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1033;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1050;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25108,7 +25177,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 21612;
+    const THE_REARRANGEMENTS_JUDGED: usize = 21901;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25162,7 +25231,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **480 of 21,612 are accepted by the first-line
+    /// rules the gates apply: **480 of 21,901 are accepted by the first-line
     /// rule alone, and 256 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25195,7 +25264,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1033 of
+    /// this tree offers, **1050 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -27533,7 +27602,7 @@ mod the_frozen_path_rule {
     /// verdicts that agree for that long are one row, and — because a prefix
     /// matches nothing the two censuses hold — every row is a shipped literal
     /// accounted for nowhere. Written out, each row is its own accounting.
-    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 487] = [
+    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 488] = [
         ("—", "compiled catalog/"),
         (
             "—",
@@ -28650,6 +28719,10 @@ mod the_frozen_path_rule {
         (
             "—",
             "both bind to loopback only; `cargo xtask dev --down` removes them and their data",
+        ),
+        (
+            "—",
+            "the ports are this checkout's, and `POSTGRES_PORT` and `LOGS_PORT` move them; a tool outside `cargo xtask` is told them by `export POSTGRES_PORT={postgres_port} LOGS_PORT={logs_port} DATABASE_URL={}`",
         ),
         (
             "—",
@@ -33358,7 +33431,7 @@ mod the_meta_gate {
     /// own doc: a module directory may be called anything. Every row here is a
     /// prefix of a workspace-relative path, anchored at its start, so what it
     /// excuses is what it names.
-    const NOT_MUTATED: [(&str, &str); 41] = [
+    const NOT_MUTATED: [(&str, &str); 42] = [
         (
             "crates/nc-platform/src/windows.rs",
             "another system's: the Windows half of what makes a path private, \
@@ -33425,6 +33498,14 @@ mod the_meta_gate {
             "a suite: the laws canonical serialization has to obey, stated as \
              properties rather than examples. Its writer `lib.rs` and its reader \
              `parse.rs` are both edited by the runner, and a weakening of this \
+             file would remove evidence rather than uncover an undecided clause",
+        ),
+        (
+            "crates/nc-channel/tests/the_names_are_disjoint.rs",
+            "a suite: every channel's names derived for two users and two \
+             namespaces and held apart, the spellings, the ports and the manifest. \
+             The one source it drives, `lib.rs`, is edited by the runner under the \
+             crate's own command, which builds this suite, and a weakening of this \
              file would remove evidence rather than uncover an undecided clause",
         ),
         (
@@ -36075,7 +36156,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 164,
+            walked, 166,
             "{walked} Rust source(s) were walked, and this tree holds 119. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -36115,7 +36196,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1717] = [
+    static OPERATORS: [(&str, &str, &str); 1773] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -36891,6 +36972,12 @@ Options:
             "utf16_cmp",
             "the comparison is over UTF-16 code units",
         ),
+        ("reader", "object", "a key written twice is shown escaped"),
+        (
+            "reader",
+            "object",
+            "a key written twice is shown no longer than its bound",
+        ),
         (
             "reader",
             "unicode_escape",
@@ -37506,6 +37593,11 @@ Options:
             "check",
             "the_unopinioned",
             "the flags a store answered are not read",
+        ),
+        (
+            "check",
+            "the_running_log_store_is_bounded_as_declared",
+            "the log store is asked on this checkout's port",
         ),
         (
             "dev",
@@ -38451,6 +38543,11 @@ Options:
             "the_effective_stack",
             "every profile, not the default projection",
         ),
+        (
+            "gates",
+            "the_effective_stack",
+            "the image gate is handed the checkout's ports",
+        ),
         ("gates", "the_image_on", "the resolved line is indented"),
         (
             "gates",
@@ -38541,6 +38638,43 @@ Options:
             "dev",
             "standing_of",
             "no healthcheck at all is a healthcheck that has not answered yet",
+        ),
+        (
+            "dev",
+            "of",
+            "the log store is on the checkout's second port",
+        ),
+        ("dev", "port_of", "a port's variable moves the port"),
+        (
+            "dev",
+            "as_compose_reads",
+            "a variable set empty says nothing",
+        ),
+        ("dev", "free_or_this_stacks", "port zero is not a port"),
+        (
+            "dev",
+            "free_or_this_stacks",
+            "a port something else holds is refused",
+        ),
+        (
+            "dev",
+            "bound_or_this_stacks",
+            "a port is this stack's only where this project publishes it",
+        ),
+        (
+            "dev",
+            "bound_or_this_stacks",
+            "a port is held only when its bind says it is in use",
+        ),
+        (
+            "dev",
+            "published_by",
+            "the log store's port is asked of the service that publishes it",
+        ),
+        (
+            "dev",
+            "published_by",
+            "a port is asked at the container port its service publishes",
         ),
         (
             "policy",
@@ -38751,6 +38885,11 @@ Options:
             "database",
             "configured_schema",
             "the schema option is percent-decoded",
+        ),
+        (
+            "database",
+            "default_url",
+            "the default url is on this checkout's port",
         ),
         ("pack", "coverage", "an allow case is not a denial test"),
         (
@@ -43809,6 +43948,144 @@ Options:
             "directly_under_a_member",
             "a canary directory at any member's root is one",
         ),
+        (
+            "channel",
+            "digest_of",
+            "the digest starts from FNV-1a's offset basis",
+        ),
+        (
+            "channel",
+            "digest_of",
+            "the digest multiplies by FNV's prime",
+        ),
+        (
+            "channel",
+            "fmt",
+            "a checkout is written with its leading zeros",
+        ),
+        (
+            "channel",
+            "Checkout",
+            "a checkout's path is canonicalized first",
+        ),
+        (
+            "channel",
+            "Checkout",
+            "a checkout is eight digits, not at least eight",
+        ),
+        ("channel", "Checkout", "a checkout's digits are lower-case"),
+        (
+            "channel",
+            "stack",
+            "the log store's port is PostgreSQL's plus one",
+        ),
+        ("channel", "pair_of", "the block wraps at its last pair"),
+        ("channel", "leader", "staging holds Control as well as Alt"),
+        ("channel", "Namespace", "a namespace is bounded in length"),
+        ("channel", "Namespace", "a namespace holds no separator"),
+        ("channel", "Namespace", "a namespace holds a digit"),
+        ("channel", "plain", "a base holds no control character"),
+        (
+            "channel",
+            "plain",
+            "a base holds no line break that is not a control character",
+        ),
+        ("channel", "plain", "a base is absolute"),
+        (
+            "channel",
+            "plain",
+            "a base is spelled as its components spell it",
+        ),
+        ("channel", "plain", "a base that climbs is refused"),
+        (
+            "channel",
+            "Install",
+            "a key the manifest does not read is refused",
+        ),
+        (
+            "channel",
+            "Install",
+            "a manifest of another format is refused",
+        ),
+        (
+            "channel",
+            "Install",
+            "a checkout that is not text is refused",
+        ),
+        (
+            "channel",
+            "Install",
+            "a checkout outside a development install is refused",
+        ),
+        (
+            "channel",
+            "Install",
+            "a data base that is missing or not text is refused",
+        ),
+        (
+            "channel",
+            "Install",
+            "a configuration base that is missing or not text is refused",
+        ),
+        (
+            "channel",
+            "Install",
+            "a cache base that is missing or not text is refused",
+        ),
+        (
+            "channel",
+            "Install",
+            "a state base that is missing or not text is refused",
+        ),
+        (
+            "channel",
+            "Install",
+            "a log endpoint that is not text is refused",
+        ),
+        (
+            "channel",
+            "Install",
+            "a development install writes its checkout",
+        ),
+        (
+            "channel",
+            "integer",
+            "a whole number written otherwise is refused",
+        ),
+        (
+            "channel",
+            "quoted",
+            "a refusal escapes what it quotes of a manifest",
+        ),
+        (
+            "channel",
+            "quoted",
+            "a refusal quotes no more of a manifest than its bound",
+        ),
+        ("channel", "layout", "a relocated install's data is its own"),
+        (
+            "channel",
+            "layout",
+            "a relocated install's configuration is its own",
+        ),
+        (
+            "channel",
+            "layout",
+            "a relocated install's cache is its own",
+        ),
+        (
+            "channel",
+            "layout",
+            "a relocated install's state is its own",
+        ),
+        ("channel", "layout", "the pipe carries the user"),
+        ("channel", "layout", "a relocated install follows no feed"),
+        ("channel", "layout", "a relocated install names no stack"),
+        ("channel", "leaf", "a namespace is a part of its own"),
+        ("channel", "spelled", "a user keeps its hyphens"),
+        ("channel", "spelled", "a spelled character opens with `_`"),
+        ("channel", "spelled", "a spelled character closes with `_`"),
+        ("channel", "spelled", "nobody is written as somebody"),
     ];
 
     /// The prefix Python reads in front of the quote at `at`, lower-cased.

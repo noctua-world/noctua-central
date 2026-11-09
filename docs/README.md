@@ -50,6 +50,16 @@ cargo xtask release --channel staging   # gate, then write its version and chang
 the same test as the first. `just` mirrors every verb (`just check`, `just build`)
 and is never the only path: a fresh clone with nothing but rustup can do everything.
 
+**The stack's ports are this checkout's.** Each checkout's stack takes a pair of its
+own, derived from the checkout's path, so two checkouts' stacks run at once on one
+machine. `cargo xtask dev` prints the pair, and the `DATABASE_URL` it makes;
+`cargo xtask check` derives the same, and a tool outside `cargo xtask` — a
+`docker compose up` typed by hand, which refuses without them, or a PostgreSQL suite
+run alone — is told them by exporting what `dev` prints. `POSTGRES_PORT` and `LOGS_PORT`
+move a port, and a port `dev` cannot bind that its own stack does not hold — something else
+listening there, or one below 1024, which a user without the privilege may not bind — fails
+`dev` with the reason, naming the one to set.
+
 ## What the gate checks, and where
 
 `cargo xtask check` passes on a checkout of this repository **alone**, **against a
