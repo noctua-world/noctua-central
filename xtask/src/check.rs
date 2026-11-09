@@ -27555,8 +27555,19 @@ mod the_frozen_path_rule {
         )
         .expect("this repository has a deny.toml");
         let [left_out] = super::THE_ADVISORIES_LEFT_OUT;
+        // The table renamed, so that `advisories` is written once, as a value:
+        // written twice, the file is not TOML, which is the first case below.
+        let renamed = shipped.replace("\n[advisories]\n", "\n[not-advisories]\n");
+        assert_ne!(
+            renamed, shipped,
+            "the shipped file has no `[advisories]` line"
+        );
         for (label, planted) in [
             ("a line that is not TOML", format!("{shipped}\nnot a key\n")),
+            (
+                "an `advisories` that is not a table",
+                format!("advisories = 7\n{renamed}"),
+            ),
             (
                 "an `ignore` that is not a list",
                 ignoring(&shipped, &format!("ignore = \"{left_out}\"")),
@@ -36683,7 +36694,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1784] = [
+    static OPERATORS: [(&str, &str, &str); 1785] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -41092,6 +41103,11 @@ Options:
             "check",
             "the_advisories_left_out",
             "a deny.toml that is not TOML is not read as one",
+        ),
+        (
+            "check",
+            "the_advisories_left_out",
+            "an `advisories` that is not a table is not read as empty",
         ),
         (
             "check",
