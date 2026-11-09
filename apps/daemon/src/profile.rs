@@ -360,5 +360,43 @@ mod tests {
             matches!(&refusal, Refused::WorldUnreadable { why, .. } if why.contains("org")),
             "{refusal}"
         );
+        // **And one already in the profile**, written there by something other
+        // than `copy_world`: the start refuses it with the same code.
+        {
+            use std::io::Write as _;
+            let mut file = nc_platform::create_private(&layout.world).expect("a world file");
+            file.write_all(written("home", "mallory").as_bytes())
+                .expect("written");
+        }
+        let refusal = super::world(&layout, &user).expect_err("mallory is office's");
+        assert_eq!(
+            refusal.code(),
+            ErrorCode::DaemonWorldUnreadable,
+            "{refusal}"
+        );
+    }
+
+    /// A world another account can reach is not decided as, and is left as it
+    /// was: one it could write is a person it could choose.
+    #[test]
+    fn a_world_another_user_can_reach_is_refused_and_left_as_it_was() {
+        let scratch = Scratch::new("reachable");
+        let (layout, user) = scratch.layout();
+        super::prepare(&layout, &user).expect("the profile is made");
+        let source = scratch.0.join("world.json");
+        std::fs::write(&source, written("home", "ana")).expect("a world to copy");
+        super::copy_world(&source, &layout, &user).expect("the world is copied");
+        nc_platform::testing::open_to_another_user(&layout.world).expect("opened");
+        let refusal = super::world(&layout, &user).expect_err("a reachable world");
+        assert_eq!(
+            refusal.code(),
+            ErrorCode::DaemonProfileNotPrivate,
+            "{refusal}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&layout.world).expect("reads"),
+            written("home", "ana")
+        );
+        assert!(!nc_platform::testing::is_private(&layout.world));
     }
 }

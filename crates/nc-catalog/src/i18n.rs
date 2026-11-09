@@ -315,8 +315,8 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "error.daemon.device-unreadable",
         [
-            "This computer's identity in Noctua is damaged, so Noctua did not start. Install Noctua again.",
-            "A identidade deste computador no Noctua está danificada, então o Noctua não iniciou. Instale o Noctua de novo.",
+            "This computer's identity in Noctua is damaged, so Noctua did not start. Someone needs to look at it.",
+            "A identidade deste computador no Noctua está danificada, então o Noctua não iniciou. Alguém precisa olhar isso.",
         ],
     ),
     (

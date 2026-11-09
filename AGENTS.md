@@ -400,7 +400,7 @@ fails a gate a minute or two later.
 | a migration with a table | `migrations/NNNN_*.sql` + `catalog/limits.toml` | `[tables.<name>]` — `strategy` and `order_by` always, plus `max_rows` and `prune_batch` when the strategy is `oldest-first`; a `policy-pack` table carries `pack_reason` instead and **no numbers**, which is what `journal_entries` does; a `refuse-at-limit` table is one whose oldest rows are not the pruner's to take — user state, or a unit's images and notes — and carries `max_rows`, where its writer refuses a new row, and `per = "plugin"` or `per = "unit"` when that writer counts each plugin's or each unit's rows rather than the table's (the compiler refuses `per` on any other strategy, and `docs/limits.md` publishes it as `Counted over`) — an ordering column that is `NOT NULL` and sorts in creation order — or `-- nc:bounded: <reason>` in the comment block above the table. The file's name is also a row of `MIGRATIONS_ON_DISK` in `xtask/src/check.rs` |
 | a local migration | `local-migrations/NNNN_*.sql` + `catalog/limits.toml` + `crates/nc-local/src/schema.rs` | SQLite, never in `migrations/`; its tables are bounded like the server's, with `database = "local"` in the entry. The file is a row of `LOCAL_MIGRATIONS_ON_DISK` with the SHA-384 `sqlx` keeps for it, and **a migration a build has carried is never edited**, a comment included — every file that build made records the checksum and is refused at every open once it differs (`NC-DB-0007`) — so a change is a new migration, and a rewrite before any release is an edit of the pin, which `check` holds each file to. Every object it builds is a row of `nc_local::schema::EXPECTED` with the BLAKE3 of the SQL SQLite stores for it and the migration that builds it (`since`): `cargo test -p nc-local` fails printing each digest until the list is updated, and `check` builds a scratch file one migration at a time and holds each step to the list, because the crate judges a file one migration behind by what its own history built. To the gate a trigger's `BEGIN … END` body is one statement, and SQLite's `[name]` and `` `name` `` are names as `"name"` is. `CREATE VIRTUAL TABLE` is refused — its rows live in shadow tables no entry can bound — and so is every statement invariant 18 lists, anywhere in the sources `WRITERS` in `xtask/src/local.rs` names: every member whose manifest takes SQLite (`sqlx` with a `sqlite` or `any` feature, or a crate that hands the file over), read whole or named in `NOT_READ` with its reason (`every_member_that_opens_the_local_database_is_read_or_named`), a SQL comment inside a string read as the gap SQLite reads it as. So is a migrator built when the store runs, which would migrate the user's file with whatever SQL sits in the daemon's working directory: `sqlx::migrate!` of this directory is the one migrator. Then **touch `crates/nc-local/src/store.rs`**: `sqlx::migrate!` embeds the directory when the crate compiles and, on stable Rust, does not tell cargo it read it, so a new file is not in the build until a source changes — `the_embedded_migrations_are_the_ones_on_disk` fails naming both lists until then. And the tests that put a file one migration behind name the newest migration's table and number — `one_migration_behind` and `what_the_file_holds` in `crates/nc-local/tests/opening_refuses_what_it_did_not_make.rs` — while the gate's own tests in `xtask/src/local.rs` count the shipped migrations and plant one numbered past the newest |
 | a crate | `crates/<name>/` | more than the `members` glob suggests. The manifest takes `[lints]` with `workspace = true` and `version.workspace = true`, a crate with a `tests/` suite depends on itself under `[dev-dependencies]` or rustdoc cannot resolve the suite's `use`, and the crate root denies printing. Then `cargo test -p xtask --bin xtask` fails naming each list the crate has to join — the error-code scope (`JUDGED_BY_THE_ERROR_CODE_RULE` or `OUTSIDE_THE_ERROR_CODE_SCOPE`), the mutation census (`SOURCES` in `xtask/mutants.py`, or `NOT_MUTATED`), `SUITES`, `DOCUMENTED` and the source-count pins. Three lists in `xtask/src/gates.rs` are joined by hand, because nothing holds them to the crates: `JUDGED_BY_THE_RAISING_RULE`, `READ_BY_THE_HATCH_WALK` and `COVERED` — a crate taken out of all three leaves that command green |
-| a member under `apps/` | `apps/<dir>/`: `Cargo.toml` and `src/`, a library and its binary | every list a crate joins (the row above), by its path under `apps/` — the trees are `MEMBER_TREES` in `xtask/src/members.rs`, so the walks read it already, and the hand-kept lists in `xtask/src/gates.rs` are the ones to join. The package is `nc-<dir>` — the mutation runner reads it from the path — and the binary is named in a `[[bin]]` table: what the app does is the library's, which its suites drive in-process, and the binary's `main.rs` reads its arguments and prints through the one printing door, mutated like the rest and judged by a suite that runs the binary. Every source's mutation command is the package's own, `cargo test -p nc-<dir>`, because `--lib` compiles no suite; a suite it runs makes its scratch, its children and its files under a scratch root, and registers no unit and touches no service, or it does not belong to an app's tests |
+| a member under `apps/` | `apps/<dir>/`: `Cargo.toml` and `src/`, a library and its binary | every list a crate joins (the row above), by its path under `apps/` — the trees are `MEMBER_TREES` in `xtask/src/members.rs`, so the walks read it already, and the hand-kept lists in `xtask/src/gates.rs` are the ones to join. The package is `nc-<dir>` — the mutation runner reads it from the path — and the binary is named in a `[[bin]]` table: what the app does is the library's, and the binary's `main.rs` reads its arguments and prints through the one printing door, the invocation it answers and its exit codes decided by functions its own unit tests call. **A source's mutation command runs its own module's unit tests, and never a suite that spawns a process**: `cargo test -p nc-<dir> -- <module>::` for a module and `--bin <binary>` for `main.rs` (`--lib` is refused outright), so a suite in `tests/` that starts the binary, a daemon or a child, or registers a unit, runs under no operator. `a_suite_that_spawns_a_process_is_run_by_no_mutation_command` in `xtask/src/check.rs` holds every suite of every member to that, but the ones `SPAWNED_BY_THE_RUNNER` writes down, and such a suite's `NOT_MUTATED` row says `spawns a process, so no mutation command runs it`. It makes its scratch, its children and its files under a scratch root, each with a guard that removes it |
 | a plugin | `plugins/<dir>/`: `Cargo.toml`, `plugin.toml` and `src/` | the lists a crate joins in `xtask/src/gates.rs` — `JUDGED_BY_THE_ERROR_CODE_RULE`, which the census of every member cargo resolves holds it to, and `JUDGED_BY_THE_RAISING_RULE` and `READ_BY_THE_HATCH_WALK` by hand — because the §15.1, raising and hatch walks read `plugins/` as they read `crates/`. The package is `nc-plugin-<dir>` — the plugin build refuses any other name, and the mutation runner reads the package from the path — with `crate-type = ["cdylib", "rlib"]`: what the plugin does goes in a module the host target tests, and `impl Guest` with `nc_guest::generated::export!` in an `adapter` module whose file opens with `#![cfg(target_arch = "wasm32")]`, because a host `cdylib` holding the exports does not link — the condition inside the file, since one on the `mod` line reads to the ignored-test gate as hiding every test in it. `cargo xtask build --plugins`, and `check` before the tests, builds it for `wasm32` and encodes it, refusing a component that imports anything the world `plugin` does not declare (which is what a dependency with bindings of its own brings in), then lints and documents it for that target — the only run that reads the adapter; a kernel suite loads it through `nc_kernel::component_for_tests`, which refuses a component its sources no longer build. Every `.rs` joins the mutation census, and the adapter's command is the plugin build |
 | the plugin world | `reference/noctua-kernel.wit` in the workspace, then `crates/nc-kernel/wit/noctua-kernel.wit` | the workspace's file first — it is normative — then the copy, byte for byte, then `WIT_BLAKE3` in `crates/nc-kernel/src/world.rs`. `the_kernel_world_is_the_reference_world` holds the copy to the reference wherever the workspace is there, and the digest holds it in a checkout; a new `package` version is `WORLD_VERSION` as well |
 | a command | `catalog/commands.toml`, both locales | its `args_schema` is held to the closed subset `crates/nc-schema` documents — every object `"additionalProperties": false`, no keyword outside `nc_schema::KEYWORDS`, and no character `nc_schema::unseen` answers for — `INVISIBLE_RANGES` and the default-ignorable `BLANK_RANGES` — but JSON's own whitespace, which the title is held to as well — and an `argument:<name>` selector needs that argument required, a string with `x-entity` naming its Cedar type, and `maxLength` at most 128, and never selects `Realm`, which `realm` alone does; the kernel judges every command a plugin declares at `activate` by the same function (`NOCTUA.md §11.7`), so a rule written there reaches both |
@@ -752,7 +752,7 @@ entry owns.
 | Authorization gone stale | decided again on every dispatch, and when a timer or an event comes due | "What a plugin puts off runs only under an authority decided again when it comes due" |
 | A history rewritten on the person's machine | append-only triggers, a row only at the next sequence, the link inside the insert, every row read back only as this code writes it | "The journal on the person's machine refuses to be edited, and says which units are open" |
 | Another account reading the local database | `0700` and `0600` on Unix, an access list naming the user alone on Windows, owner and link checks, `trusted_schema = OFF`, `main.`-qualified statements and append-only images | "The local database is private to its user, and refuses what it did not make" |
-| An identifier handed out twice, across a crash or a clock moved back | a ceiling made durable before a millisecond past it is handed out, and a start that resumes above it and the journal's newest unit, waiting for the clock | "A daemon starts only on a profile that is its user's alone, and mints nothing it cannot resume above" |
+| An identifier handed out twice, across a crash or a clock moved back | a ceiling made durable before a millisecond past it is handed out, and a start that resumes above it and the newest unit it hands in, waiting for the clock | "A daemon starts only on a profile that is its user's alone, and mints nothing it cannot resume above" |
 | A sandbox escape through this repository's own code | no `unsafe` written anywhere but the Win32 calls of `nc-platform`'s Windows half, each beside its reason, plugins included, and what `forbid` does not reach written down | invariant 17 |
 
 ### A plugin reaches what it was granted, and is told no to the rest
@@ -1692,7 +1692,9 @@ area at the first thing it cannot vouch for.
   reach is not read (`NC-CHAN-0007`).
 - **The profile is the user's alone from its first moment.** Each directory the layout
   names is made private one level at a time — never a parent on the way — or judged so,
-  and anything else refuses the start with it left as it was (`NC-DMN-0001`).
+  and anything else refuses the start with it left as it was (`NC-DMN-0001`); so is every
+  file of it a start reads — the seed, the device's record, the world and the mark — judged
+  before it is read, with the same code.
 - **A device is drawn once and never again.** Its seed is 32 bytes from the system's own
   generator, written into a file created private that refuses any name already there, so
   it is never overwritten and its flake, `MachineFlake::candidate(public, 0)`, never
@@ -1709,29 +1711,37 @@ area at the first thing it cannot vouch for.
   millisecond past the one it holds, and refuses before any identifier exists when the
   write fails (`NC-IDS-0009`). The mark is two checksummed slots overwritten in place and
   synced, so a torn write spoils one and the other holds the ceiling nothing was minted
-  past; with neither whole the start refuses (`NC-DMN-0007`). A start resumes above the
-  larger of the mark and the newest unit the local journal holds, waits for a clock behind
-  it — logging `ids.clock_backwards` past the lease — and refuses a mark more than a day
-  ahead; a clean stop writes the exact high-water mark.
+  past; with neither whole the start refuses (`NC-DMN-0007`). The lease is the catalog's,
+  which the mark reads itself, so no caller chooses how far a raise reaches. A start
+  resumes above the larger of the mark and the newest unit it hands in, waits for a clock
+  behind it — logging `ids.clock_backwards` past the lease — and refuses a mark more than
+  a day ahead; settling the ceiling (`nc_ids::Minter::settle_ceiling`) writes the exact
+  high-water mark.
 
 **Enforced by** the unit tests of each module in `apps/daemon/src/` — a missing, reachable
 and malformed manifest, every directory made private and judged again, a missing base
-not made on the way, a world copied, replaced and refused, a seed drawn once and never
-again, a record lost and written from its seed, each way a record is not the seed's, a
-raise read back from the other slot, a torn and a corrupt slot, a clock behind the mark by
-less and by more than the lease and by more than a day, and the catalog's lease inside
-the drift a minter waits out — by `apps/daemon/tests/the_mark_survives_a_crash.rs`, where a
-child mints behind the real mark until it is killed and a start from what it left, with
-the clock back by more than the lease and by more than a day, repeats nothing and refuses
+not made on the way, a world copied, replaced and refused, in the profile as well as on
+its way in, a seed drawn once and never again, a record lost and written from its seed,
+each way a record is not the seed's, a seed, a record, a world and a mark another account
+can reach refused and left as they were, a raise read back from the other slot, a torn
+and a corrupt slot, a clock behind the mark by less and by more than the lease and by
+more than a day, the catalog's lease inside the drift a minter waits out, and the
+binary's invocations and exit codes — by `apps/daemon/tests/the_mark_survives_a_crash.rs`,
+where a child mints behind the real mark until it is killed, with its output still read,
+and every identifier it printed is held against a start from what it left, with the clock
+back by more than the lease and by more than a day, which repeats nothing and refuses
 respectively, by the ceiling's tests in `crates/nc-ids/src/snowflake.rs`, and by the
-operators over those sources in `xtask/mutants.py`.
+operators over those sources in `xtask/mutants.py`, each judged by its own module's unit
+tests.
 
 **Not answered:** a process running as the same user, which can rewrite the manifest, the
 world or the mark, or delete the mark so that a start resumes from the local journal alone;
 a slot spoiled after it answered, which reads as a torn one and falls back to the older
 ceiling; a crash inside the mark's very first write, which leaves a file with neither
-slot whole, so the profile does not start until it is removed by hand; a disk that
-answers a sync before the bytes are on it; and an administrator. What
+slot whole, so the profile does not start until it is removed by hand; a crash inside the
+seed's first write, which leaves a seed of another length that no start and no
+`--initialize` reads (`NC-DMN-0004`), so the profile does not start until it is removed by
+hand; a disk that answers a sync before the bytes are on it; and an administrator. What
 the daemon leaves undone is under **What is deliberately not claimed**.
 
 ### The stack binds to loopback and nothing else
@@ -2431,7 +2441,10 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **No process runs the daemon's start yet**: the library holds the start up to the mark —
   the install, the profile, the device, the world and a minter behind its ceiling — and
   `noctua-daemon` answers `--initialize` and nothing else, so no channel's daemon keeps
-  running or serves its kernel.
+  running or serves its kernel. The local journal's newest unit is the start's to read and
+  hand to `nc_daemon::mark::minter`, and nothing reads it yet, so no start resumes above a
+  unit the mark does not cover; and no stop calls `nc_ids::Minter::settle_ceiling`, so none
+  writes the exact high-water mark yet.
 - **A device's seed is wiped as far as safe Rust can say**: the key `ed25519-dalek` holds
   zeroizes itself, and the copies read from the file are overwritten and passed through
   `core::hint::black_box`, which no compiler promises to honour.

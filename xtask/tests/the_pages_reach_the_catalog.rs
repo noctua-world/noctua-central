@@ -2775,20 +2775,13 @@ fn every_variant_is_published_as_the_word_it_names() {
     );
 }
 
-/// The events `docs/log-events.md` says each crate that logs emits are the
-/// events its sources record, both ways.
-///
-/// **A pin cannot see an omission.** A sentence naming every `kernel.*` event,
-/// `journal.verified` and `journal.broken` while
-/// `crates/nc-kernel/src/dispatch.rs` records `net.refused` beside them is held
-/// as written by the prose pin above, omission and all. Measured, with that
-/// sentence on the page: this test red, with `net.refused` on the kernel's side
-/// alone. So the names are read from both sides, for the kernel and for the
-/// daemon each: every `nc_log::events::` type its sources name, put back into
-/// the dotted name the catalog gives it, against what the sentence says it
-/// emits.
-#[test]
-fn the_events_the_page_says_each_logger_emits_are_the_ones_it_records() {
+/// The events the sources under `directory` record, read as the names the
+/// catalog gives them, once at least `floor` sources are found there.
+fn the_events_recorded_under(
+    directory: &str,
+    floor: usize,
+    catalog: &Catalog,
+) -> std::collections::BTreeSet<String> {
     fn sources(directory: &Path, into: &mut Vec<PathBuf>) {
         for entry in std::fs::read_dir(directory)
             .expect("a logger's sources are readable")
@@ -2814,27 +2807,45 @@ fn the_events_the_page_says_each_logger_emits_are_the_ones_it_records() {
             })
             .collect()
     };
-    let catalog = catalog();
-    let recorded_in = |directory: &str| -> std::collections::BTreeSet<String> {
-        let mut files = Vec::new();
-        sources(&root().join(directory), &mut files);
-        assert!(!files.is_empty(), "`{directory}` holds no source");
-        let text: String = files
-            .iter()
-            .map(|file| std::fs::read_to_string(file).expect("a source is readable"))
-            .collect();
-        catalog
-            .events
-            .iter()
-            .map(|entry| entry.name.clone())
-            .filter(|name| {
-                let named = format!("nc_log::events::{}", type_of(name));
-                text.match_indices(&named).any(|(at, _)| {
-                    !text[at + named.len()..].starts_with(|c: char| c.is_alphanumeric() || c == '_')
-                })
+    let mut files = Vec::new();
+    sources(&root().join(directory), &mut files);
+    assert!(
+        files.len() >= floor,
+        "{} source(s) of `{directory}` were found, and it holds at least {floor}",
+        files.len()
+    );
+    let text: String = files
+        .iter()
+        .map(|file| std::fs::read_to_string(file).expect("a source is readable"))
+        .collect();
+    catalog
+        .events
+        .iter()
+        .map(|entry| entry.name.clone())
+        .filter(|name| {
+            let named = format!("nc_log::events::{}", type_of(name));
+            text.match_indices(&named).any(|(at, _)| {
+                !text[at + named.len()..].starts_with(|c: char| c.is_alphanumeric() || c == '_')
             })
-            .collect()
-    };
+        })
+        .collect()
+}
+
+/// The events `docs/log-events.md` says each crate that logs emits are the
+/// events its sources record, both ways.
+///
+/// **A pin cannot see an omission.** A sentence naming every `kernel.*` event,
+/// `journal.verified` and `journal.broken` while
+/// `crates/nc-kernel/src/dispatch.rs` records `net.refused` beside them is held
+/// as written by the prose pin above, omission and all. Measured, with that
+/// sentence on the page: this test red, with `net.refused` on the kernel's side
+/// alone. So the names are read from both sides, for the kernel and for the
+/// daemon each: every `nc_log::events::` type its sources name, put back into
+/// the dotted name the catalog gives it, against what the sentence says it
+/// emits.
+#[test]
+fn the_events_the_page_says_each_logger_emits_are_the_ones_it_records() {
+    let catalog = catalog();
     let published = page("log-events.md");
     let sentence = published
         .lines()
@@ -2851,15 +2862,32 @@ fn the_events_the_page_says_each_logger_emits_are_the_ones_it_records() {
             .unwrap_or_else(|| panic!("the sentence says what {by:?}: {sentence}"));
         named.split('`').skip(1).step_by(2).collect()
     };
-    for (by, directory, wildcard) in [
-        ("The kernel emits ", "crates/nc-kernel/src", Some("kernel.")),
-        ("the daemon emits ", "apps/daemon/src", None),
+    // **A floor for each logger, from outside what it reads**: how many
+    // sources it holds at least, and one event it is known to record — so a
+    // reader that finds a handful of files, or none of the events, fails here
+    // rather than comparing two empty sets.
+    for (by, directory, wildcard, floor, known) in [
+        (
+            "The kernel emits ",
+            "crates/nc-kernel/src",
+            Some("kernel."),
+            11,
+            "kernel.plugin_killed",
+        ),
+        (
+            "the daemon emits ",
+            "apps/daemon/src",
+            None,
+            6,
+            "ids.clock_backwards",
+        ),
     ] {
         let named = emitted(by);
-        let recorded = recorded_in(directory);
+        let recorded = the_events_recorded_under(directory, floor, &catalog);
         assert!(
-            !recorded.is_empty(),
-            "no event was found recorded in `{directory}`"
+            recorded.contains(known),
+            "`{known}` was not found recorded in `{directory}`, so the reader is not \
+             reading what that logger records"
         );
         for name in &named {
             assert!(

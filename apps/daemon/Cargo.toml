@@ -6,9 +6,10 @@ rust-version.workspace = true
 publish = false
 description = "The daemon a channel runs: the install it names itself by, its profile, its device and the identifiers' mark."
 
-# **A library and a thin binary.** What the daemon does is the library's, so
-# the suites in `tests/` drive it in-process and a mutation of it is judged by
-# the library's own tests; `noctua-daemon` reads its arguments and prints.
+# **A library and a thin binary.** What the daemon does is the library's, and
+# `noctua-daemon` reads its arguments and prints; a mutation of either is
+# judged by the unit tests of the module it is in, and the suites in `tests/`,
+# which run the binary and a child of their own, are evidence beside them.
 [[bin]]
 name = "noctua-daemon"
 path = "src/main.rs"

@@ -19119,14 +19119,14 @@ mod the_frozen_path_rule {
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
     const DOCUMENTED: [(&str, usize, usize); 160] = [
-        ("daemon/device.rs", 20, 5),
+        ("daemon/device.rs", 21, 5),
         ("daemon/install.rs", 12, 6),
         ("daemon/lib.rs", 7, 8),
-        ("daemon/main.rs", 2, 0),
-        ("daemon/mark.rs", 22, 15),
-        ("daemon/profile.rs", 15, 5),
+        ("daemon/main.rs", 14, 6),
+        ("daemon/mark.rs", 23, 15),
+        ("daemon/profile.rs", 16, 5),
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
-        ("daemon/the_mark_survives_a_crash.rs", 12, 12),
+        ("daemon/the_mark_survives_a_crash.rs", 14, 12),
         ("nc-authz/directory.rs", 38, 15),
         ("nc-authz/embedded.rs", 12, 4),
         ("nc-authz/lib.rs", 30, 19),
@@ -19257,7 +19257,7 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 663, 57),
+        ("xtask/check.rs", 670, 57),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 45, 29),
         ("xtask/database.rs", 29, 6),
@@ -19277,7 +19277,7 @@ mod the_frozen_path_rule {
         ("xtask/release.rs", 235, 13),
         ("xtask/sections.rs", 38, 10),
         ("xtask/store.rs", 29, 4),
-        ("xtask/the_pages_reach_the_catalog.rs", 37, 21),
+        ("xtask/the_pages_reach_the_catalog.rs", 38, 21),
         ("xtask/the_registry_reaches_the_code.rs", 26, 22),
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 30, 6),
         ("xtask/ui.rs", 52, 12),
@@ -20261,13 +20261,20 @@ mod the_frozen_path_rule {
                 );
             }
         }
-        // **Every root cargo declares, read**: a member with a library and a
-        // binary has two, and each one is a crate the lint level stops at.
+        // **Every root cargo declares, read, and as many as the members have**:
+        // one each, and a second for each member written down as building a
+        // library and a binary — each one a crate the lint level stops at. The
+        // count is held to the members and that list, both from outside the
+        // walk, so a member whose roots cargo stopped declaring is a number
+        // short here rather than a root nobody asked about.
+        let expected = built.len() + the_members_with_a_library_and_a_binary(&built);
         assert_eq!(
             read,
-            roots.len(),
-            "the walk read {read} crate root(s) and cargo declares {}",
-            roots.len()
+            expected,
+            "the walk read {read} crate root(s), and {} member(s) with {} building a \
+             library and a binary have {expected}",
+            built.len(),
+            expected - built.len()
         );
     }
 
@@ -22058,8 +22065,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 587 scratches this tree
-    /// builds, 500 of the 587 are removed however the test leaves and 87 are
+    /// directories accumulated in an afternoon. Of the 593 scratches this tree
+    /// builds, 506 of the 593 are removed however the test leaves and 87 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22125,11 +22132,12 @@ mod the_frozen_path_rule {
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 41] = [
-        ("daemon/device.rs", 5, 5),
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 42] = [
+        ("daemon/device.rs", 6, 6),
         ("daemon/install.rs", 5, 5),
-        ("daemon/mark.rs", 4, 4),
-        ("daemon/profile.rs", 5, 5),
+        ("daemon/main.rs", 3, 3),
+        ("daemon/mark.rs", 5, 5),
+        ("daemon/profile.rs", 6, 6),
         ("daemon/the_binary_prepares_a_profile.rs", 2, 2),
         ("daemon/the_mark_survives_a_crash.rs", 2, 2),
         ("nc-catalog-compiler/ledger.rs", 1, 0),
@@ -25076,7 +25084,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15795;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15832;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25095,7 +25103,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3326;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3372;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25112,7 +25120,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1093;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1109;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25146,7 +25154,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 22121;
+    const THE_REARRANGEMENTS_JUDGED: usize = 22164;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25200,7 +25208,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **480 of 22,121 are accepted by the first-line
+    /// rules the gates apply: **480 of 22,164 are accepted by the first-line
     /// rule alone, and 256 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25233,7 +25241,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1093 of
+    /// this tree offers, **1109 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -33497,18 +33505,20 @@ mod the_meta_gate {
             "apps/daemon/tests/the_binary_prepares_a_profile.rs",
             "a suite: the daemon's binary run as a process, refusing an invocation \
              it does not answer and a start outside an install, and preparing a \
-             profile from a copy beside a manifest. The sources it drives, \
-             `main.rs` and `lib.rs`, are edited by the runner under the package's \
-             own command, which builds this suite, and a weakening of this file \
-             would remove evidence rather than uncover an undecided clause",
+             profile from a copy beside a manifest. It spawns a process, so no \
+             mutation command runs it: what it drives in `main.rs` and `lib.rs` is \
+             decided by their own modules' unit tests, which the runner's commands \
+             for them run, and a weakening of this file would remove evidence \
+             rather than uncover an undecided clause",
         ),
         (
             "apps/daemon/tests/the_mark_survives_a_crash.rs",
             "a suite: a child of the test binary killed while it mints behind the \
-             real mark, and a start from what it left with the clock moved back. \
-             The source it drives, `mark.rs`, is edited by the runner under the \
-             package's own command, which builds this suite, and a weakening of \
-             this file would remove evidence rather than uncover an undecided clause",
+             real mark, and a start from what it left with the clock moved back. It \
+             spawns a process, so no mutation command runs it: what it drives in \
+             `mark.rs` is decided by that module's unit tests, which the runner's \
+             command for it runs, and a weakening of this file would remove \
+             evidence rather than uncover an undecided clause",
         ),
         (
             "crates/nc-channel/tests/the_names_are_disjoint.rs",
@@ -33922,14 +33932,44 @@ mod the_meta_gate {
              every finding this rule can make is read out of one",
             filters.len()
         );
+        // **And the package of every row that carries the filter**, read from
+        // cargo's member list: a command `-p nc-daemon -- mark::` narrows to a
+        // module of `nc-daemon`, wherever its member tree is, and a filter
+        // resolved only against fixed roots names nothing of an app's.
+        let members = crate::members::members(root).expect("cargo lists this workspace");
+        let mut carried_by: Vec<(String, std::path::PathBuf)> = Vec::new();
+        for table in ["ELSEWHERE = {", "ALSO_RUN = {"] {
+            for row in runner_rows(&python, table) {
+                let Some(package) = row
+                    .windows(2)
+                    .find(|pair| pair[0] == "-p")
+                    .map(|pair| pair[1].clone())
+                else {
+                    continue;
+                };
+                let member = members
+                    .iter()
+                    .find(|member| member.name == package)
+                    .unwrap_or_else(|| panic!("the runner names `-p {package}`, not a member"));
+                for word in row.iter().filter(|word| word.ends_with("::")) {
+                    carried_by.push((word.clone(), root.join(&member.path).join("src")));
+                }
+            }
+        }
         for filter in &filters {
             let named = filter.trim_end_matches("::");
             // The module may belong to `xtask` or to the crate whose own suite
             // decides a source; both are `<package root>/src/<name>.rs`.
-            let candidates = [
+            let mut candidates = vec![
                 root.join(format!("xtask/src/{named}.rs")),
                 root.join(format!("crates/nc-catalog-compiler/src/{named}.rs")),
             ];
+            candidates.extend(
+                carried_by
+                    .iter()
+                    .filter(|(word, _)| word == filter)
+                    .map(|(_, sources)| sources.join(format!("{named}.rs"))),
+            );
             let found = candidates.iter().find(|path| path.is_file());
             let Some(path) = found else {
                 panic!(
@@ -34243,18 +34283,23 @@ mod the_meta_gate {
         "xtask/canaries/",
     ];
 
+    /// What a row of [`NOT_PRESSURE_BUT_PROVENANCE`] says of a suite that runs
+    /// a process, and which the rule about such suites holds true of it.
+    const SPAWNS_A_PROCESS: &str = "spawns a process, so no mutation command runs it";
+
     /// The suites [`NOT_MUTATED`] excuses for a reason that is not pressure.
     ///
     /// A row of the census names the sources a suite exercises, and for most of
     /// them that is also why the suite need not be mutated: those sources *are*
-    /// mutated, and a command that runs this suite decides the weakening. Three
-    /// rows name sources for a different reason, and each says so in its own
-    /// words — which is what the second column here holds them to, the way
-    /// `JUDGED_OUTSIDE_ITS_PACKAGE` holds its rows to a name in both ends.
+    /// mutated, and a command that runs this suite decides the weakening. The
+    /// rows here name sources for a different reason, or none, and each says so
+    /// in its own words — which is what the second column here holds them to,
+    /// the way `JUDGED_OUTSIDE_ITS_PACKAGE` holds its rows to a name in both
+    /// ends.
     ///
     /// A row added here with a phrase its excuse does not contain cannot be
     /// written truthfully, and a row whose excuse stops saying it fails.
-    const NOT_PRESSURE_BUT_PROVENANCE: [(&str, &str); 5] = [
+    const NOT_PRESSURE_BUT_PROVENANCE: [(&str, &str); 7] = [
         (
             "crates/nc-catalog/tests/the_generated_surface.rs",
             "reads the generated crate on disk",
@@ -34278,6 +34323,20 @@ mod the_meta_gate {
         (
             "xtask/tests/the_stack_enforces_the_declared_bounds.rs",
             "second copy",
+        ),
+        // **Two suites that spawn a process, which no mutation command runs**,
+        // so they press on no source the runner edits: the sources they drive
+        // are decided by their own unit tests instead.
+        // `a_suite_that_spawns_a_process_is_run_by_no_mutation_command` holds
+        // both halves of the phrase — that each one spawns, and that no command
+        // runs a test of it.
+        (
+            "apps/daemon/tests/the_binary_prepares_a_profile.rs",
+            SPAWNS_A_PROCESS,
+        ),
+        (
+            "apps/daemon/tests/the_mark_survives_a_crash.rs",
+            SPAWNS_A_PROCESS,
         ),
     ];
 
@@ -35138,6 +35197,22 @@ mod the_meta_gate {
             return false;
         }
         let names_the_module = |filter: &String| filter.trim_end_matches("::") == ran.module;
+        let carried = the_test_name_filters(command);
+        let appended = command.last().is_some_and(|word| word == "--")
+            && ran.filters.iter().any(names_the_module);
+        if carried.is_empty() {
+            return command.last().is_none_or(|word| word != "--") || appended;
+        }
+        carried.into_iter().any(names_the_module) || appended
+    }
+
+    /// The test-name filters a command carries: its positionals, before `--`
+    /// and after it.
+    ///
+    /// Its own function because two rules ask it — which of a file's own tests a
+    /// command runs, and whether it runs any test of a suite that spawns a
+    /// process — and a second copy of a parse is a second thing to keep true.
+    fn the_test_name_filters(command: &[String]) -> Vec<&String> {
         // **A filter need not hold `::` and need not follow `--`.** cargo's
         // ordinary narrowing is a bare substring of the test name —
         // `cargo test -q -p nc-journal tampering` — which holds neither, so a
@@ -35183,12 +35258,7 @@ mod the_meta_gate {
             command.join(" "),
             carried.len()
         );
-        let appended = command.last().is_some_and(|word| word == "--")
-            && ran.filters.iter().any(names_the_module);
-        if carried.is_empty() {
-            return command.last().is_none_or(|word| word != "--") || appended;
-        }
-        carried.into_iter().any(names_the_module) || appended
+        carried
     }
 
     /// The help reader is given both layouts, verbatim, including what fooled it.
@@ -35708,9 +35778,8 @@ Options:
                 // doors, which the suites of other crates call.
                 "crates/nc-platform/src/unix.rs".to_owned(),
                 "crates/nc-platform/src/testing.rs".to_owned(),
-                // The daemon's binary and its library root, whose refusals the
-                // binary's suite and each module's tests hold.
-                "apps/daemon/src/main.rs".to_owned(),
+                // The daemon's library root, whose refusals each module's
+                // tests hold.
                 "apps/daemon/src/lib.rs".to_owned(),
             ],
             "the sources carrying no `#[test]` of their own are not the ones written \
@@ -35838,6 +35907,244 @@ Options:
             judged >= held && held > 10,
             "{judged} (suite, source) pair(s) were read out of {held} row(s) this rule \
              is about, so a row is being passed over"
+        );
+    }
+
+    /// The suites that spawn a process and that a mutation command runs.
+    ///
+    /// **Written down when the first app's suites arrived, and only to
+    /// shrink.** Each is run once per operator over its package — a child of
+    /// the test binary killed mid-commit among them — and a suite of an app
+    /// starts daemons and registers units with the system's manager, which no
+    /// run of the runner may do once per operator. So a suite that spawns joins
+    /// no mutation command, and a row here is the one way to be the exception.
+    const SPAWNED_BY_THE_RUNNER: [&str; 3] = [
+        "crates/nc-kernel/tests/the_decision_point.rs",
+        "crates/nc-local/tests/a_unit_lands_whole_or_not_at_all.rs",
+        "crates/nc-local/tests/opening_refuses_what_it_did_not_make.rs",
+    ];
+
+    /// The names of the tests a suite holds, with every module of it in front
+    /// of each, which is more than libtest names and never fewer.
+    fn the_tests_a_suite_holds(code: &str) -> Vec<String> {
+        let mut names: Vec<String> = Vec::new();
+        let mut attributed = false;
+        for line in code.lines().map(str::trim_start) {
+            if crate::gates::is_a_test_attribute(line) {
+                attributed = true;
+            } else if attributed && let Some((_, rest)) = line.split_once("fn ") {
+                let name: String = rest
+                    .chars()
+                    .take_while(|letter| letter.is_alphanumeric() || *letter == '_')
+                    .collect();
+                names.push(name);
+                attributed = false;
+            }
+        }
+        let modules: Vec<String> = code
+            .lines()
+            .filter_map(|line| line.trim_start().strip_prefix("mod "))
+            .map(|rest| {
+                rest.chars()
+                    .take_while(|letter| letter.is_alphanumeric() || *letter == '_')
+                    .collect()
+            })
+            .collect();
+        let nested: Vec<String> = modules
+            .iter()
+            .flat_map(|module| names.iter().map(move |name| format!("{module}::{name}")))
+            .collect();
+        names.extend(nested);
+        names
+    }
+
+    /// Whether `command` runs any test of the suite at `relative`, whose tests
+    /// are `names`: it reaches the suite's target, and carries no test-name
+    /// filter or one some test of it is named by.
+    fn a_command_runs_a_test_of(
+        command: &[String],
+        package: &str,
+        relative: &str,
+        names: &[String],
+    ) -> bool {
+        // **`cargo test` and nothing else runs a test**: the plugin build is
+        // `cargo run -p xtask`, which names the package and runs none of it.
+        let subcommand = command
+            .iter()
+            .skip(1)
+            .find(|word| !word.starts_with('-') && !word.starts_with('+'));
+        if subcommand.is_none_or(|word| word != "test")
+            || !the_files_target_is_reached(command, package, relative)
+        {
+            return false;
+        }
+        let filters = the_test_name_filters(command);
+        filters.is_empty()
+            || filters
+                .iter()
+                .any(|filter| names.iter().any(|name| name.contains(filter.as_str())))
+    }
+
+    /// A command runs a test of a suite only where it reaches the suite and
+    /// selects one of its tests.
+    ///
+    /// **Each way a command narrows, asked once**: a module's filter that no
+    /// test of the suite is named by, the binary's or the library's tests, a
+    /// suite of its own, another package, and `cargo run`, against the whole
+    /// package, a filter one of its tests is named by, and the suite by name.
+    #[test]
+    fn a_command_runs_a_test_of_a_suite_only_where_it_reaches_and_selects_one() {
+        let names = the_tests_a_suite_holds(
+            "#[test]\nfn a_daemon_killed_while_it_mints() {}\n\
+             mod after {\n    #[test]\n    fn the_start_waits() {}\n}\n",
+        );
+        let relative = "apps/daemon/tests/the_mark_survives_a_crash.rs";
+        for (command, runs) in [
+            ("cargo test -q -p nc-daemon", true),
+            ("cargo test -q -p nc-daemon -- a_daemon_killed", true),
+            ("cargo test -q -p nc-daemon -- after::the_start", true),
+            (
+                "cargo test -q -p nc-daemon --test the_mark_survives_a_crash",
+                true,
+            ),
+            ("cargo test -q --workspace", true),
+            ("cargo test -q -p nc-daemon -- mark::", false),
+            ("cargo test -q -p nc-daemon -- device:: profile::", false),
+            ("cargo test -q -p nc-daemon --bin noctua-daemon", false),
+            ("cargo test -q -p nc-daemon --lib", false),
+            (
+                "cargo test -q -p nc-daemon --test the_binary_prepares_a_profile",
+                false,
+            ),
+            ("cargo test -q -p nc-local", false),
+            ("cargo run -q -p nc-daemon", false),
+        ] {
+            let words: Vec<String> = command.split_whitespace().map(str::to_owned).collect();
+            assert_eq!(
+                a_command_runs_a_test_of(&words, "nc-daemon", relative, &names),
+                runs,
+                "`{command}`"
+            );
+        }
+    }
+
+    /// No mutation command runs a test of a suite that spawns a process, but
+    /// the ones written down in [`SPAWNED_BY_THE_RUNNER`].
+    ///
+    /// **A suite that spawns, under a command that reaches it, runs once per
+    /// operator**, and the suites of an app start daemons and register units:
+    /// a run of the runner would start hundreds of them. So it is asked of every
+    /// suite of every member cargo lists, against every command the runner
+    /// judges any source by — the command reaches the suite's target and carries
+    /// no filter, or a filter a test of it is named by, and it runs that suite.
+    ///
+    /// **And the phrase that takes a suite out of the pressure rule is held to
+    /// this rule**: a row of [`NOT_PRESSURE_BUT_PROVENANCE`] saying
+    /// [`SPAWNS_A_PROCESS`] names a suite that spawns, so it cannot be written
+    /// for one whose sources' commands ought to run it.
+    #[test]
+    fn a_suite_that_spawns_a_process_is_run_by_no_mutation_command() {
+        let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+        let python = std::fs::read_to_string(root.join("xtask/mutants.py"))
+            .expect("the meta-gate is in this repository");
+        let elsewhere = runner_rows(&python, "ELSEWHERE = {");
+        let also = runner_rows(&python, "ALSO_RUN = {");
+        let fallback = the_runners_default_command(&python);
+        let commands: Vec<Vec<String>> = runner_rows(&python, "SOURCES = {")
+            .iter()
+            .flat_map(|row| {
+                let key = row.first().expect("a source row names its key");
+                the_commands_that_judge(key, &elsewhere, &also, &fallback)
+            })
+            .collect();
+        let members = crate::members::members(root).expect("cargo lists this workspace");
+        let (mut suites, mut spawning) = (0_usize, Vec::<String>::new());
+        for member in &members {
+            let Ok(entries) = std::fs::read_dir(root.join(&member.path).join("tests")) else {
+                continue;
+            };
+            for path in entries.flatten().map(|entry| entry.path()) {
+                if path.extension().is_none_or(|kind| kind != "rs") {
+                    continue;
+                }
+                let name = path.file_name().and_then(std::ffi::OsStr::to_str);
+                let relative = format!("{}/tests/{}", member.path, name.expect("a named suite"));
+                let text = std::fs::read_to_string(&path).expect("a suite is readable");
+                suites += 1;
+                // **Code, not prose**: a comment or a string naming the type is
+                // not a process started.
+                let code = crate::gates::without_string_contents(&crate::gates::without_comments(
+                    &text, "//",
+                ));
+                if !(code.contains("process::Command") || code.contains("Command::new(")) {
+                    continue;
+                }
+                let names = the_tests_a_suite_holds(&code);
+                assert!(
+                    !names.is_empty(),
+                    "`{relative}` spawns and holds no test this reads"
+                );
+                let running: Vec<String> = commands
+                    .iter()
+                    .filter(|command| {
+                        a_command_runs_a_test_of(command, &member.name, &relative, &names)
+                    })
+                    .map(|command| command.join(" "))
+                    .collect();
+                if SPAWNED_BY_THE_RUNNER.contains(&relative.as_str()) {
+                    assert!(
+                        !running.is_empty(),
+                        "`{relative}` is written down as spawned by the runner and no \
+                         command runs it any more: take its row out, since the list only \
+                         shrinks"
+                    );
+                } else {
+                    assert!(
+                        running.is_empty(),
+                        "`{relative}` spawns a process and {running:?} run a test of it, \
+                         once per operator. Judge the sources it drives by their own unit \
+                         tests — a module's filter, or `--bin` for a binary — and say \
+                         `{SPAWNS_A_PROCESS}` in its `NOT_MUTATED` row"
+                    );
+                }
+                spawning.push(relative);
+            }
+        }
+        for written in SPAWNED_BY_THE_RUNNER {
+            assert!(
+                spawning.iter().any(|found| found == written),
+                "`{written}` is written down as a suite the runner spawns from, and it \
+                 is not a suite that spawns"
+            );
+        }
+        let phrased: Vec<&str> = NOT_PRESSURE_BUT_PROVENANCE
+            .iter()
+            .filter(|(_, phrase)| *phrase == SPAWNS_A_PROCESS)
+            .map(|(suite, _)| *suite)
+            .collect();
+        for suite in &phrased {
+            assert!(
+                spawning.iter().any(|found| found == suite),
+                "`{suite}` is excused from the pressure rule as a suite that spawns a \
+                 process, and it is not one"
+            );
+        }
+        // **Floors from outside the walk**: every suite file the census
+        // excuses was read, and every suite written down as spawning was found
+        // spawning, so a reader that stopped finding them fails here rather than
+        // agreeing with an empty list.
+        let excused = NOT_MUTATED
+            .iter()
+            .filter(|(path, _)| {
+                path.contains("/tests/")
+                    && std::path::Path::new(path).extension() == Some(std::ffi::OsStr::new("rs"))
+            })
+            .count();
+        assert!(
+            suites >= excused && spawning.len() >= SPAWNED_BY_THE_RUNNER.len() + phrased.len(),
+            "{suites} suite(s) read, of {excused} the census excuses, and {} found \
+             spawning, so the walk is reading something other than the members' `tests/`",
+            spawning.len()
         );
     }
 
@@ -36219,7 +36526,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1793] = [
+    static OPERATORS: [(&str, &str, &str); 1796] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -44129,11 +44436,11 @@ Options:
         ("channel", "spelled", "nobody is written as somebody"),
         (
             "daemon_main",
-            "main",
+            "answer",
             "an invocation the binary does not answer is refused",
         ),
-        ("daemon_main", "main", "a refusal is a failure"),
-        ("daemon_main", "main", "--initialize alone is answered"),
+        ("daemon_main", "answer", "a refusal is a failure"),
+        ("daemon_main", "asked", "--initialize alone is answered"),
         ("daemon_lib", "code", "a profile with no device says so"),
         (
             "daemon_lib",
@@ -44160,6 +44467,11 @@ Options:
             "copy_world",
             "a world is read before it is copied in",
         ),
+        (
+            "daemon_profile",
+            "world",
+            "a world another account can reach is refused",
+        ),
         ("daemon_device", "read", "a record is the seed's key"),
         (
             "daemon_device",
@@ -44172,11 +44484,21 @@ Options:
             "a record is read only as it is written",
         ),
         (
+            "daemon_device",
+            "judged_as_there",
+            "a device file another account can reach is refused",
+        ),
+        (
             "daemon_mark",
             "decode",
             "a slot that does not check is passed over",
         ),
         ("daemon_mark", "open", "the newest whole slot wins"),
+        (
+            "daemon_mark",
+            "open",
+            "a mark another account can reach is refused",
+        ),
         (
             "daemon_mark",
             "write",

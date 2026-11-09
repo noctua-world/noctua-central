@@ -28,14 +28,17 @@
 //! judged this user's alone before it is read, and every one this crate makes
 //! is created private in one call. An identifier handed out twice across a
 //! crash or a clock moved back: none is handed out past a ceiling that is not
-//! yet durable, and a start resumes above the ceiling and the journal's newest
-//! unit, waiting for the clock rather than minting behind it.
+//! yet durable, and a start resumes above the ceiling and the newest unit it
+//! hands in, waiting for the clock rather than minting behind it.
 //!
 //! # What it does not
 //!
 //! A process running as the same user, which can rewrite the manifest, the
 //! world or the mark, or delete the mark so a start resumes from the journal
-//! alone; and a disk that answers a sync before the bytes are on it.
+//! alone; and a disk that answers a sync before the bytes are on it. Nothing
+//! here reads the local journal's newest unit, and nothing here stops: the
+//! start that reads one and hands it to [`mark::minter`], and the stop that
+//! calls `nc_ids::Minter::settle_ceiling`, are the running daemon's.
 
 #![deny(clippy::print_stdout, clippy::print_stderr, clippy::dbg_macro)]
 // Every doctest of this crate forbids `unsafe` as the crate does: a

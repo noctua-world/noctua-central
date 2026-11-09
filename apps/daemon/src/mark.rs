@@ -24,12 +24,16 @@
 //! synced so the name survives a crash too.
 //!
 //! **A start resumes above everything handed out, and waits for the clock to
-//! pass it**: the larger of the mark and the newest unit the local journal
-//! holds, so a mark lost or rolled back is still above every unit kept. A
-//! clock behind it is waited out — further behind than the lease is a clock
-//! that moved back, logged as `ids.clock_backwards` — and a mark more than a
-//! day ahead of the clock is a wrong number, and the start refuses
-//! (`MintError::MarkOutOfRange`).
+//! pass it**: the larger of the mark and the newest unit the start hands in,
+//! which is the local journal's to answer, so a mark lost or rolled back is
+//! still above every unit kept. A clock behind it is waited out — further
+//! behind than the lease is a clock that moved back, logged as
+//! `ids.clock_backwards` — and a mark more than a day ahead of the clock is a
+//! wrong number, and the start refuses (`MintError::MarkOutOfRange`).
+//!
+//! **The lease is the catalog's**, `nc_catalog::DAEMON.mark_lease_ms`, read
+//! when the mark is opened: no caller hands one in, so the bound the compiler
+//! holds below a day is the one every raise writes by.
 
 use std::io::{Read as _, Seek as _, SeekFrom, Write as _};
 use std::path::{Path, PathBuf};
@@ -61,20 +65,21 @@ pub struct MarkFile {
     generation: u64,
     /// Which slot holds it, so the next write goes to the other.
     newest: usize,
-    /// How far past the clock a raise writes the ceiling.
+    /// How far past the clock a raise writes the ceiling: the catalog's.
     lease_ms: u64,
 }
 
 impl MarkFile {
     /// The mark at `path` and the ceiling it holds — nothing for a profile's
-    /// first start, which makes the file.
+    /// first start, which makes the file — raised by the catalog's lease.
     ///
     /// # Errors
     ///
     /// [`Refused::MarkUnreadable`] when neither slot is whole,
     /// [`Refused::NotPrivate`] for a file that is not this user's alone, and
     /// [`Refused::Unavailable`] when it could not be read, made or synced.
-    pub fn open(path: &Path, user: &User, lease_ms: u64) -> Result<(Self, Option<u64>), Refused> {
+    pub fn open(path: &Path, user: &User) -> Result<(Self, Option<u64>), Refused> {
+        let lease_ms = nc_catalog::DAEMON.mark_lease_ms;
         let failed = |doing: &str, error| {
             Refused::unavailable(format!("`{}` could not be {doing}", path.display()), error)
         };
@@ -222,16 +227,18 @@ fn checksum(head: &[u8]) -> [u8; 16] {
     check
 }
 
-/// Where a start resumes: past the mark, and past the newest unit the local
-/// journal holds, in milliseconds since the Unix epoch.
+/// Where a start resumes: past the mark, and past the newest unit the start
+/// hands in from the local journal, in milliseconds since the Unix epoch.
 #[must_use]
 pub fn barrier(mark: Option<u64>, newest_unit: Option<Snowflake>) -> Option<u64> {
     let unit = newest_unit.map(|unit| unit.millis_since_epoch().saturating_add(EPOCH_MS));
     mark.max(unit)
 }
 
-/// The minter a start mints with: resumed above the barrier, behind the mark
-/// as its ceiling, once the clock has passed the barrier.
+/// The minter a start mints with: resumed above the barrier of `read`, the
+/// ceiling the mark held, and `newest_unit`, the newest unit the local journal
+/// holds, which the start reads and hands in — behind the mark as its ceiling,
+/// once the clock has passed the barrier.
 ///
 /// **A clock behind the barrier is waited for, and a wait is the caller's**:
 /// `wait` is handed how far the clock still has to go, and a daemon sleeps
@@ -330,7 +337,8 @@ mod tests {
         }
     }
 
-    const LEASE: u64 = 2_000;
+    // The lease every raise writes by, which the mark reads from the catalog.
+    const LEASE: u64 = nc_catalog::DAEMON.mark_lease_ms;
     const NOW: u64 = EPOCH_MS + 10 * 24 * 60 * 60 * 1_000;
 
     fn flake() -> MachineFlake {
@@ -343,12 +351,12 @@ mod tests {
     fn a_raise_is_durable_and_read_back_by_the_next_open() {
         let held = Scratch::new("raise");
         let (path, user) = held.mark();
-        let (mut mark, read) = MarkFile::open(&path, &user, LEASE).expect("made");
+        let (mut mark, read) = MarkFile::open(&path, &user).expect("made");
         assert_eq!(read, None);
         assert!(nc_platform::testing::is_private(&path));
         assert_eq!(mark.raise(NOW), Ok(NOW + LEASE));
         drop(mark);
-        let (mut mark, read) = MarkFile::open(&path, &user, LEASE).expect("opened");
+        let (mut mark, read) = MarkFile::open(&path, &user).expect("opened");
         assert_eq!(read, Some(NOW + LEASE));
         assert_eq!(
             mark.newest, 1,
@@ -356,7 +364,7 @@ mod tests {
         );
         mark.settle(NOW + 5).expect("settled");
         drop(mark);
-        let (_, read) = MarkFile::open(&path, &user, LEASE).expect("opened");
+        let (_, read) = MarkFile::open(&path, &user).expect("opened");
         assert_eq!(read, Some(NOW + 5), "the newest slot did not win");
     }
 
@@ -366,7 +374,7 @@ mod tests {
     fn a_corrupt_slot_falls_back_to_the_other_and_two_refuse_the_start() {
         let held = Scratch::new("torn");
         let (path, user) = held.mark();
-        let (mut mark, _) = MarkFile::open(&path, &user, LEASE).expect("made");
+        let (mut mark, _) = MarkFile::open(&path, &user).expect("made");
         mark.raise(NOW).expect("raised into the second slot");
         mark.raise(NOW + 100).expect("raised into the first slot");
         drop(mark);
@@ -377,18 +385,39 @@ mod tests {
         };
         // The newest, at its ceiling: the older one wins.
         spoil(0, 9);
-        let (_, read) = MarkFile::open(&path, &user, LEASE).expect("the other slot is whole");
+        let (_, read) = MarkFile::open(&path, &user).expect("the other slot is whole");
         assert_eq!(read, Some(NOW + LEASE));
         // And the older one, at its checksum: neither is whole.
         spoil(1, 20);
-        let refusal = MarkFile::open(&path, &user, LEASE).expect_err("neither slot is whole");
+        let refusal = MarkFile::open(&path, &user).expect_err("neither slot is whole");
         assert_eq!(refusal.code(), ErrorCode::DaemonMarkUnreadable, "{refusal}");
         // A file cut short holds no whole slot either.
         std::fs::write(&path, [0_u8; 7]).expect("written");
         assert!(matches!(
-            MarkFile::open(&path, &user, LEASE),
+            MarkFile::open(&path, &user),
             Err(Refused::MarkUnreadable { .. })
         ));
+    }
+
+    /// A mark another account can reach is not read, and is left as it was:
+    /// one it could rewrite is a ceiling it could lower.
+    #[test]
+    fn a_mark_another_user_can_reach_is_refused_and_left_as_it_was() {
+        let held = Scratch::new("reachable");
+        let (path, user) = held.mark();
+        let (mut mark, _) = MarkFile::open(&path, &user).expect("made");
+        mark.raise(NOW).expect("raised");
+        drop(mark);
+        nc_platform::testing::open_to_another_user(&path).expect("opened to another user");
+        let before = std::fs::read(&path).expect("reads");
+        let refusal = MarkFile::open(&path, &user).expect_err("a mark another user can reach");
+        assert_eq!(
+            refusal.code(),
+            ErrorCode::DaemonProfileNotPrivate,
+            "{refusal}"
+        );
+        assert_eq!(std::fs::read(&path).expect("reads"), before);
+        assert!(!nc_platform::testing::is_private(&path));
     }
 
     /// A start resumes past the larger of the mark and the journal's newest
@@ -412,7 +441,7 @@ mod tests {
         let held = Scratch::new("behind");
         let (path, user) = held.mark();
         for (behind, logged) in [(LEASE / 2, 0), (LEASE * 3, 1)] {
-            let (mark, _) = MarkFile::open(&path, &user, LEASE).expect("opened");
+            let (mark, _) = MarkFile::open(&path, &user).expect("opened");
             let clock = Set(Arc::new(AtomicU64::new(NOW - behind)));
             let log = nc_kernel::logging::Captured::default();
             let mut waits = 0_usize;
@@ -432,7 +461,7 @@ mod tests {
             let lines = log.named("ids.clock_backwards");
             assert_eq!(lines.len(), logged, "{behind} ms behind: {lines:?}");
         }
-        let (mark, _) = MarkFile::open(&path, &user, LEASE).expect("opened");
+        let (mark, _) = MarkFile::open(&path, &user).expect("opened");
         let day_behind = Set(Arc::new(AtomicU64::new(NOW - 25 * 60 * 60 * 1_000)));
         let refusal = super::minter(
             mark,

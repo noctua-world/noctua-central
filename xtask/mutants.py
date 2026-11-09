@@ -507,9 +507,9 @@ SOURCES = {
     # **The daemon's profile**: which code each refusal carries, the install
     # read beside the executable, the profile's directories and world, the
     # device's seed and record, the identifiers' mark, and the binary's own
-    # invocation. Decided by the package's tests: each module's unit tests, the
-    # binary run from a scratch install, and a child killed while it mints, all
-    # inside scratch directories and none touching a unit or a service.
+    # invocation. Decided by each module's own unit tests, the binary's among
+    # them, inside scratch directories; the suites that run the binary and kill
+    # a child are evidence no operator here runs (`ELSEWHERE` says why).
     "daemon_main": os.path.join(ROOT, "apps/daemon/src/main.rs"),
     "daemon_lib": os.path.join(ROOT, "apps/daemon/src/lib.rs"),
     "daemon_install": os.path.join(ROOT, "apps/daemon/src/install.rs"),
@@ -6443,15 +6443,15 @@ WEAKENINGS = [
      "        out.push('_');\n    }\n    out\n}",
      "    }\n    out\n}"),
     # -- the daemon: its install, profile, device and mark --------------------
-    ("daemon_main", "main", "an invocation the binary does not answer is refused",
-     "            return ExitCode::from(2);",
-     "            return ExitCode::SUCCESS;"),
-    ("daemon_main", "main", "a refusal is a failure",
-     "            say(&format!(\"noctua-daemon: {refused}\"));\n            ExitCode::FAILURE",
-     "            say(&format!(\"noctua-daemon: {refused}\"));\n            ExitCode::SUCCESS"),
-    ("daemon_main", "main", "--initialize alone is answered",
-     "        [initialize] if initialize == \"--initialize\" => None,",
-     "        [initialize] if initialize == \"--initialise\" => None,"),
+    ("daemon_main", "answer", "an invocation the binary does not answer is refused",
+     "            UNANSWERED,\n",
+     "            0,\n"),
+    ("daemon_main", "answer", "a refusal is a failure",
+     "        Err(refused) => (REFUSED, format!(\"noctua-daemon: {refused}\")),",
+     "        Err(refused) => (0, format!(\"noctua-daemon: {refused}\")),"),
+    ("daemon_main", "asked", "--initialize alone is answered",
+     "        [initialize] if initialize == \"--initialize\" => Some(Initialize { world: None }),",
+     "        [initialize] if initialize == \"--initialise\" => Some(Initialize { world: None }),"),
     ("daemon_lib", "code", "a profile with no device says so",
      "            Self::NoDevice { .. } => ErrorCode::DaemonNoDevice,",
      "            Self::NoDevice { .. } => ErrorCode::DaemonNoWorld,"),
@@ -6470,6 +6470,9 @@ WEAKENINGS = [
     ("daemon_profile", "copy_world", "a world is read before it is copied in",
      "    read_world(from, &text)?;\n",
      ""),
+    ("daemon_profile", "world", "a world another account can reach is refused",
+     "        Err(judged) => return Err(Refused::judged(judged)),",
+     "        Err(_) => {}"),
     ("daemon_device", "read", "a record is the seed's key",
      "        if recorded != public {",
      "        if false {"),
@@ -6479,12 +6482,18 @@ WEAKENINGS = [
     ("daemon_device", "record_of", "a record is read only as it is written",
      "    if value.to_canonical() != text {",
      "    if false {"),
+    ("daemon_device", "judged_as_there", "a device file another account can reach is refused",
+     "        Err(judged) => Err(Refused::judged(judged)),",
+     "        Err(_) => Ok(()),"),
     ("daemon_mark", "decode", "a slot that does not check is passed over",
      "    if slot.len() != SLOT || slot[16..] != checksum(head) {",
      "    if slot.len() != SLOT {"),
     ("daemon_mark", "open", "the newest whole slot wins",
      "            .max_by_key(|(_, (generation, _))| *generation);",
      "            .min_by_key(|(_, (generation, _))| *generation);"),
+    ("daemon_mark", "open", "a mark another account can reach is refused",
+     "            Err(judged) => return Err(Refused::judged(judged)),",
+     "            Err(_) => {}"),
     ("daemon_mark", "write", "a write goes to the slot that is not newest",
      "        let slot = 1 - self.newest;",
      "        let slot = self.newest;"),
@@ -6624,12 +6633,21 @@ ELSEWHERE = {
     # holds every name, the ports and the manifest. Neither spawns a process
     # or registers anything with a system.
     "channel": ["cargo", "test", "-q", "-p", "nc-channel"],
-    "daemon_main": ["cargo", "test", "-q", "-p", "nc-daemon"],
-    "daemon_lib": ["cargo", "test", "-q", "-p", "nc-daemon"],
-    "daemon_install": ["cargo", "test", "-q", "-p", "nc-daemon"],
-    "daemon_profile": ["cargo", "test", "-q", "-p", "nc-daemon"],
-    "daemon_device": ["cargo", "test", "-q", "-p", "nc-daemon"],
-    "daemon_mark": ["cargo", "test", "-q", "-p", "nc-daemon"],
+    # **An app's sources by their own unit tests, and never by a suite that runs
+    # a process.** `apps/daemon/tests/` starts the daemon's binary and kills a
+    # child of its own test binary, and the suites after them start daemons and
+    # register units with the system's manager — once per operator, under the
+    # whole package. So each module's command runs that module's tests and
+    # nothing else (`a_suite_that_spawns_a_process_is_run_by_no_mutation_command`
+    # in `xtask/src/check.rs` holds it): the binary's own unit tests, `--bin`,
+    # for `main.rs`; for the crate root, which holds no test, the two modules
+    # whose tests read the codes it maps.
+    "daemon_main": ["cargo", "test", "-q", "-p", "nc-daemon", "--bin", "noctua-daemon"],
+    "daemon_lib": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "device::", "profile::"],
+    "daemon_install": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "install::"],
+    "daemon_profile": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "profile::"],
+    "daemon_device": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "device::"],
+    "daemon_mark": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "mark::"],
     # The whole crate, both targets: the unit tests hold the layout and the
     # alphabet, and `crates/nc-ids/tests/properties.rs` and
     # `crates/nc-ids/tests/against_denote.rs` hold the round trips. A weakening

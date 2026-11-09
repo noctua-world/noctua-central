@@ -347,6 +347,30 @@ mod tests {
         assert!(!layout.device_key.exists(), "reading made a seed");
     }
 
+    /// A seed or a record another account can reach is not read as the
+    /// device's, and each is left as it was.
+    #[test]
+    fn a_device_another_user_can_reach_is_refused_and_left_as_it_was() {
+        let held = Scratch::new("reachable");
+        let (layout, user) = held.profile();
+        Device::initialize(&layout, &user).expect("the device is made");
+        for file in [&layout.device_key, &layout.device] {
+            nc_platform::testing::open_to_another_user(file).expect("opened to another user");
+            let before = std::fs::read(file).expect("reads");
+            let refusal = Device::read(&layout, &user).expect_err("a reachable device file");
+            assert_eq!(
+                refusal.code(),
+                ErrorCode::DaemonProfileNotPrivate,
+                "`{}`: {refusal}",
+                file.display()
+            );
+            assert_eq!(std::fs::read(file).expect("reads"), before);
+            assert!(!nc_platform::testing::is_private(file));
+            nc_platform::testing::make_private(file).expect("made private again");
+        }
+        Device::read(&layout, &user).expect("both private again, the device reads");
+    }
+
     /// A seed of another length, and a record that is not the seed's, are not
     /// a device this code vouches for.
     #[test]

@@ -10,7 +10,7 @@
 //! clock moved back, by more than the lease and by more than a day.
 
 use std::collections::BTreeSet;
-use std::io::BufRead as _;
+use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -127,8 +127,7 @@ fn spawned(mark: &Path, from: u64) -> Minting {
 fn the_child(mark: &Path, from: u64) {
     let directory = mark.parent().expect("the mark is in a directory");
     let user = nc_platform::user_in(directory).expect("the scratch is private");
-    let (file, read) = MarkFile::open(mark, &user, nc_catalog::DAEMON.mark_lease_ms)
-        .expect("the child opens the mark");
+    let (file, read) = MarkFile::open(mark, &user).expect("the child opens the mark");
     let clock = Scripted::at(from);
     let mut minter = nc_daemon::mark::minter(
         file,
@@ -150,6 +149,43 @@ fn the_child(mark: &Path, from: u64) {
     }
 }
 
+/// A line the child printed, as the parent reads it.
+enum Line {
+    /// An identifier `mint` handed out, and its millisecond.
+    Minted(u64, u64),
+    /// A line of the test harness's own.
+    Other,
+    /// Nothing more: the pipe is closed, or what is left of it is a line the
+    /// kill cut short.
+    End,
+}
+
+/// The next whole line the child printed.
+///
+/// **A line the kill cut short is the end**, never read as an identifier: it
+/// is the last thing in the pipe, and an identifier it would have named is one
+/// no whole line says was handed out.
+fn next_line(output: &mut impl BufRead) -> Line {
+    let mut line = Vec::new();
+    output
+        .read_until(b'\n', &mut line)
+        .expect("the child's output reads");
+    let Some(whole) = line.strip_suffix(b"\n") else {
+        return Line::End;
+    };
+    let whole = std::str::from_utf8(whole).expect("the child prints text");
+    let Some(rest) = whole.strip_prefix("minted ") else {
+        return Line::Other;
+    };
+    let (value, millis) = rest
+        .split_once(' ')
+        .expect("an identifier and its millisecond");
+    Line::Minted(
+        value.parse().expect("an identifier"),
+        millis.parse().expect("a millisecond"),
+    )
+}
+
 /// A daemon killed while it mints, started again with its clock back by more
 /// than the lease, waits for the clock, logs it, and repeats no identifier;
 /// with its clock back by more than a day, it refuses to start.
@@ -164,21 +200,15 @@ fn a_daemon_killed_while_it_mints_and_started_with_its_clock_back_repeats_none()
     let from = EPOCH_MS + 30 * A_DAY_MS;
     let mut child = spawned(&mark, from);
     let mut printed: Vec<(u64, u64)> = Vec::new();
-    let lines = std::io::BufReader::new(child.0.stdout.take().expect("the child's output"));
-    for line in lines.lines() {
-        let line = line.expect("the child's output reads");
-        let Some(rest) = line.strip_prefix("minted ") else {
-            continue;
-        };
-        let (value, millis) = rest
-            .split_once(' ')
-            .expect("an identifier and its millisecond");
-        printed.push((
-            value.parse().expect("an identifier"),
-            millis.parse().expect("a millisecond"),
-        ));
-        if printed.len() == READ_BEFORE_THE_KILL {
-            break;
+    // **The reader stays open until the child is dead**, so the kill is what
+    // ends it: a reader dropped first closes the pipe, and the child, blocked
+    // writing into it, dies of its own broken pipe before the kill arrives.
+    let mut output = std::io::BufReader::new(child.0.stdout.take().expect("the child's output"));
+    while printed.len() < READ_BEFORE_THE_KILL {
+        match next_line(&mut output) {
+            Line::Minted(value, millis) => printed.push((value, millis)),
+            Line::Other => {}
+            Line::End => break,
         }
     }
     assert_eq!(
@@ -189,6 +219,16 @@ fn a_daemon_killed_while_it_mints_and_started_with_its_clock_back_repeats_none()
     child.0.kill().expect("the child is killed");
     let status = child.0.wait().expect("the child is reaped");
     assert!(!status.success(), "the child was not killed: {status}");
+    // **And every identifier it printed before it died is read**, the pipe's
+    // whole buffer of them, so what is held against the mark below is all the
+    // child is known to have handed out and not a prefix of it.
+    loop {
+        match next_line(&mut output) {
+            Line::Minted(value, millis) => printed.push((value, millis)),
+            Line::Other => {}
+            Line::End => break,
+        }
+    }
 
     let handed: BTreeSet<u64> = printed.iter().map(|(value, _)| *value).collect();
     assert_eq!(handed.len(), printed.len(), "the child itself repeated one");
@@ -199,7 +239,7 @@ fn a_daemon_killed_while_it_mints_and_started_with_its_clock_back_repeats_none()
         .expect("minted");
     let user = nc_platform::user_in(&scratch.0).expect("the scratch is private");
     let lease = nc_catalog::DAEMON.mark_lease_ms;
-    let (file, read) = MarkFile::open(&mark, &user, lease).expect("the mark the child left reads");
+    let (file, read) = MarkFile::open(&mark, &user).expect("the mark the child left reads");
     let ceiling = read.expect("the child raised the ceiling before it minted");
     assert!(
         ceiling >= last,
@@ -223,7 +263,7 @@ fn a_daemon_killed_while_it_mints_and_started_with_its_clock_back_repeats_none()
 
     // **Back by more than the lease: minting is refused until the clock
     // passes, the wait is logged, and nothing handed out is handed out again.**
-    let (file, read) = MarkFile::open(&mark, &user, lease).expect("the mark reads again");
+    let (file, read) = MarkFile::open(&mark, &user).expect("the mark reads again");
     let behind = Scripted::at(last - (lease + 1_000));
     assert!(
         matches!(
