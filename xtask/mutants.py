@@ -4084,6 +4084,44 @@ WEAKENINGS = [
     ("check", "what_the_count_leaves_out", "the count line need not say what the system stood aside",
      "    if !the_suites_not_applicable(has).is_empty() {",
      "    if the_suites_not_applicable(has).len() > THE_SUITES_A_SYSTEM_STANDS_ASIDE.len() {"),
+    # The advisories `deny.toml` leaves out of the audit: exactly the ones
+    # `THE_ADVISORIES_LEFT_OUT` names, in its order, each with a reason, read
+    # from the document cargo-deny reads. The id comparisons and the reason
+    # requirement are killed by
+    # `an_advisory_is_left_out_only_when_the_gate_names_it_with_a_reason`, the
+    # parse refusals by `a_deny_toml_cargo_deny_cannot_read_is_a_finding`.
+    ("check", "the_advisories_left_out_are_the_listed_ones", "no fewer advisories are left out than the gate names",
+     "    if written != THE_ADVISORIES_LEFT_OUT {",
+     "    if written.len() > THE_ADVISORIES_LEFT_OUT.len() {"),
+    ("check", "the_advisories_left_out_are_the_listed_ones", "no advisory is left out that the gate does not name",
+     "    if written != THE_ADVISORIES_LEFT_OUT {",
+     "    if !THE_ADVISORIES_LEFT_OUT.iter().all(|id| written.contains(id)) {"),
+    ("check", "the_advisories_left_out_are_the_listed_ones", "an advisory left out with no reason is refused",
+     "        if !reasoned {",
+     "        if false {"),
+    ("check", "the_advisories_left_out", "an empty reason is no reason",
+     "                    reason.is_some_and(|reason| !reason.trim().is_empty()),",
+     "                    reason.is_some(),"),
+    ("check", "the_advisories_left_out", "a bare id is an entry with no reason",
+     "            toml::Value::String(id) => Ok((id.clone(), false)),",
+     "            toml::Value::String(id) => Ok((id.clone(), true)),"),
+    ("check", "the_advisories_left_out", "a deny.toml that is not TOML is not read as one",
+     "        .map_err(|error| error.message().trim().to_owned())?;",
+     "        .unwrap_or_default();"),
+    ("check", "the_advisories_left_out", "an `advisories` that is not a table is not read as empty",
+     "        return Err(format!(\n            \"`advisories` is a value of type {}, not a table\",\n            advisories.type_str()\n        ));",
+     "        return Ok(Vec::new());"),
+    ("check", "the_advisories_left_out_are_the_listed_ones", "a deny.toml the audit cannot read is a finding",
+     "            return false;\n        }\n    };\n    let mut held = true;",
+     "            return true;\n        }\n    };\n    let mut held = true;"),
+    # And the key an entry of `ignore` expires by, held at `warn`: a row that
+    # refused only the stricter value leaves `allow` free to keep a stale entry
+    # ignored, and the loops over the rows plant neither `allow` nor the key
+    # removed under it. Killed by
+    # `the_warning_that_expires_an_ignored_advisory_cannot_be_turned_off`.
+    ("check", "THE_AUDIT_IS_NOT_NARROWED", "the warning that expires an ignored advisory stays on",
+     '        "unused-ignored-advisory",\n        "\\"warn\\"",',
+     '        "unused-ignored-advisory",\n        "not \\"deny\\"",'),
     # -- the decision point, the units of work and the log --------------------
     ("kernel_dispatch", "spend", "a call tree nests no deeper than its depth",
      "        if depth > usize::try_from(KERNEL.dispatch_depth).unwrap_or(usize::MAX) {",
@@ -6283,6 +6321,21 @@ WEAKENINGS = [
     ("local_gates", "migrates_from_elsewhere", "only the one embedded migrator is let through",
      "        .filter(|(_, text)| text.trim() == EMBEDDED)\n",
      "        .filter(|(_, text)| text.contains(\"MIGRATOR\"))\n"),
+    # The gate's scratch, where it opens a SQLite file with
+    # `create_if_missing`: made private by the call that makes it, and a
+    # directory already there refused, never reused and never cleared. The
+    # first two are killed by
+    # `a_scratch_directory_that_already_exists_is_refused_and_nothing_is_opened_in_it`,
+    # the third by `the_scratch_directory_the_gate_makes_is_this_users_alone`.
+    ("local_gates", "at", "a scratch directory found is refused, not reused",
+     "            Ok(()) => Ok(Self(root)),\n",
+     "            Ok(()) => Ok(Self(root)),\n            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists && root.is_dir() => Ok(Self(root)),\n"),
+    ("local_gates", "at", "a scratch directory found is never cleared",
+     "    fn at(root: PathBuf) -> Result<Self, String> {\n",
+     "    fn at(root: PathBuf) -> Result<Self, String> {\n        let _ = std::fs::remove_dir_all(&root);\n"),
+    ("local_gates", "at", "the gate's scratch directory is private to this user",
+     "        match nc_platform::create_private_directory(&root) {",
+     "        match std::fs::create_dir(&root) {"),
     ("gates", "pragmas_set", "the pragma door called as a path is read",
      "        let path = at >= 2 && code[at - 2..at] == [':', ':'];",
      "        let path = false;"),

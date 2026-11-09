@@ -123,17 +123,47 @@ impl Drop for Scratch {
 static MADE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
 
 impl Scratch {
-    /// A fresh directory. One that could not be made is named, path and all, by
-    /// the first thing that writes in it.
-    fn new(name: &str) -> Self {
+    /// A fresh directory in the system's temporary directory, named by this
+    /// process and by how many it made before, or what [`Scratch::at`] refused.
+    fn new(name: &str) -> Result<Self, String> {
         let made = MADE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        let root = std::env::temp_dir().join(format!(
+        Self::at(std::env::temp_dir().join(format!(
             "nc-xtask-local-{}-{made}-{name}",
             std::process::id()
-        ));
-        let _ = std::fs::remove_dir_all(&root);
-        let _ = std::fs::create_dir(&root);
-        Self(root)
+        )))
+    }
+
+    /// The directory `root`, made by this call and private to this user from
+    /// its first moment, or the sentence saying why it was not.
+    ///
+    /// **Never one it found.** The gate opens a SQLite file here with
+    /// `create_if_missing`, and SQLite reads whatever database and `-wal`
+    /// already sit at that name: in a temporary directory every account
+    /// shares, a directory another account made first, or could write into,
+    /// would hand the gate that account's pair — the one way RUSTSEC-2026-0459
+    /// (CVE-2026-119375) reaches a process linking a SQLite below 3.54.0. So
+    /// the directory is made by `nc_platform::create_private_directory` —
+    /// `0700` on Unix, one entry for the user on Windows, in the call that
+    /// makes it — and a name that is already there is refused, never used and
+    /// never cleared: what a `Scratch` holds, and its `Drop` removes, is a
+    /// directory this process made.
+    fn at(root: PathBuf) -> Result<Self, String> {
+        match nc_platform::create_private_directory(&root) {
+            Ok(()) => Ok(Self(root)),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Err(format!(
+                "`{}` was already there, so this run did not make it, and the gate opens \
+                 no SQLite file in a directory it did not make: a database and its `-wal` \
+                 that another account left there would be read as the gate's own. Remove it \
+                 if it is yours, which a run that was killed leaves, and run the gate again",
+                root.display()
+            )),
+            Err(error) => Err(format!(
+                "`{}` could not be made private to this user ({error}), and the gate opens \
+                 no SQLite file in a directory it did not make. Check that the temporary \
+                 directory exists and that this user can write in it",
+                root.display()
+            )),
+        }
     }
 }
 
@@ -144,7 +174,7 @@ impl Scratch {
 ///
 /// What differs, naming the object, the check or the version, and what to do.
 pub(crate) fn the_local_schema(root: &Path) -> Result<Built, String> {
-    let scratch = Scratch::new("schema");
+    let scratch = Scratch::new("schema")?;
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -2179,7 +2209,7 @@ mod tests {
             .build()
             .expect("a runtime");
         let migrations = root().join(crate::limits::LOCAL_MIGRATIONS);
-        let scratch = Scratch::new("floor");
+        let scratch = Scratch::new("floor").expect("a scratch directory this run made");
         let refused = runtime
             .block_on(super::built_and_judged(
                 &migrations,
@@ -2203,9 +2233,69 @@ mod tests {
         );
     }
 
+    /// A scratch directory that already exists is refused, and nothing is
+    /// opened in it.
+    ///
+    /// **Found where the gate would make its own**, as a directory another
+    /// account made first in a temporary directory every account shares would
+    /// be, holding a file under the name the gate opens. It is refused naming
+    /// the path, and left exactly as it was found: not used, so SQLite never
+    /// reads the file or makes a companion beside it, and not removed, since
+    /// what a `Scratch` removes is what this process made.
+    #[test]
+    fn a_scratch_directory_that_already_exists_is_refused_and_nothing_is_opened_in_it() {
+        /// Each entry of `directory` with its bytes, by name.
+        fn what_it_holds(directory: &std::path::Path) -> Vec<(std::ffi::OsString, Vec<u8>)> {
+            let mut held: Vec<_> = std::fs::read_dir(directory)
+                .expect("readable")
+                .map(|entry| {
+                    let entry = entry.expect("an entry");
+                    (
+                        entry.file_name(),
+                        std::fs::read(entry.path()).expect("a file"),
+                    )
+                })
+                .collect();
+            held.sort();
+            held
+        }
+        let held = Scratch::new("found").expect("a scratch directory this run made");
+        let found = held.0.join("found");
+        std::fs::create_dir(&found).expect("a directory made before the gate's");
+        std::fs::write(found.join("local.sqlite3"), b"another account's database")
+            .expect("writable");
+        let before = what_it_holds(&found);
+        let refused = Scratch::at(found.clone()).expect_err("a directory already there");
+        assert!(
+            refused.contains(&format!("`{}` was already there", found.display())),
+            "{refused}"
+        );
+        assert_eq!(
+            what_it_holds(&found),
+            before,
+            "a directory the gate did not make was opened, written or removed"
+        );
+    }
+
+    /// The scratch directory the gate makes is this user's alone.
+    ///
+    /// **Judged as the local database's own directory is**, by
+    /// `nc_platform::user_in`: no group or other bit on Unix, and on Windows an
+    /// access list every entry of which is this user. Made with the umask's
+    /// mode instead, it is `0755` under the common `022` — another account
+    /// reads the gate's file — and on a host whose umask lets the group write,
+    /// a directory that group can put a `-wal` in before the gate opens it.
+    #[test]
+    fn the_scratch_directory_the_gate_makes_is_this_users_alone() {
+        let made = Scratch::new("private").expect("a scratch directory this run made");
+        if let Err(judged) = nc_platform::user_in(&made.0) {
+            panic!("the gate's scratch directory is not this user's alone: {judged}");
+        }
+    }
+
     /// A copy of `local-migrations/`, edited, as the root of a scratch tree.
     fn edited(name: &str, edit: impl Fn(&std::path::Path)) -> Scratch {
-        let scratch = Scratch::new(name);
+        let scratch = Scratch::new(name).expect("a scratch directory this run made");
         let into = scratch.0.join(crate::limits::LOCAL_MIGRATIONS);
         std::fs::create_dir(&into).expect("a directory");
         for entry in
