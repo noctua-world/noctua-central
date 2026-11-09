@@ -150,6 +150,10 @@ backend services — everything `NOCTUA.md §1` describes. What is in it today:
   the profile it keeps, the device it mints identifiers on, and the mark that keeps those
   identifiers unique across a crash and a clock moved back (`NOCTUA.md §16.2`). Its
   binary, `noctua-daemon`, answers `--initialize`, the installer's entry.
+- **The command line a channel is reached through** (`apps/cli`): a command line read
+  into a command's arguments against the schema the daemon's registry lists, the
+  daemon reached and proven before anything is sent, help from the registry, and one
+  table of exit codes (`NOCTUA.md §20.2`). Its binary is `noctua`.
 
 It is one repository on purpose (`NOCTUA.md §10.1`): those parts share the command
 catalog, the policy pack, the generated types and the journal format. `NOCTUA.md §10.2`
@@ -288,7 +292,8 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 ├── plugins/                        WASM components, one directory each (§11.3)
 │   └── reference/                  the plugin the kernel is proven with
 ├── apps/                           the binaries a person's machine runs, each a library and a thin binary (§10.2)
-│   └── daemon/                     `noctua-daemon`: the install, the profile, the device and the identifiers' mark (§11.1, §16.2)
+│   ├── daemon/                     `noctua-daemon`: the install, the profile, the device and the identifiers' mark (§11.1, §16.2)
+│   └── cli/                        `noctua`: a command line read against a command's schema, the daemon asked, the exit codes (§20.2)
 └── xtask/                          HAND-WRITTEN — the five verbs
     └── canaries/                   NOT COMPILED — what the gates must find, and the review loop
 ```
@@ -432,6 +437,7 @@ fails a gate a minute or two later.
 | an IPC message | `crates/nc-ipc/src/message.rs` — a variant of `Request` or `Answer`, or a message of the handshake — and the module header of `crates/nc-ipc/src/lib.rs` | its encoding and its reading in the same file, the reading **strict**: every field it holds taken by `Fields` and `done()` refusing the rest, so a field an older build does not read is a refusal rather than a value dropped in silence; a message the handshake reads names the protocol first, and a change of what an existing message means is a new `PROTOCOL`, never the same number; a case in `crates/nc-ipc/tests/` that sends it through a real `serve` and `connect`, and one that sends it malformed by hand through `nc_ipc::frame`. Whatever the daemon answers is held to `ipc_frame_max_bytes`, which the compiler holds above the kernel's `payload_bytes` and the envelope of 64 KiB `crates/nc-catalog-compiler/src/load.rs` names, so an answer that may grow without bound — the registry, a status — is refused to the daemon before anything of it is sent (`NC-IPC-0016`), its request still waiting for an answer the daemon can send instead, and never a frame cut short |
 | a daemon limit | `[daemon]` in `catalog/limits.toml`, and a field of `DaemonLimits` in `crates/nc-catalog-compiler/src/model.rs` with its row in `DaemonLimits::each` | every limit is required and above zero, and one that must keep a bound outside its table is held to it where it is written (`check_daemon` and `check_daemon_ipc` in the compiler's `load.rs`, with a failing case in `crates/nc-catalog-compiler/tests/the_gates_fire.rs` at the boundary): `mark_lease_ms` below the day past which a minter reads a mark as corrupt, `ipc_frame_max_bytes` at least the kernel's `payload_bytes` and the frame's envelope, `ipc_silent_after_ms` above two `ipc_heartbeat_ms`, and `ipc_connections_max` at most 252, what a Windows pipe's instances hold with one waiting and one past the bound. `xtask/tests/the_registry_reaches_the_code.rs` compares every field by name and counts them, `xtask/tests/every_generated_value_is_compared.rs` counts the generated surface, and `docs/limits.md` publishes it under **Daemon** with its unit, whose prose `xtask/tests/the_pages_reach_the_catalog.rs` pins. The daemon and `crates/nc-ipc` read `nc_catalog::DAEMON` and take no value of the type from a caller |
 | an advisory left out of the audit | `[advisories] ignore` in `deny.toml`, and `THE_ADVISORIES_LEFT_OUT` in `xtask/src/check.rs` | only one the lock cannot get past and that is argued not to reach this tree: the entry's `reason` says in one sentence why and when it leaves, the paragraph above `ignore` gives the argument, and the bullet of **What is deliberately not claimed** it rests on says so. The gate holds the list to the constant, in its order, and refuses an entry with no reason however TOML spells it; cargo-deny warns `advisory-not-detected` for an entry no crate matches while `[advisories] unused-ignored-advisory` is `warn`, which `deny.toml` writes out and `THE_AUDIT_IS_NOT_NARROWED` holds, and the warning fails the dependency step, so the change that moves the lock past the advisory takes it out of both lists |
+| a CLI verb | `VERBS` in `apps/cli/src/args.rs`, its line in `what_it_does` in `apps/cli/src/help.rs`, and its arm in `apps/cli/src/run.rs` | one undotted word, which no registered command's name can be — every one is dotted (`nc_schema::command_name_is_well_formed`) — and `the_verbs_and_the_registered_names_never_meet` holds the two apart, over the catalog's and the reference plugin's names; a verb acts without dispatching, so it is what only the CLI can do — help, and process control — never a feature a registered command could carry, which reaches every surface (`NOCTUA.md §2.8`). A run that ends in a new way is a row of `Exit` in `apps/cli/src/exit.rs`, and `help exit-codes` prints that one table |
 
 Two things are true of all of them:
 
@@ -776,6 +782,7 @@ entry owns.
 | Something that never read the token speaking to the daemon, or answering for it | a proof keyed by the token at each end, over both nonces and a domain of its own, compared in constant time, with the token never sent | "Each end of a connection proves it holds the token, and neither sends it" |
 | An identifier handed out twice, across a crash or a clock moved back | a ceiling made durable before a millisecond past it is handed out, and a start that resumes above it and the newest unit it hands in, waiting for the clock | "A daemon starts only on a profile that is its user's alone, and mints nothing it cannot resume above" |
 | A sandbox escape through this repository's own code | no `unsafe` written anywhere but the Win32 calls of `nc-platform`'s Windows half, each beside its reason, plugins included, and what `forbid` does not reach written down | invariant 17 |
+| Something that is not this install's daemon answering the CLI, or the CLI printing what a terminal acts on | the endpoint's other end read off the system, the token read only when private, the daemon's proof, the welcome held to the process and the channel, and every text from the daemon escaped | "The CLI sends nothing until both ends are proven, and prints nothing a terminal acts on" |
 
 ### A plugin reaches what it was granted, and is told no to the rest
 
@@ -1676,7 +1683,10 @@ most 64 characters of the manifest's own text, with every character that ends a 
 field written as its code point, so no manifest forges a line of the diagnostic that
 refuses it — a key written twice included, which `nc-canon` refuses, escapes and cuts at
 as many. `nc_channel` reads no environment: every location comes from the bases the
-manifest carries. The checkout's digest and its rendering are the ones `cargo xtask dev`
+manifest carries, and `nc_channel::found` reads the manifest beside a canonicalized
+executable once it and its directory are judged this user's alone, refusing no manifest
+(`NC-CHAN-0006`), one another account can reach (`NC-CHAN-0007`) and a path the
+filesystem does not answer for (`NC-CHAN-0008`). The checkout's digest and its rendering are the ones `cargo xtask dev`
 named every stack with before, so no volume is stranded.
 
 **Enforced by** `crates/nc-channel/tests/the_names_are_disjoint.rs` — which destructures
@@ -1689,9 +1699,9 @@ under the bases it was handed, so a location taken from anywhere else fails it �
 tests beside the digest and the user's spelling, which compare users that would be
 written alike if either `_` around a code point were dropped,
 `a_key_written_twice_is_shown_escaped_and_cut` in `crates/nc-canon/src/parse.rs`,
-`the_project_name_does_not_move_under_a_checkout` in `xtask/src/dev.rs`, and the operators
-over `crates/nc-channel/src/lib.rs` and over `nc-canon`'s refusal of a key written twice
-in `xtask/mutants.py`. `layout` takes an install and a user and nothing else.
+`the_project_name_does_not_move_under_a_checkout` in `xtask/src/dev.rs`, the tests of
+`crates/nc-channel/src/found.rs`, and the operators over those two sources and over
+`nc-canon`'s refusal of a key written twice in `xtask/mutants.py`. `layout` takes an install and a user and nothing else.
 
 **Not answered:** a process running as the same user, which can rewrite a manifest —
 judging the file this user's alone is the reader's, and stops other accounts only; and
@@ -2000,6 +2010,63 @@ English, which no runner has; and a test's task left where nothing runs this che
 tests again (both under **What is deliberately not claimed**). Which program is registered for a channel,
 and how an explicit stop silences every restorer (`NOCTUA.md §17.5`), are the daemon's and
 its installer's, which register nothing yet.
+
+### The CLI sends nothing until both ends are proven, and prints nothing a terminal acts on
+
+`apps/cli` (whose `client.rs` header has the checks in order) is what a person and a
+program reach a channel's daemon through.
+
+**Guaranteed:**
+
+- **Its install is the one beside it.** `noctua` reads the manifest beside its
+  canonicalized executable through `nc_channel::found`: the directory and the file judged
+  this user's alone, the text read only as `nc_channel::Install::parse` reads it, and each
+  refusal with its `CHAN` code and exit 12 — with no channel built in to fall back to.
+- **Nothing is sent before both ends are proven.** The endpoint the layout names is
+  reached through `nc_platform::ipc::connect`, which reads the user and the process at the
+  other end off the system and closes a connection that is not this user's before a byte
+  crosses it; nothing listening is a daemon that is not running (exit 9). The token is
+  read only once the runtime directory and the token file are judged this user's alone
+  (`NC-CLI-0002`), and only as the 64 lower-case hexadecimal digits a daemon writes
+  (`NC-CLI-0003`); it is never printed or sent, and the text it was read from is
+  overwritten. The handshake proves the daemon holds it before the client sends anything
+  past its own proof, and the proven welcome must name the process the system shows at
+  the other end and this install's channel (`NC-CLI-0004`). Each of these is exit 10.
+- **What reaches the kernel was read and held first.** A command line is read against the
+  schema the daemon's registry lists for its command — a flag is a property's name, a
+  value is read as its type, a list's flag is repeated once for each item, a scalar's
+  given twice is refused, and `--` takes one JSON object — and the object is held to that
+  schema by the call the kernel makes (`NC-VAL-0002`, exit 2). A command line the CLI
+  cannot read (`NC-CLI-0001`), a command the registry does not hold (`NC-KERN-0001`, exit
+  5) and arguments the schema refuses reach no kernel; an answer of another kind than the
+  request's is refused (`NC-CLI-0005`, exit 8).
+- **It confirms nothing.** The CLI acts as the profile's person, so the kernel refuses
+  every command that cannot be undone with `NC-KERN-0006`, which ends the run in an exit
+  code of its own (4): what it needs is a person in the Noctua window (`NOCTUA.md §11.1`).
+- **What the daemon says is escaped.** A plugin's label, a refusal's sentence, a result,
+  a schema's annotations, names and options, and every word a person typed that a refusal
+  repeats are printed with each character `nc_schema::unseen` answers for written as
+  `\u{…}`, so nothing printed moves the cursor, clears the screen, starts a forged line or
+  turns the rest of one around; and `nc_schema` already refuses those characters in a
+  schema's titles, descriptions, names and options once their escapes are decoded.
+
+**Enforced by** the unit tests of each module in `apps/cli/src/` — the client's and a
+run's against a daemon in-process, in a scratch install, that answers as a script says:
+nothing listening, a handshake proving nobody, a token another account can reach and one
+in a directory it can reach, each left as it was, a token missing and each way one is
+malformed, a welcome naming another process and another channel, each answer of a
+dispatch to its row of the exit table and an answer of another kind, help on the exit
+codes with no daemon, and a command line, a command and arguments refused with nothing
+dispatched — by `apps/cli/tests/arguments_from_schemas.rs`, by the tests of
+`crates/nc-channel/src/found.rs`, by
+`a_character_a_reader_sees_nothing_of_is_refused_once_its_escape_is_decoded` in
+`crates/nc-schema/src/lib.rs`, and by the operators over those sources in
+`xtask/mutants.py`.
+
+**Not answered:** a process running as the same user, which can read the token and answer
+as the daemon, or ask the daemon anything the CLI can — authorization re-decides every
+dispatch (`§14`); the PID record, which the CLI does not read yet, and the `--json`
+document printed raw to a terminal (both under **What is deliberately not claimed**).
 
 ### The stack binds to loopback and nothing else
 
@@ -2772,10 +2839,10 @@ rather than anything decided for the project, and each is a maintainer's to reop
   writes the exact high-water mark yet; and no start makes, judges or reads the plugins
   directory under the data one (`nc_channel::Layout::plugins`), because nothing loads a
   plugin from it yet. Nor does any daemon bind its endpoint or serve the protocol:
-  `nc_ipc::listen`, `nc_ipc::serve` and `nc_ipc::connect` are what a running daemon and
-  a client speak through, and nothing writes the channel's token into the runtime
-  directory or reads it back, so neither the token file's privacy nor a client's
-  holding of the welcome's process to the system's and to the PID record is made yet.
+  `nc_ipc::listen` and `nc_ipc::serve` are what a running daemon will speak through, and
+  nothing writes the channel's token into the runtime directory, so the CLI, which reads
+  one only from a file judged private and holds the welcome's process to the system's,
+  has no daemon to reach yet.
 - **Another account is kept off the endpoint by what no test can be**: no hosted runner
   has a second account and an unprivileged test cannot make one, so a connection from
   another user is never made. What stands in for it, on every system, is the endpoint read back
@@ -2819,6 +2886,23 @@ rather than anything decided for the project, and each is a maintainer's to reop
   no word Windows translates is judged — and the hosted runner writes English, so a display
   language that orders those columns otherwise, or writes a last result some other way,
   is not one any run has shown.
+
+**The command line**
+
+- **The CLI holds a welcome to the system's word, not yet to the PID record**: the
+  process a proven daemon names must be the one the system shows at the other end of the
+  connection, and nothing in the CLI reads the record process control will read too, so a
+  record naming another process is not yet a refusal.
+- **`--json` is the canonical text of what the daemon sent**: canonical form escapes the
+  C0 controls and writes every other character as itself, so a person who prints the
+  document raw to a terminal prints a direction override or a C1 control a plugin's text
+  held. The rendering for a person escapes them; the document is for a program to parse.
+- **A quorum's refusal reaches the CLI as a denial**: a command a pack's rule holds to a
+  quorum is refused by the decision point like any other denial (`NC-POL-0003`), so it
+  ends the run in exit 3; only `NC-KERN-0006` says the interface is what is needed, and
+  only it ends a run in exit 4.
+- **A flag is a top-level property**: an argument nested in an object, or a property whose
+  name holds `=`, is given as JSON — the object's flag, or `--` and one JSON object.
 
 **The journal and the central log**
 
@@ -2882,8 +2966,9 @@ rather than anything decided for the project, and each is a maintainer's to reop
   response being a key *plus parameters* (`NOCTUA.md §10.9`), and no consumer interpolates
   yet, so a caller supplying no values shows `{field} must be between {min} and {max}.` in
   both locales. `MachineFlake::from_value` supplies them (`bounds()` the minimum and
-  maximum, `with_label()` all three); the surfaces that show a person a message arrive
-  with the CLI and the interface (Stages 13 and 16).
+  maximum, `with_label()` all three). A refusal carries no values, so the CLI shows a
+  code whose message has parameters by its English detail alone, and the interface that
+  could fill one is Stage 16's.
 - **Some error codes are declared and nothing raises them**: `raising = "reserved"` in
   `catalog/errors.toml`, published on `docs/errors.md`, held by a gate that looks for each
   code's own `ErrorCode::` variant in `crates/` outside test modules — a `reserved` code
@@ -3891,7 +3976,7 @@ and `sqlx`, and are named because the kernel matches on a type of each.
 |---|---|
 | `cedar-policy` | The authorization engine, `NOCTUA.md §4` [CLOSED]. `nc-policy` validates the pack with it and `nc-authz` decides with it, and a pack validated by one Cedar and decided by another is validated against a second implementation of its semantics. Cargo already resolves compatible requirements to one version (`cargo tree -i cedar-policy`), so the one `[workspace.dependencies]` line is not what unifies them: it is the one place the requirement is written, so raising it moves both, and it keeps either member from moving to another major version — a second Cedar beside the first — or to an exact `=` pin that silently decides the other's version |
 | `sqlx` | Driver, pool and migration runner in one. `macros` is **on**, because `sqlx::migrate!` needs it and needs no database; what is refused is the `query!` family, which checks SQL against a live database *while compiling* — and `gates::no_compile_time_query` fails the build on one, in every Rust file in the tree. A feature list cannot say "this macro and not that one", so the rule is a source gate. From 0.9, text built at run time reaches `query`, `query_as`, `query_scalar`, `raw_sql` or an `Executor` only inside `sqlx::AssertSqlSafe(..)`, a claim the compiler takes on trust, so `gates::ASSERTED_STATEMENTS` names each file that makes one, how many, and every value their text is built from — a new wrap, or an old one built from a new value, is a finding until somebody has read where the value comes from. What stays outside what the compiler refuses is listed on `gates::Asserted` with how each is held — a reading of `sqlx`'s signatures, not a proof there is no other: `QueryBuilder`, whose `new` and `push` wrap whatever they are handed inside `sqlx` and which the same walk therefore refuses by name; `copy_in_raw` and `copy_out_raw`, which take a whole `COPY` statement as a plain `&str` and are read the way a wrap is, so a `COPY` built from values is counted in its file's row and one written as a literal needs none; `sqlx-sqlite`'s `SqliteConnectOptions::pragma`, whose key and value are any `Into<Cow<'static, str>>` written unquoted into a batch it runs on every connection, read the same way, so a pragma set from values is counted and one set from literals — every one this tree writes — needs no row; a migrator built when the store runs — `Migrator::new` over a path, `with_migrations`, a `MigrationSource`, `ResolveWith`, `resolve_blocking` — which reads its `.sql` then and hands the text to the database vouched for inside `sqlx`, refused by name in the sources `WRITERS` in `xtask/src/local.rs` names, where `sqlx::migrate!("../../local-migrations")`, embedded when the crate compiles, is the one migrator (`a_store_migrates_with_what_the_build_embedded_wherever_it_runs` opens a store from another working directory); and, held by nothing, a `String` leaked into a `&'static str` and the migrator's own table and schema names, which no migrator here sets. **SQLite, bundled, for the local database** (`NOCTUA.md §4`): `crates/nc-local`, `nc-prune`'s second target and `xtask`'s schema gate each take the `sqlite-bundled` feature — not `sqlite`, which in 0.9 also compiles extension loading, `deserialize` and unlock notification — and the workspace line stays without it. Which SQLite is linked is `Cargo.lock`'s choice, not a manifest's: `sqlx-sqlite` accepts `libsqlite3-sys` `>=0.30.1, <0.38`, `cargo update -p sqlx` alone keeps an old one, and `cargo tree -i libsqlite3-sys` says which; `nc-local`'s self-check at every open and the local schema gate in `check` refuse one below 3.50.2 |
-| `tokio` | Arrives with `sqlx`, and drives the kernel and its tests — and `nc-local`, for its blocking pool alone, where an open waits for its profile's lock; `nc-platform`, for the daemon's socket and named pipe (`net`), because `create_with_security_attributes_raw`, the one call that makes a pipe with a descriptor of its own, is `unsafe` and that crate is where `unsafe` may be written; and `nc-ipc`, for the frames' reads and writes, the handshake's deadline, the heartbeat and the two tasks a connection runs on — a direct dependency there, already in the graph so taking it adds nothing to the lockfile, and still the developer's to confirm (`§2.3`): `wasmtime` instantiates and calls a plugin asynchronously, so that a host function can await the journal, the directory and the store, which are asynchronous themselves. The kernel takes `sync`, for the journal and the bus a call tree holds across an await, and `time`, for the deadlines the directory and every host call a plugin makes are held to — and runs a nested dispatch as a task of its own, off the plugin's stack |
+| `tokio` | Arrives with `sqlx`, and drives the kernel and its tests — and `nc-local`, for its blocking pool alone, where an open waits for its profile's lock; `nc-platform`, for the daemon's socket and named pipe (`net`), because `create_with_security_attributes_raw`, the one call that makes a pipe with a descriptor of its own, is `unsafe` and that crate is where `unsafe` may be written; `nc-ipc`, for the frames' reads and writes, the handshake's deadline, the heartbeat and the two tasks a connection runs on; and `nc-cli`, for the one-thread runtime a run of the CLI makes its one connection on (`rt`, `net`, `time`) — a direct dependency there, already in the graph so taking it adds nothing to the lockfile, and still the developer's to confirm (`§2.3`): `wasmtime` instantiates and calls a plugin asynchronously, so that a host function can await the journal, the directory and the store, which are asynchronous themselves. The kernel takes `sync`, for the journal and the bus a call tree holds across an await, and `time`, for the deadlines the directory and every host call a plugin makes are held to — and runs a nested dispatch as a task of its own, off the plugin's stack |
 | `wasmtime` | The plugin runtime, `NOCTUA.md §4` [CLOSED]: the Component Model, fuel and epoch interruption. Every default feature is off, and the feature list beside the `wasmtime` line in `Cargo.toml` names the ones the kernel runs, with what was left off and why — `call-hook` among them, which is how the epoch counts a plugin's own running and not the host's — and `cache` above all of what is off, whose reading half is `Component::deserialize`, which is `unsafe`, so the kernel compiles a component on every load |
 | `wit-bindgen` | The guest half of the same world (`§4`: the Component Model "with `wit-bindgen`"), in `crates/nc-guest` only, `macros` only. Its `build.rs` links two prebuilt archives into every `wasm32` build — `deny.toml` says which and why its build-script rule does not see them |
 | `wit-component` | What turns a plugin's core module into a component, inside `cargo xtask` rather than as a tool somebody installs, and what reads the component back. The encoder refuses only an import no embedded world describes, and a dependency with bindings of its own embeds one — `wasip2`'s `wasi:random` encoded without a word — so `xtask/src/plugins.rs` decodes each component and refuses any import the world `plugin` does not declare |
@@ -3900,7 +3985,7 @@ and `sqlx`, and are named because the kernel matches on a type of each.
 | `ureq-proto` | `ureq`'s own HTTP/1.1 protocol, already in the graph under it at the version `ureq` requires, so it adds no package (`cargo tree -i ureq-proto`). Taken directly only because the kernel matches on its `Error`, which `ureq::Error::Protocol` carries and `ureq` does not re-export: an answer with more headers than its parser holds is told as an answer too large (`[NC-PLUG-0014]`), not as a network that did not answer. A `ureq` moving to another release line of it carries an `Error` that match does not name, and the kernel fails to compile |
 | `url` | The WHATWG parser a plugin's URL is held to before anything is sent, as a browser reads one, so every spelling of an address parses as an address the kernel refuses rather than as a name. Already in the graph under `sqlx`; taken directly because the kernel matches on its `Host` |
 | `blake3` | The journal's chain and the machine flake both hash (`§14.9`, `§16.2`), a confirmation is bound to its dispatch's arguments by their digest, a blob is named by the hash of its bytes (`§13`), computed in `nc-kernel` as they are written, and each end of an IPC connection proves it holds the channel's token by a hash keyed by it, compared in constant time (`crates/nc-ipc`). Already `noctua-colors`' |
-| `serde`, `serde_json`, `toml` | Reading the registries and writing canonical output, and reading a command's argument schema for `crates/nc-schema` to validate |
+| `serde`, `serde_json`, `toml` | Reading the registries and writing canonical output, and reading a command's argument schema for `crates/nc-schema` to validate — and the arguments the CLI holds to it, read back from their canonical text as the kernel reads them |
 | `proptest` | `§16.3` and `§16.4` have algebraic laws, and `§19.2` puts those under property test |
 | `clap`, `anstream`, `anstyle` | The command surface, in `xtask` only |
 | `ed25519-dalek` | A device's key (`NOCTUA.md §16.2`): the Ed25519 public key a profile's flake and its journal's keeper derive from, and the key iroh takes as the device's identity in Stage 25 (`§13.2`), at the major iroh pins — a cryptographic primitive, which `§2.3` names as not viable in-house. `default-features = false` and `zeroize` alone: no `rand_core`, because the seed is drawn by `nc_platform::random`; no `fast`, because the one public key a start derives needs no precomputed tables. Its family arrives with it and adds nothing to write: `curve25519-dalek` (and `curve25519-dalek-derive`, its SIMD backend's macro), `ed25519` (the signature's type), `signature`, `fiat-crypto` (a backend compiled for some targets only), and `rustc_version`, which `curve25519-dalek`'s build script reads; `sha2` 0.11 and `subtle` are in the graph already. `cargo tree -i ed25519-dalek` says who takes it |

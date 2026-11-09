@@ -15,6 +15,10 @@ nc-catalog.workspace = true
 # duplicate key, a number past `i64` — and an installer and a daemon that read one
 # file two ways are two programs that disagree about which install they are.
 nc-canon.workspace = true
+# **Who runs this, and whether a path is that user's alone**: the manifest an
+# install names itself by is read only once it and its directory are judged
+# private (`src/found.rs`), by the one crate that answers that on each system.
+nc-platform.workspace = true
 
 [dev-dependencies]
 # **Itself, so the documentation gate can read this crate's integration
@@ -24,6 +28,8 @@ nc-canon.workspace = true
 # unless the package depends on itself here. Cargo resolves it to this
 # same unit, so nothing is built twice.
 nc-channel = { path = "." }
+# The doors a test stages a manifest another account can reach through.
+nc-platform = { workspace = true, features = ["test-support"] }
 
 [lints]
 workspace = true

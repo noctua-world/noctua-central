@@ -49,6 +49,7 @@ POL  = "Policy packs: loading, validation, evaluation"
 CHAN = "Channels and installs: the manifest an install names itself by, and every name derived from it (§17.1)"
 DMN  = "The daemon: the profile it keeps, the device it mints on, and the identifiers' mark (§11.1, §16.2)"
 IPC  = "The IPC channel a daemon is reached through: its endpoint, its frames, the handshake that proves both ends, and the heartbeat (§11.1)"
+CLI  = "The command line: what a person types, read into a command's arguments, and what the CLI checks of a daemon before it sends anything (§20.2)"
 
 # --- The journal (§14.9) ---
 
@@ -1156,6 +1157,16 @@ message = "error.channel.manifest-not-private"
 severity = "critical"
 retryable = false
 
+[[error]]
+# The filesystem's answer, and the one of the area a second read may answer
+# otherwise: the executable's path, its directory or the manifest could not be
+# read, which a disk that is gone or a permission refused says.
+code = "NC-CHAN-0008"
+description = "The install manifest, or the executable it sits beside, could not be read: the filesystem did not answer"
+message = "error.channel.manifest-unavailable"
+severity = "error"
+retryable = true
+
 # --- The daemon (§11.1, §16.2) ---
 #
 # What a daemon refuses to start on, each by what it found, so a log is
@@ -1368,4 +1379,63 @@ code = "NC-IPC-0017"
 description = "A peer took nothing written to it for `ipc_silent_after_ms`, and its connection was dropped"
 message = "error.ipc.unread"
 severity = "warning"
+retryable = true
+
+# --- The command line (§20.2) ---
+#
+# What `noctua` refuses on its own side, before a request reaches the kernel or
+# instead of sending one. A refusal the kernel makes keeps the kernel's code; a
+# connection the endpoint or the handshake refuses keeps the `IPC` area's.
+
+[[error]]
+# Read before anything is sent, so a command line the CLI cannot read reaches
+# no daemon. What a command's schema refuses of the arguments read is
+# `NC-VAL-0002`, the code the kernel refuses the same arguments with.
+code = "NC-CLI-0001"
+description = "A command line the CLI does not read: a verb or a command name it does not know, a flag the command's schema does not declare or gives no value, a value not of the flag's type, a flag given twice, or text after `--` that is not one JSON object"
+message = "error.cli.command-line-unreadable"
+severity = "warning"
+retryable = false
+
+[[error]]
+# The token proves this client to the daemon, so one another account could
+# have written or read is not used; judged by `nc_platform::judge` and left as
+# it was.
+code = "NC-CLI-0002"
+description = "The channel's token file, or the runtime directory holding it, is not this user's alone, so it was not read and nothing was sent"
+message = "error.cli.token-not-private"
+severity = "critical"
+retryable = false
+
+[[error]]
+# A daemon writes its token at each start, so one that is starting or has just
+# stopped may answer without it; a second try may find it.
+code = "NC-CLI-0003"
+description = "The channel's token file is missing, or holds something other than the token a daemon writes, so nothing was sent"
+message = "error.cli.token-unreadable"
+severity = "error"
+retryable = true
+
+[[error]]
+# The handshake proves what answered holds the token; this is what the CLI
+# holds the proven welcome to beside it: the process the system says is at the
+# other end, and the channel of the install the CLI was read from.
+code = "NC-CLI-0004"
+description = "The daemon's welcome names another process than the one the system says is at the other end, or another channel than this install's, so nothing was sent"
+message = "error.cli.daemon-misnamed"
+severity = "critical"
+retryable = false
+
+[[error]]
+code = "NC-CLI-0005"
+description = "The daemon answered a request with something the CLI does not read: an answer of another kind than the request's, or a registry entry it cannot read"
+message = "error.cli.answer-unreadable"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-CLI-0006"
+description = "The CLI could not write what it answered to its standard output or its standard error"
+message = "error.cli.output-failed"
+severity = "error"
 retryable = true

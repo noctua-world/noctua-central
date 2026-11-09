@@ -20,9 +20,9 @@
 //! exactly what the installer named. **There is no channel built in to fall back
 //! to**: a binary with no manifest refuses to run, because a default would make
 //! every binary a build leaves behind a live client of the developer's own
-//! channel. Reading the file, and judging it this user's alone, is the binary's;
-//! what it says is judged here, by [`Install::parse`], which refuses with an
-//! `NC-CHAN` code and writes nothing.
+//! channel. A binary reads it through [`found`], which judges the file and its
+//! directory this user's alone and asks [`Install::parse`] what it says, each
+//! refusal with an `NC-CHAN` code; nothing here writes a manifest.
 //!
 //! # One leaf, in the shape each system wants
 //!
@@ -82,15 +82,18 @@
 //!
 //! # What this crate does not do
 //!
-//! It reads no environment and opens no file. Its one call that touches the disk
-//! is [`Checkout::of`], which canonicalizes the checkout's path. Which base
-//! directories a system has is `nc-platform`'s, asked by an installer; this crate
-//! is handed them.
+//! It reads no environment, and writes nothing. Its two ways to the disk are
+//! [`Checkout::of`], which canonicalizes the checkout's path, and [`found`],
+//! which reads the manifest beside an executable; [`layout`] touches none.
+//! Which base directories a system has is `nc-platform`'s, asked by an
+//! installer; this crate is handed them.
 
 #![deny(clippy::print_stdout, clippy::print_stderr, clippy::dbg_macro)]
 // Every doctest of this crate forbids `unsafe` as the crate does: a
 // doctest is a crate of its own, outside the root's `forbid`.
 #![doc(test(attr(forbid(unsafe_code))))]
+
+pub mod found;
 
 use core::fmt::{self, Write as _};
 use std::collections::BTreeMap;

@@ -588,8 +588,10 @@ and the test doors `testing.rs` — the program a service manager is told to
 start and restore, its `service.rs`, the endpoint a daemon is reached through,
 `nc-platform`'s `ipc.rs`, the protocol over it, `nc-ipc`'s `lib.rs`, `frame.rs`,
 `message.rs`, `handshake.rs` and `connection.rs`, every name an install gives the system,
-`nc-channel`'s `lib.rs`, the daemon's `lib.rs`, `main.rs`, `install.rs`,
-`profile.rs`, `device.rs` and `mark.rs`, `nc-prune`'s `sqlite.rs`, and
+`nc-channel`'s `lib.rs` and the manifest's reader beside it, `found.rs`, the
+daemon's `lib.rs`, `main.rs`, `install.rs`, `profile.rs`, `device.rs` and
+`mark.rs`, the CLI's `lib.rs`, `main.rs`, `args.rs`, `help.rs`, `render.rs`,
+`exit.rs`, `client.rs` and `run.rs`, `nc-prune`'s `sqlite.rs`, and
 `local.rs`, which builds that database's schema from its migrations, and restores **all of them** before each mutation: its first multi-file version
 restored only the one it was editing, so sixteen weakenings were reported killed
 by a corpus that had not seen them.

@@ -89,8 +89,8 @@
 //!
 //! Whether an identifier names an entity that exists is the decision point's
 //! question, and an unknown one is denied by default there. The size of the
-//! arguments and their parse — duplicate keys, fractions, depth — are
-//! `nc-canon`'s, before anything here runs: this crate is handed a value.
+//! arguments and their parse — duplicate keys, fractions, depth — are `nc-canon`'s,
+//! before anything here runs: this crate is handed a value.
 
 #![deny(clippy::print_stdout, clippy::print_stderr, clippy::dbg_macro)]
 // Every doctest of this crate forbids `unsafe` as the crate does: a
@@ -1891,9 +1891,11 @@ mod tests {
         assert!(empty.validate(&json!({})).is_ok());
     }
 
-    /// Every argument is shown as the schema declares it: in its order, with
-    /// whether it is required, its annotations, every bound, the options in
-    /// the order written rather than sorted, and an object's own arguments.
+    /// Every argument is shown as the schema declares it.
+    ///
+    /// In its order, with whether it is required, its annotations, every
+    /// bound, the options in the order written rather than sorted, and an
+    /// object's own arguments.
     #[test]
     fn the_arguments_are_shown_as_the_schema_declares_them() {
         use super::{Argument, Shape};
@@ -1975,9 +1977,10 @@ mod tests {
         assert_eq!(empty.arguments(), [] as [Argument<'_>; 0]);
     }
 
-    /// What a schema shows is not what it is compared by: two schemas that
-    /// differ only in their annotations and in the order their options are
-    /// written are one schema to the kernel, which holds a plugin's
+    /// What a schema shows is not what it is compared by.
+    ///
+    /// Two schemas that differ only in their annotations and in the order their
+    /// options are written are one schema to the kernel, which holds a plugin's
     /// declaration of a catalog command to the catalog's by this equality,
     /// while one that requires or allows another thing is another schema.
     #[test]
