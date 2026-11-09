@@ -7234,8 +7234,12 @@ ELSEWHERE = {
     "daemon_schedule": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "schedule::"],
     "daemon_server": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "server::"],
     "daemon_environment": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "environment::"],
-    "daemon_run": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "run::"],
-    "daemon_testing": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "testing::"],
+    "daemon_run": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "run::", "--test-threads=1"],
+    # The suites' install has no test module of its own: its file is compiled
+    # only for tests, and the tests that hold it are `run`'s — one at a time,
+    # so a weakening that gives two installs one namespace is caught by the
+    # test about it rather than met by another test's install.
+    "daemon_testing": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "run::", "--test-threads=1"],
     # The endpoint, by `nc-platform`'s own tests; the protocol, by every suite
     # of `nc-ipc`, none of which starts a process.
     "platform_ipc": ["cargo", "test", "-q", "-p", "nc-platform"],

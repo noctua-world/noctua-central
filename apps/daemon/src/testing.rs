@@ -65,14 +65,7 @@ impl Scratch {
 /// installer puts one, its manifest, its device and its world.
 #[derive(Debug)]
 pub struct Installed {
-    /// Held for its drop: the scratch goes with the install.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "held for its drop alone: the scratch goes with the install"
-        )
-    )]
+    /// The scratch root, which goes with the install.
     root: Scratch,
     /// What the manifest says.
     pub install: nc_channel::Install,
@@ -155,6 +148,12 @@ impl Installed {
                 user: self.user.clone(),
             },
         }
+    }
+
+    /// The scratch root the install is under, removed with it.
+    #[must_use]
+    pub fn root(&self) -> &Path {
+        &self.root.0
     }
 
     /// What the daemon wrote to its standard error, every run of it.
@@ -386,39 +385,5 @@ impl Reached {
             );
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    /// Two installs never share a namespace or a root, each is initialized
-    /// as the installer initializes one and names a central log nothing
-    /// answers at, and each is gone with its guard.
-    #[test]
-    fn an_install_is_its_own_initialized_and_gone_with_its_guard() {
-        let binary = std::env::current_exe().expect("this test binary");
-        let one = super::Installed::new(&binary);
-        let two = super::Installed::new(&binary);
-        assert_ne!(one.install.namespace, two.install.namespace);
-        assert_ne!(one.layout.state, two.layout.state);
-        for installed in [&one, &two] {
-            assert!(installed.executable.is_file());
-            assert!(installed.layout.device_key.is_file(), "no device was drawn");
-            assert!(installed.layout.world.is_file(), "no world was copied");
-            let manifest = std::fs::read_to_string(&installed.layout.manifest).expect("a manifest");
-            let read = nc_channel::Install::parse(&manifest).expect("it reads");
-            assert_eq!(read.log_endpoint.as_deref(), Some(super::NOBODY_LISTENS));
-        }
-        let root = one.root.0.clone();
-        drop(one);
-        assert!(!root.exists(), "an install's scratch outlived it");
-        two.without_a_central_log();
-        let manifest = std::fs::read_to_string(&two.layout.manifest).expect("a manifest");
-        assert_eq!(
-            nc_channel::Install::parse(&manifest)
-                .expect("it reads")
-                .log_endpoint,
-            None
-        );
     }
 }

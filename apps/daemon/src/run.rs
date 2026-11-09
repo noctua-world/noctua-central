@@ -297,7 +297,8 @@ mod tests {
     ///
     /// **Held while no central log is named**, so a start that read past the
     /// lock would refuse at the log, before it left the session this suite
-    /// runs in or bound anything.
+    /// runs in or bound anything. No start here is let past that fence: one
+    /// that got through would be a daemon in this suite's own process.
     #[test]
     fn a_start_refuses_outside_an_install_and_on_a_profile_another_holds() {
         let installed =
@@ -324,7 +325,40 @@ mod tests {
             "a refused start wrote its run"
         );
         drop(held);
-        let refused = super::serve(&installed.executable).expect_err("no central log");
-        assert_eq!(refused.code(), ErrorCode::DaemonNoCentralLog, "{refused}");
+    }
+
+    /// Two installs a suite makes never share a namespace or a root, each is
+    /// initialized as the installer initializes one and names a central log
+    /// nothing answers at, and each is gone with its guard — the ground every
+    /// suite that starts a daemon stands on (`crate::testing`).
+    #[test]
+    fn an_install_a_suite_makes_is_its_own_and_gone_with_its_guard() {
+        let binary = std::env::current_exe().expect("this test binary");
+        let one = crate::testing::Installed::new(&binary);
+        let two = crate::testing::Installed::new(&binary);
+        assert_ne!(one.install.namespace, two.install.namespace);
+        assert_ne!(one.layout.state, two.layout.state);
+        for installed in [&one, &two] {
+            assert!(installed.executable.is_file());
+            assert!(installed.layout.device_key.is_file(), "no device was drawn");
+            assert!(installed.layout.world.is_file(), "no world was copied");
+            let manifest = std::fs::read_to_string(&installed.layout.manifest).expect("a manifest");
+            let read = nc_channel::Install::parse(&manifest).expect("it reads");
+            assert_eq!(
+                read.log_endpoint.as_deref(),
+                Some(crate::testing::NOBODY_LISTENS)
+            );
+        }
+        let root = one.root().to_path_buf();
+        drop(one);
+        assert!(!root.exists(), "an install's scratch outlived it");
+        two.without_a_central_log();
+        let manifest = std::fs::read_to_string(&two.layout.manifest).expect("a manifest");
+        assert_eq!(
+            nc_channel::Install::parse(&manifest)
+                .expect("it reads")
+                .log_endpoint,
+            None
+        );
     }
 }

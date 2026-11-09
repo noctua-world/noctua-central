@@ -19369,11 +19369,11 @@ mod the_frozen_path_rule {
         ("daemon/pidfile.rs", 19, 8),
         ("daemon/plugins.rs", 17, 6),
         ("daemon/profile.rs", 19, 5),
-        ("daemon/run.rs", 7, 1),
+        ("daemon/run.rs", 8, 1),
         ("daemon/schedule.rs", 14, 2),
         ("daemon/server.rs", 33, 2),
         ("daemon/serves_its_kernel.rs", 18, 3),
-        ("daemon/testing.rs", 26, 9),
+        ("daemon/testing.rs", 26, 8),
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
         ("daemon/the_mark_survives_a_crash.rs", 15, 12),
         ("nc-authz/directory.rs", 38, 15),
@@ -19487,7 +19487,7 @@ mod the_frozen_path_rule {
         ("nc-local/store.rs", 83, 12),
         ("nc-local/the_local_journal.rs", 33, 12),
         ("nc-log/events.rs", 27, 135),
-        ("nc-log/every_event_reaches_the_store.rs", 4, 1),
+        ("nc-log/every_event_reaches_the_store.rs", 5, 1),
         ("nc-log/lib.rs", 19, 25),
         ("nc-log/ship.rs", 106, 50),
         ("nc-log/value.rs", 18, 36),
@@ -25386,7 +25386,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 17088;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 17090;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25405,7 +25405,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4005;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4009;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25422,7 +25422,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1332;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1334;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25456,7 +25456,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 23473;
+    const THE_REARRANGEMENTS_JUDGED: usize = 23477;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25510,7 +25510,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **515 of 23,473 are accepted by the first-line
+    /// rules the gates apply: **515 of 23,477 are accepted by the first-line
     /// rule alone, and 279 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25543,7 +25543,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1332 of
+    /// this tree offers, **1334 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -36345,7 +36345,7 @@ Options:
     }
 
     /// The mutated sources whose tests live somewhere else, each said here.
-    const WITHOUT_TESTS_OF_THEIR_OWN: [&str; 12] = [
+    const WITHOUT_TESTS_OF_THEIR_OWN: [&str; 13] = [
         "xtask/src/main.rs",
         "plugins/reference/src/lib.rs",
         "plugins/reference/src/adapter.rs",
@@ -36356,6 +36356,9 @@ Options:
         "crates/nc-platform/src/testing.rs",
         // The daemon's library root, whose refusals each module's tests hold.
         "apps/daemon/src/lib.rs",
+        // The install the daemon's suites start it in, compiled for tests
+        // alone and held by `run`'s.
+        "apps/daemon/src/testing.rs",
         // The endpoint's decisions, held by the crate root's tests.
         "crates/nc-platform/src/ipc.rs",
         // The protocol, which its suites in `tests/` drive.

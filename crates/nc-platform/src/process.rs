@@ -5,9 +5,9 @@
 //! process id is reused once its process is gone, so a record of the id alone
 //! names whichever process holds it next; the boot and the start, read off the
 //! system, tell the process the record was written by from any later holder of
-//! its id. Each system's half reads them ([`this_process`]); the texts they
-//! read are parsed here, in code every system compiles, so the Linux job tests
-//! the parser of each.
+//! its id. Each system's half reads them ([`crate::process::this_process`]);
+//! the texts they read are parsed here, in code every system compiles, so the
+//! Linux job tests the parser of each.
 //!
 //! **The start is the system's own spelling**, compared as text: clock ticks
 //! since boot on Linux, the date `ps` prints on macOS, the creation time in

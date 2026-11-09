@@ -235,15 +235,21 @@ mod tests {
         nc_platform::create_private_directory(&layout.data).expect("the data directory");
         let (store, newest) = super::store(&layout).await.expect("opened");
         assert_eq!(newest, None, "a new profile's journal holds a unit");
-        let unit = nc_ids::Snowflake::from_crockford("01J8XK2M9P52").expect("a unit");
+        // Minted and derived, as the daemon's own are: nothing here is built
+        // out of text.
+        let flake = nc_ids::MachineFlake::from_value(3).expect("a flake");
+        let unit = nc_ids::Minter::new(flake, nc_ids::SystemClock)
+            .mint()
+            .expect("a unit");
+        let someone = nc_ids::OpaqueId::of_device_key(&[7; 32]);
         let mut record = nc_journal::Record::new(
-            nc_ids::OpaqueId::new("ana").expect("an identifier"),
+            someone.clone(),
             nc_journal::unit::OPENS,
             nc_canon::Value::object([("kind", nc_canon::Value::text("realm"))]),
             nc_journal::Outcome::UnitBegun,
             1_767_225_600_000,
         );
-        record.realm = nc_ids::OpaqueId::new("home").expect("an identifier");
+        record.realm = someone;
         record.work_unit = Some(unit);
         let mut journal = store.journal();
         journal

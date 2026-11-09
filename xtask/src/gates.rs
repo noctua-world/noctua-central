@@ -5521,15 +5521,16 @@ mod the_system_rules {
         code[..at].iter().filter(|c| **c == '\n').count() + 1
     }
 
-    /// The lines of `text` that write a listener constructor as code.
-    pub(super) fn listeners_written(text: &str) -> Vec<(usize, &'static str)> {
+    /// The lines of `text` that write a listener constructor as code, each
+    /// with the type it names.
+    pub(super) fn listeners_written(text: &str) -> Vec<(usize, String)> {
         let code: Vec<char> = blanked(text).chars().collect();
-        let mut found: Vec<(usize, &'static str)> = LISTENERS
+        let mut found: Vec<(usize, String)> = LISTENERS
             .iter()
             .flat_map(|name| {
                 whole_words(&code, name)
                     .into_iter()
-                    .map(|at| (line_of(&code, at), *name))
+                    .map(|at| (line_of(&code, at), (*name).to_owned()))
                     .collect::<Vec<_>>()
             })
             .collect();
@@ -5696,7 +5697,11 @@ mod the_system_rules {
         .concat();
         assert_eq!(
             listeners_written(&text),
-            [(4, "TcpListener"), (5, "UdpSocket"), (6, "TcpSocket")]
+            [
+                (4, "TcpListener".to_owned()),
+                (5, "UdpSocket".to_owned()),
+                (6, "TcpSocket".to_owned())
+            ]
         );
     }
 
