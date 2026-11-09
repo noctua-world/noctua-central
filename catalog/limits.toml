@@ -118,6 +118,27 @@ strategy = "refuse-at-limit"
 order_by = "created_unit"
 max_rows = 1_000_000
 
+[tables.local_journal_entries]
+# **The journal on the person's machine, bounded as the server's is**: it is
+# the audit log (`§14.9`) of every realm the file holds, and audit retention is
+# a per-realm policy-pack property (`§15.8`), so no number here bounds it. The
+# table's own trigger refuses every `DELETE`, and the pruner leaves a
+# `policy-pack` table alone, so nothing removes a row until a pack states a
+# retention and the stage that reads packs applies it.
+database = "local"
+strategy = "policy-pack"
+# The entry's place in the chain: dense, gapless, and creation order by
+# construction.
+order_by = "sequence"
+pack_reason = """
+audit retention for local_journal_entries is a per-realm policy-pack property \
+(§15.8), as it is for the server's journal_entries, so no number here can \
+bound this table without one day pruning below what a pack promised. Until \
+the stage that reads packs arrives, no pack declares a retention and this \
+table grows without limit — which is a gap with a date on it rather than a \
+bound.
+"""
+
 [tables.store_entries]
 # **The count is per plugin**, not the whole table: `max_rows` is the quota one
 # plugin's keys in one realm are held to, and `crates/nc-local` refuses a unit

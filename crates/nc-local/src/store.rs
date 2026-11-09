@@ -482,6 +482,18 @@ impl LocalStore {
         &self.pool
     }
 
+    /// The journal's store in this same file, over this store's pool
+    /// (`crate::journal`).
+    ///
+    /// **One file, opened and judged once**: the journal's table is built by
+    /// `local-migrations/` and held to [`crate::schema::EXPECTED`] with every
+    /// other object, so a journal is only ever handed out over a database
+    /// this build opened.
+    #[must_use]
+    pub fn journal(&self) -> crate::LocalJournal {
+        crate::LocalJournal::over(self.pool.clone())
+    }
+
     /// Closes every connection, which checkpoints the WAL into the file.
     pub async fn close(&self) {
         self.pool.close().await;
@@ -1688,7 +1700,7 @@ fn holds_what_was_expected(held: Option<&Entry>, expect: &Expect) -> bool {
 /// statement that made it. The same trigger in `main`, added by another
 /// connection after this store opened, is seen by neither that check nor the
 /// open-time one; this is what stops it.
-fn write_exactly(
+pub(crate) fn write_exactly(
     result: Result<sqlx::sqlite::SqliteQueryResult, sqlx::Error>,
     expected: u64,
     doing: &str,

@@ -133,7 +133,7 @@ impl Event for JournalAppended {
     }
 }
 
-/// `journal.broken` — Verification failed, or the read of the history a kernel recovers from as it opens stopped at an entry it could not decode, and at which entry
+/// `journal.broken` — Verification of the journal's chain failed, and at which entry
 #[derive(Debug, Clone)]
 pub struct JournalBroken {
     /// A count.

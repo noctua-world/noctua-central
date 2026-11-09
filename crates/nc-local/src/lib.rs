@@ -5,7 +5,9 @@
 //! decide, in Stage 13 — and hands back the plugin store: what each plugin keeps
 //! (`store_entries`), the units that wrote it with their before and after images
 //! (`store_units`, `store_writes`, `store_notes`), and which blobs this machine
-//! holds (`blobs`). The schema is `local-migrations/`, applied by the same
+//! holds (`blobs`) — and, through [`LocalStore::journal`], the journal's store
+//! on the person's machine, [`LocalJournal`], in the same file
+//! (`local_journal_entries`). The schema is `local-migrations/`, applied by the same
 //! `sqlx` migrator the server uses, and it is never mixed with `migrations/`.
 //! The bytes of those blobs are not in the file: they are files of their own,
 //! in a directory [`blob_directory`] holds to the rule this crate's own
@@ -111,7 +113,7 @@
 //! from the manifest, and no plugin ever supplies SQL — and the realm, so the
 //! kernels of two realms on one machine never read or write each other's,
 //! their units numbered by the one minter their journals share
-//! (`nc_journal::Journal::sharing`). An image rewritten after
+//! (`nc_journal::Journal::sharing`). An image or a journal entry rewritten after
 //! the fact: the append-only triggers, which hold under `trusted_schema = OFF`.
 //! A half-written unit: one `BEGIN IMMEDIATE` transaction per commit, proved by
 //! a child process that aborts between two of its statements.
@@ -135,10 +137,12 @@
 // doctest is a crate of its own, outside the root's `forbid`.
 #![doc(test(attr(forbid(unsafe_code))))]
 
+mod journal;
 mod open;
 pub mod schema;
 mod store;
 
+pub use journal::LocalJournal;
 pub use open::blob_directory;
 pub use store::{
     BlobCreated, BlobRow, CommitError, Committed, Entry, Expect, Image, LocalStore, Page, Quotas,

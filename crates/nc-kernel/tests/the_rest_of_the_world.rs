@@ -189,6 +189,13 @@ impl nc_journal::Store for Stalling {
     ) -> impl Future<Output = Result<bool, nc_journal::Error>> + Send {
         self.inner.unit_opened(realm, unit)
     }
+
+    fn open_units(
+        &self,
+        realm: &OpaqueId,
+    ) -> impl Future<Output = Result<Vec<nc_ids::Snowflake>, nc_journal::Error>> + Send {
+        self.inner.open_units(realm)
+    }
 }
 
 /// A scratch directory for one test, removed however the test leaves.

@@ -116,6 +116,9 @@ struct Told {
     /// Whether it says of every unit that it is still open, closed or not —
     /// what another writer closing the unit after it was asked looks like.
     forgets_closes: bool,
+    /// The units it names as left open, whatever its history holds: an answer
+    /// read before another writer closed them.
+    lists_open: Option<Vec<nc_ids::Snowflake>>,
 }
 
 /// How a [`Failing`] journal store reads its history back, as a test sets it.
@@ -127,7 +130,8 @@ enum Reads {
     /// With its first entry's action rewritten, as a row edited in place after
     /// it was chained reads back.
     Rewritten,
-    /// Not at all: every read is refused.
+    /// Not at all: every read is refused, the question of which units are
+    /// open among them.
     Refused,
     /// Cut short after this many entries, as a read stopped by a row it
     /// cannot decode is, and saying so.
@@ -252,6 +256,28 @@ impl<S: nc_journal::Store + Send + Sync> nc_journal::Store for Failing<S> {
         unit: nc_ids::Snowflake,
     ) -> impl Future<Output = Result<bool, nc_journal::Error>> + Send {
         self.inner.unit_opened(realm, unit)
+    }
+
+    fn open_units(
+        &self,
+        realm: &OpaqueId,
+    ) -> impl Future<Output = Result<Vec<nc_ids::Snowflake>, nc_journal::Error>> + Send {
+        let (reads, listed) = {
+            let told = self.told.lock().expect("nothing panics holding it");
+            (told.reads, told.lists_open.clone())
+        };
+        let asked = self.inner.open_units(realm);
+        async move {
+            if reads == Reads::Refused {
+                return Err(nc_journal::Error::Unavailable(
+                    "the journal's store cannot be read, as the test made it".to_owned(),
+                ));
+            }
+            match listed {
+                Some(listed) => Ok(listed),
+                None => asked.await,
+            }
+        }
     }
 }
 
@@ -1365,18 +1391,19 @@ async fn finish(pool: sqlx::PgPool) {
     pool.close().await;
 }
 
-/// A unit a read of the history shows open and the journal says is closed is
-/// left as it is.
+/// A unit opened past a row a read of the history cannot decode is found and
+/// recovered, and one closed before that row is left as it is.
 ///
-/// The read stops at a row it cannot decode, so a close past that row is one it
-/// does not show: the journal's own answer of how the unit closed is what
-/// decides, and nothing is closed or reverted twice. **What it does not
-/// answer, held here as it stands:** a unit opened past that row is one the
-/// read never shows, so it is not found, and stays open — and the read
-/// stopping is logged, at that row, with the code a verification gives it,
-/// rather than the recovery saying nothing of it.
+/// **The read of the history stops at that row, and recovery never reads
+/// it**: the journal's store names the units left open
+/// (`nc_journal::Store::open_units`), from the columns that say so. Read from
+/// the history instead, the unit past the row would never be found and the
+/// one closed at it would look open — measured so before recovery asked the
+/// store, when this test held the opposite as the residual. Nothing about the
+/// row is logged at opening: finding it is `journal.verify`'s, which still
+/// stops there.
 #[tokio::test]
-async fn a_unit_whose_close_a_read_did_not_reach_is_not_closed_again() {
+async fn a_unit_opened_past_a_row_a_read_cannot_decode_is_recovered() {
     let mut stopped = a_stopped_journal();
     let closed = stopped
         .open_unit("reference.note.put")
@@ -1411,21 +1438,18 @@ async fn a_unit_whose_close_a_read_did_not_reach_is_not_closed_again() {
     )
     .await
     .expect("the kernel opens");
-    assert!(
-        log.named("kernel.recovered").is_empty(),
-        "a unit the journal says is closed is not recovered: {:?}",
-        log.lines()
+    assert_eq!(
+        log.named("kernel.recovered")
+            .iter()
+            .map(|line| (line.text("unit"), line.fields.get("reverted").cloned()))
+            .collect::<Vec<_>>(),
+        [(Some(unseen.to_crockford()), Some(Value::Bool(false)))],
+        "the unit past the row is recovered, and the one closed is not"
     );
     assert_eq!(
-        log.named("journal.broken")
-            .iter()
-            .map(|line| (line.text("sequence"), line.text("code")))
-            .collect::<Vec<_>>(),
-        [(
-            Some("1".to_owned()),
-            Some(ErrorCode::JournalEntryTampered.code().to_owned())
-        )],
-        "a read cut short is never silent"
+        log.named("journal.broken"),
+        [] as [nc_kernel::logging::CapturedLine; 0],
+        "an opening reads no history, so it finds no row to report"
     );
     told.lock().expect("nothing panics holding it").reads = Reads::AsWritten;
     let entries = fixture.entries().await;
@@ -1436,12 +1460,141 @@ async fn a_unit_whose_close_a_read_did_not_reach_is_not_closed_again() {
             .map(|entry| entry.record.result)
             .collect()
     };
-    assert_eq!(entries.len(), 3, "nothing was written: {entries:#?}");
+    assert_eq!(entries.len(), 4, "only the close was written: {entries:#?}");
     assert_eq!(of(closed), [Outcome::UnitBegun, Outcome::UnitAborted]);
+    assert_eq!(of(unseen), [Outcome::UnitBegun, Outcome::UnitAborted]);
+}
+
+/// A kernel does not open over a journal holding an opening bracket of its
+/// realm that names its unit as no kernel writes one, and says so with the
+/// journal's code; nothing is recovered or written.
+///
+/// **The residual, held as written** (`AGENTS.md`, the journal on the
+/// person's machine): the store refuses the row by name rather than skip it,
+/// so recovery cannot say which units are open, and a kernel that cannot say
+/// does not open — failing closed, until the row is repaired by hand. A
+/// recovery that skipped it, or read the unit leniently, would open here.
+#[tokio::test]
+async fn a_kernel_does_not_open_over_an_opening_naming_its_unit_as_no_kernel_writes_one() {
+    let store = stalling(
+        LocalStore::in_memory_for_tests()
+            .await
+            .expect("the local database opens in memory"),
+    );
+    let realm = MemoryDirectory::from_world(WORLD, &family())
+        .expect("the world is valid")
+        .realm_id("home")
+        .expect("home is a realm");
+    sqlx::query(
+        "INSERT INTO main.local_journal_entries (sequence, realm, principal, actor_chain, \
+         action, resource, result, work_unit, recorded_at, prev_hash, hash) \
+         VALUES (0, ?1, 'principal-1', '[]', ?2, 'null', ?3, '01j8xk2m9p51', 1, NULL, ?4)",
+    )
+    .bind(realm.as_str())
+    .bind(nc_journal::unit::OPENS)
+    .bind(Outcome::UnitBegun.as_str())
+    .bind("ab".repeat(32))
+    .execute(store.inner.pool())
+    .await
+    .expect("whoever can write the file can insert a row at the next sequence");
+    let log = Arc::new(Captured::default());
+    let refused = match opening(
+        3,
+        store.inner.journal(),
+        Ok(family()),
+        store.clone(),
+        Arc::clone(&log),
+    )
+    .await
+    {
+        Err(nc_kernel::OpenError::Unrecovered(refusal)) => refusal,
+        Err(other) => panic!("refused for another reason: {other}"),
+        Ok(_) => panic!("opened over a journal that cannot say which units are open"),
+    };
     assert_eq!(
-        of(unseen),
-        [Outcome::UnitBegun],
-        "a unit past the row the read stopped at is not found"
+        (refused.kind(), refused.code()),
+        (RefusalKind::Unavailable, ErrorCode::JournalChainBroken),
+        "{refused}"
+    );
+    assert_eq!(
+        log.named("kernel.recovered"),
+        [] as [nc_kernel::logging::CapturedLine; 0]
+    );
+    assert_eq!(
+        nc_journal::Store::head(&store.inner.journal())
+            .await
+            .expect("the head reads")
+            .map(|(sequence, _)| sequence),
+        Some(0),
+        "nothing was written over the row"
+    );
+    store.inner.close().await;
+}
+
+/// A unit the journal's store names as open and the journal then says is
+/// closed is left as it is.
+///
+/// **What the re-check is for**: another writer closed it after the store was
+/// asked, so the journal's own answer of how it closed is what decides, and
+/// nothing is closed or reverted twice — nor its unit reverted in the store,
+/// which holds it committed. Without the re-check the unit would be reverted
+/// and logged as recovered, and this test would fail.
+#[tokio::test]
+async fn a_unit_named_open_and_closed_meanwhile_is_not_recovered() {
+    let mut stopped = a_stopped_journal();
+    let closed = stopped
+        .open_unit("reference.note.put")
+        .await
+        .expect("opened");
+    stopped
+        .close_unit(closed, nc_journal::Closing::Committed)
+        .await
+        .expect("closed");
+    let store = stalling(
+        LocalStore::in_memory_for_tests()
+            .await
+            .expect("the local database opens in memory"),
+    );
+    seeded_unit(&store.inner, "ana", |unit| {
+        unit.unit = closed;
+        unit.writes = vec![StagedWrite {
+            plugin: "noctua:reference".to_owned(),
+            key: "note/photo".to_owned(),
+            expect: Expect::Anything,
+            after: Some(r#"{"text":"kept"}"#.to_owned()),
+        }];
+    })
+    .await;
+    let told = Arc::new(Mutex::new(Told {
+        lists_open: Some(vec![closed]),
+        ..Told::default()
+    }));
+    let log = Arc::new(Captured::default());
+    let fixture = opening(
+        3,
+        Failing {
+            inner: stopped.store().clone(),
+            told: Arc::clone(&told),
+        },
+        Ok(family()),
+        store.clone(),
+        Arc::clone(&log),
+    )
+    .await
+    .expect("the kernel opens");
+    assert!(
+        log.named("kernel.recovered").is_empty(),
+        "a unit the journal says is closed is not recovered: {:?}",
+        log.lines()
+    );
+    assert!(
+        photo_in(&store).await.is_some(),
+        "what the store kept of a unit the journal closed is kept"
+    );
+    assert_eq!(
+        fixture.entries().await.len(),
+        2,
+        "nothing was written over a unit the journal says closed"
     );
 }
 
@@ -1464,7 +1617,7 @@ async fn a_unit_the_journal_says_was_closed_meanwhile_does_not_keep_the_kernel_f
         .await
         .expect("closed");
     let told = Arc::new(Mutex::new(Told {
-        reads: Reads::CutShort(1),
+        lists_open: Some(vec![closed]),
         forgets_closes: true,
         ..Told::default()
     }));
@@ -1561,7 +1714,7 @@ async fn a_kernel_stopped_in_the_middle_of_a_unit_leaves_nothing_of_it_once_it_o
     let scratch = Scratch::new("stopped");
     for (at, committed, flake) in [("the-entry", false, 7), ("the-close", true, 8)] {
         let profile = scratch.0.join(at);
-        let status = the_stopped_child(at, &schema, &profile);
+        let status = the_stopped_child(STOPPED_OVER_POSTGRES, at, &schema, &profile);
         assert!(
             nc_platform::testing::stopped_by_abort(status),
             "{at}: the child did not stop the way `abort` stops it: {status}"
@@ -1571,52 +1724,110 @@ async fn a_kernel_stopped_in_the_middle_of_a_unit_leaves_nothing_of_it_once_it_o
                 .await
                 .expect("the file opens after the stop"),
         );
-        assert_eq!(
-            photo_in(&store).await.is_some(),
+        nothing_of_the_unit_is_left(
+            at,
             committed,
-            "{at}: what the child left in the store"
-        );
-        let log = Arc::new(Captured::default());
-        let fixture = opening(
             flake,
             nc_journal::postgres::Postgres::in_schema(pool.clone(), &schema),
-            Ok(family()),
-            store.clone(),
-            Arc::clone(&log),
+            store,
         )
-        .await
-        .expect("the kernel opens again");
-        assert_eq!(
-            photo_in(&store).await,
-            None,
-            "{at}: nothing of the unit is left"
-        );
-        let recovered = log.named("kernel.recovered");
-        assert_eq!(recovered.len(), 1, "{at}: {recovered:?}");
-        assert_eq!(
-            recovered[0].fields.get("reverted"),
-            Some(&Value::Bool(committed)),
-            "{at}"
-        );
-        let unit = recovered[0].text("unit").expect("the unit is named");
-        let entries = fixture.entries().await;
-        let closed: Vec<Outcome> = entries
-            .iter()
-            .filter(|entry| {
-                entry.record.work_unit.map(nc_ids::Snowflake::to_crockford) == Some(unit.clone())
-            })
-            .filter(|entry| is_a_bracket(entry))
-            .map(|entry| entry.record.result)
-            .collect();
-        assert_eq!(
-            closed,
-            [Outcome::UnitBegun, Outcome::UnitAborted],
-            "{at}: the unit the child left open is closed as aborted"
-        );
-        drop(fixture);
-        store.inner.close().await;
+        .await;
     }
     finish(pool).await;
+}
+
+/// A kernel stopped in the middle of a unit leaves nothing of it once it
+/// opens again, over the journal and the plugin store in one local file.
+///
+/// **The daemon's case, and the one every system runs**: what
+/// `a_kernel_stopped_in_the_middle_of_a_unit_leaves_nothing_of_it_once_it_opens_again`
+/// holds over PostgreSQL, held over `nc_local::LocalJournal`, which keeps the
+/// journal in the same file as the store — the child stopped with the unit
+/// opened and nothing in the store, and with the unit committed in the store
+/// and its close never written, and a kernel opened again over the file
+/// closing the unit as aborted, reverting what the store kept.
+#[tokio::test]
+async fn a_kernel_stopped_in_the_middle_of_a_unit_over_the_local_journal_leaves_nothing_of_it() {
+    if let (Ok(at), Ok(profile)) = (std::env::var(STOPPED_AT), std::env::var(STOPPED_IN_PROFILE)) {
+        let store = stalling(
+            LocalStore::open(std::path::Path::new(&profile))
+                .await
+                .expect("the child's database opens"),
+        );
+        Box::pin(stops_in_the_middle(&at, store.inner.journal(), store)).await;
+        return;
+    }
+    let scratch = Scratch::new("stopped-in-the-file");
+    for (at, committed, flake) in [("the-entry", false, 7), ("the-close", true, 8)] {
+        let profile = scratch.0.join(at);
+        let status = the_stopped_child(STOPPED_OVER_THE_FILE, at, "", &profile);
+        assert!(
+            nc_platform::testing::stopped_by_abort(status),
+            "{at}: the child did not stop the way `abort` stops it: {status}"
+        );
+        let store = stalling(
+            LocalStore::open(&profile)
+                .await
+                .expect("the file opens after the stop"),
+        );
+        nothing_of_the_unit_is_left(at, committed, flake, store.inner.journal(), store).await;
+    }
+}
+
+/// Holds a kernel opened again over `journal` and `store`, after a child
+/// stopped at `at`, to closing the unit the child left as aborted and keeping
+/// nothing of it — the store having held it committed when `committed`.
+async fn nothing_of_the_unit_is_left<J: nc_journal::Store + Debug + Send + Sync + 'static>(
+    at: &str,
+    committed: bool,
+    flake: u16,
+    journal: J,
+    store: Stalling,
+) {
+    assert_eq!(
+        photo_in(&store).await.is_some(),
+        committed,
+        "{at}: what the child left in the store"
+    );
+    let log = Arc::new(Captured::default());
+    let fixture = opening(
+        flake,
+        journal,
+        Ok(family()),
+        store.clone(),
+        Arc::clone(&log),
+    )
+    .await
+    .expect("the kernel opens again");
+    assert_eq!(
+        photo_in(&store).await,
+        None,
+        "{at}: nothing of the unit is left"
+    );
+    let recovered = log.named("kernel.recovered");
+    assert_eq!(recovered.len(), 1, "{at}: {recovered:?}");
+    assert_eq!(
+        recovered[0].fields.get("reverted"),
+        Some(&Value::Bool(committed)),
+        "{at}"
+    );
+    let unit = recovered[0].text("unit").expect("the unit is named");
+    let entries = fixture.entries().await;
+    let closed: Vec<Outcome> = entries
+        .iter()
+        .filter(|entry| {
+            entry.record.work_unit.map(nc_ids::Snowflake::to_crockford) == Some(unit.clone())
+        })
+        .filter(|entry| is_a_bracket(entry))
+        .map(|entry| entry.record.result)
+        .collect();
+    assert_eq!(
+        closed,
+        [Outcome::UnitBegun, Outcome::UnitAborted],
+        "{at}: the unit the child left open is closed as aborted"
+    );
+    drop(fixture);
+    store.inner.close().await;
 }
 
 /// What the child of the stopped-kernel test does: dispatches a note's write
@@ -1624,6 +1835,21 @@ async fn a_kernel_stopped_in_the_middle_of_a_unit_leaves_nothing_of_it_once_it_o
 /// the entry `at` names.
 async fn stopped_at(at: &str, schema: &str, profile: &std::path::Path) {
     let url = std::env::var("DATABASE_URL").expect("the parent had a database");
+    let store = stalling(
+        LocalStore::open(profile)
+            .await
+            .expect("the child's database opens"),
+    );
+    let inner = nc_journal::postgres::Postgres::in_schema(into_schema(&url, schema).await, schema);
+    stops_in_the_middle(at, inner, store).await;
+}
+
+/// What the child of a stopped-kernel test does over `inner` and `store`:
+/// dispatches a note's write, and stops the process at the entry `at` names.
+async fn stops_in_the_middle<S>(at: &str, inner: S, store: Stalling)
+where
+    S: nc_journal::Store + Debug + Clone + Send + Sync + 'static,
+{
     // **A flake of each child's own**: the clock stands still, and a second
     // child minting on the first one's flake mints the unit the first left,
     // which the journal refuses as closed.
@@ -1638,17 +1864,12 @@ async fn stopped_at(at: &str, schema: &str, profile: &std::path::Path) {
         ),
     };
     let journal = Failing {
-        inner: nc_journal::postgres::Postgres::in_schema(into_schema(&url, schema).await, schema),
+        inner,
         told: Arc::new(Mutex::new(Told {
             aborts: Some(stops),
             ..Told::default()
         })),
     };
-    let store = stalling(
-        LocalStore::open(profile)
-            .await
-            .expect("the child's database opens"),
-    );
     let fixture = Box::pin(opening(
         flake,
         journal,
@@ -1676,24 +1897,31 @@ async fn stopped_at(at: &str, schema: &str, profile: &std::path::Path) {
     panic!("the child was to stop before its dispatch answered, and it answered {answered:?}");
 }
 
-/// Runs the stopped-kernel test as a child that stops at `at`, over the
-/// journal in `schema` and the database in `profile`.
+/// The stopped-kernel test whose child stops over the journal in PostgreSQL.
+const STOPPED_OVER_POSTGRES: &str =
+    "a_kernel_stopped_in_the_middle_of_a_unit_leaves_nothing_of_it_once_it_opens_again";
+
+/// The stopped-kernel test whose child stops over the journal in the local
+/// file.
+const STOPPED_OVER_THE_FILE: &str =
+    "a_kernel_stopped_in_the_middle_of_a_unit_over_the_local_journal_leaves_nothing_of_it";
+
+/// Runs the stopped-kernel test `test` as a child that stops at `at`, over the
+/// journal in `schema` — none for the local journal's — and the database in
+/// `profile`.
 #[expect(
     clippy::disallowed_methods,
     reason = "the child is this same test binary, run with its output discarded — the one way \
               to stop a kernel in the middle of a unit and look at what it leaves"
 )]
 fn the_stopped_child(
+    test: &str,
     at: &str,
     schema: &str,
     profile: &std::path::Path,
 ) -> std::process::ExitStatus {
     std::process::Command::new(std::env::current_exe().expect("this test binary"))
-        .args([
-            "--exact",
-            "a_kernel_stopped_in_the_middle_of_a_unit_leaves_nothing_of_it_once_it_opens_again",
-            "--test-threads=1",
-        ])
+        .args(["--exact", test, "--test-threads=1"])
         .env(STOPPED_AT, at)
         .env(STOPPED_IN_SCHEMA, schema)
         .env(STOPPED_IN_PROFILE, profile)
@@ -4204,7 +4432,8 @@ async fn limits_prune_takes_a_batch_of_the_oldest_units_past_their_bound_and_a_d
 
 /// Holds `answer`, a prune of every table that removed nothing, to naming
 /// each as the catalog bounds it: one its writer bounds is said to be left to
-/// its writer, and every other is the pruner's.
+/// its writer, one a pack bounds — the local journal — to its pack, and every
+/// other is the pruner's.
 fn every_table_is_answered_as_it_is_bounded(answer: &str) {
     let rows = field(answer, "pruned")
         .into_array()
@@ -4225,7 +4454,8 @@ fn every_table_is_answered_as_it_is_bounded(answer: &str) {
             left_alone.as_deref(),
             match strategy {
                 nc_catalog::Strategy::RefuseAtLimit => Some("bounded_by_its_writer"),
-                _ => None,
+                nc_catalog::Strategy::PolicyPack => Some("bounded_by_its_pack"),
+                nc_catalog::Strategy::OldestFirst => None,
             },
             "{named:?}"
         );
@@ -6438,13 +6668,95 @@ async fn a_unit_a_stopped_kernel_left_open_is_reverted_though_the_pruner_ran_mea
     };
     let scratch = Scratch::new("left-open-pruned");
     let profile = scratch.0.join("the-close");
-    let status = the_stopped_child("the-close", &schema, &profile);
+    let status = the_stopped_child(STOPPED_OVER_POSTGRES, "the-close", &schema, &profile);
+    let after = the_pruner_runs_and_the_kernel_opens_again(status, &profile, |_| {
+        nc_journal::postgres::Postgres::in_schema(pool.clone(), &schema)
+    })
+    .await;
+    finish(pool).await;
+    after.nothing_of_the_unit_is_left();
+}
+
+/// A unit a stopped kernel left committed in the store and open in the local
+/// journal is reverted when that kernel opens again, though the pruner ran
+/// over the file in between — the file that holds the journal too.
+///
+/// **The daemon's case, and the one every system runs**: what
+/// `a_unit_a_stopped_kernel_left_open_is_reverted_though_the_pruner_ran_meanwhile`
+/// holds over PostgreSQL, held over `nc_local::LocalJournal`, where the pruner
+/// runs over the very file whose `local_journal_entries` the recovery asks.
+/// The table is the realm's pack's to bound (`policy-pack`), so the pruner
+/// leaves every row of it, and the unit is found open and reverted.
+#[tokio::test]
+async fn a_unit_a_stopped_kernel_left_open_in_the_local_journal_is_reverted_though_the_pruner_ran_meanwhile()
+ {
+    let scratch = Scratch::new("left-open-pruned-in-the-file");
+    let profile = scratch.0.join("the-close");
+    let status = the_stopped_child(STOPPED_OVER_THE_FILE, "the-close", "", &profile);
+    let after =
+        the_pruner_runs_and_the_kernel_opens_again(status, &profile, |store| store.inner.journal())
+            .await;
+    assert!(
+        after.journaled.0 > 0,
+        "the child's unit is in the file's journal: {:?}",
+        after.journaled
+    );
+    assert_eq!(
+        after.journaled.0, after.journaled.1,
+        "the pruner took nothing of the journal"
+    );
+    after.nothing_of_the_unit_is_left();
+}
+
+/// What a kernel opened again over the file a stopped child left found, once
+/// the pruner had run over it.
+struct AfterThePruner {
+    /// How many records of the stopped unit the pruner left.
+    left: i64,
+    /// The note the child's unit wrote, as the store held it once the kernel
+    /// opened again.
+    photo: Option<String>,
+    /// How many rows the file's own journal held before the pruner ran, and
+    /// after.
+    journaled: (i64, i64),
+}
+
+impl AfterThePruner {
+    /// Holds the unit's record to have outlived the pruner, and its write to
+    /// have been reverted.
+    fn nothing_of_the_unit_is_left(&self) {
+        assert_eq!(
+            self.left, 1,
+            "the pruner took the record the recovery reverts from"
+        );
+        assert_eq!(
+            self.photo, None,
+            "the journal closed the stopped unit as aborted and its write is still in the store"
+        );
+    }
+}
+
+/// Runs the pruner over a stopped child's file, then opens a kernel over it.
+///
+/// The child stopped with `status` between the store's commit and the
+/// journal's close, and the file in `profile` has its units table filled past
+/// its bound; the kernel opens over that file and over the journal handed over
+/// by `journal_of`.
+async fn the_pruner_runs_and_the_kernel_opens_again<J, F>(
+    status: std::process::ExitStatus,
+    profile: &std::path::Path,
+    journal_of: F,
+) -> AfterThePruner
+where
+    J: nc_journal::Store + Debug + Send + Sync + 'static,
+    F: FnOnce(&Stalling) -> J,
+{
     assert!(
         nc_platform::testing::stopped_by_abort(status),
         "the child did not stop the way `abort` stops it: {status}"
     );
     let store = stalling(
-        LocalStore::open(&profile)
+        LocalStore::open(profile)
             .await
             .expect("the file opens after the stop"),
     );
@@ -6456,6 +6768,7 @@ async fn a_unit_a_stopped_kernel_left_open_is_reverted_though_the_pruner_ran_mea
         .fetch_one(store.inner.pool())
         .await
         .expect("the store counts");
+    let before = journal_rows(&store.inner).await;
     let (_, batch) = units_past_their_bound_from(&store.inner, stopped).await;
     let mut target = nc_prune::sqlite::Sqlite::new(store.inner.pool().clone());
     let pruned = nc_prune::run(&mut target, nc_prune::Request::every())
@@ -6468,10 +6781,11 @@ async fn a_unit_a_stopped_kernel_left_open_is_reverted_though_the_pruner_ran_mea
         .fetch_one(store.inner.pool())
         .await
         .expect("the store counts");
+    let after = journal_rows(&store.inner).await;
     let log = Arc::new(Captured::default());
     let fixture = opening(
         8,
-        nc_journal::postgres::Postgres::in_schema(pool.clone(), &schema),
+        journal_of(&store),
         Ok(family()),
         store.clone(),
         Arc::clone(&log),
@@ -6481,13 +6795,17 @@ async fn a_unit_a_stopped_kernel_left_open_is_reverted_though_the_pruner_ran_mea
     let photo = photo_in(&store).await;
     drop(fixture);
     store.inner.close().await;
-    finish(pool).await;
-    assert_eq!(
-        left, 1,
-        "the pruner took the record the recovery reverts from"
-    );
-    assert_eq!(
-        photo, None,
-        "the journal closed the stopped unit as aborted and its write is still in the store"
-    );
+    AfterThePruner {
+        left,
+        photo,
+        journaled: (before, after),
+    }
+}
+
+/// How many rows the local file's own journal holds.
+async fn journal_rows(store: &LocalStore) -> i64 {
+    sqlx::query_scalar("SELECT count(*) FROM main.local_journal_entries")
+        .fetch_one(store.pool())
+        .await
+        .expect("the journal counts")
 }

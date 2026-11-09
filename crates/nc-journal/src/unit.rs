@@ -255,6 +255,13 @@ mod tests {
         ) -> impl Future<Output = Result<Option<Outcome>, Error>> + Send {
             self.beneath.unit_closing(realm, unit)
         }
+
+        fn open_units(
+            &self,
+            realm: &OpaqueId,
+        ) -> impl Future<Output = Result<Vec<Snowflake>, Error>> + Send {
+            self.beneath.open_units(realm)
+        }
     }
 
     /// A store that takes whatever it is handed.
@@ -314,6 +321,13 @@ mod tests {
         ) -> impl Future<Output = Result<Option<Outcome>, Error>> + Send {
             core::future::ready(Ok(None))
         }
+
+        fn open_units(
+            &self,
+            realm: &OpaqueId,
+        ) -> impl Future<Output = Result<Vec<Snowflake>, Error>> + Send {
+            self.beneath.open_units(realm)
+        }
     }
 
     /// A store that cannot say whether a unit opened or closed while `silent`
@@ -369,6 +383,13 @@ mod tests {
                 return Err(silence());
             }
             self.beneath.unit_closing(realm, unit).await
+        }
+
+        async fn open_units(&self, realm: &OpaqueId) -> Result<Vec<Snowflake>, Error> {
+            if self.silent {
+                return Err(silence());
+            }
+            self.beneath.open_units(realm).await
         }
     }
 
