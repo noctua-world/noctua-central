@@ -1686,10 +1686,16 @@ task's arguments first quoted as Windows splits a command line — and what no e
 is refused when the service is described: a control character anywhere, a program that is
 not an absolute path, a name outside letters, digits, `.`, `_` and `-` or not opening with a
 letter or a digit, so no name is read by a tool as one of its options, and a `%` in what a
-task runs, which Task Scheduler expands and has no form for. A definition file is created
-new and private, never through a link and never over one already there. A task stores no
-credential: it runs with the user's own interactive token, at least privilege. What each
-manager is told to restore is what its system's hosted runner measured (`NOCTUA.md §17.3`).
+task runs, which Task Scheduler expands and has no form for. A `SystemRoot` that is not an
+absolute path is refused rather than read from the current directory. A definition file is
+created new and private, never through a link and never over one already there. **A
+registration never replaces a service**, whoever registered it: a name the manager already
+holds is refused before anything is written, `schtasks` is never handed the `/F` that would
+replace a task, and a registration the manager refuses takes back only what it made — its
+file, and on systemd the unit its failed start left loaded — never the service of that name
+someone else holds. A task stores no credential: it runs with the user's own interactive
+token, at least privilege. What each manager is told to restore is what its system's hosted
+runner measured (`NOCTUA.md §17.3`).
 
 **A test's registration never meets a real one.** The suites that register a real service —
 `with_the_manager`, in the module's tests — register a scratch program, the test binary
@@ -1700,8 +1706,12 @@ the next boot; under launchd its plist stays in the test's scratch and is bootst
 there; on Windows its task sits in the root folder under that prefix. A guard unregisters
 each however the test leaves, and each test first sweeps this checkout's leftovers whose
 owner is dead — told by a lock the owner holds for as long as it lives, never by a pid that
-may since name another process — so a run killed half way is cleaned by the next, and a live
-run, of this checkout or another, is never touched. So `cargo xtask check` on Linux
+may since name another process, and only once the scratch is a minute old, so a scratch
+whose owner has not yet taken its lock is never read as dead — so a run killed half way is
+cleaned by the next run of the same checkout, and a live run, of this checkout or another,
+is never touched. The sweep unregisters only a name under this checkout's prefix, held
+twice: by the listing, which launchd and Task Scheduler answer with every service they hold,
+and again before each name is unregistered. So `cargo xtask check` on Linux
 registers short-lived units with the developer's own user manager, under that prefix, and
 needs one running. The tests never enable lingering, never reload the manager, and never
 stop, start, enable or mask a unit they did not register.
@@ -1709,21 +1719,28 @@ stop, start, enable or mask a unit they did not register.
 **Enforced by** the module's tests in `crates/nc-platform/src/service.rs` — each
 generator's text written out whole, each escape and each refusal by its words, each
 manager's counters and listing read from recorded answers, the commands each manager is
-asked, and the tool found only in an absolute entry of `PATH` — by the two scratch services
-in `with_the_manager`, run on Linux, macOS and Windows in CI: one killed and restored as a
-new instance, read through the manager's own counter and the instance's record of itself,
-having been handed its arguments character for character through the format's escaping;
-one that exits 0 left down, or started again by Task Scheduler's repetition, then started
-when asked; and each gone from the manager once unregistered — and by the operators over
-`service.rs` in `xtask/mutants.py`, whose command skips the two that register.
+asked, the tool found only in an absolute entry of `PATH` or under an absolute
+`SystemRoot`, a listing narrowed to its prefix, and a name the manager holds refused — by
+the two scratch services in `with_the_manager`, run on Linux, macOS and Windows in CI: one
+killed and restored as a new instance, read through the manager's own counter and the
+instance's record of itself, having been handed its arguments character for character
+through the format's escaping, and registered over in vain, by the registrar and, under
+launchd and Task Scheduler, by the manager's own load, with its instance still the one
+running; one that exits 0 left down, or
+started again by Task Scheduler's repetition, then started when asked within twenty
+seconds, which no repetition meets; and each gone from the manager once unregistered — and
+by the operators over `nc-platform`'s sources in `xtask/mutants.py`, whose commands skip the
+two that register.
 
 **Not answered:** a process running as the same user, which can rewrite or remove any
 definition, register a program of its own under any name — the test prefix included — or
-stop the manager's restorer; whoever the system lets past every access list; and, on
-Windows, registering a task as a user who is not an administrator, which no runner
-measures, the hosted one being elevated. Which program is registered for a channel, and
-how an explicit stop silences every restorer (`NOCTUA.md §17.5`), are the daemon's and its
-installer's, which register nothing yet.
+stop the manager's restorer, and can race a registration between the name being asked and
+the definition being loaded; whoever the system lets past every access list; registering a
+task, on Windows, as a user who is not an administrator, which no runner measures, the
+hosted one being elevated; and a test's task left where nothing runs this checkout's tests
+again (**What is deliberately not claimed**). Which program is registered for a channel,
+and how an explicit stop silences every restorer (`NOCTUA.md §17.5`), are the daemon's and
+its installer's, which register nothing yet.
 
 ### The stack binds to loopback and nothing else
 
@@ -2490,6 +2507,13 @@ rather than anything decided for the project, and each is a maintainer's to reop
   a program down there is the program's own mark (`NOCTUA.md §17.3`).
 - **launchd's domain is the graphical one**, `gui/<uid>`: a session with none, a login over
   SSH alone, has no domain to bootstrap an agent into, and registering fails there.
+- **A test's task outlives a run killed half way, on Windows**, and keeps running: unlike a
+  unit in the runtime directory, which the next boot forgets, or an agent bootstrapped from
+  a scratch, which the next logout does, a task in the root folder survives reboots and
+  starts the test binary every minute and at each logon until this checkout's tests run
+  again and sweep it, and without end once the checkout is deleted, since no other sweep
+  reaches it. It is removed by hand, each name `schtasks /Query /FO CSV /NH` lists under
+  that prefix, with `schtasks /Delete /TN \noctua-dev-test-<checkout>-<pid>-<nonce> /F`.
 
 **The journal and the central log**
 

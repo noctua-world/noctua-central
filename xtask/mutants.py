@@ -6500,6 +6500,21 @@ WEAKENINGS = [
     ("platform_service", "described", "a program is an absolute path",
      "if !program.is_absolute() {",
      "if false {"),
+    ("platform_service", "under", "a listing is narrowed to the prefix asked",
+     "    listed.retain(|name| name.starts_with(prefix));\n",
+     ""),
+    ("platform_service", "not_held", "a name the manager holds is never registered over",
+     "    if held {",
+     "    if false {"),
+    ("platform_service", "a_refused_load_leaves_it_loaded", "a refused bootstrap takes back its file alone",
+     "matches!(self, Self::Systemd)",
+     "matches!(self, Self::Systemd | Self::Launchd)"),
+    ("platform_service", "found", "a relative SystemRoot is not taken",
+     ".filter(|root| is_an_absolute_windows_path(root))",
+     ".filter(|root| !root.is_empty())"),
+    ("platform_service", "is_an_absolute_windows_path", "a root on no drive is not absolute",
+     "root.starts_with(\"\\\\\\\\\")",
+     "root.starts_with('\\\\')"),
 ]
 
 TOUCH = ["find", "crates", "xtask", "-name", "*.rs", "-exec", "touch", "{}", "+"]
@@ -6767,17 +6782,16 @@ ELSEWHERE = {
     "local_store": ["cargo", "test", "-q", "-p", "nc-local"],
     "local_journal": ["cargo", "test", "-q", "-p", "nc-local"],
     # Each system's privacy, by its own crate's tests first, and then — in
-    # `ALSO_RUN` — by the local database's suites that stand on it.
-    "platform": ["cargo", "test", "-q", "-p", "nc-platform"],
-    "platform_unix": ["cargo", "test", "-q", "-p", "nc-platform"],
-    "platform_testing": ["cargo", "test", "-q", "-p", "nc-platform"],
+    # `ALSO_RUN` — by the local database's suites that stand on it. **All of
+    # the crate but the two tests that register a real service**, which judge
+    # no clause of these files and would register a unit with the developer's
+    # manager twice for each operator.
+    "platform": ["cargo", "test", "-q", "-p", "nc-platform", "--", "--skip", "with_the_manager"],
+    "platform_unix": ["cargo", "test", "-q", "-p", "nc-platform", "--", "--skip", "with_the_manager"],
+    "platform_testing": ["cargo", "test", "-q", "-p", "nc-platform", "--", "--skip", "with_the_manager"],
     # **The service manager's module, by its own tests alone**: the
     # generators' texts, the escaping, the readers and the commands — and not
     # the two that register a real service, which judge none of its clauses.
-    # The three rows above run the whole crate, those two among it, because a
-    # filter cannot reach the tests of a crate's root: each operator over them
-    # registers two scratch units under the test prefix, each guarded and
-    # swept.
     "platform_service": ["cargo", "test", "-q", "-p", "nc-platform", "--", "service::", "--skip", "with_the_manager"],
     # The pruner's crate, whose `in_sqlite.rs` needs no service.
     "prune_sqlite": ["cargo", "test", "-q", "-p", "nc-prune"],
@@ -7375,14 +7389,25 @@ def refuse_if_a_suite_fails_unweakened(when):
 def judged_by(names):
     """The suite a command in `ELSEWHERE` actually runs, named as a reader would."""
     package = names[names.index("-p") + 1]
-    if "--" in names and names.index("--") + 1 < len(names):
-        return f"{package}'s {names[names.index('--') + 1].rstrip(':')}"
+    # **A `--skip` narrows too, and is no filter.** Read as the word after
+    # `--`, `-- --skip with_the_manager` named the run "nc-platform's --skip":
+    # what it runs is whatever the rest of the command selects but the tests it
+    # skips, and those are named after it as what is left out.
+    after = names[names.index("--") + 1:] if "--" in names else []
+    skipped = [after[at + 1] for at in range(len(after) - 1) if after[at] == "--skip"]
+    filters = [
+        word for at, word in enumerate(after)
+        if word != "--skip" and (at == 0 or after[at - 1] != "--skip")
+    ]
+    but = "".join(f" except {name}" for name in skipped)
+    if filters:
+        return f"{package}'s {filters[0].rstrip(':')}{but}"
     if "--lib" in names:
-        return f"{package}'s unit tests"
+        return f"{package}'s unit tests{but}"
     # **And a named integration target.** One entry runs
     # `--test the_registry_reaches_the_code`, which is not "all of xtask".
     if "--test" in names and names.index("--test") + 1 < len(names):
-        return f"{package}'s {names[names.index('--test') + 1]} suite"
+        return f"{package}'s {names[names.index('--test') + 1]} suite{but}"
     # **And `--bin`, which narrows as hard as any of them.** `xtask` has five
     # test targets — the binary and four in `xtask/tests/` — so
     # `-p xtask --bin xtask` runs one of five, which is not "all of xtask"
@@ -7391,8 +7416,8 @@ def judged_by(names):
     # per operator to run a test that cannot fail. A sentence that hides the
     # narrowing hides the price with it.
     if "--bin" in names and names.index("--bin") + 1 < len(names):
-        return f"{package}'s {names[names.index('--bin') + 1]} binary"
-    return f"all of {package}"
+        return f"{package}'s {names[names.index('--bin') + 1]} binary{but}"
+    return f"all of {package}{but}"
 
 
 def the_summary():

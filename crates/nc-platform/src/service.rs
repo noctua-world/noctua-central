@@ -43,9 +43,11 @@
 //! `%SystemRoot%`, so a relative entry of `PATH` never chooses what runs. A
 //! name is letters, digits, `.`, `_` and `-`, opening with a letter or a
 //! digit, so no name is read by a tool as one of its options. A definition
-//! file is created new and private (`create_private`), never through a link.
-//! No credential is stored: a task runs with the logged-on user's own token,
-//! at least privilege.
+//! file is created new and private (`create_private`), never through a link,
+//! and a name the manager already holds is refused before one is written, so a
+//! registration never replaces a service, whoever made it, and one that fails
+//! takes back only what it made. No credential is stored: a task runs with the
+//! logged-on user's own token, at least privilege.
 //!
 //! # What it does not
 //!
@@ -127,6 +129,16 @@ impl Manager {
     #[must_use]
     pub const fn carries_a_percent_sign(self) -> bool {
         !matches!(self, Self::TaskScheduler)
+    }
+
+    /// Whether a load this manager refused can leave the service loaded.
+    ///
+    /// True for systemd alone, whose `start` loads a unit before it fails to
+    /// start it and keeps it failed; launchd's bootstrap and Task Scheduler's
+    /// create refuse whole, so what a failed one takes back is its file, never
+    /// a service the manager holds under that name, which is someone else's.
+    const fn a_refused_load_leaves_it_loaded(self) -> bool {
+        matches!(self, Self::Systemd)
     }
 
     /// Whether `name` is one this manager registers a service under.
@@ -606,6 +618,21 @@ fn definition(manager: Manager, service: &Service) -> Result<(String, Vec<u8>), 
     Ok((manager.file_for(&service.name), bytes))
 }
 
+/// Nothing, when the manager holds no service named `name`, which `held` says.
+///
+/// Otherwise the refusal a registration over that service is: a registration
+/// never replaces one, whoever made it.
+fn not_held(name: &str, held: bool) -> Result<(), Error> {
+    if held {
+        return Err(Error::Described(format!(
+            "`{}` is already registered with this system's service manager, and a \
+             registration never replaces one: unregister it first",
+            shown(name)
+        )));
+    }
+    Ok(())
+}
+
 /// What a manager says of a service: the counters it keeps itself.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Counters {
@@ -819,6 +846,19 @@ fn task_names(answer: &str) -> Vec<String> {
         .collect()
 }
 
+/// Of the names a manager `listed`, those that open with `prefix`, sorted and
+/// each once.
+///
+/// **What keeps a sweep on its own names**: launchd and Task Scheduler list
+/// every service they hold, and whatever this answers a caller may go on to
+/// unregister.
+fn under(prefix: &str, mut listed: Vec<String>) -> Vec<String> {
+    listed.retain(|name| name.starts_with(prefix));
+    listed.sort();
+    listed.dedup();
+    listed
+}
+
 /// Why a service was not registered, started, read or removed.
 #[derive(Debug)]
 pub enum Error {
@@ -954,7 +994,7 @@ impl Registrar {
     /// # Errors
     ///
     /// [`Error::NoTool`] when no absolute entry of `PATH` holds `systemctl`,
-    /// or `SystemRoot` is unset.
+    /// or `SystemRoot` is unset or not an absolute path.
     pub fn for_user(user: &User) -> Result<Self, Error> {
         Self::found(
             MANAGER,
@@ -1012,11 +1052,12 @@ impl Registrar {
                     .system_root
                     .as_deref()
                     .and_then(OsStr::to_str)
-                    .filter(|root| !root.is_empty())
+                    .filter(|root| is_an_absolute_windows_path(root))
                     .ok_or_else(|| {
                         Error::NoTool(
-                            "`SystemRoot` is not set, so where `schtasks.exe` is cannot be \
-                             said: run this from an environment Windows started, which sets it"
+                            "`SystemRoot` is not set, or is not an absolute path, so where \
+                             `schtasks.exe` is cannot be said: run this from an environment \
+                             Windows started, which sets it as `C:\\Windows`"
                                 .to_owned(),
                         )
                     })?;
@@ -1052,19 +1093,27 @@ impl Registrar {
     /// (`RunAtLoad`) and Task Scheduler what it registers (the registration
     /// trigger).
     ///
+    /// **Never over a service the manager already holds**, whoever registered
+    /// it: a name the manager knows is refused before anything is written, so
+    /// a reinstall unregisters first.
+    ///
     /// **Where the definition stays is the directory's**: a unit and a plist
     /// are read from it for as long as they are registered, and a task's XML is
     /// removed once Task Scheduler holds its own copy. A registration that
-    /// fails is unregistered again, so it leaves nothing behind.
+    /// fails takes back what it made and nothing else — the definition it
+    /// wrote, and on systemd the unit its start left failed — so it leaves
+    /// nothing behind.
     ///
     /// # Errors
     ///
     /// [`Error::Described`] for a service this manager takes no definition of,
-    /// [`Error::Io`] when the definition cannot be written — a name already
-    /// there included, which is never overwritten — or the tool cannot be run,
-    /// and [`Error::Refused`] when the manager refuses it.
+    /// or one whose name it already holds, [`Error::Io`] when the definition
+    /// cannot be written — a file already there included, which is never
+    /// overwritten — or the tool cannot be run, and [`Error::Refused`] when the
+    /// manager refuses it.
     pub fn register(&self, service: &Service, directory: &Path) -> Result<(), Error> {
         let (file, bytes) = definition(self.manager, service)?;
+        not_held(&service.name, self.is_registered(&service.name)?)?;
         let path = directory.join(file);
         write_new(&path, &bytes)?;
         let loaded = self
@@ -1078,8 +1127,12 @@ impl Registrar {
         };
         if loaded.is_err() {
             // **The registration's own refusal is the one reported**: what
-            // removing it again says is beside the point it already failed at.
-            drop(self.unregister(&service.name, directory));
+            // taking it back says is beside the point it already failed at.
+            if self.manager.a_refused_load_leaves_it_loaded() {
+                drop(self.unregister(&service.name, directory));
+            } else {
+                drop(remove_if_there(&path));
+            }
             return loaded;
         }
         copied
@@ -1188,7 +1241,7 @@ impl Registrar {
                 self.manager.the_rule_for_a_name()
             )));
         }
-        let mut found = match self.manager {
+        let found = match self.manager {
             Manager::Systemd => {
                 let pattern = format!("{prefix}*");
                 let mut found = Vec::new();
@@ -1223,12 +1276,12 @@ impl Registrar {
                 }
                 found
             }
+            // **Every service there is**: every label in the user's domain and
+            // every task on the machine, the system's own and other programs'
+            // among them, which `under` alone keeps out of the answer.
             Manager::Launchd | Manager::TaskScheduler => self.listed()?,
         };
-        found.retain(|name| name.starts_with(prefix));
-        found.sort();
-        found.dedup();
-        Ok(found)
+        Ok(under(prefix, found))
     }
 
     /// What the manager counts of the service named `name`.
@@ -1329,13 +1382,15 @@ impl Registrar {
                 self.domain().into(),
                 file.as_os_str().to_owned(),
             ]],
+            // **No `/F`**, which replaces a task already there: without it,
+            // and with nothing to read on its input, `schtasks` refuses one —
+            // so a registration racing another never replaces it.
             Manager::TaskScheduler => vec![vec![
                 "/Create".into(),
                 "/TN".into(),
                 name.into(),
                 "/XML".into(),
                 file.as_os_str().to_owned(),
-                "/F".into(),
             ]],
         }
     }
@@ -1447,6 +1502,20 @@ fn words<const N: usize>(list: [&str; N]) -> Vec<OsString> {
     list.into_iter().map(OsString::from).collect()
 }
 
+/// Whether `root` is an absolute Windows path, from a drive's root or a share's.
+///
+/// **Read as text**, `C:\` or `\\` first, since the path is Windows' while
+/// this is compiled for every system: a path with no drive, or a drive and
+/// no `\` after it, is read by Windows from the current directory.
+fn is_an_absolute_windows_path(root: &str) -> bool {
+    let mut characters = root.chars();
+    root.starts_with("\\\\")
+        || matches!(
+            (characters.next(), characters.next(), characters.next()),
+            (Some(drive), Some(':'), Some('\\')) if drive.is_ascii_alphabetic()
+        )
+}
+
 /// The first `name` in an absolute entry of `path`, which is read as this
 /// system reads `PATH`.
 fn in_an_absolute_entry(path: &OsStr, name: &str) -> Option<PathBuf> {
@@ -1489,8 +1558,8 @@ mod tests {
 
     use super::{
         Counters, Error, Found, Manager, Registrar, Service, csv_fields, definition, first_words,
-        in_an_absolute_entry, launchd_labels, launchd_plist, systemd_unit, systemd_word,
-        task_names, task_xml, utf16_with_its_mark, windows_argument, words, xml_text,
+        in_an_absolute_entry, launchd_labels, launchd_plist, not_held, systemd_unit, systemd_word,
+        task_names, task_xml, under, utf16_with_its_mark, windows_argument, words, xml_text,
     };
 
     /// The user every definition below is written for, a SID, so that a task's
@@ -2348,7 +2417,29 @@ mod tests {
             (task.tool.clone(), task.volatile_units()),
             (PathBuf::from("C:\\Windows\\System32\\schtasks.exe"), None)
         );
-        for root in [None, Some(OsString::new())] {
+        let share = Registrar::found(
+            Manager::TaskScheduler,
+            USER,
+            &Found {
+                system_root: Some(OsString::from("\\\\server\\share\\Windows")),
+                ..Found::default()
+            },
+        )
+        .expect("found");
+        assert_eq!(
+            share.tool,
+            PathBuf::from("\\\\server\\share\\Windows\\System32\\schtasks.exe")
+        );
+        // **A `SystemRoot` Windows would read from the current directory**:
+        // none, a relative one, one rooted on no drive, a drive with no root.
+        for root in [
+            None,
+            Some(OsString::new()),
+            Some(OsString::from("Windows")),
+            Some(OsString::from("\\Windows")),
+            Some(OsString::from("C:Windows")),
+            Some(OsString::from("1:\\Windows")),
+        ] {
             let refused = Registrar::found(
                 Manager::TaskScheduler,
                 USER,
@@ -2419,6 +2510,7 @@ mod tests {
         );
 
         let task = registrar(Manager::TaskScheduler);
+        // **Never `/F`**, which would replace a task already there.
         assert_eq!(
             task.to_load("\\x", file),
             [vec![
@@ -2427,7 +2519,6 @@ mod tests {
                 OsString::from("\\x"),
                 OsString::from("/XML"),
                 file.as_os_str().to_owned(),
-                OsString::from("/F")
             ]]
         );
         assert_eq!(task.to_start("\\x"), words(["/Run", "/TN", "\\x"]));
@@ -2468,6 +2559,79 @@ mod tests {
         }
     }
 
+    /// A registration never replaces a service its manager already holds,
+    /// whoever registered it, and says to unregister it first.
+    ///
+    /// One its manager refuses takes back what it made alone: the unit
+    /// systemd's failed start keeps loaded, and under the others its file.
+    #[test]
+    fn a_registration_never_replaces_a_service_its_manager_holds() {
+        assert!(
+            Manager::Systemd.a_refused_load_leaves_it_loaded()
+                && !Manager::Launchd.a_refused_load_leaves_it_loaded()
+                && !Manager::TaskScheduler.a_refused_load_leaves_it_loaded(),
+            "a refused bootstrap or create unregistered the name it was refused for"
+        );
+        assert!(not_held("noctua-dev-test.service", false).is_ok());
+        match not_held("noctua-dev-test.service", true) {
+            Err(Error::Described(why)) => assert!(
+                why.contains("`noctua-dev-test.service` is already registered")
+                    && why.contains("unregister it first"),
+                "{why}"
+            ),
+            other => panic!("a name the manager holds was registered over: {other:?}"),
+        }
+    }
+
+    /// What a manager lists is narrowed to the names under the prefix asked.
+    ///
+    /// **Every service the manager holds is listed**, by launchd every label of
+    /// the user's domain and by Task Scheduler every task of the machine, and a
+    /// sweep unregisters what this answers: the system's names, another
+    /// checkout's and one a shorter prefix shares are all left out.
+    #[test]
+    fn a_listing_is_narrowed_to_the_names_under_its_prefix() {
+        // The shape a hosted macOS runner answered `launchctl print gui/501`
+        // in, its `services` block cut to the rows that matter here.
+        let domain = "gui/501 = {\n\
+                      \ttype = login\n\
+                      \tservices = {\n\
+                      \t\t       0      -        com.apple.xpc.otherbsd\n\
+                      \t\t     561      -        com.apple.Finder\n\
+                      \t\t    1413      -        noctua-dev-test-0123abcd-77-1a\n\
+                      \t\t       0     78        noctua-dev-test-0123abcd\n\
+                      \t\t       0      -        noctua-dev-test-0123abce-77-1a\n\
+                      \t\t       0      -        noctua-dev-test-0123abcd-77-1a\n\
+                      \t\t    1500      -        noctua-dev-test-0123abcd-80-2b\n\
+                      \t\t       0      -        io.github.noctua_world.noctua.daemon.501\n\
+                      \t}\n\
+                      }\n";
+        assert_eq!(
+            under("noctua-dev-test-0123abcd-", launchd_labels(domain)),
+            [
+                "noctua-dev-test-0123abcd-77-1a",
+                "noctua-dev-test-0123abcd-80-2b"
+            ]
+        );
+        // The shape `schtasks /Query /FO CSV /NH` answers in on a hosted
+        // Windows runner: every task of the machine, under every folder.
+        let tasks = "\r\n\
+                     \"\\MicrosoftEdgeUpdateTaskMachineCore\",\"11/9/2026 1:00:00 AM\",\"Ready\"\r\n\
+                     \"\\noctua-dev-test-0123abcd-77-1a\",\"N/A\",\"Running\"\r\n\
+                     \"\\noctua-dev-test-0123abcd\",\"N/A\",\"Ready\"\r\n\
+                     \"\\noctua-dev-test-0123abce-77-1a\",\"N/A\",\"Ready\"\r\n\
+                     \"\\Microsoft\\Windows\\noctua-dev-test-0123abcd-77-1a\",\"N/A\",\"Ready\"\r\n\
+                     \"\\noctua.S-1-5-21-1-2-3-1001\",\"N/A\",\"Ready\"\r\n";
+        assert_eq!(
+            under("\\noctua-dev-test-0123abcd-", task_names(tasks)),
+            ["\\noctua-dev-test-0123abcd-77-1a"]
+        );
+        assert_eq!(
+            under("noctua-dev-test-", vec!["noctua".to_owned()]),
+            Vec::<String>::new()
+        );
+    }
+
     /// The tests that register a real service with this system's manager.
     ///
     /// **Skipped by the mutation runner**, which judges the generators and
@@ -2494,7 +2658,7 @@ mod tests {
         use std::sync::atomic::{AtomicU64, Ordering};
         use std::time::{Duration, Instant};
 
-        use crate::service::{Counters, MANAGER, Manager, Registrar, Service};
+        use crate::service::{Answer, Counters, MANAGER, Manager, Registrar, Service};
 
         /// What a scratch service's program is told it is, before its mode.
         const CHILD: &str = "nc-platform-scratch-service=";
@@ -2512,9 +2676,25 @@ mod tests {
         /// a repetition's minute on Windows, and the slack around it.
         const WITHIN: Duration = Duration::from_secs(150);
 
+        /// How long a service asked to start has to start: well under the
+        /// minute between two of Task Scheduler's repetitions.
+        ///
+        /// **So the instance waited for is the one asked for**: on Windows it is
+        /// asked for just after a repetition started one, and the next is a
+        /// minute away.
+        const ASKED_TO_START_WITHIN: Duration = Duration::from_secs(20);
+
         /// How long a service that exited 0 is watched staying down: five of
         /// its restorer's delays.
         const LEFT_DOWN_FOR: Duration = Duration::from_secs(5);
+
+        /// How long a scratch is too new for a sweep to judge whether its owner
+        /// lives: past the moment between its directory and its lock.
+        const NEW_FOR: Duration = Duration::from_secs(60);
+
+        /// How long a manager's tool, asked to load a definition over a service
+        /// it holds, has to answer before it is taken to wait on its input.
+        const ANSWERS_WITHIN: Duration = Duration::from_secs(30);
 
         /// The longest a scratch service's program waits for its scratch to
         /// go: past every wait above, so one whose owner died ends anyway.
@@ -2611,6 +2791,40 @@ mod tests {
             format!("{now:x}{made:x}")
         }
 
+        /// What `registrar`'s tool answers to `arguments`, once it has.
+        ///
+        /// **Within a bound**, past which the tool is taken to wait on its
+        /// input, which a registrar hands it nothing on, and the test fails
+        /// saying so rather than waiting with it.
+        fn answered_within(registrar: &Registrar, arguments: Vec<std::ffi::OsString>) -> Answer {
+            let (answered, answer) = std::sync::mpsc::channel();
+            let asking = registrar.clone();
+            std::thread::spawn(move || drop(answered.send(asking.ask(&arguments))));
+            answer
+                .recv_timeout(ANSWERS_WITHIN)
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "{} was asked to load a definition over a service it holds and did not \
+                         answer within {ANSWERS_WITHIN:?}: it waits on its input",
+                        registrar.manager()
+                    )
+                })
+                .expect("the tool was run")
+        }
+
+        /// Whether the scratch at `scratch` was made, or written in, too lately
+        /// for a sweep to judge its owner by its lock.
+        ///
+        /// **Kept when its age cannot be read**, or is in the future: what a
+        /// sweep cannot judge it leaves for a later one.
+        fn too_new_to_judge(scratch: &Path) -> bool {
+            std::fs::metadata(scratch)
+                .and_then(|metadata| metadata.modified())
+                .ok()
+                .and_then(|modified| modified.elapsed().ok())
+                .is_none_or(|age| age < NEW_FOR)
+        }
+
         /// Whether the owner of the scratch at `scratch` still holds its lock.
         fn owner_lives(scratch: &Path) -> bool {
             std::fs::File::open(scratch.join(OWNER))
@@ -2686,6 +2900,8 @@ mod tests {
             registrar: Option<Registrar>,
             /// The service's name, and the directory its definition is in.
             registered: Option<(String, PathBuf)>,
+            /// The service as it was registered.
+            service: Option<Service>,
         }
 
         impl Drop for Scratch {
@@ -2723,6 +2939,7 @@ mod tests {
                     owner: None,
                     registrar: None,
                     registered: None,
+                    service: None,
                 };
                 crate::create_private_directory(&scratch.root).expect("a scratch directory");
                 let owner = crate::create_private(&scratch.root.join(OWNER)).expect("a lock");
@@ -2758,6 +2975,14 @@ mod tests {
                     .registered_under(&listed)
                     .expect("this checkout's services are listed")
                 {
+                    // **Held here too, before anything is unregistered**: the
+                    // listing is every service the manager holds, and only
+                    // `registered_under` keeps the others out of it.
+                    assert!(
+                        name.starts_with(&listed),
+                        "`{name}` was answered as one of this checkout's services, under \
+                         `{listed}`, and is not: it is never unregistered"
+                    );
                     let theirs = temp.join(format!("{REGISTERED}{}", stem_of(&name)));
                     if owner_lives(&theirs) {
                         continue;
@@ -2780,7 +3005,11 @@ mod tests {
                         .to_str()
                         .and_then(|name| name.strip_prefix(REGISTERED))
                         .is_some_and(|stem| stem.starts_with(&prefix));
-                    if ours && path.is_dir() && !owner_lives(&path) {
+                    // **A scratch too new to judge is left alone**, before its
+                    // lock is asked: its owner makes the directory and then
+                    // takes the lock in it, and asked in between, a lock not
+                    // yet held would read as an owner that died.
+                    if ours && path.is_dir() && !too_new_to_judge(&path) && !owner_lives(&path) {
                         drop(std::fs::remove_dir_all(&path));
                     }
                 }
@@ -2832,7 +3061,63 @@ mod tests {
                     }
                 });
                 registered.unwrap_or_else(|error| panic!("`{name}` was not registered: {error}"));
+                self.service = Some(service);
                 name
+            }
+
+            /// Registers this scratch's service again, from a directory of its
+            /// own, and holds the registrar to refusing it.
+            ///
+            /// The manager, asked to load that definition over the service it
+            /// holds, refuses too, and the instance `running` is still the
+            /// one that runs.
+            fn is_never_registered_over(&self, name: &str, running: u32) {
+                let registrar = self.registrar();
+                let service = self.service.as_ref().expect("registered");
+                let elsewhere = self.root.join("again");
+                crate::create_private_directory(&elsewhere).expect("a directory of its own");
+                let instances = self.instances().len();
+                let refused = registrar.register(service, &elsewhere);
+                assert!(
+                    matches!(&refused, Err(super::super::Error::Described(why))
+                        if why.contains("already registered")),
+                    "`{name}` was registered over: {refused:?}. {}",
+                    self.what_the_manager_says(name)
+                );
+                // **And the manager's own load, asked past that refusal**, as a
+                // registration racing this one would ask it: launchd's
+                // bootstrap and Task Scheduler's create, given no `/F`, each
+                // refuse a name they hold. systemd's `start` reads no file, and
+                // of a unit that runs starts nothing.
+                if MANAGER != Manager::Systemd {
+                    let (file, bytes) =
+                        super::super::definition(MANAGER, service).expect("a definition");
+                    let path = elsewhere.join(file);
+                    super::super::write_new(&path, &bytes).expect("written");
+                    for arguments in registrar.to_load(name, &path) {
+                        let answer = answered_within(registrar, arguments);
+                        assert!(
+                            !answer.succeeded,
+                            "`{}` loaded a definition over `{name}`, which it held: {} {} {}",
+                            answer.asked, answer.status, answer.out, answer.err
+                        );
+                    }
+                }
+                assert!(
+                    registrar.is_registered(name).expect("asked"),
+                    "`{name}` was taken from its manager by a registration refused over it"
+                );
+                let counted = registrar.counters(name).expect("counted");
+                assert!(
+                    counted.running() && counted.pid().is_none_or(|pid| pid == running),
+                    "`{name}` runs another instance than {running} after a registration \
+                     refused over it: {counted:?}"
+                );
+                assert_eq!(
+                    self.instances().len(),
+                    instances,
+                    "`{name}` was started again by a registration refused over it"
+                );
             }
 
             /// Unregisters this scratch's service, which its manager must
@@ -2872,9 +3157,9 @@ mod tests {
             }
 
             /// The first `count` instances of the service named `name`, once
-            /// its manager has started as many.
-            fn wait_for(&self, count: usize, name: &str) -> Vec<(u32, String)> {
-                let until = Instant::now() + WITHIN;
+            /// its manager has started as many, `within` the bound given.
+            fn wait_for(&self, count: usize, name: &str, within: Duration) -> Vec<(u32, String)> {
+                let until = Instant::now() + within;
                 loop {
                     let found = self.instances();
                     if found.len() >= count {
@@ -2882,8 +3167,8 @@ mod tests {
                     }
                     assert!(
                         Instant::now() < until,
-                        "{count} instance(s) of `{name}` were waited for {WITHIN:?} and {} came. \
-                         {}",
+                        "{count} instance(s) of `{name}` were waited for {within:?} and {} \
+                         came. {}",
                         found.len(),
                         self.what_the_manager_says(name)
                     );
@@ -2962,7 +3247,8 @@ mod tests {
         ///
         /// The restoration is read through the manager's own counter as well as
         /// the instance's record of itself, and the instance was handed the
-        /// arguments it was registered with, character for character.
+        /// arguments it was registered with, character for character. A second
+        /// registration under its name is refused, and leaves it running.
         #[test]
         fn a_service_killed_is_restored_as_a_new_instance_and_is_gone_once_unregistered() {
             if let Some((mode, scratch, carried)) = as_a_scratch_service() {
@@ -2980,7 +3266,7 @@ mod tests {
                 "`{name}` was registered and its manager does not know it. {}",
                 scratch.what_the_manager_says(&name)
             );
-            let first = scratch.wait_for(1, &name)[0].clone();
+            let first = scratch.wait_for(1, &name, WITHIN)[0].clone();
             assert_eq!(
                 scratch.carried_by(first.0),
                 carried(),
@@ -2993,10 +3279,11 @@ mod tests {
                     "its manager runs another process than the instance"
                 );
             }
+            scratch.is_never_registered_over(&name, first.0);
             registrar
                 .crash(&name, first.0)
                 .unwrap_or_else(|error| panic!("`{name}` was not killed: {error}"));
-            let second = scratch.wait_for(2, &name)[1].clone();
+            let second = scratch.wait_for(2, &name, WITHIN)[1].clone();
             assert_ne!(
                 second.1, first.1,
                 "the instance after the kill is the one killed"
@@ -3033,10 +3320,10 @@ mod tests {
                 "exit",
             );
             let registrar = scratch.registrar().clone();
-            scratch.wait_for(1, &name);
+            scratch.wait_for(1, &name, WITHIN);
             let after = scratch.counted_once(&name, |now| !now.running(), "down after it exited 0");
             if MANAGER.restarts_a_clean_exit() {
-                scratch.wait_for(2, &name);
+                scratch.wait_for(2, &name, WITHIN);
                 scratch.counted_once(
                     &name,
                     |now| now.ran_since(&after),
@@ -3059,11 +3346,13 @@ mod tests {
                     "`{name}` exited 0 and its manager started it again: {now:?} after {after:?}"
                 );
             }
+            // **Within a bound a repetition cannot meet**, so on Windows the
+            // instance waited for is the one `/Run` started.
             let started = scratch.instances().len();
             registrar
                 .start(&name)
                 .unwrap_or_else(|error| panic!("`{name}` was not started: {error}"));
-            scratch.wait_for(started + 1, &name);
+            scratch.wait_for(started + 1, &name, ASKED_TO_START_WITHIN);
             scratch.unregister();
         }
     }
