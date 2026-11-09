@@ -56,7 +56,9 @@ machine. `cargo xtask dev` prints the pair, and the `DATABASE_URL` it makes;
 `cargo xtask check` derives the same, and a tool outside `cargo xtask` — a
 `docker compose up` typed by hand, which refuses without them, or a PostgreSQL suite
 run alone — is told them by exporting what `dev` prints. `POSTGRES_PORT` and `LOGS_PORT`
-move a port, and a port something else holds fails `dev` naming the one to set.
+move a port, and a port `dev` cannot bind that its own stack does not hold — something else
+listening there, or one below 1024, which a user without the privilege may not bind — fails
+`dev` with the reason, naming the one to set.
 
 ## What the gate checks, and where
 

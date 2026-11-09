@@ -123,6 +123,14 @@ impl Port {
     /// The service that publishes it, and the port inside that service's
     /// container it publishes, as `docker-compose.yml` writes both.
     const fn published_by(self) -> (&'static str, &'static str) {
+        // **What `dev` asks `docker compose port` with**, to tell its own stack
+        // from another holder of a port it cannot bind, so a wrong answer here
+        // refuses every `dev` over a running stack. Measured with the two arms
+        // swapped: the suites that judge this file passed, 138 of 138, and
+        // `cargo xtask dev` over this checkout's running stack refused its own
+        // PostgreSQL port as *held by something this checkout's stack does not
+        // run*. `each_port_is_asked_of_the_service_that_publishes_it` holds both
+        // halves to the compose file.
         match self {
             Self::Postgres => ("postgres", "5432"),
             Self::Logs => ("logs", "9428"),
@@ -661,14 +669,13 @@ pub(crate) fn run(root: &Path, down: bool) -> Result<(), String> {
 ///
 /// # Errors
 ///
-/// Returns why: the variable does not hold a port, or the port is held by
-/// something this project does not publish there.
+/// Returns why: the variable does not hold a port, or the port cannot be
+/// bound and this project does not publish it there.
 fn free_or_this_stacks(
     which: Port,
     at: &str,
     published: impl FnOnce() -> Option<String>,
 ) -> Result<(), String> {
-    let (service, _) = which.published_by();
     let variable = which.variable();
     let Some(number) = at.parse::<u16>().ok().filter(|number| *number != 0) else {
         return Err(format!(
@@ -676,18 +683,58 @@ fn free_or_this_stacks(
              or set it to a port from 1 to 65535"
         ));
     };
-    if std::net::TcpListener::bind(("127.0.0.1", number)).is_ok() {
+    let bound = std::net::TcpListener::bind(("127.0.0.1", number)).map(drop);
+    bound_or_this_stacks(which, number, bound, published)
+}
+
+/// What binding one port of the pair answered, judged: free, this stack's
+/// own, or refused with the reason the bind gave.
+///
+/// **Held only when the bind says the port is in use.** A bind fails for more
+/// reasons than a listener: a port below 1024 is refused to a user without
+/// the privilege, and an address this system does not have is refused as
+/// unavailable, with nothing listening and a rootful Docker still able to
+/// publish the port. Read as held, each was refused as *held by something
+/// this checkout's stack does not run*. Measured with `POSTGRES_PORT=543`
+/// and nothing listening there: that sentence, about a holder `docker ps`
+/// cannot show. So the refusal carries the bind's own error, and names a
+/// holder only for `AddrInUse`.
+///
+/// **The bind's answer is handed in**, as what compose publishes is, so a
+/// test hands it each answer, a free port included, which a test cannot
+/// otherwise make without releasing one, and asks no docker.
+///
+/// # Errors
+///
+/// Returns why the port cannot be this stack's: something holds it, or the
+/// bind was refused for the reason it gives.
+fn bound_or_this_stacks(
+    which: Port,
+    number: u16,
+    bound: std::io::Result<()>,
+    published: impl FnOnce() -> Option<String>,
+) -> Result<(), String> {
+    let Err(error) = bound else {
         return Ok(());
-    }
+    };
     let this_stacks = format!("127.0.0.1:{number}");
     if published().is_some_and(|said| said.lines().any(|line| line.trim() == this_stacks)) {
         return Ok(());
     }
+    let (service, _) = which.published_by();
+    let variable = which.variable();
+    if error.kind() == std::io::ErrorKind::AddrInUse {
+        return Err(format!(
+            "127.0.0.1:{number}, where this checkout's {service} listens, is held by \
+             something this checkout's stack does not run — another checkout's stack on the \
+             same pair, or anything else listening there. Export `{variable}` with a free \
+             port and run `cargo xtask dev` again; `docker ps` says whether a stack holds it"
+        ));
+    }
     Err(format!(
-        "127.0.0.1:{number}, where this checkout's {service} listens, is held by something \
-         this checkout's stack does not run — another checkout's stack on the same pair, or \
-         anything else listening there. Export `{variable}` with a free port and run \
-         `cargo xtask dev` again; `docker ps` says whether a stack holds it"
+        "127.0.0.1:{number}, where this checkout's {service} listens, could not be bound to \
+         ask whether it is free ({error}), and this checkout's stack does not publish it. \
+         Export `{variable}` with a port this user can bind and run `cargo xtask dev` again"
     ))
 }
 
@@ -2973,6 +3020,169 @@ mod tests {
             }
         }
         drop(held);
+    }
+
+    /// A port is called held only when its bind says something holds it, and
+    /// a bind refused for another reason is refused with that reason.
+    ///
+    /// **This found a real bug, by review.** Every failed bind was read as a
+    /// holder, so a port refused to an unprivileged user, or an address this
+    /// system lacks, was refused as *held by something this checkout's stack
+    /// does not run* with nothing listening there. Measured with
+    /// `POSTGRES_PORT=543`. The bind's answer is handed in, so each kind is
+    /// driven without a privileged port, and so is a free port, which a real
+    /// bind proves only by releasing one that another test may take.
+    #[test]
+    fn a_bind_refused_for_another_reason_is_refused_with_that_reason() {
+        use super::Port;
+        use std::io::{Error, ErrorKind};
+
+        for which in Port::ALL {
+            let variable = format!("`{}`", which.variable());
+            // **Free, and compose never asked**: a free port costs no docker
+            // call.
+            assert_eq!(
+                super::bound_or_this_stacks(which, 21_000, Ok(()), || {
+                    panic!("compose was asked whether it publishes a port that is free")
+                }),
+                Ok(()),
+                "a port the bind took was refused, so no stack can come up"
+            );
+            for kind in [
+                ErrorKind::AddrInUse,
+                ErrorKind::PermissionDenied,
+                ErrorKind::AddrNotAvailable,
+            ] {
+                let said = format!("what the bind said, {kind:?}");
+                // **This project's own, whatever the bind said**: a second
+                // `dev` over a running stack.
+                assert_eq!(
+                    super::bound_or_this_stacks(
+                        which,
+                        543,
+                        Err(Error::new(kind, said.clone())),
+                        || { Some("127.0.0.1:543\n".to_owned()) }
+                    ),
+                    Ok(()),
+                    "a port this stack publishes was refused after a bind answering {kind:?}"
+                );
+                let refused = super::bound_or_this_stacks(
+                    which,
+                    543,
+                    Err(Error::new(kind, said.clone())),
+                    || None,
+                )
+                .expect_err("a port that cannot be bound and that this stack does not publish");
+                assert!(
+                    refused.contains("127.0.0.1:543") && refused.contains(&variable),
+                    "the refusal after {kind:?} does not name the port and {variable}: {refused}"
+                );
+                assert_eq!(
+                    refused.contains("is held by something"),
+                    kind == ErrorKind::AddrInUse,
+                    "after a bind answering {kind:?}, the refusal names a holder when and \
+                     only when the port is in use: {refused}"
+                );
+                assert!(
+                    kind == ErrorKind::AddrInUse || refused.contains(&said),
+                    "the refusal after {kind:?} does not say what the bind said: {refused}"
+                );
+            }
+        }
+    }
+
+    /// Each port is asked of the service that publishes it, at the port inside
+    /// that service's container.
+    ///
+    /// **What `dev` hands `docker compose port`**, held to the compose file
+    /// both ways: the service [`super::Port::published_by`] names publishes
+    /// the port's variable at the container port it names, and no other
+    /// service reads that variable. **This found a real bug's hiding place,
+    /// by review**: with the two arms swapped the suites that judge this file
+    /// passed, 138 of 138, and `dev` over a running stack refused its own
+    /// port. CI's one `dev` runs on a fresh runner, where both ports are free
+    /// and the ask is never made.
+    #[test]
+    fn each_port_is_asked_of_the_service_that_publishes_it() {
+        let compose = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../docker-compose.yml"
+        ))
+        .expect("this repository has a compose file");
+        // Each service's lines, as (indentation, text): a service is a key two
+        // in under `services:`, and its block runs to the next key at that
+        // depth or less. **What compose reads, and not its comments.**
+        let mut services: std::collections::BTreeMap<&str, Vec<(usize, &str)>> =
+            std::collections::BTreeMap::new();
+        let mut under_services = false;
+        let mut current: Option<&str> = None;
+        for line in compose.lines() {
+            let text = line.trim();
+            if text.is_empty() || text.starts_with('#') {
+                continue;
+            }
+            let depth = line.len() - line.trim_start().len();
+            if depth == 0 {
+                under_services = text == "services:";
+                current = None;
+            } else if under_services && depth == 2 {
+                let name = text.strip_suffix(':').unwrap_or(text);
+                services.insert(name, Vec::new());
+                current = Some(name);
+            } else if let Some(lines) = current.and_then(|name| services.get_mut(name)) {
+                lines.push((depth, text));
+            }
+        }
+        assert!(
+            services.len() >= super::Port::ALL.len(),
+            "the scan read {:?} as the compose file's services, fewer than the stack's \
+             ports, so it read the wrong text",
+            services.keys().collect::<Vec<_>>()
+        );
+        for which in super::Port::ALL {
+            let (service, inside) = which.published_by();
+            let variable = which.variable();
+            let lines = services.get(service).unwrap_or_else(|| {
+                panic!(
+                    "`{variable}` is asked of the service `{service}`, which \
+                     `docker-compose.yml` does not declare: {:?}",
+                    services.keys().collect::<Vec<_>>()
+                )
+            });
+            // The items of its `ports:` list, and nothing below another key.
+            let key = lines
+                .iter()
+                .position(|(_, text)| *text == "ports:")
+                .unwrap_or_else(|| panic!("`{service}` publishes no port at all"));
+            let published: Vec<&str> = lines[key + 1..]
+                .iter()
+                .take_while(|(depth, _)| *depth > lines[key].0)
+                .filter_map(|(_, text)| text.strip_prefix("- "))
+                .collect();
+            let (opens, closes) = (
+                format!("\"127.0.0.1:${{{variable}:?"),
+                format!("}}:{inside}\""),
+            );
+            assert!(
+                published.iter().any(|item| {
+                    item.strip_prefix(&opens)
+                        .and_then(|rest| rest.strip_suffix(&closes))
+                        .is_some_and(|why| !why.contains('}'))
+                }),
+                "`{service}` does not publish `{variable}` from its container's port \
+                 {inside}, so `docker compose port {service} {inside}` cannot answer where \
+                 this stack holds it, and every `dev` over a running stack refuses its own \
+                 port: {published:?}"
+            );
+            let read = format!("${{{variable}");
+            for (other, lines) in &services {
+                assert!(
+                    *other == service || !lines.iter().any(|(_, text)| text.contains(&read)),
+                    "`{other}` reads `{variable}` too, which `{service}` publishes, so two \
+                     services answer for one port"
+                );
+            }
+        }
     }
 
     use super::the_log_store_is_serving;

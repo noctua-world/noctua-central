@@ -1637,19 +1637,26 @@ binding a port another checkout's stack may hold. `POSTGRES_PORT` and `LOGS_PORT
 empty says nothing, as compose reads it, and `dev` prints the pair with the `DATABASE_URL`
 it makes. **Fail closed**: before compose runs, `dev` refuses a port variable that holds no
 port, and a port it cannot bind that this project does not publish there, naming the port
-and the variable that moves it — two checkouts whose digests fall on one pair, or
-anything else listening there.
+and the variable that moves it. It names a holder — two checkouts whose digests fall on one
+pair, or anything else listening there — only when the bind says the port is in use; a bind
+refused for another reason, a port below 1024 to a user without the privilege among them,
+is refused with the bind's own error. Its own stack is told apart by asking
+`docker compose port` of the service that publishes the port, at the container port it
+publishes from.
 
 **Enforced by** `two_checkouts_resolve_to_stacks_that_share_no_port_and_no_project` in
 `xtask/tests/the_stack_enforces_the_declared_bounds.rs`, which resolves two checkouts'
 compose configurations with the pairs `nc_channel` derives and holds their projects and
 published ports apart; `the_settings_this_tool_reads_are_the_ones_the_stack_declares` and
 `the_example_environment_declares_what_this_tool_reads` in `xtask/src/dev.rs`, which hold
-the compose file and `.env.example` to the reader both ways — every port required and
-none defaulted, and both written empty in the example, which writes no url;
-`a_stack_binds_its_checkouts_ports_unless_a_variable_moves_one` and
-`a_port_something_else_holds_fails_naming_the_variable_that_moves_it` beside them; the
-pinned runner (`the_block_that_decides_isolation_is_the_one_written_down`);
+the compose file and `.env.example` to the reader both ways — every port required and none
+defaulted, and both written empty in the example, which writes no url;
+`a_stack_binds_its_checkouts_ports_unless_a_variable_moves_one`,
+`a_port_something_else_holds_fails_naming_the_variable_that_moves_it` and
+`a_bind_refused_for_another_reason_is_refused_with_that_reason` beside them, and
+`each_port_is_asked_of_the_service_that_publishes_it`, which holds the service and the
+container port `dev` asks compose about to the compose file; the pinned runner
+(`the_block_that_decides_isolation_is_the_one_written_down`);
 `every_compose_this_tree_starts_is_handed_the_checkouts_ports` in `xtask/src/gates.rs`,
 which reads every Rust file of every member, holds each `docker compose` it starts to that
 hand-off with no other call on the child's environment, and names the three places — read
@@ -1666,13 +1673,15 @@ job, which sets no `DATABASE_URL`, so the gate's url is derived from the runner'
 as `dev`'s stack was.
 
 **Not answered:** a port taken between `dev`'s look and compose's bind, which compose then
-refuses in its own words, naming both variables; two accounts in one checkout, which share
-its stack (**What is deliberately not claimed**); a `docker compose` typed by hand, which is
-handed whatever ports its shell exports; and one the census cannot read as a compose — a
-program not written as the literal `"docker"`, or a verb assembled from pieces — which
-`dev.rs` refuses in that file, where every process it starts is counted and its runner is
-pinned whole, and nothing refuses in another; and a port read by a name built at run time,
-as `dev::port` itself reads it, which the census of names cannot tell from that reader.
+refuses in its own words, naming both variables; a port below 1024 that a rootful Docker
+could publish, which `dev` refuses because this user cannot bind it to ask; two accounts in
+one checkout, which share its stack (**What is deliberately not claimed**); a
+`docker compose` typed by hand, which is handed whatever ports its shell exports; and one
+the census cannot read as a compose — a program not written as the literal `"docker"`, or a
+verb assembled from pieces — which `dev.rs` refuses in that file, where every process it
+starts is counted and its runner is pinned whole, and nothing refuses in another; and a
+port read by a name built at run time, as `dev::port` itself reads it, which the census of
+names cannot tell from that reader.
 
 ### Secrets are environment variables, and `.env` is not a file here
 

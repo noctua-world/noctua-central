@@ -2549,8 +2549,9 @@ WEAKENINGS = [
      '    if health.is_empty() {\n        return Standing::NoHealthcheck(service.to_owned());\n    }',
      '    if health.is_empty() {\n        unhealthy.push(format!("{service} is starting"));\n        return Standing::NotYet;\n    }'),
 
-    # The stack's ports: the checkout's pair, moved only by its variable, and
-    # a port something else holds refused before compose runs.
+    # The stack's ports: the checkout's pair, moved only by its variable, a
+    # port something else holds refused before compose runs, and a port asked
+    # of the service that publishes it.
     ("dev", "of", "the log store is on the checkout's second port",
      '            Self::Logs => stack.logs,', '            Self::Logs => stack.postgres,'),
     ("dev", "port_of", "a port's variable moves the port",
@@ -2560,9 +2561,16 @@ WEAKENINGS = [
     ("dev", "free_or_this_stacks", "port zero is not a port",
      '.filter(|number| *number != 0)', '.filter(|_| true)'),
     ("dev", "free_or_this_stacks", "a port something else holds is refused",
-     '    if std::net::TcpListener::bind(("127.0.0.1", number)).is_ok() {', '    if true {'),
-    ("dev", "free_or_this_stacks", "a port is this stack's only where this project publishes it",
+     '    let bound = std::net::TcpListener::bind(("127.0.0.1", number)).map(drop);',
+     '    let bound = std::net::TcpListener::bind(("127.0.0.1", number)).map(drop).or(Ok(()));'),
+    ("dev", "bound_or_this_stacks", "a port is this stack's only where this project publishes it",
      'said.lines().any(|line| line.trim() == this_stacks)', '!said.is_empty()'),
+    ("dev", "bound_or_this_stacks", "a port is held only when its bind says it is in use",
+     '    if error.kind() == std::io::ErrorKind::AddrInUse {', '    if true {'),
+    ("dev", "published_by", "the log store's port is asked of the service that publishes it",
+     '            Self::Logs => ("logs", "9428"),', '            Self::Logs => ("postgres", "9428"),'),
+    ("dev", "published_by", "a port is asked at the container port its service publishes",
+     '            Self::Postgres => ("postgres", "5432"),', '            Self::Postgres => ("postgres", "9428"),'),
 
     # -- the policy step: criterion 11 -------------------------------------
     ("policy", "the_commands_a_schema_cannot_apply", "a resource its action cannot reach is fine",

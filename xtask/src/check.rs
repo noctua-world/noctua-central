@@ -7872,7 +7872,7 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// constant**, as `OPERATORS` is: one copy rather than one per use, and nothing
 /// reads it at compile time.
 #[cfg(test)]
-static WHAT_THE_GATE_CAN_SAY: [&str; 1050] = [
+static WHAT_THE_GATE_CAN_SAY: [&str; 1051] = [
     // The workflows' bounds (`xtask/src/workflow.rs`): what `.github/` may hold,
     // the authority each workflow opens with, the pins, and how the release is
     // made; and the `CI` step's two verdicts about them.
@@ -8207,6 +8207,7 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1050] = [
     "and {} more — `cargo deny check` prints them all",
     "both bind to loopback only; `cargo xtask dev --down` removes them and their data",
     "127.0.0.1:{number}, where this checkout's {service} listens, is held by something this checkout's stack does not run — another checkout's stack on the same pair, or anything else listening there. Export `{variable}` with a free port and run `cargo xtask dev` again; `docker ps` says whether a stack holds it",
+    "127.0.0.1:{number}, where this checkout's {service} listens, could not be bound to ask whether it is free ({error}), and this checkout's stack does not publish it. Export `{variable}` with a port this user can bind and run `cargo xtask dev` again",
     "`{variable}` is {at:?}, which is not a port. Unset it for this checkout's own, or set it to a port from 1 to 65535",
     "the ports are this checkout's, and `POSTGRES_PORT` and `LOGS_PORT` move them; a tool outside `cargo xtask` is told them by `export POSTGRES_PORT={postgres_port} LOGS_PORT={logs_port} DATABASE_URL={}`",
     "canaries",
@@ -19276,7 +19277,7 @@ mod the_frozen_path_rule {
         ("xtask/counts.rs", 45, 29),
         ("xtask/database.rs", 30, 6),
         ("xtask/determinism.rs", 29, 11),
-        ("xtask/dev.rs", 70, 8),
+        ("xtask/dev.rs", 73, 8),
         ("xtask/docs.rs", 8, 1),
         ("xtask/every_generated_value_is_compared.rs", 30, 8),
         ("xtask/gates.rs", 223, 33),
@@ -25081,7 +25082,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15405;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15414;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25151,7 +25152,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 21664;
+    const THE_REARRANGEMENTS_JUDGED: usize = 21679;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25205,7 +25206,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **463 of 21,664 are accepted by the first-line
+    /// rules the gates apply: **463 of 21,679 are accepted by the first-line
     /// rule alone, and 239 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -36162,7 +36163,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1756] = [
+    static OPERATORS: [(&str, &str, &str); 1759] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -38624,8 +38625,23 @@ Options:
         ),
         (
             "dev",
-            "free_or_this_stacks",
+            "bound_or_this_stacks",
             "a port is this stack's only where this project publishes it",
+        ),
+        (
+            "dev",
+            "bound_or_this_stacks",
+            "a port is held only when its bind says it is in use",
+        ),
+        (
+            "dev",
+            "published_by",
+            "the log store's port is asked of the service that publishes it",
+        ),
+        (
+            "dev",
+            "published_by",
+            "a port is asked at the container port its service publishes",
         ),
         (
             "policy",
