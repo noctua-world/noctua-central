@@ -12742,12 +12742,14 @@ fn dependencies(root: &Path, offline: bool, failures: &mut Vec<String>, audit: A
                 // **A failure, not a warning line.** Criterion 1 is "no failures
                 // **and no warnings**", and a gate that printed them and passed
                 // would leave that sentence enforced by nobody. Every warning
-                // cargo-deny emits here is
-                // a statement that the `bans.skip` list has rotted:
-                // `unmatched-skip` names a crate that left the tree,
-                // `unnecessary-skip` one that no longer has two versions, and
-                // `duplicate` one that acquired a second. Each is a list to
-                // correct, which is exactly what a gate is for.
+                // cargo-deny emits here names a `deny.toml` list that has
+                // rotted: `unmatched-skip` names a crate that left the tree,
+                // `unnecessary-skip` one that no longer has two versions,
+                // `duplicate` one that acquired a second, and
+                // `advisory-not-detected` an entry of `[advisories] ignore` no
+                // crate in the lock matches any more, which is how an advisory
+                // left out of the audit leaves it. Each is a list to correct,
+                // which is exactly what a gate is for.
                 ui::failure(&format!(
                     "{} dependency warning(s), and criterion 1 is no failures and no \
                      warnings. Each names a `deny.toml` entry to correct",
