@@ -159,13 +159,18 @@ mod tests {
     use nc_catalog::ErrorCode;
 
     fn an_install(log_endpoint: Option<&str>) -> nc_channel::Install {
+        // Bases absolute on every system and never made: only the install's
+        // central log is read.
+        let nowhere = std::env::current_exe()
+            .expect("this test binary")
+            .with_file_name("nowhere");
         nc_channel::Install {
             channel: nc_channel::Channel::Staging,
             bases: nc_channel::Bases::new(
-                "/nowhere/data".into(),
-                "/nowhere/config".into(),
-                "/nowhere/cache".into(),
-                "/nowhere/state".into(),
+                nowhere.join("data"),
+                nowhere.join("config"),
+                nowhere.join("cache"),
+                nowhere.join("state"),
             )
             .expect("plain bases"),
             namespace: None,
