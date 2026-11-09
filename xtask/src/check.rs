@@ -19165,7 +19165,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 152] = [
+    const DOCUMENTED: [(&str, usize, usize); 153] = [
         ("nc-authz/directory.rs", 28, 13),
         ("nc-authz/embedded.rs", 12, 4),
         ("nc-authz/lib.rs", 30, 19),
@@ -19272,7 +19272,8 @@ mod the_frozen_path_rule {
         ("nc-log/lib.rs", 19, 25),
         ("nc-log/ship.rs", 106, 50),
         ("nc-log/value.rs", 18, 36),
-        ("nc-platform/lib.rs", 45, 21),
+        ("nc-platform/lib.rs", 45, 22),
+        ("nc-platform/service.rs", 132, 18),
         ("nc-platform/testing.rs", 24, 1),
         ("nc-platform/unix.rs", 46, 2),
         ("nc-platform/windows.rs", 84, 11),
@@ -22095,8 +22096,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 559 scratches this tree
-    /// builds, 472 of the 559 are removed however the test leaves and 87 are
+    /// directories accumulated in an afternoon. Of the 564 scratches this tree
+    /// builds, 477 of the 564 are removed however the test leaves and 87 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22162,7 +22163,7 @@ mod the_frozen_path_rule {
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 35] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 36] = [
         ("nc-catalog-compiler/ledger.rs", 1, 0),
         ("nc-catalog-compiler/the_gates_fire.rs", 149, 149),
         (
@@ -22180,6 +22181,7 @@ mod the_frozen_path_rule {
         ("nc-local/opening_refuses_what_it_did_not_make.rs", 43, 43),
         ("nc-local/the_local_journal.rs", 9, 9),
         ("nc-platform/lib.rs", 14, 14),
+        ("nc-platform/service.rs", 5, 5),
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
         ("nc-prune/in_sqlite.rs", 13, 13),
         ("xtask/build.rs", 8, 8),
@@ -25107,7 +25109,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15556;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15800;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25126,7 +25128,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3199;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3345;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25143,7 +25145,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1050;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1100;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25177,7 +25179,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 21901;
+    const THE_REARRANGEMENTS_JUDGED: usize = 22150;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25195,7 +25197,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 480;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 481;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -25231,7 +25233,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **480 of 21,901 are accepted by the first-line
+    /// rules the gates apply: **481 of 22,150 are accepted by the first-line
     /// rule alone, and 256 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25264,7 +25266,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1050 of
+    /// this tree offers, **1100 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -33915,10 +33917,14 @@ mod the_meta_gate {
         for filter in &filters {
             let named = filter.trim_end_matches("::");
             // The module may belong to `xtask` or to the crate whose own suite
-            // decides a source; both are `<package root>/src/<name>.rs`.
+            // decides a source; each is `<package root>/src/<name>.rs`. Two
+            // crates' suites are narrowed to a module: the compiler's, and
+            // `nc-platform`'s, whose service module runs apart from the tests
+            // that register a real service.
             let candidates = [
                 root.join(format!("xtask/src/{named}.rs")),
                 root.join(format!("crates/nc-catalog-compiler/src/{named}.rs")),
+                root.join(format!("crates/nc-platform/src/{named}.rs")),
             ];
             let found = candidates.iter().find(|path| path.is_file());
             let Some(path) = found else {
@@ -36156,7 +36162,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 166,
+            walked, 167,
             "{walked} Rust source(s) were walked, and this tree holds 119. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -36196,7 +36202,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1773] = [
+    static OPERATORS: [(&str, &str, &str); 1800] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -44086,6 +44092,137 @@ Options:
         ("channel", "spelled", "a spelled character opens with `_`"),
         ("channel", "spelled", "a spelled character closes with `_`"),
         ("channel", "spelled", "nobody is written as somebody"),
+        (
+            "platform_service",
+            "systemd_word",
+            "a `%` in a unit is written twice",
+        ),
+        (
+            "platform_service",
+            "systemd_word",
+            "a `$` in a unit is written twice",
+        ),
+        (
+            "platform_service",
+            "systemd_word",
+            "a quote inside a unit's word is escaped",
+        ),
+        (
+            "platform_service",
+            "systemd_word",
+            "a backslash inside a unit's word is escaped",
+        ),
+        (
+            "platform_service",
+            "systemd_unit",
+            "a description keeps its `%` from systemd's specifiers",
+        ),
+        (
+            "platform_service",
+            "systemd_unit",
+            "a unit restarts on failure",
+        ),
+        (
+            "platform_service",
+            "xml_text",
+            "an `&` in XML is its entity",
+        ),
+        ("platform_service", "xml_text", "a `<` in XML is its entity"),
+        (
+            "platform_service",
+            "windows_argument",
+            "a run of backslashes before a quote is doubled",
+        ),
+        (
+            "platform_service",
+            "windows_argument",
+            "a word holding a space is quoted",
+        ),
+        (
+            "platform_service",
+            "windows_argument",
+            "the backslashes before the closing quote are doubled",
+        ),
+        (
+            "platform_service",
+            "task_xml",
+            "a `%` is refused where Task Scheduler expands it",
+        ),
+        (
+            "platform_service",
+            "utf16_with_its_mark",
+            "a task's XML carries its byte-order mark",
+        ),
+        (
+            "platform_service",
+            "in_an_absolute_entry",
+            "a relative entry of PATH is never searched",
+        ),
+        (
+            "platform_service",
+            "found",
+            "the runtime directory is handed to systemctl where it is unset",
+        ),
+        (
+            "platform_service",
+            "found",
+            "a relative runtime directory is not taken",
+        ),
+        (
+            "platform_service",
+            "ran_since",
+            "a restart of systemd's is counted, not assumed",
+        ),
+        (
+            "platform_service",
+            "ran_since",
+            "a run of launchd's is counted, not assumed",
+        ),
+        (
+            "platform_service",
+            "ran_since",
+            "a task ran again only when its last run moved",
+        ),
+        (
+            "platform_service",
+            "running",
+            "a unit runs only with a process",
+        ),
+        (
+            "platform_service",
+            "from_launchctl_print",
+            "a line of a nested block is not the service's own",
+        ),
+        (
+            "platform_service",
+            "launchd_labels",
+            "the services block alone is read",
+        ),
+        (
+            "platform_service",
+            "csv_fields",
+            "a doubled quote inside a field is one quote",
+        ),
+        (
+            "platform_service",
+            "takes",
+            "a systemd name ends in `.service`",
+        ),
+        (
+            "platform_service",
+            "is_a_plain_name",
+            "a name opens with a letter or a digit",
+        ),
+        (
+            "platform_service",
+            "described",
+            "a control character is refused",
+        ),
+        (
+            "platform_service",
+            "described",
+            "a program is an absolute path",
+        ),
     ];
 
     /// The prefix Python reads in front of the quote at `at`, lower-cased.

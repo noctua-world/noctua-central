@@ -13,6 +13,13 @@
 //! The local database's open (`nc_local`) and the kernel's blob directory are
 //! the two callers, and this crate is what both need, and no more.
 //!
+//! **And a program registered with this system's service manager**
+//! ([`service`]), for an installer and the tests that stand in for one: its
+//! definition written in the format the manager reads, and the manager's tool
+//! asked by an absolute path. That module is compiled on every system, so the
+//! Linux job tests every manager's half of it, and which manager a system
+//! has is one constant, [`service::MANAGER`].
+//!
 //! # What private is, on each system
 //!
 //! - **Who.** Unix: the user that owns a probe file this process makes in the
@@ -74,6 +81,7 @@
 // doctest is a crate of its own, outside the root's lints.
 #![doc(test(attr(forbid(unsafe_code))))]
 
+pub mod service;
 pub mod testing;
 mod unix;
 // **The one module of this tree that writes `unsafe`**, and the one place it

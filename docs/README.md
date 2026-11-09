@@ -28,6 +28,10 @@ detects it and says so.
   down twice. CI installs from the same file, with `rustup toolchain install` and
   no toolchain named, so no workflow names a toolchain of its own.
 - **Docker**, for the local stack — PostgreSQL and the central log store.
+- **A user service manager, on Linux**: systemd's, running for your user, so that
+  `systemctl --user` answers. The gate's own tests register short-lived units with it,
+  under a name that carries this checkout, only in `$XDG_RUNTIME_DIR/systemd/user`, and
+  remove them; on macOS and Windows the system's own manager is always there.
 - **cargo-deny**, for the dependency audit the gate runs:
   `cargo install --locked cargo-deny`.
 

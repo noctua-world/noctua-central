@@ -484,6 +484,14 @@ SOURCES = {
     "platform": os.path.join(ROOT, "crates/nc-platform/src/lib.rs"),
     "platform_unix": os.path.join(ROOT, "crates/nc-platform/src/unix.rs"),
     "platform_testing": os.path.join(ROOT, "crates/nc-platform/src/testing.rs"),
+    # **A program registered with this system's service manager**: the three
+    # generators and the escaping each format needs, the commands each manager
+    # is asked and the readers of what it answers. Decided by the module's own
+    # tests over texts written out whole and answers recorded from each
+    # manager — never by the two beside them that register a real service,
+    # which the command below skips, since a run of those per operator would
+    # register a unit with the developer's manager hundreds of times.
+    "platform_service": os.path.join(ROOT, "crates/nc-platform/src/service.rs"),
     "local_schema": os.path.join(ROOT, "crates/nc-local/src/schema.rs"),
     "local_store": os.path.join(ROOT, "crates/nc-local/src/store.rs"),
     # **The journal's store on the person's machine**: the link and a unit's
@@ -6409,6 +6417,89 @@ WEAKENINGS = [
     ("channel", "spelled", "nobody is written as somebody",
      "        out.push('_');\n    }\n    out\n}",
      "    }\n    out\n}"),
+
+    # -- platform_service: a program registered with the service manager ---
+    ("platform_service", "systemd_word", "a `%` in a unit is written twice",
+     "'%' => out.push_str(\"%%\"),",
+     "'%' => out.push('%'),"),
+    ("platform_service", "systemd_word", "a `$` in a unit is written twice",
+     "'$' => out.push_str(\"$$\"),",
+     "'$' => out.push('$'),"),
+    ("platform_service", "systemd_word", "a quote inside a unit's word is escaped",
+     "'\"' => out.push_str(\"\\\\\\\"\"),",
+     "'\"' => out.push('\"'),"),
+    ("platform_service", "systemd_word", "a backslash inside a unit's word is escaped",
+     "'\\\\' => out.push_str(\"\\\\\\\\\"),",
+     "'\\\\' => out.push('\\\\'),"),
+    ("platform_service", "systemd_unit", "a description keeps its `%` from systemd's specifiers",
+     "service.description.replace('%', \"%%\"),",
+     "service.description.clone(),"),
+    ("platform_service", "systemd_unit", "a unit restarts on failure",
+     "         ExecStart={}\\n\\\n         Restart=on-failure\\n\\",
+     "         ExecStart={}\\n\\\n         Restart=no\\n\\"),
+    ("platform_service", "xml_text", "an `&` in XML is its entity",
+     "'&' => out.push_str(\"&amp;\"),",
+     "'&' => out.push('&'),"),
+    ("platform_service", "xml_text", "a `<` in XML is its entity",
+     "'<' => out.push_str(\"&lt;\"),",
+     "'<' => out.push('<'),"),
+    ("platform_service", "windows_argument", "a run of backslashes before a quote is doubled",
+     "out.extend(core::iter::repeat_n('\\\\', backslashes + 1));",
+     "out.extend(core::iter::repeat_n('\\\\', 1));"),
+    ("platform_service", "windows_argument", "a word holding a space is quoted",
+     "argument.contains([' ', '\\t', '\"'])",
+     "argument.contains(['\\t', '\"'])"),
+    ("platform_service", "windows_argument", "the backslashes before the closing quote are doubled",
+     "        out.extend(core::iter::repeat_n('\\\\', backslashes));\n",
+     "        out.extend(core::iter::repeat_n('\\\\', 0));\n"),
+    ("platform_service", "task_xml", "a `%` is refused where Task Scheduler expands it",
+     "service.words().find(|word| word.contains('%'))",
+     "service.words().find(|_| false)"),
+    ("platform_service", "utf16_with_its_mark", "a task's XML carries its byte-order mark",
+     "let mut bytes = vec![0xFF, 0xFE];",
+     "let mut bytes = Vec::new();"),
+    ("platform_service", "in_an_absolute_entry", "a relative entry of PATH is never searched",
+     ".filter(|entry| entry.is_absolute())",
+     ".filter(|_| true)"),
+    ("platform_service", "found", "the runtime directory is handed to systemctl where it is unset",
+     "vec![(\"XDG_RUNTIME_DIR\".to_owned(), runtime)],",
+     "Vec::new(),"),
+    ("platform_service", "found", "a relative runtime directory is not taken",
+     ".filter(|runtime| runtime.is_absolute());",
+     ".filter(|_| true);"),
+    ("platform_service", "ran_since", "a restart of systemd's is counted, not assumed",
+     "=> restarts > was,",
+     "=> restarts >= was,"),
+    ("platform_service", "ran_since", "a run of launchd's is counted, not assumed",
+     "=> runs > was,",
+     "=> runs >= was,"),
+    ("platform_service", "ran_since", "a task ran again only when its last run moved",
+     "last_run != was",
+     "last_run == was"),
+    ("platform_service", "running", "a unit runs only with a process",
+     "active_state == \"active\" && *main_pid != 0",
+     "active_state == \"active\""),
+    ("platform_service", "from_launchctl_print", "a line of a nested block is not the service's own",
+     "let Some(property) = line.strip_prefix('\\t') else {",
+     "let Some(property) = Some(line.trim_start()) else {"),
+    ("platform_service", "launchd_labels", "the services block alone is read",
+     "inside = trimmed == \"services = {\";",
+     "inside = true;"),
+    ("platform_service", "csv_fields", "a doubled quote inside a field is one quote",
+     "'\"' if quoted && characters.peek() == Some(&'\"') => {",
+     "'\"' if false => {"),
+    ("platform_service", "takes", "a systemd name ends in `.service`",
+     "Self::Systemd => name.strip_suffix(\".service\"),",
+     "Self::Systemd => Some(name),"),
+    ("platform_service", "is_a_plain_name", "a name opens with a letter or a digit",
+     ".is_some_and(|first| first.is_ascii_alphanumeric())",
+     ".is_some_and(|_| true)"),
+    ("platform_service", "described", "a control character is refused",
+     "if word.chars().any(char::is_control) {",
+     "if false {"),
+    ("platform_service", "described", "a program is an absolute path",
+     "if !program.is_absolute() {",
+     "if false {"),
 ]
 
 TOUCH = ["find", "crates", "xtask", "-name", "*.rs", "-exec", "touch", "{}", "+"]
@@ -6680,6 +6771,14 @@ ELSEWHERE = {
     "platform": ["cargo", "test", "-q", "-p", "nc-platform"],
     "platform_unix": ["cargo", "test", "-q", "-p", "nc-platform"],
     "platform_testing": ["cargo", "test", "-q", "-p", "nc-platform"],
+    # **The service manager's module, by its own tests alone**: the
+    # generators' texts, the escaping, the readers and the commands — and not
+    # the two that register a real service, which judge none of its clauses.
+    # The three rows above run the whole crate, those two among it, because a
+    # filter cannot reach the tests of a crate's root: each operator over them
+    # registers two scratch units under the test prefix, each guarded and
+    # swept.
+    "platform_service": ["cargo", "test", "-q", "-p", "nc-platform", "--", "service::", "--skip", "with_the_manager"],
     # The pruner's crate, whose `in_sqlite.rs` needs no service.
     "prune_sqlite": ["cargo", "test", "-q", "-p", "nc-prune"],
     # **Built, not tested.** Each of these is compiled for `wasm32` alone, so

@@ -36,6 +36,10 @@ windows-sys = { version = "0.61", features = [
 # crate's suite and the suite can stage a path another user can reach. Cargo
 # resolves it to this same unit, so nothing is built twice.
 nc-platform = { path = ".", features = ["test-support"] }
+# **The checkout a scratch service is named for**, by the one function that
+# names a checkout, so a sweep of leftovers reaches this checkout's alone. A
+# test's dependency only: what ships names nothing.
+nc-channel.workspace = true
 
 # **The workspace's lints, written out, with one word changed.** The workspace
 # sets `unsafe_code = "forbid"`, and a `forbid` cannot be lifted by anything
