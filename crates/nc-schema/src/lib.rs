@@ -26,6 +26,10 @@
 //!
 //! `x-entity` is this platform's own keyword: it names the Cedar entity type a
 //! string argument identifies, which is what a `argument:<name>` selector reads.
+//! The annotations decide nothing, and are kept for [`Schema::arguments`], the
+//! view a command line is read through and help is printed from — beside each
+//! property, with the options of an `enum` in the order written, and outside
+//! the equality two schemas are compared by.
 //!
 //! # What this answers (`§2.4`)
 //!
@@ -72,19 +76,21 @@
 //! — and JSON's own whitespace, `\n`, `\r` and `\t`, is all the schema rule
 //! exempts from them.
 //!
+//! **A character spelled as a JSON escape is refused once it is decoded**, in
+//! a title, a description, a property's name and an `enum`'s option:
+//! `\u202e` is six characters a reviewer sees in the text, which the rule
+//! above reads, and the string it parses to holds the override itself, which
+//! help would print to a terminal — `\u001b[2J` in a description clears the
+//! screen of whoever asks what a command takes. Every character [`unseen`]
+//! answers for is refused there, JSON's whitespace included, which inside a
+//! string is a line break a printer would start a forged line with.
+//!
 //! # What this deliberately does not answer
 //!
 //! Whether an identifier names an entity that exists is the decision point's
 //! question, and an unknown one is denied by default there. The size of the
 //! arguments and their parse — duplicate keys, fractions, depth — are
 //! `nc-canon`'s, before anything here runs: this crate is handed a value.
-//!
-//! **A character spelled as a JSON escape is not refused.** `\u202e` is six
-//! characters a reviewer sees in the text, and the rule above is about that
-//! text; the string it parses to holds the override itself. Whoever writes a
-//! parsed schema out for an agent writes that character, and holding what it
-//! writes to [`INVISIBLE_RANGES`] is that writer's — a diagnostic here escapes
-//! it wherever a name is repeated.
 
 #![deny(clippy::print_stdout, clippy::print_stderr, clippy::dbg_macro)]
 // Every doctest of this crate forbids `unsafe` as the crate does: a
@@ -416,15 +422,81 @@ pub struct Schema {
 /// `properties`: a scan per argument key costs the product of the keys and
 /// the declared names, and a plugin's schema and a caller's arguments choose
 /// both, on the host, with no fuel to meter it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub(crate) struct Object {
     /// The declared properties, in the order the schema declares them.
     pub(crate) properties: Vec<(String, Node)>,
+    /// What a person is shown of each property, beside it in `properties`.
+    shown: Vec<Shown>,
     /// Where each declared name sits in `properties`.
     index: BTreeMap<String, usize>,
     /// The names an instance has to carry.
     required: BTreeSet<String>,
 }
+
+// **What a schema decides, and not what it shows.** Two schemas that refuse and
+// accept the same instances are one schema to the kernel, which holds a
+// plugin's declaration of a catalog command to the catalog's by this
+// equality: a title or a description reworded is not a different command.
+impl PartialEq for Object {
+    fn eq(&self, other: &Self) -> bool {
+        self.properties == other.properties
+            && self.index == other.index
+            && self.required == other.required
+    }
+}
+
+impl Eq for Object {}
+
+/// What a person is shown of one property: its title and its description,
+/// each decoded and held to [`unseen`] when the schema was compiled.
+#[derive(Debug, Clone, Default)]
+struct Shown {
+    /// The property's `title`, where it has one.
+    title: Option<String>,
+    /// The property's `description`, where it has one.
+    description: Option<String>,
+}
+
+impl Shown {
+    /// The annotations `property` carries, read once it has compiled.
+    fn of(property: &Map<String, Value>) -> Self {
+        let text = |annotation: &str| {
+            property
+                .get(annotation)
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        };
+        Self {
+            title: text("title"),
+            description: text("description"),
+        }
+    }
+}
+
+/// The strings a string's `enum` lists: a set a value is looked up in, and
+/// the order the schema wrote them in, which help lists them by.
+#[derive(Debug, Clone)]
+pub(crate) struct Options {
+    /// The options, as a set.
+    ///
+    /// A string is looked up in it: a list scanned per string costs the
+    /// product of the options and the strings, both chosen by whoever writes
+    /// the schema and the arguments, on the host, with no fuel to meter it.
+    set: BTreeSet<String>,
+    /// The same options, in the order the schema writes them.
+    written: Vec<String>,
+}
+
+// The set alone: the order the options are written in is shown, and decides
+// nothing, as an annotation does.
+impl PartialEq for Options {
+    fn eq(&self, other: &Self) -> bool {
+        self.set == other.set
+    }
+}
+
+impl Eq for Options {}
 
 impl Object {
     /// The schema a declared property carries.
@@ -446,13 +518,8 @@ pub(crate) enum Node {
     String {
         min_length: Option<u64>,
         max_length: Option<u64>,
-        /// The options `enum` lists, as a set rather than the list written.
-        ///
-        /// A string is looked up in it: a list scanned per string costs the
-        /// product of the options and the strings, both chosen by whoever
-        /// writes the schema and the arguments, on the host, with no fuel to
-        /// meter it.
-        one_of: Option<BTreeSet<String>>,
+        /// The options `enum` lists.
+        one_of: Option<Options>,
         entity: Option<String>,
     },
     Integer {
@@ -549,6 +616,119 @@ impl Schema {
     /// The top-level object, which a selector reads its property from.
     pub(crate) fn root(&self) -> &Object {
         &self.root
+    }
+
+    /// Every top-level argument, as a person is shown it: in the order the
+    /// schema declares them, each with whether it is required, its title and
+    /// its description, and the shape a value of it takes.
+    ///
+    /// **A view, and nothing a caller builds a schema from**: what it reads is
+    /// what [`Schema::compile`] kept, so the arguments a command line is read
+    /// into are the properties [`Schema::validate`] holds it to.
+    #[must_use]
+    pub fn arguments(&self) -> Vec<Argument<'_>> {
+        arguments_of(&self.root)
+    }
+}
+
+/// One argument of a command, as a person is shown it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Argument<'a> {
+    /// Its name, as the schema declares it.
+    pub name: &'a str,
+    /// Whether an instance has to carry it.
+    pub required: bool,
+    /// Its `title`, where it has one.
+    pub title: Option<&'a str>,
+    /// Its `description`, where it has one.
+    pub description: Option<&'a str>,
+    /// What a value of it is.
+    pub shape: Shape<'a>,
+}
+
+/// What a value of an argument is, with every bound the schema sets on it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Shape<'a> {
+    /// Text.
+    String {
+        /// The fewest characters it holds.
+        min_length: Option<u64>,
+        /// The most characters it holds.
+        max_length: Option<u64>,
+        /// The values `enum` allows, in the order the schema writes them.
+        options: Option<Vec<&'a str>>,
+        /// The Cedar entity type it names, from `x-entity`.
+        entity: Option<&'a str>,
+    },
+    /// A whole number that fits in 64 signed bits.
+    Integer {
+        /// The least it may be.
+        minimum: Option<i64>,
+        /// The most it may be.
+        maximum: Option<i64>,
+    },
+    /// True or false.
+    Boolean,
+    /// A list of values of one shape.
+    Array {
+        /// What each item is.
+        items: Box<Shape<'a>>,
+        /// The fewest items it holds.
+        min_items: Option<u64>,
+        /// The most items it holds.
+        max_items: Option<u64>,
+    },
+    /// An object, closed, with arguments of its own.
+    Object(Vec<Argument<'a>>),
+}
+
+/// The arguments `object` declares, in its order.
+fn arguments_of(object: &Object) -> Vec<Argument<'_>> {
+    object
+        .properties
+        .iter()
+        .zip(&object.shown)
+        .map(|((name, node), shown)| Argument {
+            name,
+            required: object.requires(name),
+            title: shown.title.as_deref(),
+            description: shown.description.as_deref(),
+            shape: shape_of(node),
+        })
+        .collect()
+}
+
+/// The shape `node` gives a value.
+fn shape_of(node: &Node) -> Shape<'_> {
+    match node {
+        Node::Object(object) => Shape::Object(arguments_of(object)),
+        Node::String {
+            min_length,
+            max_length,
+            one_of,
+            entity,
+        } => Shape::String {
+            min_length: *min_length,
+            max_length: *max_length,
+            options: one_of
+                .as_ref()
+                .map(|options| options.written.iter().map(String::as_str).collect()),
+            entity: entity.as_deref(),
+        },
+        Node::Integer { minimum, maximum } => Shape::Integer {
+            minimum: *minimum,
+            maximum: *maximum,
+        },
+        Node::Boolean => Shape::Boolean,
+        Node::Array {
+            items,
+            min_items,
+            max_items,
+        } => Shape::Array {
+            items: Box::new(shape_of(items)),
+            min_items: *min_items,
+            max_items: *max_items,
+        },
     }
 }
 
@@ -912,8 +1092,31 @@ fn the_kind_of(schema: &Map<String, Value>, path: &str, depth: usize) -> Result<
                 SchemaFault::WrongKeywordType(annotation),
             );
         }
+        // Decoded, as a help line prints it: the text rule above reads the
+        // escape `\u001b` as six characters a reviewer sees, and this reads
+        // the escape character it parses to.
+        if let Some(hidden) = schema
+            .get(annotation)
+            .and_then(Value::as_str)
+            .and_then(first_unseen)
+        {
+            return refused(
+                &joined(path, annotation),
+                SchemaFault::InvisibleCharacter(hidden),
+            );
+        }
     }
     Ok(kind)
+}
+
+/// The first character of a decoded string a reader sees nothing of.
+///
+/// **JSON's own whitespace is not exempt here**, as it is in a schema's text:
+/// inside a string a line break is a character a terminal acts on, written
+/// only as an escape, and an annotation, an option or a name holding one
+/// forges a line of whatever prints it.
+fn first_unseen(text: &str) -> Option<char> {
+    text.chars().find(|character| unseen(*character))
 }
 
 /// Compiles an object schema's properties and the ones it requires.
@@ -926,6 +1129,7 @@ fn compile_object(
         return refused(path, SchemaFault::OpenObject);
     }
     let mut properties = Vec::new();
+    let mut shown = Vec::new();
     let mut index = BTreeMap::new();
     if let Some(declared) = schema.get("properties") {
         let under = joined(path, "properties");
@@ -934,11 +1138,17 @@ fn compile_object(
         };
         for (name, property) in declared {
             let at = joined(&under, name);
+            // A name is a flag a person types and a line help prints, so one
+            // holding an escape character is refused as an annotation is.
+            if let Some(hidden) = first_unseen(name) {
+                return refused(&at, SchemaFault::InvisibleCharacter(hidden));
+            }
             let Some(property) = property.as_object() else {
                 return refused(&at, SchemaFault::WrongKeywordType("properties"));
             };
             index.insert(name.clone(), properties.len());
             properties.push((name.clone(), compile_node(property, &at, depth + 1)?));
+            shown.push(Shown::of(property));
         }
     }
     let mut required = BTreeSet::new();
@@ -963,6 +1173,7 @@ fn compile_object(
     }
     Ok(Object {
         properties,
+        shown,
         index,
         required,
     })
@@ -981,18 +1192,31 @@ fn compile_string(schema: &Map<String, Value>, path: &str) -> Result<Node, Schem
         None => None,
         Some(Value::Array(listed)) => {
             let mut options = BTreeSet::new();
+            let mut written = Vec::new();
             for option in listed {
                 let Some(option) = option.as_str() else {
                     return refused(&joined(path, "enum"), SchemaFault::WrongKeywordType("enum"));
                 };
+                // An option is a value a person types and help lists, so it
+                // is held to the same characters as a name.
+                if let Some(hidden) = first_unseen(option) {
+                    return refused(
+                        &joined(path, "enum"),
+                        SchemaFault::InvisibleCharacter(hidden),
+                    );
+                }
                 if !options.insert(option.to_owned()) {
                     return refused(&joined(path, "enum"), SchemaFault::EnumEmptyOrDuplicate);
                 }
+                written.push(option.to_owned());
             }
             if options.is_empty() {
                 return refused(&joined(path, "enum"), SchemaFault::EnumEmptyOrDuplicate);
             }
-            Some(options)
+            Some(Options {
+                set: options,
+                written,
+            })
         }
         Some(_) => return refused(&joined(path, "enum"), SchemaFault::WrongKeywordType("enum")),
     };
@@ -1179,7 +1403,7 @@ fn check(node: &Node, value: &Value, path: &mut String, found: &mut Vec<Violatio
             }
             if one_of
                 .as_ref()
-                .is_some_and(|options| !options.contains(text))
+                .is_some_and(|options| !options.set.contains(text))
             {
                 note(found, path, ViolationKind::NotOneOf);
             }
@@ -1665,6 +1889,210 @@ mod tests {
             .expect("an object with no properties takes no arguments");
         assert_eq!(empty.properties(), [] as [&str; 0]);
         assert!(empty.validate(&json!({})).is_ok());
+    }
+
+    /// Every argument is shown as the schema declares it: in its order, with
+    /// whether it is required, its annotations, every bound, the options in
+    /// the order written rather than sorted, and an object's own arguments.
+    #[test]
+    fn the_arguments_are_shown_as_the_schema_declares_them() {
+        use super::{Argument, Shape};
+        let schema = Schema::compile(
+            r#"{"type":"object","additionalProperties":false,"title":"top","properties":{
+                "zeta":{"type":"string","title":"Z","description":"the last letter",
+                        "minLength":1,"maxLength":8,"enum":["b","a"],"x-entity":"Content"},
+                "count":{"type":"integer","minimum":-3,"maximum":3},
+                "flag":{"type":"boolean","description":"on or off"},
+                "list":{"type":"array","items":{"type":"integer","maximum":9},"minItems":1,"maxItems":2},
+                "inner":{"type":"object","additionalProperties":false,
+                         "properties":{"x":{"type":"boolean","title":"X"}},"required":["x"]}},
+              "required":["count","zeta"]}"#,
+        )
+        .expect("inside the subset");
+        assert_eq!(
+            schema.arguments(),
+            [
+                Argument {
+                    name: "zeta",
+                    required: true,
+                    title: Some("Z"),
+                    description: Some("the last letter"),
+                    shape: Shape::String {
+                        min_length: Some(1),
+                        max_length: Some(8),
+                        options: Some(vec!["b", "a"]),
+                        entity: Some("Content"),
+                    },
+                },
+                Argument {
+                    name: "count",
+                    required: true,
+                    title: None,
+                    description: None,
+                    shape: Shape::Integer {
+                        minimum: Some(-3),
+                        maximum: Some(3),
+                    },
+                },
+                Argument {
+                    name: "flag",
+                    required: false,
+                    title: None,
+                    description: Some("on or off"),
+                    shape: Shape::Boolean,
+                },
+                Argument {
+                    name: "list",
+                    required: false,
+                    title: None,
+                    description: None,
+                    shape: Shape::Array {
+                        items: Box::new(Shape::Integer {
+                            minimum: None,
+                            maximum: Some(9),
+                        }),
+                        min_items: Some(1),
+                        max_items: Some(2),
+                    },
+                },
+                Argument {
+                    name: "inner",
+                    required: false,
+                    title: None,
+                    description: None,
+                    shape: Shape::Object(vec![Argument {
+                        name: "x",
+                        required: true,
+                        title: Some("X"),
+                        description: None,
+                        shape: Shape::Boolean,
+                    }]),
+                },
+            ]
+        );
+        let empty = Schema::compile(r#"{"type":"object","additionalProperties":false}"#)
+            .expect("an object with no properties takes no arguments");
+        assert_eq!(empty.arguments(), [] as [Argument<'_>; 0]);
+    }
+
+    /// What a schema shows is not what it is compared by: two schemas that
+    /// differ only in their annotations and in the order their options are
+    /// written are one schema to the kernel, which holds a plugin's
+    /// declaration of a catalog command to the catalog's by this equality,
+    /// while one that requires or allows another thing is another schema.
+    #[test]
+    fn what_a_schema_shows_is_not_what_it_is_compared_by() {
+        let compiled = |properties: &str, required: &str| {
+            Schema::compile(&closed(properties, required)).expect("inside the subset")
+        };
+        let written = compiled(
+            r#""a":{"type":"string","title":"A","description":"one","enum":["x","y"]}"#,
+            r#""a""#,
+        );
+        assert_eq!(
+            written,
+            compiled(
+                r#""a":{"type":"string","title":"B","description":"two","enum":["y","x"]}"#,
+                r#""a""#,
+            )
+        );
+        assert_eq!(
+            written,
+            compiled(r#""a":{"type":"string","enum":["x","y"]}"#, r#""a""#)
+        );
+        for other in [
+            compiled(r#""a":{"type":"string","enum":["x","y"]}"#, ""),
+            compiled(r#""a":{"type":"string","enum":["x","z"]}"#, r#""a""#),
+            compiled(r#""a":{"type":"string","enum":["x"]}"#, r#""a""#),
+            compiled(r#""b":{"type":"string","enum":["x","y"]}"#, r#""b""#),
+        ] {
+            assert_ne!(written, other);
+        }
+    }
+
+    /// A character a reader sees nothing of is refused once its escape is
+    /// decoded, wherever a printer would show it: a title, a description, a
+    /// property's name and an `enum`'s option, at the top and nested.
+    ///
+    /// **A real defect, closed here**: the text rule read the escape as the
+    /// six characters a reviewer sees, so `"description":"\u001b[2J"` compiled
+    /// and decoded to the escape character, which help printing what a command
+    /// takes would have sent to the terminal — the screen cleared by a
+    /// plugin's schema.
+    #[test]
+    fn a_character_a_reader_sees_nothing_of_is_refused_once_its_escape_is_decoded() {
+        for (escape, hidden) in [
+            ("\\u001b", '\u{1b}'),
+            ("\\n", '\n'),
+            ("\\t", '\t'),
+            ("\\u202e", '\u{202e}'),
+            ("\\u200b", '\u{200b}'),
+            ("\\ufe0f", '\u{fe0f}'),
+            ("\\udb40\\udc41", '\u{e0041}'),
+        ] {
+            for (text, at) in [
+                (
+                    closed(
+                        &format!(r#""p":{{"type":"boolean","description":"a{escape}[2J"}}"#),
+                        "",
+                    ),
+                    pointer(&["properties", "p", "description"]),
+                ),
+                (
+                    closed(
+                        &format!(r#""p":{{"type":"boolean","title":"a{escape}b"}}"#),
+                        "",
+                    ),
+                    pointer(&["properties", "p", "title"]),
+                ),
+                (
+                    format!(
+                        r#"{{"type":"object","additionalProperties":false,"description":"{escape}"}}"#
+                    ),
+                    pointer(&["description"]),
+                ),
+                (
+                    closed(
+                        &format!(
+                            r#""l":{{"type":"array","items":{{"type":"string","title":"{escape}"}}}}"#
+                        ),
+                        "",
+                    ),
+                    pointer(&["properties", "l", "items", "title"]),
+                ),
+                (
+                    closed(
+                        &format!(r#""p":{{"type":"string","enum":["ok","a{escape}"]}}"#),
+                        "",
+                    ),
+                    pointer(&["properties", "p", "enum"]),
+                ),
+            ] {
+                assert_eq!(
+                    refusal(&text),
+                    SchemaError {
+                        path: at,
+                        fault: SchemaFault::InvisibleCharacter(hidden)
+                    },
+                    "`{escape}` was accepted, decoded, in `{text}`"
+                );
+            }
+            let named = closed(&format!(r#""no{escape}te":{{"type":"boolean"}}"#), "");
+            assert_eq!(
+                refusal(&named).fault,
+                SchemaFault::InvisibleCharacter(hidden),
+                "`{escape}` was accepted, decoded, in a property's name"
+            );
+        }
+        // The control: an annotation, a name and an option a reader sees all
+        // of compile, escapes of visible characters included.
+        assert!(
+            Schema::compile(&closed(
+                r#""não":{"type":"string","title":"S\u00e3o","enum":["é","\u00e9x"]}"#,
+                "",
+            ))
+            .is_ok()
+        );
     }
 
     // --- one test per fault ---
@@ -2488,13 +2916,14 @@ mod tests {
     /// back as a diagnostic a megabyte long.
     #[test]
     fn a_pointer_repeats_a_name_escaped_and_cut_short() {
-        // `ESC [2J` clears a terminal's screen.
+        // `ESC [2J` clears a terminal's screen. The name is refused for it,
+        // at a pointer that repeats it escaped.
         let clearing = refusal(&closed(r#""\u001b[2Jx":{"type":"number"}"#, ""));
         let said = clearing.to_string();
         assert!(!said.chars().any(char::is_control), "{said:?}");
         assert_eq!(
             clearing.path,
-            pointer(&["properties", r"\u{1b}[2Jx", "type"]),
+            pointer(&["properties", r"\u{1b}[2Jx"]),
             "the name was dropped or mangled rather than escaped"
         );
 
@@ -2510,13 +2939,11 @@ mod tests {
         // The name twice, cut short, and the sentence around it.
         assert!(said.chars().count() < 2 * (EXCERPT + 1) + 256, "{said}");
 
-        // And in a violation, whose pointer and names are the schema's too.
-        let bell = closed(
-            r#""\u0007bell":{"type":"boolean"},"other":{"type":"boolean"}"#,
-            r#""\u0007bell""#,
-        );
-        let compiled = Schema::compile(&bell).expect("inside the subset");
-        for instance in [json!({"\u{7}bell": 1}), json!({"other": true})] {
+        // And in a violation, whose names are the arguments' where the schema
+        // declares none of them: a schema's own names hold no control.
+        let compiled = Schema::compile(&closed(r#""other":{"type":"boolean"}"#, r#""other""#))
+            .expect("inside the subset");
+        for instance in [json!({"\u{7}bell": 1}), json!({"other": 1})] {
             let refused = compiled.validate(&instance).expect_err("refused");
             for violation in refused {
                 let said = violation.to_string();
