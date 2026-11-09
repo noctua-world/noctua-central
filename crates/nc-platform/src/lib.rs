@@ -1466,7 +1466,8 @@ mod tests {
     /// endpoint's name — a file, a link, a dead socket another user owns — is
     /// refused and left as it was, where the endpoint is a name on disk; where
     /// it is not, the name at the socket's path is nothing a bind reads, and is
-    /// left alone.
+    /// left alone. A file put at the name while a listener lived is left as it
+    /// was when the listener is let go, on every system.
     ///
     /// **Another user's socket is judged with a forged user**, since no test
     /// can make a socket another user owns: what a bind makes of a real other
@@ -1511,14 +1512,25 @@ mod tests {
                     "a dead socket was changed by being judged"
                 );
             }
-            drop(
-                super::ipc::Listener::bind(&endpoint, &user, &instance, 4)
-                    .expect("a dead socket of this user's is replaced"),
-            );
+            let listener = super::ipc::Listener::bind(&endpoint, &user, &instance, 4)
+                .expect("a dead socket of this user's is replaced");
+            // While the listener lives, its socket goes and a file of this
+            // user's takes its name: a listener let go removes the socket it
+            // made and nothing put there since. A pipe never touches this
+            // path, so the file is kept on every system.
+            if testing::ENDPOINT_ON_DISK {
+                std::fs::remove_file(&endpoint.socket).expect("the listener's socket goes");
+            }
             super::create_private(&endpoint.socket)
                 .expect("a file at the socket's path")
                 .write_all(b"kept")
                 .expect("written");
+            drop(listener);
+            assert_eq!(
+                std::fs::read(&endpoint.socket).expect("still there"),
+                b"kept",
+                "a listener let go removed what was put at its name since"
+            );
             let target = scratch.0.join("target");
             drop(super::create_private(&target).expect("a file"));
             for (staged, says) in [("a file", "is not a socket"), ("a link", "symbolic link")] {

@@ -1743,7 +1743,8 @@ and never this process's own whichever end the child is, the peer predicate refu
 another user can reach the runtime directory refused with nothing bound, the endpoint
 read back as made (the socket's mode, the pipe's one entry), a name at the limit bound
 and one past it refused naming the limit, an endpoint something answers at not taken, a
-dead socket replaced and a file or a link at its name left as it was, a dead socket
+dead socket replaced and a file or a link at its name left as it was, a file put at a
+listener's name while it lived left as it was when the listener is let go, a dead socket
 another user owns refused and left as it was (judged with `testing::someone_else` as the
 user a bind runs as), an accept given up before a client came leaving the listener
 listening with a connection open and with none, the bound and a connection closed to
