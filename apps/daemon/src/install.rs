@@ -176,6 +176,23 @@ mod tests {
         );
     }
 
+    /// A binary reached through a link reads the manifest beside the file that
+    /// runs: the link is followed to it before anything is judged.
+    #[test]
+    fn a_binary_reached_through_a_link_reads_the_manifest_beside_the_file_that_runs() {
+        let scratch = Scratch::new("runs");
+        scratch.manifest(&scratch.a_good_manifest());
+        let elsewhere = Scratch::new("elsewhere");
+        let through = elsewhere.0.join("through");
+        nc_platform::testing::link_directory(&scratch.0, &through).expect("a link");
+        let found = super::beside(&through.join("noctua-daemon"))
+            .expect("the install beside the file that runs is read");
+        let direct = super::beside(&scratch.executable()).expect("the install is read");
+        assert_eq!(found.install, direct.install);
+        assert_eq!(found.layout, direct.layout);
+        assert!(found.layout.data.starts_with(&scratch.0));
+    }
+
     /// A binary with no manifest beside it refuses, naming where it looked.
     #[test]
     fn no_manifest_is_refused_and_no_channel_is_guessed() {

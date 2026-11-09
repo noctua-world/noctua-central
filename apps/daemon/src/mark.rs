@@ -433,6 +433,51 @@ mod tests {
         assert_eq!(super::barrier(Some(NOW + 60), Some(unit)), Some(NOW + 60));
     }
 
+    /// The minter a start hands back raises the mark before it hands out a
+    /// millisecond past it, on a profile's first start and on a resumed one,
+    /// so the mark the next start reads is above everything minted.
+    #[test]
+    fn a_minter_from_a_start_raises_the_mark_before_it_hands_out_past_it() {
+        let held = Scratch::new("minted");
+        let (path, user) = held.mark();
+        let mut earlier: Option<u64> = None;
+        for start in ["first", "resumed"] {
+            let (mark, read) = MarkFile::open(&path, &user).expect("opened");
+            assert_eq!(read, earlier, "the {start} start read another mark");
+            let at = earlier.map_or(NOW, |ceiling| ceiling + 10);
+            let clock = Set(Arc::new(AtomicU64::new(at)));
+            let mut minter = super::minter(
+                mark,
+                read,
+                None,
+                flake(),
+                &clock,
+                &nc_kernel::logging::Captured::default(),
+                &mut |_| panic!("the {start} start's clock is past its mark"),
+            )
+            .expect("the start resumes");
+            // Across more than one lease, so the mark is raised more than once.
+            let mut last = 0;
+            for _ in 0..3 {
+                last = minter.mint().expect("mints").millis_since_epoch() + EPOCH_MS;
+                clock.0.fetch_add(LEASE + 1, Ordering::SeqCst);
+            }
+            drop(minter);
+            let (_, read) = MarkFile::open(&path, &user).expect("reopened");
+            let Some(ceiling) = read else {
+                panic!("the {start} start minted with no ceiling written");
+            };
+            assert!(
+                ceiling >= last,
+                "the {start} start handed out {last} with the mark at {ceiling}"
+            );
+            if let Some(earlier) = earlier {
+                assert!(ceiling > earlier, "the resumed start never raised the mark");
+            }
+            earlier = Some(ceiling);
+        }
+    }
+
     /// A clock behind the mark by less than the lease is waited out with
     /// nothing logged; behind by more, the wait is logged once; and a mark more
     /// than a day ahead refuses the start.

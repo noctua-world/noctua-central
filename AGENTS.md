@@ -1705,7 +1705,8 @@ area at the first thing it cannot vouch for.
 - **The world is a file the installer copies in, read with the pack its realm selects**:
   the realm and the person a daemon decides as, each minted by `nc_authz::LocalWorld::parse`
   only for an entity the world holds, the person inside that realm (`NC-DMN-0005`,
-  `NC-DMN-0006`).
+  `NC-DMN-0006`). The copy is written beside it and renamed over it; one an interrupted
+  copy left there is removed only once it is judged this user's alone (`NC-DMN-0001`).
 - **No identifier is handed out past a ceiling that is not yet durable.** The minter asks
   the mark to raise its ceiling `mark_lease_ms` past the clock before it hands out a
   millisecond past the one it holds, and refuses before any identifier exists when the
@@ -1719,20 +1720,24 @@ area at the first thing it cannot vouch for.
   high-water mark.
 
 **Enforced by** the unit tests of each module in `apps/daemon/src/` — a missing, reachable
-and malformed manifest, every directory made private and judged again, a missing base
-not made on the way, a world copied, replaced and refused, in the profile as well as on
-its way in, a seed drawn once and never again, a record lost and written from its seed,
-each way a record is not the seed's, a seed, a record, a world and a mark another account
-can reach refused and left as they were, a raise read back from the other slot, a torn
-and a corrupt slot, a clock behind the mark by less and by more than the lease and by
-more than a day, the catalog's lease inside the drift a minter waits out, and the
-binary's invocations and exit codes — by `apps/daemon/tests/the_mark_survives_a_crash.rs`,
-where a child mints behind the real mark until it is killed, with its output still read,
-and every identifier it printed is held against a start from what it left, with the clock
-back by more than the lease and by more than a day, which repeats nothing and refuses
-respectively, by the ceiling's tests in `crates/nc-ids/src/snowflake.rs`, and by the
-operators over those sources in `xtask/mutants.py`, each judged by its own module's unit
-tests.
+and malformed manifest, a manifest read through a link beside the file that runs, every
+directory made private and judged again, a missing base not made on the way, a world
+copied, replaced and refused, in the profile as well as on its way in, a copy left beside
+the world removed and one another account can reach refused, a seed drawn once and never
+again, a record lost and written from its seed, each way a record is not the seed's, a
+seed, a record, a world and a mark another account can reach refused and left as they
+were, a raise read back from the other slot, a torn and a corrupt slot, the minter a first
+and a resumed start hands back raising the mark before it mints past it
+(`a_minter_from_a_start_raises_the_mark_before_it_hands_out_past_it`), a clock behind the
+mark by less and by more than the lease and by more than a day, the catalog's lease
+inside the drift a minter waits out, and the binary's invocations and exit codes — by
+`apps/daemon/tests/the_mark_survives_a_crash.rs`, where a child mints behind the real mark
+until it is killed, with its output still read, and every identifier it printed is held
+against a start from what it left, with the clock back by more than the lease and by more
+than a day, which repeats nothing and refuses respectively, and the mark the restarted
+start leaves is above everything it minted, by the ceiling's tests in
+`crates/nc-ids/src/snowflake.rs`, and by the operators over those sources in
+`xtask/mutants.py`, each judged by its own module's unit tests.
 
 **Not answered:** a process running as the same user, which can rewrite the manifest, the
 world or the mark, or delete the mark so that a start resumes from the local journal alone;
@@ -3535,7 +3540,7 @@ and `sqlx`, and are named because the kernel matches on a type of each.
 | `serde`, `serde_json`, `toml` | Reading the registries and writing canonical output, and reading a command's argument schema for `crates/nc-schema` to validate |
 | `proptest` | `§16.3` and `§16.4` have algebraic laws, and `§19.2` puts those under property test |
 | `clap`, `anstream`, `anstyle` | The command surface, in `xtask` only |
-| `ed25519-dalek` | A device's key (`NOCTUA.md §16.2`): the Ed25519 public key a profile's flake and its journal's keeper derive from, and the key iroh takes as the device's identity in Stage 25 (`§13.2`), at the major iroh pins — a cryptographic primitive, which `§2.3` names as not viable in-house. `default-features = false` and `zeroize` alone: no `rand_core`, because the seed is drawn by `nc_platform::random`; no `fast`, because one public key a start needs no precomputed tables. Its family arrives with it and adds nothing to write: `curve25519-dalek` (and `curve25519-dalek-derive`, its SIMD backend's macro), `ed25519` (the signature's type), `signature`, `fiat-crypto` (a backend compiled for some targets only), and `rustc_version`, which `curve25519-dalek`'s build script reads; `sha2` 0.11 and `subtle` are in the graph already. `cargo tree -i ed25519-dalek` says who takes it |
+| `ed25519-dalek` | A device's key (`NOCTUA.md §16.2`): the Ed25519 public key a profile's flake and its journal's keeper derive from, and the key iroh takes as the device's identity in Stage 25 (`§13.2`), at the major iroh pins — a cryptographic primitive, which `§2.3` names as not viable in-house. `default-features = false` and `zeroize` alone: no `rand_core`, because the seed is drawn by `nc_platform::random`; no `fast`, because the one public key a start derives needs no precomputed tables. Its family arrives with it and adds nothing to write: `curve25519-dalek` (and `curve25519-dalek-derive`, its SIMD backend's macro), `ed25519` (the signature's type), `signature`, `fiat-crypto` (a backend compiled for some targets only), and `rustc_version`, which `curve25519-dalek`'s build script reads; `sha2` 0.11 and `subtle` are in the graph already. `cargo tree -i ed25519-dalek` says who takes it |
 | `windows-sys` | The Win32 security calls of `crates/nc-platform`'s Windows half, and only there, compiled for a Windows target alone — decided on 2026-11-02: who the process token names (`OpenProcessToken`, `GetTokenInformation`), an access list built (`InitializeAcl`, `AddAccessAllowedAceEx`) and read (`GetSecurityInfo`, `GetAce`), a file and a directory created with a descriptor of their own (`CreateFileW`, `CreateDirectoryW`), and the system's random bytes, which a device's seed is drawn from (`BCryptGenRandom`); and, behind the test doors alone, a descriptor written onto one path through its handle (`SetKernelObjectSecurity`), from its text when it holds a conditional entry (`ConvertStringSecurityDescriptorToSecurityDescriptorW`). Not written here because the declarations — every structure's layout and every function's signature — would be ours to get right, with no compiler to check them against the system's. Version 0.61, which `tokio`'s `mio` already brings, so it adds no package; its features are the modules those calls are in, pinned in that crate's manifest. It is the one dependency whose calls are `unsafe`, and invariant 17 says how that is held |
 | `noctua-design` | The only cross-repository dependency this repository has: a `[workspace.dependencies]` path entry with the git-tag form in a comment above it (`NOCTUA.md §10.11`), reached by path while the two repositories are edited together. `noctua-colors` is reached **through** it and never directly (`§8.6`), which a gate holds |
 

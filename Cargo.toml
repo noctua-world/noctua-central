@@ -341,14 +341,16 @@ proptest = "1.11"
 
 # A device's key (`NOCTUA.md §16.2`): the Ed25519 public key a profile's flake
 # and its journal's keeper derive from, and the key iroh takes as the device's
-# identity in Stage 25 (`§13.2`), at the major iroh pins. A cryptographic primitive is what `§2.3`
-# names as not viable in-house. **`default-features = false`, `zeroize` alone**:
-# no `rand_core`, because the seed is drawn by `nc_platform::random` from the
-# system's own generator, which keeps a third `rand_core` out of the graph; no
-# `fast`, because one public key derived at each start needs no precomputed
-# tables; and `zeroize`, so a key is wiped when it is dropped. Its family —
-# `curve25519-dalek`, `ed25519`, `signature`, `subtle` — arrives with it, each
-# named in `AGENTS.md`'s table.
+# identity in Stage 25 (`§13.2`), at the major iroh pins. A cryptographic
+# primitive is what `§2.3` names as not viable in-house.
+# **`default-features = false`, `zeroize` alone**: no `rand_core`, because the
+# seed is drawn by `nc_platform::random` from the system's own generator, which
+# keeps a third `rand_core` out of the graph; no `fast`, because one public key
+# derived at each start needs no precomputed tables; and `zeroize`, so a key is
+# wiped when it is dropped. Its family — `curve25519-dalek` (with
+# `curve25519-dalek-derive`), `ed25519`, `signature`, `fiat-crypto` and
+# `rustc_version` — arrives with it, each named in `AGENTS.md`'s table;
+# `subtle` and `sha2` are in the graph already.
 ed25519-dalek = { version = "3.0", default-features = false, features = ["zeroize"] }
 
 # The ledger's checksum, which is what catches an edit made outside the compiler.

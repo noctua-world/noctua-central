@@ -153,7 +153,9 @@ fn pack_of(text: &str) -> Result<Pdp, String> {
 ///
 /// # Errors
 ///
-/// [`Refused::WorldUnreadable`] for a world that does not read, and
+/// [`Refused::WorldUnreadable`] for a world that does not read,
+/// [`Refused::NotPrivate`] for a configuration directory, or a copy left
+/// beside the world, that is not this user's alone, and
 /// [`Refused::Unavailable`] when it could not be read or written.
 pub fn copy_world(from: &Path, layout: &Layout, user: &User) -> Result<(), Refused> {
     use std::io::Write as _;
@@ -169,10 +171,12 @@ pub fn copy_world(from: &Path, layout: &Layout, user: &User) -> Result<(), Refus
             error,
         )
     };
-    // A copy a stopped install left behind is this install's own, and it is
-    // judged before it is removed.
-    if nc_platform::judge(&beside, Kind::File, user).is_ok() {
-        std::fs::remove_file(&beside).map_err(|error| failed("removed", error))?;
+    // A copy an interrupted one left behind is removed once it is judged this
+    // user's alone; one another account can reach is refused, left as it was.
+    match nc_platform::judge(&beside, Kind::File, user) {
+        Ok(()) => std::fs::remove_file(&beside).map_err(|error| failed("removed", error))?,
+        Err(Judged::Failed(absent)) if absent.error().kind() == std::io::ErrorKind::NotFound => {}
+        Err(left) => return Err(Refused::judged(left)),
     }
     let mut file = nc_platform::create_private(&beside).map_err(|error| failed("made", error))?;
     file.write_all(text.as_bytes())
@@ -334,6 +338,60 @@ mod tests {
             "bruno"
         );
         assert!(!super::beside_the_world(&layout).exists());
+    }
+
+    /// A copy left beside the world by an interrupted one is removed, and one
+    /// another account can reach is refused and left as it was.
+    #[test]
+    fn a_copy_left_beside_the_world_is_removed_unless_another_user_can_reach_it() {
+        use std::io::Write as _;
+        let scratch = Scratch::new("leftover");
+        let (layout, user) = scratch.layout();
+        super::prepare(&layout, &user).expect("the profile is made");
+        let source = scratch.0.join("world.json");
+        std::fs::write(&source, written("home", "ana")).expect("a world to copy");
+        let beside = super::beside_the_world(&layout);
+        let left = b"{\"realm\":\"home\",\"person\":\"an";
+        nc_platform::create_private(&beside)
+            .and_then(|mut file| file.write_all(left))
+            .expect("a copy cut short");
+        super::copy_world(&source, &layout, &user).expect("copied over what was left");
+        assert_eq!(
+            super::world(&layout, &user)
+                .expect("the world reads")
+                .person()
+                .id()
+                .as_str(),
+            "ana"
+        );
+        assert!(
+            !beside.exists(),
+            "what was left beside the world is still there"
+        );
+
+        nc_platform::create_private(&beside)
+            .and_then(|mut file| file.write_all(left))
+            .expect("a copy cut short");
+        nc_platform::testing::open_to_another_user(&beside).expect("opened");
+        std::fs::write(&source, written("home", "bruno")).expect("another world");
+        let refusal =
+            super::copy_world(&source, &layout, &user).expect_err("a reachable copy beside it");
+        assert_eq!(
+            refusal.code(),
+            ErrorCode::DaemonProfileNotPrivate,
+            "{refusal}"
+        );
+        assert_eq!(std::fs::read(&beside).expect("reads"), left);
+        assert!(!nc_platform::testing::is_private(&beside));
+        assert_eq!(
+            super::world(&layout, &user)
+                .expect("the world reads")
+                .person()
+                .id()
+                .as_str(),
+            "ana",
+            "a refused copy replaced the world"
+        );
     }
 
     /// A world that does not read is refused before it is copied, and one in

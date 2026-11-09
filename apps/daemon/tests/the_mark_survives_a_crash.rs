@@ -19,7 +19,7 @@ use core::time::Duration;
 
 use nc_catalog::ErrorCode;
 use nc_daemon::mark::MarkFile;
-use nc_ids::{Clock, EPOCH_MS, MachineFlake, MintError, Minter};
+use nc_ids::{Clock, EPOCH_MS, MachineFlake, MintError, Minter, Snowflake};
 
 /// The environment variable that turns this test into its own child: the
 /// mark it mints behind.
@@ -186,19 +186,10 @@ fn next_line(output: &mut impl BufRead) -> Line {
     )
 }
 
-/// A daemon killed while it mints, started again with its clock back by more
-/// than the lease, waits for the clock, logs it, and repeats no identifier;
-/// with its clock back by more than a day, it refuses to start.
-#[test]
-fn a_daemon_killed_while_it_mints_and_started_with_its_clock_back_repeats_none() {
-    if let (Ok(mark), Ok(from)) = (std::env::var(MINT_BEHIND), std::env::var(MINT_FROM)) {
-        the_child(Path::new(&mark), from.parse().expect("a millisecond"));
-        return;
-    }
-    let scratch = Scratch::new("killed");
-    let mark = scratch.0.join("ids.mark");
-    let from = EPOCH_MS + 30 * A_DAY_MS;
-    let mut child = spawned(&mark, from);
+/// Every identifier a child minting behind `mark` from `from` printed, and its
+/// millisecond, once it has been killed mid-mint and reaped.
+fn killed_while_minting(mark: &Path, from: u64) -> Vec<(u64, u64)> {
+    let mut child = spawned(mark, from);
     let mut printed: Vec<(u64, u64)> = Vec::new();
     // **The reader stays open until the child is dead**, so the kill is what
     // ends it: a reader dropped first closes the pipe, and the child, blocked
@@ -220,8 +211,8 @@ fn a_daemon_killed_while_it_mints_and_started_with_its_clock_back_repeats_none()
     let status = child.0.wait().expect("the child is reaped");
     assert!(!status.success(), "the child was not killed: {status}");
     // **And every identifier it printed before it died is read**, the pipe's
-    // whole buffer of them, so what is held against the mark below is all the
-    // child is known to have handed out and not a prefix of it.
+    // whole buffer of them, so what is held against the mark is all the child
+    // is known to have handed out and not a prefix of it.
     loop {
         match next_line(&mut output) {
             Line::Minted(value, millis) => printed.push((value, millis)),
@@ -229,6 +220,21 @@ fn a_daemon_killed_while_it_mints_and_started_with_its_clock_back_repeats_none()
             Line::End => break,
         }
     }
+    printed
+}
+
+/// A daemon killed while it mints, started again with its clock back by more
+/// than the lease, waits for the clock, logs it, and repeats no identifier;
+/// with its clock back by more than a day, it refuses to start.
+#[test]
+fn a_daemon_killed_while_it_mints_and_started_with_its_clock_back_repeats_none() {
+    if let (Ok(mark), Ok(from)) = (std::env::var(MINT_BEHIND), std::env::var(MINT_FROM)) {
+        the_child(Path::new(&mark), from.parse().expect("a millisecond"));
+        return;
+    }
+    let scratch = Scratch::new("killed");
+    let mark = scratch.0.join("ids.mark");
+    let printed = killed_while_minting(&mark, EPOCH_MS + 30 * A_DAY_MS);
 
     let handed: BTreeSet<u64> = printed.iter().map(|(value, _)| *value).collect();
     assert_eq!(handed.len(), printed.len(), "the child itself repeated one");
@@ -287,9 +293,10 @@ fn a_daemon_killed_while_it_mints_and_started_with_its_clock_back_repeats_none()
     );
     let logged = log.named("ids.clock_backwards");
     assert_eq!(logged.len(), 1, "{logged:?}");
-    let after: Vec<u64> = (0..1_000)
-        .map(|_| minter.mint().expect("mints past the mark").value())
+    let units: Vec<Snowflake> = (0..1_000)
+        .map(|_| minter.mint().expect("mints past the mark"))
         .collect();
+    let after: Vec<u64> = units.iter().map(|unit| unit.value()).collect();
     assert!(
         after.iter().all(|value| !handed.contains(value)),
         "an identifier the killed daemon handed out was handed out again"
@@ -298,5 +305,19 @@ fn a_daemon_killed_while_it_mints_and_started_with_its_clock_back_repeats_none()
     assert!(
         after.iter().all(|value| value > highest),
         "the restarted daemon minted below what the killed one reached"
+    );
+    // **And the restarted daemon raised the mark before it minted past it**,
+    // so a second crash now would leave a mark above these too.
+    drop(minter);
+    let restarted = units
+        .iter()
+        .map(|unit| unit.millis_since_epoch() + EPOCH_MS)
+        .max()
+        .expect("minted");
+    let (_, read) = MarkFile::open(&mark, &user).expect("the mark the restart left reads");
+    let raised = read.expect("a ceiling");
+    assert!(
+        raised >= restarted && raised > ceiling,
+        "the restarted daemon handed out {restarted} with the durable ceiling at {raised}"
     );
 }
