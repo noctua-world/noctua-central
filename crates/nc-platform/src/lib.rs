@@ -5,15 +5,20 @@
 //!
 //! **One interface, an implementation per system.** No code outside it
 //! decides what to do by the system it runs on, except `xtask`'s
-//! `check::RUNS_THE_STACK`, which decides which gate steps apply there;
-//! `xtask`'s `ui::SYSTEM` names the system in what the gate prints, and tests
-//! name it in their skips. `unix.rs` is the Unix half, which macOS takes
+//! `check::RUNS_THE_STACK`, which decides which gate steps apply there, and
+//! two of the gate's tests that hold that answer to the system they run on;
+//! `no_system_is_asked_outside_the_platform` in `xtask/src/gates.rs` refuses a
+//! `cfg` naming a system anywhere else. `xtask`'s `ui::SYSTEM` names the system
+//! in what the gate prints, and tests name it in their skips. `unix.rs` is the Unix half, which macOS takes
 //! too: modes and owners through `std::os::unix`. `windows.rs` is the Windows
 //! half: the token's user and the access lists of the Win32 security calls.
 //! The local database's open (`nc_local`) and the kernel's blob directory are
 //! two callers, and the daemon's IPC endpoint, [`ipc`], is the third: the
 //! socket or the pipe a daemon is reached through, and who is at the other end
-//! of each connection. This crate is what they need, and no more.
+//! of each connection. A daemon's start asks three things more: its profile
+//! held at once or not at all ([`try_hold`]), a session of its own
+//! ([`leave_the_session`]), and which process it is, as the system says ([`process`]).
+//! This crate is what they need, and no more.
 //!
 //! **And a program registered with this system's service manager**
 //! ([`service`]), for an installer and the tests that stand in for one: its
@@ -100,6 +105,9 @@ mod windows;
 
 /// The endpoint a daemon is reached through: a socket or a pipe, this user's alone.
 pub mod ipc;
+/// Which process this is, as the system says: its boot, its start and its
+/// executable.
+pub mod process;
 
 #[cfg(unix)]
 use unix as imp;
@@ -377,6 +385,39 @@ pub fn create_private(path: &Path) -> std::io::Result<std::fs::File> {
 /// held.
 pub fn hold(directory: &Path, name: &str, user: &User) -> Result<Held, Judged> {
     imp::hold(directory, name, &user.0).map(Held)
+}
+
+/// `directory`, held as [`hold`] holds it, unless another hold has it now:
+/// nothing then, at once, rather than a wait.
+///
+/// **What one daemon of a profile holds for as long as it runs**, so a second
+/// is told at once that the first is there. Where this system cannot lock a
+/// directory the lock is the file `name` in it, as [`hold`]'s is.
+///
+/// # Errors
+///
+/// [`Judged::Refused`] for a lock file that is not this user's alone, and
+/// [`Judged::Failed`] when the directory or its lock could not be opened or
+/// asked.
+pub fn try_hold(directory: &Path, name: &str, user: &User) -> Result<Option<Held>, Judged> {
+    imp::try_hold(directory, name, &user.0).map(|held| held.map(Held))
+}
+
+/// Leaves the session and the terminal this process was started from, where
+/// this system has them.
+///
+/// **On Unix a session of its own** (`setsid`), so a terminal's hangup or its
+/// keys never reach a daemon, and no terminal is its controlling one; a
+/// process that already leads its process group — what a service manager or
+/// a spawner made it — cannot start one, and is answered as detached, its
+/// group its own. **On Windows nothing**: a process has no such session, and
+/// one started detached has no console, which its spawner gives it.
+///
+/// # Errors
+///
+/// [`std::io::Error`] as the system answered it.
+pub fn leave_the_session() -> std::io::Result<()> {
+    imp::detach()
 }
 
 /// Makes the entries of `directory` durable — a rename into it, above all —
@@ -836,6 +877,119 @@ mod tests {
             usize::from(testing::HOLDS_THROUGH_A_FILE),
             "two holds left more than their one lock file, or one where none is the hold"
         );
+    }
+
+    /// A directory held is not held again at once: a second try is answered
+    /// with nothing rather than a wait, while the first hold — of either kind
+    /// — lives, and is held once the first lets go.
+    #[test]
+    fn a_directory_held_is_not_held_again_at_once() {
+        let scratch = Scratch::new("tried");
+        let user = user_in(&scratch.0).expect("private");
+        let first = super::try_hold(&scratch.0, "lock", &user)
+            .expect("asked")
+            .expect("nothing held it, so it is held");
+        assert!(
+            testing::is_held(&scratch.0, "lock"),
+            "held, and nothing holds it"
+        );
+        assert!(
+            super::try_hold(&scratch.0, "lock", &user)
+                .expect("asked")
+                .is_none(),
+            "a directory held was held a second time"
+        );
+        drop(first);
+        let waited = super::hold(&scratch.0, "lock", &user).expect("held");
+        assert!(
+            super::try_hold(&scratch.0, "lock", &user)
+                .expect("asked")
+                .is_none(),
+            "a directory a waiting hold has was held a second time"
+        );
+        drop(waited);
+        assert!(
+            super::try_hold(&scratch.0, "lock", &user)
+                .expect("asked")
+                .is_some(),
+            "a directory nothing holds was not held"
+        );
+    }
+
+    /// The variable that turns [`a_detached_process_leads_a_session_of_its_own`]
+    /// into its own child.
+    const DETACHING: &str = "NC_PLATFORM_DETACHING_CHILD";
+
+    /// A process that detaches leads a session of its own, where this system
+    /// has sessions, and not the one it was started in.
+    ///
+    /// **A child of this test binary, started as no group's leader**: detaching
+    /// the test process itself would take the whole suite out of the session
+    /// it was started in. The child detaches, says so, and waits for its input
+    /// to close while the parent reads its session off the system.
+    #[test]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the process that detaches has to be another one, so the session it leaves is \
+                  not this suite's; the child is this same test binary, its input a pipe the \
+                  parent closes to end it"
+    )]
+    fn a_detached_process_leads_a_session_of_its_own() {
+        use std::io::{BufRead as _, Write as _};
+
+        if std::env::var_os(DETACHING).is_some() {
+            super::leave_the_session().expect("detached");
+            super::leave_the_session().expect("detached again, as a session's leader");
+            let mut out = std::io::stdout().lock();
+            out.write_all(b"detached\n").expect("said");
+            out.flush().expect("said");
+            let mut rest = String::new();
+            let _ = std::io::stdin().read_line(&mut rest);
+            return;
+        }
+        let mut child = Child(
+            std::process::Command::new(std::env::current_exe().expect("this test binary"))
+                .args([
+                    "--exact",
+                    "tests::a_detached_process_leads_a_session_of_its_own",
+                    "--nocapture",
+                    "--test-threads=1",
+                ])
+                .env(DETACHING, "1")
+                .stdin(std::process::Stdio::piped())
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::null())
+                .spawn()
+                .expect("the child starts"),
+        );
+        let pid = child.0.id();
+        let mut said = String::new();
+        let mut lines = std::io::BufReader::new(child.0.stdout.take().expect("piped"));
+        while !said.contains("detached") {
+            said.clear();
+            assert!(
+                lines
+                    .read_line(&mut said)
+                    .expect("the child's output reads")
+                    > 0,
+                "the child ended without detaching"
+            );
+        }
+        let session = testing::session_of(pid).expect("the child's session is read");
+        let ours = testing::session_of(std::process::id()).expect("this session is read");
+        drop(child.0.stdin.take());
+        assert_eq!(
+            session.is_some(),
+            ours.is_some(),
+            "a system with sessions read one for one process and none for another"
+        );
+        if let (Some(session), Some(ours)) = (session, ours) {
+            assert_eq!(session, pid, "the detached child does not lead a session");
+            assert_ne!(
+                session, ours,
+                "the detached child is still in this one's session"
+            );
+        }
     }
 
     /// A lock file that is not the user's alone is refused, and left as it

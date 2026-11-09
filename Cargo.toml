@@ -353,6 +353,16 @@ proptest = "1.11"
 # `subtle` and `sha2` are in the graph already.
 ed25519-dalek = { version = "3.0", default-features = false, features = ["zeroize"] }
 
+# **Unix's process calls the standard library does not make** — a session of
+# the daemon's own (`setsid`) and the session a test reads back (`getsid`) —
+# through safe wrappers, so no FFI is written on Unix (decided 2026-11-08,
+# `NOCTUA.md §17.1`). A direct dependency of `nc-platform` alone, for a Unix
+# target alone, and already in the graph at this version under `wasmtime`.
+# **`default-features = false`**, so each member names the modules it calls:
+# `std` and `process`, never `stdio`, `fs` or `net`, which the standard library
+# answers already.
+rustix = { version = "1.1", default-features = false }
+
 # The ledger's checksum, which is what catches an edit made outside the compiler.
 # `NOCTUA.md §16.2` and `§14.9` both name BLAKE3, and it is already
 # `noctua-colors`'.

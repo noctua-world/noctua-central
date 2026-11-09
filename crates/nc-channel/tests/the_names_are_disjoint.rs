@@ -79,6 +79,7 @@ fn parts(layout: &Layout) -> (Named<PathBuf>, Named<String>) {
         runtime,
         manifest,
         plugins,
+        blobs,
         device_key,
         device,
         world,
@@ -116,6 +117,7 @@ fn parts(layout: &Layout) -> (Named<PathBuf>, Named<String>) {
         ("runtime".to_owned(), runtime),
         ("manifest".to_owned(), manifest),
         ("plugins".to_owned(), plugins),
+        ("blobs".to_owned(), blobs),
         ("device_key".to_owned(), device_key),
         ("device".to_owned(), device),
         ("world".to_owned(), world),
@@ -323,6 +325,7 @@ fn each_name_is_spelled_as_the_crate_header_writes_it() {
         ("runtime", state.join("run")),
         ("manifest", state.join("bin").join("install.json")),
         ("plugins", root.join("data").join(leaf).join("plugins")),
+        ("blobs", root.join("data").join(leaf).join("blobs")),
         (
             "device_key",
             root.join("data").join(leaf).join("device.key"),
@@ -423,7 +426,7 @@ fn every_path_a_relocated_install_derives_lies_under_its_root() {
             log_endpoint: None,
         };
         let (paths, _) = parts(&layout(&install, "1000"));
-        assert_eq!(paths.len(), 19);
+        assert_eq!(paths.len(), 20);
         for (field, path) in paths {
             assert!(
                 path.starts_with(&root),

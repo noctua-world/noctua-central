@@ -190,12 +190,7 @@ pub(crate) fn create_private(path: &Path) -> io::Result<std::fs::File> {
 /// through the database file would take SQLite's own with it when it is let
 /// go. A directory takes no lock file, so `_name` is not made.
 pub(crate) fn hold(directory: &Path, _name: &str, _user: &User) -> Result<std::fs::File, Judged> {
-    let held = std::fs::File::open(directory).map_err(|error| {
-        Failed::new(
-            format!("`{}` could not be read", directory.display()),
-            error,
-        )
-    })?;
+    let held = to_hold(directory)?;
     held.lock().map_err(|error| {
         Failed::new(
             format!("`{}` could not be held for this open", directory.display()),
@@ -203,6 +198,136 @@ pub(crate) fn hold(directory: &Path, _name: &str, _user: &User) -> Result<std::f
         )
     })?;
     Ok(held)
+}
+
+/// `directory`, held through a handle of its own unless another holds it now:
+/// nothing then, at once.
+pub(crate) fn try_hold(
+    directory: &Path,
+    _name: &str,
+    _user: &User,
+) -> Result<Option<std::fs::File>, Judged> {
+    let held = to_hold(directory)?;
+    match held.try_lock() {
+        Ok(()) => Ok(Some(held)),
+        Err(std::fs::TryLockError::WouldBlock) => Ok(None),
+        Err(std::fs::TryLockError::Error(error)) => Err(Judged::Failed(Failed::new(
+            format!("`{}` could not be held", directory.display()),
+            error,
+        ))),
+    }
+}
+
+/// A handle of `directory`'s own, which a lock is taken through.
+fn to_hold(directory: &Path) -> Result<std::fs::File, Judged> {
+    std::fs::File::open(directory).map_err(|error| {
+        Judged::Failed(Failed::new(
+            format!("`{}` could not be read", directory.display()),
+            error,
+        ))
+    })
+}
+
+/// Starts a session of this process's own, so no terminal it was started from
+/// signals it or is its controlling one.
+///
+/// **A process group's leader cannot start a session** (`EPERM`), and is
+/// answered as detached: it leads a group of its own already — the one a
+/// service manager or a spawner made it — which no other group's signals
+/// reach.
+pub(crate) fn detach() -> io::Result<()> {
+    match rustix::process::setsid() {
+        Ok(_) | Err(rustix::io::Errno::PERM) => Ok(()),
+        Err(error) => Err(error.into()),
+    }
+}
+
+/// Nothing: a spawn puts what it hands a child, null or not, in place of
+/// each standard handle, and the standard library opens every other
+/// descriptor closed on `exec`.
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "one signature for both halves, and the Windows one can fail"
+)]
+pub(crate) fn keep_standard_handles_from_children() -> io::Result<()> {
+    Ok(())
+}
+
+/// The session `pid` is in, as the system numbers it.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn session_of(pid: u32) -> io::Result<Option<u32>> {
+    let pid = i32::try_from(pid)
+        .ok()
+        .and_then(rustix::process::Pid::from_raw)
+        .ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))?;
+    let session = rustix::process::getsid(Some(pid))?;
+    Ok(u32::try_from(session.as_raw_nonzero().get()).ok())
+}
+
+/// The boot this process runs in and when it started, as the system says.
+///
+/// **Linux** reads the boot's own identifier and the start in clock ticks
+/// since boot, field 22 of `/proc/<pid>/stat` — counted after the last `)`,
+/// which ends a name that may hold spaces and parentheses of its own.
+#[cfg(target_os = "linux")]
+pub(crate) fn this_process() -> io::Result<(Option<String>, String)> {
+    let boot = std::fs::read_to_string("/proc/sys/kernel/random/boot_id")?;
+    let stat = std::fs::read_to_string("/proc/self/stat")?;
+    let started = crate::process::started_in_stat(&stat).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "`/proc/self/stat` holds no start time after its name",
+        )
+    })?;
+    Ok((Some(boot.trim().to_owned()), started))
+}
+
+/// The boot this process runs in and when it started, as the system says.
+///
+/// **macOS** has no `/proc`: the boot's session identifier is the kernel's
+/// `kern.bootsessionuuid`, and the start is what `ps` prints for the process,
+/// both asked of the system's own tools by their absolute paths, with an
+/// environment of nothing but the C locale and UTC, so the text is the one a
+/// later reading compares with.
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn this_process() -> io::Result<(Option<String>, String)> {
+    let pid = std::process::id().to_string();
+    let boot = asked("/usr/sbin/sysctl", &["-n", "kern.bootsessionuuid"])?;
+    let said = asked("/bin/ps", &["-o", "lstart=", "-p", &pid])?;
+    let started = crate::process::started_in_ps(&said).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "`ps` printed no start for this process",
+        )
+    })?;
+    Ok((Some(boot.trim().to_owned()), started))
+}
+
+/// What the system's tool `program` prints for `arguments`, in the C locale
+/// and UTC and nothing else of this process's environment.
+#[cfg(not(target_os = "linux"))]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the system's own tool, named by its absolute path and handed an environment of \
+              the C locale and UTC alone, is how macOS says when a process started"
+)]
+fn asked(program: &str, arguments: &[&str]) -> io::Result<String> {
+    let output = std::process::Command::new(program)
+        .args(arguments)
+        .env_clear()
+        .env("LC_ALL", "C")
+        .env("TZ", "UTC")
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .output()?;
+    if !output.status.success() {
+        return Err(io::Error::other(format!(
+            "`{program}` answered {}",
+            output.status
+        )));
+    }
+    String::from_utf8(output.stdout)
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "an answer that is not UTF-8"))
 }
 
 /// The directory synced through a handle of its own, which is what makes a

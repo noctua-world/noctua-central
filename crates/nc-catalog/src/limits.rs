@@ -485,6 +485,12 @@ pub struct DaemonLimits {
     pub ipc_silent_after_ms: u64,
     /// How many connections the daemon holds open at once.
     pub ipc_connections_max: u32,
+    /// How often the daemon fires its timers, delivers its events and prunes, in milliseconds.
+    pub pump_every_ms: u64,
+    /// How often the daemon sweeps the blobs no committed unit holds, in milliseconds.
+    pub sweep_every_ms: u64,
+    /// How long a stop waits for the dispatches already running, in milliseconds.
+    pub stop_drain_ms: u64,
 }
 
 /// The daemon's limits, as `catalog/limits.toml` declares them under `[daemon]`.
@@ -495,4 +501,7 @@ pub const DAEMON: DaemonLimits = DaemonLimits {
     ipc_heartbeat_ms: 2_000,
     ipc_silent_after_ms: 10_000,
     ipc_connections_max: 32,
+    pump_every_ms: 1_000,
+    sweep_every_ms: 600_000,
+    stop_drain_ms: 30_000,
 };

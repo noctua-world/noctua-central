@@ -47,6 +47,11 @@
 //!   (`Error::Undecodable`), never skipped: read leniently it is a unit no
 //!   question finds by its text, and skipped it might be the one a stopped
 //!   process left.
+//! - **The newest unit is the largest any entry names, in any realm**
+//!   ([`LocalJournal::newest_unit`]): what a daemon's start resumes its
+//!   identifiers above, beside its mark, so a mark lost or rolled back is
+//!   still above every unit kept. One column, every row: the realms share one
+//!   minter.
 //! - **A row lands only at the next sequence**, by the table's own trigger,
 //!   whoever writes it: a row planted at the top of the range would end the
 //!   history, and every `CHECK` is one `PRAGMA ignore_check_constraints` away
@@ -318,6 +323,40 @@ impl nc_journal::Store for LocalJournal {
 }
 
 impl LocalJournal {
+    /// The largest unit any entry names, in every realm the file holds, or
+    /// nothing in a journal that names none.
+    ///
+    /// **Ordered as the identifier, not as its text**: a unit is written in
+    /// twelve Crockford digits until it needs thirteen, and digits sort before
+    /// letters as the alphabet orders them, so the longest text, then the
+    /// greatest of that length, is the largest identifier.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Unavailable`] or [`Error::Refused`] when the file could not be
+    /// asked, and [`Error::Undecodable`] for a unit not spelled as this code
+    /// writes one.
+    pub async fn newest_unit(&self) -> Result<Option<Snowflake>, Error> {
+        let row: Option<(i64, String)> = sqlx::query_as(
+            "SELECT sequence, work_unit FROM main.local_journal_entries \
+             WHERE work_unit IS NOT NULL \
+             ORDER BY length(work_unit) DESC, work_unit DESC LIMIT 1",
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|error| refused("asking for the newest unit", &error))?;
+        row.map(|(sequence, unit)| {
+            unit_of(&unit).map_err(|_| Error::Undecodable {
+                sequence: u64::try_from(sequence).unwrap_or(u64::MAX),
+                why: format!(
+                    "the entry names the work unit `{unit}`, which is not an identifier as \
+                     this code writes one"
+                ),
+            })
+        })
+        .transpose()
+    }
+
     /// A connection of the pool, for the reads that run on one.
     async fn reachable(&self) -> Result<sqlx::pool::PoolConnection<sqlx::Sqlite>, Error> {
         self.pool

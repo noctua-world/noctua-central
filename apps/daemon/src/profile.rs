@@ -24,9 +24,10 @@ use crate::Refused;
 
 /// The directories a profile keeps, in the order they are made: each one's
 /// parent is a base or one made before it.
-fn directories(layout: &Layout) -> [&Path; 6] {
+fn directories(layout: &Layout) -> [&Path; 7] {
     [
         &layout.data,
+        &layout.plugins,
         &layout.config,
         &layout.cache,
         &layout.state,
@@ -71,6 +72,16 @@ pub fn prepare(layout: &Layout, user: &User) -> Result<(), Refused> {
 /// for one that is not this user's alone, [`Refused::WorldUnreadable`] for one
 /// that does not read, and [`Refused::Unavailable`] when it could not be read.
 pub fn world(layout: &Layout, user: &User) -> Result<LocalWorld, Refused> {
+    world_and_pack(layout, user).map(|(world, _)| world)
+}
+
+/// The world the profile decides as, and the decision point of the pack its
+/// realm selects, which the daemon's kernel decides with.
+///
+/// # Errors
+///
+/// Every refusal [`world`] answers with.
+pub fn world_and_pack(layout: &Layout, user: &User) -> Result<(LocalWorld, Pdp), Refused> {
     let path = &layout.world;
     match nc_platform::judge(path, Kind::File, user) {
         Ok(()) => {}
@@ -85,14 +96,16 @@ pub fn world(layout: &Layout, user: &User) -> Result<LocalWorld, Refused> {
     read_world(path, &text)
 }
 
-/// `text`, the world file at `path`, read with the pack its realm selects.
-fn read_world(path: &Path, text: &str) -> Result<LocalWorld, Refused> {
+/// `text`, the world file at `path`, read with the pack its realm selects,
+/// and that pack's decision point.
+fn read_world(path: &Path, text: &str) -> Result<(LocalWorld, Pdp), Refused> {
     let unreadable = |why: String| Refused::WorldUnreadable {
         path: path.to_owned(),
         why,
     };
     let pdp = pack_of(text).map_err(unreadable)?;
-    LocalWorld::parse(text, &pdp).map_err(|error| unreadable(error.to_string()))
+    let world = LocalWorld::parse(text, &pdp).map_err(|error| unreadable(error.to_string()))?;
+    Ok((world, pdp))
 }
 
 /// The decision point of the pack the world's own realm selects.
@@ -276,6 +289,7 @@ mod tests {
         // directory that list drops is one this finds missing.
         let nc_channel::Layout {
             data,
+            plugins,
             config,
             cache,
             state,
@@ -283,7 +297,7 @@ mod tests {
             runtime,
             ..
         } = &layout;
-        for directory in [data, config, cache, state, log, runtime] {
+        for directory in [data, plugins, config, cache, state, log, runtime] {
             assert!(
                 directory.is_dir() && nc_platform::testing::is_private(directory),
                 "`{}` was not made private",

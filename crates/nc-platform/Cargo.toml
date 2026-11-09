@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish = false
-description = "Who this process runs as, a directory or a file private to that user, the system's random bytes, and the endpoint a daemon is reached through: the one place each system's answer is written."
+description = "Who this process runs as, a directory or a file private to that user, the system's random bytes, which process this is, and the endpoint a daemon is reached through: the one place each system's answer is written."
 
 [features]
 # The doors other crates' suites stage a path through: one another user can
@@ -39,6 +39,16 @@ windows-sys = { version = "0.61", features = [
     # end (`GetNamedPipeClientProcessId`, `GetNamedPipeServerProcessId`).
     "Win32_System_Pipes",
 ] }
+
+# **A session of the daemon's own, and the session a test reads back**
+# (`NOCTUA.md §17.1`, decided 2026-11-08): `setsid` and `getsid`, the safe
+# wrappers `process` holds, with `std` so an error is a `std::io::Error`. No FFI
+# is written on Unix, so a call the standard library does not make is made
+# through this, never through `libc` by hand. Already in the graph at this
+# version, under `wasmtime` and `tempfile`, so it adds no package; compiled only
+# for a Unix target, and never with `stdio`, `fs` or `net`.
+[target.'cfg(unix)'.dependencies]
+rustix = { workspace = true, features = ["std", "process"] }
 
 [dependencies]
 # **The IPC endpoint's socket and pipe, and nothing else of the runtime**

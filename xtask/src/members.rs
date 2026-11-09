@@ -1161,6 +1161,7 @@ mod tests {
         assert_eq!(
             super::opening_the_local_database(root()).expect("cargo metadata"),
             [
+                "apps/daemon",
                 "crates/nc-kernel",
                 "crates/nc-local",
                 "crates/nc-prune",

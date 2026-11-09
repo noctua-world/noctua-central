@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish = false
-description = "The daemon a channel runs: the install it names itself by, its profile, its device and the identifiers' mark."
+description = "The daemon a channel runs: the install it names itself by, its profile, its device, the identifiers' mark, and the kernel it serves at its endpoint."
 
 # **A library and a thin binary.** What the daemon does is the library's, and
 # `noctua-daemon` reads its arguments and prints; a mutation of either is
@@ -13,6 +13,11 @@ description = "The daemon a channel runs: the install it names itself by, its pr
 [[bin]]
 name = "noctua-daemon"
 path = "src/main.rs"
+
+[features]
+# The install a suite runs a real daemon in (`nc_daemon::testing`), under a
+# scratch root of its own. **Off by default**, so nothing shipped reaches it.
+test-support = ["nc-platform/test-support"]
 
 [dependencies]
 # The codes every refusal carries (`NOCTUA.md §15.1`), and `DAEMON`, the bounds
@@ -39,15 +44,31 @@ nc-kernel.workspace = true
 ed25519-dalek.workspace = true
 # The checksum each slot of the identifiers' mark carries.
 blake3.workspace = true
+# The local database the kernel keeps a person's data and its journal in, one
+# file in the profile's data directory (`NOCTUA.md §4`).
+nc-local.workspace = true
+# The journal over that file, sharing the profile's one minter.
+nc-journal.workspace = true
+# The protocol the daemon serves at its endpoint (`§11.1`).
+nc-ipc.workspace = true
+# How a command's reversibility is spelled in the registry the daemon answers.
+nc-schema.workspace = true
+# The runtime the kernel, the endpoint and the schedule run on: the workspace's
+# `rt-multi-thread`, so a plugin running on one worker never holds up the
+# heartbeat of a connection on another, and `time` and `sync` for the schedule
+# and the stop. Already in the graph with each; never `process` or `signal`.
+tokio = { workspace = true, features = ["time", "sync"] }
 
 [dev-dependencies]
 # **Itself, so the documentation gate can read this crate's integration
 # tests**, as every crate with a `tests/` suite does.
-nc-daemon = { path = "." }
+nc-daemon = { path = ".", features = ["test-support"] }
 # The doors a test stages a path through, and the capture a test reads the
 # daemon's events back from.
 nc-platform = { workspace = true, features = ["test-support"] }
 nc-kernel = { workspace = true, features = ["test-support"] }
+# A stopped daemon's journal, read back where it kept it.
+nc-local = { workspace = true, features = ["test-support"] }
 
 [lints]
 workspace = true

@@ -320,10 +320,31 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "error.daemon.engine-refused",
+        [
+            "Noctua could not prepare what runs its plugins, so it did not start. Someone needs to look at it.",
+            "O Noctua não conseguiu preparar o que executa seus plugins, então não iniciou. Alguém precisa verificar isso.",
+        ],
+    ),
+    (
+        "error.daemon.instance-held",
+        [
+            "Noctua is already running for this installation, so a second copy did not start.",
+            "O Noctua já está em execução para esta instalação, então uma segunda cópia não iniciou.",
+        ],
+    ),
+    (
         "error.daemon.mark-unreadable",
         [
             "Noctua could not read how far it has numbered what it saves, so it did not start rather than risk numbering something twice.",
             "O Noctua não conseguiu ler até onde já numerou o que salva, então não iniciou para não arriscar numerar algo duas vezes.",
+        ],
+    ),
+    (
+        "error.daemon.no-central-log",
+        [
+            "This installation does not say where Noctua keeps its own log, so Noctua did not start. Install Noctua again.",
+            "Esta instalação não diz onde o Noctua guarda o próprio registro, então o Noctua não iniciou. Instale o Noctua de novo.",
         ],
     ),
     (
@@ -341,6 +362,20 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "error.daemon.not-running",
+        [
+            "Noctua is still starting, so it could not do that yet. Try again in a moment.",
+            "O Noctua ainda está iniciando, então não pôde fazer isso ainda. Tente de novo em instantes.",
+        ],
+    ),
+    (
+        "error.daemon.pid-record-unreadable",
+        [
+            "The note saying which process is Noctua could not be read, so it was not trusted.",
+            "A anotação que diz qual processo é o Noctua não pôde ser lida, então não foi considerada.",
+        ],
+    ),
+    (
         "error.daemon.profile-not-private",
         [
             "A folder or file where Noctua keeps your data could be reached by another account on this computer, so Noctua did not use it and left it as it was.",
@@ -352,6 +387,13 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         [
             "Noctua could not read or create a folder where it keeps your data. Check that the disk has room and is connected, then try again.",
             "O Noctua não conseguiu ler ou criar uma pasta onde guarda seus dados. Veja se o disco tem espaço e está conectado e tente de novo.",
+        ],
+    ),
+    (
+        "error.daemon.stopping",
+        [
+            "Noctua is stopping, so it did not do that. Nothing was done.",
+            "O Noctua está parando, então não fez isso. Nada foi feito.",
         ],
     ),
     (
@@ -1156,11 +1198,17 @@ pub const KEYS: &[&str] = &[
     "error.channel.no-manifest",
     "error.channel.unknown",
     "error.daemon.device-unreadable",
+    "error.daemon.engine-refused",
+    "error.daemon.instance-held",
     "error.daemon.mark-unreadable",
+    "error.daemon.no-central-log",
     "error.daemon.no-device",
     "error.daemon.no-world",
+    "error.daemon.not-running",
+    "error.daemon.pid-record-unreadable",
     "error.daemon.profile-not-private",
     "error.daemon.profile-unavailable",
+    "error.daemon.stopping",
     "error.daemon.world-unreadable",
     "error.db.local-open-refused",
     "error.db.local-schema-unexpected",

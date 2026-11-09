@@ -5437,6 +5437,371 @@ mod asserted_tests {
     }
 }
 
+/// The daemon serves nothing a network can reach, and no code outside
+/// `nc-platform` decides what to do by the system it runs on (`NOCTUA.md
+/// §2.7`, `§11.1`).
+#[cfg(test)]
+mod the_system_rules {
+    use super::{Finding, blanked, walk};
+
+    /// The constructors of a socket a network can reach: a TCP listener, a
+    /// socket that listens or connects by number, and a datagram socket.
+    ///
+    /// **Named as the types are, not as the calls**: `TcpListener::bind`,
+    /// `TcpSocket::listen` and `UdpSocket::bind` each start from the type's
+    /// name, in `std::net` and `tokio::net` alike, so a type written at all is
+    /// a socket written.
+    pub(super) const LISTENERS: [&str; 3] = ["TcpListener", "TcpSocket", "UdpSocket"];
+
+    /// The shipped sources the no-listener rule reads: every app's, and the two
+    /// crates a daemon's endpoint and protocol are built from.
+    pub(super) const SERVE_NOTHING: [&str; 3] =
+        ["apps/", "crates/nc-ipc/src/", "crates/nc-platform/src/"];
+
+    /// Whether `relative` is a shipped source the no-listener rule reads:
+    /// under a crate of [`SERVE_NOTHING`], or under an app's `src/`.
+    pub(super) fn serves_nothing(relative: &str) -> bool {
+        SERVE_NOTHING.iter().any(|tree| {
+            relative.strip_prefix(tree).is_some_and(|rest| {
+                !tree.starts_with("apps/")
+                    || rest
+                        .split_once('/')
+                        .is_some_and(|(_, inside)| inside.starts_with("src/"))
+            })
+        })
+    }
+
+    /// The tree the system's own answers are written in, and nowhere else.
+    pub(super) const THE_PLATFORM: &str = "crates/nc-platform/";
+
+    /// The predicates of a `cfg` that name a system.
+    pub(super) const SYSTEMS: [&str; 4] = ["unix", "windows", "target_os", "target_family"];
+
+    /// The lines outside [`THE_PLATFORM`] that ask the system, each by its
+    /// file and its text: the gate's own.
+    ///
+    /// **Which of the gate's steps apply on a system is the gate's to decide**
+    /// — the stack runs on Linux alone (`check::RUNS_THE_STACK`) — and two of
+    /// its tests hold that answer to the system they run on. Nothing the
+    /// platform ships is among them.
+    pub(super) const THE_GATES_OWN: [(&str, &str); 4] = [
+        (
+            "xtask/src/check.rs",
+            "pub(crate) const RUNS_THE_STACK: bool = cfg!(target_os = \"linux\");",
+        ),
+        ("xtask/src/check.rs", "if cfg!(target_os = \"linux\") {"),
+        (
+            "xtask/src/check.rs",
+            "let written: &[&str] = if cfg!(target_os = \"linux\") {",
+        ),
+        ("xtask/src/check.rs", "} else if cfg!(windows) {"),
+    ];
+
+    /// Whether the character at `at` of `code` continues a word.
+    fn word(code: &[char], at: usize) -> bool {
+        code.get(at)
+            .is_some_and(|character| character.is_alphanumeric() || *character == '_')
+    }
+
+    /// Every place in `code` that `needle` is written as a whole word, by
+    /// character.
+    fn whole_words(code: &[char], needle: &str) -> Vec<usize> {
+        let needle: Vec<char> = needle.chars().collect();
+        (0..code.len().saturating_sub(needle.len().saturating_sub(1)))
+            .filter(|&at| {
+                code[at..].starts_with(&needle)
+                    && (at == 0 || !word(code, at - 1))
+                    && !word(code, at + needle.len())
+            })
+            .collect()
+    }
+
+    /// The line the character `at` of `code` is on, counted from one.
+    fn line_of(code: &[char], at: usize) -> usize {
+        code[..at].iter().filter(|c| **c == '\n').count() + 1
+    }
+
+    /// The lines of `text` that write a listener constructor as code.
+    pub(super) fn listeners_written(text: &str) -> Vec<(usize, &'static str)> {
+        let code: Vec<char> = blanked(text).chars().collect();
+        let mut found: Vec<(usize, &'static str)> = LISTENERS
+            .iter()
+            .flat_map(|name| {
+                whole_words(&code, name)
+                    .into_iter()
+                    .map(|at| (line_of(&code, at), *name))
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        found.sort_unstable();
+        found
+    }
+
+    /// The lines of `text` whose `cfg`, `cfg!` or `cfg_attr` names a system,
+    /// as code.
+    ///
+    /// **The predicate is what is read**, inside the parentheses that follow
+    /// the attribute or the macro: `cfg(any(unix, windows))` and
+    /// `cfg_attr(not(windows), …)` name a system, and `cfg(test)` does not.
+    pub(super) fn systems_asked(text: &str) -> Vec<usize> {
+        let code: Vec<char> = blanked(text).chars().collect();
+        let mut lines = Vec::new();
+        for opens in ["cfg", "cfg_attr"] {
+            for at in whole_words(&code, opens) {
+                let mut after = at + opens.chars().count();
+                if code.get(after) == Some(&'!') {
+                    after += 1;
+                }
+                while code.get(after).is_some_and(|c| c.is_whitespace()) {
+                    after += 1;
+                }
+                if code.get(after) != Some(&'(') {
+                    continue;
+                }
+                let mut depth = 0_usize;
+                let mut end = after;
+                while let Some(character) = code.get(end) {
+                    match character {
+                        '(' => depth += 1,
+                        ')' => {
+                            depth -= 1;
+                            if depth == 0 {
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                    end += 1;
+                }
+                let predicate = &code[after..end.min(code.len())];
+                if SYSTEMS
+                    .iter()
+                    .any(|system| !whole_words(predicate, system).is_empty())
+                {
+                    lines.push(line_of(&code, at));
+                }
+            }
+        }
+        lines.sort_unstable();
+        lines.dedup();
+        lines
+    }
+
+    /// Every listener constructor written in a shipped source under `root`
+    /// that [`serves_nothing`] reads, each as a finding at its line, and
+    /// every file read.
+    pub(super) fn listeners_under(root: &std::path::Path) -> (Vec<Finding>, Vec<String>) {
+        let mut found = Vec::new();
+        let mut read = Vec::new();
+        walk(root, &mut |path| {
+            if path.extension().is_none_or(|kind| kind != "rs") {
+                return;
+            }
+            let relative = crate::relative_to(root, path);
+            if !serves_nothing(&relative) {
+                return;
+            }
+            let text = std::fs::read_to_string(path)
+                .unwrap_or_else(|error| panic!("`{relative}` is readable: {error}"));
+            for (line, name) in listeners_written(&text) {
+                found.push(Finding {
+                    file: relative.clone(),
+                    line,
+                    what: format!("`{name}` is written here, which a network can reach"),
+                    fix: "a daemon and what its endpoint is built from serve no network: the \
+                          endpoint is a socket or a pipe this user alone reaches \
+                          (`nc_platform::ipc`), and a listener anywhere else is refused \
+                          (`AGENTS.md`, the invariant that the daemon has no network listener)"
+                        .to_owned(),
+                });
+            }
+            read.push(relative);
+        })
+        .expect("the tree walks");
+        (found, read)
+    }
+
+    /// Every `cfg` naming a system written in a Rust source under `root`
+    /// outside [`THE_PLATFORM`], each as a finding at its line — the gate's own
+    /// lines among them, which the caller excuses — and every file read.
+    pub(super) fn systems_asked_under(root: &std::path::Path) -> (Vec<Finding>, Vec<String>) {
+        let mut found = Vec::new();
+        let mut read = Vec::new();
+        walk(root, &mut |path| {
+            if path.extension().is_none_or(|kind| kind != "rs") {
+                return;
+            }
+            let relative = crate::relative_to(root, path);
+            if relative.starts_with(THE_PLATFORM) {
+                return;
+            }
+            let text = std::fs::read_to_string(path)
+                .unwrap_or_else(|error| panic!("`{relative}` is readable: {error}"));
+            for line in systems_asked(&text) {
+                found.push(Finding {
+                    file: relative.clone(),
+                    line,
+                    what: "a `cfg` here decides by the system this is built for".to_owned(),
+                    fix: "a system's answer is a fact `nc-platform` states and every system's \
+                          code reads (`NOCTUA.md §2.7`): write the per-system half there, and \
+                          the decision here in code every system compiles"
+                        .to_owned(),
+                });
+            }
+            read.push(relative);
+        })
+        .expect("the tree walks");
+        (found, read)
+    }
+
+    /// The findings of [`systems_asked_under`] the gate's own lines do not
+    /// excuse, and how many of [`THE_GATES_OWN`] were found where they are
+    /// written.
+    pub(super) fn not_the_gates_own(
+        root: &std::path::Path,
+        found: Vec<Finding>,
+    ) -> (Vec<Finding>, usize) {
+        let mut excused = 0;
+        let left = found
+            .into_iter()
+            .filter(|finding| {
+                let text = std::fs::read_to_string(root.join(&finding.file)).unwrap_or_default();
+                let line = text
+                    .lines()
+                    .nth(finding.line - 1)
+                    .map(str::trim)
+                    .unwrap_or_default();
+                let own = THE_GATES_OWN
+                    .iter()
+                    .any(|(file, written)| *file == finding.file && *written == line);
+                excused += usize::from(own);
+                !own
+            })
+            .collect();
+        (left, excused)
+    }
+
+    /// A listener type in code is found, and one in a comment, a string or a
+    /// longer name is not.
+    #[test]
+    fn a_listener_in_code_is_found_and_one_in_prose_is_not() {
+        let text = [
+            "// a TcpListener in a comment\n",
+            "let s = \"UdpSocket\";\n",
+            "struct MyTcpListenerish;\n",
+            "let l = std::net::TcpListener::bind(\"0.0.0.0:0\");\n",
+            "let u = tokio::net::UdpSocket::bind(a);\n",
+            "let t = tokio::net::TcpSocket::new_v4();\n",
+        ]
+        .concat();
+        assert_eq!(
+            listeners_written(&text),
+            [(4, "TcpListener"), (5, "UdpSocket"), (6, "TcpSocket")]
+        );
+    }
+
+    /// A `cfg` naming a system is found as an attribute, a macro and a
+    /// `cfg_attr`, however its predicate nests, and one naming no system — or
+    /// written in prose — is not.
+    #[test]
+    fn a_cfg_naming_a_system_is_found_and_one_naming_none_is_not() {
+        let text = [
+            "#[cfg(test)]\n",
+            "#[cfg(unix)]\n",
+            "#![cfg(windows)]\n",
+            "let x = cfg!(target_os = \"macos\");\n",
+            "#[cfg(any(test, all(not(target_family = \"wasm\"))))]\n",
+            "#[cfg_attr(windows, expect(dead_code, reason = \"x\"))]\n",
+            "#[cfg_attr(test, derive(Default))]\n",
+            "// #[cfg(unix)] in a comment\n",
+            "let s = \"#[cfg(windows)]\";\n",
+            "#[cfg(feature = \"unix\")]\n",
+            "let cfg = unix;\n",
+        ]
+        .concat();
+        assert_eq!(systems_asked(&text), [2, 3, 4, 5, 6]);
+    }
+
+    /// The shipped sources the no-listener rule reads are an app's own and the
+    /// two crates', and nothing else.
+    #[test]
+    fn the_listener_rule_reads_the_daemons_shipped_sources_alone() {
+        for read in [
+            "apps/daemon/src/server.rs",
+            "apps/daemon/src/main.rs",
+            "apps/cli/src/client/x.rs",
+            "crates/nc-ipc/src/lib.rs",
+            "crates/nc-platform/src/unix.rs",
+        ] {
+            assert!(serves_nothing(read), "{read}");
+        }
+        for unread in [
+            "apps/daemon/tests/serves_its_kernel.rs",
+            "apps/daemon/Cargo.toml",
+            "crates/nc-ipc/tests/frames.rs",
+            "crates/nc-platform/tests/x.rs",
+            "crates/nc-kernel/src/logging.rs",
+            "xtask/src/apps/daemon/src/x.rs",
+        ] {
+            assert!(!serves_nothing(unread), "{unread}");
+        }
+    }
+
+    /// No listener constructor is written in the daemon's shipped sources, or
+    /// in the two crates its endpoint and protocol are built from.
+    #[test]
+    fn the_daemon_has_no_network_listener() {
+        let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+        let (found, read) = listeners_under(root);
+        assert!(
+            found.is_empty(),
+            "a socket a network can reach is written where the daemon is built: {found:?}"
+        );
+        for expected in [
+            "apps/daemon/src/server.rs",
+            "crates/nc-ipc/src/connection.rs",
+            "crates/nc-platform/src/ipc.rs",
+        ] {
+            assert!(
+                read.iter().any(|file| file == expected),
+                "`{expected}` was not read, so this walk did not reach the code it is about"
+            );
+        }
+    }
+
+    /// No code outside `nc-platform` decides by the system it is built for,
+    /// but the gate's own lines, each found where it is written.
+    #[test]
+    fn no_system_is_asked_outside_the_platform() {
+        let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+        let (found, read) = systems_asked_under(root);
+        let (left, excused) = not_the_gates_own(root, found);
+        assert!(
+            left.is_empty(),
+            "a `cfg` outside `{THE_PLATFORM}` decides by the system: {left:?}"
+        );
+        assert_eq!(
+            excused,
+            THE_GATES_OWN.len(),
+            "a line of the gate's own that asks the system is not where it is written down"
+        );
+        for expected in [
+            "apps/daemon/src/run.rs",
+            "crates/nc-ipc/src/lib.rs",
+            "xtask/src/check.rs",
+        ] {
+            assert!(
+                read.iter().any(|file| file == expected),
+                "`{expected}` was not read, so this walk did not reach the code it is about"
+            );
+        }
+        assert!(
+            !read.iter().any(|file| file.starts_with(THE_PLATFORM)),
+            "the walk read `{THE_PLATFORM}`, where the system's answers are written"
+        );
+    }
+}
+
 #[cfg(test)]
 mod the_unsafe_rule {
     use super::{blanked, walk};
@@ -9346,6 +9711,59 @@ mod tests {
         reached_every_one(&findings, &planted, "the unsafe-token walk");
     }
 
+    /// The listener walk reaches a listener planted in every shipped source it
+    /// names — in every directory this tree really has and under every name it
+    /// opens — and reports each, and none planted anywhere else.
+    #[test]
+    fn the_listener_walk_goes_everywhere_inside_its_scope() {
+        let defect = "pub fn f() { let _ = std::net::TcpListener::bind(\"0.0.0.0:0\"); }";
+        let (_held, root, mut planted) = in_every_real_directory(defect, "");
+        and_a_file_under_every_name_it_opens(&root, &mut planted, defect, "");
+        let (findings, _) = super::the_system_rules::listeners_under(&root);
+        let judged: Vec<(String, usize)> = planted
+            .into_iter()
+            .filter(|(file, _)| super::the_system_rules::serves_nothing(file))
+            .collect();
+        for tree in super::the_system_rules::SERVE_NOTHING {
+            assert!(
+                judged.iter().any(|(file, _)| file.starts_with(tree)),
+                "nothing was planted under `{tree}`, so its reach is not shown"
+            );
+        }
+        assert_eq!(
+            findings.len(),
+            judged.len(),
+            "the listener walk reported one planted outside its scope"
+        );
+        reached_every_one(&findings, &judged, "the listener walk");
+    }
+
+    /// The system-cfg walk reaches a `cfg` naming a system planted in every
+    /// directory this tree really has and under every name it opens, but the
+    /// platform's own, and reports each.
+    #[test]
+    fn the_system_walk_goes_everywhere_outside_the_platform() {
+        let defect = "#[cfg(windows)] pub fn f() {}";
+        let (_held, root, mut planted) = in_every_real_directory(defect, "");
+        and_a_file_under_every_name_it_opens(&root, &mut planted, defect, "");
+        let (findings, _) = super::the_system_rules::systems_asked_under(&root);
+        let platform = super::the_system_rules::THE_PLATFORM;
+        assert!(
+            planted.iter().any(|(file, _)| file.starts_with(platform)),
+            "nothing was planted under `{platform}`, so its exclusion is not shown"
+        );
+        let judged: Vec<(String, usize)> = planted
+            .into_iter()
+            .filter(|(file, _)| !file.starts_with(platform))
+            .collect();
+        assert_eq!(
+            findings.len(),
+            judged.len(),
+            "the system-cfg walk reported one planted in the platform"
+        );
+        reached_every_one(&findings, &judged, "the system-cfg walk");
+    }
+
     /// The vouched-statement walk reaches a statement built from a value,
     /// planted in every directory this tree really has and under every name it
     /// opens, and reports each.
@@ -10123,7 +10541,7 @@ mod tests {
     ///
     /// It is a hand list on purpose. Deriving it from the source would make it
     /// agree with whatever the source does — the derived-expectation trap.
-    const REACHED_BY_THE_PLANTED_FIXTURE: [(&str, &str); 10] = [
+    const REACHED_BY_THE_PLANTED_FIXTURE: [(&str, &str); 12] = [
         (
             "the blanket-allow walk",
             "a_walk_reaches_a_defect_planted_where_no_filter_can_name_it",
@@ -10145,6 +10563,14 @@ mod tests {
         (
             "the vouched-statement walk",
             "the_vouched_statement_walk_goes_everywhere",
+        ),
+        (
+            "the listener walk",
+            "the_listener_walk_goes_everywhere_inside_its_scope",
+        ),
+        (
+            "the system-cfg walk",
+            "the_system_walk_goes_everywhere_outside_the_platform",
         ),
     ];
 

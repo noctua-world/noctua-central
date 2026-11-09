@@ -898,7 +898,14 @@ fn daemon(catalog: &Catalog) -> String {
          connection past `ipc_connections_max` as soon as it is accepted. The compiler \
          holds a frame to the kernel's `payload_bytes` and 64 KiB more, the silence to more \
          than two heartbeats, and the connections to 252, two fewer than a Windows pipe's \
-         instances.\n\n",
+         instances.\n\n\
+         **The schedule and the stop are enforced by `apps/daemon`.** It pumps its kernel \
+         every `pump_every_ms` — the timers due, the events queued and the pruner over the \
+         local database — and sweeps the blobs every `sweep_every_ms`, each between call \
+         trees; a stop waits `stop_drain_ms` at most for the dispatches already running. The \
+         compiler holds the pump to the kernel's `timer_min_interval_ms`, the sweep to its \
+         `blob_orphan_grace_ms`, and the drain to at least its `dispatch_deadline_ms`, so a \
+         stop never cuts short a call tree the kernel would let finish.\n\n",
     );
     out.push_str("| Limit | Value | What it bounds |\n|---|---|---|\n");
     for limit in catalog.limits.daemon.each() {
@@ -1097,7 +1104,9 @@ fn log_events(catalog: &Catalog) -> String {
          `crates/nc-log/src/value.rs` states the residual, and `NOCTUA.md §5.1` owns it.\n\n\
          **`nc-kernel` and `nc-daemon` are the crates outside `nc-log` that log.** The \
          kernel emits every `kernel.*` event below, `net.refused`, `journal.verified` and \
-         `journal.broken`; the daemon emits `ids.clock_backwards`; every other event is \
+         `journal.broken`; the daemon emits `ids.clock_backwards`, `ipc.refused`, \
+         `daemon.started`, `daemon.stopped`, `daemon.plugin_refused` and \
+         `daemon.prune_stuck`; every other event is \
          declared for a later stage, and `cargo xtask check` counts the crates that may \
          log beside their logging call sites. The types and the guarantee are real today.",
     );

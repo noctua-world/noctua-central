@@ -119,6 +119,8 @@ The bounds the daemon holds itself to, read from `[daemon]` and from nowhere els
 
 **The `ipc_` bounds are enforced by `crates/nc-ipc`**, which reads them itself: a frame longer than `ipc_frame_max_bytes` is refused from its length prefix, before anything is allocated for it; a handshake not finished within `ipc_handshake_ms` is dropped; each side pings after `ipc_heartbeat_ms` of its own silence and drops a peer silent for `ipc_silent_after_ms`; and the listener it binds closes a connection past `ipc_connections_max` as soon as it is accepted. The compiler holds a frame to the kernel's `payload_bytes` and 64 KiB more, the silence to more than two heartbeats, and the connections to 252, two fewer than a Windows pipe's instances.
 
+**The schedule and the stop are enforced by `apps/daemon`.** It pumps its kernel every `pump_every_ms` — the timers due, the events queued and the pruner over the local database — and sweeps the blobs every `sweep_every_ms`, each between call trees; a stop waits `stop_drain_ms` at most for the dispatches already running. The compiler holds the pump to the kernel's `timer_min_interval_ms`, the sweep to its `blob_orphan_grace_ms`, and the drain to at least its `dispatch_deadline_ms`, so a stop never cuts short a call tree the kernel would let finish.
+
 | Limit | Value | What it bounds |
 |---|---|---|
 | `mark_lease_ms` | 2000 milliseconds | How far past the clock the identifiers' persisted ceiling is raised |
@@ -127,3 +129,6 @@ The bounds the daemon holds itself to, read from `[daemon]` and from nowhere els
 | `ipc_heartbeat_ms` | 2000 milliseconds | How long either side of a connection stays silent before it pings |
 | `ipc_silent_after_ms` | 10000 milliseconds | How long a peer may be silent before its connection is dropped |
 | `ipc_connections_max` | 32 | How many connections the daemon holds open at once |
+| `pump_every_ms` | 1000 milliseconds | How often the daemon fires its timers, delivers its events and prunes |
+| `sweep_every_ms` | 600000 milliseconds | How often the daemon sweeps the blobs no committed unit holds |
+| `stop_drain_ms` | 30000 milliseconds | How long a stop waits for the dispatches already running |

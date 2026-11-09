@@ -7719,7 +7719,7 @@ fn ends_in_a_backslash(path: &str) -> bool {
 /// failure is silent.
 ///
 /// Each is a crate and the file cargo announces as `Running tests/<name>`.
-const SUITES: [(&str, &str); 41] = [
+const SUITES: [(&str, &str); 43] = [
     ("nc-authz", "the_embedded_pack_decides.rs"),
     ("nc-canon", "properties.rs"),
     ("nc-catalog", "the_generated_surface.rs"),
@@ -7733,6 +7733,10 @@ const SUITES: [(&str, &str); 41] = [
     // A child of the test binary killed while it mints behind the real mark,
     // and a start from what it left with the clock moved back.
     ("nc-daemon", "the_mark_survives_a_crash.rs"),
+    // A real daemon handed connections that do not prove the token.
+    ("nc-daemon", "ipc_refusals.rs"),
+    // A real daemon serving its kernel, its schedule and its stop.
+    ("nc-daemon", "serves_its_kernel.rs"),
     ("nc-ids", "against_denote.rs"),
     ("nc-ids", "properties.rs"),
     // The protocol: the daemon's listener at the catalog's bound over a real
@@ -17324,7 +17328,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         ("nc-catalog", 2),
         ("nc-catalog-compiler", 3),
         ("nc-channel", 2),
-        ("nc-daemon", 4),
+        ("nc-daemon", 6),
         ("nc-guest", 1),
         ("nc-ids", 3),
         ("nc-ipc", 5),
@@ -19354,13 +19358,22 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 171] = [
+    const DOCUMENTED: [(&str, usize, usize); 181] = [
         ("daemon/device.rs", 22, 5),
+        ("daemon/environment.rs", 12, 16),
         ("daemon/install.rs", 14, 6),
-        ("daemon/lib.rs", 7, 8),
-        ("daemon/main.rs", 14, 6),
-        ("daemon/mark.rs", 25, 15),
-        ("daemon/profile.rs", 18, 5),
+        ("daemon/ipc_refusals.rs", 5, 0),
+        ("daemon/lib.rs", 7, 15),
+        ("daemon/main.rs", 15, 6),
+        ("daemon/mark.rs", 27, 15),
+        ("daemon/pidfile.rs", 19, 8),
+        ("daemon/plugins.rs", 17, 6),
+        ("daemon/profile.rs", 19, 5),
+        ("daemon/run.rs", 7, 1),
+        ("daemon/schedule.rs", 14, 2),
+        ("daemon/server.rs", 33, 2),
+        ("daemon/serves_its_kernel.rs", 18, 3),
+        ("daemon/testing.rs", 26, 9),
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
         ("daemon/the_mark_survives_a_crash.rs", 15, 12),
         ("nc-authz/directory.rs", 38, 15),
@@ -19374,11 +19387,11 @@ mod the_frozen_path_rule {
         ("nc-catalog-compiler/emit.rs", 28, 15),
         ("nc-catalog-compiler/ledger.rs", 24, 16),
         ("nc-catalog-compiler/lib.rs", 22, 14),
-        ("nc-catalog-compiler/load.rs", 57, 19),
+        ("nc-catalog-compiler/load.rs", 58, 19),
         ("nc-catalog-compiler/messages.rs", 20, 8),
         ("nc-catalog-compiler/model.rs", 49, 17),
         ("nc-catalog-compiler/problem.rs", 4, 9),
-        ("nc-catalog-compiler/the_gates_fire.rs", 70, 93),
+        ("nc-catalog-compiler/the_gates_fire.rs", 73, 93),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             13,
@@ -19466,24 +19479,25 @@ mod the_frozen_path_rule {
         ("nc-kernel/where_a_blob_is.rs", 40, 36),
         ("nc-kernel/world.rs", 4, 1),
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 52, 15),
-        ("nc-local/journal.rs", 25, 11),
+        ("nc-local/journal.rs", 26, 11),
         ("nc-local/lib.rs", 12, 9),
         ("nc-local/open.rs", 19, 6),
         ("nc-local/opening_refuses_what_it_did_not_make.rs", 64, 4),
         ("nc-local/schema.rs", 23, 2),
         ("nc-local/store.rs", 83, 12),
-        ("nc-local/the_local_journal.rs", 32, 12),
-        ("nc-log/events.rs", 22, 110),
+        ("nc-local/the_local_journal.rs", 33, 12),
+        ("nc-log/events.rs", 27, 135),
         ("nc-log/every_event_reaches_the_store.rs", 4, 1),
         ("nc-log/lib.rs", 19, 25),
         ("nc-log/ship.rs", 106, 50),
         ("nc-log/value.rs", 18, 36),
         ("nc-platform/ipc.rs", 20, 13),
-        ("nc-platform/lib.rs", 77, 22),
+        ("nc-platform/lib.rs", 83, 22),
+        ("nc-platform/process.rs", 8, 1),
         ("nc-platform/service.rs", 155, 18),
-        ("nc-platform/testing.rs", 28, 1),
-        ("nc-platform/unix.rs", 68, 2),
-        ("nc-platform/windows.rs", 115, 11),
+        ("nc-platform/testing.rs", 29, 1),
+        ("nc-platform/unix.rs", 76, 2),
+        ("nc-platform/windows.rs", 121, 11),
         ("nc-policy/an_entity_type_is_a_name_cedar_parses.rs", 7, 3),
         ("nc-policy/cases.rs", 10, 13),
         ("nc-policy/lib.rs", 103, 20),
@@ -19512,7 +19526,7 @@ mod the_frozen_path_rule {
         ("xtask/dev.rs", 73, 8),
         ("xtask/docs.rs", 8, 1),
         ("xtask/every_generated_value_is_compared.rs", 30, 8),
-        ("xtask/gates.rs", 225, 33),
+        ("xtask/gates.rs", 247, 33),
         ("xtask/history.rs", 115, 3),
         ("xtask/limits.rs", 176, 59),
         ("xtask/local.rs", 83, 8),
@@ -22312,8 +22326,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 633 scratches this tree
-    /// builds, 546 of the 633 are removed however the test leaves and 87 are
+    /// directories accumulated in an afternoon. Of the 654 scratches this tree
+    /// builds, 567 of the 654 are removed however the test leaves and 87 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22379,16 +22393,20 @@ mod the_frozen_path_rule {
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 44] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 48] = [
         ("daemon/device.rs", 7, 7),
+        ("daemon/environment.rs", 2, 2),
         ("daemon/install.rs", 8, 8),
-        ("daemon/main.rs", 3, 3),
-        ("daemon/mark.rs", 7, 7),
+        ("daemon/main.rs", 4, 4),
+        ("daemon/mark.rs", 8, 8),
+        ("daemon/pidfile.rs", 5, 5),
+        ("daemon/plugins.rs", 3, 3),
         ("daemon/profile.rs", 8, 8),
+        ("daemon/testing.rs", 2, 2),
         ("daemon/the_binary_prepares_a_profile.rs", 2, 2),
         ("daemon/the_mark_survives_a_crash.rs", 2, 2),
         ("nc-catalog-compiler/ledger.rs", 1, 0),
-        ("nc-catalog-compiler/the_gates_fire.rs", 158, 158),
+        ("nc-catalog-compiler/the_gates_fire.rs", 164, 164),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             2,
@@ -22404,7 +22422,7 @@ mod the_frozen_path_rule {
         ("nc-local/open.rs", 4, 4),
         ("nc-local/opening_refuses_what_it_did_not_make.rs", 43, 43),
         ("nc-local/the_local_journal.rs", 9, 9),
-        ("nc-platform/lib.rs", 26, 26),
+        ("nc-platform/lib.rs", 27, 27),
         ("nc-platform/service.rs", 6, 6),
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
         ("nc-prune/in_sqlite.rs", 13, 13),
@@ -25368,7 +25386,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 16685;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 17088;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25387,7 +25405,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3800;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4005;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25404,7 +25422,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1258;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1332;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25421,7 +25439,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [82, 16, 34, 35, 89];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [91, 19, 38, 39, 92];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -25438,7 +25456,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 23067;
+    const THE_REARRANGEMENTS_JUDGED: usize = 23473;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25456,7 +25474,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 481;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 515;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -25492,8 +25510,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **481 of 23,067 are accepted by the first-line
-    /// rule alone, and 256 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **515 of 23,473 are accepted by the first-line
+    /// rule alone, and 279 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -25514,8 +25532,8 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **82 ascending sorts, 16 descending, 34
-    /// swaps, 35 rotations and 89 reversals** — so the reversal is the largest
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **91 ascending sorts, 19 descending, 38
+    /// swaps, 39 rotations and 92 reversals** — so the reversal is the largest
     /// part of it, not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
@@ -25525,7 +25543,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1258 of
+    /// this tree offers, **1332 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -33706,6 +33724,7 @@ mod every_report_wire {
                 ),
                 ("crates/nc-kernel/src/lib.rs", "fn g() {}\n"),
                 ("crates/nc-prune/src/sqlite.rs", "fn h() {}\n"),
+                ("apps/daemon/src/lib.rs", "fn i() {}\n"),
             ],
         );
         let mut failures = Vec::new();
@@ -34018,7 +34037,7 @@ mod the_meta_gate {
     /// own doc: a module directory may be called anything. Every row here is a
     /// prefix of a workspace-relative path, anchored at its start, so what it
     /// excuses is what it names.
-    const NOT_MUTATED: [(&str, &str); 48] = [
+    const NOT_MUTATED: [(&str, &str); 50] = [
         (
             "crates/nc-platform/src/windows.rs",
             "another system's: the Windows half of what makes a path private, \
@@ -34105,6 +34124,27 @@ mod the_meta_gate {
              `mark.rs` is decided by that module's unit tests, which the runner's \
              command for it runs, and a weakening of this file would remove \
              evidence rather than uncover an undecided clause",
+        ),
+        (
+            "apps/daemon/tests/ipc_refusals.rs",
+            "a suite: a real daemon process handed connections that do not prove the \
+             token, each refused and logged with nothing journaled. It spawns a \
+             process, so no mutation command runs it: what it drives in `server.rs` \
+             is decided by that module's unit tests, and the refusals themselves by \
+             `nc-ipc`'s and `nc-platform`'s, which the runner's commands for them \
+             run, and a weakening of this file would remove evidence rather than \
+             uncover an undecided clause",
+        ),
+        (
+            "apps/daemon/tests/serves_its_kernel.rs",
+            "a suite: a real daemon process serving its registry, its status, \
+             journaled dispatches and its schedule, refusing a second daemon, \
+             holding none of its spawner's handles and stopping. It spawns a \
+             process, so no mutation command runs it: what it drives in `server.rs`, \
+             `schedule.rs`, `plugins.rs`, `pidfile.rs` and `environment.rs` is \
+             decided by those modules' unit tests, which the runner's commands for \
+             them run, and a weakening of this file would remove evidence rather \
+             than uncover an undecided clause",
         ),
         (
             "crates/nc-channel/tests/the_names_are_disjoint.rs",
@@ -34980,7 +35020,7 @@ mod the_meta_gate {
     ///
     /// A row added here with a phrase its excuse does not contain cannot be
     /// written truthfully, and a row whose excuse stops saying it fails.
-    const NOT_PRESSURE_BUT_PROVENANCE: [(&str, &str); 7] = [
+    const NOT_PRESSURE_BUT_PROVENANCE: [(&str, &str); 9] = [
         (
             "crates/nc-catalog/tests/the_generated_surface.rs",
             "reads the generated crate on disk",
@@ -35005,7 +35045,7 @@ mod the_meta_gate {
             "xtask/tests/the_stack_enforces_the_declared_bounds.rs",
             "second copy",
         ),
-        // **Two suites that spawn a process, which no mutation command runs**,
+        // **The suites that spawn a process, which no mutation command runs**,
         // so they press on no source the runner edits: the sources they drive
         // are decided by their own unit tests instead.
         // `a_suite_that_spawns_a_process_is_run_by_no_mutation_command` holds
@@ -35019,6 +35059,8 @@ mod the_meta_gate {
             "apps/daemon/tests/the_mark_survives_a_crash.rs",
             SPAWNS_A_PROCESS,
         ),
+        ("apps/daemon/tests/ipc_refusals.rs", SPAWNS_A_PROCESS),
+        ("apps/daemon/tests/serves_its_kernel.rs", SPAWNS_A_PROCESS),
     ];
 
     /// The runner refuses a run it cannot judge its database-backed files in.
@@ -36763,11 +36805,19 @@ Options:
                 let text = std::fs::read_to_string(&path).expect("a suite is readable");
                 suites += 1;
                 // **Code, not prose**: a comment or a string naming the type is
-                // not a process started.
+                // not a process started. **And a door that starts one**: a
+                // suite that spawns through a helper of its crate's test doors
+                // — the daemon's `testing::Installed::spawn` — names neither
+                // the type nor its constructor, and starts a process all the
+                // same; `.spawn()` with nothing in its parentheses is that call,
+                // where a thread's or a task's spawn takes what it runs.
                 let code = crate::gates::without_string_contents(&crate::gates::without_comments(
                     &text, "//",
                 ));
-                if !(code.contains("process::Command") || code.contains("Command::new(")) {
+                if !(code.contains("process::Command")
+                    || code.contains("Command::new(")
+                    || code.contains(".spawn()"))
+                {
                     continue;
                 }
                 let names = the_tests_a_suite_holds(&code);
@@ -37177,7 +37227,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 185,
+            walked, 195,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -37217,7 +37267,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1921] = [
+    static OPERATORS: [(&str, &str, &str); 1961] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -45302,7 +45352,7 @@ Options:
         ),
         (
             "daemon_profile",
-            "world",
+            "world_and_pack",
             "a world another account can reach is refused",
         ),
         ("daemon_device", "read", "a record is the seed's key"),
@@ -45802,6 +45852,186 @@ Options:
             "platform_service",
             "sweep_scratches",
             "a sweep keeps to its checkout's prefix",
+        ),
+        (
+            "daemon_pidfile",
+            "process_of",
+            "a record naming process zero is refused",
+        ),
+        (
+            "daemon_pidfile",
+            "parse",
+            "a PID record is read only as it is written",
+        ),
+        (
+            "daemon_pidfile",
+            "parse",
+            "a record holding a key it does not read is refused",
+        ),
+        (
+            "daemon_pidfile",
+            "read",
+            "a record another account can reach is refused",
+        ),
+        (
+            "daemon_pidfile",
+            "remove_if_ours",
+            "only the instance that wrote a record removes it",
+        ),
+        (
+            "daemon_pidfile",
+            "replace_private",
+            "a file left beside one is removed once judged",
+        ),
+        (
+            "daemon_plugins",
+            "names",
+            "the plugins directory is judged before it is listed",
+        ),
+        (
+            "daemon_plugins",
+            "names",
+            "the plugins are loaded in the order of their names",
+        ),
+        (
+            "daemon_plugins",
+            "read",
+            "a plugin's file another account can reach is refused",
+        ),
+        (
+            "daemon_plugins",
+            "names_refused",
+            "a refused plugin is logged",
+        ),
+        (
+            "daemon_schedule",
+            "noted",
+            "one refused pump is a wait, not a run",
+        ),
+        ("daemon_schedule", "noted", "a clean pump ends the run"),
+        ("daemon_schedule", "pumped", "a stuck run is logged"),
+        ("daemon_schedule", "swept", "a sweep's refusal is noted"),
+        (
+            "daemon_server",
+            "reach",
+            "nothing moves a stopping daemon's state back",
+        ),
+        (
+            "daemon_server",
+            "answer",
+            "a stop asked for stops the daemon",
+        ),
+        (
+            "daemon_server",
+            "kernel_if_running",
+            "a stopping daemon says it is stopping",
+        ),
+        (
+            "daemon_server",
+            "drained",
+            "nothing running is nothing given up",
+        ),
+        (
+            "daemon_server",
+            "status",
+            "a development daemon names its checkout",
+        ),
+        (
+            "daemon_server",
+            "kind_of",
+            "a refusal is told by the kernel's own word",
+        ),
+        (
+            "daemon_server",
+            "listed",
+            "a command's reversibility is its own word",
+        ),
+        (
+            "daemon_environment",
+            "log",
+            "an install naming no central log is refused as naming none",
+        ),
+        (
+            "daemon_environment",
+            "store",
+            "a start reads the newest unit its journal holds",
+        ),
+        (
+            "daemon_mark",
+            "settled",
+            "a clean stop writes the exact high-water mark",
+        ),
+        ("daemon_main", "asked", "no argument runs the daemon"),
+        ("daemon_main", "answer", "a refused start is a failure"),
+        (
+            "daemon_profile",
+            "directories",
+            "the plugins directory is made",
+        ),
+        (
+            "platform_unix",
+            "try_hold",
+            "a directory held is not held again",
+        ),
+        (
+            "platform_unix",
+            "detach",
+            "a daemon starts a session of its own",
+        ),
+        (
+            "platform_process",
+            "started_in_stat",
+            "the start is field 22",
+        ),
+        (
+            "platform_process",
+            "started_in_ps",
+            "a start printed by `ps` is five words",
+        ),
+        (
+            "local_journal",
+            "newest_unit",
+            "a unit of thirteen digits is newer than one of twelve",
+        ),
+        (
+            "loader",
+            "check_daemon_schedule",
+            "a pump as far apart as the shortest timer is taken",
+        ),
+        (
+            "loader",
+            "check_daemon_schedule",
+            "a sweep as far apart as an orphan's grace is taken",
+        ),
+        (
+            "loader",
+            "check_daemon_schedule",
+            "a drain as long as a dispatch is taken",
+        ),
+        (
+            "daemon_run",
+            "serve",
+            "a profile another daemon holds is refused as held",
+        ),
+        (
+            "daemon_testing",
+            "install_at",
+            "two installs never share a namespace",
+        ),
+        (
+            "daemon_testing",
+            "install_at",
+            "an install names a central log nothing answers at",
+        ),
+        (
+            "daemon_testing",
+            "drop",
+            "an install's scratch goes with it",
+        ),
+        (
+            "daemon_testing",
+            "without_a_central_log",
+            "a fence names no central log",
         ),
     ];
 

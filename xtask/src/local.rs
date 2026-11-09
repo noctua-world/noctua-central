@@ -80,8 +80,11 @@ use crate::gates::Finding;
 /// gate. **And the pruner whole**: read as its one SQLite file, on nothing
 /// firmer than the word that its other sources speak to PostgreSQL alone, the
 /// member counts as read and a `DROP TRIGGER` on a `SqlitePool` in its `lib.rs`
-/// passes every gate.
-pub(crate) const WRITERS: [&str; 3] = [
+/// passes every gate. **And the daemon's**, which opens the file through
+/// `nc-local` and hands the store to its kernel: it writes no statement, and a
+/// first one it wrote would meet this gate.
+pub(crate) const WRITERS: [&str; 4] = [
+    "apps/daemon/src",
     "crates/nc-local/src",
     "crates/nc-kernel/src",
     "crates/nc-prune/src",
