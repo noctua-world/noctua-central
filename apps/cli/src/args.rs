@@ -570,7 +570,7 @@ mod tests {
         for verb in VERBS {
             assert!(!verb.contains('.'), "{verb}");
             assert!(!nc_schema::command_name_is_well_formed(verb), "{verb}");
-            assert_ne!(line(&[verb]).asked, Asked::Help(Topic::ExitCodes));
+            assert!(matches!(line(&[verb]).asked, Asked::Help(_)), "{verb}");
         }
         assert!(!nc_schema::command_name_is_well_formed(super::EXIT_CODES));
         for command in nc_catalog::COMMANDS {

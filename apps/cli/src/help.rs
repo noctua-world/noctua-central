@@ -67,9 +67,10 @@ pub fn title(listed: &Listed, locale: Locale) -> String {
 
 /// The catalog's description of the command `name` in `locale`, for one the
 /// catalog declares.
-fn description(name: &str, locale: Locale) -> Option<&'static str> {
+fn description(name: &str, locale: Locale) -> Option<String> {
     nc_catalog::command(name)
         .and_then(|command| nc_catalog::message(command.description_key, locale))
+        .map(str::to_owned)
 }
 
 /// Help on everything: the grammar, the verbs, and every command the registry

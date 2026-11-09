@@ -33,17 +33,17 @@ const EVERY_TYPE: &str = r#"{"type":"object","additionalProperties":false,"prope
 
 /// Every schema the CLI has to read a command line into, by the command's
 /// name.
-fn every_schema() -> Vec<(String, &'static str)> {
-    let mut schemas: Vec<(String, &'static str)> = nc_catalog::COMMANDS
+fn every_schema() -> Vec<(String, String)> {
+    let mut schemas: Vec<(String, String)> = nc_catalog::COMMANDS
         .iter()
-        .map(|command| (command.name.to_owned(), command.args_schema))
+        .map(|command| (command.name.to_owned(), command.args_schema.to_owned()))
         .collect();
     schemas.extend(
         nc_plugin_reference::behaviour::commands()
             .into_iter()
-            .map(|command| (command.name, command.args_schema)),
+            .map(|command| (command.name, command.args_schema.to_owned())),
     );
-    schemas.push(("test.every-type".to_owned(), EVERY_TYPE));
+    schemas.push(("test.every-type".to_owned(), EVERY_TYPE.to_owned()));
     schemas
 }
 
@@ -164,7 +164,7 @@ fn read(schema: &Schema, name: &str, words: &[String]) -> Value {
 fn every_schema_reads_its_flags_back_into_the_instance() {
     let mut types = [false; 5];
     for (name, text) in every_schema() {
-        let schema = Schema::compile(text).unwrap_or_else(|refused| panic!("{name}: {refused}"));
+        let schema = Schema::compile(&text).unwrap_or_else(|refused| panic!("{name}: {refused}"));
         let arguments = schema.arguments();
         for argument in &arguments {
             let at = match argument.shape {
@@ -198,7 +198,7 @@ fn every_schema_reads_its_flags_back_into_the_instance() {
             &nc_cli::client::Listed {
                 name: name.clone(),
                 title: String::new(),
-                args_schema: text.to_owned(),
+                args_schema: text.clone(),
             },
             &schema,
             nc_catalog::Locale::En,
