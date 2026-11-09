@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish = false
-description = "Who this process runs as, a directory or a file private to that user, and the system's random bytes: the one place each system's answer is written."
+description = "Who this process runs as, a directory or a file private to that user, the system's random bytes, and the endpoint a daemon is reached through: the one place each system's answer is written."
 
 [features]
 # The doors other crates' suites stage a path through: one another user can
@@ -13,11 +13,14 @@ description = "Who this process runs as, a directory or a file private to that u
 # shipped can loosen a path through this crate.
 test-support = []
 
-# **The Win32 security calls, and nothing else of Windows** (`NOCTUA.md §2.3`,
-# decided 2026-11-02): who the token says this process is, an access list built
-# and read, a file and a directory created with one, a handle's attributes, and
-# the system's generator of random bytes (`Win32_Security_Cryptography`, for
-# `BCryptGenRandom` alone).
+# **The Win32 calls of security, of random bytes and of the processes at either
+# end of a named pipe, and nothing else of Windows** (`NOCTUA.md §2.3`, decided
+# 2026-11-02): who the token says this process is, an access list built and
+# read, a file and a directory created with one, a handle's attributes, the
+# system's generator of random bytes (`Win32_Security_Cryptography`, for
+# `BCryptGenRandom` alone), and the process at the other end of the daemon's
+# pipe (`Win32_System_Pipes`) with the user its token names (`OpenProcess`,
+# beside `OpenProcessToken` in `Win32_System_Threading`).
 # Each feature is a module of the declarations this crate calls, and none is
 # turned on for a call it does not make. Already in the graph at this version,
 # under `tokio`'s `mio`, so it adds no package; compiled only for a Windows
