@@ -8278,12 +8278,12 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1059] = [
     "declared setting",
     "declared setting",
     "deny.toml is not in this tree, so the dependency audit runs on cargo-deny's defaults and nothing here decides its scope",
-    "deny.toml sets `{key} = {value}` and the audit needs `{needed}`. The default was measured hiding {hid}, and cargo-deny prints the same transcript either way",
+    "deny.toml sets `{key} = {value}` and the audit needs `{needed}`. At another value the key was measured hiding {hid}, and cargo-deny prints the same transcript either way",
     "deny.toml sets `{key} = {refused}`, and this audit needs it not to: that was measured hiding {hid}",
     "deny.toml names `{key}` as `{value}`, and this audit needs that list empty or \
      unwritten: what it holds is taken out of the audit without the transcript \
      changing, which was measured hiding {hid}",
-    "deny.toml sets no `{key}`, so cargo-deny's default decides the audit's scope. That default was measured hiding {hid}, and it prints the same transcript either way",
+    "deny.toml sets no `{key}`, so cargo-deny's default decides the audit's scope, and the audit needs `{needed}` written out. At another value the key was measured hiding {hid}, and cargo-deny prints the same transcript either way",
     // The advisories `deny.toml` leaves out, read as the document cargo-deny
     // reads: what a file it cannot read is, and the two ways a list falls short.
     "`advisories.ignore` is a value of type {}, not a list",
@@ -11160,7 +11160,7 @@ fn the_sentences_after(text: &str, needle: &str, field: &str) -> Vec<String> {
 /// `// **The forty-one` line followed by four beginning `is`, `one`, `put` and
 /// `the`. Prose above the rows is not reordered.
 #[cfg(test)]
-const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 726] = [
+const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 727] = [
     // The workflows' bounds: their remedies, the release job's steps as
     // `THE_RELEASE_STEPS` writes them, the environment and the line that hands
     // the token on, a step's words when it is missing, and the clean line.
@@ -11278,6 +11278,7 @@ const WHAT_ELSE_THIS_TOOL_SAYS: [&str; 726] = [
     "`{recipe}` is the name a developer types and `{named}` is what this body runs. The description above it is the whole of what `just --list` prints, so a recipe that changes what it runs goes on saying what it used to do — and `check` carrying `--offline` is the smaller gate wearing the gate's name",
     "every yanked crate, which is usually a broken release or a fix that came without an advisory",
     "whatever advisory is named in it, with `advisories ok` printed over it",
+    "an ignored advisory no crate matches any more, which stays out of the audit with `advisories ok` printed over it",
     "the advisories `THE_ADVISORIES_LEFT_OUT` names, each with a reason",
     "whatever licence is named in it, one crate at a time and without moving `allow`",
     "    pub fn send(&self, _line: String) {} }\n",
@@ -12265,9 +12266,11 @@ impl Audit {
 /// this user's own first.
 ///
 /// **The list empties when the lock reaches the patched release.** An entry no
-/// crate matches makes cargo-deny warn `advisory-not-detected`, which fails the
-/// dependency step, so the change that moves `libsqlite3-sys` to 0.39 takes the
-/// entry out of `deny.toml` and out of this list.
+/// crate matches makes cargo-deny warn `advisory-not-detected` while
+/// `unused-ignored-advisory` is `warn`, which [`THE_AUDIT_IS_NOT_NARROWED`]
+/// holds, and the warning fails the dependency step, so the change that moves
+/// the lock to `libsqlite3-sys` 0.39 takes the entry out of `deny.toml` and
+/// out of this list.
 const THE_ADVISORIES_LEFT_OUT: [&str; 1] = ["RUSTSEC-2026-0459"];
 
 /// What the `ignore` row of [`THE_AUDIT_IS_NOT_NARROWED`] needs.
@@ -12276,7 +12279,7 @@ const ONLY_THE_ADVISORIES_LEFT_OUT: &str =
 
 /// The `deny.toml` keys whose default silently narrows the audit.
 ///
-/// Each is the key, the value the audit needs, and what its **default** was
+/// Each is the key, the value the audit needs, and what a narrower setting was
 /// measured hiding. `deny.toml` argues for each in prose, and prose is not a
 /// gate: without this list, flipping one back to cargo-deny's default leaves
 /// `ok advisories, licences, bans and sources` and `check passed` byte for byte
@@ -12289,7 +12292,7 @@ const ONLY_THE_ADVISORIES_LEFT_OUT: &str =
 /// the direction that matters. These are the keys whose value or whose *default*
 /// silently shrinks what the audit decides, each measured hiding crates or
 /// warnings, and each written down in the file it governs.
-const THE_AUDIT_IS_NOT_NARROWED: [(&str, &str, &str); 13] = [
+const THE_AUDIT_IS_NOT_NARROWED: [(&str, &str, &str); 14] = [
     // **Three keys `deny.toml` argues for at length.** Measured with this row
     // gone: `yanked = "allow"` in the shipped file leaves every deny.toml test
     // green and `cargo deny check advisories` prints `advisories ok` with no
@@ -12309,6 +12312,19 @@ const THE_AUDIT_IS_NOT_NARROWED: [(&str, &str, &str); 13] = [
         "ignore",
         ONLY_THE_ADVISORIES_LEFT_OUT,
         "whatever advisory is named in it, with `advisories ok` printed over it",
+    ),
+    // **And the key an entry of `ignore` expires by.** cargo-deny warns
+    // `advisory-not-detected` for an ignored advisory no crate matches only
+    // while this key is not `allow`. Measured with no row for it, cargo-deny
+    // 0.20.2: one line, `unused-ignored-advisory = "allow"`, kept an advisory
+    // no crate matched in the list with `advisories ok` and no warning, and the
+    // list still equalled `THE_ADVISORIES_LEFT_OUT`, so the row above passed.
+    // Its default is `warn`, the value asked for here, written out as this file
+    // writes its other defaults; cargo-deny refuses the key in any other table.
+    (
+        "unused-ignored-advisory",
+        "\"warn\"",
+        "an ignored advisory no crate matches any more, which stays out of the audit with `advisories ok` printed over it",
     ),
     (
         "exceptions",
@@ -12666,15 +12682,16 @@ fn the_audit_is_not_narrowed(root: &Path, failures: &mut Vec<String>) {
             Some(value) => {
                 ui::failure(&format!(
                     "deny.toml sets `{key} = {value}` and the audit needs `{needed}`. \
-                     The default was measured hiding {hid}, and cargo-deny prints the \
-                     same transcript either way"
+                     At another value the key was measured hiding {hid}, and cargo-deny \
+                     prints the same transcript either way"
                 ));
                 narrowed = true;
             }
             None => {
                 ui::failure(&format!(
                     "deny.toml sets no `{key}`, so cargo-deny's default decides the \
-                     audit's scope. That default was measured hiding {hid}, and it \
+                     audit's scope, and the audit needs `{needed}` written out. At \
+                     another value the key was measured hiding {hid}, and cargo-deny \
                      prints the same transcript either way"
                 ));
                 narrowed = true;
@@ -19442,7 +19459,7 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 671, 56),
+        ("xtask/check.rs", 672, 56),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 45, 29),
         ("xtask/database.rs", 30, 6),
@@ -22241,8 +22258,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 564 scratches this tree
-    /// builds, 477 of the 564 are removed however the test leaves and 87 are
+    /// directories accumulated in an afternoon. Of the 565 scratches this tree
+    /// builds, 478 of the 565 are removed however the test leaves and 87 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22329,7 +22346,7 @@ mod the_frozen_path_rule {
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
         ("nc-prune/in_sqlite.rs", 13, 13),
         ("xtask/build.rs", 8, 8),
-        ("xtask/check.rs", 41, 29),
+        ("xtask/check.rs", 42, 30),
         ("xtask/corpus.rs", 15, 15),
         ("xtask/counts.rs", 7, 0),
         ("xtask/determinism.rs", 6, 0),
@@ -25288,7 +25305,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15581;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15583;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25358,7 +25375,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 21947;
+    const THE_REARRANGEMENTS_JUDGED: usize = 21952;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25412,7 +25429,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **480 of 21,947 are accepted by the first-line
+    /// rules the gates apply: **480 of 21,952 are accepted by the first-line
     /// rule alone, and 256 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -27564,6 +27581,48 @@ mod the_frozen_path_rule {
         drop(held);
     }
 
+    /// The warning that ends an ignored advisory's exclusion cannot be turned
+    /// off.
+    ///
+    /// **The expiry, held rather than assumed.** An entry of `ignore` leaves
+    /// the audit once no crate matches it only because cargo-deny then warns
+    /// `advisory-not-detected`. Measured with 0.20.2, `allow` keeps that entry
+    /// ignored with `advisories ok` and no warning, while the list still equals
+    /// the gate's and its own row passes.
+    #[test]
+    fn the_warning_that_expires_an_ignored_advisory_cannot_be_turned_off() {
+        let held = super::LeavesNothingBehind::new("scratch");
+        let shipped = std::fs::read_to_string(
+            std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/..")).join("deny.toml"),
+        )
+        .expect("this repository has a deny.toml");
+        let written = "\nunused-ignored-advisory = \"warn\"\n";
+        for (label, line) in [
+            ("turned off", "\nunused-ignored-advisory = \"allow\"\n"),
+            (
+                "turned off in a literal string",
+                "\nunused-ignored-advisory = 'allow'\n",
+            ),
+            (
+                "turned off under a quoted key",
+                "\n\"unused-ignored-advisory\" = \"allow\"\n",
+            ),
+            ("left to cargo-deny's default", "\n"),
+        ] {
+            let planted = shipped.replace(written, line);
+            assert_ne!(planted, shipped, "the warning {label}: nothing was planted");
+            assert!(
+                narrowed(&held.root, &planted),
+                "the warning {label} was not reported"
+            );
+        }
+        assert!(
+            !narrowed(&held.root, &shipped),
+            "the shipped file, which writes the key at cargo-deny's own default, was refused"
+        );
+        drop(held);
+    }
+
     /// The licence crate count is read from cargo-deny's own statistics.
     ///
     /// The `ok` line names a number, and a number read from the wrong line is
@@ -27868,7 +27927,7 @@ mod the_frozen_path_rule {
     /// compiles — and not a queue of gaps. What it is not is the verdict census
     /// beside it, which knows *where* a verdict is said; a sentence belongs
     /// there when a reader of the code could not tell the two apart.
-    const THE_REST_IT_SAYS: usize = 726;
+    const THE_REST_IT_SAYS: usize = 727;
 
     /// The `{` that opens the block a byte offset sits in.
     ///
@@ -29019,11 +29078,11 @@ mod the_frozen_path_rule {
         ),
         (
             "Some(value) =>",
-            "deny.toml sets `{key} = {value}` and the audit needs `{needed}`. The default was measured hiding {hid}, and cargo-deny prints the same transcript either way",
+            "deny.toml sets `{key} = {value}` and the audit needs `{needed}`. At another value the key was measured hiding {hid}, and cargo-deny prints the same transcript either way",
         ),
         (
             "None =>",
-            "deny.toml sets no `{key}`, so cargo-deny's default decides the audit's scope. That default was measured hiding {hid}, and it prints the same transcript either way",
+            "deny.toml sets no `{key}`, so cargo-deny's default decides the audit's scope, and the audit needs `{needed}` written out. At another value the key was measured hiding {hid}, and cargo-deny prints the same transcript either way",
         ),
         ("if narrowed", "the dependency audit is narrowed"),
         ("Some(read) if read > 0 =>", "{}, over {read} crate(s)"),
@@ -36622,7 +36681,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1783] = [
+    static OPERATORS: [(&str, &str, &str); 1784] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -41036,6 +41095,11 @@ Options:
             "check",
             "the_advisories_left_out_are_the_listed_ones",
             "a deny.toml the audit cannot read is a finding",
+        ),
+        (
+            "check",
+            "THE_AUDIT_IS_NOT_NARROWED",
+            "the warning that expires an ignored advisory stays on",
         ),
         (
             "kernel_dispatch",

@@ -4103,6 +4103,14 @@ WEAKENINGS = [
     ("check", "the_advisories_left_out_are_the_listed_ones", "a deny.toml the audit cannot read is a finding",
      "            return false;\n        }\n    };\n    let mut held = true;",
      "            return true;\n        }\n    };\n    let mut held = true;"),
+    # And the key an entry of `ignore` expires by, held at `warn`: a row that
+    # refused only the stricter value leaves `allow` free to keep a stale entry
+    # ignored, and the loops over the rows plant neither `allow` nor the key
+    # removed under it. Killed by
+    # `the_warning_that_expires_an_ignored_advisory_cannot_be_turned_off`.
+    ("check", "THE_AUDIT_IS_NOT_NARROWED", "the warning that expires an ignored advisory stays on",
+     '        "unused-ignored-advisory",\n        "\\"warn\\"",',
+     '        "unused-ignored-advisory",\n        "not \\"deny\\"",'),
     # -- the decision point, the units of work and the log --------------------
     ("kernel_dispatch", "spend", "a call tree nests no deeper than its depth",
      "        if depth > usize::try_from(KERNEL.dispatch_depth).unwrap_or(usize::MAX) {",

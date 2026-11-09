@@ -20,11 +20,12 @@ all-features = true
 # advisories `THE_ADVISORIES_LEFT_OUT` in `xtask/src/check.rs` names, in its
 # order, each with its reason in the entry and its argument in this file, and
 # the gate refuses any other entry and one whose reason is missing or empty.
-# An entry outlives its cause by no run: cargo-deny warns
-# `advisory-not-detected` for an ignored advisory no crate matches (measured,
-# cargo-deny 0.20.2: `advisory was not encountered`), and the dependency step
-# fails on any warning, so the change that moves the lock past an advisory
-# takes it out of both lists.
+# An entry outlives its cause by no run: while `unused-ignored-advisory` below
+# is `warn`, cargo-deny warns `advisory-not-detected` for an ignored advisory
+# no crate matches, and the dependency step fails on any warning (measured,
+# cargo-deny 0.20.2: `advisory was not encountered`, and at `allow` the same
+# entry prints `advisories ok` with no warning at all), so the change that
+# moves the lock past an advisory takes it out of both lists.
 yanked = "deny"
 
 # **`unsound` defaults to the workspace, which is a choice this file does not
@@ -38,6 +39,11 @@ yanked = "deny"
 # fine at its own default of `all`; `unsound` is the one that is off, and a
 # default is a decision somebody has to make on purpose.
 unsound = "all"
+# **Written out at cargo-deny's own default, because the expiry of every entry
+# in `ignore` rests on it.** One word, `allow`, would keep an advisory no crate
+# matches out of the audit for as long as nobody read the list, so the gate
+# holds this value as it holds the keys above.
+unused-ignored-advisory = "warn"
 # **RUSTSEC-2026-0459 does not reach this tree, and only that advisory is left
 # out.** It is CVE-2026-119375: a SQLite below 3.54.0 returns uninitialized
 # page-cache memory to a process that opens a database together with a `-wal`
