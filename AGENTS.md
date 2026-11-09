@@ -1708,8 +1708,8 @@ the next boot; under launchd its plist stays in the test's scratch and is bootst
 there; on Windows its task sits in the root folder under that prefix. A guard unregisters
 each however the test leaves, and each test first sweeps this checkout's leftovers whose
 owner is dead — told by a lock the owner holds for as long as it lives, in a scratch every
-run of the checkout keeps in the checkout's own `target/nc-registered` whatever its
-environment names as temporary, never by a pid that may since name another process, and
+run of the checkout keeps in `nc-registered` under the checkout's own `target`, whatever
+its environment names as temporary, never by a pid that may since name another process, and
 only once the scratch is a minute old, so a scratch whose owner has not yet taken its lock
 is never read as dead — so a run killed half way is cleaned by the next run of the same
 checkout, and a live run, of this checkout or another, is never touched. The sweep unregisters only a name under this checkout's prefix, held

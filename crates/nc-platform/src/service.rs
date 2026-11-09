@@ -1715,8 +1715,8 @@ mod tests {
         format!("noctua-dev-test-{}-", nc_channel::Checkout::of(&checkout()))
     }
 
-    /// Where every scratch service of this checkout has its scratch: the
-    /// checkout's own `target/nc-registered`.
+    /// Where every scratch service of this checkout has its scratch: in the
+    /// directory `nc-registered`, under the checkout's own `target`.
     ///
     /// **The same for every run of this checkout, whatever its environment**:
     /// a sweep reading another directory than the one a live run made its
@@ -2943,13 +2943,13 @@ mod tests {
     ///
     /// **A scratch service's program is this test binary**, started again by
     /// the manager with the name of the test that registered it: it records
-    /// its process and a nonce of its own in its scratch — in this checkout's
-    /// `target/nc-registered`, where every run of the checkout looks — and the
-    /// arguments it was handed, then waits until its scratch is gone, or exits
-    /// 0, as it is told. Every name it is registered under opens with this checkout's
-    /// prefix — `noctua-dev-test-`, the checkout's digest and `-` — and
-    /// carries this process and a nonce; on systemd its unit is written only
-    /// in `$XDG_RUNTIME_DIR/systemd/user`, which the user manager
+    /// its process and a nonce of its own in its scratch — in `nc-registered`
+    /// under this checkout's `target`, where every run of the checkout looks —
+    /// and the arguments it was handed, then waits until its scratch is gone,
+    /// or exits 0, as it is told. Every name it is registered under opens with
+    /// this checkout's prefix — `noctua-dev-test-`, the checkout's digest and
+    /// `-` — and carries this process and a nonce; on systemd its unit is
+    /// written only in `$XDG_RUNTIME_DIR/systemd/user`, which the user manager
     /// forgets at the next boot, and under the others its definition stays in
     /// the scratch. A guard unregisters it however the test leaves, and each
     /// test first sweeps this checkout's leftovers whose owner's lock is no
