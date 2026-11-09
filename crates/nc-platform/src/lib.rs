@@ -11,7 +11,9 @@
 //! too: modes and owners through `std::os::unix`. `windows.rs` is the Windows
 //! half: the token's user and the access lists of the Win32 security calls.
 //! The local database's open (`nc_local`) and the kernel's blob directory are
-//! the two callers, and this crate is what both need, and no more.
+//! two callers, and the daemon's IPC endpoint, [`ipc`], is the third: the
+//! socket or the pipe a daemon is reached through, and who is at the other end
+//! of each connection. This crate is what they need, and no more.
 //!
 //! # What private is, on each system
 //!
@@ -87,6 +89,9 @@ mod unix;
               made; each block says why its pointers are valid and what it frees"
 )]
 mod windows;
+
+/// The endpoint a daemon is reached through: a socket or a pipe, this user's alone.
+pub mod ipc;
 
 #[cfg(unix)]
 use unix as imp;
@@ -963,5 +968,549 @@ mod tests {
     fn a_directory_is_synced() {
         let scratch = Scratch::new("synced");
         super::sync_directory(&scratch.0).expect("synced");
+    }
+
+    /// A runtime of one thread, as the daemon's endpoint is listened on.
+    fn runtime() -> tokio::runtime::Runtime {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("a runtime")
+    }
+
+    /// A pipe's name no other test, run or checkout takes: the test prefix,
+    /// the checkout this was built in, this process and a nonce.
+    ///
+    /// **A pipe's name is the whole machine's**, so a test that reused one
+    /// would meet another run's, or a real daemon's.
+    fn pipe_named(name: &str) -> String {
+        let checkout = env!("CARGO_MANIFEST_DIR")
+            .bytes()
+            .fold(0x811c_9dc5_u32, |hash, byte| {
+                (hash ^ u32::from(byte)).wrapping_mul(0x0100_0193)
+            });
+        let mut nonce = [0_u8; 4];
+        super::random(&mut nonce).expect("the system's generator answers");
+        let nonce = u32::from_le_bytes(nonce);
+        format!(
+            r"\\.\pipe\nc-test-{checkout:08x}-{}-{nonce:08x}-{name}",
+            std::process::id()
+        )
+    }
+
+    /// The endpoint of a scratch runtime directory: its socket `s`, and a
+    /// pipe of its own.
+    fn endpoint_in(scratch: &Scratch, name: &str) -> super::ipc::Endpoint {
+        super::ipc::Endpoint::new(&scratch.0, scratch.0.join("s"), pipe_named(name))
+    }
+
+    /// A child process this test started, killed and waited for however the
+    /// test leaves.
+    struct Child(std::process::Child);
+
+    /// The child killed and waited for, whether it ended or not.
+    impl Drop for Child {
+        /// Kills the child, which may have ended already, and reaps it.
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+
+    /// What a test asks of its child.
+    impl Child {
+        /// Waits for the child to end, for a minute at most, and answers
+        /// whether it ended as a passing test does.
+        fn ended_well(&mut self) -> bool {
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+            loop {
+                if let Some(status) = self.0.try_wait().expect("the child is asked") {
+                    return status.success();
+                }
+                assert!(
+                    std::time::Instant::now() < deadline,
+                    "the child did not end within a minute"
+                );
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+        }
+    }
+
+    /// The role a child of [`the_peer_is_the_process_at_the_other_end_and_not_this_one`]
+    /// plays: `connect`, or `serve`.
+    const CHILD_ROLE: &str = "NC_PLATFORM_IPC_CHILD_ROLE";
+    /// The runtime directory of the endpoint the child plays its role at.
+    const CHILD_RUNTIME: &str = "NC_PLATFORM_IPC_CHILD_RUNTIME";
+    /// The endpoint's socket.
+    const CHILD_SOCKET: &str = "NC_PLATFORM_IPC_CHILD_SOCKET";
+    /// The endpoint's pipe.
+    const CHILD_PIPE: &str = "NC_PLATFORM_IPC_CHILD_PIPE";
+
+    /// This test binary, run again as a child playing `role` at `endpoint`.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the other end of a connection has to be another process for its id to be                   told from this one's; the child is this same test binary, its output                   discarded"
+    )]
+    fn spawned(role: &str, endpoint: &super::ipc::Endpoint) -> Child {
+        Child(
+            std::process::Command::new(std::env::current_exe().expect("this test binary"))
+                .args([
+                    "--exact",
+                    "tests::the_peer_is_the_process_at_the_other_end_and_not_this_one",
+                    "--test-threads=1",
+                ])
+                .env(CHILD_ROLE, role)
+                .env(CHILD_RUNTIME, &endpoint.runtime)
+                .env(CHILD_SOCKET, &endpoint.socket)
+                .env(CHILD_PIPE, &endpoint.pipe)
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .spawn()
+                .expect("the child starts"),
+        )
+    }
+
+    /// Reads `stream` until its other end closes it.
+    async fn until_closed(stream: &mut super::ipc::Stream) {
+        use tokio::io::AsyncReadExt as _;
+
+        let mut buffer = [0_u8; 16];
+        while matches!(stream.read(&mut buffer).await, Ok(read) if read > 0) {}
+    }
+
+    /// What a child of the peer test does: connects to the endpoint, or binds
+    /// it and accepts one connection, and holds the connection until its
+    /// other end closes it.
+    fn as_the_child(role: &str) {
+        let read = |name| std::env::var(name).expect("the parent names the endpoint");
+        let endpoint =
+            super::ipc::Endpoint::new(read(CHILD_RUNTIME), read(CHILD_SOCKET), read(CHILD_PIPE));
+        let user = user_in(endpoint.runtime()).expect("the parent's runtime directory is private");
+        runtime().block_on(async {
+            if role == "serve" {
+                let instance =
+                    super::hold(endpoint.runtime(), "instance.lock", &user).expect("held");
+                let mut listener = super::ipc::Listener::bind(&endpoint, &user, &instance, 4)
+                    .expect("the child binds");
+                let mut accepted = listener.accept().await.expect("the parent connects");
+                until_closed(&mut accepted.stream).await;
+            } else {
+                let (mut stream, _) = super::ipc::connect(&endpoint, &user)
+                    .await
+                    .expect("the child reaches the parent's endpoint");
+                until_closed(&mut stream).await;
+            }
+        });
+    }
+
+    /// Both ends of an endpoint read the other off the system, and bytes
+    /// cross it both ways.
+    #[test]
+    fn both_ends_of_an_endpoint_read_the_other_off_the_system() {
+        use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+
+        let scratch = Scratch::new("ipc-both-ends");
+        let user = user_in(&scratch.0).expect("private");
+        let endpoint = endpoint_in(&scratch, "both-ends");
+        let instance = super::hold(&scratch.0, "instance.lock", &user).expect("held");
+        runtime().block_on(async {
+            let mut listener =
+                super::ipc::Listener::bind(&endpoint, &user, &instance, 4).expect("bound");
+            let (accepted, connected) =
+                tokio::join!(listener.accept(), super::ipc::connect(&endpoint, &user));
+            let mut accepted = accepted.expect("accepted");
+            let (mut client, server) = connected.expect("connected");
+            assert_eq!(
+                accepted.peer.pid,
+                std::process::id(),
+                "the client's process"
+            );
+            assert_eq!(server.pid, std::process::id(), "the server's process");
+            client.write_all(b"ping").await.expect("written");
+            let mut heard = [0_u8; 4];
+            accepted.stream.read_exact(&mut heard).await.expect("read");
+            assert_eq!(&heard, b"ping");
+            accepted.stream.write_all(b"pong").await.expect("written");
+            client.read_exact(&mut heard).await.expect("read");
+            assert_eq!(&heard, b"pong");
+        });
+    }
+
+    /// The process each end reads is the one at the other end — a child's,
+    /// never this process's own — whichever end the child is.
+    ///
+    /// **Against a child, because one process at both ends cannot tell the
+    /// two apart**: a reader answering this process's own credentials passes
+    /// every test whose two ends are this process.
+    #[test]
+    fn the_peer_is_the_process_at_the_other_end_and_not_this_one() {
+        if let Ok(role) = std::env::var(CHILD_ROLE) {
+            as_the_child(&role);
+            return;
+        }
+        let scratch = Scratch::new("ipc-child-connects");
+        let user = user_in(&scratch.0).expect("private");
+        let endpoint = endpoint_in(&scratch, "child-connects");
+        let instance = super::hold(&scratch.0, "instance.lock", &user).expect("held");
+        runtime().block_on(async {
+            let mut listener =
+                super::ipc::Listener::bind(&endpoint, &user, &instance, 4).expect("bound");
+            let mut child = spawned("connect", &endpoint);
+            let accepted = listener.accept().await.expect("the child's connection");
+            assert_eq!(
+                accepted.peer.pid,
+                child.0.id(),
+                "the client read is not the child"
+            );
+            assert_ne!(accepted.peer.pid, std::process::id());
+            drop(accepted);
+            assert!(child.ended_well(), "the connecting child failed");
+        });
+
+        // The child's own lock, on a directory of its own: this process holds
+        // the first one's.
+        let second = Scratch::new("ipc-child-serves");
+        let endpoint = endpoint_in(&second, "child-serves");
+        runtime().block_on(async {
+            let mut child = spawned("serve", &endpoint);
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+            let (stream, server) = loop {
+                match super::ipc::connect(&endpoint, &user).await {
+                    Ok(connected) => break connected,
+                    Err(super::ipc::Refused::Nobody(_)) if std::time::Instant::now() < deadline => {
+                        tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+                    }
+                    Err(other) => panic!("the child's endpoint was not reached: {other}"),
+                }
+            };
+            assert_eq!(server.pid, child.0.id(), "the server read is not the child");
+            assert_ne!(server.pid, std::process::id());
+            drop(stream);
+            assert!(child.ended_well(), "the serving child failed");
+        });
+    }
+
+    /// The peer predicate refuses a user that is not this one, naming both
+    /// and which part of the other end it was, and takes this user.
+    ///
+    /// **Driven with a forged identity**, since no test can be another user:
+    /// what the system says of a real other account reaches this same
+    /// comparison.
+    #[test]
+    fn the_peer_predicate_refuses_someone_else_and_takes_this_user() {
+        use super::ipc::{Refused, Said, Whose, admits, admitted};
+
+        let scratch = Scratch::new("ipc-predicate");
+        let user = user_in(&scratch.0).expect("private");
+        let other = testing::someone_else(&user);
+        for whose in [Whose::Process, Whose::Pipe] {
+            admits(&user.0.who(), whose, &user).expect("this user is taken");
+            match admits(&other.0.who(), whose, &user) {
+                Err(Refused::Peer {
+                    whose: said,
+                    found,
+                    user: ours,
+                }) => {
+                    assert_eq!((found, ours), (other.to_string(), user.to_string()));
+                    let refused = admits(&other.0.who(), whose, &user)
+                        .expect_err("refused")
+                        .to_string();
+                    assert!(refused.starts_with(said), "{refused}");
+                }
+                verdict => panic!("{whose:?}: someone else was taken: {verdict:?}"),
+            }
+        }
+        let said = |users: Vec<(Whose, _)>, pid| Said { users, pid };
+        assert!(
+            matches!(
+                admitted(
+                    said(
+                        vec![(Whose::Pipe, user.0.who()), (Whose::Process, other.0.who())],
+                        Some(7)
+                    ),
+                    &user
+                ),
+                Err(Refused::Peer { .. })
+            ),
+            "one part of the other end that is someone else's was let through"
+        );
+        for pid in [None, Some(0), Some(-1), Some(i64::from(u32::MAX) + 1)] {
+            assert!(
+                matches!(
+                    admitted(said(vec![(Whose::Process, user.0.who())], pid), &user),
+                    Err(Refused::NoProcess)
+                ),
+                "{pid:?} was taken for a process"
+            );
+        }
+        assert_eq!(
+            admitted(said(vec![(Whose::Process, user.0.who())], Some(42)), &user)
+                .expect("this user's process 42")
+                .pid,
+            42
+        );
+    }
+
+    /// A runtime directory another user can reach is refused, each way it can
+    /// be reached, and no endpoint is made in it.
+    #[test]
+    fn a_runtime_directory_another_user_can_reach_is_refused_and_nothing_is_bound() {
+        let scratch = Scratch::new("ipc-reachable");
+        let user = user_in(&scratch.0).expect("private");
+        let endpoint = endpoint_in(&scratch, "reachable");
+        let instance = super::hold(&scratch.0, "instance.lock", &user).expect("held");
+        runtime().block_on(async {
+            for opening in testing::every_way_another_user_can_reach(Kind::Directory) {
+                let said = opening.apply(&scratch.0).expect("staged");
+                let verdict = super::ipc::Listener::bind(&endpoint, &user, &instance, 4);
+                testing::make_private(&scratch.0).expect("private again");
+                match verdict {
+                    Err(super::ipc::Refused::NotPrivate(refused)) => {
+                        let refused = refused.to_string();
+                        assert!(
+                            refused.contains(&said) && refused.contains("another user can reach"),
+                            "{said}: {refused}"
+                        );
+                    }
+                    other => panic!("{said}: refused, and it was {other:?}"),
+                }
+                assert!(
+                    matches!(
+                        super::ipc::connect(&endpoint, &user).await,
+                        Err(super::ipc::Refused::Nobody(_))
+                    ),
+                    "{said}: an endpoint was made in a directory that was refused"
+                );
+            }
+            let elsewhere = super::ipc::Endpoint::new(
+                &scratch.0,
+                scratch.0.join("deeper").join("s"),
+                pipe_named("elsewhere"),
+            );
+            match super::ipc::Listener::bind(&elsewhere, &user, &instance, 4) {
+                Err(super::ipc::Refused::NotPrivate(refused)) => assert!(
+                    refused
+                        .to_string()
+                        .contains("is not in the runtime directory"),
+                    "{refused}"
+                ),
+                other => panic!("a socket outside its runtime directory was {other:?}"),
+            }
+        });
+    }
+
+    /// The endpoint is made as this crate makes what is private, and is read
+    /// back so: the socket's mode as `0600`, the pipe's list as one entry.
+    #[test]
+    fn the_endpoint_is_made_private_and_read_back_so() {
+        let scratch = Scratch::new("ipc-as-created");
+        let user = user_in(&scratch.0).expect("private");
+        let endpoint = endpoint_in(&scratch, "as-created");
+        let instance = super::hold(&scratch.0, "instance.lock", &user).expect("held");
+        runtime().block_on(async {
+            let listener =
+                super::ipc::Listener::bind(&endpoint, &user, &instance, 4).expect("bound");
+            assert!(
+                testing::endpoint_is_as_created(&listener),
+                "the endpoint lets in more than its user"
+            );
+        });
+    }
+
+    /// A name exactly as long as the system holds is bound, and one longer is
+    /// refused from either end with a sentence naming the limit.
+    #[test]
+    fn a_name_longer_than_the_system_holds_is_refused_by_its_limit() {
+        let scratch = Scratch::new("ipc-long");
+        let user = user_in(&scratch.0).expect("private");
+        let instance = super::hold(&scratch.0, "instance.lock", &user).expect("held");
+        let room = super::imp::NAME_MAX - scratch.0.as_os_str().len() - 1;
+        let pipe = pipe_named("long");
+        let filled = |length: usize| format!("{pipe}{}", "x".repeat(length - pipe.len()));
+        let at_the_limit = super::ipc::Endpoint::new(
+            &scratch.0,
+            scratch.0.join("x".repeat(room)),
+            filled(super::imp::NAME_MAX),
+        );
+        let past_it = super::ipc::Endpoint::new(
+            &scratch.0,
+            scratch.0.join("x".repeat(room + 1)),
+            filled(super::imp::NAME_MAX + 1),
+        );
+        runtime().block_on(async {
+            drop(
+                super::ipc::Listener::bind(&at_the_limit, &user, &instance, 4)
+                    .expect("a name at the limit is bound"),
+            );
+            let refused = [
+                super::ipc::Listener::bind(&past_it, &user, &instance, 4).map(drop),
+                super::ipc::connect(&past_it, &user).await.map(drop),
+            ];
+            for verdict in refused {
+                match verdict {
+                    Err(refused @ super::ipc::Refused::TooLong { .. }) => {
+                        let said = refused.to_string();
+                        assert!(
+                            said.contains(&format!(
+                                "{} {}",
+                                super::imp::NAME_MAX,
+                                super::imp::NAME_UNIT
+                            )) && said.contains(&past_it.name()),
+                            "{said}"
+                        );
+                    }
+                    other => panic!("a name past the limit was {other:?}"),
+                }
+            }
+        });
+    }
+
+    /// An endpoint something answers at is not taken, and what answers there
+    /// goes on answering.
+    #[test]
+    fn an_endpoint_something_answers_at_is_not_taken() {
+        let scratch = Scratch::new("ipc-taken");
+        let user = user_in(&scratch.0).expect("private");
+        let endpoint = endpoint_in(&scratch, "taken");
+        let instance = super::hold(&scratch.0, "instance.lock", &user).expect("held");
+        runtime().block_on(async {
+            let mut first =
+                super::ipc::Listener::bind(&endpoint, &user, &instance, 4).expect("bound");
+            match super::ipc::Listener::bind(&endpoint, &user, &instance, 4) {
+                Err(super::ipc::Refused::Taken { name }) => assert_eq!(name, endpoint.name()),
+                other => panic!("an endpoint something answers at was {other:?}"),
+            }
+            let (accepted, connected) =
+                tokio::join!(first.accept(), super::ipc::connect(&endpoint, &user));
+            accepted.expect("the first listener still accepts");
+            connected.expect("and is reached");
+        });
+    }
+
+    /// A dead socket of this user's is replaced, and anything else at the
+    /// endpoint's name is refused and left as it was — where the endpoint is a
+    /// name on disk; where it is not, the name at the socket's path is
+    /// nothing a bind reads, and is left alone.
+    #[test]
+    fn a_dead_socket_is_replaced_and_anything_else_at_the_name_is_left_as_it_was() {
+        use std::io::Write as _;
+
+        let scratch = Scratch::new("ipc-stale");
+        let user = user_in(&scratch.0).expect("private");
+        let endpoint = endpoint_in(&scratch, "stale");
+        let instance = super::hold(&scratch.0, "instance.lock", &user).expect("held");
+        runtime().block_on(async {
+            testing::leave_a_dead_endpoint(&endpoint).expect("a dead endpoint");
+            assert!(
+                matches!(
+                    super::ipc::connect(&endpoint, &user).await,
+                    Err(super::ipc::Refused::Nobody(_))
+                ),
+                "a dead endpoint answered"
+            );
+            drop(
+                super::ipc::Listener::bind(&endpoint, &user, &instance, 4)
+                    .expect("a dead socket of this user's is replaced"),
+            );
+            super::create_private(&endpoint.socket)
+                .expect("a file at the socket's path")
+                .write_all(b"kept")
+                .expect("written");
+            let target = scratch.0.join("target");
+            drop(super::create_private(&target).expect("a file"));
+            for (staged, says) in [("a file", "is not a socket"), ("a link", "symbolic link")] {
+                if staged == "a link" {
+                    std::fs::remove_file(&endpoint.socket).expect("the file goes");
+                    testing::link_file(&target, &endpoint.socket).expect("a link");
+                }
+                let before = std::fs::symlink_metadata(&endpoint.socket).expect("there");
+                let verdict = super::ipc::Listener::bind(&endpoint, &user, &instance, 4);
+                let after = std::fs::symlink_metadata(&endpoint.socket).expect("still there");
+                assert_eq!(
+                    (after.file_type().is_symlink(), after.len()),
+                    (before.file_type().is_symlink(), before.len()),
+                    "{staged} at the socket's path was changed"
+                );
+                match (testing::ENDPOINT_ON_DISK, verdict) {
+                    (true, Err(super::ipc::Refused::NotPrivate(refused))) => {
+                        assert!(refused.to_string().contains(says), "{staged}: {refused}");
+                    }
+                    (false, Ok(listener)) => drop(listener),
+                    (_, other) => panic!("{staged} at the socket's path: {other:?}"),
+                }
+            }
+            if testing::ENDPOINT_ON_DISK {
+                assert_eq!(std::fs::read(&target).expect("readable"), b"");
+            }
+        });
+    }
+
+    /// A connection past the bound is closed as soon as it is accepted, one
+    /// closed makes room for the next, and a bound of none or past what a pipe
+    /// holds is refused.
+    #[test]
+    fn a_connection_past_the_bound_is_closed_and_one_closed_makes_room() {
+        use tokio::io::AsyncReadExt as _;
+
+        let scratch = Scratch::new("ipc-bound");
+        let user = user_in(&scratch.0).expect("private");
+        let endpoint = endpoint_in(&scratch, "bound");
+        let instance = super::hold(&scratch.0, "instance.lock", &user).expect("held");
+        runtime().block_on(async {
+            for refused in [0, super::ipc::CONNECTIONS_MAX + 1] {
+                assert!(
+                    matches!(
+                        super::ipc::Listener::bind(&endpoint, &user, &instance, refused),
+                        Err(super::ipc::Refused::Failed(_))
+                    ),
+                    "a bound of {refused} connections was taken"
+                );
+            }
+            let mut listener =
+                super::ipc::Listener::bind(&endpoint, &user, &instance, 2).expect("bound");
+            let mut open = Vec::new();
+            for _ in 0..2 {
+                let (accepted, connected) =
+                    tokio::join!(listener.accept(), super::ipc::connect(&endpoint, &user));
+                open.push((
+                    accepted.expect("within the bound"),
+                    connected.expect("reached"),
+                ));
+            }
+            let (past, connected) =
+                tokio::join!(listener.accept(), super::ipc::connect(&endpoint, &user));
+            assert!(
+                matches!(past, Err(super::ipc::Refused::Busy { connections: 2 })),
+                "a connection past the bound was {past:?}"
+            );
+            let (mut closed, _) = connected.expect("reached, and then closed");
+            let mut buffer = [0_u8; 1];
+            assert!(
+                !matches!(closed.read(&mut buffer).await, Ok(read) if read > 0),
+                "a connection past the bound was not closed"
+            );
+            drop(open.remove(0));
+            let (accepted, connected) =
+                tokio::join!(listener.accept(), super::ipc::connect(&endpoint, &user));
+            accepted.expect("one closed made room");
+            connected.expect("reached");
+        });
+    }
+
+    /// Nothing listening at an endpoint is told apart from a refusal.
+    #[test]
+    fn nothing_listening_is_told_apart_from_a_refusal() {
+        let scratch = Scratch::new("ipc-nobody");
+        let user = user_in(&scratch.0).expect("private");
+        let endpoint = endpoint_in(&scratch, "nobody");
+        runtime().block_on(async {
+            match super::ipc::connect(&endpoint, &user).await {
+                Err(refused @ super::ipc::Refused::Nobody(_)) => {
+                    assert!(refused.to_string().contains("nothing answers"), "{refused}");
+                }
+                other => panic!("an endpoint nothing listens at was {other:?}"),
+            }
+        });
     }
 }

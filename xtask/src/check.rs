@@ -7719,7 +7719,7 @@ fn ends_in_a_backslash(path: &str) -> bool {
 /// failure is silent.
 ///
 /// Each is a crate and the file cargo announces as `Running tests/<name>`.
-const SUITES: [(&str, &str); 37] = [
+const SUITES: [(&str, &str); 41] = [
     ("nc-authz", "the_embedded_pack_decides.rs"),
     ("nc-canon", "properties.rs"),
     ("nc-catalog", "the_generated_surface.rs"),
@@ -7735,6 +7735,13 @@ const SUITES: [(&str, &str); 37] = [
     ("nc-daemon", "the_mark_survives_a_crash.rs"),
     ("nc-ids", "against_denote.rs"),
     ("nc-ids", "properties.rs"),
+    // The protocol: the daemon's listener at the catalog's bound over a real
+    // endpoint, and the frames, the handshake and the heartbeat over streams in
+    // memory on a paused clock. None spawns a process.
+    ("nc-ipc", "endpoint.rs"),
+    ("nc-ipc", "frames.rs"),
+    ("nc-ipc", "handshake.rs"),
+    ("nc-ipc", "heartbeat.rs"),
     ("nc-journal", "across_threads.rs"),
     ("nc-journal", "in_postgres.rs"),
     ("nc-journal", "tampering.rs"),
@@ -16957,7 +16964,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 
         // And the real manifest, or the assertions above are about a shape
         // nothing here is written in.
-        assert_eq!(members_of(root()), 18);
+        assert_eq!(members_of(root()), 19);
 
         // **Zero when cargo cannot say**, rather than a number invented from a
         // tree that is not a workspace; the caller reads the members itself and
@@ -17146,7 +17153,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     /// against — four sets compared with a set the same call produces. A bound
     /// under it shrinks with the run it is judging, which is the shape this
     /// table exists to refuse.
-    const SOURCE_ROOTS: [(&str, usize); 18] = [
+    const SOURCE_ROOTS: [(&str, usize); 19] = [
         ("nc-authz", 2),
         ("nc-canon", 2),
         ("nc-catalog", 2),
@@ -17155,6 +17162,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         ("nc-daemon", 4),
         ("nc-guest", 1),
         ("nc-ids", 3),
+        ("nc-ipc", 5),
         ("nc-journal", 5),
         ("nc-kernel", 11),
         ("nc-local", 4),
@@ -19181,7 +19189,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 160] = [
+    const DOCUMENTED: [(&str, usize, usize); 170] = [
         ("daemon/device.rs", 22, 5),
         ("daemon/install.rs", 14, 6),
         ("daemon/lib.rs", 7, 8),
@@ -19201,11 +19209,11 @@ mod the_frozen_path_rule {
         ("nc-catalog-compiler/emit.rs", 28, 15),
         ("nc-catalog-compiler/ledger.rs", 24, 16),
         ("nc-catalog-compiler/lib.rs", 22, 14),
-        ("nc-catalog-compiler/load.rs", 54, 19),
+        ("nc-catalog-compiler/load.rs", 57, 19),
         ("nc-catalog-compiler/messages.rs", 20, 8),
         ("nc-catalog-compiler/model.rs", 49, 17),
         ("nc-catalog-compiler/problem.rs", 4, 9),
-        ("nc-catalog-compiler/the_gates_fire.rs", 67, 93),
+        ("nc-catalog-compiler/the_gates_fire.rs", 70, 93),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             13,
@@ -19231,6 +19239,15 @@ mod the_frozen_path_rule {
         ("nc-ids/naming.rs", 40, 37),
         ("nc-ids/properties.rs", 11, 6),
         ("nc-ids/snowflake.rs", 70, 90),
+        ("nc-ipc/connection.rs", 13, 9),
+        ("nc-ipc/endpoint.rs", 3, 5),
+        ("nc-ipc/frame.rs", 3, 0),
+        ("nc-ipc/frames.rs", 5, 7),
+        ("nc-ipc/handshake.rs", 10, 0),
+        ("nc-ipc/handshake.rs", 11, 15),
+        ("nc-ipc/heartbeat.rs", 9, 11),
+        ("nc-ipc/lib.rs", 9, 15),
+        ("nc-ipc/message.rs", 41, 5),
         ("nc-journal/across_threads.rs", 2, 5),
         ("nc-journal/entry.rs", 31, 16),
         ("nc-journal/in_postgres.rs", 75, 110),
@@ -19296,10 +19313,11 @@ mod the_frozen_path_rule {
         ("nc-log/lib.rs", 19, 25),
         ("nc-log/ship.rs", 106, 50),
         ("nc-log/value.rs", 18, 36),
-        ("nc-platform/lib.rs", 47, 21),
-        ("nc-platform/testing.rs", 24, 1),
-        ("nc-platform/unix.rs", 47, 2),
-        ("nc-platform/windows.rs", 85, 11),
+        ("nc-platform/ipc.rs", 20, 13),
+        ("nc-platform/lib.rs", 73, 21),
+        ("nc-platform/testing.rs", 27, 1),
+        ("nc-platform/unix.rs", 67, 2),
+        ("nc-platform/windows.rs", 114, 11),
         ("nc-policy/an_entity_type_is_a_name_cedar_parses.rs", 7, 3),
         ("nc-policy/cases.rs", 10, 13),
         ("nc-policy/lib.rs", 103, 20),
@@ -19320,7 +19338,7 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 671, 57),
+        ("xtask/check.rs", 672, 57),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 45, 29),
         ("xtask/database.rs", 30, 6),
@@ -22128,8 +22146,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 601 scratches this tree
-    /// builds, 514 of the 601 are removed however the test leaves and 87 are
+    /// directories accumulated in an afternoon. Of the 620 scratches this tree
+    /// builds, 533 of the 620 are removed however the test leaves and 87 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22195,7 +22213,7 @@ mod the_frozen_path_rule {
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 42] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 43] = [
         ("daemon/device.rs", 7, 7),
         ("daemon/install.rs", 8, 8),
         ("daemon/main.rs", 3, 3),
@@ -22204,12 +22222,13 @@ mod the_frozen_path_rule {
         ("daemon/the_binary_prepares_a_profile.rs", 2, 2),
         ("daemon/the_mark_survives_a_crash.rs", 2, 2),
         ("nc-catalog-compiler/ledger.rs", 1, 0),
-        ("nc-catalog-compiler/the_gates_fire.rs", 152, 152),
+        ("nc-catalog-compiler/the_gates_fire.rs", 158, 158),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             2,
             2,
         ),
+        ("nc-ipc/endpoint.rs", 2, 2),
         ("nc-kernel/blobs.rs", 10, 10),
         ("nc-kernel/the_decision_point.rs", 5, 5),
         ("nc-kernel/the_rest_of_the_world.rs", 2, 2),
@@ -22219,7 +22238,7 @@ mod the_frozen_path_rule {
         ("nc-local/open.rs", 4, 4),
         ("nc-local/opening_refuses_what_it_did_not_make.rs", 43, 43),
         ("nc-local/the_local_journal.rs", 9, 9),
-        ("nc-platform/lib.rs", 14, 14),
+        ("nc-platform/lib.rs", 25, 25),
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
         ("nc-prune/in_sqlite.rs", 13, 13),
         ("xtask/build.rs", 8, 8),
@@ -25147,7 +25166,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15896;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 16318;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25166,7 +25185,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3403;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3595;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25183,7 +25202,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1120;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1188;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25217,7 +25236,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 22262;
+    const THE_REARRANGEMENTS_JUDGED: usize = 22582;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25271,7 +25290,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **480 of 22,262 are accepted by the first-line
+    /// rules the gates apply: **480 of 22,582 are accepted by the first-line
     /// rule alone, and 256 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25304,7 +25323,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1120 of
+    /// this tree offers, **1188 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -33499,7 +33518,7 @@ mod the_meta_gate {
     /// own doc: a module directory may be called anything. Every row here is a
     /// prefix of a workspace-relative path, anchored at its start, so what it
     /// excuses is what it names.
-    const NOT_MUTATED: [(&str, &str); 44] = [
+    const NOT_MUTATED: [(&str, &str); 48] = [
         (
             "crates/nc-platform/src/windows.rs",
             "another system's: the Windows half of what makes a path private, \
@@ -33594,6 +33613,46 @@ mod the_meta_gate {
              The one source it drives, `lib.rs`, is edited by the runner under the \
              crate's own command, which builds this suite, and a weakening of this \
              file would remove evidence rather than uncover an undecided clause",
+        ),
+        (
+            "crates/nc-ipc/tests/endpoint.rs",
+            "a suite: the daemon's listener bound at the catalog's bound of \
+             connections over a real endpoint in a scratch directory, and the \
+             handshake across it. It starts no process. What it drives — \
+             `listen` in `lib.rs`, and the endpoint `nc-platform` makes — is \
+             edited by the runner under each crate's own command, which builds \
+             this suite, and a weakening of this file would remove evidence \
+             rather than uncover an undecided clause",
+        ),
+        (
+            "crates/nc-ipc/tests/frames.rs",
+            "a suite: frames round-tripped, cut at every byte, past the bound with \
+             the writer still open, and in every spelling that is not canonical, \
+             and a dispatch and its answer at the kernel's whole payload. The \
+             sources it drives — `frame.rs`, `message.rs`, `handshake.rs` and \
+             `connection.rs` — are edited by the runner under the crate's own \
+             command, which builds this suite, and a weakening of this file would \
+             remove evidence rather than uncover an undecided clause",
+        ),
+        (
+            "crates/nc-ipc/tests/handshake.rs",
+            "a suite: both ends' proofs, refused wrong, missing, replayed, \
+             forged, reflected and keyed by another token, another protocol, an \
+             unread field, both deadlines, and no byte of the token on the wire. \
+             The sources it drives — `handshake.rs`, `message.rs`, `lib.rs` and \
+             `frame.rs` — are edited by the runner under the crate's own command, \
+             which builds this suite, and a weakening of this file would \
+             remove evidence rather than uncover an undecided clause",
+        ),
+        (
+            "crates/nc-ipc/tests/heartbeat.rs",
+            "a suite: a relay between a real client and a real daemon on a paused \
+             clock, swallowing either side or repeating its next message — a \
+             silent peer dropped from either end, pings that keep a connection, a \
+             dispatch outlasting the bound, one request at a time. The sources it \
+             drives — `connection.rs`, `message.rs` and `frame.rs` — are edited by \
+             the runner under the crate's own command, which builds this suite, and a weakening of this file would remove \
+             evidence rather than uncover an undecided clause",
         ),
         (
             "crates/nc-authz/tests/the_embedded_pack_decides.rs",
@@ -35688,6 +35747,28 @@ Options:
             .collect()
     }
 
+    /// The mutated sources whose tests live somewhere else, each said here.
+    const WITHOUT_TESTS_OF_THEIR_OWN: [&str; 12] = [
+        "xtask/src/main.rs",
+        "plugins/reference/src/lib.rs",
+        "plugins/reference/src/adapter.rs",
+        // Each system's half of `nc-platform`, whose tests sit in the crate
+        // root over the interface both halves answer, and the test doors,
+        // which the suites of other crates call.
+        "crates/nc-platform/src/unix.rs",
+        "crates/nc-platform/src/testing.rs",
+        // The daemon's library root, whose refusals each module's tests hold.
+        "apps/daemon/src/lib.rs",
+        // The endpoint's decisions, held by the crate root's tests.
+        "crates/nc-platform/src/ipc.rs",
+        // The protocol, which its suites in `tests/` drive.
+        "crates/nc-ipc/src/lib.rs",
+        "crates/nc-ipc/src/frame.rs",
+        "crates/nc-ipc/src/message.rs",
+        "crates/nc-ipc/src/handshake.rs",
+        "crates/nc-ipc/src/connection.rs",
+    ];
+
     /// Every source the runner mutates is judged by something that runs its own
     /// tests.
     ///
@@ -35836,19 +35917,7 @@ Options:
         // ignored-test gate reads one, so all of them are asked.
         assert_eq!(
             without_tests,
-            vec![
-                "xtask/src/main.rs".to_owned(),
-                "plugins/reference/src/lib.rs".to_owned(),
-                "plugins/reference/src/adapter.rs".to_owned(),
-                // Each system's half of `nc-platform`, whose tests sit in the
-                // crate root over the interface both halves answer, and the test
-                // doors, which the suites of other crates call.
-                "crates/nc-platform/src/unix.rs".to_owned(),
-                "crates/nc-platform/src/testing.rs".to_owned(),
-                // The daemon's library root, whose refusals each module's
-                // tests hold.
-                "apps/daemon/src/lib.rs".to_owned(),
-            ],
+            WITHOUT_TESTS_OF_THEIR_OWN.map(str::to_owned).to_vec(),
             "the sources carrying no `#[test]` of their own are not the ones written \
              down. A file that stops carrying tests leaves this rule asking nothing of \
              it, which is the silence the rule exists to break"
@@ -36553,7 +36622,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 174,
+            walked, 184,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -36593,7 +36662,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1820] = [
+    static OPERATORS: [(&str, &str, &str); 1863] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -44693,6 +44762,209 @@ Options:
             "daemon_mark",
             "minter",
             "a resumed start's minter raises the mark before it mints past it",
+        ),
+        (
+            "platform_ipc",
+            "admits",
+            "a peer of another user is refused",
+        ),
+        (
+            "platform_ipc",
+            "admitted",
+            "every part the system named is judged",
+        ),
+        (
+            "platform_ipc",
+            "admitted",
+            "a process numbered zero is no process",
+        ),
+        (
+            "platform_ipc",
+            "accept",
+            "a connection past the bound is closed",
+        ),
+        (
+            "platform_ipc",
+            "named",
+            "a name past the system's limit is refused",
+        ),
+        (
+            "platform_ipc",
+            "named",
+            "the socket is in the runtime directory judged",
+        ),
+        (
+            "platform_ipc",
+            "bind",
+            "the runtime directory is judged before binding",
+        ),
+        (
+            "platform_ipc",
+            "bind",
+            "a bound of no connections is refused",
+        ),
+        (
+            "platform_ipc",
+            "connect",
+            "nothing listening is told apart from a refusal",
+        ),
+        (
+            "platform_unix",
+            "NAME_MAX",
+            "a socket's path is held to what sun_path holds",
+        ),
+        (
+            "platform_unix",
+            "bind",
+            "a socket something answers at is not taken",
+        ),
+        (
+            "platform_unix",
+            "a_socket_of_its_own",
+            "only a socket is replaced",
+        ),
+        (
+            "platform_unix",
+            "a_socket_of_its_own",
+            "a link at the socket's name is refused as one",
+        ),
+        ("platform_unix", "bind", "the socket is made private"),
+        (
+            "platform_unix",
+            "said_by",
+            "the process read is the other end's",
+        ),
+        (
+            "platform_unix",
+            "said_by",
+            "the user read is the other end's",
+        ),
+        (
+            "ipc_frame",
+            "read",
+            "a frame past the bound is refused before it is read",
+        ),
+        (
+            "ipc_frame",
+            "read",
+            "a frame of no length is refused from its prefix",
+        ),
+        (
+            "ipc_frame",
+            "read",
+            "only the canonical spelling of a value is taken",
+        ),
+        (
+            "ipc_frame",
+            "read",
+            "a connection cut inside a prefix was lost",
+        ),
+        (
+            "ipc_frame",
+            "write",
+            "a writer refuses what no reader would take",
+        ),
+        (
+            "ipc_handshake",
+            "welcomed",
+            "a client's proof is held to the token",
+        ),
+        (
+            "ipc_handshake",
+            "welcome_of",
+            "the daemon's proof is held to the token",
+        ),
+        (
+            "ipc_handshake",
+            "DAEMON",
+            "the daemon proves over a domain of its own",
+        ),
+        (
+            "ipc_handshake",
+            "deadline",
+            "the handshake is bounded by the catalog",
+        ),
+        (
+            "ipc_handshake",
+            "goodbye",
+            "a side says why before it closes",
+        ),
+        ("ipc_lib", "prove", "a proof is over the daemon's nonce"),
+        ("ipc_lib", "prove", "a proof is keyed by the token"),
+        (
+            "ipc_lib",
+            "listen",
+            "the listener holds the catalog's bound",
+        ),
+        (
+            "ipc_connection",
+            "writing",
+            "a side pings after a heartbeat of silence",
+        ),
+        (
+            "ipc_connection",
+            "reading",
+            "a peer silent past the bound is dropped",
+        ),
+        (
+            "ipc_connection",
+            "reading",
+            "a ping is no message for the caller",
+        ),
+        (
+            "ipc_connection",
+            "reading",
+            "a goodbye ends the connection with the peer's code",
+        ),
+        (
+            "ipc_connection",
+            "reading",
+            "one request is answered at a time",
+        ),
+        (
+            "ipc_connection",
+            "reading",
+            "an answer goes only to a request",
+        ),
+        (
+            "ipc_connection",
+            "answer",
+            "an answer needs a request waiting for it",
+        ),
+        (
+            "ipc_connection",
+            "ask",
+            "a request abandoned before its answer ends the asking",
+        ),
+        (
+            "ipc_message",
+            "done",
+            "a field the protocol does not read is refused",
+        ),
+        (
+            "ipc_message",
+            "protocol",
+            "a message of another protocol is refused as that",
+        ),
+        (
+            "ipc_message",
+            "read_welcomed",
+            "a welcome naming no process is refused",
+        ),
+        (
+            "loader",
+            "check_daemon_ipc",
+            "a frame holds the kernel's payload and its envelope",
+        ),
+        (
+            "loader",
+            "check_daemon_ipc",
+            "a peer is dropped only after more than two heartbeats",
+        ),
+        (
+            "loader",
+            "check_daemon_ipc",
+            "the connections fit a pipe's instances",
         ),
     ];
 

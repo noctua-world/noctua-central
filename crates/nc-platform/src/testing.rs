@@ -241,3 +241,33 @@ pub fn every_harmless_restriction(kind: Kind) -> Vec<Opening> {
         .map(Opening)
         .collect()
 }
+
+/// Whether an IPC endpoint is a name on disk that a bind judges, which it is
+/// on Unix alone.
+///
+/// **A socket's path on Unix; on Windows a pipe's name is the system's**, and
+/// nothing is made at the socket's path there.
+pub const ENDPOINT_ON_DISK: bool = imp::ENDPOINT_ON_DISK;
+
+/// Whether `listener`'s endpoint is made as this crate makes one private, read
+/// back from the system.
+///
+/// **On Unix a socket of the listener's user, mode `0600`**, read from the
+/// socket's file; on Windows a pipe owned by the user whose protected access
+/// list holds one entry, the user with every right, read from the instance
+/// waiting for the next client.
+#[must_use]
+pub fn endpoint_is_as_created(listener: &crate::ipc::Listener) -> bool {
+    imp::endpoint_is_as_created(&listener.inner, &listener.user.0)
+}
+
+/// What a daemon stopped without removing its endpoint leaves at it: on Unix
+/// a socket nothing listens on; on Windows nothing, since a pipe goes with
+/// the last of its instances.
+///
+/// # Errors
+///
+/// [`io::Error`] as the system answered it.
+pub fn leave_a_dead_endpoint(endpoint: &crate::ipc::Endpoint) -> io::Result<()> {
+    imp::leave_a_dead_endpoint(endpoint)
+}

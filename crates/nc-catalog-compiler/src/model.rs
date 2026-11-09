@@ -723,6 +723,16 @@ pub struct DaemonLimits {
     /// How far past the clock the identifiers' persisted ceiling is raised,
     /// each time a later millisecond needs one.
     pub mark_lease_ms: u64,
+    /// The most one IPC frame may carry, its length prefix apart.
+    pub ipc_frame_max_bytes: u64,
+    /// How long a connection has to finish the handshake.
+    pub ipc_handshake_ms: u64,
+    /// How long either side of a connection stays silent before it pings.
+    pub ipc_heartbeat_ms: u64,
+    /// How long a peer may be silent before its connection is dropped.
+    pub ipc_silent_after_ms: u64,
+    /// How many connections the daemon holds open at once.
+    pub ipc_connections_max: u32,
 }
 
 impl DaemonLimits {
@@ -732,14 +742,60 @@ impl DaemonLimits {
     /// gains is a compile error here rather than a limit nothing publishes.
     #[must_use]
     pub fn each(&self) -> Vec<NamedLimit> {
-        let Self { mark_lease_ms } = *self;
-        vec![NamedLimit {
-            name: "mark_lease_ms",
-            value: mark_lease_ms,
+        let Self {
+            mark_lease_ms,
+            ipc_frame_max_bytes,
+            ipc_handshake_ms,
+            ipc_heartbeat_ms,
+            ipc_silent_after_ms,
+            ipc_connections_max,
+        } = *self;
+        let wide = |name, value, unit, bounds| NamedLimit {
+            name,
+            value,
             wide: true,
-            unit: Unit::Milliseconds,
-            bounds: "How far past the clock the identifiers' persisted ceiling is raised",
-        }]
+            unit,
+            bounds,
+        };
+        vec![
+            wide(
+                "mark_lease_ms",
+                mark_lease_ms,
+                Unit::Milliseconds,
+                "How far past the clock the identifiers' persisted ceiling is raised",
+            ),
+            wide(
+                "ipc_frame_max_bytes",
+                ipc_frame_max_bytes,
+                Unit::Bytes,
+                "How much one frame of the IPC channel may carry",
+            ),
+            wide(
+                "ipc_handshake_ms",
+                ipc_handshake_ms,
+                Unit::Milliseconds,
+                "How long a connection has to prove it holds the channel's token",
+            ),
+            wide(
+                "ipc_heartbeat_ms",
+                ipc_heartbeat_ms,
+                Unit::Milliseconds,
+                "How long either side of a connection stays silent before it pings",
+            ),
+            wide(
+                "ipc_silent_after_ms",
+                ipc_silent_after_ms,
+                Unit::Milliseconds,
+                "How long a peer may be silent before its connection is dropped",
+            ),
+            NamedLimit {
+                name: "ipc_connections_max",
+                value: u64::from(ipc_connections_max),
+                wide: false,
+                unit: Unit::Count,
+                bounds: "How many connections the daemon holds open at once",
+            },
+        ]
     }
 }
 

@@ -81,6 +81,20 @@ use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken}
 
 use crate::{Failed, Judged, Kind, Refusal};
 
+use std::pin::Pin;
+use std::task::{Context, Poll};
+
+use tokio::net::windows::named_pipe::{
+    ClientOptions, NamedPipeClient, NamedPipeServer, ServerOptions,
+};
+use windows_sys::Win32::Foundation::{ERROR_ACCESS_DENIED, ERROR_PIPE_BUSY};
+use windows_sys::Win32::Security::Authorization::{SE_KERNEL_OBJECT, SE_OBJECT_TYPE};
+use windows_sys::Win32::Storage::FileSystem::SECURITY_IDENTIFICATION;
+use windows_sys::Win32::System::Pipes::{GetNamedPipeClientProcessId, GetNamedPipeServerProcessId};
+use windows_sys::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
+
+use crate::ipc::{Endpoint, Refused, Said, Whose};
+
 /// What a private directory is here, as a sentence says it.
 pub(crate) const PRIVATE_DIRECTORY: &str =
     "owned by this user and shut to everybody else by an access list naming this user alone";
@@ -125,7 +139,7 @@ const A_DIRECTORY_NEEDS: u32 =
 
 /// A security identifier, held as its bytes, which compare as the SIDs do.
 #[derive(Clone, PartialEq, Eq)]
-struct Sid(Vec<u8>);
+pub(crate) struct Sid(Vec<u8>);
 
 impl Sid {
     /// A copy of the SID at `sid`.
@@ -207,6 +221,18 @@ pub(crate) struct User {
 impl core::fmt::Display for User {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(formatter, "{}", self.sid)
+    }
+}
+
+/// Whom the system says something belongs to: a SID.
+pub(crate) type Who = Sid;
+
+/// What a peer's user and a pipe's owner are held to.
+impl User {
+    /// The SID a peer's user and a pipe's owner are compared with: the user's,
+    /// never the owner the token gives what it creates.
+    pub(crate) fn who(&self) -> Who {
+        self.sid.clone()
     }
 }
 
@@ -594,16 +620,22 @@ fn answered(status: WIN32_ERROR) -> io::Error {
 
 /// The owner and the access list of what `file` is open on.
 fn security_of(file: &File) -> io::Result<Security> {
+    security_of_handle(file.as_raw_handle(), SE_FILE_OBJECT)
+}
+
+/// The owner and the access list of the object `handle` is open on, asked as
+/// an object of the type `object`: a file, or a pipe's instance.
+fn security_of_handle(handle: HANDLE, object: SE_OBJECT_TYPE) -> io::Result<Security> {
     let mut owner: PSID = null_mut();
     let mut dacl: *mut ACL = null_mut();
     let mut descriptor: PSECURITY_DESCRIPTOR = null_mut();
-    // SAFETY: the handle is `file`'s, open across the call; every out-pointer
+    // SAFETY: the caller's handle, open across the call; every out-pointer
     // is a local the call writes into; the group and the system list are not
     // asked for, so theirs are null.
     let status = unsafe {
         GetSecurityInfo(
-            file.as_raw_handle(),
-            SE_FILE_OBJECT,
+            handle,
+            object,
             OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
             &raw mut owner,
             null_mut(),
@@ -934,6 +966,332 @@ pub(crate) fn set_modified(path: &Path, at: std::time::SystemTime) -> io::Result
         .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
         .open(path)?
         .set_modified(at)
+}
+
+// --- The IPC endpoint: a named pipe ---
+
+/// The most characters a pipe's name holds, `\\.\pipe\` included.
+pub(crate) const NAME_MAX: usize = 256;
+
+/// How a refusal says what [`NAME_MAX`] bounds, before the number.
+pub(crate) const NAME_HOLDS: &str = "a pipe's name holds at most";
+
+/// What [`NAME_MAX`] counts.
+pub(crate) const NAME_UNIT: &str = "characters";
+
+/// How long the endpoint's name is, as [`NAME_MAX`] counts it: its pipe's
+/// name, in UTF-16 characters.
+pub(crate) fn length_of(endpoint: &Endpoint) -> usize {
+    endpoint.pipe.encode_utf16().count()
+}
+
+/// The endpoint's name as a person reads it: its pipe's.
+pub(crate) fn name_of(endpoint: &Endpoint) -> String {
+    endpoint.pipe.clone()
+}
+
+/// One end of a connection through the pipe: the server's instance a
+/// listener accepted, or a client's.
+#[derive(Debug)]
+pub(crate) enum Stream {
+    /// An instance a listener accepted a client on.
+    Server(NamedPipeServer),
+    /// A client's end.
+    Client(NamedPipeClient),
+}
+
+/// Read through whichever end it is.
+impl tokio::io::AsyncRead for Stream {
+    /// Reads through the end this is.
+    fn poll_read(
+        self: Pin<&mut Self>,
+        context: &mut Context<'_>,
+        buffer: &mut tokio::io::ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
+        match self.get_mut() {
+            Self::Server(pipe) => Pin::new(pipe).poll_read(context, buffer),
+            Self::Client(pipe) => Pin::new(pipe).poll_read(context, buffer),
+        }
+    }
+}
+
+/// Written through whichever end it is.
+impl tokio::io::AsyncWrite for Stream {
+    /// Writes through the end this is.
+    fn poll_write(
+        self: Pin<&mut Self>,
+        context: &mut Context<'_>,
+        buffer: &[u8],
+    ) -> Poll<io::Result<usize>> {
+        match self.get_mut() {
+            Self::Server(pipe) => Pin::new(pipe).poll_write(context, buffer),
+            Self::Client(pipe) => Pin::new(pipe).poll_write(context, buffer),
+        }
+    }
+
+    /// Flushes the end this is.
+    fn poll_flush(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<io::Result<()>> {
+        match self.get_mut() {
+            Self::Server(pipe) => Pin::new(pipe).poll_flush(context),
+            Self::Client(pipe) => Pin::new(pipe).poll_flush(context),
+        }
+    }
+
+    /// Shuts the writing half of the end this is.
+    fn poll_shutdown(self: Pin<&mut Self>, context: &mut Context<'_>) -> Poll<io::Result<()>> {
+        match self.get_mut() {
+            Self::Server(pipe) => Pin::new(pipe).poll_shutdown(context),
+            Self::Client(pipe) => Pin::new(pipe).poll_shutdown(context),
+        }
+    }
+}
+
+/// The pipe, listened on: the instance waiting for the next client, and what
+/// every instance is made with.
+#[derive(Debug)]
+pub(crate) struct Listener {
+    /// The instance waiting for the next client: none only after an accept
+    /// failed before it could make one.
+    next: Option<NamedPipeServer>,
+    /// The pipe's name.
+    name: String,
+    /// The user every instance is owned by and lets in.
+    user: Sid,
+    /// The most instances the pipe holds.
+    instances: usize,
+}
+
+/// One instance of the pipe `name`, owned by `user` and letting in `user`
+/// alone, of a pipe holding at most `instances`; `first` refuses a name that
+/// any process made already.
+fn instance(name: &str, user: &Sid, instances: usize, first: bool) -> io::Result<NamedPipeServer> {
+    let private = Private::new(user, Kind::File)?;
+    let mut attributes = private.attributes();
+    let mut options = ServerOptions::new();
+    options
+        .first_pipe_instance(first)
+        .reject_remote_clients(true)
+        .max_instances(instances);
+    // SAFETY: `attributes` is a whole `SECURITY_ATTRIBUTES`, a local alive
+    // across the call, whose descriptor points into `private`, which keeps the
+    // descriptor's owner and access list alive across it too; the call only
+    // reads them, and the system copies the descriptor into the pipe it
+    // makes, so nothing here is held past the call. Nothing is allocated for
+    // this function to free.
+    unsafe { options.create_with_security_attributes_raw(name, (&raw mut attributes).cast()) }
+}
+
+/// The pipe of `endpoint`, its first instance made for `user`, holding the
+/// connections it is bound to at once.
+///
+/// **Every connection, the instance waiting for the next client, and the one
+/// connection past the bound** are the pipe's instances: the next waits before
+/// a refused one is closed, so the name never stands without an instance of
+/// this listener's behind it for another process to make first.
+pub(crate) fn bind(
+    endpoint: &Endpoint,
+    user: &User,
+    connections: usize,
+) -> Result<Listener, Refused> {
+    let name = endpoint.pipe.clone();
+    let instances = connections + 2;
+    let first = instance(&name, &user.sid, instances, true).map_err(|error| {
+        if error.raw_os_error() == i32::try_from(ERROR_ACCESS_DENIED).ok() {
+            Refused::Taken { name: name.clone() }
+        } else {
+            Refused::Failed(Failed::new(format!("`{name}` could not be made"), error))
+        }
+    })?;
+    Ok(Listener {
+        next: Some(first),
+        name,
+        user: user.sid.clone(),
+        instances,
+    })
+}
+
+/// The process of the client connected to the server's instance `pipe`.
+fn client_process(pipe: &NamedPipeServer) -> io::Result<u32> {
+    let mut pid = 0_u32;
+    // SAFETY: the handle is `pipe`'s, open across the call; `pid` is a local
+    // the call writes the client's process id into. Nothing is allocated.
+    if unsafe { GetNamedPipeClientProcessId(pipe.as_raw_handle(), &raw mut pid) } == FALSE {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(pid)
+}
+
+/// The process of the server whose instance the client `pipe` is connected to.
+fn server_process(pipe: &NamedPipeClient) -> io::Result<u32> {
+    let mut pid = 0_u32;
+    // SAFETY: the handle is `pipe`'s, open across the call; `pid` is a local
+    // the call writes the server's process id into. Nothing is allocated.
+    if unsafe { GetNamedPipeServerProcessId(pipe.as_raw_handle(), &raw mut pid) } == FALSE {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(pid)
+}
+
+/// The user the token of the process `pid` names, asked through one handle
+/// opened to query it alone, and closed on every path.
+fn user_of_process(pid: u32) -> io::Result<Sid> {
+    // SAFETY: no pointer is handed over; the call answers a handle this
+    // function then owns, or null.
+    let process = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, pid) };
+    if process.is_null() {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: the handle `OpenProcess` just answered, which nothing else
+    // holds; the `OwnedHandle` closes it once, on every path.
+    let process = unsafe { OwnedHandle::from_raw_handle(process) };
+    let mut token: HANDLE = null_mut();
+    // SAFETY: the handle is `process`'s, open across the call with the right
+    // to query it; `token` is a local the call writes a handle into.
+    if unsafe { OpenProcessToken(process.as_raw_handle(), TOKEN_QUERY, &raw mut token) } == FALSE {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: the call succeeded, so `token` is a handle this function owns
+    // and nothing else holds; the `OwnedHandle` closes it once, on every path.
+    let token = unsafe { OwnedHandle::from_raw_handle(token) };
+    token_sid(&token, TokenUser)
+}
+
+/// The owner of the object `handle` is open on, as a kernel object.
+fn owner_of(handle: HANDLE) -> io::Result<Sid> {
+    let mut owner: PSID = null_mut();
+    let mut descriptor: PSECURITY_DESCRIPTOR = null_mut();
+    // SAFETY: the caller's handle, open across the call; both out-pointers
+    // are locals the call writes into; the group and both lists are not asked
+    // for, so theirs are null.
+    let status = unsafe {
+        GetSecurityInfo(
+            handle,
+            SE_KERNEL_OBJECT,
+            OWNER_SECURITY_INFORMATION,
+            &raw mut owner,
+            null_mut(),
+            null_mut(),
+            null_mut(),
+            &raw mut descriptor,
+        )
+    };
+    if status != ERROR_SUCCESS {
+        return Err(answered(status));
+    }
+    let descriptor = Allocated(descriptor);
+    // SAFETY: `owner` points into the descriptor, which `descriptor` keeps
+    // until the end of this function; the SID is copied before it goes.
+    let owner = unsafe { Sid::copied(owner) };
+    drop(descriptor);
+    owner
+}
+
+/// The next client of `listener`'s pipe, and what the system says of it: the
+/// user its process's token names, and the process.
+///
+/// **Read in this one synchronous call**, with no await between the
+/// questions.
+pub(crate) async fn accept(listener: &mut Listener) -> io::Result<(Stream, Said)> {
+    let pending = match listener.next.take() {
+        Some(pending) => pending,
+        // Made as a first instance again, which refuses a name another
+        // process made since this listener's last instance went.
+        None => instance(&listener.name, &listener.user, listener.instances, true)?,
+    };
+    let connected = pending.connect().await;
+    // The next instance before this one can go, so the name is never left
+    // without one of this listener's instances behind it.
+    listener.next = Some(instance(
+        &listener.name,
+        &listener.user,
+        listener.instances,
+        false,
+    )?);
+    connected?;
+    let pid = client_process(&pending)?;
+    let said = Said {
+        users: vec![(Whose::Process, user_of_process(pid)?)],
+        pid: Some(i64::from(pid)),
+    };
+    Ok((Stream::Server(pending), said))
+}
+
+/// How many times a pipe whose every instance is busy is asked again, and how
+/// many milliseconds apart.
+///
+/// **A pipe is busy for a moment**: a listener makes its next instance as soon
+/// as one connects.
+const ASKED_WHILE_BUSY: (u32, u64) = (40, 50);
+
+/// A client of `endpoint`'s pipe, opened at the identification level, and
+/// what the system says of the server: the pipe's owner, the user its
+/// process's token names, and the process — all read before anything is
+/// sent.
+///
+/// **At the identification level**, so a server may learn who the client is
+/// and never act as it: a pipe somebody else made first would otherwise be
+/// handed the client's identity to impersonate.
+pub(crate) async fn connect(endpoint: &Endpoint) -> io::Result<(Stream, Said)> {
+    let (again, wait) = ASKED_WHILE_BUSY;
+    let mut asked = 0_u32;
+    let pipe = loop {
+        match ClientOptions::new()
+            .security_qos_flags(SECURITY_IDENTIFICATION)
+            .open(&endpoint.pipe)
+        {
+            Ok(pipe) => break pipe,
+            Err(error)
+                if error.raw_os_error() == i32::try_from(ERROR_PIPE_BUSY).ok() && asked < again =>
+            {
+                asked += 1;
+                tokio::time::sleep(std::time::Duration::from_millis(wait)).await;
+            }
+            Err(error) => return Err(error),
+        }
+    };
+    let owner = owner_of(pipe.as_raw_handle())?;
+    let pid = server_process(&pipe)?;
+    let said = Said {
+        users: vec![
+            (Whose::Pipe, owner),
+            (Whose::Process, user_of_process(pid)?),
+        ],
+        pid: Some(i64::from(pid)),
+    };
+    Ok((Stream::Client(pipe), said))
+}
+
+/// Whether an endpoint is a name on disk, which a bind judges: here a pipe's
+/// name is the system's, and nothing is made at the socket's path.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) const ENDPOINT_ON_DISK: bool = false;
+
+/// Whether `listener`'s pipe is what a bind makes, read back from the instance
+/// waiting for the next client.
+///
+/// **Owned by `user`, with a protected access list holding one entry**, the
+/// user with every right.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn endpoint_is_as_created(listener: &Listener, user: &User) -> bool {
+    let Some(waiting) = listener.next.as_ref() else {
+        return false;
+    };
+    security_of_handle(waiting.as_raw_handle(), SE_KERNEL_OBJECT).is_ok_and(|security| {
+        security.owner == user.sid
+            && security.protected
+            && security.entries == Some(private_entries(&user.sid, Kind::File))
+    })
+}
+
+/// Nothing: a pipe goes with the last of its instances, and leaves nothing
+/// behind for a bind to judge.
+#[cfg(any(test, feature = "test-support"))]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "the interface's answer: the Unix half says what binding a socket said"
+)]
+pub(crate) const fn leave_a_dead_endpoint(_endpoint: &Endpoint) -> io::Result<()> {
+    Ok(())
 }
 
 /// What a path lets in: its owner, every entry of its access list, whether

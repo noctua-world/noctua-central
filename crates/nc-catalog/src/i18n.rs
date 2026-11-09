@@ -474,6 +474,111 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "error.ipc.busy",
+        [
+            "Noctua already has as many connections open as it allows. Close one and try again.",
+            "O Noctua já tem abertas tantas conexões quanto permite. Feche uma e tente de novo.",
+        ],
+    ),
+    (
+        "error.ipc.client-unproven",
+        [
+            "Something tried to talk to Noctua without proving it belongs to this installation, so Noctua closed that connection.",
+            "Algo tentou falar com o Noctua sem provar que pertence a esta instalação, então o Noctua fechou essa conexão.",
+        ],
+    ),
+    (
+        "error.ipc.daemon-unproven",
+        [
+            "What answered could not prove it is this installation's Noctua, so nothing was sent to it.",
+            "O que respondeu não conseguiu provar que é o Noctua desta instalação, então nada foi enviado a ele.",
+        ],
+    ),
+    (
+        "error.ipc.endpoint-not-private",
+        [
+            "The place Noctua is reached through could be reached by another account on this computer, so Noctua did not use it and left it as it was.",
+            "O lugar por onde o Noctua é alcançado poderia ser alcançado por outra conta neste computador, então o Noctua não o usou e o deixou como estava.",
+        ],
+    ),
+    (
+        "error.ipc.endpoint-taken",
+        [
+            "Something else already answers where Noctua is reached, so Noctua did not take that place.",
+            "Outra coisa já responde onde o Noctua é alcançado, então o Noctua não ocupou esse lugar.",
+        ],
+    ),
+    (
+        "error.ipc.endpoint-too-long",
+        [
+            "The place Noctua is reached through has a longer name than this computer allows. Install Noctua again in a folder with a shorter path.",
+            "O lugar por onde o Noctua é alcançado tem um nome mais longo do que este computador permite. Instale o Noctua de novo em uma pasta com um caminho mais curto.",
+        ],
+    ),
+    (
+        "error.ipc.endpoint-unavailable",
+        [
+            "Noctua could not open the place it is reached through. Try again.",
+            "O Noctua não conseguiu abrir o lugar por onde é alcançado. Tente de novo.",
+        ],
+    ),
+    (
+        "error.ipc.frame-too-large",
+        [
+            "Something sent Noctua more at once than it accepts, so Noctua closed that connection.",
+            "Algo enviou ao Noctua, de uma só vez, mais do que ele aceita, então o Noctua fechou essa conexão.",
+        ],
+    ),
+    (
+        "error.ipc.handshake-slow",
+        [
+            "The other side took too long to answer, so the connection to Noctua was closed. Try again.",
+            "O outro lado demorou demais para responder, então a conexão com o Noctua foi fechada. Tente de novo.",
+        ],
+    ),
+    (
+        "error.ipc.lost",
+        [
+            "The connection to Noctua closed before it finished. Try again.",
+            "A conexão com o Noctua foi fechada antes de terminar. Tente de novo.",
+        ],
+    ),
+    (
+        "error.ipc.malformed",
+        [
+            "Something sent Noctua a message it does not understand, so Noctua closed that connection.",
+            "Algo enviou ao Noctua uma mensagem que ele não entende, então o Noctua fechou essa conexão.",
+        ],
+    ),
+    (
+        "error.ipc.peer-unverified",
+        [
+            "The other side of the connection could not be shown to be yours, so Noctua closed it.",
+            "Não foi possível mostrar que o outro lado da conexão é seu, então o Noctua a fechou.",
+        ],
+    ),
+    (
+        "error.ipc.protocol",
+        [
+            "This program and the running Noctua are different versions, so they could not talk to each other. Restart Noctua so both are the same version.",
+            "Este programa e o Noctua em execução são de versões diferentes, então não conseguiram se comunicar. Reinicie o Noctua para que os dois tenham a mesma versão.",
+        ],
+    ),
+    (
+        "error.ipc.silent",
+        [
+            "The other side stopped answering, so the connection to Noctua was closed. Try again.",
+            "O outro lado parou de responder, então a conexão com o Noctua foi fechada. Tente de novo.",
+        ],
+    ),
+    (
+        "error.ipc.unreachable",
+        [
+            "Noctua is not running, so nothing answered. Start it and try again.",
+            "O Noctua não está em execução, então nada respondeu. Inicie-o e tente de novo.",
+        ],
+    ),
+    (
         "error.journal.chain-broken",
         [
             "The activity history does not add up, so Noctua stopped rather than continue. Nothing was changed. Contact whoever set up your Noctua.",
@@ -1059,6 +1164,21 @@ pub const KEYS: &[&str] = &[
     "error.ids.name-unparsable",
     "error.ids.not-an-identifier",
     "error.ids.sequence-exhausted",
+    "error.ipc.busy",
+    "error.ipc.client-unproven",
+    "error.ipc.daemon-unproven",
+    "error.ipc.endpoint-not-private",
+    "error.ipc.endpoint-taken",
+    "error.ipc.endpoint-too-long",
+    "error.ipc.endpoint-unavailable",
+    "error.ipc.frame-too-large",
+    "error.ipc.handshake-slow",
+    "error.ipc.lost",
+    "error.ipc.malformed",
+    "error.ipc.peer-unverified",
+    "error.ipc.protocol",
+    "error.ipc.silent",
+    "error.ipc.unreachable",
     "error.journal.chain-broken",
     "error.journal.contended",
     "error.journal.entry-tampered",

@@ -1657,7 +1657,12 @@ fn the_daemons_limits_are_the_ones_the_registry_declares() {
     let declared = catalog.limits.daemon;
     let generated = nc_catalog::DAEMON;
     assert_eq!(generated.mark_lease_ms, declared.mark_lease_ms);
-    assert_eq!(declared.each().len(), 1, "a daemon limit was added or lost");
+    assert_eq!(generated.ipc_frame_max_bytes, declared.ipc_frame_max_bytes);
+    assert_eq!(generated.ipc_handshake_ms, declared.ipc_handshake_ms);
+    assert_eq!(generated.ipc_heartbeat_ms, declared.ipc_heartbeat_ms);
+    assert_eq!(generated.ipc_silent_after_ms, declared.ipc_silent_after_ms);
+    assert_eq!(generated.ipc_connections_max, declared.ipc_connections_max);
+    assert_eq!(declared.each().len(), 6, "a daemon limit was added or lost");
 }
 
 /// What each field kind must become in the generated struct.

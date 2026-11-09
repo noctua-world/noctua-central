@@ -1213,7 +1213,7 @@ mod tests {
         );
         // The floor is a real number, not `> 0`: this workspace has eighteen
         // members and a resolution that lost one is the defect being closed.
-        assert_eq!(found.len(), 18, "{paths:?}");
+        assert_eq!(found.len(), 19, "{paths:?}");
         // And `nc-log` does not depend on itself, so the consumer count this
         // feeds cannot be inflated by the log's own manifest.
         assert!(

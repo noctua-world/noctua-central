@@ -65,7 +65,7 @@ const NOTHING_ELSE_MAY_BE_SKIPPED: [&str; 3] = [".git", "target", "node_modules"
 /// reach this too", and a directory holding no files yet cannot be listed: the
 /// walk-level test would fail for the absence rather than for a skip.
 #[cfg(test)]
-const COVERED: [&str; 23] = [
+const COVERED: [&str; 24] = [
     "crates/nc-authz/src",
     "crates/nc-canon/src",
     "crates/nc-catalog/src",
@@ -73,6 +73,7 @@ const COVERED: [&str; 23] = [
     "crates/nc-channel/src",
     "crates/nc-guest/src",
     "crates/nc-ids/src",
+    "crates/nc-ipc/src",
     "crates/nc-journal/src",
     "crates/nc-kernel/src",
     "crates/nc-local/src",
@@ -1238,12 +1239,13 @@ pub(crate) fn the_error_code_ground() -> Vec<&'static str> {
 /// per member crate.* A member added here and to the exclusion list in the
 /// same edit is a contradiction the test names.
 #[cfg(test)]
-const JUDGED_BY_THE_ERROR_CODE_RULE: [&str; 15] = [
+const JUDGED_BY_THE_ERROR_CODE_RULE: [&str; 16] = [
     "crates/nc-authz/",
     "crates/nc-canon/",
     "crates/nc-channel/",
     "crates/nc-guest/",
     "crates/nc-ids/",
+    "crates/nc-ipc/",
     "crates/nc-journal/",
     "crates/nc-kernel/",
     "crates/nc-local/",
@@ -9964,7 +9966,7 @@ mod tests {
     // SCOPE` naming the compiler's crate, and a second copy of that text
     // anywhere in this file leaves the operator with nothing unique to apply to
     // — reported as `not applicable`, which is a clause with no coverage.
-    const READ_BY_THE_HATCH_WALK: [&str; 18] = [
+    const READ_BY_THE_HATCH_WALK: [&str; 19] = [
         "crates/nc-authz",
         "crates/nc-canon",
         "crates/nc-catalog",
@@ -9972,6 +9974,7 @@ mod tests {
         "crates/nc-channel",
         "crates/nc-guest",
         "crates/nc-ids",
+        "crates/nc-ipc",
         "crates/nc-journal",
         "crates/nc-kernel",
         "crates/nc-local",
@@ -9994,12 +9997,13 @@ mod tests {
     ///
     /// The registry's own crate and its compiler are absent on purpose: they are
     /// the declaration rather than a producer.
-    const JUDGED_BY_THE_RAISING_RULE: [&str; 15] = [
+    const JUDGED_BY_THE_RAISING_RULE: [&str; 16] = [
         "crates/nc-authz/",
         "crates/nc-canon/",
         "crates/nc-channel/",
         "crates/nc-guest/",
         "crates/nc-ids/",
+        "crates/nc-ipc/",
         "crates/nc-journal/",
         "crates/nc-kernel/",
         "crates/nc-local/",
@@ -12530,6 +12534,7 @@ mod tests {
                 "crates/nc-channel/src",
                 "crates/nc-guest/src",
                 "crates/nc-ids/src",
+                "crates/nc-ipc/src",
                 "crates/nc-journal/src",
                 "crates/nc-kernel/src",
                 "crates/nc-local/src",

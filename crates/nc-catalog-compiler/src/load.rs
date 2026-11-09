@@ -758,6 +758,96 @@ fn check_limits(limits: &Limits, text: &str, problems: &mut Vec<Problem>) {
     check_kernel_nonzero(&limits.kernel, text, problems);
     check_kernel(&limits.kernel, text, problems);
     check_daemon(limits.daemon, text, problems);
+    check_daemon_ipc(limits.daemon, &limits.kernel, text, problems);
+}
+
+/// What an IPC frame carries around a payload — its type, a dispatch's command
+/// name, a refusal's code, kind and sentence — written as a bound of its own.
+///
+/// **Generous on purpose**: a frame refuses what it cannot hold rather than
+/// cutting it, so an envelope larger than this is a frame refused, never a
+/// payload half sent; `crates/nc-ipc`'s frames suite writes a dispatch's
+/// answer at the kernel's whole payload and reads it back.
+const IPC_ENVELOPE_BYTES: u64 = 65_536;
+
+/// How many instances one Windows named pipe may have, unlimited apart: the
+/// constant `PIPE_UNLIMITED_INSTANCES` is 255, and every number below it is a
+/// bound.
+///
+/// **Written here and not asked of `nc-platform`**, for the reason [`A_DAY_MS`]
+/// gives; a test in `crates/nc-ipc`,
+/// `the_catalogs_connections_fit_the_pipes_instances`, holds the generated
+/// value to `nc_platform::ipc::CONNECTIONS_MAX`.
+const PIPE_INSTANCES: u64 = 254;
+
+/// The IPC channel's limits keep the bounds outside `[daemon]` they answer to.
+///
+/// **A frame holds the kernel's whole payload with its envelope**, or a
+/// dispatch the kernel accepts would be one the channel cannot carry; **a peer
+/// is dropped only after more than two heartbeats of silence**, or one ping
+/// late — a busy machine, a scheduler's pause — would drop a peer that is
+/// there; and **the connections fit a pipe's instances** with two more — the
+/// one always waiting for the next client, and the connection past the bound,
+/// held until the next is waiting — or a daemon on Windows could not take the
+/// connection its own bound allows.
+fn check_daemon_ipc(
+    daemon: DaemonLimits,
+    kernel: &KernelLimits,
+    text: &str,
+    problems: &mut Vec<Problem>,
+) {
+    let at = |name: &str| line_of(text, &format!("{name} = "), 1).or(line_of(text, "[daemon]", 1));
+    if daemon.ipc_frame_max_bytes < kernel.payload_bytes.saturating_add(IPC_ENVELOPE_BYTES) {
+        push(
+            problems,
+            "catalog/limits.toml",
+            at("ipc_frame_max_bytes"),
+            format!(
+                "`[daemon] ipc_frame_max_bytes` is {}, below `[kernel] payload_bytes`, {}, \
+                 and the {IPC_ENVELOPE_BYTES} bytes a frame wraps a payload in",
+                daemon.ipc_frame_max_bytes, kernel.payload_bytes
+            ),
+            "a dispatch's arguments and its answer are each one payload, carried inside a \
+             frame with its type and a command's name or a refusal's sentence around it, so \
+             a frame smaller than both together refuses a dispatch the kernel would accept. \
+             Make `ipc_frame_max_bytes` at least `payload_bytes` and 64 KiB more",
+            "ipc-frame-below-a-payload",
+        );
+    }
+    if daemon.ipc_silent_after_ms <= daemon.ipc_heartbeat_ms.saturating_mul(2) {
+        push(
+            problems,
+            "catalog/limits.toml",
+            at("ipc_silent_after_ms"),
+            format!(
+                "`[daemon] ipc_silent_after_ms` is {}, which is not more than two \
+                 `ipc_heartbeat_ms`, {}",
+                daemon.ipc_silent_after_ms, daemon.ipc_heartbeat_ms
+            ),
+            "each side pings after a heartbeat of its own silence, so a peer dropped after \
+             two heartbeats or fewer is dropped for one ping a busy machine delivered late. \
+             Make `ipc_silent_after_ms` more than twice `ipc_heartbeat_ms`",
+            "ipc-silence-within-two-heartbeats",
+        );
+    }
+    if u64::from(daemon.ipc_connections_max).saturating_add(2) > PIPE_INSTANCES {
+        push(
+            problems,
+            "catalog/limits.toml",
+            at("ipc_connections_max"),
+            format!(
+                "`[daemon] ipc_connections_max` is {}, which with the two instances a \
+                 listener keeps beside its connections is more than a Windows pipe's \
+                 {PIPE_INSTANCES}",
+                daemon.ipc_connections_max
+            ),
+            "on Windows each connection is an instance of the daemon's pipe, one more always \
+             waits for the next client and one more is the connection past the bound, held \
+             until the next is waiting, so a bound a pipe cannot hold is one the daemon \
+             cannot keep there. Make `ipc_connections_max` at most 252",
+            "ipc-connections-past-a-pipe",
+        );
+    }
 }
 
 /// How far ahead of the clock a persisted mark may be before a minter reads

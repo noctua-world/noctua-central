@@ -32,7 +32,23 @@ windows-sys = { version = "0.61", features = [
     "Win32_Storage_FileSystem",
     "Win32_System_SystemServices",
     "Win32_System_Threading",
+    # Which process is at the other end of the daemon's pipe, asked from either
+    # end (`GetNamedPipeClientProcessId`, `GetNamedPipeServerProcessId`).
+    "Win32_System_Pipes",
 ] }
+
+[dependencies]
+# **The IPC endpoint's socket and pipe, and nothing else of the runtime**
+# (`NOCTUA.md §11.1`): a Unix socket's listener and stream with the peer's
+# credentials, and a Windows named pipe's server and client. Here and not in a
+# crate above, because the call that creates a pipe with a security descriptor
+# of its own, `create_with_security_attributes_raw`, is `unsafe`, and this is
+# the one crate that may write it, in `src/windows.rs`. `net` is the socket and
+# the pipe, `io-util` the reads and writes a test makes through them, and `time`
+# the wait before a pipe whose every instance is busy is asked again. Already in
+# the graph, with each of these features, under `sqlx`, so it adds no package
+# and no feature; never `process` or `signal`.
+tokio = { workspace = true, features = ["net", "io-util", "time"] }
 
 [dev-dependencies]
 # **Itself, with the doors open**, so the documentation gate can read this

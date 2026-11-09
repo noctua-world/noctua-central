@@ -133,6 +133,36 @@ pub enum ErrorCode {
     IdsClockOutOfRange,
     /// NC-IDS-0009 — The highest identifier time could not be saved, so no identifier past it was minted
     IdsCeilingNotRaised,
+    /// NC-IPC-0001 — A frame claimed more than `ipc_frame_max_bytes`, and was refused from its length prefix before anything was allocated for it
+    IpcFrameTooLarge,
+    /// NC-IPC-0002 — A frame was not one message of the protocol: of no length, not UTF-8, not canonical JSON, a message the receiver does not read there, or a request before the last one was answered
+    IpcMalformed,
+    /// NC-IPC-0003 — The connection closed, or was lost, before what was being read or written was whole
+    IpcLost,
+    /// NC-IPC-0004 — The other end of a connection speaks another version of the protocol
+    IpcProtocol,
+    /// NC-IPC-0005 — A client's proof was refused: it is not keyed by the channel's token
+    IpcClientUnproven,
+    /// NC-IPC-0006 — The daemon's proof was refused: what answered at the endpoint is not keyed by the channel's token
+    IpcDaemonUnproven,
+    /// NC-IPC-0007 — A handshake did not finish within `ipc_handshake_ms`
+    IpcHandshakeSlow,
+    /// NC-IPC-0008 — A peer was silent for `ipc_silent_after_ms`, and its connection was dropped
+    IpcSilent,
+    /// NC-IPC-0009 — The endpoint's runtime directory, or what stood at the endpoint's name, is not this user's alone, so it was not used
+    IpcEndpointNotPrivate,
+    /// NC-IPC-0010 — The endpoint's name is longer than this system holds for a socket's path or a pipe's name
+    IpcEndpointTooLong,
+    /// NC-IPC-0011 — Something already answers at the endpoint, so it was not taken
+    IpcEndpointTaken,
+    /// NC-IPC-0012 — The other end of a connection is not shown to be this user's: it runs as another user, its pipe belongs to another, or the system did not say which process it is
+    IpcPeerUnverified,
+    /// NC-IPC-0013 — A connection past `ipc_connections_max` was closed as soon as it was accepted
+    IpcBusy,
+    /// NC-IPC-0014 — Nothing answers at the endpoint: no daemon of the channel is listening
+    IpcUnreachable,
+    /// NC-IPC-0015 — The endpoint could not be bound, accepted on or reached: the system did not answer
+    IpcEndpointUnavailable,
     /// NC-JRNL-0001 — The journal's hash chain is broken at an entry
     JournalChainBroken,
     /// NC-JRNL-0002 — An entry's hash does not match the entry's own contents
@@ -324,6 +354,21 @@ impl ErrorCode {
         Self::IdsClockStuck,
         Self::IdsClockOutOfRange,
         Self::IdsCeilingNotRaised,
+        Self::IpcFrameTooLarge,
+        Self::IpcMalformed,
+        Self::IpcLost,
+        Self::IpcProtocol,
+        Self::IpcClientUnproven,
+        Self::IpcDaemonUnproven,
+        Self::IpcHandshakeSlow,
+        Self::IpcSilent,
+        Self::IpcEndpointNotPrivate,
+        Self::IpcEndpointTooLong,
+        Self::IpcEndpointTaken,
+        Self::IpcPeerUnverified,
+        Self::IpcBusy,
+        Self::IpcUnreachable,
+        Self::IpcEndpointUnavailable,
         Self::JournalChainBroken,
         Self::JournalEntryTampered,
         Self::JournalUnavailable,
@@ -442,6 +487,21 @@ impl ErrorCode {
             Self::IdsClockStuck => "NC-IDS-0007",
             Self::IdsClockOutOfRange => "NC-IDS-0008",
             Self::IdsCeilingNotRaised => "NC-IDS-0009",
+            Self::IpcFrameTooLarge => "NC-IPC-0001",
+            Self::IpcMalformed => "NC-IPC-0002",
+            Self::IpcLost => "NC-IPC-0003",
+            Self::IpcProtocol => "NC-IPC-0004",
+            Self::IpcClientUnproven => "NC-IPC-0005",
+            Self::IpcDaemonUnproven => "NC-IPC-0006",
+            Self::IpcHandshakeSlow => "NC-IPC-0007",
+            Self::IpcSilent => "NC-IPC-0008",
+            Self::IpcEndpointNotPrivate => "NC-IPC-0009",
+            Self::IpcEndpointTooLong => "NC-IPC-0010",
+            Self::IpcEndpointTaken => "NC-IPC-0011",
+            Self::IpcPeerUnverified => "NC-IPC-0012",
+            Self::IpcBusy => "NC-IPC-0013",
+            Self::IpcUnreachable => "NC-IPC-0014",
+            Self::IpcEndpointUnavailable => "NC-IPC-0015",
             Self::JournalChainBroken => "NC-JRNL-0001",
             Self::JournalEntryTampered => "NC-JRNL-0002",
             Self::JournalUnavailable => "NC-JRNL-0003",
@@ -561,6 +621,21 @@ impl ErrorCode {
             Self::IdsClockStuck => "IDS",
             Self::IdsClockOutOfRange => "IDS",
             Self::IdsCeilingNotRaised => "IDS",
+            Self::IpcFrameTooLarge => "IPC",
+            Self::IpcMalformed => "IPC",
+            Self::IpcLost => "IPC",
+            Self::IpcProtocol => "IPC",
+            Self::IpcClientUnproven => "IPC",
+            Self::IpcDaemonUnproven => "IPC",
+            Self::IpcHandshakeSlow => "IPC",
+            Self::IpcSilent => "IPC",
+            Self::IpcEndpointNotPrivate => "IPC",
+            Self::IpcEndpointTooLong => "IPC",
+            Self::IpcEndpointTaken => "IPC",
+            Self::IpcPeerUnverified => "IPC",
+            Self::IpcBusy => "IPC",
+            Self::IpcUnreachable => "IPC",
+            Self::IpcEndpointUnavailable => "IPC",
             Self::JournalChainBroken => "JRNL",
             Self::JournalEntryTampered => "JRNL",
             Self::JournalUnavailable => "JRNL",
@@ -725,6 +800,49 @@ impl ErrorCode {
             }
             Self::IdsCeilingNotRaised => {
                 "The highest identifier time could not be saved, so no identifier past it was minted"
+            }
+            Self::IpcFrameTooLarge => {
+                "A frame claimed more than `ipc_frame_max_bytes`, and was refused from its length prefix before anything was allocated for it"
+            }
+            Self::IpcMalformed => {
+                "A frame was not one message of the protocol: of no length, not UTF-8, not canonical JSON, a message the receiver does not read there, or a request before the last one was answered"
+            }
+            Self::IpcLost => {
+                "The connection closed, or was lost, before what was being read or written was whole"
+            }
+            Self::IpcProtocol => {
+                "The other end of a connection speaks another version of the protocol"
+            }
+            Self::IpcClientUnproven => {
+                "A client's proof was refused: it is not keyed by the channel's token"
+            }
+            Self::IpcDaemonUnproven => {
+                "The daemon's proof was refused: what answered at the endpoint is not keyed by the channel's token"
+            }
+            Self::IpcHandshakeSlow => "A handshake did not finish within `ipc_handshake_ms`",
+            Self::IpcSilent => {
+                "A peer was silent for `ipc_silent_after_ms`, and its connection was dropped"
+            }
+            Self::IpcEndpointNotPrivate => {
+                "The endpoint's runtime directory, or what stood at the endpoint's name, is not this user's alone, so it was not used"
+            }
+            Self::IpcEndpointTooLong => {
+                "The endpoint's name is longer than this system holds for a socket's path or a pipe's name"
+            }
+            Self::IpcEndpointTaken => {
+                "Something already answers at the endpoint, so it was not taken"
+            }
+            Self::IpcPeerUnverified => {
+                "The other end of a connection is not shown to be this user's: it runs as another user, its pipe belongs to another, or the system did not say which process it is"
+            }
+            Self::IpcBusy => {
+                "A connection past `ipc_connections_max` was closed as soon as it was accepted"
+            }
+            Self::IpcUnreachable => {
+                "Nothing answers at the endpoint: no daemon of the channel is listening"
+            }
+            Self::IpcEndpointUnavailable => {
+                "The endpoint could not be bound, accepted on or reached: the system did not answer"
             }
             Self::JournalChainBroken => "The journal's hash chain is broken at an entry",
             Self::JournalEntryTampered => "An entry's hash does not match the entry's own contents",
@@ -955,6 +1073,21 @@ impl ErrorCode {
             Self::IdsClockStuck => "error.ids.clock-stuck",
             Self::IdsClockOutOfRange => "error.ids.clock-out-of-range",
             Self::IdsCeilingNotRaised => "error.ids.ceiling-not-raised",
+            Self::IpcFrameTooLarge => "error.ipc.frame-too-large",
+            Self::IpcMalformed => "error.ipc.malformed",
+            Self::IpcLost => "error.ipc.lost",
+            Self::IpcProtocol => "error.ipc.protocol",
+            Self::IpcClientUnproven => "error.ipc.client-unproven",
+            Self::IpcDaemonUnproven => "error.ipc.daemon-unproven",
+            Self::IpcHandshakeSlow => "error.ipc.handshake-slow",
+            Self::IpcSilent => "error.ipc.silent",
+            Self::IpcEndpointNotPrivate => "error.ipc.endpoint-not-private",
+            Self::IpcEndpointTooLong => "error.ipc.endpoint-too-long",
+            Self::IpcEndpointTaken => "error.ipc.endpoint-taken",
+            Self::IpcPeerUnverified => "error.ipc.peer-unverified",
+            Self::IpcBusy => "error.ipc.busy",
+            Self::IpcUnreachable => "error.ipc.unreachable",
+            Self::IpcEndpointUnavailable => "error.ipc.endpoint-unavailable",
             Self::JournalChainBroken => "error.journal.chain-broken",
             Self::JournalEntryTampered => "error.journal.entry-tampered",
             Self::JournalUnavailable => "error.journal.unavailable",
@@ -1074,6 +1207,21 @@ impl ErrorCode {
             Self::IdsClockStuck => Severity::Critical,
             Self::IdsClockOutOfRange => Severity::Error,
             Self::IdsCeilingNotRaised => Severity::Error,
+            Self::IpcFrameTooLarge => Severity::Warning,
+            Self::IpcMalformed => Severity::Warning,
+            Self::IpcLost => Severity::Warning,
+            Self::IpcProtocol => Severity::Error,
+            Self::IpcClientUnproven => Severity::Error,
+            Self::IpcDaemonUnproven => Severity::Critical,
+            Self::IpcHandshakeSlow => Severity::Warning,
+            Self::IpcSilent => Severity::Warning,
+            Self::IpcEndpointNotPrivate => Severity::Critical,
+            Self::IpcEndpointTooLong => Severity::Error,
+            Self::IpcEndpointTaken => Severity::Error,
+            Self::IpcPeerUnverified => Severity::Critical,
+            Self::IpcBusy => Severity::Warning,
+            Self::IpcUnreachable => Severity::Warning,
+            Self::IpcEndpointUnavailable => Severity::Error,
             Self::JournalChainBroken => Severity::Critical,
             Self::JournalEntryTampered => Severity::Critical,
             Self::JournalUnavailable => Severity::Critical,
@@ -1193,6 +1341,21 @@ impl ErrorCode {
             Self::IdsClockStuck => true,
             Self::IdsClockOutOfRange => false,
             Self::IdsCeilingNotRaised => true,
+            Self::IpcFrameTooLarge => false,
+            Self::IpcMalformed => false,
+            Self::IpcLost => true,
+            Self::IpcProtocol => false,
+            Self::IpcClientUnproven => false,
+            Self::IpcDaemonUnproven => false,
+            Self::IpcHandshakeSlow => true,
+            Self::IpcSilent => true,
+            Self::IpcEndpointNotPrivate => false,
+            Self::IpcEndpointTooLong => false,
+            Self::IpcEndpointTaken => false,
+            Self::IpcPeerUnverified => false,
+            Self::IpcBusy => true,
+            Self::IpcUnreachable => true,
+            Self::IpcEndpointUnavailable => true,
             Self::JournalChainBroken => false,
             Self::JournalEntryTampered => false,
             Self::JournalUnavailable => true,
@@ -1312,6 +1475,21 @@ impl ErrorCode {
             Self::IdsClockStuck => &[],
             Self::IdsClockOutOfRange => &[],
             Self::IdsCeilingNotRaised => &[],
+            Self::IpcFrameTooLarge => &[],
+            Self::IpcMalformed => &[],
+            Self::IpcLost => &[],
+            Self::IpcProtocol => &[],
+            Self::IpcClientUnproven => &[],
+            Self::IpcDaemonUnproven => &[],
+            Self::IpcHandshakeSlow => &[],
+            Self::IpcSilent => &[],
+            Self::IpcEndpointNotPrivate => &[],
+            Self::IpcEndpointTooLong => &[],
+            Self::IpcEndpointTaken => &[],
+            Self::IpcPeerUnverified => &[],
+            Self::IpcBusy => &[],
+            Self::IpcUnreachable => &[],
+            Self::IpcEndpointUnavailable => &[],
             Self::JournalChainBroken => &[],
             Self::JournalEntryTampered => &[],
             Self::JournalUnavailable => &[],
@@ -1445,6 +1623,10 @@ pub const AREAS: &[(&str, &str)] = &[
     (
         "IDS",
         "Identifiers: Snowflake, the machine flake, file names",
+    ),
+    (
+        "IPC",
+        "The IPC channel a daemon is reached through: its endpoint, its frames, the handshake that proves both ends, and the heartbeat (§11.1)",
     ),
     ("JRNL", "The command journal and its hash chain"),
     ("KERN", "The local kernel and command dispatch"),

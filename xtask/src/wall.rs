@@ -7668,6 +7668,7 @@ mod the_exemption_is_one_directory {
             "crates/nc-channel/src/lib.rs",
             "crates/nc-guest/src/lib.rs",
             "crates/nc-ids/src/lib.rs",
+            "crates/nc-ipc/src/lib.rs",
             "crates/nc-journal/src/lib.rs",
             "crates/nc-kernel/src/lib.rs",
             "crates/nc-local/src/lib.rs",

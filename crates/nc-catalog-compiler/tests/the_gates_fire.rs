@@ -2024,6 +2024,98 @@ fn a_mark_lease_of_a_day_fails_the_build() {
     );
 }
 
+/// An IPC frame one byte short of the kernel's payload and its envelope fails
+/// the build, and one that holds both exactly does not.
+///
+/// **At the boundary**: a dispatch's answer is one payload inside a frame, so
+/// a frame a byte smaller than the payload and what wraps it is the first one
+/// that refuses an answer the kernel gave.
+#[test]
+fn an_ipc_frame_below_a_payload_and_its_envelope_fails_the_build() {
+    let scratch = Scratch::new("daemon-frame-short");
+    scratch.replacing(
+        "catalog/limits.toml",
+        "ipc_frame_max_bytes = 2_097_152",
+        "ipc_frame_max_bytes = 1_114_111",
+    );
+    scratch.must_fail_saying(
+        "ipc-frame-below-a-payload",
+        "`[daemon] ipc_frame_max_bytes` is 1114111, below `[kernel] payload_bytes`, 1048576, \
+         and the 65536 bytes a frame wraps a payload in",
+    );
+    let exact = Scratch::new("daemon-frame-exact");
+    exact.replacing(
+        "catalog/limits.toml",
+        "ipc_frame_max_bytes = 2_097_152",
+        "ipc_frame_max_bytes = 1_114_112",
+    );
+    assert!(
+        exact
+            .problems()
+            .iter()
+            .all(|problem| problem.check != "ipc-frame-below-a-payload"),
+        "a frame holding the payload and its envelope exactly was refused"
+    );
+}
+
+/// A peer dropped after exactly two heartbeats of silence fails the build, and
+/// one dropped a millisecond later does not.
+#[test]
+fn an_ipc_silence_of_two_heartbeats_fails_the_build() {
+    let scratch = Scratch::new("daemon-silence-two-beats");
+    scratch.replacing(
+        "catalog/limits.toml",
+        "ipc_silent_after_ms = 10_000",
+        "ipc_silent_after_ms = 4_000",
+    );
+    scratch.must_fail_saying(
+        "ipc-silence-within-two-heartbeats",
+        "`[daemon] ipc_silent_after_ms` is 4000, which is not more than two \
+         `ipc_heartbeat_ms`, 2000",
+    );
+    let past = Scratch::new("daemon-silence-past-two-beats");
+    past.replacing(
+        "catalog/limits.toml",
+        "ipc_silent_after_ms = 10_000",
+        "ipc_silent_after_ms = 4_001",
+    );
+    assert!(
+        past.problems()
+            .iter()
+            .all(|problem| problem.check != "ipc-silence-within-two-heartbeats"),
+        "a silence past two heartbeats was refused"
+    );
+}
+
+/// A bound of connections a Windows pipe cannot hold with the two instances a
+/// listener keeps beside them fails the build, and the largest it can does not.
+#[test]
+fn ipc_connections_a_pipe_cannot_hold_fail_the_build() {
+    let scratch = Scratch::new("daemon-connections-253");
+    scratch.replacing(
+        "catalog/limits.toml",
+        "ipc_connections_max = 32",
+        "ipc_connections_max = 253",
+    );
+    scratch.must_fail_saying(
+        "ipc-connections-past-a-pipe",
+        "`[daemon] ipc_connections_max` is 253, which with the two instances a listener \
+         keeps beside its connections is more than a Windows pipe's 254",
+    );
+    let most = Scratch::new("daemon-connections-252");
+    most.replacing(
+        "catalog/limits.toml",
+        "ipc_connections_max = 32",
+        "ipc_connections_max = 252",
+    );
+    assert!(
+        most.problems()
+            .iter()
+            .all(|problem| problem.check != "ipc-connections-past-a-pipe"),
+        "the most connections a pipe holds with one instance waiting was refused"
+    );
+}
+
 /// Every relation between two kernel limits is refused at the number where it
 /// stops holding, and not one past it.
 ///

@@ -15,6 +15,7 @@ use std::os::unix::fs::{
 };
 use std::path::Path;
 
+use crate::ipc::{Endpoint, Refused, Said, Whose};
 use crate::{Failed, Judged, Kind, Refusal};
 
 /// The mode bits nobody but the owner may hold on anything here.
@@ -61,6 +62,17 @@ pub(crate) struct User(u32);
 impl core::fmt::Display for User {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(formatter, "{}", self.0)
+    }
+}
+
+/// Whom the system says something belongs to: a user's number.
+pub(crate) type Who = u32;
+
+/// What a peer's credentials are held to.
+impl User {
+    /// The number a peer's credentials are compared with.
+    pub(crate) const fn who(&self) -> Who {
+        self.0
     }
 }
 
@@ -240,6 +252,189 @@ fn whoami(directory: &Path) -> Result<User, Failed> {
         Failed::new(format!("`{}` could not be removed", probe.display()), error)
     })?;
     Ok(owner)
+}
+
+/// The most bytes a socket's path holds here, its terminating NUL apart: what
+/// the system's `sun_path` holds, less one.
+///
+/// **Measured on the CI runners** as the longest path each binds: 107 bytes
+/// on Linux, whose `sun_path` is 108, and 103 on macOS, whose is 104.
+pub(crate) const NAME_MAX: usize = if cfg!(target_os = "macos") { 103 } else { 107 };
+
+/// How a refusal says what [`NAME_MAX`] bounds, before the number.
+pub(crate) const NAME_HOLDS: &str = "a socket's path on this system holds at most";
+
+/// What [`NAME_MAX`] counts.
+pub(crate) const NAME_UNIT: &str = "bytes";
+
+/// How long the endpoint's name is, as [`NAME_MAX`] counts it: its socket's
+/// path, in bytes.
+pub(crate) fn length_of(endpoint: &Endpoint) -> usize {
+    endpoint.socket.as_os_str().len()
+}
+
+/// The endpoint's name as a person reads it: its socket's path.
+pub(crate) fn name_of(endpoint: &Endpoint) -> String {
+    endpoint.socket.display().to_string()
+}
+
+/// A connection through the socket.
+pub(crate) type Stream = tokio::net::UnixStream;
+
+/// The socket, listened on, and which file it made, so it removes that one
+/// and nothing put at its name since.
+#[derive(Debug)]
+pub(crate) struct Listener {
+    /// The listening socket.
+    listening: tokio::net::UnixListener,
+    /// Its path.
+    path: std::path::PathBuf,
+    /// The device and the inode of the file it made.
+    made: (u64, u64),
+}
+
+/// A listener let go removes the socket it made.
+impl Drop for Listener {
+    /// The socket's file removed, when it is still the one this made: a socket
+    /// nothing listens on is what the next bind judges and replaces.
+    fn drop(&mut self) {
+        if std::fs::symlink_metadata(&self.path)
+            .is_ok_and(|found| (found.dev(), found.ino()) == self.made)
+        {
+            let _ = std::fs::remove_file(&self.path);
+        }
+    }
+}
+
+/// Whether what stands at a socket's name, read as `found`, is a socket the
+/// user owns: the one thing a bind replaces, and only once nothing answers at it.
+fn a_socket_of_its_own(path: &Path, found: &Metadata, user: &User) -> Result<(), Refused> {
+    use std::os::unix::fs::FileTypeExt as _;
+
+    let refused = |what: String| Err(Refused::NotPrivate(Refusal::of(path, what)));
+    let file_type = found.file_type();
+    if file_type.is_symlink() {
+        return refused("is a symbolic link".to_owned());
+    }
+    if !file_type.is_socket() {
+        return refused("is not a socket".to_owned());
+    }
+    if found.uid() != user.0 {
+        return refused(format!(
+            "belongs to user {} and this process runs as user {user}",
+            found.uid()
+        ));
+    }
+    Ok(())
+}
+
+/// The socket at `endpoint`'s path, bound for `user` and made `0600`.
+///
+/// **What stands at the name already is judged, never removed unread**: a
+/// socket of this user's that refuses a connection is a dead daemon's and is
+/// replaced; one something answers at is taken; anything else is refused and
+/// left as it was. The caller holds the profile's instance lock, so no daemon
+/// of the profile is between its stop and its socket's removal.
+pub(crate) fn bind(
+    endpoint: &Endpoint,
+    user: &User,
+    _connections: usize,
+) -> Result<Listener, Refused> {
+    let path = &endpoint.socket;
+    let failed = |doing: &str, error: io::Error| {
+        Refused::Failed(Failed::new(format!("`{}` {doing}", path.display()), error))
+    };
+    match std::fs::symlink_metadata(path) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(failed("could not be read", error)),
+        Ok(found) => {
+            a_socket_of_its_own(path, &found, user)?;
+            match std::os::unix::net::UnixStream::connect(path) {
+                Ok(_) => {
+                    return Err(Refused::Taken {
+                        name: name_of(endpoint),
+                    });
+                }
+                Err(error) if error.kind() == io::ErrorKind::ConnectionRefused => {
+                    std::fs::remove_file(path)
+                        .map_err(|error| failed("could not be removed", error))?;
+                }
+                Err(error) => return Err(failed("could not be asked whether it answers", error)),
+            }
+        }
+    }
+    let listening = tokio::net::UnixListener::bind(path).map_err(|error| {
+        if error.kind() == io::ErrorKind::AddrInUse {
+            Refused::Taken {
+                name: name_of(endpoint),
+            }
+        } else {
+            failed("could not be bound", error)
+        }
+    })?;
+    let made =
+        std::fs::symlink_metadata(path).map_err(|error| failed("could not be read", error))?;
+    // Built before the mode is set, so a failure from here on removes it.
+    let listener = Listener {
+        listening,
+        path: path.clone(),
+        made: (made.dev(), made.ino()),
+    };
+    std::fs::set_permissions(path, Permissions::from_mode(OWNER_OF_A_FILE))
+        .map_err(|error| failed("could not be made private", error))?;
+    Ok(listener)
+}
+
+/// What the system says about the other end of `stream`: the user its peer
+/// credentials name, and the process.
+fn said_by(stream: &Stream) -> io::Result<Said> {
+    let credentials = stream.peer_cred()?;
+    Ok(Said {
+        users: vec![(Whose::Process, credentials.uid())],
+        pid: credentials.pid().map(i64::from),
+    })
+}
+
+/// The next connection to `listener`, and what the system says of its other
+/// end.
+pub(crate) async fn accept(listener: &mut Listener) -> io::Result<(Stream, Said)> {
+    let (stream, _) = listener.listening.accept().await?;
+    let said = said_by(&stream)?;
+    Ok((stream, said))
+}
+
+/// A connection to `endpoint`'s socket, and what the system says of the
+/// process listening on it.
+pub(crate) async fn connect(endpoint: &Endpoint) -> io::Result<(Stream, Said)> {
+    let stream = tokio::net::UnixStream::connect(&endpoint.socket).await?;
+    let said = said_by(&stream)?;
+    Ok((stream, said))
+}
+
+/// Whether an endpoint is a name on disk, which a bind judges: a socket's
+/// path here.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) const ENDPOINT_ON_DISK: bool = true;
+
+/// Whether `listener`'s socket is what a bind makes: a socket of `user`'s,
+/// mode `0600`.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn endpoint_is_as_created(listener: &Listener, user: &User) -> bool {
+    use std::os::unix::fs::FileTypeExt as _;
+
+    std::fs::symlink_metadata(&listener.path).is_ok_and(|found| {
+        found.file_type().is_socket()
+            && found.uid() == user.0
+            && found.mode() & 0o777 == OWNER_OF_A_FILE
+    })
+}
+
+/// A socket at `endpoint`'s path that nothing listens on: what a daemon
+/// stopped without removing its own leaves.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn leave_a_dead_endpoint(endpoint: &Endpoint) -> io::Result<()> {
+    drop(std::os::unix::net::UnixListener::bind(&endpoint.socket)?);
+    Ok(())
 }
 
 /// What a path lets in: its mode bits.

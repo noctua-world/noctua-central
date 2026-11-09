@@ -673,7 +673,8 @@ const LIMITS_OPENING: &str = "Every bound this catalog declares. A table that ca
      a habit (`§15.8`).\n\n\
      **Declared is not the same as enforced, and each part of this page has its \
      own answer.** The kernel holds every plugin to every bound under **Kernel**, \
-     and the daemon holds itself to every bound under **Daemon**. \
+     and the daemon and the IPC channel it is reached through hold to every bound \
+     under **Daemon**. \
      A `local` table is held by `crates/nc-local`, which refuses a unit at a \
      `refuse-at-limit` bound as it commits, and by the pruner, which \
      `Kernel::pump` and the `limits.prune` command run over the local database — \
@@ -882,13 +883,22 @@ fn daemon(catalog: &Catalog) -> String {
     out.push_str("\n## Daemon\n\n");
     out.push_str(
         "The bounds the daemon holds itself to, read from `[daemon]` and from nowhere else \
-         (`§16.2`).\n\n\
-         **Every one is enforced by `apps/daemon`.** It raises the identifiers' persisted \
-         ceiling `mark_lease_ms` past the clock before it hands out a millisecond past the \
-         one it holds, so a daemon stopped at any instant has minted nothing above what its \
-         next start resumes at, and a start after a crash waits at most that long for the \
-         clock to pass it. The compiler holds the lease below a day, the furthest ahead a \
-         minter takes a mark to be early rather than corrupt.\n\n",
+         (`§11.1`, `§16.2`).\n\n\
+         **The mark's lease is enforced by `apps/daemon`.** It raises the identifiers' \
+         persisted ceiling `mark_lease_ms` past the clock before it hands out a millisecond \
+         past the one it holds, so a daemon stopped at any instant has minted nothing above \
+         what its next start resumes at, and a start after a crash waits at most that long \
+         for the clock to pass it. The compiler holds the lease below a day, the furthest \
+         ahead a minter takes a mark to be early rather than corrupt.\n\n\
+         **The `ipc_` bounds are enforced by `crates/nc-ipc`**, which reads them itself: a \
+         frame longer than `ipc_frame_max_bytes` is refused from its length prefix, before \
+         anything is allocated for it; a handshake not finished within `ipc_handshake_ms` \
+         is dropped; each side pings after `ipc_heartbeat_ms` of its own silence and drops a \
+         peer silent for `ipc_silent_after_ms`; and the listener it binds closes a \
+         connection past `ipc_connections_max` as soon as it is accepted. The compiler \
+         holds a frame to the kernel's `payload_bytes` and 64 KiB more, the silence to more \
+         than two heartbeats, and the connections to 252, two fewer than a Windows pipe's \
+         instances.\n\n",
     );
     out.push_str("| Limit | Value | What it bounds |\n|---|---|---|\n");
     for limit in catalog.limits.daemon.each() {

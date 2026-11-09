@@ -1827,6 +1827,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "nc-ipc"
+version = "0.1.0-rc.1"
+dependencies = [
+ "blake3",
+ "nc-canon",
+ "nc-catalog",
+ "nc-channel",
+ "nc-ipc",
+ "nc-platform",
+ "tokio",
+]
+
+[[package]]
 name = "nc-journal"
 version = "0.1.0-rc.1"
 dependencies = [
@@ -1901,6 +1914,7 @@ name = "nc-platform"
 version = "0.1.0-rc.1"
 dependencies = [
  "nc-platform",
+ "tokio",
  "windows-sys 0.61.2",
 ]
 

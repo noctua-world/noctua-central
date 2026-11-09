@@ -379,6 +379,13 @@ serde = { version = "1.0", features = ["derive"] }
 # not a function of its input.
 serde_json = { version = "1.0", features = ["preserve_order"] }
 
+# The protocol a daemon is reached through (`NOCTUA.md §11.1`): frames of
+# canonical JSON, a handshake in which each end proves it holds the channel's
+# token without sending it, one request at a time and a heartbeat. The daemon
+# serves it and the CLI asks through it, so both ends are one implementation;
+# it holds no kernel, so a kernel-free client can take it.
+nc-ipc = { path = "crates/nc-ipc" }
+
 [workspace.lints.rust]
 unsafe_code = "forbid"
 missing_docs = "warn"
