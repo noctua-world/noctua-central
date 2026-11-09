@@ -656,7 +656,9 @@ pub enum Counters {
     },
     /// `schtasks /Query /V`'s `Status`, `Last Run Time` and `Last Result`.
     TaskScheduler {
-        /// `Running` while an instance runs.
+        /// The task's state as Windows words it in its display language, kept
+        /// for a person to read and never judged: in English, `Running` while an
+        /// instance runs.
         status: String,
         /// When an instance was last started, or a repetition refused one, written
         /// as `schtasks` writes the time.
@@ -677,7 +679,11 @@ impl Counters {
                 ..
             } => active_state == "active" && *main_pid != 0,
             Self::Launchd { state, pid, .. } => state == "running" && pid.is_some(),
-            Self::TaskScheduler { status, .. } => status == "Running",
+            // **By the last result, which no display language changes**: the
+            // status beside it is a word Windows translates.
+            Self::TaskScheduler { last_result, .. } => {
+                matches!(*last_result, TASK_RUNNING | REFUSED_WHILE_RUNNING)
+            }
         }
     }
 
@@ -711,12 +717,13 @@ impl Counters {
         }
     }
 
-    /// What `manager` answered when its counters were asked, read.
-    fn read(manager: Manager, answer: &str) -> Option<Self> {
+    /// What `manager` answered when its counters of the service `name` were
+    /// asked, read.
+    fn read(manager: Manager, answer: &str, name: &str) -> Option<Self> {
         match manager {
             Manager::Systemd => Self::from_systemctl_show(answer),
             Manager::Launchd => Self::from_launchctl_print(answer),
-            Manager::TaskScheduler => Self::from_schtasks(answer),
+            Manager::TaskScheduler => Self::from_schtasks(answer, name),
         }
     }
 
@@ -763,28 +770,50 @@ impl Counters {
         })
     }
 
-    /// `schtasks /Query /V /FO CSV`: a header naming each column, then a row
-    /// for each of the task's triggers, which agree on these three.
-    fn from_schtasks(answer: &str) -> Option<Self> {
+    /// What `schtasks /Query /TN <name> /V /FO CSV` answers, read.
+    ///
+    /// A header, then a row for each of the task's triggers, which agree on
+    /// what is read here: each column by its place ([`TASK_COLUMNS`]), and the
+    /// row's own name held to `name`, so that a column that moved is not read.
+    fn from_schtasks(answer: &str, name: &str) -> Option<Self> {
         let mut rows = answer
             .lines()
             .filter(|line| !line.trim().is_empty())
             .map(csv_fields);
         let header = rows.next()?;
-        let column = |name: &str| header.iter().position(|field| field == name);
-        let (status, last_run, last_result) = (
-            column("Status")?,
-            column("Last Run Time")?,
-            column("Last Result")?,
-        );
         let row = rows.find(|row| *row != header)?;
+        let [named, status, last_run, last_result] = TASK_COLUMNS.map(|column| row.get(column));
+        if !named?.eq_ignore_ascii_case(name) {
+            return None;
+        }
         Some(Self::TaskScheduler {
-            status: row.get(status)?.clone(),
-            last_run: row.get(last_run)?.clone(),
-            last_result: row.get(last_result)?.trim().parse().ok()?,
+            status: status?.clone(),
+            last_run: last_run?.clone(),
+            last_result: last_result?.trim().parse().ok()?,
         })
     }
 }
+
+/// Where `schtasks /Query /V /FO CSV` writes each column [`Counters`] reads,
+/// counted from 0: the task's name, its status, its last run and its last
+/// result.
+///
+/// **By place, never by the header's words**, which Windows writes in its
+/// display language, as it does the status; the order is the tool's own.
+const TASK_COLUMNS: [usize; 4] = [1, 3, 5, 6];
+
+/// A task's last result while an instance it started runs, which the
+/// headers name `SCHED_S_TASK_RUNNING`.
+const TASK_RUNNING: i64 = 0x0004_1301;
+
+/// A task's last result once a repetition came while an instance ran,
+/// and `IgnoreNew` refused it.
+///
+/// `ERROR_REQUEST_REFUSED` as an `HRESULT`, `0x800710E0`, which `schtasks`
+/// writes as a signed number. The instance's end writes its own result over
+/// it, which the scratch service killed past such a refusal holds on the
+/// hosted runner.
+const REFUSED_WHILE_RUNNING: i64 = -2_147_020_576;
 
 /// The fields of one line of `schtasks`' CSV: each between quotes, a `""`
 /// inside one standing for a `"`, joined by commas outside them.
@@ -1099,10 +1128,11 @@ impl Registrar {
     ///
     /// **Where the definition stays is the directory's**: a unit and a plist
     /// are read from it for as long as they are registered, and a task's XML is
-    /// removed once Task Scheduler holds its own copy. A registration that
+    /// removed once Task Scheduler holds its own copy, or by
+    /// [`Registrar::unregister`] when it cannot be then. A registration that
     /// fails takes back what it made and nothing else — the definition it
     /// wrote, and on systemd the unit its start left failed — so it leaves
-    /// nothing behind.
+    /// nothing behind; one the manager took is registered, and says so.
     ///
     /// # Errors
     ///
@@ -1114,28 +1144,45 @@ impl Registrar {
     pub fn register(&self, service: &Service, directory: &Path) -> Result<(), Error> {
         let (file, bytes) = definition(self.manager, service)?;
         not_held(&service.name, self.is_registered(&service.name)?)?;
+        self.loaded(&service.name, directory, &file, &bytes, |path| {
+            self.to_load(&service.name, path)
+                .iter()
+                .try_for_each(|arguments| self.ask(arguments).and_then(Answer::succeeded).map(drop))
+        })
+    }
+
+    /// Writes `bytes` as the definition `file` in `directory`, and has `load`
+    /// hand it to the manager.
+    ///
+    /// **Registered once the manager took it, whatever becomes of the copy**:
+    /// a task's XML, which Task Scheduler no longer reads, is removed then if it
+    /// can be, and otherwise by [`Registrar::unregister`], which removes the
+    /// definition under that name — so a copy a scanner holds open a moment
+    /// longer never reports a task the manager holds as one it refused.
+    fn loaded(
+        &self,
+        name: &str,
+        directory: &Path,
+        file: &str,
+        bytes: &[u8],
+        load: impl FnOnce(&Path) -> Result<(), Error>,
+    ) -> Result<(), Error> {
         let path = directory.join(file);
-        write_new(&path, &bytes)?;
-        let loaded = self
-            .to_load(&service.name, &path)
-            .iter()
-            .try_for_each(|arguments| self.ask(arguments).and_then(Answer::succeeded).map(drop));
-        let copied = if self.manager == Manager::TaskScheduler {
-            remove_if_there(&path)
-        } else {
-            Ok(())
-        };
-        if loaded.is_err() {
+        write_new(&path, bytes)?;
+        if let Err(refused) = load(&path) {
             // **The registration's own refusal is the one reported**: what
             // taking it back says is beside the point it already failed at.
             if self.manager.a_refused_load_leaves_it_loaded() {
-                drop(self.unregister(&service.name, directory));
+                drop(self.unregister(name, directory));
             } else {
                 drop(remove_if_there(&path));
             }
-            return loaded;
+            return Err(refused);
         }
-        copied
+        if self.manager == Manager::TaskScheduler {
+            drop(remove_if_there(&path));
+        }
+        Ok(())
     }
 
     /// Starts the service named `name` now, through its manager.
@@ -1295,7 +1342,7 @@ impl Registrar {
     pub fn counters(&self, name: &str) -> Result<Counters, Error> {
         self.takes(name)?;
         let answer = self.ask(&self.to_count(name))?.succeeded()?;
-        Counters::read(self.manager, &answer.out).ok_or(Error::Unreadable {
+        Counters::read(self.manager, &answer.out, name).ok_or(Error::Unreadable {
             asked: answer.asked,
             said: answer.out,
         })
@@ -1642,6 +1689,89 @@ mod tests {
             }),
             environment: Vec::new(),
             runtime: (manager == Manager::Systemd).then_some(runtime),
+        }
+    }
+
+    /// The lock a scratch service's owner holds in its scratch for as long as
+    /// it lives.
+    const OWNER: &str = "owner.lock";
+
+    /// How long a scratch is too new for a sweep to judge whether its owner
+    /// lives: past the moment between its directory and its lock.
+    const NEW_FOR: Duration = Duration::from_secs(60);
+
+    /// This checkout: the directory two above this crate's, fixed when this
+    /// test binary is built.
+    fn checkout() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .ancestors()
+            .nth(2)
+            .expect("a crate two directories into its checkout")
+            .to_owned()
+    }
+
+    /// The prefix of every scratch service's name this checkout registers.
+    fn prefix() -> String {
+        format!("noctua-dev-test-{}-", nc_channel::Checkout::of(&checkout()))
+    }
+
+    /// Where every scratch service of this checkout has its scratch: the
+    /// checkout's own `target/nc-registered`.
+    ///
+    /// **The same for every run of this checkout, whatever its environment**:
+    /// a sweep reading another directory than the one a live run made its
+    /// scratch in — its own `TMPDIR` — finds no lock held there, and would
+    /// unregister that run's service as a dead owner's.
+    fn scratches() -> PathBuf {
+        checkout().join("target").join("nc-registered")
+    }
+
+    /// Whether the owner of the scratch at `scratch` still holds its lock.
+    fn owner_lives(scratch: &Path) -> bool {
+        std::fs::File::open(scratch.join(OWNER))
+            .is_ok_and(|lock| matches!(lock.try_lock(), Err(std::fs::TryLockError::WouldBlock)))
+    }
+
+    /// Whether what is `age` old is younger than `new_for`, an age that could
+    /// not be read counting as new: what a sweep cannot judge, it leaves for
+    /// one later.
+    fn too_new(age: Option<Duration>, new_for: Duration) -> bool {
+        age.is_none_or(|age| age < new_for)
+    }
+
+    /// Whether the scratch at `scratch` was made, or written in, less than
+    /// the bound `new_for` ago, or when it was cannot be read.
+    fn too_new_to_judge(scratch: &Path, new_for: Duration) -> bool {
+        too_new(
+            std::fs::metadata(scratch)
+                .and_then(|metadata| metadata.modified())
+                .ok()
+                .and_then(|modified| modified.elapsed().ok()),
+            new_for,
+        )
+    }
+
+    /// Takes away each scratch in `scratches` under `prefix` whose owner is
+    /// dead, once it is `new_for` old.
+    ///
+    /// **A scratch too new to judge is left alone**, before its lock is asked:
+    /// its owner makes the directory and then takes the lock in it, and asked
+    /// in between, a lock not yet held would read as an owner that died — and
+    /// the asking would hold it, for a moment, against that owner.
+    fn sweep_scratches(scratches: &Path, prefix: &str, new_for: Duration) {
+        let Ok(entries) = std::fs::read_dir(scratches) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let ours = entry
+                .file_name()
+                .to_str()
+                .is_some_and(|name| name.starts_with(prefix));
+            let a_directory = entry.file_type().is_ok_and(|kind| kind.is_dir());
+            if ours && a_directory && !too_new_to_judge(&path, new_for) && !owner_lives(&path) {
+                drop(std::fs::remove_dir_all(&path));
+            }
         }
     }
 
@@ -2051,7 +2181,7 @@ mod tests {
     fn systemds_counters_are_read_from_what_systemctl_show_answers() {
         // Measured with systemd 260, a unit killed by `SIGKILL` and restarted.
         let restarted = "MainPID=3589142\nNRestarts=1\nActiveState=active\n";
-        let read = Counters::read(Manager::Systemd, restarted).expect("read");
+        let read = Counters::read(Manager::Systemd, restarted, "x.service").expect("read");
         assert_eq!(
             read,
             Counters::Systemd {
@@ -2064,6 +2194,7 @@ mod tests {
         let stopped = Counters::read(
             Manager::Systemd,
             "MainPID=0\nNRestarts=0\nActiveState=inactive\n",
+            "x.service",
         )
         .expect("read");
         assert!(!stopped.running() && stopped.pid().is_none());
@@ -2074,7 +2205,7 @@ mod tests {
             "",
         ] {
             assert_eq!(
-                Counters::read(Manager::Systemd, unreadable),
+                Counters::read(Manager::Systemd, unreadable, "x.service"),
                 None,
                 "{unreadable:?}"
             );
@@ -2119,7 +2250,7 @@ mod tests {
                        \t\t}\n\
                        \t}\n\
                        }\n";
-        let read = Counters::read(Manager::Launchd, running).expect("read");
+        let read = Counters::read(Manager::Launchd, running, "noctua-dev-test").expect("read");
         assert_eq!(
             read,
             Counters::Launchd {
@@ -2134,7 +2265,7 @@ mod tests {
                       \truns = 1\n\
                       \tlast exit code = 0\n\
                       }\n";
-        let read = Counters::read(Manager::Launchd, exited).expect("read");
+        let read = Counters::read(Manager::Launchd, exited, "noctua-dev-test").expect("read");
         assert_eq!(
             read,
             Counters::Launchd {
@@ -2150,34 +2281,39 @@ mod tests {
             "gui/501/x = {\n\tstate = running\n\truns = 1\n\tpid = x\n}\n",
         ] {
             assert_eq!(
-                Counters::read(Manager::Launchd, unreadable),
+                Counters::read(Manager::Launchd, unreadable, "x"),
                 None,
                 "{unreadable:?}"
             );
         }
     }
 
-    /// What `schtasks /Query /V /FO CSV` answers of a task is read by its
-    /// columns' names, from its first row, which every row of a task's
-    /// triggers repeats.
+    /// What `schtasks /Query /V /FO CSV` answers of a task is read by the
+    /// place of its columns, in any display language, from its first row,
+    /// which every row of a task's triggers repeats.
+    ///
+    /// **Whether it runs is its last result**, never the status Windows
+    /// translates: an instance started, or a repetition refused because one
+    /// runs.
     #[test]
-    fn task_schedulers_counters_are_read_by_the_names_of_their_columns() {
+    fn task_schedulers_counters_are_read_by_the_place_of_their_columns() {
         let header = "\"HostName\",\"TaskName\",\"Next Run Time\",\"Status\",\"Logon Mode\",\
                       \"Last Run Time\",\"Last Result\",\"Author\",\"Task To Run\"";
-        let row = |status: &str, at: &str, result: &str| {
+        let row = |task: &str, status: &str, at: &str, result: &str| {
             format!(
-                "\"RUNNERVM\",\"\\noctua-dev-test\",\"N/A\",\"{status}\",\"Interactive only\",\
-                 \"{at}\",\"{result}\",\"RUNNERVM\\runneradmin\",\"D:\\a\\x.exe \"\"a b\"\"\""
+                "\"RUNNERVM\",\"{task}\",\"N/A\",\"{status}\",\"Interactive only\",\"{at}\",\
+                 \"{result}\",\"RUNNERVM\\runneradmin\",\"D:\\a\\x.exe \"\"a b\"\"\""
             )
         };
+        let task = "\\noctua-dev-test";
         // The values a hosted runner answered, across a repetition refused by
         // `IgnoreNew` (`-2147020576`) while an instance ran (`267009`).
         let running = format!(
             "\r\n{header}\r\n{}\r\n{}\r\n",
-            row("Running", "11/8/2026 12:29:20 PM", "267009"),
-            row("Running", "11/8/2026 12:29:20 PM", "267009")
+            row(task, "Running", "11/8/2026 12:29:20 PM", "267009"),
+            row(task, "Running", "11/8/2026 12:29:20 PM", "267009")
         );
-        let read = Counters::read(Manager::TaskScheduler, &running).expect("read");
+        let read = Counters::read(Manager::TaskScheduler, &running, task).expect("read");
         assert_eq!(
             read,
             Counters::TaskScheduler {
@@ -2189,21 +2325,45 @@ mod tests {
         assert!(read.running() && read.pid().is_none());
         let refused = format!(
             "{header}\n{}\n",
-            row("Running", "11/8/2026 12:30:20 PM", "-2147020576")
+            row(task, "Running", "11/8/2026 12:30:20 PM", "-2147020576")
         );
-        let later = Counters::read(Manager::TaskScheduler, &refused).expect("read");
+        let later = Counters::read(Manager::TaskScheduler, &refused, task).expect("read");
         assert!(later.ran_since(&read) && later.running(), "{later:?}");
+        // **Another display language**: every word of the header and the
+        // status translated, and the time written its way.
+        let translated = "\"Hostname\",\"Aufgabenname\",\"Nächste Laufzeit\",\"Status\",\
+                          \"Anmeldemodus\",\"Letzte Laufzeit\",\"Letztes Ergebnis\",\"Autor\",\
+                          \"Auszuführende Aufgabe\"";
+        for (status, result, runs) in [
+            ("Wird ausgeführt", "267009", true),
+            ("Wird ausgeführt", "-2147020576", true),
+            ("Bereit", "1", false),
+            ("Bereit", "0", false),
+            ("Bereit", "267011", false),
+        ] {
+            let answer = format!(
+                "{translated}\n{}\n",
+                row("\\NOCTUA-DEV-TEST", status, "08.11.2026 12:29:20", result)
+            );
+            let read = Counters::read(Manager::TaskScheduler, &answer, task).expect("read");
+            assert_eq!(read.running(), runs, "{read:?}");
+            assert_eq!(
+                read,
+                Counters::TaskScheduler {
+                    status: status.to_owned(),
+                    last_run: "08.11.2026 12:29:20".to_owned(),
+                    last_result: result.parse().expect("a number")
+                }
+            );
+        }
         for unreadable in [
             header.to_owned(),
-            format!(
-                "{}\n{}\n",
-                header.replace("Last Result", "Result"),
-                row("Ready", "N/A", "0")
-            ),
-            format!("{header}\n{}\n", row("Ready", "N/A", "x")),
+            format!("{header}\n{}\n", row(task, "Ready", "N/A", "x")),
+            format!("{header}\n{}\n", row("\\another-task", "Ready", "N/A", "0")),
+            format!("{header}\n\"RUNNERVM\",\"{task}\",\"N/A\",\"Ready\"\n"),
         ] {
             assert_eq!(
-                Counters::read(Manager::TaskScheduler, &unreadable),
+                Counters::read(Manager::TaskScheduler, &unreadable, task),
                 None,
                 "{unreadable:?}"
             );
@@ -2233,6 +2393,16 @@ mod tests {
             last_run: last_run.to_owned(),
             last_result: 0,
         };
+        // **The status is never what decides**: in English and running, an
+        // instance that ended with its own result is not.
+        assert!(
+            !Counters::TaskScheduler {
+                status: "Running".to_owned(),
+                last_run: "12:29:20".to_owned(),
+                last_result: 1,
+            }
+            .running()
+        );
         assert!(systemd(1).ran_since(&systemd(0)));
         assert!(!systemd(1).ran_since(&systemd(1)));
         assert!(!systemd(0).ran_since(&systemd(1)));
@@ -2583,6 +2753,55 @@ mod tests {
         }
     }
 
+    /// A registration its manager took stands, whether or not the copy left
+    /// behind can be removed then.
+    ///
+    /// That copy is a task's XML, which Task Scheduler no longer reads. One its
+    /// manager refused answers that refusal, its file taken back; a plist taken
+    /// stays where launchd reads it.
+    #[test]
+    fn a_registration_its_manager_took_stands_whatever_becomes_of_its_copy() {
+        let scratch = Scratch::new("loaded");
+        let path = scratch.0.join("definition");
+        for manager in [Manager::Launchd, Manager::TaskScheduler] {
+            let registrar = registrar(manager);
+            let taken = registrar.loaded("x", &scratch.0, "definition", b"bytes", |_| Ok(()));
+            assert!(taken.is_ok(), "{manager}: {taken:?}");
+            assert_eq!(path.exists(), manager == Manager::Launchd, "{manager}");
+            drop(std::fs::remove_file(&path));
+            let refused = registrar.loaded("x", &scratch.0, "definition", b"bytes", |_| {
+                Err(Error::Refused {
+                    asked: "the load".to_owned(),
+                    said: "refused".to_owned(),
+                })
+            });
+            assert!(
+                matches!(refused, Err(Error::Refused { .. })) && !path.exists(),
+                "{manager}: {refused:?}"
+            );
+        }
+        // **A copy that cannot be removed once the task is taken**: here a
+        // directory holding a file has taken its name, which no system
+        // removes as a file.
+        let held = registrar(Manager::TaskScheduler).loaded(
+            "x",
+            &scratch.0,
+            "definition",
+            b"bytes",
+            |copy| {
+                std::fs::remove_file(copy).expect("the copy written");
+                crate::create_private_directory(copy).expect("a directory in its place");
+                drop(crate::create_private(&copy.join("held")).expect("a file in it"));
+                Ok(())
+            },
+        );
+        assert!(
+            held.is_ok() && path.is_dir(),
+            "a task Task Scheduler took was reported refused, for a copy it could not \
+             remove: {held:?}"
+        );
+    }
+
     /// What a manager lists is narrowed to the names under the prefix asked.
     ///
     /// **Every service the manager holds is listed**, by launchd every label of
@@ -2632,6 +2851,89 @@ mod tests {
         );
     }
 
+    /// Every scratch service of this checkout has its scratch in the
+    /// checkout's own `target`, where every run of it looks: fixed when the
+    /// test binary is built, and never by a run's environment.
+    #[test]
+    fn a_scratch_services_scratch_is_where_every_run_of_its_checkout_looks() {
+        assert_eq!(
+            checkout().join("crates").join("nc-platform"),
+            Path::new(env!("CARGO_MANIFEST_DIR")),
+            "the checkout is not the directory this crate sits two levels into"
+        );
+        assert_eq!(
+            scratches().strip_prefix(checkout()).ok(),
+            Some(Path::new("target").join("nc-registered").as_path()),
+            "a scratch service's scratch is not in its checkout's `target`"
+        );
+    }
+
+    /// A sweep takes away an old scratch of this checkout whose owner is
+    /// dead, its lock let go or never made.
+    ///
+    /// It keeps one whose owner holds its lock, one too new to judge, and
+    /// every other checkout's; an age that cannot be read is too new.
+    #[test]
+    fn a_sweep_takes_away_only_an_old_scratch_whose_owner_is_dead() {
+        let scratch = Scratch::new("sweep");
+        let prefix = "noctua-dev-test-0123abcd-";
+        let made = |stem: &str, locked: bool| {
+            let path = scratch.0.join(stem);
+            crate::create_private_directory(&path).expect("a scratch");
+            if locked {
+                drop(crate::create_private(&path.join(OWNER)).expect("its lock"));
+            }
+            path
+        };
+        let dead = made("noctua-dev-test-0123abcd-77-1a", true);
+        let never_locked = made("noctua-dev-test-0123abcd-77-2b", false);
+        let living = made("noctua-dev-test-0123abcd-78-3c", true);
+        let theirs = made("noctua-dev-test-0123abce-77-1a", true);
+        let bare = made("noctua-dev-test-0123abcd", true);
+        let a_file = scratch.0.join("noctua-dev-test-0123abcd-79-4d");
+        drop(crate::create_private(&a_file).expect("a file"));
+        let held = std::fs::File::open(living.join(OWNER)).expect("the living owner's lock");
+        held.try_lock().expect("a lock nobody holds");
+        assert!(
+            owner_lives(&living),
+            "an owner holding its lock is read as dead"
+        );
+        assert!(
+            !owner_lives(&dead) && !owner_lives(&never_locked),
+            "an owner that holds no lock is read as living"
+        );
+        assert!(too_new_to_judge(&dead, Duration::from_secs(3_600)));
+        sweep_scratches(&scratch.0, prefix, Duration::from_secs(3_600));
+        for kept in [&dead, &never_locked, &living, &theirs, &bare, &a_file] {
+            assert!(
+                kept.exists(),
+                "`{}` was swept too new to judge",
+                kept.display()
+            );
+        }
+        sweep_scratches(&scratch.0, prefix, Duration::ZERO);
+        assert!(
+            !dead.exists() && !never_locked.exists(),
+            "a dead owner's old scratch stays"
+        );
+        for kept in [&living, &theirs, &bare, &a_file] {
+            assert!(kept.exists(), "`{}` was swept", kept.display());
+        }
+        drop(held);
+        sweep_scratches(&scratch.0, prefix, Duration::ZERO);
+        assert!(
+            !living.exists(),
+            "the scratch of an owner that let go of its lock stays"
+        );
+        assert!(theirs.exists() && bare.exists() && a_file.exists());
+        assert!(
+            too_new(None, Duration::ZERO)
+                && too_new(Some(Duration::from_secs(59)), NEW_FOR)
+                && !too_new(Some(NEW_FOR), NEW_FOR),
+            "a scratch's age is judged against its bound, and one unread is too new"
+        );
+    }
+
     /// The tests that register a real service with this system's manager.
     ///
     /// **Skipped by the mutation runner**, which judges the generators and
@@ -2641,9 +2943,10 @@ mod tests {
     ///
     /// **A scratch service's program is this test binary**, started again by
     /// the manager with the name of the test that registered it: it records
-    /// its process and a nonce of its own in its scratch, and the arguments it
-    /// was handed, then waits until its scratch is gone, or exits 0, as it is
-    /// told. Every name it is registered under opens with this checkout's
+    /// its process and a nonce of its own in its scratch — in this checkout's
+    /// `target/nc-registered`, where every run of the checkout looks — and the
+    /// arguments it was handed, then waits until its scratch is gone, or exits
+    /// 0, as it is told. Every name it is registered under opens with this checkout's
     /// prefix — `noctua-dev-test-`, the checkout's digest and `-` — and
     /// carries this process and a nonce; on systemd its unit is written only
     /// in `$XDG_RUNTIME_DIR/systemd/user`, which the user manager
@@ -2658,6 +2961,7 @@ mod tests {
         use std::sync::atomic::{AtomicU64, Ordering};
         use std::time::{Duration, Instant};
 
+        use super::{NEW_FOR, OWNER, owner_lives, prefix, scratches, sweep_scratches};
         use crate::service::{Answer, Counters, MANAGER, Manager, Registrar, Service};
 
         /// What a scratch service's program is told it is, before its mode.
@@ -2665,12 +2969,6 @@ mod tests {
 
         /// Where a scratch service's instances are recorded, one a line.
         const INSTANCES: &str = "instances";
-
-        /// The lock a scratch's owner holds for as long as it lives.
-        const OWNER: &str = "owner.lock";
-
-        /// What a scratch service's directory is called before its name.
-        const REGISTERED: &str = "nc-registered-";
 
         /// How long a manager has to start, or to restore, a scratch service:
         /// a repetition's minute on Windows, and the slack around it.
@@ -2687,10 +2985,6 @@ mod tests {
         /// How long a service that exited 0 is watched staying down: five of
         /// its restorer's delays.
         const LEFT_DOWN_FOR: Duration = Duration::from_secs(5);
-
-        /// How long a scratch is too new for a sweep to judge whether its owner
-        /// lives: past the moment between its directory and its lock.
-        const NEW_FOR: Duration = Duration::from_secs(60);
 
         /// How long a manager's tool, asked to load a definition over a service
         /// it holds, has to answer before it is taken to wait on its input.
@@ -2759,12 +3053,6 @@ mod tests {
             carried.into_iter().map(str::to_owned).collect()
         }
 
-        /// The prefix of every scratch service's name this checkout registers.
-        fn prefix() -> String {
-            let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..");
-            format!("noctua-dev-test-{}-", nc_channel::Checkout::of(&root))
-        }
-
         /// `stem` as this system's manager names a service.
         fn registered_as(stem: &str) -> String {
             match MANAGER {
@@ -2812,23 +3100,21 @@ mod tests {
                 .expect("the tool was run")
         }
 
-        /// Whether the scratch at `scratch` was made, or written in, too lately
-        /// for a sweep to judge its owner by its lock.
+        /// Whether a task's status, where Windows wrote it in English, says what
+        /// its last result does: true of every other manager's counters.
         ///
-        /// **Kept when its age cannot be read**, or is in the future: what a
-        /// sweep cannot judge it leaves for a later one.
-        fn too_new_to_judge(scratch: &Path) -> bool {
-            std::fs::metadata(scratch)
-                .and_then(|metadata| metadata.modified())
-                .ok()
-                .and_then(|modified| modified.elapsed().ok())
-                .is_none_or(|age| age < NEW_FOR)
-        }
-
-        /// Whether the owner of the scratch at `scratch` still holds its lock.
-        fn owner_lives(scratch: &Path) -> bool {
-            std::fs::File::open(scratch.join(OWNER))
-                .is_ok_and(|lock| matches!(lock.try_lock(), Err(std::fs::TryLockError::WouldBlock)))
+        /// **The one display language a runner has**, against which the
+        /// judgement no language changes is measured each time a scratch
+        /// service's counters are waited for.
+        fn in_english_too(counted: &Counters) -> bool {
+            match counted {
+                Counters::TaskScheduler { status, .. }
+                    if status == "Running" || status == "Ready" =>
+                {
+                    (status == "Running") == counted.running()
+                }
+                _ => true,
+            }
         }
 
         /// The mode, the scratch and the carried arguments this binary was
@@ -2927,14 +3213,10 @@ mod tests {
             /// swept.
             fn new() -> Self {
                 let stem = format!("{}{}-{}", prefix(), std::process::id(), nonce());
-                let root = std::env::temp_dir().join(format!("nc-registered-{stem}"));
-                assert_eq!(
-                    root.file_name().and_then(|name| name.to_str()),
-                    Some(format!("{REGISTERED}{stem}").as_str()),
-                    "the sweep looks for a scratch where it is made"
-                );
+                let scratches = scratches();
+                std::fs::create_dir_all(&scratches).expect("this checkout's scratches");
                 let mut scratch = Self {
-                    root,
+                    root: scratches.join(&stem),
                     stem,
                     owner: None,
                     registrar: None,
@@ -2965,7 +3247,7 @@ mod tests {
             /// held no more.
             fn sweep(&self) {
                 let registrar = self.registrar();
-                let temp = self.root.parent().expect("a scratch sits in a directory");
+                let scratches = scratches();
                 let prefix = prefix();
                 let listed = match MANAGER {
                     Manager::TaskScheduler => format!("\\{prefix}"),
@@ -2983,7 +3265,7 @@ mod tests {
                         "`{name}` was answered as one of this checkout's services, under \
                          `{listed}`, and is not: it is never unregistered"
                     );
-                    let theirs = temp.join(format!("{REGISTERED}{}", stem_of(&name)));
+                    let theirs = scratches.join(stem_of(&name));
                     if owner_lives(&theirs) {
                         continue;
                     }
@@ -2995,24 +3277,7 @@ mod tests {
                         });
                     drop(std::fs::remove_dir_all(&theirs));
                 }
-                for entry in std::fs::read_dir(temp)
-                    .expect("the temporary directory")
-                    .flatten()
-                {
-                    let path = entry.path();
-                    let ours = entry
-                        .file_name()
-                        .to_str()
-                        .and_then(|name| name.strip_prefix(REGISTERED))
-                        .is_some_and(|stem| stem.starts_with(&prefix));
-                    // **A scratch too new to judge is left alone**, before its
-                    // lock is asked: its owner makes the directory and then
-                    // takes the lock in it, and asked in between, a lock not
-                    // yet held would read as an owner that died.
-                    if ours && path.is_dir() && !too_new_to_judge(&path) && !owner_lives(&path) {
-                        drop(std::fs::remove_dir_all(&path));
-                    }
-                }
+                sweep_scratches(&scratches, &prefix, NEW_FOR);
                 if let Some(units) = registrar.volatile_units() {
                     take_the_units_away(&units);
                 }
@@ -3132,6 +3397,12 @@ mod tests {
                     !registrar.is_registered(&name).expect("asked"),
                     "`{name}` was unregistered and its manager still knows it"
                 );
+                let definition = directory.join(MANAGER.file_for(&name));
+                assert!(
+                    !definition.exists(),
+                    "`{name}` was unregistered and its definition `{}` stays",
+                    definition.display()
+                );
             }
 
             /// Every instance of this scratch's service so far: its process and
@@ -3189,12 +3460,13 @@ mod tests {
                         .registrar()
                         .counters(name)
                         .unwrap_or_else(|error| panic!("`{name}` was not counted: {error}"));
-                    if holds(&counted) {
+                    if holds(&counted) && in_english_too(&counted) {
                         return counted;
                     }
                     assert!(
                         Instant::now() < until,
-                        "`{name}` was waited for {WITHIN:?} to be {what}, and is {counted:?}. {}",
+                        "`{name}` was waited for {WITHIN:?} to be {what}, a status in English \
+                         agreeing, and is {counted:?}. {}",
                         self.what_the_manager_says(name)
                     );
                     std::thread::sleep(Duration::from_millis(100));
@@ -3248,7 +3520,9 @@ mod tests {
         /// The restoration is read through the manager's own counter as well as
         /// the instance's record of itself, and the instance was handed the
         /// arguments it was registered with, character for character. A second
-        /// registration under its name is refused, and leaves it running.
+        /// registration under its name is refused, and leaves it running. On
+        /// Windows it is killed past a repetition refused while it ran, and
+        /// read as down until the next one.
         #[test]
         fn a_service_killed_is_restored_as_a_new_instance_and_is_gone_once_unregistered() {
             if let Some((mode, scratch, carried)) = as_a_scratch_service() {
@@ -3280,9 +3554,32 @@ mod tests {
                 );
             }
             scratch.is_never_registered_over(&name, first.0);
+            // **On Windows, past a repetition refused while it runs**, so the
+            // kill is read after the one last result that says nothing of how
+            // an instance ends, and the instance's end writes its own.
+            let refusing = MANAGER == Manager::TaskScheduler;
+            if refusing {
+                scratch.counted_once(
+                    &name,
+                    |now| {
+                        matches!(now, Counters::TaskScheduler { last_result, .. }
+                            if *last_result == super::super::REFUSED_WHILE_RUNNING)
+                    },
+                    "past a repetition refused while it ran",
+                );
+                assert_eq!(
+                    scratch.instances().len(),
+                    1,
+                    "`{name}` was started again while it ran. {}",
+                    scratch.what_the_manager_says(&name)
+                );
+            }
             registrar
                 .crash(&name, first.0)
                 .unwrap_or_else(|error| panic!("`{name}` was not killed: {error}"));
+            if refusing {
+                scratch.counted_once(&name, |now| !now.running(), "down once it was killed");
+            }
             let second = scratch.wait_for(2, &name, WITHIN)[1].clone();
             assert_ne!(
                 second.1, first.1,

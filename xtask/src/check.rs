@@ -19273,7 +19273,7 @@ mod the_frozen_path_rule {
         ("nc-log/ship.rs", 106, 50),
         ("nc-log/value.rs", 18, 36),
         ("nc-platform/lib.rs", 45, 22),
-        ("nc-platform/service.rs", 144, 18),
+        ("nc-platform/service.rs", 155, 18),
         ("nc-platform/testing.rs", 24, 1),
         ("nc-platform/unix.rs", 46, 2),
         ("nc-platform/windows.rs", 84, 11),
@@ -22096,8 +22096,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 564 scratches this tree
-    /// builds, 477 of the 564 are removed however the test leaves and 87 are
+    /// directories accumulated in an afternoon. Of the 565 scratches this tree
+    /// builds, 478 of the 565 are removed however the test leaves and 87 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22181,7 +22181,7 @@ mod the_frozen_path_rule {
         ("nc-local/opening_refuses_what_it_did_not_make.rs", 43, 43),
         ("nc-local/the_local_journal.rs", 9, 9),
         ("nc-platform/lib.rs", 14, 14),
-        ("nc-platform/service.rs", 5, 5),
+        ("nc-platform/service.rs", 6, 6),
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
         ("nc-prune/in_sqlite.rs", 13, 13),
         ("xtask/build.rs", 8, 8),
@@ -25109,7 +25109,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15830;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15850;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25128,7 +25128,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3352;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3366;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25145,7 +25145,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1102;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1108;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25179,7 +25179,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 22211;
+    const THE_REARRANGEMENTS_JUDGED: usize = 22266;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25233,7 +25233,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **481 of 22,211 are accepted by the first-line
+    /// rules the gates apply: **481 of 22,266 are accepted by the first-line
     /// rule alone, and 256 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25266,7 +25266,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1102 of
+    /// this tree offers, **1108 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -36273,7 +36273,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1805] = [
+    static OPERATORS: [(&str, &str, &str); 1812] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -44318,6 +44318,41 @@ Options:
             "platform_service",
             "is_an_absolute_windows_path",
             "a root on no drive is not absolute",
+        ),
+        (
+            "platform_service",
+            "loaded",
+            "a registration its manager took stands whatever its copy",
+        ),
+        (
+            "platform_service",
+            "running",
+            "a task that refused a repetition still runs",
+        ),
+        (
+            "platform_service",
+            "from_schtasks",
+            "a task's row is held to the task asked",
+        ),
+        (
+            "platform_service",
+            "owner_lives",
+            "a scratch whose owner holds its lock is kept",
+        ),
+        (
+            "platform_service",
+            "too_new",
+            "a scratch whose age cannot be read is too new",
+        ),
+        (
+            "platform_service",
+            "sweep_scratches",
+            "a scratch too new to judge is left alone",
+        ),
+        (
+            "platform_service",
+            "sweep_scratches",
+            "a sweep keeps to its checkout's prefix",
         ),
     ];
 

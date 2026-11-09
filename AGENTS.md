@@ -1693,7 +1693,9 @@ registration never replaces a service**, whoever registered it: a name the manag
 holds is refused before anything is written, `schtasks` is never handed the `/F` that would
 replace a task, and a registration the manager refuses takes back only what it made — its
 file, and on systemd the unit its failed start left loaded — never the service of that name
-someone else holds. A task stores no credential: it runs with the user's own interactive
+someone else holds; one the manager took is registered whatever becomes of the copy of a
+task's XML that Task Scheduler no longer reads, which `unregister` removes when it cannot
+be removed then. A task stores no credential: it runs with the user's own interactive
 token, at least privilege. What each manager is told to restore is what its system's hosted
 runner measured (`NOCTUA.md §17.3`).
 
@@ -1705,11 +1707,12 @@ unit is written only in `$XDG_RUNTIME_DIR/systemd/user`, which the user manager 
 the next boot; under launchd its plist stays in the test's scratch and is bootstrapped from
 there; on Windows its task sits in the root folder under that prefix. A guard unregisters
 each however the test leaves, and each test first sweeps this checkout's leftovers whose
-owner is dead — told by a lock the owner holds for as long as it lives, never by a pid that
-may since name another process, and only once the scratch is a minute old, so a scratch
-whose owner has not yet taken its lock is never read as dead — so a run killed half way is
-cleaned by the next run of the same checkout, and a live run, of this checkout or another,
-is never touched. The sweep unregisters only a name under this checkout's prefix, held
+owner is dead — told by a lock the owner holds for as long as it lives, in a scratch every
+run of the checkout keeps in the checkout's own `target/nc-registered` whatever its
+environment names as temporary, never by a pid that may since name another process, and
+only once the scratch is a minute old, so a scratch whose owner has not yet taken its lock
+is never read as dead — so a run killed half way is cleaned by the next run of the same
+checkout, and a live run, of this checkout or another, is never touched. The sweep unregisters only a name under this checkout's prefix, held
 twice: by the listing, which launchd and Task Scheduler answer with every service they hold,
 and again before each name is unregistered. So `cargo xtask check` on Linux
 registers short-lived units with the developer's own user manager, under that prefix, and
@@ -1720,25 +1723,31 @@ stop, start, enable or mask a unit they did not register.
 generator's text written out whole, each escape and each refusal by its words, each
 manager's counters and listing read from recorded answers, the commands each manager is
 asked, the tool found only in an absolute entry of `PATH` or under an absolute
-`SystemRoot`, a listing narrowed to its prefix, and a name the manager holds refused — by
-the two scratch services in `with_the_manager`, run on Linux, macOS and Windows in CI: one
-killed and restored as a new instance, read through the manager's own counter and the
-instance's record of itself, having been handed its arguments character for character
-through the format's escaping, and registered over in vain, by the registrar and, under
-launchd and Task Scheduler, by the manager's own load, with its instance still the one
-running; one that exits 0 left down, or
-started again by Task Scheduler's repetition, then started when asked within twenty
-seconds, which no repetition meets; and each gone from the manager once unregistered — and
-by the operators over `nc-platform`'s sources in `xtask/mutants.py`, whose commands skip the
-two that register.
+`SystemRoot`, a listing narrowed to its prefix, a name the manager holds refused, a
+registration the manager took standing whatever becomes of its copy, a task's counters
+read by place in another display language, the scratches in the checkout's own `target`,
+and the sweep's judgement of a scratch whose owner lives, one dead, one never locked, one
+too new and another checkout's — by the two scratch services in `with_the_manager`, run on
+Linux, macOS and Windows in CI: one killed and restored as a new instance, read through the
+manager's own counter and the instance's record of itself, having been handed its
+arguments character for character through the format's escaping, and registered over in
+vain, by the registrar and, under launchd and Task Scheduler, by the manager's own load,
+with its instance still the one running, and on Windows killed past a repetition refused
+while it ran and read as down until the next, a status Windows writes in English agreeing
+with the last result at every wait; one that exits 0 left down, or started again by Task
+Scheduler's repetition, then started when asked within twenty seconds, which no
+repetition meets; and each gone from the manager once unregistered, its definition with
+it — and by the operators over `nc-platform`'s sources in `xtask/mutants.py`, whose
+commands skip the two that register.
 
 **Not answered:** a process running as the same user, which can rewrite or remove any
 definition, register a program of its own under any name — the test prefix included — or
 stop the manager's restorer, and can race a registration between the name being asked and
 the definition being loaded; whoever the system lets past every access list; registering a
 task, on Windows, as a user who is not an administrator, which no runner measures, the
-hosted one being elevated; and a test's task left where nothing runs this checkout's tests
-again (**What is deliberately not claimed**). Which program is registered for a channel,
+hosted one being elevated; a task's counters on a Windows whose display language is not
+English, which no runner has; and a test's task left where nothing runs this checkout's
+tests again (both under **What is deliberately not claimed**). Which program is registered for a channel,
 and how an explicit stop silences every restorer (`NOCTUA.md §17.5`), are the daemon's and
 its installer's, which register nothing yet.
 
@@ -2514,6 +2523,11 @@ rather than anything decided for the project, and each is a maintainer's to reop
   again and sweep it, and without end once the checkout is deleted, since no other sweep
   reaches it. It is removed by hand, each name `schtasks /Query /FO CSV /NH` lists under
   that prefix, with `schtasks /Delete /TN \noctua-dev-test-<checkout>-<pid>-<nonce> /F`.
+- **A task's counters are measured in English alone**: `Counters` reads a task's columns
+  by their place, held to the task's own name, and whether it runs by its last result, so
+  no word Windows translates is judged — and the hosted runner writes English, so a display
+  language that orders those columns otherwise, or writes a last result some other way,
+  is not one any run has shown.
 
 **The journal and the central log**
 
