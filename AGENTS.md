@@ -1694,7 +1694,8 @@ area at the first thing it cannot vouch for.
   names is made private one level at a time — never a parent on the way — or judged so,
   and anything else refuses the start with it left as it was (`NC-DMN-0001`); so is every
   file of it a start reads — the seed, the device's record, the world and the mark — judged
-  before it is read, with the same code.
+  before it is read, and the data and configuration directories `--initialize` writes a
+  seed and a world into, judged before anything is written there, with the same code.
 - **A device is drawn once and never again.** Its seed is 32 bytes from the system's own
   generator, written into a file created private that refuses any name already there, so
   it is never overwritten and its flake, `MachineFlake::candidate(public, 0)`, never
@@ -1721,16 +1722,19 @@ area at the first thing it cannot vouch for.
 
 **Enforced by** the unit tests of each module in `apps/daemon/src/` — a missing, reachable
 and malformed manifest, a manifest read through a link beside the file that runs, every
-directory made private and judged again, a missing base not made on the way, a world
-copied, replaced and refused, in the profile as well as on its way in, a copy left beside
-the world removed and one another account can reach refused, a seed drawn once and never
-again, a record lost and written from its seed, each way a record is not the seed's, a
-seed, a record, a world and a mark another account can reach refused and left as they
-were, a raise read back from the other slot, a torn and a corrupt slot, the minter a first
-and a resumed start hands back raising the mark before it mints past it
+directory the layout names made private and judged again, a missing base not made on the
+way, a world copied, replaced and refused, in the profile as well as on its way in, a copy
+left beside the world removed and one another account can reach refused, a configuration
+and a data directory another account can reach refused before a world or a seed is
+written into them, a seed drawn once and never again, a record lost and written from its
+seed, each way a record is not the seed's, a seed, a record, a world and a mark another
+account can reach refused and left as they were, a raise read back from the other slot, a
+mark nothing raised read again as a first start, a torn and a corrupt slot, the minter a
+first and a resumed start hands back raising the mark before it mints past it
 (`a_minter_from_a_start_raises_the_mark_before_it_hands_out_past_it`), a clock behind the
-mark by less and by more than the lease and by more than a day, the catalog's lease
-inside the drift a minter waits out, and the binary's invocations and exit codes — by
+mark by less than the lease, by exactly it and by a millisecond more, by more than the
+lease and by more than a day, the catalog's lease inside the drift a minter waits out, and
+the binary's invocations and exit codes — by
 `apps/daemon/tests/the_mark_survives_a_crash.rs`, where a child mints behind the real mark
 until it is killed, with its output still read, and every identifier it printed is held
 against a start from what it left, with the clock back by more than the lease and by more

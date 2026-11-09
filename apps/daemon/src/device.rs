@@ -371,6 +371,24 @@ mod tests {
         Device::read(&layout, &user).expect("both private again, the device reads");
     }
 
+    /// A data directory another account can reach is refused before a seed is
+    /// drawn into it, and no device is made there.
+    #[test]
+    fn a_data_directory_another_user_can_reach_takes_no_device() {
+        let held = Scratch::new("data");
+        let (layout, user) = held.profile();
+        nc_platform::testing::open_to_another_user(&layout.data).expect("opened");
+        let refusal = Device::initialize(&layout, &user).expect_err("a reachable directory");
+        assert_eq!(
+            refusal.code(),
+            ErrorCode::DaemonProfileNotPrivate,
+            "{refusal}"
+        );
+        assert!(!layout.device_key.exists(), "a seed was written into it");
+        assert!(!layout.device.exists(), "a record was written into it");
+        assert!(!nc_platform::testing::is_private(&layout.data));
+    }
+
     /// A seed of another length, and a record that is not the seed's, are not
     /// a device this code vouches for.
     #[test]

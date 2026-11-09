@@ -272,23 +272,34 @@ mod tests {
         let scratch = Scratch::new("made");
         let (layout, user) = scratch.layout();
         super::prepare(&layout, &user).expect("the profile is made");
-        for directory in super::directories(&layout) {
+        // Named from the layout itself, not from the list `prepare` walks, so a
+        // directory that list drops is one this finds missing.
+        let nc_channel::Layout {
+            data,
+            config,
+            cache,
+            state,
+            log,
+            runtime,
+            ..
+        } = &layout;
+        for directory in [data, config, cache, state, log, runtime] {
             assert!(
-                nc_platform::testing::is_private(directory),
+                directory.is_dir() && nc_platform::testing::is_private(directory),
                 "`{}` was not made private",
                 directory.display()
             );
         }
         super::prepare(&layout, &user).expect("the profile is judged again");
         // **And one another account can reach is refused, left as it was.**
-        nc_platform::testing::open_to_another_user(&layout.log).expect("opened");
+        nc_platform::testing::open_to_another_user(log).expect("opened");
         let refusal = super::prepare(&layout, &user).expect_err("a reachable directory");
         assert_eq!(
             refusal.code(),
             ErrorCode::DaemonProfileNotPrivate,
             "{refusal}"
         );
-        assert!(!nc_platform::testing::is_private(&layout.log));
+        assert!(!nc_platform::testing::is_private(log));
     }
 
     /// A base that is not there is not made on the way.
@@ -392,6 +403,31 @@ mod tests {
             "ana",
             "a refused copy replaced the world"
         );
+    }
+
+    /// A configuration directory another account can reach is refused before
+    /// a world is written into it, and nothing is left there.
+    #[test]
+    fn a_configuration_directory_another_user_can_reach_takes_no_world() {
+        let scratch = Scratch::new("config");
+        let (layout, user) = scratch.layout();
+        super::prepare(&layout, &user).expect("the profile is made");
+        let source = scratch.0.join("world.json");
+        std::fs::write(&source, written("home", "ana")).expect("a world to copy");
+        nc_platform::testing::open_to_another_user(&layout.config).expect("opened");
+        let refusal =
+            super::copy_world(&source, &layout, &user).expect_err("a reachable directory");
+        assert_eq!(
+            refusal.code(),
+            ErrorCode::DaemonProfileNotPrivate,
+            "{refusal}"
+        );
+        assert!(!layout.world.exists(), "a world was written into it");
+        assert!(
+            !super::beside_the_world(&layout).exists(),
+            "a copy was written into it"
+        );
+        assert!(!nc_platform::testing::is_private(&layout.config));
     }
 
     /// A world that does not read is refused before it is copied, and one in

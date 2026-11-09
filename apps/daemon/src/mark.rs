@@ -368,6 +368,35 @@ mod tests {
         assert_eq!(read, Some(NOW + 5), "the newest slot did not win");
     }
 
+    /// A first start that stops before it mints leaves a mark the next start
+    /// reads as a first start, whose minter raises it before it hands out.
+    #[test]
+    fn a_mark_nothing_raised_is_read_again_as_a_first_start() {
+        let held = Scratch::new("unraised");
+        let (path, user) = held.mark();
+        drop(MarkFile::open(&path, &user).expect("made"));
+        let (mark, read) = MarkFile::open(&path, &user).expect("a mark nothing raised reopens");
+        assert_eq!(read, None, "a mark nothing raised was read as a ceiling");
+        let clock = Set(Arc::new(AtomicU64::new(NOW)));
+        let mut minter = super::minter(
+            mark,
+            read,
+            None,
+            flake(),
+            &clock,
+            &nc_kernel::logging::Captured::default(),
+            &mut |_| panic!("a first start waited for the clock"),
+        )
+        .expect("the start resumes");
+        let handed = minter.mint().expect("mints").millis_since_epoch() + EPOCH_MS;
+        drop(minter);
+        let (_, read) = MarkFile::open(&path, &user).expect("reopened");
+        assert!(
+            read.is_some_and(|ceiling| ceiling >= handed),
+            "{handed} was handed out with the mark at {read:?}"
+        );
+    }
+
     /// A torn or corrupt slot is passed over and the other one read; with
     /// both spoiled the start refuses.
     #[test]
@@ -478,14 +507,16 @@ mod tests {
         }
     }
 
-    /// A clock behind the mark by less than the lease is waited out with
+    /// A clock behind the mark by no more than the lease is waited out with
     /// nothing logged; behind by more, the wait is logged once; and a mark more
     /// than a day ahead refuses the start.
     #[test]
     fn a_clock_behind_the_mark_is_waited_for_and_logged_past_the_lease() {
         let held = Scratch::new("behind");
         let (path, user) = held.mark();
-        for (behind, logged) in [(LEASE / 2, 0), (LEASE * 3, 1)] {
+        // A clock exactly the lease behind is a restart inside one lease, and
+        // one a millisecond further is the first that moved back.
+        for (behind, logged) in [(LEASE / 2, 0), (LEASE, 0), (LEASE + 1, 1), (LEASE * 3, 1)] {
             let (mark, _) = MarkFile::open(&path, &user).expect("opened");
             let clock = Set(Arc::new(AtomicU64::new(NOW - behind)));
             let log = nc_kernel::logging::Captured::default();
