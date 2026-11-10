@@ -2360,8 +2360,10 @@ is installed.
 **Enforced by** `apps/daemon/tests/a_recycled_pid_is_never_signalled.rs` (acceptance 4),
 by `apps/daemon/tests/channels_side_by_side.rs`, where production, staging and two
 development checkouts are installed through the installer from one scratch environment,
-started, held apart on disk, and each stopped while the other three answer (acceptance
-3), by `process_control_that_does_not_finish_is_exit_11` in
+started, held apart on disk, each stopped while the other three answer, and one restarted
+— its record another start's, the process it named gone, the mark removed and the other
+three untouched (acceptance 3), by `process_control_that_does_not_finish_is_exit_11` and
+`a_start_whose_daemon_ends_before_it_answers_is_exit_11_with_what_it_wrote` in
 `apps/daemon/tests/exit_codes.rs`, by the unit tests of `apps/cli/src/control.rs` — the
 decision that signals only a verified process, the mark written, kept, removed and
 refused, a stop nothing answers ending well over a record of a process gone and refusing
@@ -2371,7 +2373,10 @@ over, and one nothing verified waited for until its endpoint and its record let 
 stop something answers otherwise refused with no record or a record of a process gone, an
 endpoint no socket can have taken for nothing there, a stop and a status the daemon
 answers, a status with nothing answering, a start with no daemon beside it and one with a
-daemon running, and a start that says its daemon runs only once its status says so — of
+daemon running, a start that says its daemon runs only once its status says so, one that
+gives up at once on a daemon that ended and shows the last lines it wrote, a daemon that
+does not answer asked to end first and killed only when it has not ended, and a restart
+that stops before it starts and starts nothing after a stop refused — of
 `apps/cli/src/install.rs`, whose copies of this test binary run and whose uninstall leaves
 every file of an install whose daemon did not stop, and of
 `crates/nc-channel/src/record.rs`, by the
