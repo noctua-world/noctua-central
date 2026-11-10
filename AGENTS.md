@@ -1929,8 +1929,8 @@ with a code of the `CHAN` or `DMN` area at the first thing it cannot vouch for.
   holds, when the file names one — one of the world's `Grant` entities inside that realm.
   An epoch missing or of zero, a grant the realm does not hold and a key the file does not
   define are each refused (`NC-DMN-0006`), and a world naming no grant is a person who holds
-  none. The copy is written beside it and renamed over it; one an interrupted
-  copy left there is removed only once it is judged this user's alone (`NC-DMN-0001`).
+  none. The copy is written beside it and renamed over it; one an interrupted copy left
+  there is removed only once it is judged this user's alone (`NC-DMN-0001`).
 - **No identifier is handed out past a ceiling that is not yet durable.** The minter asks
   the mark to raise its ceiling `mark_lease_ms` past the clock before it hands out a
   millisecond past the one it holds, and refuses before any identifier exists when the
@@ -1955,8 +1955,8 @@ reachable manifest with one code, by the world file's tests in
 `crates/nc-authz/src/directory.rs` — its grant held by its person alone, its epoch the
 realm's, and each way an epoch or a grant is refused — by the unit tests of each module in
 `apps/daemon/src/` — the profile's data, configuration, cache, state, log and runtime
-directories each made private
-and judged again, a missing base not made on the way, a world copied, replaced and
+directories each made private and judged again, a missing base not made on the way, a
+world copied, replaced and
 refused, in the profile as well as on its way in, a copy left beside the world removed and
 one another account can reach refused, a configuration and a data directory another
 account can reach refused before a world or a seed is written into them, a seed drawn once
@@ -2070,16 +2070,16 @@ and the daemon still answering a client that proves itself — by
 `apps/daemon/tests/serves_its_kernel.rs` — the registry held both ways to the catalog's
 commands with the reference plugin's beside them, a plugin refused shown and logged, every
 dispatch found in the journal with the outcome it was answered with, as the world's person
-and with the grant and the epoch the world names, the pump on its schedule and the sweep once, a second daemon refused with the first
-still answering, a stop that ends with exit 0 and leaves no record, token, socket or lock and
+and with the grant and the epoch the world names, the pump on its schedule and the sweep
+once, a second daemon refused with the first still answering, a stop that ends with exit 0
+and leaves no record, token, socket or lock and
 a profile that starts again with a new instance, a spawner whose output ends while the
 daemon it started runs, and a daemon that leads a session of its own and not the suite's
 (`the_daemon_leads_a_session_of_its_own`) — by
 `apps/daemon/tests/every_command_from_the_cli.rs`, where every command the catalog declares
 and every command of the reference plugin is run through the CLI and found in the journal,
 each decided by a rule of the realm's pack with the world's grant and epoch — by the unit
-tests of `server` (among them
-`a_dispatch_is_counted_before_its_state_is_read` and
+tests of `server` (among them `a_dispatch_is_counted_before_its_state_is_read` and
 `a_stop_is_answered_whole_before_its_connection_is_let_go`, whose server runs on a runtime
 dropped as soon as the stop has wound down, and whose client takes one byte at a time),
 `pidfile`, `plugins`, `schedule`
