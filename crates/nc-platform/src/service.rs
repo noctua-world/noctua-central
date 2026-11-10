@@ -2920,6 +2920,16 @@ mod tests {
             assert!(kept.exists(), "`{}` was swept", kept.display());
         }
         drop(held);
+        // **Waited for until a bound, before the last sweep.** A child another
+        // test of this binary starts holds a copy of each descriptor from its
+        // fork until its exec, so the lock let go can still be held for that
+        // moment: measured by a review, a share of local runs failed here when
+        // the sweep came at once. An owner whose lock is never let go still
+        // fails, at the bound.
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while owner_lives(&living) && std::time::Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(10));
+        }
         sweep_scratches(&scratch.0, prefix, Duration::ZERO);
         assert!(
             !living.exists(),

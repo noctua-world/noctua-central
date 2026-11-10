@@ -877,10 +877,21 @@ mod tests {
             .recv_timeout(std::time::Duration::from_secs(30))
             .expect("the second hold went on once the first let go");
         waiting.join().expect("the second hold ended");
-        assert!(
-            !testing::is_held(&scratch.0, "lock"),
-            "nothing holds it now"
-        );
+        // **Asked again until a bound, as in
+        // `a_directory_held_is_not_held_again_at_once`.** A child another test
+        // of this binary starts holds a copy of each descriptor from its fork
+        // until its exec, so the lock can still be held for that moment: the
+        // hosted macOS runner failed here once. A lock never let go still
+        // fails, at the bound.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        let held_now = loop {
+            let held_now = testing::is_held(&scratch.0, "lock");
+            if !held_now || std::time::Instant::now() >= deadline {
+                break held_now;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        };
+        assert!(!held_now, "nothing holds it now");
         let mut left = 0_usize;
         for entry in std::fs::read_dir(&scratch.0).expect("readable") {
             let path = entry.expect("an entry").path();
@@ -1676,13 +1687,24 @@ mod tests {
         let instance = super::hold(&scratch.0, "instance.lock", &user).expect("held");
         runtime().block_on(async {
             testing::leave_a_dead_endpoint(&endpoint).expect("a dead endpoint");
-            assert!(
-                matches!(
+            // **Asked again until a bound.** A child another test of this
+            // binary starts holds a copy of the dead listener's descriptor
+            // from its fork until its exec, and a socket answers while any copy
+            // of it is open: measured by a review, a share of local runs failed
+            // here when it asked once. An endpoint that keeps answering still
+            // fails, at the bound.
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+            let nobody = loop {
+                let nobody = matches!(
                     super::ipc::connect(&endpoint, &user).await,
                     Err(super::ipc::Refused::Nobody(_))
-                ),
-                "a dead endpoint answered"
-            );
+                );
+                if nobody || std::time::Instant::now() >= deadline {
+                    break nobody;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            };
+            assert!(nobody, "a dead endpoint answered");
             if testing::ENDPOINT_ON_DISK {
                 let before = testing::identity(&endpoint.socket).expect("the dead socket");
                 let other = testing::someone_else(&user);
