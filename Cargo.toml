@@ -395,6 +395,11 @@ serde_json = { version = "1.0", features = ["preserve_order"] }
 # serves it and the CLI asks through it, so both ends are one implementation;
 # it holds no kernel, so a kernel-free client can take it.
 nc-ipc = { path = "crates/nc-ipc" }
+# The command line a channel is reached through (`NOCTUA.md §20.2`), taken by
+# the daemon's suites alone: they drive it in-process against a real daemon
+# (`nc_cli::run`), so no stale `noctua` binary is ever what they run. It holds
+# no kernel, so taking it adds nothing to what the daemon builds.
+nc-cli = { path = "apps/cli" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

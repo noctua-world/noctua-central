@@ -1890,19 +1890,22 @@ claimed**.
 
 ### A daemon starts only on a profile that is its user's alone, and mints nothing it cannot resume above
 
-`apps/daemon` (`install`, `profile`, `device` and `mark`, whose headers have the rules)
-reads what a start stands on, in order, and refuses with a code of the `CHAN` or `DMN`
-area at the first thing it cannot vouch for.
+`apps/daemon` (`profile`, `device` and `mark`, whose headers have the rules), with
+`nc_channel::found` for the install, reads what a start stands on, in order, and refuses
+with a code of the `CHAN` or `DMN` area at the first thing it cannot vouch for.
 
 **Guaranteed:**
 
-- **An install names itself, and nothing else does.** The manifest is read beside the
-  canonicalized executable, in a directory judged this user's alone by
+- **An install names itself, and nothing else does.** The manifest is read through
+  `nc_channel::found`, the one reader the CLI beside the daemon reads it through too:
+  beside the canonicalized executable, in a directory judged this user's alone by
   `nc_platform::user_in` — the one way to the user a start runs as — each time the install
   is read; it is judged so itself with `nc_platform::judge`, and read only as
   `nc_channel::Install::parse` reads it. A binary with none refuses (`NC-CHAN-0006`) rather
-  than fall back to a channel built in, and a manifest another account can reach, or one in
-  a directory another account can reach, is not read (`NC-CHAN-0007`).
+  than fall back to a channel built in, a manifest another account can reach, or one in a
+  directory another account can reach, is not read (`NC-CHAN-0007`), and a path the
+  filesystem does not answer for is its own refusal (`NC-CHAN-0008`) — so the daemon and
+  the CLI refuse one manifest with one code.
 - **The profile is the user's alone from its first moment.** Its data, configuration,
   cache and state directories, and the log and runtime ones under the state one, are each
   made private one level at a time — never a parent on the way — or judged so, and
@@ -1922,7 +1925,11 @@ area at the first thing it cannot vouch for.
 - **The world is a file the installer copies in, read with the pack its realm selects**:
   the realm and the person a daemon decides as, each minted by `nc_authz::LocalWorld::parse`
   only for an entity the world holds, the person inside that realm (`NC-DMN-0005`,
-  `NC-DMN-0006`). The copy is written beside it and renamed over it; one an interrupted
+  `NC-DMN-0006`); the realm's epoch, a whole number above zero; and the grant the person
+  holds, when the file names one — one of the world's `Grant` entities inside that realm.
+  An epoch missing or of zero, a grant the realm does not hold and a key the file does not
+  define are each refused (`NC-DMN-0006`), and a world naming no grant is a person who holds
+  none. The copy is written beside it and renamed over it; one an interrupted
   copy left there is removed only once it is judged this user's alone (`NC-DMN-0001`).
 - **No identifier is handed out past a ceiling that is not yet durable.** The minter asks
   the mark to raise its ceiling `mark_lease_ms` past the clock before it hands out a
@@ -1939,10 +1946,16 @@ area at the first thing it cannot vouch for.
   `nc_ids::Minter::settle_ceiling`) to the exact high-water mark, so a clean restart waits
   for nothing.
 
-**Enforced by** the unit tests of each module in `apps/daemon/src/` — a missing, reachable
-and malformed manifest, a manifest in a directory another account can reach refused and
-left as it was, a manifest read through a link beside the file that runs, the
-profile's data, configuration, cache, state, log and runtime directories each made private
+**Enforced by** the tests of `crates/nc-channel/src/found.rs` — a missing, reachable and
+malformed manifest, a manifest in a directory another account can reach refused and left as
+it was, a manifest read through a link beside the file that runs — by
+`no_install_is_exit_12_and_the_daemon_refuses_it_with_the_same_code` in
+`apps/daemon/tests/exit_codes.rs`, where a daemon and the CLI refuse one missing and one
+reachable manifest with one code, by the world file's tests in
+`crates/nc-authz/src/directory.rs` — its grant held by its person alone, its epoch the
+realm's, and each way an epoch or a grant is refused — by the unit tests of each module in
+`apps/daemon/src/` — the profile's data, configuration, cache, state, log and runtime
+directories each made private
 and judged again, a missing base not made on the way, a world copied, replaced and
 refused, in the profile as well as on its way in, a copy left beside the world removed and
 one another account can reach refused, a configuration and a data directory another
@@ -2007,7 +2020,8 @@ header gives, the endpoint served, and a stop.
 - **Every dispatch is the kernel's to decide, as the profile's person.** The daemon hands
   `Kernel::dispatch` the person the world names and the arguments as they arrived, decides
   nothing itself, and hands back the kernel's answer or its refusal by the kernel's own code
-  and kind — the journal holds each, whoever asked.
+  and kind — the journal holds each, whoever asked. The directory the kernel decides with is
+  the world's, holding the grant and the epoch the world file names and nothing else.
 - **The token is fresh at each start, and the record names a process, not a number.** The
   token is drawn from the system's generator and the PID record holds the process as the
   system knows it — its boot, its start, its executable — and the instance the start drew,
@@ -2055,12 +2069,16 @@ code, each logged once, a dispatch sent after each never read, the journal empty
 and the daemon still answering a client that proves itself — by
 `apps/daemon/tests/serves_its_kernel.rs` — the registry held both ways to the catalog's
 commands with the reference plugin's beside them, a plugin refused shown and logged, every
-dispatch found in the journal with the outcome it was answered with and as the world's
-person, the pump on its schedule and the sweep once, a second daemon refused with the first
+dispatch found in the journal with the outcome it was answered with, as the world's person
+and with the grant and the epoch the world names, the pump on its schedule and the sweep once, a second daemon refused with the first
 still answering, a stop that ends with exit 0 and leaves no record, token, socket or lock and
 a profile that starts again with a new instance, a spawner whose output ends while the
 daemon it started runs, and a daemon that leads a session of its own and not the suite's
-(`the_daemon_leads_a_session_of_its_own`) — by the unit tests of `server` (among them
+(`the_daemon_leads_a_session_of_its_own`) — by
+`apps/daemon/tests/every_command_from_the_cli.rs`, where every command the catalog declares
+and every command of the reference plugin is run through the CLI and found in the journal,
+each decided by a rule of the realm's pack with the world's grant and epoch — by the unit
+tests of `server` (among them
 `a_dispatch_is_counted_before_its_state_is_read` and
 `a_stop_is_answered_whole_before_its_connection_is_let_go`, whose server runs on a runtime
 dropped as soon as the stop has wound down, and whose client takes one byte at a time),
@@ -2215,8 +2233,12 @@ malformed, a welcome naming another process and another channel, each answer of 
 dispatch to its row of the exit table and an answer of another kind, help on the exit
 codes with no daemon, help on everything showing the grammar and the verbs with none,
 and a command line, a command and arguments refused with nothing dispatched — by
-`apps/cli/tests/arguments_from_schemas.rs`, by the tests of
-`crates/nc-channel/src/found.rs`, by
+`apps/cli/tests/arguments_from_schemas.rs`, by `apps/daemon/tests/exit_codes.rs` — one
+test for each way a run ends against a real daemon, `reference.irreversible.do` refused with
+`NC-KERN-0006` in exit 4 and in both locales among them — by
+`apps/daemon/tests/every_command_from_the_cli.rs`, where help lists every command the
+daemon's registry holds by its name and title and each argument from its schema, by the
+tests of `crates/nc-channel/src/found.rs`, by
 `a_character_a_reader_sees_nothing_of_is_refused_once_its_escape_is_decoded` in
 `crates/nc-schema/src/lib.rs`, and by the operators over those sources in
 `xtask/mutants.py`.
@@ -2999,11 +3021,15 @@ rather than anything decided for the project, and each is a maintainer's to reop
   system shows at the other end, but nothing but the suites reads the PID record, so no
   client yet holds the welcome's process to the record, and no stop yet verifies a
   recorded process before it signals one.
-- **A daemon decides as a person who holds no grant.** The world file names the realm and
-  the person every dispatch is decided as, and the directory a daemon opens over it holds
-  no grant for anybody and the realm's epoch as zero (`nc_authz::LocalWorld`), so the
-  decision point denies every dispatch a daemon serves (`NC-POL-0003`) and the journal
-  records each as denied, until the world file names a grant the person holds.
+- **A daemon's grant is the one its world file names, and nothing revokes it.** The world
+  file names the realm, the person every dispatch is decided as, the grant that person holds
+  and the realm's epoch, and a daemon reads it at each start (`nc_authz::LocalWorld`): the
+  directory it opens over it holds that grant and that epoch until the file changes and the
+  daemon starts again, and no grants table is read and no epoch moves until the directory
+  over the grants table (Stage 22). A world naming no grant is a person who holds none, every
+  dispatch of whom is denied (`NC-POL-0003`). The suites' world names `g.by_policy`, the
+  membership the family pack confers, which has begun and has no end: the kernel's suites'
+  `g.current` ends on 2027-01-01, and a daemon decides on the system's clock.
 - **A daemon a suite started outlives a suite killed outright.** Each suite stops its
   daemons through the endpoint and kills them on the way out, but a test process killed
   with no destructor run leaves its daemon running, holding none of the runner's output,
@@ -3065,7 +3091,10 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **A quorum's refusal reaches the CLI as a denial**: a command a pack's rule holds to a
   quorum is refused by the decision point like any other denial (`NC-POL-0003`), so it
   ends the run in exit 3; only `NC-KERN-0006` says the interface is what is needed, and
-  only it ends a run in exit 4.
+  only it ends a run in exit 4. Only an approval the kernel issued meets a quorum, and
+  nothing issues one until the approval system (Stage 23), so a quorum's denial is a denial
+  until that system gives the CLI something it can read, and Stage 23 chooses its exit code
+  then.
 - **A flag is a top-level property**: an argument nested in an object, or a property whose
   name holds `=`, is given as JSON — the object's flag, or `--` and one JSON object.
 

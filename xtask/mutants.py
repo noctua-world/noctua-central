@@ -516,15 +516,14 @@ SOURCES = {
     # that crate's own tests, which derive the names of every channel and touch
     # no disk but to canonicalize a path.
     "channel": os.path.join(ROOT, "crates/nc-channel/src/lib.rs"),
-    # **The daemon's profile**: which code each refusal carries, the install
-    # read beside the executable, the profile's directories and world, the
-    # device's seed and record, the identifiers' mark, and the binary's own
-    # invocation. Decided by each module's own unit tests, the binary's among
+    # **The daemon's profile**: which code each refusal carries — the
+    # install's among them, read through `nc_channel::found` — the profile's
+    # directories and world, the device's seed and record, the identifiers'
+    # mark, and the binary's own invocation. Decided by each module's own unit tests, the binary's among
     # them, inside scratch directories; the suites that run the binary and kill
     # a child are evidence no operator here runs (`ELSEWHERE` says why).
     "daemon_main": os.path.join(ROOT, "apps/daemon/src/main.rs"),
     "daemon_lib": os.path.join(ROOT, "apps/daemon/src/lib.rs"),
-    "daemon_install": os.path.join(ROOT, "apps/daemon/src/install.rs"),
     "daemon_profile": os.path.join(ROOT, "apps/daemon/src/profile.rs"),
     "daemon_device": os.path.join(ROOT, "apps/daemon/src/device.rs"),
     "daemon_mark": os.path.join(ROOT, "apps/daemon/src/mark.rs"),
@@ -3343,6 +3342,23 @@ WEAKENINGS = [
     ("authz_directory", "parse", "the person is one of the realm's",
      "            .filter(|_| inside)\n",
      ""),
+    # The grant and the epoch a world file names: the epoch above zero and
+    # required, the grant optional, text, and applied as the realm holds it.
+    ("authz_directory", "parse", "an epoch of zero is refused",
+     "u64::try_from(*epoch).ok().filter(|epoch| *epoch > 0)",
+     "u64::try_from(*epoch).ok().filter(|_| true)"),
+    ("authz_directory", "parse", "a world naming no epoch is refused",
+     "            _ => None,\n        }\n        .ok_or_else(|| {",
+     "            _ => Some(7),\n        }\n        .ok_or_else(|| {"),
+    ("authz_directory", "parse", "the epoch is the realm's",
+     ".with_epoch(realm, epoch);",
+     ".with_epoch(realm, 1);"),
+    ("authz_directory", "parse", "a grant that is not text is refused",
+     "            Some(_) => return Err(malformed(\"a world file's \\\"grant\\\" is not text\".to_owned())),",
+     "            Some(_) => None,"),
+    ("authz_directory", "parse", "the grant a world names is its person's",
+     "            Some(grant) => directory.with_grant(realm, principal.entity(), grant)?,",
+     "            Some(_) => directory,"),
     ("authz_embedded", "carried", "a profile selects only its own pack",
      "    CARRIED.iter().find(|pack| pack.profile == profile)",
      "    CARRIED.iter().find(|_| true)"),
@@ -6630,19 +6646,7 @@ WEAKENINGS = [
      "            Self::NoDevice { .. } => ErrorCode::DaemonNoWorld,"),
     ("daemon_lib", "judged", "a path refused is not this user's alone",
      "            nc_platform::Judged::Refused(refused) => Self::NotPrivate(refused),",
-     "            nc_platform::Judged::Refused(refused) => Self::ManifestNotPrivate(refused),"),
-    ("daemon_install", "beside", "no manifest beside the binary is said as none",
-     "        Err(Judged::Failed(failed)) if failed.error().kind() == std::io::ErrorKind::NotFound => {\n            return Err(Refused::NoManifest { path: manifest });",
-     "        Err(Judged::Failed(failed)) if false => {\n            return Err(Refused::NoManifest { path: manifest });"),
-    ("daemon_install", "beside", "the manifest is read beside the canonical executable",
-     "    let canonical = std::fs::canonicalize(executable).map_err(|error| {",
-     "    let canonical = Ok::<_, std::io::Error>(executable.to_path_buf()).map_err(|error| {"),
-    ("daemon_install", "beside", "a directory another account can reach is the manifest's refusal",
-     "    let user = nc_platform::user_in(directory).map_err(manifest_judged)?;",
-     "    let user = nc_platform::user_in(directory).map_err(Refused::judged)?;"),
-    ("daemon_install", "manifest_judged", "a manifest another account can reach is the manifest's refusal",
-     "        Judged::Refused(refused) => Refused::ManifestNotPrivate(refused),",
-     "        Judged::Refused(refused) => Refused::NotPrivate(refused),"),
+     "            nc_platform::Judged::Refused(refused) => Self::Install(nc_channel::found::Refused::NotPrivate(refused)),"),
     ("daemon_profile", "prepare", "a directory already there is judged",
      "                nc_platform::judge(directory, Kind::Directory, user).map_err(Refused::judged)?;",
      "                let _ = nc_platform::judge(directory, Kind::Directory, user);"),
@@ -7166,7 +7170,7 @@ WEAKENINGS = [
     # and the suites' install is its own and gone with its guard.
     ("daemon_run", "serve", "a profile another daemon holds is refused as held",
      "        .ok_or_else(|| Refused::Held {\n            path: layout.state.clone(),",
-     "        .ok_or_else(|| Refused::NoManifest {\n            path: layout.state.clone(),"),
+     "        .ok_or_else(|| Refused::NoWorld {\n            path: layout.state.clone(),"),
     ("daemon_testing", "install_at", "two installs never share a namespace",
      "MADE.fetch_add(1, Ordering::SeqCst)",
      "MADE.load(Ordering::SeqCst)"),
@@ -7467,7 +7471,6 @@ ELSEWHERE = {
     # whose tests read the codes it maps.
     "daemon_main": ["cargo", "test", "-q", "-p", "nc-daemon", "--bin", "noctua-daemon"],
     "daemon_lib": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "device::", "profile::"],
-    "daemon_install": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "install::"],
     "daemon_profile": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "profile::"],
     "daemon_device": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "device::"],
     "daemon_mark": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "mark::"],

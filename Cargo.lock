@@ -1817,6 +1817,7 @@ dependencies = [
  "nc-canon",
  "nc-catalog",
  "nc-channel",
+ "nc-cli",
  "nc-daemon",
  "nc-ids",
  "nc-ipc",

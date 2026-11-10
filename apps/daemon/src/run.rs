@@ -59,7 +59,7 @@ use nc_kernel::logging::LogSink;
 
 use crate::environment::{self, Opening};
 use crate::server::{Named, Server};
-use crate::{Refused, device, install, mark, pidfile, plugins, profile};
+use crate::{Refused, device, mark, pidfile, plugins, profile};
 
 /// How a run that stopped when it was asked ended.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -82,7 +82,7 @@ pub struct Stopped {
 /// the kernel.
 pub fn serve(executable: &Path) -> Result<Stopped, Refused> {
     let began = std::time::Instant::now();
-    let found = install::beside(executable)?;
+    let found = nc_channel::found::beside(executable).map_err(Refused::Install)?;
     let (layout, user) = (&found.layout, &found.user);
     profile::prepare(layout, user)?;
     let lock_name = layout
@@ -168,7 +168,7 @@ pub fn serve(executable: &Path) -> Result<Stopped, Refused> {
 
 /// What the start read before it bound the endpoint.
 struct Started<'a> {
-    found: &'a install::Found,
+    found: &'a nc_channel::found::Found,
     held: &'a nc_platform::Held,
     device: device::Device,
     world: nc_authz::LocalWorld,

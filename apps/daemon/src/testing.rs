@@ -83,13 +83,30 @@ pub struct Installed {
     pub executable: PathBuf,
 }
 
-/// A world file as an installer writes one: the realm `home`, the person
-/// `ana`, and the entities every policy case is about.
+/// The grant a suite's world names for `ana` in `home`.
+///
+/// **`g.by_policy`, the membership the pack confers, and not the kernel
+/// suites' `g.current`**: those suites decide on a clock standing at
+/// 2026-08-26, inside `g.current`'s window, and a daemon decides on the
+/// system's, which leaves that window on 2027-01-01. This grant has begun and
+/// has no end, which the core allows a grant the pack confers alone.
+pub const GRANT: &str = "g.by_policy";
+
+/// The epoch a suite's world gives `home`: the one the kernel's suites give it.
+pub const EPOCH: i64 = 7;
+
+/// A world file as an installer writes one.
+///
+/// It names the realm `home`, the person `ana`, the grant she holds there
+/// ([`GRANT`]) and the realm's epoch ([`EPOCH`]), and holds the entities every
+/// policy case is about.
 #[must_use]
 pub fn a_world() -> String {
     let mut fields = std::collections::BTreeMap::new();
     fields.insert("realm".to_owned(), nc_canon::Value::text("home"));
     fields.insert("person".to_owned(), nc_canon::Value::text("ana"));
+    fields.insert("grant".to_owned(), nc_canon::Value::text(GRANT));
+    fields.insert("epoch".to_owned(), nc_canon::Value::Integer(EPOCH));
     fields.insert(
         "world".to_owned(),
         nc_canon::parse(include_str!("../../../policy/world.json"))

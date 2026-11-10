@@ -589,7 +589,7 @@ start and restore, its `service.rs`, the endpoint a daemon is reached through,
 `nc-platform`'s `ipc.rs`, the protocol over it, `nc-ipc`'s `lib.rs`, `frame.rs`,
 `message.rs`, `handshake.rs` and `connection.rs`, every name an install gives the system,
 `nc-channel`'s `lib.rs` and the manifest's reader beside it, `found.rs`, the
-daemon's `lib.rs`, `main.rs`, `install.rs`, `profile.rs`, `device.rs` and
+daemon's `lib.rs`, `main.rs`, `profile.rs`, `device.rs` and
 `mark.rs`, what it serves, its `run.rs`, `server.rs`, `environment.rs`,
 `plugins.rs`, `schedule.rs` and `pidfile.rs`, the install its suites start it in,
 `testing.rs`, which process it is, `nc-platform`'s `process.rs`, the CLI's

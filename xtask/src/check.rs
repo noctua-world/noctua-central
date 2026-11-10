@@ -7756,7 +7756,7 @@ fn ends_in_a_backslash(path: &str) -> bool {
 /// failure is silent.
 ///
 /// Each is a crate and the file cargo announces as `Running tests/<name>`.
-const SUITES: [(&str, &str); 44] = [
+const SUITES: [(&str, &str); 46] = [
     ("nc-authz", "the_embedded_pack_decides.rs"),
     ("nc-canon", "properties.rs"),
     ("nc-catalog", "the_generated_surface.rs"),
@@ -7777,6 +7777,10 @@ const SUITES: [(&str, &str); 44] = [
     ("nc-daemon", "ipc_refusals.rs"),
     // A real daemon serving its kernel, its schedule and its stop.
     ("nc-daemon", "serves_its_kernel.rs"),
+    // A real daemon asked every command, and each way a run of the CLI ends,
+    // through the CLI driven in-process.
+    ("nc-daemon", "every_command_from_the_cli.rs"),
+    ("nc-daemon", "exit_codes.rs"),
     ("nc-ids", "against_denote.rs"),
     ("nc-ids", "properties.rs"),
     // The protocol: the daemon's listener at the catalog's bound over a real
@@ -17387,7 +17391,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
         ("nc-catalog-compiler", 3),
         ("nc-channel", 2),
         ("nc-cli", 3),
-        ("nc-daemon", 6),
+        ("nc-daemon", 8),
         ("nc-guest", 1),
         ("nc-ids", 3),
         ("nc-ipc", 5),
@@ -19417,7 +19421,7 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 191] = [
+    const DOCUMENTED: [(&str, usize, usize); 192] = [
         ("cli/args.rs", 35, 9),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/client.rs", 38, 13),
@@ -19429,9 +19433,10 @@ mod the_frozen_path_rule {
         ("cli/run.rs", 21, 5),
         ("daemon/device.rs", 22, 5),
         ("daemon/environment.rs", 12, 16),
-        ("daemon/install.rs", 14, 6),
+        ("daemon/every_command_from_the_cli.rs", 26, 2),
+        ("daemon/exit_codes.rs", 24, 1),
         ("daemon/ipc_refusals.rs", 7, 0),
-        ("daemon/lib.rs", 7, 15),
+        ("daemon/lib.rs", 7, 14),
         ("daemon/main.rs", 15, 6),
         ("daemon/mark.rs", 27, 15),
         ("daemon/pidfile.rs", 19, 8),
@@ -19441,10 +19446,10 @@ mod the_frozen_path_rule {
         ("daemon/schedule.rs", 18, 2),
         ("daemon/server.rs", 44, 6),
         ("daemon/serves_its_kernel.rs", 19, 3),
-        ("daemon/testing.rs", 30, 8),
+        ("daemon/testing.rs", 32, 8),
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
         ("daemon/the_mark_survives_a_crash.rs", 15, 12),
-        ("nc-authz/directory.rs", 38, 15),
+        ("nc-authz/directory.rs", 41, 15),
         ("nc-authz/embedded.rs", 12, 4),
         ("nc-authz/lib.rs", 30, 19),
         ("nc-authz/the_embedded_pack_decides.rs", 24, 30),
@@ -22395,8 +22400,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 676 scratches this tree
-    /// builds, 589 of the 676 are removed however the test leaves and 87 are
+    /// directories accumulated in an afternoon. Of the 668 scratches this tree
+    /// builds, 581 of the 668 are removed however the test leaves and 87 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22462,12 +22467,11 @@ mod the_frozen_path_rule {
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 51] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 50] = [
         ("cli/client.rs", 7, 7),
         ("cli/run.rs", 6, 6),
         ("daemon/device.rs", 7, 7),
         ("daemon/environment.rs", 2, 2),
-        ("daemon/install.rs", 8, 8),
         ("daemon/main.rs", 4, 4),
         ("daemon/mark.rs", 8, 8),
         ("daemon/pidfile.rs", 5, 5),
@@ -25458,7 +25462,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 17503;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 17552;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25477,7 +25481,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4296;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4338;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25494,7 +25498,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1439;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1453;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25511,7 +25515,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [93, 21, 38, 39, 92];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [93, 20, 38, 39, 92];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -25528,7 +25532,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 23910;
+    const THE_REARRANGEMENTS_JUDGED: usize = 23979;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25546,7 +25550,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 520;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 519;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -25582,8 +25586,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **520 of 23,910 are accepted by the first-line
-    /// rule alone, and 283 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **519 of 23,979 are accepted by the first-line
+    /// rule alone, and 282 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -25604,7 +25608,7 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **93 ascending sorts, 21 descending, 38
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **93 ascending sorts, 20 descending, 38
     /// swaps, 39 rotations and 92 reversals** — so the reversal is one of its
     /// two largest parts, with the ascending sort, and not the whole.
     ///
@@ -25615,7 +25619,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1439 of
+    /// this tree offers, **1453 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -34120,7 +34124,7 @@ mod the_meta_gate {
     /// own doc: a module directory may be called anything. Every row here is a
     /// prefix of a workspace-relative path, anchored at its start, so what it
     /// excuses is what it names.
-    const NOT_MUTATED: [(&str, &str); 51] = [
+    const NOT_MUTATED: [(&str, &str); 53] = [
         (
             "crates/nc-platform/src/windows.rs",
             "another system's: the Windows half of what makes a path private, \
@@ -34228,6 +34232,27 @@ mod the_meta_gate {
              decided by those modules' unit tests, which the runner's commands for \
              them run, and a weakening of this file would remove evidence rather \
              than uncover an undecided clause",
+        ),
+        (
+            "apps/daemon/tests/every_command_from_the_cli.rs",
+            "a suite: a real daemon process asked every command the catalog \
+             declares and every command of the reference plugin through the CLI \
+             in-process, each found in the journal, and help read from its \
+             registry. It spawns a process, so no mutation command runs it: what it \
+             drives in the CLI's modules, `server.rs` and `nc-authz`'s world \
+             reader is decided by their own unit tests, which the runner's commands \
+             for them run, and a weakening of this file would remove evidence \
+             rather than uncover an undecided clause",
+        ),
+        (
+            "apps/daemon/tests/exit_codes.rs",
+            "a suite: a real daemon process and the CLI in-process, one test for \
+             each way a run ends, the irreversible command's exit 4 among them. It \
+             spawns a process, so no mutation command runs it: what it drives in \
+             `exit.rs`, `run.rs` and `client.rs` is decided by those modules' unit \
+             tests, which the runner's commands for them run, and a weakening of \
+             this file would remove evidence rather than uncover an undecided \
+             clause",
         ),
         (
             "crates/nc-channel/tests/the_names_are_disjoint.rs",
@@ -35112,7 +35137,7 @@ mod the_meta_gate {
     ///
     /// A row added here with a phrase its excuse does not contain cannot be
     /// written truthfully, and a row whose excuse stops saying it fails.
-    const NOT_PRESSURE_BUT_PROVENANCE: [(&str, &str); 9] = [
+    const NOT_PRESSURE_BUT_PROVENANCE: [(&str, &str); 11] = [
         (
             "crates/nc-catalog/tests/the_generated_surface.rs",
             "reads the generated crate on disk",
@@ -35153,6 +35178,11 @@ mod the_meta_gate {
         ),
         ("apps/daemon/tests/ipc_refusals.rs", SPAWNS_A_PROCESS),
         ("apps/daemon/tests/serves_its_kernel.rs", SPAWNS_A_PROCESS),
+        (
+            "apps/daemon/tests/every_command_from_the_cli.rs",
+            SPAWNS_A_PROCESS,
+        ),
+        ("apps/daemon/tests/exit_codes.rs", SPAWNS_A_PROCESS),
     ];
 
     /// The runner refuses a run it cannot judge its database-backed files in.
@@ -37324,7 +37354,7 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 205,
+            walked, 206,
             "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
@@ -37364,7 +37394,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2031] = [
+    static OPERATORS: [(&str, &str, &str); 2032] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -40619,6 +40649,23 @@ Options:
             "authz_directory",
             "parse",
             "the person is one of the realm's",
+        ),
+        ("authz_directory", "parse", "an epoch of zero is refused"),
+        (
+            "authz_directory",
+            "parse",
+            "a world naming no epoch is refused",
+        ),
+        ("authz_directory", "parse", "the epoch is the realm's"),
+        (
+            "authz_directory",
+            "parse",
+            "a grant that is not text is refused",
+        ),
+        (
+            "authz_directory",
+            "parse",
+            "the grant a world names is its person's",
         ),
         (
             "authz_embedded",
@@ -45423,26 +45470,6 @@ Options:
             "daemon_lib",
             "judged",
             "a path refused is not this user's alone",
-        ),
-        (
-            "daemon_install",
-            "beside",
-            "no manifest beside the binary is said as none",
-        ),
-        (
-            "daemon_install",
-            "beside",
-            "the manifest is read beside the canonical executable",
-        ),
-        (
-            "daemon_install",
-            "beside",
-            "a directory another account can reach is the manifest's refusal",
-        ),
-        (
-            "daemon_install",
-            "manifest_judged",
-            "a manifest another account can reach is the manifest's refusal",
         ),
         (
             "daemon_profile",

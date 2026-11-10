@@ -5,10 +5,11 @@
 //!
 //! # What a start reads, in order
 //!
-//! - **The install** ([`install`]): the manifest beside the canonicalized
-//!   executable, judged this user's alone and read by
-//!   `nc_channel::Install::parse`. There is no channel built in to fall back to:
-//!   a binary with no manifest refuses before it reads anything else.
+//! - **The install** (`nc_channel::found`, the reader every binary of an
+//!   install shares): the manifest beside the canonicalized executable, judged
+//!   this user's alone and read by `nc_channel::Install::parse`. There is no
+//!   channel built in to fall back to: a binary with no manifest refuses before
+//!   it reads anything else, with the code the CLI beside it would refuse with.
 //! - **The profile** ([`profile`]): its data, plugins, configuration, cache and
 //!   state directories and the log and runtime ones under the state one,
 //!   created private one level at a time or judged so, and the world file the
@@ -64,7 +65,6 @@
 
 pub mod device;
 pub mod environment;
-pub mod install;
 pub mod mark;
 pub mod pidfile;
 pub mod plugins;
@@ -84,15 +84,10 @@ use nc_catalog::ErrorCode;
 /// in one place, and each variant to the code its own failure is queried by.
 #[derive(Debug)]
 pub enum Refused {
-    /// No install manifest is beside the executable.
-    NoManifest {
-        /// Where it was looked for.
-        path: PathBuf,
-    },
-    /// The install manifest is not this user's alone.
-    ManifestNotPrivate(nc_platform::Refusal),
-    /// The install manifest says something this build does not read.
-    Manifest(nc_channel::ChannelError),
+    /// No install was found beside the executable: no manifest, one another
+    /// account can reach, one this build does not read, or a path the
+    /// filesystem did not answer for — each by its own `CHAN` code.
+    Install(nc_channel::found::Refused),
     /// A directory or a file of the profile is not this user's alone.
     NotPrivate(nc_platform::Refusal),
     /// The filesystem could not answer for a path of the install or the
@@ -172,9 +167,7 @@ impl Refused {
     #[must_use]
     pub fn code(&self) -> ErrorCode {
         match self {
-            Self::NoManifest { .. } => ErrorCode::ChannelNoManifest,
-            Self::ManifestNotPrivate(_) => ErrorCode::ChannelManifestNotPrivate,
-            Self::Manifest(refused) => refused.code(),
+            Self::Install(refused) => refused.code(),
             Self::NotPrivate(_) => ErrorCode::DaemonProfileNotPrivate,
             Self::Unavailable { .. } => ErrorCode::DaemonProfileUnavailable,
             Self::NoDevice { .. } => ErrorCode::DaemonNoDevice,
@@ -221,20 +214,13 @@ fn clone_of(error: &std::io::Error) -> std::io::Error {
 
 impl core::fmt::Display for Refused {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // The shared reader's refusal says its code itself.
+        if let Self::Install(refused) = self {
+            return write!(formatter, "{refused}");
+        }
         write!(formatter, "[{}] ", self.code().code())?;
         match self {
-            Self::NoManifest { path } => write!(
-                formatter,
-                "no install manifest is at `{}`, so this binary names no channel and does \
-                 not run; install it with the installer that writes one",
-                path.display()
-            ),
-            Self::ManifestNotPrivate(refused) => write!(
-                formatter,
-                "{refused}, so the install manifest was not read: another account could \
-                 have written it"
-            ),
-            Self::Manifest(refused) => write!(formatter, "{refused}"),
+            Self::Install(_) => Ok(()),
             Self::NotPrivate(refused) => write!(
                 formatter,
                 "{refused}, so the profile was not used; it is left as it was"
@@ -324,7 +310,7 @@ pub struct Initialized {
 /// [`Refused`], each one the install, the profile or the device answers
 /// with.
 pub fn initialize(executable: &Path, world: Option<&Path>) -> Result<Initialized, Refused> {
-    let found = install::beside(executable)?;
+    let found = nc_channel::found::beside(executable).map_err(Refused::Install)?;
     profile::prepare(&found.layout, &found.user)?;
     let device = device::Device::initialize(&found.layout, &found.user)?;
     if let Some(from) = world {
