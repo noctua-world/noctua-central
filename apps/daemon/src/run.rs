@@ -9,10 +9,14 @@
 //!    lock is the state directory's, never the data directory's, which each
 //!    open of the local database holds for as long as it opens.
 //! 3. **The device and the world**, read and vouched for, **the central log**
-//!    the install names, and a session of the daemon's own
-//!    (`nc_platform::leave_the_session`), so no terminal it was started from
-//!    signals it — left only once every refusal a start reads its profile for
-//!    is behind it.
+//!    the install names — its standard error alone when it names none — and
+//!    the session it was started in left where it can be
+//!    (`nc_platform::leave_the_session`), only once every refusal a start
+//!    reads its profile for is behind it. A daemon that does not lead its
+//!    process group starts a session of its own, so no terminal it was started
+//!    from signals it; one that leads its group — started by hand as a job of a
+//!    shell, or spawned as a group's leader — cannot, and stays in the session
+//!    it was started in, where that terminal's hangup reaches it.
 //! 4. **The PID record** — the process as the system says it is, and the
 //!    instance drawn now — **a token drawn fresh**, each written whole and
 //!    private in the runtime directory, and **the endpoint bound**. From here
@@ -30,12 +34,14 @@
 //! # The stop
 //!
 //! A stop asked through the endpoint refuses every new dispatch, stops
-//! accepting, and waits `stop_drain_ms` at most for the dispatches running;
-//! then **settles the mark** to the exact high-water mark, so a clean restart
-//! has nothing to wait for, closes the local database, removes the PID record
-//! and the token it wrote — the socket goes with the listener — and lets the
-//! instance lock go. There is no signal handler: a daemon killed leaves what a
-//! crash leaves, which the next start reads past.
+//! accepting, begins no pump and no sweep, and waits `stop_drain_ms` at most
+//! for the dispatches running and for a pump or a sweep it finds inside a run,
+//! giving up on — and counting — what still runs then; then **settles the
+//! mark** to the exact high-water mark, so a clean restart has nothing to wait
+//! for, closes the local database, removes the PID record and the token it
+//! wrote — the socket goes with the listener — and lets the instance lock go.
+//! There is no signal handler: a daemon killed leaves what a crash leaves,
+//! which the next start reads past.
 //!
 //! **Its standard handles are its spawner's to make null**, and the daemon
 //! writes to none but its standard error, which the central log's shipper
@@ -57,7 +63,8 @@ use crate::{Refused, device, install, mark, pidfile, plugins, profile};
 pub struct Stopped {
     /// How long it ran.
     pub ran: Duration,
-    /// How many dispatches were still running when `stop_drain_ms` ran out.
+    /// How many dispatches, pumps and sweeps were still running when
+    /// `stop_drain_ms` ran out.
     pub abandoned: u32,
 }
 
@@ -167,7 +174,8 @@ struct Started<'a> {
 }
 
 /// The run on the runtime: the endpoint bound and served, the kernel opened
-/// beside it, and the stop; answers how many dispatches the stop gave up on.
+/// beside it, and the stop; answers how many dispatches, pumps and sweeps the
+/// stop gave up on.
 async fn run(started: Started<'_>, server: Arc<Server>) -> Result<u32, Refused> {
     let layout = &started.found.layout;
     let endpoint = nc_platform::ipc::Endpoint::new(
@@ -193,20 +201,30 @@ async fn run(started: Started<'_>, server: Arc<Server>) -> Result<u32, Refused> 
             return Err(refused);
         }
     };
-    let schedule = server.schedule();
-    let pumping = tokio::spawn(crate::schedule::pumping(
-        Arc::clone(&kernel),
-        Arc::clone(&schedule),
-        server.log(),
-    ));
-    let sweeping = tokio::spawn(crate::schedule::sweeping(Arc::clone(&kernel), schedule));
+    let pumping = tokio::spawn({
+        let (kernel, done, log) = (Arc::clone(&kernel), server.schedule(), server.log());
+        let server = Arc::clone(&server);
+        async move { crate::schedule::pumping(kernel, done, log, server.stopping()).await }
+    });
+    let sweeping = tokio::spawn({
+        let (kernel, done) = (Arc::clone(&kernel), server.schedule());
+        let server = Arc::clone(&server);
+        async move { crate::schedule::sweeping(kernel, done, server.stopping()).await }
+    });
     server.stopping().await;
     accepting.abort();
-    pumping.abort();
-    sweeping.abort();
-    let abandoned = server
-        .drained(Duration::from_millis(nc_catalog::DAEMON.stop_drain_ms))
-        .await;
+    // The dispatches running, and the pump and the sweep each inside a run
+    // or between two, waited for within one bound: a run is call trees as a
+    // dispatch is, and the store closes under none the stop did not give up
+    // on.
+    let deadline =
+        tokio::time::Instant::now() + Duration::from_millis(nc_catalog::DAEMON.stop_drain_ms);
+    let (dispatches, pumps, sweeps) = tokio::join!(
+        server.drained(deadline),
+        crate::schedule::ended(pumping, deadline),
+        crate::schedule::ended(sweeping, deadline),
+    );
+    let abandoned = dispatches.saturating_add(pumps).saturating_add(sweeps);
     // The exact high-water mark, so a clean restart waits for nothing. A
     // settle that failed leaves the ceiling the last raise wrote, which no
     // identifier was handed out past.
@@ -295,10 +313,11 @@ mod tests {
     /// with the profile's — and only by what its profile says, never by
     /// starting.
     ///
-    /// **Held while no central log is named**, so a start that read past the
-    /// lock would refuse at the log, before it left the session this suite
-    /// runs in or bound anything. No start here is let past that fence: one
-    /// that got through would be a daemon in this suite's own process.
+    /// **Held while the central log named is one a start refuses**, so a
+    /// start that read past the lock would refuse at the log, before it left
+    /// the session this suite runs in or bound anything. No start here is let
+    /// past that fence: one that got through would be a daemon in this suite's
+    /// own process.
     #[test]
     fn a_start_refuses_outside_an_install_and_on_a_profile_another_holds() {
         let installed =
@@ -307,7 +326,7 @@ mod tests {
         nc_platform::create_private(&stand_in).expect("a binary with no manifest beside it");
         let refused = super::serve(&stand_in).expect_err("no install there");
         assert_eq!(refused.code(), ErrorCode::ChannelNoManifest, "{refused}");
-        installed.without_a_central_log();
+        installed.with_a_central_log_refused();
         let lock = installed
             .layout
             .instance_lock
@@ -327,10 +346,12 @@ mod tests {
         drop(held);
     }
 
-    /// Two installs a suite makes never share a namespace or a root, each is
-    /// initialized as the installer initializes one and names a central log
-    /// nothing answers at, and each is gone with its guard — the ground every
-    /// suite that starts a daemon stands on (`crate::testing`).
+    /// Two installs a suite makes never share a namespace or a root, and
+    /// no other process's install spells one; each is initialized as the
+    /// installer initializes one and names a central log nothing answers at,
+    /// is rewritten to name none or one a start refuses, and is gone with its
+    /// guard — the ground every suite that starts a daemon stands on
+    /// (`crate::testing`).
     #[test]
     fn an_install_a_suite_makes_is_its_own_and_gone_with_its_guard() {
         let binary = std::env::current_exe().expect("this test binary");
@@ -338,6 +359,28 @@ mod tests {
         let two = crate::testing::Installed::new(&binary);
         assert_ne!(one.install.namespace, two.install.namespace);
         assert_ne!(one.layout.state, two.layout.state);
+        let mut made = Vec::new();
+        for installed in [&one, &two] {
+            let namespace = installed
+                .install
+                .namespace
+                .as_ref()
+                .expect("a suite's install is relocated")
+                .as_str()
+                .to_owned();
+            let (pid, count) = namespace
+                .strip_prefix('t')
+                .and_then(|rest| rest.split_once('n'))
+                .unwrap_or_else(|| panic!("`{namespace}` holds no process and no count"));
+            assert_eq!(u32::from_str_radix(pid, 16).ok(), Some(std::process::id()));
+            made.push(count.parse::<u32>().expect("a count"));
+        }
+        assert_ne!(made[0], made[1]);
+        assert_ne!(
+            crate::testing::namespace_of(0x1a, 10),
+            crate::testing::namespace_of(0x1a1, 0),
+            "two processes' installs spell one namespace"
+        );
         for installed in [&one, &two] {
             assert!(installed.executable.is_file());
             assert!(installed.layout.device_key.is_file(), "no device was drawn");
@@ -352,13 +395,15 @@ mod tests {
         let root = one.root().to_path_buf();
         drop(one);
         assert!(!root.exists(), "an install's scratch outlived it");
-        two.without_a_central_log();
-        let manifest = std::fs::read_to_string(&two.layout.manifest).expect("a manifest");
-        assert_eq!(
+        let named = || {
+            let manifest = std::fs::read_to_string(&two.layout.manifest).expect("a manifest");
             nc_channel::Install::parse(&manifest)
                 .expect("it reads")
-                .log_endpoint,
-            None
-        );
+                .log_endpoint
+        };
+        two.without_a_central_log();
+        assert_eq!(named(), None);
+        two.with_a_central_log_refused();
+        assert_eq!(named().as_deref(), Some(crate::testing::OFF_THIS_MACHINE));
     }
 }

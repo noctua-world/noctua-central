@@ -2,12 +2,13 @@
 //! **for tests**, behind `test-support`.
 //!
 //! **Never a real install's names.** Every install made here is relocated by a
-//! namespace drawn from this process and a count, under a scratch root the
-//! guard removes, so its directories, its socket and its pipe — and every
-//! other name the system sees — are its own and no developer's (`AGENTS.md`,
-//! the names' security answer). Its manifest names a central log on this
-//! machine that nothing answers at, so the daemon's lines reach its standard
-//! error, which is a file in the profile's log directory.
+//! namespace drawn from this process and a count, the two kept apart so no
+//! other process's install spells it, under a scratch root the guard removes,
+//! so its directories, its socket and its pipe — and every other name the
+//! system sees — are its own and no developer's (`AGENTS.md`, the names'
+//! security answer). Its manifest names a central log on this machine that
+//! nothing answers at, so the daemon's lines reach its standard error, which
+//! is a file in the profile's log directory.
 //!
 //! **The daemon holds none of its spawner's handles**: it is started with
 //! its standard input and output null and its standard error that file, after
@@ -33,6 +34,11 @@ pub const PATIENCE: Duration = Duration::from_secs(120);
 /// The central log every scratch install names: on this machine, at port
 /// zero, which nothing answers at — so every line goes to standard error.
 pub const NOBODY_LISTENS: &str = "http://127.0.0.1:0/insert/jsonline";
+
+/// A central log off this machine, which `nc_log` refuses and so a start
+/// refuses: the fence a test of a start's refusals puts after the one it is
+/// about.
+pub const OFF_THIS_MACHINE: &str = "http://example.com:9428/insert/jsonline";
 
 /// How many installs this process has made, so two never share a namespace.
 static MADE: AtomicU32 = AtomicU32::new(0);
@@ -105,16 +111,31 @@ impl Installed {
         install_at(binary)
     }
 
-    /// Rewrites the install's manifest to name no central log, which a start
-    /// refuses: a fence a test of a start's refusals puts after the one it is
-    /// about.
+    /// Rewrites the install's manifest to name no central log, so the
+    /// daemon writes its lines to its standard error alone.
     ///
     /// # Panics
     ///
     /// When the manifest could not be rewritten.
     pub fn without_a_central_log(&self) {
+        self.rewritten(None);
+    }
+
+    /// Rewrites the install's manifest to name a central log off this
+    /// machine, [`OFF_THIS_MACHINE`], which a start refuses: a fence a test of
+    /// a start's refusals puts after the one it is about.
+    ///
+    /// # Panics
+    ///
+    /// When the manifest could not be rewritten.
+    pub fn with_a_central_log_refused(&self) {
+        self.rewritten(Some(OFF_THIS_MACHINE));
+    }
+
+    /// The install's manifest, written again naming `log_endpoint`.
+    fn rewritten(&self, log_endpoint: Option<&str>) {
         let mut install = self.install.clone();
-        install.log_endpoint = None;
+        install.log_endpoint = log_endpoint.map(str::to_owned);
         std::fs::remove_file(&self.layout.manifest).expect("the manifest is removed");
         written(&self.layout.manifest, &install.to_canonical());
     }
@@ -182,7 +203,7 @@ impl Installed {
 /// as the installer initializes one: what [`Installed::new`] hands out.
 fn install_at(binary: &Path) -> Installed {
     let made = MADE.fetch_add(1, Ordering::SeqCst);
-    let namespace = format!("t{:x}{made}", std::process::id());
+    let namespace = namespace_of(std::process::id(), made);
     let root = Scratch::new(&namespace);
     let base = |name: &str| {
         let base = root.0.join(name);
@@ -221,6 +242,16 @@ fn install_at(binary: &Path) -> Installed {
         layout,
         executable,
     }
+}
+
+/// The namespace of the install the process `pid` made `made`-th.
+///
+/// **The two numbers kept apart by a letter no hexadecimal digit is**: run
+/// together, the process `0x1a`'s eleventh install and the process `0x1a1`'s
+/// first are one namespace, and the second scratch root made removes the
+/// first's while its daemon runs.
+pub(crate) fn namespace_of(pid: u32, made: u32) -> String {
+    format!("t{pid:x}n{made}")
 }
 
 /// `text`, written to a new private file at `path`.

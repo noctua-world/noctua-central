@@ -9,10 +9,12 @@
 //! the kernel, which recovers what a stopped process left before it opens.
 //!
 //! **The central log is the manifest's**, and the daemon writes its own events
-//! to the same sink the kernel writes to. A store that does not answer is
-//! `nc_log`'s to handle — its lines go to the daemon's standard error — but an
-//! install naming no store at all, or one `nc_log` refuses, is refused here
-//! (`NC-DMN-0011`): a daemon whose refusals reach nobody is not started.
+//! to the same sink the kernel writes to. An install naming no store has its
+//! lines written to the daemon's standard error alone, and a store that does
+//! not answer is `nc_log`'s to handle, its lines written to the same place; but
+//! an install naming a store `nc_log` refuses — one off this machine, or not
+//! an endpoint at all — is refused here (`NC-DMN-0011`), rather than started
+//! with its lines sent somewhere it did not name.
 
 use std::sync::{Arc, Mutex};
 
@@ -55,22 +57,22 @@ pub fn origin() -> nc_log::Origin {
     }
 }
 
-/// The central log `install` names.
+/// The central log `install` names, or the daemon's standard error alone for
+/// an install naming none.
 ///
 /// # Errors
 ///
-/// [`Refused::NoCentralLog`] for an install naming none, and for one naming a
-/// store `nc_log` refuses to speak to.
+/// [`Refused::NoCentralLog`] for an install naming a store `nc_log` refuses
+/// to speak to.
 pub fn log(install: &nc_channel::Install) -> Result<Sink, Refused> {
-    let endpoint = install
-        .log_endpoint
-        .as_deref()
-        .ok_or_else(|| Refused::NoCentralLog {
-            why: "the install names no central log".to_owned(),
-        })?;
-    let opened = nc_log::Log::open(origin(), endpoint).map_err(|why| Refused::NoCentralLog {
-        why: format!("the install's central log is refused: {why}"),
-    })?;
+    let opened = match install.log_endpoint.as_deref() {
+        None => nc_log::Log::to_standard_error(origin()),
+        Some(endpoint) => {
+            nc_log::Log::open(origin(), endpoint).map_err(|why| Refused::NoCentralLog {
+                why: format!("the install's central log is refused: {why}"),
+            })?
+        }
+    };
     Ok(Arc::new(Mutex::new(opened)))
 }
 
@@ -178,21 +180,20 @@ mod tests {
         }
     }
 
-    /// An install naming no central log is refused, and so is one naming a
-    /// store off this machine; one on this machine opens, whether or not
-    /// anything answers there.
+    /// An install naming a store off this machine, or no endpoint at all, is
+    /// refused; one naming a store on this machine opens, whether or not
+    /// anything answers there, and one naming none opens to the daemon's
+    /// standard error.
     #[test]
-    fn an_install_with_no_central_log_it_can_speak_to_is_refused() {
-        for (endpoint, says) in [
-            (None, "names no central log"),
-            (Some("http://example.com:9428/insert"), "is refused"),
-        ] {
-            let refused = super::log(&an_install(endpoint)).expect_err("refused");
+    fn an_install_naming_a_central_log_it_cannot_speak_to_is_refused() {
+        for endpoint in ["http://example.com:9428/insert", "not an endpoint"] {
+            let refused = super::log(&an_install(Some(endpoint))).expect_err("refused");
             assert_eq!(refused.code(), ErrorCode::DaemonNoCentralLog, "{refused}");
-            assert!(refused.to_string().contains(says), "{refused}");
+            assert!(refused.to_string().contains("is refused"), "{refused}");
         }
         super::log(&an_install(Some("http://127.0.0.1:0/insert")))
             .expect("a store on this machine, answering or not");
+        super::log(&an_install(None)).expect("no store named: the standard error alone");
     }
 
     /// A scratch directory for one test, removed however the test leaves.

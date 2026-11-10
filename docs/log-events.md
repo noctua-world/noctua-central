@@ -42,7 +42,7 @@ Level: `info`
 
 ## `daemon.stopped`
 
-The daemon stopped when it was asked to: its dispatches drained or given up, its mark settled and its endpoint gone
+The daemon stopped when it was asked to: its dispatches and its schedule drained or given up, its mark settled and its endpoint gone
 
 Level: `info`
 
@@ -95,7 +95,7 @@ Level: `debug`
 
 ## `ipc.refused`
 
-The daemon refused a connection before it read a request — a peer not shown to be its user, one past the bound, or a handshake that did not prove the token — or closed one for its silence
+The daemon refused a connection before it read a request — a peer not shown to be its user, one past the bound, or a handshake that did not prove the token — or closed a proven one that broke the protocol, fell silent, took nothing or was lost
 
 Level: `warn`
 

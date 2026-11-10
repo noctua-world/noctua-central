@@ -51,6 +51,10 @@ pub(crate) const LISTED_AS_MADE: Option<&str> = if cfg!(target_os = "linux") {
 /// The system's own `sh`, which spends a path as POSIX says.
 pub(crate) const A_POSIX_SHELL: bool = true;
 
+/// Every process here is in a session, which `setsid` starts and a
+/// terminal's hangup reaches.
+pub(crate) const POSIX_SESSIONS: bool = true;
+
 /// Python 3 by the name a Unix system gives it.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) const PYTHON: &str = "python3";

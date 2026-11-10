@@ -85,7 +85,8 @@ pub struct Origin {
     pub version: Literal,
 }
 
-/// The log itself: an origin, and somewhere to send lines.
+/// The log itself: an origin, and somewhere to send lines — a store, or
+/// stderr alone.
 ///
 /// **Not `Clone`.** A second handle would mean a second flush at exit, and the
 /// first to run would close the shipper's channel while the other still held a
@@ -95,7 +96,8 @@ pub struct Origin {
 #[derive(Debug)]
 pub struct Log {
     origin: Origin,
-    shipper: Shipper,
+    /// The store's shipper; none for a log told of no store.
+    shipper: Option<Shipper>,
 }
 
 impl Log {
@@ -107,8 +109,24 @@ impl Log {
     pub fn open(origin: Origin, endpoint: &str) -> Result<Self, String> {
         Ok(Self {
             origin,
-            shipper: Shipper::start(endpoint)?,
+            shipper: Some(Shipper::start(endpoint)?),
         })
+    }
+
+    /// Opens a log for `origin` that writes every line to stderr: for a
+    /// process told of no store.
+    ///
+    /// **Each line where a store's log writes one its store did not take**,
+    /// prefixed and through the same bounded writer, so a reader finds a
+    /// process's lines in one shape whether no store was named or the one
+    /// named did not answer, and a stderr nobody drains holds nothing up. Its
+    /// end waits for that writer as a shipper's does.
+    #[must_use]
+    pub const fn to_standard_error(origin: Origin) -> Self {
+        Self {
+            origin,
+            shipper: None,
+        }
     }
 
     /// Records an event.
@@ -117,7 +135,11 @@ impl Log {
     /// add that the registry has not already declared, and nothing a caller
     /// could do about a log store that is down (`ship`'s module docs).
     pub fn record(&self, event: &impl Event) {
-        self.shipper.send(self.line(event));
+        let line = self.line(event);
+        match &self.shipper {
+            Some(shipper) => shipper.send(line),
+            None => ship::kept_on_stderr(&line),
+        }
     }
 
     /// The one JSON line an event becomes.
@@ -167,7 +189,7 @@ impl Log {
     /// things to two readers.
     #[must_use]
     pub fn dropped(&self) -> u64 {
-        self.shipper.dropped()
+        self.shipper.as_ref().map_or(0, Shipper::dropped)
     }
 
     /// How many lines reached neither the store nor stderr, since this process
@@ -197,6 +219,17 @@ impl Log {
     #[must_use]
     pub fn lost(&self) -> u64 {
         crate::ship::Shipper::lost()
+    }
+}
+
+impl Drop for Log {
+    // A log with a store waits in its shipper's own `Drop`; one told of none
+    // waits here for the lines it handed the stderr writer, or the last
+    // thing a process says before it returns from `main` goes with it.
+    fn drop(&mut self) {
+        if self.shipper.is_none() {
+            ship::flush_what_was_kept();
+        }
     }
 }
 
@@ -365,11 +398,72 @@ mod tests {
         );
         assert_eq!(
             read,
-            log.shipper.dropped(),
+            log.shipper.as_ref().expect("a store's log").dropped(),
             "the number a caller reads is not the number the shipper holds, so an \
              operator reading `dropped()` is reading something else"
         );
         core::mem::forget(log);
+    }
+
+    /// The variable that turns
+    /// [`a_log_told_of_no_store_writes_every_line_to_stderr`] into its own
+    /// child.
+    const TOLD_OF_NO_STORE: &str = "NC_LOG_NO_STORE_CHILD";
+
+    /// A log told of no store writes every line it is handed to stderr, as a
+    /// store's log writes one its store did not take, and a process that
+    /// returns keeps the last of them.
+    ///
+    /// **In a child process, whose stderr this reads**: only a real exit
+    /// shows that the lines handed over just before it are kept.
+    #[test]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the child is this same test binary, and its stderr is read, not printed"
+    )]
+    fn a_log_told_of_no_store_writes_every_line_to_stderr() {
+        let origin = || Origin {
+            service: crate::literal!("test"),
+            version: crate::literal!("9.9.9"),
+        };
+        if std::env::var_os(TOLD_OF_NO_STORE).is_some() {
+            let log = Log::to_standard_error(origin());
+            log.record(&Probe);
+            log.record(&Ends_A_Line);
+            assert_eq!(log.dropped(), 0, "a log with no queue dropped a line");
+            return;
+        }
+        let said = std::process::Command::new(std::env::current_exe().expect("this binary"))
+            .args([
+                "tests::a_log_told_of_no_store_writes_every_line_to_stderr",
+                "--exact",
+                "--nocapture",
+            ])
+            .env(TOLD_OF_NO_STORE, "1")
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .output()
+            .expect("the child runs");
+        let told = String::from_utf8_lossy(&said.stdout);
+        // A filter that matches nothing runs zero tests and exits 0.
+        assert!(
+            told.contains("1 passed"),
+            "the child ran no test, so this proves nothing: {told}"
+        );
+        let stderr = String::from_utf8_lossy(&said.stderr);
+        // Each line where a shipper's fallback writes one: behind its prefix,
+        // the line the log makes of the event.
+        let written: Vec<&str> = stderr
+            .lines()
+            .filter_map(|line| line.strip_prefix("nc-log: "))
+            .filter(|line| line.starts_with('{'))
+            .collect();
+        let log = Log::to_standard_error(origin());
+        assert_eq!(
+            written,
+            [log.line(&Probe), log.line(&Ends_A_Line)],
+            "{stderr}"
+        );
     }
 
     fn log() -> Log {

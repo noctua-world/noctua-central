@@ -5474,8 +5474,19 @@ mod the_system_rules {
     /// The tree the system's own answers are written in, and nowhere else.
     pub(super) const THE_PLATFORM: &str = "crates/nc-platform/";
 
-    /// The predicates of a `cfg` that name a system.
-    pub(super) const SYSTEMS: [&str; 4] = ["unix", "windows", "target_os", "target_family"];
+    /// The predicates of a `cfg` that name a system: its family, its own
+    /// name, and the vendor, the environment and the ABI that tell one
+    /// system's builds apart — every part of a target but its architecture
+    /// and its pointer width.
+    pub(super) const SYSTEMS: [&str; 7] = [
+        "unix",
+        "windows",
+        "target_os",
+        "target_family",
+        "target_vendor",
+        "target_env",
+        "target_abi",
+    ];
 
     /// The lines outside [`THE_PLATFORM`] that ask the system, each by its
     /// file and its text: the gate's own.
@@ -5706,8 +5717,9 @@ mod the_system_rules {
     }
 
     /// A `cfg` naming a system is found as an attribute, a macro and a
-    /// `cfg_attr`, however its predicate nests, and one naming no system — or
-    /// written in prose — is not.
+    /// `cfg_attr`, however its predicate nests and by whichever part of the
+    /// target names it, and one naming no system — an architecture, a pointer
+    /// width, or prose — is not.
     #[test]
     fn a_cfg_naming_a_system_is_found_and_one_naming_none_is_not() {
         let text = [
@@ -5722,9 +5734,14 @@ mod the_system_rules {
             "let s = \"#[cfg(windows)]\";\n",
             "#[cfg(feature = \"unix\")]\n",
             "let cfg = unix;\n",
+            "#[cfg(target_vendor = \"apple\")]\n",
+            "let msvc = cfg!(target_env = \"msvc\");\n",
+            "#[cfg_attr(target_abi = \"eabihf\", inline)]\n",
+            "#[cfg(target_arch = \"wasm32\")]\n",
+            "#[cfg(target_pointer_width = \"64\")]\n",
         ]
         .concat();
-        assert_eq!(systems_asked(&text), [2, 3, 4, 5, 6]);
+        assert_eq!(systems_asked(&text), [2, 3, 4, 5, 6, 12, 13, 14]);
     }
 
     /// The shipped sources the no-listener rule reads are an app's own and the
@@ -9748,7 +9765,7 @@ mod tests {
     /// platform's own, and reports each.
     #[test]
     fn the_system_walk_goes_everywhere_outside_the_platform() {
-        let defect = "#[cfg(windows)] pub fn f() {}";
+        let defect = "#[cfg(target_vendor = \"apple\")] pub fn f() {}";
         let (_held, root, mut planted) = in_every_real_directory(defect, "");
         and_a_file_under_every_name_it_opens(&root, &mut planted, defect, "");
         let (findings, _) = super::the_system_rules::systems_asked_under(&root);

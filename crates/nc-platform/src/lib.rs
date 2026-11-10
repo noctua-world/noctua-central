@@ -286,6 +286,16 @@ pub mod system {
     /// false and says so in its own output, by the system's name, and the
     /// Linux and macOS jobs run it.
     pub const A_POSIX_SHELL: bool = crate::imp::A_POSIX_SHELL;
+
+    /// Whether a process here is in a session of the POSIX kind, which it
+    /// leaves by starting its own (`setsid`) and which a terminal's hangup
+    /// reaches: false on Windows.
+    ///
+    /// **What the suite about leaving a session stands aside for where it is
+    /// false**: a process there has no such session, so there is none to read
+    /// that one left. It says so in its own output, by the system's name, and
+    /// the Linux and macOS jobs run it.
+    pub const POSIX_SESSIONS: bool = crate::imp::POSIX_SESSIONS;
 }
 
 /// Whether [`sync_directory`] syncs anything here, and so can fail.
@@ -808,14 +818,18 @@ mod tests {
     #[test]
     fn linux_lacks_nothing_a_suite_stands_aside_for() {
         let expected = if cfg!(target_os = "linux") {
-            (Some("/dev/shm"), true)
+            (Some("/dev/shm"), true, true)
         } else if cfg!(windows) {
-            (None, false)
+            (None, false, false)
         } else {
-            (None, true)
+            (None, true, true)
         };
         assert_eq!(
-            (super::system::LISTED_AS_MADE, super::system::A_POSIX_SHELL),
+            (
+                super::system::LISTED_AS_MADE,
+                super::system::A_POSIX_SHELL,
+                super::system::POSIX_SESSIONS
+            ),
             expected,
             "what this system lacks for a suite is not what it is written to lack"
         );
@@ -937,6 +951,16 @@ mod tests {
     fn a_detached_process_leads_a_session_of_its_own() {
         use std::io::{BufRead as _, Write as _};
 
+        if !super::system::POSIX_SESSIONS {
+            let mut out = std::io::stdout().lock();
+            let _ = writeln!(
+                out,
+                "skipped, not applicable on {}: no process here is in a session of the POSIX \
+                 kind, so there is none to leave, and the Linux and macOS jobs run it",
+                std::env::consts::OS
+            );
+            return;
+        }
         if std::env::var_os(DETACHING).is_some() {
             super::leave_the_session().expect("detached");
             super::leave_the_session().expect("detached again, as a session's leader");
@@ -975,21 +999,18 @@ mod tests {
                 "the child ended without detaching"
             );
         }
-        let session = testing::session_of(pid).expect("the child's session is read");
-        let ours = testing::session_of(std::process::id()).expect("this session is read");
+        let session = testing::session_of(pid)
+            .expect("the child's session is read")
+            .expect("a system with sessions read none for the child");
+        let ours = testing::session_of(std::process::id())
+            .expect("this session is read")
+            .expect("a system with sessions read none for this process");
         drop(child.0.stdin.take());
-        assert_eq!(
-            session.is_some(),
-            ours.is_some(),
-            "a system with sessions read one for one process and none for another"
+        assert_eq!(session, pid, "the detached child does not lead a session");
+        assert_ne!(
+            session, ours,
+            "the detached child is still in this one's session"
         );
-        if let (Some(session), Some(ours)) = (session, ours) {
-            assert_eq!(session, pid, "the detached child does not lead a session");
-            assert_ne!(
-                session, ours,
-                "the detached child is still in this one's session"
-            );
-        }
     }
 
     /// A lock file that is not the user's alone is refused, and left as it

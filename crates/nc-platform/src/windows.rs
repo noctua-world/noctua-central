@@ -118,6 +118,9 @@ pub(crate) const LISTED_AS_MADE: Option<&str> = None;
 /// system that spends it as Windows does.
 pub(crate) const A_POSIX_SHELL: bool = false;
 
+/// No process here is in a session of the POSIX kind.
+pub(crate) const POSIX_SESSIONS: bool = false;
+
 /// Python 3 by the name its installers give it here: `python3` is, where it
 /// is anything, the system's shortcut to its app store.
 #[cfg(any(test, feature = "test-support"))]

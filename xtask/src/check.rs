@@ -195,7 +195,7 @@ pub(crate) const fn the_parts_not_applicable(stack: Stack) -> &'static [&'static
 /// a refusal on the system that stood it aside. On Linux the list is empty,
 /// which `the_suites_a_system_stands_aside_are_the_ones_written_down_for_it`
 /// and `nothing_is_not_applicable_on_linux` hold.
-fn what_does_not_apply(stack: Stack, has: [bool; 2]) -> Vec<String> {
+fn what_does_not_apply(stack: Stack, has: [bool; 3]) -> Vec<String> {
     let mut parts: Vec<String> = the_parts_not_applicable(stack)
         .iter()
         .map(|part| (*part).to_owned())
@@ -5706,7 +5706,7 @@ const ANNOUNCES_NO_DATABASE: [(&str, &str, &str, usize); 6] = [
 /// [`THE_SUITES_A_SYSTEM_STANDS_ASIDE`]. On Linux none of these does, which
 /// `linux_lacks_nothing_a_suite_stands_aside_for` holds in `nc-platform`,
 /// since the Linux job is the one that runs them.
-const ANNOUNCES_WHAT_THE_SYSTEM_LACKS: [(&str, &str, &str, usize); 2] = [
+const ANNOUNCES_WHAT_THE_SYSTEM_LACKS: [(&str, &str, &str, usize); 3] = [
     // A directory listed in the order its entries were made, without which the
     // suite about the order on disk has two layouts in one order.
     (
@@ -5722,6 +5722,16 @@ const ANNOUNCES_WHAT_THE_SYSTEM_LACKS: [(&str, &str, &str, usize); 2] = [
         "!nc_platform::system::A_POSIX_SHELL",
         "skipped, not applicable on",
         10,
+    ),
+    // Sessions of the POSIX kind, which the suite about a process leaving the
+    // one it was started in reads. `nc-platform`'s own, so named here by hand:
+    // the walk that finds the others leaves out the crate that defines the
+    // answers.
+    (
+        "crates/nc-platform/src/lib.rs",
+        "!super::system::POSIX_SESSIONS",
+        "skipped, not applicable on",
+        1,
     ),
 ];
 
@@ -5742,9 +5752,10 @@ const ANNOUNCES_WHAT_THE_SYSTEM_LACKS: [(&str, &str, &str, usize); 2] = [
 /// chooses it, in [`the_suites_the_system_stands_aside`], and
 /// `every_suite_a_system_stands_aside_says_so` drives that and holds what it
 /// prints to this list.
-pub(crate) const THE_SUITES_A_SYSTEM_STANDS_ASIDE: [&str; 2] = [
+pub(crate) const THE_SUITES_A_SYSTEM_STANDS_ASIDE: [&str; 3] = [
     "running the suite about the order on disk, which needs a directory that lists its entries in the order they were made",
     "running the checkout script's guards, which need a POSIX shell of the system's own",
+    "running the suite about leaving a session, which needs sessions of the POSIX kind",
 ];
 
 /// What this system has of what each suite of
@@ -5754,14 +5765,15 @@ pub(crate) const THE_SUITES_A_SYSTEM_STANDS_ASIDE: [&str; 2] = [
 /// is the one place a system is asked what it has (`NOCTUA.md §2.7`), fixed
 /// when it is built, and each suite's guard asks the same constant, so the
 /// gate and a guard cannot disagree about which suite stood aside.
-const WHAT_THIS_SYSTEM_HAS: [bool; 2] = [
+const WHAT_THIS_SYSTEM_HAS: [bool; 3] = [
     nc_platform::system::LISTED_AS_MADE.is_some(),
     nc_platform::system::A_POSIX_SHELL,
+    nc_platform::system::POSIX_SESSIONS,
 ];
 
 /// The suites a system that has `has` stands aside, in order: each one whose
 /// need it lacks. Owned, for the reason [`what_does_not_apply`] gives.
-fn the_suites_not_applicable(has: [bool; 2]) -> Vec<String> {
+fn the_suites_not_applicable(has: [bool; 3]) -> Vec<String> {
     THE_SUITES_A_SYSTEM_STANDS_ASIDE
         .into_iter()
         .zip(has)
@@ -5778,8 +5790,8 @@ fn the_suites_not_applicable(has: [bool; 2]) -> Vec<String> {
 /// short. Its own function so a test can hand it each answer: each suite
 /// writes its sentence here, beside the answer that chooses it, and
 /// [`THE_SUITES_A_SYSTEM_STANDS_ASIDE`] writes it again for the verdict.
-fn the_suites_the_system_stands_aside(has: [bool; 2]) {
-    let [listed_as_made, a_posix_shell] = has;
+fn the_suites_the_system_stands_aside(has: [bool; 3]) {
+    let [listed_as_made, a_posix_shell, posix_sessions] = has;
     if !listed_as_made {
         ui::not_applicable(
             "running the suite about the order on disk, which needs a directory that lists its entries in the order they were made",
@@ -5788,6 +5800,11 @@ fn the_suites_the_system_stands_aside(has: [bool; 2]) {
     if !a_posix_shell {
         ui::not_applicable(
             "running the checkout script's guards, which need a POSIX shell of the system's own",
+        );
+    }
+    if !posix_sessions {
+        ui::not_applicable(
+            "running the suite about leaving a session, which needs sessions of the POSIX kind",
         );
     }
 }
@@ -5818,7 +5835,7 @@ fn the_suites_the_system_stands_aside(has: [bool; 2]) {
 /// The names are written down in `STANDS_ASIDE_WITHOUT_A_WORKSPACE` and read
 /// out of the sources, as the database half of this same clause has its census
 /// and its reader.
-fn what_the_count_leaves_out(stack: Stack, a_workspace_above: bool, has: [bool; 2]) -> Vec<String> {
+fn what_the_count_leaves_out(stack: Stack, a_workspace_above: bool, has: [bool; 3]) -> Vec<String> {
     let mut caveats = Vec::new();
     if !stack.asked() {
         caveats.push("the ones that need a database".to_owned());
@@ -7915,7 +7932,7 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// constant**, as `OPERATORS` is: one copy rather than one per use, and nothing
 /// reads it at compile time.
 #[cfg(test)]
-static WHAT_THE_GATE_CAN_SAY: [&str; 1059] = [
+static WHAT_THE_GATE_CAN_SAY: [&str; 1060] = [
     // The workflows' bounds (`xtask/src/workflow.rs`): what `.github/` may hold,
     // the authority each workflow opens with, the pins, and how the release is
     // made; and the `CI` step's two verdicts about them.
@@ -8125,6 +8142,7 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1059] = [
     "running the stack's own tests and the image-pin cases, which ask docker what it resolves",
     "running the suite about the order on disk, which needs a directory that lists its entries in the order they were made",
     "running the checkout script's guards, which need a POSIX shell of the system's own",
+    "running the suite about leaving a session, which needs sessions of the POSIX kind",
     "the container stack, which this verb brings up and takes down",
     "not applicable here: {part}",
     "not run: {skip}",
@@ -16135,10 +16153,11 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
             "the suites this system stands aside are not the ones written down for it"
         );
         for (has, aside) in [
-            ([true, true], &[][..]),
-            ([false, true], &ASIDE[..1]),
-            ([true, false], &ASIDE[1..]),
-            ([false, false], &ASIDE[..]),
+            ([true, true, true], &[][..]),
+            ([false, true, true], &ASIDE[..1]),
+            ([true, false, true], &ASIDE[1..2]),
+            ([true, true, false], &ASIDE[2..]),
+            ([false, false, false], &ASIDE[..]),
         ] {
             assert_eq!(
                 the_suites_not_applicable(has),
@@ -16170,7 +16189,14 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
             what_does_not_apply,
         };
         let _printing = crate::ui::printing();
-        for has in [[true, true], [false, true], [true, false], [false, false]] {
+        for has in [
+            [true, true, true],
+            [false, true, true],
+            [true, false, true],
+            [true, true, false],
+            [false, true, false],
+            [false, false, false],
+        ] {
             let aside = the_suites_not_applicable(has);
             ui::forget_counts();
             the_suites_the_system_stands_aside(has);
@@ -16226,18 +16252,23 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     fn the_count_line_names_what_it_leaves_out() {
         use super::{Stack, in_one_clause, what_the_count_leaves_out};
         assert!(
-            what_the_count_leaves_out(Stack::Asked, true, [true, true]).is_empty(),
+            what_the_count_leaves_out(Stack::Asked, true, [true; 3]).is_empty(),
             "a run that left nothing out says it did"
         );
         assert_eq!(
-            what_the_count_leaves_out(Stack::Offline, true, [true, true]),
+            what_the_count_leaves_out(Stack::Offline, true, [true; 3]),
             ["the ones that need a database"]
         );
         assert_eq!(
-            what_the_count_leaves_out(Stack::Asked, false, [true, true]),
+            what_the_count_leaves_out(Stack::Asked, false, [true; 3]),
             ["the ones that need the workspace above this repository"]
         );
-        for has in [[false, true], [true, false], [false, false]] {
+        for has in [
+            [false, true, true],
+            [true, false, true],
+            [true, true, false],
+            [false, false, false],
+        ] {
             assert_eq!(
                 what_the_count_leaves_out(Stack::Asked, true, has),
                 ["the ones that need what this system lacks"],
@@ -16245,7 +16276,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
                  does not say so"
             );
         }
-        let every = what_the_count_leaves_out(Stack::NotApplicable, false, [false, false]);
+        let every = what_the_count_leaves_out(Stack::NotApplicable, false, [false; 3]);
         assert_eq!(
             in_one_clause(&every),
             "the ones that need a database, the ones that need the workspace above this \
@@ -19362,7 +19393,7 @@ mod the_frozen_path_rule {
         ("daemon/device.rs", 22, 5),
         ("daemon/environment.rs", 12, 16),
         ("daemon/install.rs", 14, 6),
-        ("daemon/ipc_refusals.rs", 5, 0),
+        ("daemon/ipc_refusals.rs", 7, 0),
         ("daemon/lib.rs", 7, 15),
         ("daemon/main.rs", 15, 6),
         ("daemon/mark.rs", 27, 15),
@@ -19370,10 +19401,10 @@ mod the_frozen_path_rule {
         ("daemon/plugins.rs", 17, 6),
         ("daemon/profile.rs", 19, 5),
         ("daemon/run.rs", 8, 1),
-        ("daemon/schedule.rs", 14, 2),
-        ("daemon/server.rs", 33, 2),
+        ("daemon/schedule.rs", 18, 2),
+        ("daemon/server.rs", 37, 4),
         ("daemon/serves_its_kernel.rs", 18, 3),
-        ("daemon/testing.rs", 26, 8),
+        ("daemon/testing.rs", 30, 8),
         ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
         ("daemon/the_mark_survives_a_crash.rs", 15, 12),
         ("nc-authz/directory.rs", 38, 15),
@@ -19488,16 +19519,16 @@ mod the_frozen_path_rule {
         ("nc-local/the_local_journal.rs", 33, 12),
         ("nc-log/events.rs", 27, 135),
         ("nc-log/every_event_reaches_the_store.rs", 5, 1),
-        ("nc-log/lib.rs", 19, 25),
-        ("nc-log/ship.rs", 106, 50),
+        ("nc-log/lib.rs", 22, 27),
+        ("nc-log/ship.rs", 108, 50),
         ("nc-log/value.rs", 18, 36),
         ("nc-platform/ipc.rs", 20, 13),
-        ("nc-platform/lib.rs", 83, 22),
+        ("nc-platform/lib.rs", 84, 22),
         ("nc-platform/process.rs", 8, 1),
         ("nc-platform/service.rs", 155, 18),
         ("nc-platform/testing.rs", 29, 1),
-        ("nc-platform/unix.rs", 76, 2),
-        ("nc-platform/windows.rs", 121, 11),
+        ("nc-platform/unix.rs", 77, 2),
+        ("nc-platform/windows.rs", 122, 11),
         ("nc-policy/an_entity_type_is_a_name_cedar_parses.rs", 7, 3),
         ("nc-policy/cases.rs", 10, 13),
         ("nc-policy/lib.rs", 103, 20),
@@ -25386,7 +25417,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 17090;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 17123;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25405,7 +25436,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4009;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4035;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25422,7 +25453,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1334;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1344;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25439,7 +25470,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [91, 19, 38, 39, 92];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [93, 21, 38, 39, 92];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -25456,7 +25487,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 23477;
+    const THE_REARRANGEMENTS_JUDGED: usize = 23546;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25474,7 +25505,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 515;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 520;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -25510,8 +25541,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **515 of 23,477 are accepted by the first-line
-    /// rule alone, and 279 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **520 of 23,546 are accepted by the first-line
+    /// rule alone, and 283 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -25532,9 +25563,9 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **91 ascending sorts, 19 descending, 38
-    /// swaps, 39 rotations and 92 reversals** — so the reversal is the largest
-    /// part of it, not the whole.
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **93 ascending sorts, 21 descending, 38
+    /// swaps, 39 rotations and 92 reversals** — so the reversal is one of its
+    /// two largest parts, with the ascending sort, and not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
     /// the shape can be wrong in more than one number: counting the identity —
@@ -25543,7 +25574,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1334 of
+    /// this tree offers, **1344 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -27107,7 +27138,9 @@ mod the_frozen_path_rule {
     /// is a suite standing aside on macOS or Windows with nothing judging
     /// whether it says so. Each door is looked for by its own name, through
     /// [`names_a_door`], in every source but `nc-platform`'s, which defines
-    /// the doors and pins every system's answer to them.
+    /// the doors and pins every system's answer to them; a suite of that
+    /// crate's own that stands aside is named by hand, and held to its count
+    /// of guards with the others.
     #[test]
     fn every_source_that_asks_what_the_system_lacks_is_one_the_census_names() {
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
@@ -27128,6 +27161,7 @@ mod the_frozen_path_rule {
         let mut named: Vec<String> = super::ANNOUNCES_WHAT_THE_SYSTEM_LACKS
             .iter()
             .map(|(file, _, _, _)| (*file).to_owned())
+            .filter(|file| !file.starts_with("crates/nc-platform/"))
             .collect();
         named.sort();
         assert_eq!(
@@ -27205,7 +27239,7 @@ mod the_frozen_path_rule {
         let doors = the_doors_a_suite_stands_aside_by();
         assert_eq!(
             doors,
-            ["A_POSIX_SHELL", "LISTED_AS_MADE"],
+            ["A_POSIX_SHELL", "LISTED_AS_MADE", "POSIX_SESSIONS"],
             "the census asks other doors than these fixtures do, so they hold nothing"
         );
         for (how, text) in [
@@ -28190,7 +28224,7 @@ mod the_frozen_path_rule {
     /// verdicts that agree for that long are one row, and — because a prefix
     /// matches nothing the two censuses hold — every row is a shipped literal
     /// accounted for nowhere. Written out, each row is its own accounting.
-    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 491] = [
+    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 492] = [
         ("—", "compiled catalog/"),
         (
             "—",
@@ -28963,6 +28997,10 @@ mod the_frozen_path_rule {
         (
             "if !a_posix_shell",
             "running the checkout script's guards, which need a POSIX shell of the system's own",
+        ),
+        (
+            "if !posix_sessions",
+            "running the suite about leaving a session, which needs sessions of the POSIX kind",
         ),
         (
             "let Ok(text) = std::fs::read_to_string(root.join(named)) else",
@@ -37270,7 +37308,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1961] = [
+    static OPERATORS: [(&str, &str, &str); 1973] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -41702,6 +41740,11 @@ Options:
         ),
         (
             "check",
+            "the_suites_the_system_stands_aside",
+            "the suite about leaving a session need not say so",
+        ),
+        (
+            "check",
             "what_the_count_leaves_out",
             "the count line need not say what the system stood aside",
         ),
@@ -45142,6 +45185,7 @@ Options:
             "directly_under_a_member",
             "a canary directory at any member's root is one",
         ),
+        ("gates", "SYSTEMS", "a cfg naming a vendor names a system"),
         (
             "members",
             "under",
@@ -45915,6 +45959,22 @@ Options:
         ("daemon_schedule", "pumped", "a stuck run is logged"),
         ("daemon_schedule", "swept", "a sweep's refusal is noted"),
         (
+            "daemon_schedule",
+            "on_schedule",
+            "a stop is asked only between runs",
+        ),
+        (
+            "daemon_schedule",
+            "on_schedule",
+            "no run begins once a stop was asked for",
+        ),
+        (
+            "daemon_schedule",
+            "ended",
+            "a run still going at the bound is counted",
+        ),
+        ("daemon_schedule", "ended", "a run given up on is let go"),
+        (
             "daemon_server",
             "reach",
             "nothing moves a stopping daemon's state back",
@@ -45950,9 +46010,24 @@ Options:
             "a command's reversibility is its own word",
         ),
         (
+            "daemon_server",
+            "admitted_after",
+            "a dispatch is counted before its state is read",
+        ),
+        (
+            "daemon_server",
+            "drop",
+            "a dispatch refused or answered is no longer counted",
+        ),
+        (
             "daemon_environment",
             "log",
-            "an install naming no central log is refused as naming none",
+            "an install naming no central log writes to standard error",
+        ),
+        (
+            "daemon_environment",
+            "log",
+            "a central log nc_log refuses is a refusal",
         ),
         (
             "daemon_environment",
@@ -46034,7 +46109,22 @@ Options:
         (
             "daemon_testing",
             "without_a_central_log",
-            "a fence names no central log",
+            "an install told of no central log names none",
+        ),
+        (
+            "daemon_testing",
+            "with_a_central_log_refused",
+            "a fence names a central log a start refuses",
+        ),
+        (
+            "daemon_testing",
+            "namespace_of",
+            "two processes' installs never spell one namespace",
+        ),
+        (
+            "log_root",
+            "record",
+            "a log told of no store writes every line to stderr",
         ),
     ];
 

@@ -343,8 +343,8 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "error.daemon.no-central-log",
         [
-            "This installation does not say where Noctua keeps its own log, so Noctua did not start. Install Noctua again.",
-            "Esta instalação não diz onde o Noctua guarda o próprio registro, então o Noctua não iniciou. Instale o Noctua de novo.",
+            "This installation names a place for Noctua's own log that Noctua cannot write to, so Noctua did not start. Install Noctua again.",
+            "Esta instalação indica, para o registro do próprio Noctua, um lugar onde o Noctua não consegue escrever, então o Noctua não iniciou. Instale o Noctua de novo.",
         ],
     ),
     (

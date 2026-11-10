@@ -757,17 +757,20 @@ effect; 22 is gated over the statements written today and by nothing over the ne
 
 24. **No code outside `nc-platform` decides by the system it is built for**
     (`NOCTUA.md §2.7`): a `cfg`, `cfg!` or `cfg_attr` naming `unix`, `windows`,
-    `target_os` or `target_family` is written in `crates/nc-platform` alone, which states
-    each system's answer as a fact every system's code reads, so the decision is code the
-    Linux job compiles, tests and mutates. The gate's own lines are the exception, each
+    `target_os`, `target_family`, `target_vendor`, `target_env` or `target_abi` — every
+    part of a target but its architecture and its pointer width — is written in
+    `crates/nc-platform` alone, which states each system's answer as a fact every system's
+    code reads, so the decision is code the Linux job compiles, tests and mutates. The gate's own lines are the exception, each
     written down by its file and its text (`THE_GATES_OWN` in `xtask/src/gates.rs`):
     `check::RUNS_THE_STACK`, and two tests holding that answer to the system they run on.
     **Gated** by `no_system_is_asked_outside_the_platform`, over every Rust source of every
     member tree with comments and strings blanked, the predicate read inside its
     parentheses, and by `the_system_walk_goes_everywhere_outside_the_platform`. **Not
-    held**: a manifest's `[target.'cfg(…)']` table, which only `nc-platform`'s holds today,
-    and the system asked another way — `std::env::consts::OS` compared at run time — which
-    is a decision this gate cannot read.
+    held**: a manifest's `[target.'cfg(…)']` table, which only `nc-platform`'s holds today;
+    a `cfg` by architecture or pointer width, which names no system — the reference
+    plugin's `target_arch = "wasm32"` among them; and the system asked another way —
+    `std::env::consts::OS` compared at run time — which is a decision this gate cannot
+    read.
 
 ## The security answer §2.4 asks for
 
@@ -1490,7 +1493,10 @@ stderr, never a lost line. Whether to write lines out and whether the store has 
 two questions: a silent store keeps its lines **and** is not counted against, and only a
 peer that closed is concluded gone (`GIVE_UP_AFTER`). The shutdown shortens the connect
 and the write (`bounds`) and the answer (the `abandoning` flag); only the last is reached
-in ordinary running, as `bounds`' own doc says.
+in ordinary running, as `bounds`' own doc says. A log told of no store
+(`Log::to_standard_error`, a daemon whose install names none) writes every line there
+itself, in the shape and through the bounded writer a shipper's fallback uses, and its
+`Drop` waits one `GRACE` for that writer as a shipper's does.
 
 ### The chain is over bytes, not over formatting
 
@@ -1979,10 +1985,12 @@ header gives, the endpoint served, and a stop.
   A connection is accepted only once the system shows its other end to be this user's, and
   served only once the client proves it holds the token (the two entries above); each
   refusal of either is logged as `ipc.refused` with its code, and closes the connection
-  before a request is read. The daemon binds nothing a network can reach (invariant 23). A
-  dispatch or the registry asked before the kernel runs is refused as not running yet
-  (`NC-DMN-0009`) and one asked after a stop began as stopping (`NC-DMN-0010`); the status
-  and a stop are answered from the first moment.
+  before a request is read. A proven connection that then sends what is not a request,
+  falls silent past `ipc_silent_after_ms`, takes nothing or is lost is closed and logged
+  the same way; one its client closes between requests ends well. The daemon binds nothing
+  a network can reach (invariant 23). A dispatch or the registry asked before the kernel
+  runs is refused as not running yet (`NC-DMN-0009`) and one asked after a stop began as
+  stopping (`NC-DMN-0010`); the status and a stop are answered from the first moment.
 - **Every dispatch is the kernel's to decide, as the profile's person.** The daemon hands
   `Kernel::dispatch` the person the world names and the arguments as they arrived, decides
   nothing itself, and hands back the kernel's answer or its refusal by the kernel's own code
@@ -2004,20 +2012,26 @@ header gives, the endpoint served, and a stop.
   `pump_every_ms` and the blob sweep every `sweep_every_ms`, between call trees, each to
   its end before the next is waited for; a run of pumps whose pruning was refused is logged
   as `daemon.prune_stuck` at two and each doubling, and a clean one ends it.
-- **The central log is the install's, and a daemon whose refusals reach nobody does not
-  start** (`NC-DMN-0011`); a store that does not answer has its lines written to the
-  daemon's standard error by `nc_log`. A start and a stop are logged (`daemon.started`,
+- **The central log is the install's, and goes nowhere the install did not name.** An
+  install naming no store has the daemon's lines written to its standard error alone
+  (`nc_log::Log::to_standard_error`), and a store that does not answer has them written
+  there by `nc_log`; an install naming a store `nc_log` refuses — one off this machine —
+  does not start (`NC-DMN-0011`). A start and a stop are logged (`daemon.started`,
   `daemon.stopped`, with what a stop gave up on).
-- **A stop leaves nothing of the run but its effects.** New dispatches are refused, the
-  ones running are waited for `stop_drain_ms` at most — at least a dispatch's whole
-  deadline, which the compiler holds — the mark is settled, the local database closed, the
-  record and the token removed, the socket with the listener, and the lock let go.
+- **A stop leaves nothing of the run but its effects.** New dispatches are refused — each
+  counted as running before the state is read, so a stop either refuses one or waits for
+  it — no pump and no sweep begins, and the dispatches running and a pump or a sweep the
+  stop finds inside a run are waited for `stop_drain_ms` at most — at least one call
+  tree's whole deadline, which the compiler holds; then the mark is settled, the local
+  database closed, the record and the token removed, the socket with the listener, and the
+  lock let go.
 - **A spawned daemon holds none of its spawner's handles**: a suite starts it with its
   standard input and output null and its standard error a file in its profile, after
   keeping this process's own standard handles from every child
   (`nc_platform::process::keep_standard_handles_from_children` — on Windows a child is
-  otherwise handed every inheritable handle its parent holds), and the daemon leaves the
-  session it was started in (`nc_platform::leave_the_session`).
+  otherwise handed every inheritable handle its parent holds); and a daemon that does not
+  lead its process group starts a session of its own (`nc_platform::leave_the_session`),
+  so no terminal it was started from signals it.
 
 **Enforced by** `apps/daemon/tests/ipc_refusals.rs` — a real daemon process handed a hello
 with no proof, a proof keyed by another token and nothing at all, each turned away with its
@@ -2029,19 +2043,28 @@ dispatch found in the journal with the outcome it was answered with and as the w
 person, the pump on its schedule and the sweep once, a second daemon refused with the first
 still answering, a stop that ends with exit 0 and leaves no record, token, socket or lock and
 a profile that starts again with a new instance, and a spawner whose output ends while the
-daemon it started runs — by the unit tests of `server`, `pidfile`, `plugins`, `schedule`
-and `environment`, by `a_directory_held_is_not_held_again_at_once` and
-`a_detached_process_leads_a_session_of_its_own` in `crates/nc-platform/src/lib.rs`, by
-invariant 23's gate, and by the operators over those sources in `xtask/mutants.py`, each
-judged by its own module's unit tests.
+daemon it started runs — by the unit tests of `server` (among them
+`a_dispatch_is_counted_before_its_state_is_read`), `pidfile`, `plugins`, `schedule`
+(`a_stop_waits_for_the_run_it_finds_and_begins_none_after`,
+`a_run_still_going_at_the_bound_is_given_up_on_and_counted`) and `environment`, by
+`a_log_told_of_no_store_writes_every_line_to_stderr` in `crates/nc-log/src/lib.rs`, by
+`a_directory_held_is_not_held_again_at_once` and
+`a_detached_process_leads_a_session_of_its_own` in `crates/nc-platform/src/lib.rs` —
+which stands aside on Windows, where no process has such a session, by
+`nc_platform::system::POSIX_SESSIONS` — by invariant 23's gate, and by the operators over
+those sources in `xtask/mutants.py`, each judged by its own module's unit tests.
 
 **Not answered:** a process running as the same user, which can read the token and dispatch
 as the person, stop the daemon, or install a plugin — authorization decides every dispatch
 whoever asked (`§14`); a daemon killed, which runs no handler and leaves its record, its
-token and its socket for the next start to replace; a stop asked while the start waits for
-its clock, which abandons the start and leaves the mark as the last raise wrote it; and a
-dispatch still running past `stop_drain_ms`, which the stop gives up on and the next start
-recovers. What the daemon leaves undone is under **What is deliberately not claimed**.
+token and its socket for the next start to replace; a daemon that leads its process group
+— started by hand as a job of a shell, or spawned as a group's leader — which cannot start
+a session and stays in the one it was started in, where that terminal's hangup reaches it;
+a stop asked while the start waits for its clock, which abandons the start and leaves the
+mark as the last raise wrote it; and a dispatch, a pump or a sweep still running past
+`stop_drain_ms` — trees run one after another, such as a pump's callbacks, that outlast
+the drain together — which the stop gives up on, counts in `daemon.stopped`, and closes
+the local database under, and whose unit the next start recovers. What the daemon leaves undone is under **What is deliberately not claimed**.
 
 ### A program registered with the service manager runs as it was described, and a test's registration is its own
 
@@ -2987,7 +3010,8 @@ rather than anything decided for the project, and each is a maintainer's to reop
   `daemon.stopped`), a plugin it refused (`daemon.plugin_refused`), a pruner stuck
   (`daemon.prune_stuck`) and a connection it refused (`ipc.refused`) — each a struct
   `catalog/log-events.toml` generates; nothing else of the platform logs yet. A daemon hands the kernel `nc_log::Log` behind a mutex, the
-  one `nc_kernel::logging::LogSink` it writes its own events to too; the kernel's suites
+  one `nc_kernel::logging::LogSink` it writes its own events to too — to its standard
+  error alone when its install names no store; the kernel's suites
   log into a capture,
   and `the_central_log_sink_ships_what_the_kernel_records` in
   `crates/nc-kernel/src/logging.rs` drives the real shipper to a store it stands up.
@@ -3743,9 +3767,9 @@ holds to each other.
 **A suite that needs what a system lacks asks `nc_platform::system`, and the gate names
 it.** The system's answer is a constant of that crate, fixed per system as
 `RUNS_THE_STACK` is — `LISTED_AS_MADE`, a directory listed in the order its entries were
-made, and `A_POSIX_SHELL` — never a probe of the machine, so a Linux machine cannot stand a
-suite aside, and `linux_lacks_nothing_a_suite_stands_aside_for` holds every answer on every
-system. That module is compiled in every build, not behind `test-support`, because the
+made, `A_POSIX_SHELL`, and `POSIX_SESSIONS`, a session of the POSIX kind for a process to
+leave — never a probe of the machine, so a Linux machine cannot stand a suite aside, and
+`linux_lacks_nothing_a_suite_stands_aside_for` holds every answer on every system. That module is compiled in every build, not behind `test-support`, because the
 gate reads it too. Each guard prints `skipped, not applicable on <system>:` and why — and
 cargo counts the test as passed and captures that line with the rest of a passing test's
 output, which the gate prints none of. So the gate's test step says it instead, from the
@@ -3753,14 +3777,16 @@ same constants: before the tests, a `not applicable` line for each suite this sy
 aside (`THE_SUITES_A_SYSTEM_STANDS_ASIDE`); after them, `the ones that need what this
 system lacks` on the count line; and beside the verdict, `not applicable here: <suite>`.
 `finish` holds those lines to the list as it holds the stack's parts, so on macOS (the
-order on disk) and on Windows (that and the checkout script's guards) a suite that stopped
-saying so is a refusal, and
+order on disk) and on Windows (that, the checkout script's guards and the suite about
+leaving a session) a suite that stopped saying so is a refusal, and
 `the_suites_a_system_stands_aside_are_the_ones_written_down_for_it` holds the list per
 system, empty on Linux. `ANNOUNCES_WHAT_THE_SYSTEM_LACKS` in `xtask/src/check.rs` counts
 the guards into the same line as the database suites, read by the same rule — a count of
 the guards in the sources, the same on every system — with
 `every_source_that_asks_what_the_system_lacks_is_one_the_census_names` naming every source
-outside `nc-platform` whose code names a door. It looks for the door by its own name, as a
+outside `nc-platform` whose code names a door; a suite of `nc-platform`'s own, where the
+doors are defined, is a row written by hand and held to its count of guards the same way.
+It looks for the door by its own name, as a
 whole word, so a suite that reaches it through `use nc_platform::system;`, or under
 another name, is found as one writing the whole path is, and
 `a_door_is_asked_however_it_was_brought_into_scope` hands that reader the spellings the

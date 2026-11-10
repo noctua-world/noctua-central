@@ -353,12 +353,12 @@ fields = [
 
 [[event]]
 name = "daemon.stopped"
-description = "The daemon stopped when it was asked to: its dispatches drained or given up, its mark settled and its endpoint gone"
+description = "The daemon stopped when it was asked to: its dispatches and its schedule drained or given up, its mark settled and its endpoint gone"
 level = "info"
 fields = [
   { name = "ran", type = "duration" },
-  # The dispatches still running when `stop_drain_ms` ran out, which a start
-  # recovers; zero for a stop that waited for every one.
+  # The dispatches, pumps and sweeps still running when `stop_drain_ms` ran
+  # out, which a start recovers; zero for a stop that waited for every one.
   { name = "abandoned", type = "u32" },
 ]
 
@@ -381,6 +381,6 @@ fields = [
 
 [[event]]
 name = "ipc.refused"
-description = "The daemon refused a connection before it read a request — a peer not shown to be its user, one past the bound, or a handshake that did not prove the token — or closed one for its silence"
+description = "The daemon refused a connection before it read a request — a peer not shown to be its user, one past the bound, or a handshake that did not prove the token — or closed a proven one that broke the protocol, fell silent, took nothing or was lost"
 level = "warn"
 fields = [{ name = "code", type = "error_code" }]

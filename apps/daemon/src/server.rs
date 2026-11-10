@@ -16,7 +16,11 @@
 //!    kernel's — this asks nothing on its own. A dispatch or the registry asked
 //!    before the kernel runs is refused as not running yet (`NC-DMN-0009`), and
 //!    one asked once a stop began as stopping (`NC-DMN-0010`); the status and a
-//!    stop are answered from the first moment.
+//!    stop are answered from the first moment. A dispatch is counted as
+//!    running before the state is read, so a stop either refuses it or waits
+//!    for it. A connection that then breaks the protocol, falls silent, takes
+//!    nothing or is lost is closed and logged as `ipc.refused` with its code;
+//!    one its client closes between requests ends well.
 //!
 //! # What each answer holds
 //!
@@ -200,7 +204,12 @@ impl Server {
                 return;
             }
         };
-        while let Ok(Some(request)) = served.next().await {
+        let ended = loop {
+            let request = match served.next().await {
+                Ok(Some(request)) => request,
+                Ok(None) => break None,
+                Err(broken) => break Some(broken),
+            };
             let answer = self.answer(request).await;
             let sent = match served.answer(&answer).await {
                 Err(unsendable @ nc_ipc::IpcError::Unsendable { .. }) => {
@@ -214,9 +223,16 @@ impl Server {
                 }
                 sent => sent,
             };
-            if sent.is_err() {
-                return;
+            if let Err(lost) = sent {
+                break Some(lost);
             }
+        };
+        // A client that closed the connection between requests ended it
+        // well; one that broke the protocol, fell silent, took nothing or was
+        // lost is closed by the daemon and logged as a refusal of its own.
+        if let Some(why) = ended {
+            self.log
+                .record(&nc_log::events::IpcRefused { code: why.code() });
         }
     }
 
@@ -232,11 +248,40 @@ impl Server {
                 Ok(kernel) => Answer::Registry(kernel.registry().iter().map(listed).collect()),
                 Err(refusal) => Answer::Refused(refusal),
             },
-            Request::Dispatch { command, args } => match self.kernel_if_running() {
-                Ok(kernel) => self.dispatched(&kernel, &command, &args).await,
+            Request::Dispatch { command, args } => match self.admitted() {
+                Ok((kernel, admitted)) => {
+                    let answer = self.dispatched(&kernel, &command, &args).await;
+                    drop(admitted);
+                    answer
+                }
                 Err(refusal) => Answer::Refused(refusal),
             },
         }
+    }
+
+    /// The kernel, for a dispatch admitted while it runs, and the dispatch
+    /// counted as running until what this answers is dropped.
+    fn admitted(&self) -> Result<(Arc<Kernel<Daemon>>, Admitted<'_>), Refusal> {
+        self.admitted_after(|| {})
+    }
+
+    /// What [`Server::admitted`] answers, with `meanwhile` run between the
+    /// count and the reading of the state: where a stop asked on another
+    /// thread may land.
+    ///
+    /// **Counted before the state is read**, so a stop either is seen here
+    /// and the dispatch refused, or sees the dispatch running and waits for
+    /// it: the state's lock orders the stop's write before the read here, or
+    /// the count here before the drain's read.
+    fn admitted_after(
+        &self,
+        meanwhile: impl FnOnce(),
+    ) -> Result<(Arc<Kernel<Daemon>>, Admitted<'_>), Refusal> {
+        self.running.fetch_add(1, Ordering::SeqCst);
+        let admitted = Admitted(self);
+        meanwhile();
+        let kernel = self.kernel_if_running()?;
+        Ok((kernel, admitted))
     }
 
     /// The kernel, while it runs: refused as not running yet before it does,
@@ -261,16 +306,12 @@ impl Server {
     }
 
     /// `command` with `args`, dispatched by the kernel as the profile's
-    /// person, counted as running until it answers.
+    /// person.
     async fn dispatched(&self, kernel: &Kernel<Daemon>, command: &str, args: &Value) -> Answer {
-        self.running.fetch_add(1, Ordering::SeqCst);
         let caller = Caller::new(self.named.person.clone());
         let answered = kernel
             .dispatch(&caller, command, &args.to_canonical())
             .await;
-        if self.running.fetch_sub(1, Ordering::SeqCst) == 1 {
-            self.finished.notify_waiters();
-        }
         match answered {
             Ok(payload) => nc_canon::parse(&payload).map_or_else(
                 |error| {
@@ -290,10 +331,9 @@ impl Server {
         }
     }
 
-    /// Waits for the dispatches running to end, `within` at most, and
-    /// answers how many were still running when it gave up.
-    pub async fn drained(&self, within: Duration) -> u32 {
-        let deadline = tokio::time::Instant::now() + within;
+    /// Waits for the dispatches running to end, until `deadline` at most,
+    /// and answers how many were still running when it gave up.
+    pub async fn drained(&self, deadline: tokio::time::Instant) -> u32 {
         loop {
             let finished = self.finished.notified();
             let running = self.running.load(Ordering::SeqCst);
@@ -349,6 +389,18 @@ impl Server {
             ));
         }
         Value::object(fields)
+    }
+}
+
+/// A dispatch admitted, counted as running until it is dropped.
+#[derive(Debug)]
+struct Admitted<'a>(&'a Server);
+
+impl Drop for Admitted<'_> {
+    fn drop(&mut self) {
+        if self.0.running.fetch_sub(1, Ordering::SeqCst) == 1 {
+            self.0.finished.notify_waiters();
+        }
     }
 }
 
@@ -685,10 +737,11 @@ mod tests {
     /// ones still running at its bound, saying how many.
     #[tokio::test]
     async fn a_drain_waits_for_what_runs_and_gives_up_at_its_bound() {
+        let after = |bound: Duration| tokio::time::Instant::now() + bound;
         let server = Arc::new(a_server(nc_channel::Channel::Staging));
-        assert_eq!(server.drained(Duration::from_secs(5)).await, 0);
+        assert_eq!(server.drained(after(Duration::from_secs(5))).await, 0);
         server.running.fetch_add(2, Ordering::SeqCst);
-        assert_eq!(server.drained(Duration::from_millis(50)).await, 2);
+        assert_eq!(server.drained(after(Duration::from_millis(50))).await, 2);
         let ending = Arc::clone(&server);
         let ended = tokio::spawn(async move {
             for _ in 0..2 {
@@ -699,10 +752,51 @@ mod tests {
             }
         });
         assert_eq!(
-            server.drained(Duration::from_secs(30)).await,
+            server.drained(after(Duration::from_secs(30))).await,
             0,
             "a drain gave up on dispatches that ended inside its bound"
         );
         ended.await.expect("the dispatches ended");
+    }
+
+    /// A dispatch is counted as running before the state is read, so a stop
+    /// that lands between the two refuses it, and a drain at that moment
+    /// would have waited for it; a dispatch refused, or answered, is no longer
+    /// counted.
+    ///
+    /// **Found by a review**: counted only once the state said running, a
+    /// dispatch admitted on one thread while a stop drained on another was
+    /// seen by neither, and the stop closed the store under it.
+    #[test]
+    fn a_dispatch_is_counted_before_its_state_is_read() {
+        let server = a_server(nc_channel::Channel::Staging);
+        server.reach(State::Running);
+        let mut seen = None;
+        let refused = server
+            .admitted_after(|| {
+                server.stop();
+                seen = Some(server.running.load(Ordering::SeqCst));
+            })
+            .expect_err("a stop landed before the state was read");
+        assert_eq!(
+            seen,
+            Some(1),
+            "a stop landing there saw no dispatch to wait for"
+        );
+        assert_eq!(refused.code, ErrorCode::DaemonStopping);
+        assert_eq!(
+            server.running.load(Ordering::SeqCst),
+            0,
+            "a dispatch refused is still counted as running"
+        );
+        // Running with no kernel open: refused as not running yet, and not
+        // counted either.
+        let server = a_server(nc_channel::Channel::Staging);
+        server.reach(State::Running);
+        let refused = server
+            .admitted()
+            .expect_err("no kernel is open to admit it to");
+        assert_eq!(refused.code, ErrorCode::DaemonNotRunning);
+        assert_eq!(server.running.load(Ordering::SeqCst), 0);
     }
 }

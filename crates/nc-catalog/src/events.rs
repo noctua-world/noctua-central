@@ -157,7 +157,7 @@ pub const EVENTS: &[EventSpec] = &[
     },
     EventSpec {
         name: "daemon.stopped",
-        description: "The daemon stopped when it was asked to: its dispatches drained or given up, its mark settled and its endpoint gone",
+        description: "The daemon stopped when it was asked to: its dispatches and its schedule drained or given up, its mark settled and its endpoint gone",
         level: Level::Info,
         fields: &[
             FieldSpec {
@@ -228,7 +228,7 @@ pub const EVENTS: &[EventSpec] = &[
     },
     EventSpec {
         name: "ipc.refused",
-        description: "The daemon refused a connection before it read a request — a peer not shown to be its user, one past the bound, or a handshake that did not prove the token — or closed one for its silence",
+        description: "The daemon refused a connection before it read a request — a peer not shown to be its user, one past the bound, or a handshake that did not prove the token — or closed a proven one that broke the protocol, fell silent, took nothing or was lost",
         level: Level::Warn,
         fields: &[FieldSpec {
             name: "code",

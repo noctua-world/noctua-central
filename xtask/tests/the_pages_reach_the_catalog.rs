@@ -661,7 +661,7 @@ const PROSE: [(&str, &str); 166] = [
     ),
     (
         "limits.md",
-        "**The schedule and the stop are enforced by `apps/daemon`.** It pumps its kernel every `pump_every_ms` — the timers due, the events queued and the pruner over the local database — and sweeps the blobs every `sweep_every_ms`, each between call trees; a stop waits `stop_drain_ms` at most for the dispatches already running. The compiler holds the pump to the kernel's `timer_min_interval_ms`, the sweep to its `blob_orphan_grace_ms`, and the drain to at least its `dispatch_deadline_ms`, so a stop never cuts short a call tree the kernel would let finish.",
+        "**The schedule and the stop are enforced by `apps/daemon`.** It pumps its kernel every `pump_every_ms` — the timers due, the events queued and the pruner over the local database — and sweeps the blobs every `sweep_every_ms`, each between call trees; a stop begins no pump and no sweep, and waits `stop_drain_ms` at most for the dispatches already running and for a pump or a sweep it finds inside a run, giving up on what still runs then. The compiler holds the pump to the kernel's `timer_min_interval_ms`, the sweep to its `blob_orphan_grace_ms`, and the drain to at least its `dispatch_deadline_ms`, the longest the kernel lets one call tree run: a stop waits out any one tree, and gives up only on trees run one after another — a pump's callbacks, or a dispatch that waited for a pump — that outlast the drain together.",
     ),
     (
         "log-events.md",
@@ -701,7 +701,7 @@ const PROSE: [(&str, &str); 166] = [
     ("log-events.md", "## `daemon.stopped`"),
     (
         "log-events.md",
-        "The daemon stopped when it was asked to: its dispatches drained or given up, its mark settled and its endpoint gone",
+        "The daemon stopped when it was asked to: its dispatches and its schedule drained or given up, its mark settled and its endpoint gone",
     ),
     ("log-events.md", "Level: `info`"),
     ("log-events.md", "## `db.migrated`"),
@@ -728,7 +728,7 @@ const PROSE: [(&str, &str); 166] = [
     ("log-events.md", "## `ipc.refused`"),
     (
         "log-events.md",
-        "The daemon refused a connection before it read a request — a peer not shown to be its user, one past the bound, or a handshake that did not prove the token — or closed one for its silence",
+        "The daemon refused a connection before it read a request — a peer not shown to be its user, one past the bound, or a handshake that did not prove the token — or closed a proven one that broke the protocol, fell silent, took nothing or was lost",
     ),
     ("log-events.md", "Level: `warn`"),
     ("log-events.md", "## `journal.appended`"),

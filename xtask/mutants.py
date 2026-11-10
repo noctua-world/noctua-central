@@ -4164,10 +4164,13 @@ WEAKENINGS = [
      "        .filter(|&(_, has)| has)"),
     ("check", "what_does_not_apply", "the verdict is not held to the suites a system stands aside",
      "    parts.extend(the_suites_not_applicable(has));",
-     "    parts.extend(the_suites_not_applicable([true; 2]));"),
+     "    parts.extend(the_suites_not_applicable([true; 3]));"),
     ("check", "the_suites_the_system_stands_aside", "a suite the system stands aside need not say so",
      "    if !a_posix_shell {",
      "    if !a_posix_shell && listed_as_made {"),
+    ("check", "the_suites_the_system_stands_aside", "the suite about leaving a session need not say so",
+     "    if !posix_sessions {",
+     "    if !posix_sessions && listed_as_made {"),
     ("check", "what_the_count_leaves_out", "the count line need not say what the system stood aside",
      "    if !the_suites_not_applicable(has).is_empty() {",
      "    if the_suites_not_applicable(has).len() > THE_SUITES_A_SYSTEM_STANDS_ASIDE.len() {"),
@@ -6434,6 +6437,10 @@ WEAKENINGS = [
     ("gates", "directly_under_a_member", "a canary directory at any member's root is one",
      "    inside_a_member(relative)\n        .map(|(_, inside)| inside)\n        .or_else(|| {\n            crate::members::trees_that_are_members()\n                .find_map(|tree| relative.strip_prefix(tree)?.strip_prefix('/'))\n        })",
      "    relative.strip_prefix(\"xtask/\")"),
+    # A `cfg` naming a system by its vendor is one the system rule reads.
+    ("gates", "SYSTEMS", "a cfg naming a vendor names a system",
+     "        \"target_vendor\",\n",
+     "        \"target_arch\",\n"),
     # **The one list every gate reads where the platform's code is**
     # (`MEMBER_TREES`): a tree's name read as a prefix of another's, and a
     # list of trees cut short, each decided by the members' own tests and by
@@ -6995,6 +7002,21 @@ WEAKENINGS = [
     ("daemon_schedule", "swept", "a sweep's refusal is noted",
      "    done.sweep_refused = refused;\n",
      ""),
+    # A stop is asked between runs and never inside one, no run begins once
+    # it was asked for, and a run still going at the drain's bound is counted
+    # and let go.
+    ("daemon_schedule", "on_schedule", "a stop is asked only between runs",
+     "        once().await;\n",
+     "        tokio::select! {\n            () = &mut stopped => return,\n            () = once() => {}\n        }\n"),
+    ("daemon_schedule", "on_schedule", "no run begins once a stop was asked for",
+     "            () = &mut stopped => return,\n            _ = every.tick() => {}",
+     "            _ = every.tick() => {}\n            () = &mut stopped => return,"),
+    ("daemon_schedule", "ended", "a run still going at the bound is counted",
+     "    running.abort();\n    1\n",
+     "    running.abort();\n    0\n"),
+    ("daemon_schedule", "ended", "a run given up on is let go",
+     "    running.abort();\n",
+     ""),
     # The server: a stop has the last word on the state, a dispatch is refused
     # by why the kernel does not run, a drain says what it gave up on, and the
     # status and the registry say what the daemon and its kernel are.
@@ -7019,11 +7041,21 @@ WEAKENINGS = [
     ("daemon_server", "listed", "a command's reversibility is its own word",
      "                Reversibility::Irreversible => \"irreversible\",",
      "                Reversibility::Irreversible => \"write\","),
-    # The environment: no central log is a refusal, and a start reads the
-    # newest unit its journal holds.
-    ("daemon_environment", "log", "an install naming no central log is refused as naming none",
-     "        .as_deref()\n        .ok_or_else(",
-     "        .as_deref()\n        .or(Some(\"\"))\n        .ok_or_else("),
+    ("daemon_server", "admitted_after", "a dispatch is counted before its state is read",
+     "        self.running.fetch_add(1, Ordering::SeqCst);\n        let admitted = Admitted(self);\n        meanwhile();\n        let kernel = self.kernel_if_running()?;",
+     "        let kernel = self.kernel_if_running();\n        self.running.fetch_add(1, Ordering::SeqCst);\n        let admitted = Admitted(self);\n        meanwhile();\n        let kernel = kernel?;"),
+    ("daemon_server", "drop", "a dispatch refused or answered is no longer counted",
+     "        if self.0.running.fetch_sub(1, Ordering::SeqCst) == 1 {",
+     "        if self.0.running.load(Ordering::SeqCst) == 1 {"),
+    # The environment: no central log named is the standard error alone, one
+    # `nc_log` refuses is a refusal, and a start reads the newest unit its
+    # journal holds.
+    ("daemon_environment", "log", "an install naming no central log writes to standard error",
+     "        None => nc_log::Log::to_standard_error(origin()),",
+     "        None => return Err(Refused::NoCentralLog { why: String::new() }),"),
+    ("daemon_environment", "log", "a central log nc_log refuses is a refusal",
+     "            nc_log::Log::open(origin(), endpoint).map_err(|why| Refused::NoCentralLog {\n                why: format!(\"the install's central log is refused: {why}\"),\n            })?",
+     "            nc_log::Log::open(origin(), endpoint)\n                .unwrap_or_else(|_| nc_log::Log::to_standard_error(origin()))"),
     ("daemon_environment", "store", "a start reads the newest unit its journal holds",
      "        Ok(newest) => Ok((store, newest)),",
      "        Ok(_) => Ok((store, None)),"),
@@ -7084,9 +7116,19 @@ WEAKENINGS = [
     ("daemon_testing", "drop", "an install's scratch goes with it",
      "        let _ = std::fs::remove_dir_all(&self.0);",
      ""),
-    ("daemon_testing", "without_a_central_log", "a fence names no central log",
-     "        install.log_endpoint = None;\n",
-     ""),
+    ("daemon_testing", "without_a_central_log", "an install told of no central log names none",
+     "        self.rewritten(None);",
+     "        self.rewritten(Some(NOBODY_LISTENS));"),
+    ("daemon_testing", "with_a_central_log_refused", "a fence names a central log a start refuses",
+     "        self.rewritten(Some(OFF_THIS_MACHINE));",
+     "        self.rewritten(None);"),
+    ("daemon_testing", "namespace_of", "two processes' installs never spell one namespace",
+     "    format!(\"t{pid:x}n{made}\")",
+     "    format!(\"t{pid:x}{made}\")"),
+    # A log told of no store writes every line to stderr.
+    ("log_root", "record", "a log told of no store writes every line to stderr",
+     "            None => ship::kept_on_stderr(&line),",
+     "            None => {}"),
 ]
 
 # **Every member tree, as `MEMBER_TREES` in `xtask/src/members.rs` names them**,

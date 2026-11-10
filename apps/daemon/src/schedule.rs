@@ -8,6 +8,14 @@
 //! end before the next is waited for, so a slow one is never run twice at
 //! once. The bounds are the catalog's, read here, and no caller chooses them.
 //!
+//! **A stop is asked between runs, never inside one.** A pump's timer
+//! callbacks and event deliveries are call trees of their own, so a stop that
+//! cut one short would close the local database under a callback that still
+//! writes to it. The schedule asks whether a stop was asked for only while it
+//! waits for the next run, begins none once one was, and the stop waits for
+//! the run it found as it waits for a dispatch — `stop_drain_ms` at most, past
+//! which the run is given up on and counted as one ([`ended`]).
+//!
 //! **A table the pruner skips on every pump is escalated.** The pruner leaves
 //! a table it waited too long for alone and says so, and the next pump is a
 //! better answer than ending this one — but a wait that never ends is a
@@ -103,44 +111,84 @@ pub fn swept(done: &Mutex<Done>, at: u64, refused: Option<ErrorCode>) {
     done.sweep_refused = refused;
 }
 
-/// Pumps `kernel` every `pump_every_ms`, the first at once, for as long as it
-/// is not stopped.
+/// Runs `once` every `period`, the first at once, until `stopped` ends.
+///
+/// **`stopped` is asked only while the next run is waited for**, and before
+/// a tick that came due with it, so a run that began is run to its end and
+/// none begins once a stop was asked for.
+pub async fn on_schedule<Run: Future<Output = ()>>(
+    period: Duration,
+    stopped: impl Future<Output = ()>,
+    mut once: impl FnMut() -> Run,
+) {
+    let mut every = tokio::time::interval(period);
+    every.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+    let mut stopped = core::pin::pin!(stopped);
+    loop {
+        tokio::select! {
+            biased;
+            () = &mut stopped => return,
+            _ = every.tick() => {}
+        }
+        once().await;
+    }
+}
+
+/// Pumps `kernel` every `pump_every_ms`, the first at once, until `stopped`
+/// ends, never inside a pump.
 pub async fn pumping(
     kernel: Arc<nc_kernel::Kernel<crate::environment::Daemon>>,
     done: Arc<Mutex<Done>>,
     log: crate::environment::Sink,
+    stopped: impl Future<Output = ()>,
 ) {
-    let mut every = tokio::time::interval(pump_every());
-    every.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-    loop {
-        every.tick().await;
+    let (kernel, done, log) = (&kernel, &done, &log);
+    on_schedule(pump_every(), stopped, move || async move {
         let pumped_now = kernel.pump().await;
         pumped(
-            &done,
+            done,
             nc_ids::SystemClock.now_ms(),
             pumped_now.prune_refused,
-            &log,
+            log,
         );
-    }
+    })
+    .await;
 }
 
-/// Sweeps `kernel`'s blobs every `sweep_every_ms`, the first at once, for as
-/// long as it is not stopped.
+/// Sweeps `kernel`'s blobs every `sweep_every_ms`, the first at once, until
+/// `stopped` ends, never inside a sweep.
 pub async fn sweeping(
     kernel: Arc<nc_kernel::Kernel<crate::environment::Daemon>>,
     done: Arc<Mutex<Done>>,
+    stopped: impl Future<Output = ()>,
 ) {
-    let mut every = tokio::time::interval(sweep_every());
-    every.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-    loop {
-        every.tick().await;
+    let (kernel, done) = (&kernel, &done);
+    on_schedule(sweep_every(), stopped, move || async move {
         let refused = kernel
             .sweep_blobs()
             .await
             .err()
             .map(|refusal| refusal.code());
-        swept(&done, nc_ids::SystemClock.now_ms(), refused);
+        swept(done, nc_ids::SystemClock.now_ms(), refused);
+    })
+    .await;
+}
+
+/// Waits for the schedule's task `running` to end, until `deadline` at most,
+/// and answers how many runs it gave up on: none when it ended by then, and
+/// the one it is inside when it did not, which is let go.
+pub async fn ended(
+    mut running: tokio::task::JoinHandle<()>,
+    deadline: tokio::time::Instant,
+) -> u32 {
+    if tokio::time::timeout_at(deadline, &mut running)
+        .await
+        .is_ok()
+    {
+        return 0;
     }
+    running.abort();
+    1
 }
 
 #[cfg(test)]
@@ -235,6 +283,84 @@ mod tests {
         assert_eq!(done.sweeps, 2);
         assert_eq!(done.last_sweep, Some(20));
         assert_eq!(done.sweep_refused, None);
+    }
+
+    /// A stop that arrives inside a run waits for it, and no run begins
+    /// once it was asked for, however many ticks came due meanwhile.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_stop_waits_for_the_run_it_finds_and_begins_none_after() {
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicU32, Ordering};
+
+        use core::time::Duration;
+
+        let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
+        let (began, mut beginning) = tokio::sync::mpsc::unbounded_channel::<()>();
+        let release = Arc::new(tokio::sync::Notify::new());
+        let ran = Arc::new(AtomicU32::new(0));
+        let (releasing, counting) = (Arc::clone(&release), Arc::clone(&ran));
+        let mut schedule = tokio::spawn(async move {
+            super::on_schedule(
+                Duration::from_millis(1),
+                async {
+                    let _ = stopped.await;
+                },
+                move || {
+                    let (began, release, ran) =
+                        (began.clone(), Arc::clone(&releasing), Arc::clone(&counting));
+                    async move {
+                        let _ = began.send(());
+                        release.notified().await;
+                        ran.fetch_add(1, Ordering::SeqCst);
+                    }
+                },
+            )
+            .await;
+        });
+        tokio::time::timeout(Duration::from_secs(30), beginning.recv())
+            .await
+            .expect("the first run began at once")
+            .expect("a run began");
+        stop.send(()).expect("the schedule is waiting for a stop");
+        assert!(
+            tokio::time::timeout(Duration::from_millis(200), &mut schedule)
+                .await
+                .is_err(),
+            "the schedule ended inside the run a stop found"
+        );
+        release.notify_one();
+        tokio::time::timeout(Duration::from_secs(30), schedule)
+            .await
+            .expect("the schedule ended once its run did")
+            .expect("it did not panic");
+        assert_eq!(
+            ran.load(Ordering::SeqCst),
+            1,
+            "a run began after the stop was asked for"
+        );
+    }
+
+    /// A stop waits for the schedule's task until its bound, and gives up on
+    /// the run it is still inside then, counting it and letting it go.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_run_still_going_at_the_bound_is_given_up_on_and_counted() {
+        use core::time::Duration;
+
+        let soon = || tokio::time::Instant::now() + Duration::from_secs(30);
+        let finished = tokio::spawn(async {});
+        assert_eq!(super::ended(finished, soon()).await, 0);
+        let going = tokio::spawn(std::future::pending::<()>());
+        let letting_go = going.abort_handle();
+        let bound = tokio::time::Instant::now() + Duration::from_millis(50);
+        assert_eq!(super::ended(going, bound).await, 1);
+        let deadline = soon();
+        while !letting_go.is_finished() {
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "a run given up on was not let go"
+            );
+            tokio::task::yield_now().await;
+        }
     }
 
     /// The bounds the schedule keeps are the catalog's.

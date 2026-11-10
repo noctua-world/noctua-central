@@ -140,9 +140,9 @@ pub enum Refused {
         /// The state directory it holds.
         path: PathBuf,
     },
-    /// The install names no central log the daemon can speak to.
+    /// The install names a central log the daemon cannot speak to.
     NoCentralLog {
-        /// Why: none named, or one `nc_log` refuses.
+        /// Why `nc_log` refuses it.
         why: String,
     },
     /// The kernel's engine refused its configuration.
@@ -277,8 +277,9 @@ impl core::fmt::Display for Refused {
             ),
             Self::NoCentralLog { why } => write!(
                 formatter,
-                "{why}, so the daemon did not start: what it refuses is told to the central \
-                 log; install it with the installer that names one"
+                "{why}, so the daemon did not start rather than send its lines somewhere the \
+                 install did not name; install it with the installer, which names one on \
+                 this machine or none"
             ),
             Self::Engine(why) => write!(formatter, "the kernel did not open: {why}"),
             Self::Store(refused) => write!(formatter, "the local database did not open: {refused}"),

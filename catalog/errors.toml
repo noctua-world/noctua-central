@@ -1253,9 +1253,10 @@ retryable = true
 
 [[error]]
 # The central log is how an operator learns what a daemon refused (§15.4), so a
-# daemon whose install names no store it can speak to does not run with its
-# events going nowhere. A store that names one and does not answer is not this:
-# its lines go to the daemon's standard error.
+# daemon whose install names a store it cannot speak to — one off this machine,
+# or no endpoint at all — does not run with its events sent somewhere the
+# install did not name. An install naming no store is not this, nor is a store
+# that does not answer: their lines go to the daemon's standard error.
 code = "NC-DMN-0011"
 description = "The install names no central log the daemon can speak to, so the daemon did not start"
 message = "error.daemon.no-central-log"

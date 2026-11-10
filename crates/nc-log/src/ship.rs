@@ -984,10 +984,23 @@ fn answer_slice(left: core::time::Duration) -> core::time::Duration {
     left.min(POLL).max(core::time::Duration::from_millis(1))
 }
 
+/// Writes `line` where a shipper writes one its store did not take, for a log
+/// told of no store: through the one bounded writer, never waiting on it.
+pub(crate) fn kept_on_stderr(line: &str) {
+    to_stderr_line(format!("nc-log: {line}\n"));
+}
+
+/// Waits for the stderr writer as a shipper's `Drop` does, one `GRACE` at
+/// most: what a log told of no store pays to end.
+pub(crate) fn flush_what_was_kept() {
+    flush_stderr(GRACE);
+}
+
 /// Waits up to `grace` for the stderr writer to catch up.
 ///
-/// Only `Drop` calls it, and only once: the drain thread must never wait on
-/// stderr, which is the whole reason the writer is a thread of its own.
+/// Only a log's end calls it — a shipper's `Drop`, or a log told of no store
+/// as it ends — and each once: the drain thread must never wait on stderr,
+/// which is the whole reason the writer is a thread of its own.
 fn flush_stderr(grace: core::time::Duration) {
     let until = std::time::Instant::now() + grace;
     while still_queued() > 0 && std::time::Instant::now() < until {
