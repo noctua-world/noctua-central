@@ -16,10 +16,10 @@
 //!
 //! # A process signalled is one held to its record first
 //!
-//! [`Verified::open`] is the one way to a process this crate signals: the
-//! process a record names, asked of the system and held to every part of the
-//! record — its boot, its start, its user and its executable — before anything
-//! can be sent to it. What each system asks:
+//! [`Verified::open`](crate::process::Verified::open) is the one way to a
+//! process this crate signals: the process a record names, asked of the system
+//! and held to every part of the record — its boot, its start, its user and its
+//! executable — before anything can be sent to it. What each system asks:
 //!
 //! | System | Held through | What is read |
 //! |---|---|---|
@@ -36,7 +36,7 @@
 //! answer**: a terminate there is `TerminateProcess`, as hard as a kill.
 //!
 //! Which part of a record a process failed on is decided here, in code every
-//! system compiles ([`judged`]), so the Linux job tests and mutates the
+//! system compiles (`judged`), so the Linux job tests and mutates the
 //! decision of every system; each system's half only reads.
 
 use std::path::{Path, PathBuf};
