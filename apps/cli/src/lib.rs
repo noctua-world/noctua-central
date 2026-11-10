@@ -21,6 +21,12 @@
 //!   a refusal on standard error, or one canonical JSON document under
 //!   `--json`, and an exit code from the one table.
 //!
+//! **Process control** ([`control`]) — `start`, `stop`, `restart` and `status`
+//! — reads no registry: it writes and removes the explicit-stop mark, asks the
+//! daemon through its endpoint, and signals only the process its PID record is
+//! held to. **The installer** ([`install`]) is what `cargo xtask dev --install`
+//! and the suites install an install with.
+//!
 //! [`run()`] is all of it but reading the install, so a suite drives the CLI
 //! in-process against an install of its own; `noctua`'s `main` only reads its
 //! arguments, its install and its environment, and prints.
@@ -41,10 +47,10 @@
 //!
 //! A process running as the same user, which can read the token and answer
 //! as the daemon, or ask the daemon anything this CLI can — authorization
-//! re-decides every dispatch (`§14`); the PID record, which no part of the CLI
-//! reads yet, so the welcome's process is held to the system's word alone; and
-//! process control — `start`, `stop`, `restart` and `status` — which these
-//! modules do not hold.
+//! re-decides every dispatch (`§14`) — or stop the daemon and remove its mark;
+//! a command's welcome, held to the system's word for the process at the other
+//! end and not to the PID record, which process control alone reads; and, on
+//! macOS, the moment between a process read and the signal sent it.
 
 #![deny(clippy::print_stdout, clippy::print_stderr, clippy::dbg_macro)]
 // Every doctest of this crate forbids `unsafe` as the crate does: a
@@ -53,8 +59,10 @@
 
 pub mod args;
 pub mod client;
+pub mod control;
 pub mod exit;
 pub mod help;
+pub mod install;
 pub mod render;
 pub mod run;
 

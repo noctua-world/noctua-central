@@ -183,6 +183,9 @@ dir   = "ltr"
 "error.cli.daemon-misnamed" = "O que respondeu não é o Noctua desta instalação, então nada foi enviado a ele."
 "error.cli.answer-unreadable" = "O Noctua respondeu com algo que este programa não entende. Instale o Noctua de novo para que os dois sejam da mesma versão."
 "error.cli.output-failed" = "Este programa não conseguiu escrever a resposta, então parte dela pode estar faltando."
+"error.cli.daemon-did-not-start" = "O Noctua foi iniciado e não respondeu, então pode não estar em execução. O que ele disse ao terminar aparece ao lado desta mensagem."
+"error.cli.daemon-did-not-stop" = "Foi pedido ao Noctua que parasse e ele não parou, então pode ainda estar em execução. Tente de novo daqui a pouco."
+"error.cli.process-unverified" = "O Noctua não respondeu, e não foi possível mostrar que o programa indicado nos registros dele é o Noctua, então nada foi parado."
 
 # --- The entries that prove the catalog's mechanism ---
 "notification.catalog.mechanism.title" = "O Noctua está funcionando"

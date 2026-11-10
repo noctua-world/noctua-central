@@ -121,6 +121,8 @@ The bounds the daemon holds itself to, read from `[daemon]` and from nowhere els
 
 **The schedule and the stop are enforced by `apps/daemon`.** It pumps its kernel every `pump_every_ms` — the timers due, the events queued and the pruner over the local database — and sweeps the blobs every `sweep_every_ms`, each between call trees; a stop begins no pump and no sweep, and waits `stop_drain_ms` at most for the dispatches already running, for a pump or a sweep it finds inside a run, and for each connection to write its last answer, giving up on what still runs then. The compiler holds the pump to the kernel's `timer_min_interval_ms`, the sweep to its `blob_orphan_grace_ms`, and the drain to at least its `dispatch_deadline_ms`, the longest the kernel lets one call tree run: a stop waits out any one tree, and gives up only on trees run one after another — a pump's callbacks, or a dispatch that waited for a pump — that outlast the drain together.
 
+**Process control is enforced by `apps/cli`.** `start` waits `start_within_ms` for the daemon it started to answer the handshake, and calls the start failed when it ends first or does not answer by then; `stop` waits `stop_within_ms` for a daemon that answered it to end, and `kill_within_ms` for one it signalled — asked to end, then killed — through the process its PID record was held to. The compiler holds the start above `ipc_handshake_ms`, so a handshake the daemon is allowed is never cut short, and the stop to at least twice `stop_drain_ms`, which a stopping daemon waits once for what it still runs and once more for its runtime's last work.
+
 | Limit | Value | What it bounds |
 |---|---|---|
 | `mark_lease_ms` | 2000 milliseconds | How far past the clock the identifiers' persisted ceiling is raised |
@@ -132,3 +134,6 @@ The bounds the daemon holds itself to, read from `[daemon]` and from nowhere els
 | `pump_every_ms` | 1000 milliseconds | How often the daemon fires its timers, delivers its events and prunes |
 | `sweep_every_ms` | 600000 milliseconds | How often the daemon sweeps the blobs no committed unit holds |
 | `stop_drain_ms` | 30000 milliseconds | How long a stop waits for the dispatches already running |
+| `start_within_ms` | 30000 milliseconds | How long `start` waits for the daemon it started to answer |
+| `stop_within_ms` | 65000 milliseconds | How long `stop` waits for a daemon that answered it to end |
+| `kill_within_ms` | 5000 milliseconds | How long `stop` waits for a daemon it signalled to end |

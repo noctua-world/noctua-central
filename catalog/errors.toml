@@ -1496,3 +1496,31 @@ description = "The CLI could not write what it answered to its standard output o
 message = "error.cli.output-failed"
 severity = "error"
 retryable = true
+
+[[error]]
+# `start` spawns the daemon detached and waits `start_within_ms` for its
+# handshake: a daemon that ended first, or never answered, is a start that
+# failed, and its standard error says why.
+code = "NC-CLI-0007"
+description = "The daemon was started and did not answer: it ended, or did not answer within its bound"
+message = "error.cli.daemon-did-not-start"
+severity = "error"
+retryable = true
+
+[[error]]
+code = "NC-CLI-0008"
+description = "The daemon was asked to stop, or signalled, and did not end within its bound, so it may still be running"
+message = "error.cli.daemon-did-not-stop"
+severity = "error"
+retryable = true
+
+[[error]]
+# A daemon that does not answer `stop` is signalled only through the process
+# its PID record was held to (`nc_platform::process::Verified`): a record that
+# names another process — another executable, another user — or one the system
+# could not be asked about is never signalled (§17.1).
+code = "NC-CLI-0009"
+description = "The PID record names a process the CLI could not hold to this channel's daemon, so nothing was signalled"
+message = "error.cli.process-unverified"
+severity = "error"
+retryable = false

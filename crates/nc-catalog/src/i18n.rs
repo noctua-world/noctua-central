@@ -334,6 +334,20 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "error.cli.daemon-did-not-start",
+        [
+            "Noctua was started and did not answer, so it may not be running. What it said as it ended is shown beside this.",
+            "O Noctua foi iniciado e não respondeu, então pode não estar em execução. O que ele disse ao terminar aparece ao lado desta mensagem.",
+        ],
+    ),
+    (
+        "error.cli.daemon-did-not-stop",
+        [
+            "Noctua was asked to stop and did not, so it may still be running. Try again in a moment.",
+            "Foi pedido ao Noctua que parasse e ele não parou, então pode ainda estar em execução. Tente de novo daqui a pouco.",
+        ],
+    ),
+    (
         "error.cli.daemon-misnamed",
         [
             "What answered is not this installation's Noctua, so nothing was sent to it.",
@@ -345,6 +359,13 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         [
             "This program could not write its answer, so part of it may be missing.",
             "Este programa não conseguiu escrever a resposta, então parte dela pode estar faltando.",
+        ],
+    ),
+    (
+        "error.cli.process-unverified",
+        [
+            "Noctua did not answer, and the program its records name could not be shown to be Noctua, so nothing was stopped.",
+            "O Noctua não respondeu, e não foi possível mostrar que o programa indicado nos registros dele é o Noctua, então nada foi parado.",
         ],
     ),
     (
@@ -1249,8 +1270,11 @@ pub const KEYS: &[&str] = &[
     "error.channel.unknown",
     "error.cli.answer-unreadable",
     "error.cli.command-line-unreadable",
+    "error.cli.daemon-did-not-start",
+    "error.cli.daemon-did-not-stop",
     "error.cli.daemon-misnamed",
     "error.cli.output-failed",
+    "error.cli.process-unverified",
     "error.cli.token-not-private",
     "error.cli.token-unreadable",
     "error.daemon.device-unreadable",

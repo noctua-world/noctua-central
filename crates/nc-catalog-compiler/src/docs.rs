@@ -909,7 +909,15 @@ fn daemon(catalog: &Catalog) -> String {
          `blob_orphan_grace_ms`, and the drain to at least its `dispatch_deadline_ms`, the \
          longest the kernel lets one call tree run: a stop waits out any one tree, and gives \
          up only on trees run one after another — a pump's callbacks, or a dispatch that \
-         waited for a pump — that outlast the drain together.\n\n",
+         waited for a pump — that outlast the drain together.\n\n\
+         **Process control is enforced by `apps/cli`.** `start` waits `start_within_ms` for \
+         the daemon it started to answer the handshake, and calls the start failed when it \
+         ends first or does not answer by then; `stop` waits `stop_within_ms` for a daemon \
+         that answered it to end, and `kill_within_ms` for one it signalled — asked to end, \
+         then killed — through the process its PID record was held to. The compiler holds \
+         the start above `ipc_handshake_ms`, so a handshake the daemon is allowed is never \
+         cut short, and the stop to at least twice `stop_drain_ms`, which a stopping daemon \
+         waits once for what it still runs and once more for its runtime's last work.\n\n",
     );
     out.push_str("| Limit | Value | What it bounds |\n|---|---|---|\n");
     for limit in catalog.limits.daemon.each() {

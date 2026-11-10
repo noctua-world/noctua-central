@@ -739,6 +739,12 @@ pub struct DaemonLimits {
     pub sweep_every_ms: u64,
     /// How long a stop waits for the dispatches running to end.
     pub stop_drain_ms: u64,
+    /// How long `start` waits for the daemon it started to answer.
+    pub start_within_ms: u64,
+    /// How long `stop` waits for a daemon that answered it to end.
+    pub stop_within_ms: u64,
+    /// How long `stop` waits for a daemon it signalled to end.
+    pub kill_within_ms: u64,
 }
 
 impl DaemonLimits {
@@ -758,6 +764,9 @@ impl DaemonLimits {
             pump_every_ms,
             sweep_every_ms,
             stop_drain_ms,
+            start_within_ms,
+            stop_within_ms,
+            kill_within_ms,
         } = *self;
         let wide = |name, value, unit, bounds| NamedLimit {
             name,
@@ -821,6 +830,24 @@ impl DaemonLimits {
                 stop_drain_ms,
                 Unit::Milliseconds,
                 "How long a stop waits for the dispatches already running",
+            ),
+            wide(
+                "start_within_ms",
+                start_within_ms,
+                Unit::Milliseconds,
+                "How long `start` waits for the daemon it started to answer",
+            ),
+            wide(
+                "stop_within_ms",
+                stop_within_ms,
+                Unit::Milliseconds,
+                "How long `stop` waits for a daemon that answered it to end",
+            ),
+            wide(
+                "kill_within_ms",
+                kill_within_ms,
+                Unit::Milliseconds,
+                "How long `stop` waits for a daemon it signalled to end",
             ),
         ]
     }

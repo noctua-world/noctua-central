@@ -82,9 +82,10 @@
 //!
 //! # What this crate does not do
 //!
-//! It reads no environment, and writes nothing. Its two ways to the disk are
-//! [`Checkout::of`], which canonicalizes the checkout's path, and [`found`],
-//! which reads the manifest beside an executable; [`layout`] touches none.
+//! It reads no environment, and writes nothing. Its ways to the disk are
+//! [`Checkout::of`], which canonicalizes the checkout's path, [`found`], which
+//! reads the manifest beside an executable, and [`record`], which reads the
+//! daemon's PID record; [`layout`] touches none.
 //! Which base directories a system has is `nc-platform`'s, asked by an
 //! installer; this crate is handed them.
 
@@ -94,6 +95,7 @@
 #![doc(test(attr(forbid(unsafe_code))))]
 
 pub mod found;
+pub mod record;
 
 use core::fmt::{self, Write as _};
 use std::collections::BTreeMap;
@@ -104,6 +106,13 @@ use nc_catalog::ErrorCode;
 
 /// The file an install names itself in, beside each of its executables.
 pub const MANIFEST: &str = "install.json";
+
+/// The name of a plugin's manifest, in its own directory under
+/// [`Layout::plugins`], where an installer writes it and the daemon reads it.
+pub const PLUGIN_MANIFEST: &str = "plugin.toml";
+
+/// The name of a plugin's component, beside its manifest.
+pub const PLUGIN_COMPONENT: &str = "component.wasm";
 
 /// The one manifest format this build reads and writes.
 ///

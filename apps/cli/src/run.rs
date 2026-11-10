@@ -5,12 +5,13 @@
 //! command line is read before anything is asked ([`crate::args::read`]);
 //! help on the exit codes and the verbs is answered without a daemon, and help
 //! on everything shows the grammar and the verbs when no registry can be read,
-//! beside the refusal and in its exit code; for anything else the daemon is
-//! reached and proven ([`crate::client`]), its registry read, the command
-//! found there and its arguments read against the schema it lists and held to
-//! it, and only then is the command dispatched — so a command line the CLI
-//! cannot read, a command the registry does not hold and arguments the schema
-//! refuses each reach no kernel.
+//! beside the refusal and in its exit code; a verb that controls the daemon's
+//! process is [`crate::control`]'s, which reads no registry; for anything else
+//! the daemon is reached and proven ([`crate::client`]), its registry read, the
+//! command found there and its arguments read against the schema it lists and
+//! held to it, and only then is the command dispatched — so a command line the
+//! CLI cannot read, a command the registry does not hold and arguments the
+//! schema refuses each reach no kernel.
 //!
 //! **The CLI acts as the profile's person and confirms nothing** (`§11.1`):
 //! a command that cannot be undone is refused by the kernel with
@@ -124,6 +125,14 @@ fn on_a_runtime(found: &Found, json: bool, env: &Env, asked: Asked) -> Result<Ou
 
 /// What `asked` comes to, over one connection to the daemon.
 async fn answered(found: &Found, json: bool, env: &Env, asked: Asked) -> Result<Outcome, Failure> {
+    // A verb that controls the daemon asks no registry, and starts a daemon
+    // that is down, so it is answered before any connection is made.
+    if let Asked::Control(verb) = asked {
+        return match crate::control::controlled(found, verb).await? {
+            crate::control::Done::Said(said) => Ok(render::shown(json, said)),
+            crate::control::Done::Status(status) => Ok(render::answered(json, &status)),
+        };
+    }
     let locale = env.locale();
     let cli = found.layout.cli.as_str();
     let mut connection = client::connect(found)
@@ -152,7 +161,9 @@ async fn answered(found: &Found, json: bool, env: &Env, asked: Asked) -> Result<
                 Ok(Read::Arguments(value)) => dispatched(&mut connection, &name, value, json).await,
             }
         }
-        Asked::Help(_) => Ok(render::shown(
+        // Help on everything; a verb that controls the daemon was answered
+        // above, before the connection.
+        Asked::Help(_) | Asked::Control(_) => Ok(render::shown(
             json,
             help::everything(cli, &registry, locale),
         )),
@@ -349,7 +360,8 @@ mod tests {
     fn a_command_line_the_cli_cannot_read_reaches_no_daemon() {
         let installed = Scratch::new("bad");
         for line in [
-            &["start"][..],
+            &["begin"][..],
+            &["stop", "now"],
             &["--verbose"],
             &["--json", "Journal.Verify"],
         ] {

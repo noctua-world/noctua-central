@@ -2,6 +2,7 @@
 //!
 //! ```text
 //! noctua [--json] [--help] <verb | command.name> [arguments]
+//! noctua [--json] start | stop | restart | status
 //! noctua help [<command.name> | <verb> | exit-codes]
 //! noctua <command.name> --<argument> <value> | --<argument>=<value> | --<boolean> …
 //! noctua <command.name> -- '<one JSON object>'
@@ -35,14 +36,49 @@ use nc_canon::Value;
 use nc_catalog::ErrorCode;
 use nc_schema::{Argument, Schema, Shape};
 
-/// The verbs the CLI answers itself, each one word.
+/// The verbs the CLI answers itself, each one word: `help`, and the verbs
+/// that control the daemon's process ([`Control`]).
 ///
 /// **Undotted, and a registered command's name is always dotted**
 /// (`nc_schema::command_name_is_well_formed`), so a verb never shadows a
-/// command and a command never takes a verb's place. `start`, `stop`,
-/// `restart` and `status` join `help` once the CLI controls its daemon's
-/// process.
-pub const VERBS: [&str; 1] = ["help"];
+/// command and a command never takes a verb's place.
+pub const VERBS: [&str; 5] = ["help", "start", "stop", "restart", "status"];
+
+/// A verb that controls the daemon's process (`NOCTUA.md §17.1`), which no
+/// registered command can be: a daemon that is down dispatches nothing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Control {
+    /// Start the daemon, unless it runs.
+    Start,
+    /// Stop it, and keep every restorer from starting it again.
+    Stop,
+    /// Stop it, then start it.
+    Restart,
+    /// Say how it is.
+    Status,
+}
+
+impl Control {
+    /// Every verb that controls the daemon, in the order help lists them.
+    pub const ALL: [Self; 4] = [Self::Start, Self::Stop, Self::Restart, Self::Status];
+
+    /// The word a command line says it with.
+    #[must_use]
+    pub const fn word(self) -> &'static str {
+        match self {
+            Self::Start => "start",
+            Self::Stop => "stop",
+            Self::Restart => "restart",
+            Self::Status => "status",
+        }
+    }
+
+    /// The verb `word` says, if it is one of these.
+    #[must_use]
+    pub fn of(word: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|verb| verb.word() == word)
+    }
+}
 
 /// The help topic that is the exit-code table, which needs no daemon.
 pub const EXIT_CODES: &str = "exit-codes";
@@ -61,6 +97,8 @@ pub struct Line {
 pub enum Asked {
     /// Help, on a topic.
     Help(Topic),
+    /// A verb that controls the daemon's process.
+    Control(Control),
     /// A registered command, and the words after its name, which are read
     /// against its schema once the registry has handed it.
     Command {
@@ -171,6 +209,15 @@ pub fn read(words: &[String]) -> Result<Line, Unread> {
         match rest.split_first() {
             None => Asked::Help(Topic::Everything),
             Some((word, after)) if word == "help" => Asked::Help(topic(after)?),
+            Some((word, after)) if let Some(verb) = Control::of(word) => match after.first() {
+                None => Asked::Control(verb),
+                Some(extra) => {
+                    return Err(unread(format!(
+                        "`{word}` takes nothing after it, and `{}` follows it",
+                        shown(extra)
+                    )));
+                }
+            },
             Some((word, after)) => Asked::Command {
                 name: named(word)?,
                 words: after.to_vec(),
@@ -431,7 +478,7 @@ mod tests {
     use nc_catalog::ErrorCode;
     use nc_schema::Schema;
 
-    use super::{Asked, Line, Read, Topic, Unread, VERBS};
+    use super::{Asked, Control, Line, Read, Topic, Unread, VERBS};
 
     fn words(line: &[&str]) -> Vec<String> {
         line.iter().map(|word| (*word).to_owned()).collect()
@@ -547,7 +594,8 @@ mod tests {
             &["--json", "--json", "journal.verify"],
             &["--help", "--help"],
             &["verify"],
-            &["start"],
+            &["begin"],
+            &["stop", "now"],
             &["journal"],
             &["journal.Verify"],
         ] {
@@ -570,7 +618,10 @@ mod tests {
         for verb in VERBS {
             assert!(!verb.contains('.'), "{verb}");
             assert!(!nc_schema::command_name_is_well_formed(verb), "{verb}");
-            assert!(matches!(line(&[verb]).asked, Asked::Help(_)), "{verb}");
+            assert!(
+                matches!(line(&[verb]).asked, Asked::Help(_) | Asked::Control(_)),
+                "{verb}"
+            );
         }
         assert!(!nc_schema::command_name_is_well_formed(super::EXIT_CODES));
         for command in nc_catalog::COMMANDS {
@@ -590,6 +641,35 @@ mod tests {
                 Asked::Command { .. }
             ));
         }
+    }
+
+    /// The verbs are `help` and the four that control the daemon, each read
+    /// as itself — under `--json` too — and refused with a word after it.
+    #[test]
+    fn a_verb_that_controls_the_daemon_is_read_alone() {
+        assert_eq!(
+            VERBS[1..],
+            Control::ALL.map(Control::word),
+            "the verbs are not help and the four that control the daemon"
+        );
+        assert_eq!(VERBS[0], "help");
+        for verb in Control::ALL {
+            assert_eq!(Control::of(verb.word()), Some(verb));
+            assert_eq!(line(&[verb.word()]).asked, Asked::Control(verb));
+            let json = line(&["--json", verb.word()]);
+            assert!(json.json && json.asked == Asked::Control(verb));
+            let refusal = refused(&[verb.word(), "--force"]);
+            assert!(
+                refusal.detail().contains("takes nothing after it"),
+                "{refusal:?}"
+            );
+            assert_eq!(
+                line(&["help", verb.word()]).asked,
+                Asked::Help(Topic::Verbs)
+            );
+        }
+        assert_eq!(Control::of("help"), None);
+        assert_eq!(Control::of("Stop"), None);
     }
 
     /// Each type is read as its type: text as written, a whole number, a

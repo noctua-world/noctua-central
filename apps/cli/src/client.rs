@@ -29,8 +29,8 @@
 //! A process running as the same user, which can read the token and answer
 //! as the daemon, or connect as a client — authorization re-decides every
 //! dispatch (`§14`); and the PID record the daemon writes, which this does not
-//! read yet: the welcome is held to the system's word for the other end, and
-//! not yet to the record process control will read too.
+//! read: the welcome is held to the system's word for the other end, and not
+//! to the record process control reads ([`crate::control`]).
 
 use std::path::Path;
 
@@ -99,6 +99,9 @@ pub enum Unasked {
     /// The daemon answered with something the CLI does not read; the text
     /// says what.
     Unread(String),
+    /// The daemon refused what was asked: the registry, asked before its
+    /// kernel runs or once it is stopping.
+    Refused(Refusal),
     /// The runtime a connection runs on could not be started.
     Runtime(std::io::Error),
 }
@@ -113,6 +116,7 @@ impl Unasked {
             Self::TokenUnreadable(_) => ErrorCode::CliTokenUnreadable,
             Self::Misnamed(_) => ErrorCode::CliDaemonMisnamed,
             Self::Unread(_) => ErrorCode::CliAnswerUnreadable,
+            Self::Refused(refusal) => refusal.code,
             Self::Runtime(_) => ErrorCode::IpcEndpointUnavailable,
         }
     }
@@ -140,6 +144,7 @@ impl Unasked {
             | Self::Misnamed(_)
             | Self::Asking(_) => Exit::Refused,
             Self::Unread(_) => Exit::Internal,
+            Self::Refused(refusal) => Exit::of_refusal(refusal),
             Self::Runtime(_) => Exit::Failed,
         }
     }
@@ -155,6 +160,7 @@ impl Unasked {
             | Self::TokenUnreadable(detail)
             | Self::Misnamed(detail)
             | Self::Unread(detail) => detail.clone(),
+            Self::Refused(refusal) => refusal.sentence.clone(),
             Self::Runtime(error) => {
                 format!("the runtime a connection runs on could not be started: {error}")
             }
@@ -292,6 +298,7 @@ impl Connection {
                     })
                 })
                 .collect(),
+            Answer::Refused(refusal) => Err(Unasked::Refused(refusal)),
             other => Err(unread_as("the registry", &other)),
         }
     }
@@ -751,7 +758,8 @@ mod tests {
     /// A proven daemon is asked one request at a time, and its answers read.
     ///
     /// Its registry is read as the CLI reads an entry, a dispatch answered or
-    /// refused, and an answer of another kind refused as unread — exit 8.
+    /// refused, an answer of another kind refused as unread — exit 8 — and a
+    /// registry the daemon refuses ends as its refusal does.
     #[test]
     fn a_proven_daemon_is_asked_and_its_answers_read() {
         let installed = Scratch::new("ask");
@@ -774,6 +782,11 @@ mod tests {
                     Answer::Refused(refusal.clone()),
                     Answer::Stopping,
                     Answer::Registry(vec![Value::object([("name", Value::text("a.b"))])]),
+                    Answer::Refused(Refusal {
+                        code: ErrorCode::DaemonNotRunning,
+                        kind: RefusalKind::Unavailable,
+                        sentence: "recovering".to_owned(),
+                    }),
                 ]],
             },
         );
@@ -788,10 +801,11 @@ mod tests {
                 .await?;
             let stopping = connection.dispatch("a.b", Value::object::<&str>([])).await;
             let unread = connection.registry().await;
-            Ok((registry, result, denied, stopping, unread))
+            let starting = connection.registry().await;
+            Ok((registry, result, denied, stopping, unread, starting))
         })
         .expect("asked");
-        let (registry, result, denied, stopping, unread) = answered;
+        let (registry, result, denied, stopping, unread, starting) = answered;
         assert_eq!(
             registry,
             [Listed {
@@ -807,9 +821,13 @@ mod tests {
             assert_eq!(unread.code(), ErrorCode::CliAnswerUnreadable, "{unread:?}");
             assert_eq!(unread.exit(), Exit::Internal);
         }
+        let starting = starting.expect_err("a registry refused");
+        assert_eq!(starting.code(), ErrorCode::DaemonNotRunning, "{starting:?}");
+        assert_eq!(starting.exit(), Exit::Unavailable);
+        assert_eq!(starting.detail(), "recovering");
         let heard = daemon.heard();
         assert_eq!(heard.first(), Some(&Request::Registry));
-        assert_eq!(heard.len(), 5);
+        assert_eq!(heard.len(), 6);
     }
 
     /// A request is answered or lost by how the connection ended: a daemon

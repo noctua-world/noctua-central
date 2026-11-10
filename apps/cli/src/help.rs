@@ -29,6 +29,13 @@ pub const fn what_it_does(verb: &str) -> &'static str {
         b"help" => {
             "say what this CLI and each command take; `help exit-codes` lists the exit codes"
         }
+        b"start" => "start this channel's daemon, unless it runs, and wait for it to answer",
+        b"stop" => {
+            "stop this channel's daemon, and keep anything that restores it from starting it \
+             again until `start`"
+        }
+        b"restart" => "stop this channel's daemon, then start it",
+        b"status" => "say how this channel's daemon is, or why it does not answer",
         _ => "",
     }
 }
@@ -271,7 +278,7 @@ mod tests {
             assert!(verbs.contains(&format!("  {verb}")), "{verbs}");
             assert!(verbs.contains(said), "{verbs}");
         }
-        assert_eq!(super::what_it_does("start"), "");
+        assert_eq!(super::what_it_does("verify"), "");
     }
 
     /// Help on everything lists every command the registry holds, by its name

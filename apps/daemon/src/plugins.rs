@@ -23,11 +23,12 @@ use nc_platform::{Kind, User};
 
 use crate::environment::Daemon;
 
-/// The name of a plugin's manifest in its directory.
-pub const MANIFEST: &str = "plugin.toml";
+/// The name of a plugin's manifest in its directory: the install's, which
+/// an installer writes it by too.
+pub const MANIFEST: &str = nc_channel::PLUGIN_MANIFEST;
 
 /// The name of a plugin's component in its directory.
-pub const COMPONENT: &str = "component.wasm";
+pub const COMPONENT: &str = nc_channel::PLUGIN_COMPONENT;
 
 /// How one installed plugin's load ended, as the status shows it.
 #[derive(Debug, Clone, PartialEq, Eq)]

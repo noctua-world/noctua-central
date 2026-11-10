@@ -189,6 +189,9 @@ dir   = "ltr"
 "error.cli.daemon-misnamed" = "What answered is not this installation's Noctua, so nothing was sent to it."
 "error.cli.answer-unreadable" = "Noctua answered with something this program does not understand. Install Noctua again so both are the same version."
 "error.cli.output-failed" = "This program could not write its answer, so part of it may be missing."
+"error.cli.daemon-did-not-start" = "Noctua was started and did not answer, so it may not be running. What it said as it ended is shown beside this."
+"error.cli.daemon-did-not-stop" = "Noctua was asked to stop and did not, so it may still be running. Try again in a moment."
+"error.cli.process-unverified" = "Noctua did not answer, and the program its records name could not be shown to be Noctua, so nothing was stopped."
 
 # --- The catalog's own mechanism entries ---
 # These two pairs exist to prove the generated typed handles resolve in both
