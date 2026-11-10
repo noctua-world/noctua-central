@@ -2,7 +2,8 @@
 //! §11.1`): the registry of its kernel and the plugins installed in its
 //! profile, its status, every dispatch decided by the kernel and journaled,
 //! the pump and the sweep on their schedule, one daemon to a profile, none of
-//! its spawner's handles held, and a stop that leaves nothing of the run.
+//! its spawner's handles held, a session of its own, and a stop that leaves
+//! nothing of the run.
 //!
 //! **The binary this build made, copied where an installer puts it**, beside
 //! a manifest under a scratch root and a namespace of its own
@@ -372,6 +373,44 @@ async fn a_second_daemon_of_the_channel_refuses_to_start() {
         "the first daemon no longer answers"
     );
     stopped(&mut client, &mut first).await;
+}
+
+/// A daemon its spawner started as no group's leader leads a session of its
+/// own, so no terminal it was started from reaches it.
+///
+/// **Read off the system once the daemon answers**, which it does only after
+/// it left the session it was started in: this suite's, which the daemon is
+/// started in as every suite starts one, without a group of its own.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_daemon_leads_a_session_of_its_own() {
+    if !nc_platform::system::POSIX_SESSIONS {
+        println!(
+            "skipped, not applicable on {}: no process here is in a session of the POSIX \
+             kind, so there is none for the daemon to leave, and the Linux and macOS jobs \
+             run it",
+            std::env::consts::OS
+        );
+        return;
+    }
+    let installed = Installed::new(Path::new(BINARY));
+    let mut daemon = installed.spawn();
+    let (mut client, _) = daemon.connected().await;
+    let session = nc_platform::testing::session_of(daemon.pid())
+        .expect("the daemon's session is read")
+        .expect("a system with sessions read none for the daemon");
+    let ours = nc_platform::testing::session_of(std::process::id())
+        .expect("this session is read")
+        .expect("a system with sessions read none for this process");
+    stopped(&mut client, &mut daemon).await;
+    assert_eq!(
+        session,
+        daemon.pid(),
+        "the daemon does not lead a session of its own"
+    );
+    assert_ne!(
+        session, ours,
+        "the daemon is still in the session of the suite that started it"
+    );
 }
 
 /// The variables that turn

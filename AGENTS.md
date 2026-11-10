@@ -1990,7 +1990,8 @@ header gives, the endpoint served, and a stop.
   the same way; one its client closes between requests ends well. The daemon binds nothing
   a network can reach (invariant 23). A dispatch or the registry asked before the kernel
   runs is refused as not running yet (`NC-DMN-0009`) and one asked after a stop began as
-  stopping (`NC-DMN-0010`); the status and a stop are answered from the first moment.
+  stopping (`NC-DMN-0010`); the status and a stop are answered from the first moment, and
+  every answer handed to a connection is written before the daemon lets it go.
 - **Every dispatch is the kernel's to decide, as the profile's person.** The daemon hands
   `Kernel::dispatch` the person the world names and the arguments as they arrived, decides
   nothing itself, and hands back the kernel's answer or its refusal by the kernel's own code
@@ -2020,11 +2021,14 @@ header gives, the endpoint served, and a stop.
   `daemon.stopped`, with what a stop gave up on).
 - **A stop leaves nothing of the run but its effects.** New dispatches are refused — each
   counted as running before the state is read, so a stop either refuses one or waits for
-  it — no pump and no sweep begins, and the dispatches running and a pump or a sweep the
-  stop finds inside a run are waited for `stop_drain_ms` at most — at least one call
-  tree's whole deadline, which the compiler holds; then the mark is settled, the local
-  database closed, the record and the token removed, the socket with the listener, and the
-  lock let go.
+  it — no connection is taken, and no pump and no sweep begins. The stop then waits
+  `stop_drain_ms` at most — at least one call tree's whole deadline, which the compiler
+  holds — for the dispatches running, for a pump or a sweep it finds inside a run, and for
+  every connection to write its last answer, the stop's own among them, and close
+  (`nc_ipc::Served::close`): each connection is counted before it is served, and ended
+  between two requests. Then the mark is settled, the local database closed, the record and
+  the token removed, the socket with the listener, and the lock let go. A stop asked while
+  the start is under way waits for the connections alike.
 - **A spawned daemon holds none of its spawner's handles**: a suite starts it with its
   standard input and output null and its standard error a file in its profile, after
   keeping this process's own standard handles from every child
@@ -2042,15 +2046,20 @@ commands with the reference plugin's beside them, a plugin refused shown and log
 dispatch found in the journal with the outcome it was answered with and as the world's
 person, the pump on its schedule and the sweep once, a second daemon refused with the first
 still answering, a stop that ends with exit 0 and leaves no record, token, socket or lock and
-a profile that starts again with a new instance, and a spawner whose output ends while the
-daemon it started runs — by the unit tests of `server` (among them
-`a_dispatch_is_counted_before_its_state_is_read`), `pidfile`, `plugins`, `schedule`
-(`a_stop_waits_for_the_run_it_finds_and_begins_none_after`,
-`a_run_still_going_at_the_bound_is_given_up_on_and_counted`) and `environment`, by
+a profile that starts again with a new instance, a spawner whose output ends while the
+daemon it started runs, and a daemon that leads a session of its own and not the suite's
+(`the_daemon_leads_a_session_of_its_own`) — by the unit tests of `server` (among them
+`a_dispatch_is_counted_before_its_state_is_read` and
+`a_stop_is_answered_whole_before_its_connection_is_let_go`, whose server runs on a runtime
+dropped as soon as the stop has wound down, and whose client takes one byte at a time),
+`pidfile`, `plugins`, `schedule`
+(`a_stop_waits_for_the_run_it_finds_and_begins_none_after`, over thirty-two schedules,
+and `a_run_still_going_at_the_bound_is_given_up_on_and_counted`) and `environment`, by
+`a_connection_closed_has_sent_its_last_answer` in `crates/nc-ipc/tests/heartbeat.rs`, by
 `a_log_told_of_no_store_writes_every_line_to_stderr` in `crates/nc-log/src/lib.rs`, by
 `a_directory_held_is_not_held_again_at_once` and
-`a_detached_process_leads_a_session_of_its_own` in `crates/nc-platform/src/lib.rs` —
-which stands aside on Windows, where no process has such a session, by
+`a_detached_process_leads_a_session_of_its_own` in `crates/nc-platform/src/lib.rs` — which,
+with the daemon's own, stands aside on Windows, where no process has such a session, by
 `nc_platform::system::POSIX_SESSIONS` — by invariant 23's gate, and by the operators over
 those sources in `xtask/mutants.py`, each judged by its own module's unit tests.
 
@@ -2061,10 +2070,12 @@ token and its socket for the next start to replace; a daemon that leads its proc
 — started by hand as a job of a shell, or spawned as a group's leader — which cannot start
 a session and stays in the one it was started in, where that terminal's hangup reaches it;
 a stop asked while the start waits for its clock, which abandons the start and leaves the
-mark as the last raise wrote it; and a dispatch, a pump or a sweep still running past
+mark as the last raise wrote it; a dispatch, a pump or a sweep still running past
 `stop_drain_ms` — trees run one after another, such as a pump's callbacks, that outlast
 the drain together — which the stop gives up on, counts in `daemon.stopped`, and closes
-the local database under, and whose unit the next start recovers. What the daemon leaves undone is under **What is deliberately not claimed**.
+the local database under, and whose unit the next start recovers; and a connection whose
+client has not taken its last answer by that bound, which goes with the daemon's runtime,
+the answer unwritten and uncounted. What the daemon leaves undone is under **What is deliberately not claimed**.
 
 ### A program registered with the service manager runs as it was described, and a test's registration is its own
 
@@ -3777,8 +3788,9 @@ same constants: before the tests, a `not applicable` line for each suite this sy
 aside (`THE_SUITES_A_SYSTEM_STANDS_ASIDE`); after them, `the ones that need what this
 system lacks` on the count line; and beside the verdict, `not applicable here: <suite>`.
 `finish` holds those lines to the list as it holds the stack's parts, so on macOS (the
-order on disk) and on Windows (that, the checkout script's guards and the suite about
-leaving a session) a suite that stopped saying so is a refusal, and
+order on disk) and on Windows (that, the checkout script's guards and the two suites about
+leaving a session, `nc-platform`'s and the daemon's) a suite that stopped saying so is a
+refusal, and
 `the_suites_a_system_stands_aside_are_the_ones_written_down_for_it` holds the list per
 system, empty on Linux. `ANNOUNCES_WHAT_THE_SYSTEM_LACKS` in `xtask/src/check.rs` counts
 the guards into the same line as the database suites, read by the same rule — a count of

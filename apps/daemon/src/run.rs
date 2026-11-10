@@ -35,11 +35,14 @@
 //!
 //! A stop asked through the endpoint refuses every new dispatch, stops
 //! accepting, begins no pump and no sweep, and waits `stop_drain_ms` at most
-//! for the dispatches running and for a pump or a sweep it finds inside a run,
-//! giving up on — and counting — what still runs then; then **settles the
-//! mark** to the exact high-water mark, so a clean restart has nothing to wait
-//! for, closes the local database, removes the PID record and the token it
-//! wrote — the socket goes with the listener — and lets the instance lock go.
+//! for the dispatches running, for a pump or a sweep it finds inside a run, and
+//! for every connection to write its last answer — the stop's own among them —
+//! and close, giving up on — and counting — the dispatches and runs that still
+//! run then; then **settles the mark** to the exact high-water mark, so a clean
+//! restart has nothing to wait for, closes the local database, removes the PID
+//! record and the token it wrote — the socket goes with the listener — and lets
+//! the instance lock go. A stop asked while the start is under way waits for
+//! the connections alike.
 //! There is no signal handler: a daemon killed leaves what a crash leaves,
 //! which the next start reads past.
 //!
@@ -193,8 +196,9 @@ async fn run(started: Started<'_>, server: Arc<Server>) -> Result<u32, Refused> 
     let (kernel, store, minter) = match opened {
         Ok(Some(opened)) => opened,
         Ok(None) => {
-            accepting.abort();
-            return Ok(0);
+            return Ok(server
+                .wound_down(accepting, Vec::new(), the_drain_from_now())
+                .await);
         }
         Err(refused) => {
             accepting.abort();
@@ -212,19 +216,13 @@ async fn run(started: Started<'_>, server: Arc<Server>) -> Result<u32, Refused> 
         async move { crate::schedule::sweeping(kernel, done, server.stopping()).await }
     });
     server.stopping().await;
-    accepting.abort();
-    // The dispatches running, and the pump and the sweep each inside a run
-    // or between two, waited for within one bound: a run is call trees as a
-    // dispatch is, and the store closes under none the stop did not give up
-    // on.
-    let deadline =
-        tokio::time::Instant::now() + Duration::from_millis(nc_catalog::DAEMON.stop_drain_ms);
-    let (dispatches, pumps, sweeps) = tokio::join!(
-        server.drained(deadline),
-        crate::schedule::ended(pumping, deadline),
-        crate::schedule::ended(sweeping, deadline),
-    );
-    let abandoned = dispatches.saturating_add(pumps).saturating_add(sweeps);
+    // The dispatches running, the pump and the sweep each inside a run or
+    // between two, and every connection's last answer, waited for within one
+    // bound: a run is call trees as a dispatch is, and the store closes under
+    // none the stop did not give up on.
+    let abandoned = server
+        .wound_down(accepting, vec![pumping, sweeping], the_drain_from_now())
+        .await;
     // The exact high-water mark, so a clean restart waits for nothing. A
     // settle that failed leaves the ceiling the last raise wrote, which no
     // identifier was handed out past.
@@ -232,6 +230,11 @@ async fn run(started: Started<'_>, server: Arc<Server>) -> Result<u32, Refused> 
     drop(kernel);
     store.close().await;
     Ok(abandoned)
+}
+
+/// When a drain that begins now ends: `stop_drain_ms` from now.
+fn the_drain_from_now() -> tokio::time::Instant {
+    tokio::time::Instant::now() + Duration::from_millis(nc_catalog::DAEMON.stop_drain_ms)
 }
 
 /// The kernel open and its plugins loaded, with what a stop settles and

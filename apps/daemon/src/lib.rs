@@ -26,7 +26,7 @@
 //! endpoint ([`server`]), the kernel over the local database, the plugins
 //! installed in the profile ([`plugins`]), and the pump and the sweep on the
 //! catalog's schedule ([`schedule`]) — until a stop drains the dispatches
-//! running and settles the mark.
+//! running, waits for every connection's last answer, and settles the mark.
 //!
 //! `noctua-daemon` with no argument is the daemon; `noctua-daemon
 //! --initialize` is the installer's entry into the same modules: it prepares

@@ -21,6 +21,10 @@
 //!    for it. A connection that then breaks the protocol, falls silent, takes
 //!    nothing or is lost is closed and logged as `ipc.refused` with its code;
 //!    one its client closes between requests ends well.
+//! 4. **Closed once its last answer is written**: a stop asked for closes
+//!    each connection between two requests, its own after the answer to it,
+//!    and the daemon ends only once every connection has written its last
+//!    answer and closed, `stop_drain_ms` at most ([`Server::wound_down`]).
 //!
 //! # What each answer holds
 //!
@@ -49,6 +53,7 @@ use nc_ipc::{Answer, Refusal, RefusalKind, Request, State, Welcome};
 use nc_kernel::logging::LogSink;
 use nc_kernel::registry::{Owner, RegisteredCommand};
 use nc_kernel::{Caller, Kernel};
+use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::environment::{Daemon, Sink};
 use crate::plugins::Loaded;
@@ -84,6 +89,10 @@ pub struct Server {
     schedule: Arc<Mutex<Done>>,
     running: AtomicUsize,
     finished: tokio::sync::Notify,
+    /// How many connections are open: each counted before it is served, and
+    /// until it is closed.
+    connections: AtomicUsize,
+    all_closed: tokio::sync::Notify,
     log: Sink,
 }
 
@@ -102,6 +111,8 @@ impl Server {
             schedule: Arc::default(),
             running: AtomicUsize::new(0),
             finished: tokio::sync::Notify::new(),
+            connections: AtomicUsize::new(0),
+            all_closed: tokio::sync::Notify::new(),
             log,
         }
     }
@@ -162,17 +173,16 @@ impl Server {
     }
 
     /// Accepts connections on `listener` until a stop is asked for, each served
-    /// on a task of its own.
+    /// on a task of its own, and none once it was.
     pub async fn accepting(self: Arc<Self>, mut listener: nc_platform::ipc::Listener) {
         loop {
             let accepted = tokio::select! {
+                biased;
                 () = self.stopping() => return,
                 accepted = listener.accept() => accepted,
             };
             match accepted {
-                Ok(accepted) => {
-                    tokio::spawn(Arc::clone(&self).connection(accepted.stream));
-                }
+                Ok(accepted) => self.serve_one(accepted.stream),
                 Err(refused) => {
                     let code = nc_ipc::IpcError::from(refused).code();
                     self.log.record(&nc_log::events::IpcRefused { code });
@@ -186,9 +196,46 @@ impl Server {
         }
     }
 
+    /// Serves `stream` on a task of its own, counted as open until it is
+    /// closed.
+    fn serve_one<S>(self: &Arc<Self>, stream: S)
+    where
+        S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+    {
+        self.serve_one_after(stream, || core::future::ready(()));
+    }
+
+    /// What [`Server::serve_one`] does, with `answering` awaited before each
+    /// answer is handed to the writer: where an answer slow to work out — a
+    /// dispatch's — would be.
+    ///
+    /// **Counted before its task is spawned**, so a stop that has stopped
+    /// accepting counts every connection there is.
+    fn serve_one_after<S, Slow>(
+        self: &Arc<Self>,
+        stream: S,
+        answering: impl Fn() -> Slow + Send + 'static,
+    ) where
+        S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+        Slow: Future<Output = ()> + Send + 'static,
+    {
+        self.connections.fetch_add(1, Ordering::SeqCst);
+        let open = Open(Arc::clone(self));
+        tokio::spawn(Arc::clone(self).connection(stream, open, answering));
+    }
+
     /// One connection: its handshake, then each request in turn until the
-    /// client closes it or it fails.
-    async fn connection(self: Arc<Self>, stream: nc_platform::ipc::Stream) {
+    /// client closes it, it fails, or a stop asked for finds it between two
+    /// requests; then closed once its last answer is written.
+    async fn connection<S, Slow>(
+        self: Arc<Self>,
+        stream: S,
+        open: Open,
+        answering: impl Fn() -> Slow,
+    ) where
+        S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+        Slow: Future<Output = ()>,
+    {
         let welcome = Welcome {
             pid: self.named.pid,
             instance: self.named.instance,
@@ -205,12 +252,21 @@ impl Server {
             }
         };
         let ended = loop {
-            let request = match served.next().await {
+            // A request that already arrived is answered first; between two
+            // requests, a stop asked for ends the connection.
+            let next = tokio::select! {
+                biased;
+                next = served.next() => next,
+                () = self.stopping() => break None,
+            };
+            let request = match next {
                 Ok(Some(request)) => request,
                 Ok(None) => break None,
                 Err(broken) => break Some(broken),
             };
             let answer = self.answer(request).await;
+            let slow = answering();
+            slow.await;
             let sent = match served.answer(&answer).await {
                 Err(unsendable @ nc_ipc::IpcError::Unsendable { .. }) => {
                     served
@@ -234,6 +290,11 @@ impl Server {
             self.log
                 .record(&nc_log::events::IpcRefused { code: why.code() });
         }
+        // Its last answer written before it is let go, which a stop waits
+        // for: dropped instead, an answer still on its way would go with the
+        // runtime once the run is over.
+        served.close().await;
+        drop(open);
     }
 
     /// The answer to `request`.
@@ -334,17 +395,64 @@ impl Server {
     /// Waits for the dispatches running to end, until `deadline` at most,
     /// and answers how many were still running when it gave up.
     pub async fn drained(&self, deadline: tokio::time::Instant) -> u32 {
+        Self::none_left(&self.running, &self.finished, deadline).await
+    }
+
+    /// Waits for every connection to close, until `deadline` at most, and
+    /// answers how many were still open when it gave up.
+    pub async fn closed(&self, deadline: tokio::time::Instant) -> u32 {
+        Self::none_left(&self.connections, &self.all_closed, deadline).await
+    }
+
+    /// Waits until `counted` falls to none, woken by `changed` when it does,
+    /// until `deadline` at most, and answers how many were still counted
+    /// when it gave up.
+    async fn none_left(
+        counted: &AtomicUsize,
+        changed: &tokio::sync::Notify,
+        deadline: tokio::time::Instant,
+    ) -> u32 {
         loop {
-            let finished = self.finished.notified();
-            let running = self.running.load(Ordering::SeqCst);
+            let finished = changed.notified();
+            let running = counted.load(Ordering::SeqCst);
             if running == 0 {
                 return 0;
             }
             if tokio::time::timeout_at(deadline, finished).await.is_err() {
-                let left = self.running.load(Ordering::SeqCst);
+                let left = counted.load(Ordering::SeqCst);
                 return u32::try_from(left).unwrap_or(u32::MAX);
             }
         }
+    }
+
+    /// Once a stop was asked for: takes no connection more, and waits for the
+    /// dispatches running, for the schedule's tasks in `schedule` — each
+    /// inside a run or between two — and for every connection to write its
+    /// last answer and close, until `deadline` at most; answers how many
+    /// dispatches and runs it gave up on.
+    ///
+    /// **Every connection there is**: `accepting` has ended before the count
+    /// is read, so none is taken after it. One still open at the bound has a
+    /// client that takes nothing, or a dispatch the drain counts already, and
+    /// goes with the runtime.
+    pub async fn wound_down(
+        &self,
+        accepting: tokio::task::JoinHandle<()>,
+        schedule: Vec<tokio::task::JoinHandle<()>>,
+        deadline: tokio::time::Instant,
+    ) -> u32 {
+        accepting.abort();
+        let _ = accepting.await;
+        let runs = async {
+            let mut given_up = 0_u32;
+            for running in schedule {
+                given_up = given_up.saturating_add(crate::schedule::ended(running, deadline).await);
+            }
+            given_up
+        };
+        let (dispatches, runs, _still_open) =
+            tokio::join!(self.drained(deadline), runs, self.closed(deadline));
+        dispatches.saturating_add(runs)
     }
 
     /// The daemon's status, as one object.
@@ -400,6 +508,18 @@ impl Drop for Admitted<'_> {
     fn drop(&mut self) {
         if self.0.running.fetch_sub(1, Ordering::SeqCst) == 1 {
             self.0.finished.notify_waiters();
+        }
+    }
+}
+
+/// A connection served, counted as open until it is dropped.
+#[derive(Debug)]
+struct Open(Arc<Server>);
+
+impl Drop for Open {
+    fn drop(&mut self) {
+        if self.0.connections.fetch_sub(1, Ordering::SeqCst) == 1 {
+            self.0.all_closed.notify_waiters();
         }
     }
 }
@@ -798,5 +918,77 @@ mod tests {
             .expect_err("no kernel is open to admit it to");
         assert_eq!(refused.code, ErrorCode::DaemonNotRunning);
         assert_eq!(server.running.load(Ordering::SeqCst), 0);
+    }
+
+    /// A stop's answer is written whole before the connection it was asked
+    /// on is let go, and the wind-down waits for that and no longer: however
+    /// long the answer takes to work out, and however slowly its client takes
+    /// it.
+    ///
+    /// **Found by a review**: the stop's answer was handed to the
+    /// connection's writer, the run ended, and the daemon's runtime dropped the
+    /// writer with the answer unwritten, so the client read the daemon as
+    /// lost. Here the server runs on a runtime of its own, dropped as soon as
+    /// the wind-down returns, as the daemon's is; its client is on another
+    /// thread, takes one byte at a time, and holds its connection open until
+    /// that runtime is gone, so only the daemon closes it.
+    #[test]
+    fn a_stop_is_answered_whole_before_its_connection_is_let_go() {
+        let server = Arc::new(a_server(nc_channel::Channel::Staging));
+        let (daemon_end, client_end) = tokio::io::duplex(1);
+        let token =
+            nc_ipc::Token::from_text(&server.token.to_text()).expect("the token reads back");
+        let bound = Duration::from_millis(nc_catalog::DAEMON.stop_drain_ms);
+        let runtime = || {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("a runtime")
+        };
+        let (let_go, held) = tokio::sync::oneshot::channel::<()>();
+        let asking = std::thread::spawn(move || {
+            runtime().block_on(async {
+                let (mut client, _) =
+                    tokio::time::timeout(bound, nc_ipc::connect(client_end, &token))
+                        .await
+                        .expect("the handshake ended in time")
+                        .expect("connected");
+                let answered = tokio::time::timeout(bound, client.ask(&Request::Stop))
+                    .await
+                    .expect("the stop ended in time");
+                // Held open, and answering the daemon's pings, until the
+                // server's runtime is gone.
+                let _ = tokio::time::timeout(bound * 2, held).await;
+                drop(client);
+                answered
+            })
+        });
+        let serving = runtime();
+        let began = std::time::Instant::now();
+        let abandoned = serving.block_on(async {
+            server.serve_one_after(daemon_end, || {
+                tokio::time::sleep(Duration::from_millis(200))
+            });
+            server.stopping().await;
+            let accepting = tokio::spawn(std::future::pending::<()>());
+            server
+                .wound_down(accepting, Vec::new(), tokio::time::Instant::now() + bound)
+                .await
+        });
+        // What the daemon's runtime does to every task it still holds once
+        // its run is over.
+        drop(serving);
+        let took = began.elapsed();
+        let _ = let_go.send(());
+        let answered = asking.join().expect("the client did not panic");
+        assert_eq!(
+            answered.expect("the stop was answered before its connection was let go"),
+            Answer::Stopping
+        );
+        assert_eq!(abandoned, 0, "nothing ran for the stop to give up on");
+        assert!(
+            took < bound,
+            "the stop waited out its bound for a connection with nothing more to say"
+        );
     }
 }

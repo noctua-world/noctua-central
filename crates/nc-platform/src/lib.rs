@@ -291,10 +291,11 @@ pub mod system {
     /// leaves by starting its own (`setsid`) and which a terminal's hangup
     /// reaches: false on Windows.
     ///
-    /// **What the suite about leaving a session stands aside for where it is
-    /// false**: a process there has no such session, so there is none to read
-    /// that one left. It says so in its own output, by the system's name, and
-    /// the Linux and macOS jobs run it.
+    /// **What the suites about leaving a session — this crate's and the
+    /// daemon's — stand aside for where it is false**: a process there has no
+    /// such session, so there is none to read that one left. Each says so in
+    /// its own output, by the system's name, and the Linux and macOS jobs run
+    /// them.
     pub const POSIX_SESSIONS: bool = crate::imp::POSIX_SESSIONS;
 }
 

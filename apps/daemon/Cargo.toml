@@ -69,6 +69,9 @@ nc-platform = { workspace = true, features = ["test-support"] }
 nc-kernel = { workspace = true, features = ["test-support"] }
 # A stopped daemon's journal, read back where it kept it.
 nc-local = { workspace = true, features = ["test-support"] }
+# A connection a test serves in memory, its client taking one byte at a time
+# (`tokio::io::duplex`). Already in the graph with `io-util`.
+tokio = { workspace = true, features = ["io-util"] }
 
 [lints]
 workspace = true

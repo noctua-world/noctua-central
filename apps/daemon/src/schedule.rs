@@ -286,7 +286,12 @@ mod tests {
     }
 
     /// A stop that arrives inside a run waits for it, and no run begins
-    /// once it was asked for, however many ticks came due meanwhile.
+    /// once it was asked for, though a tick came due meanwhile.
+    ///
+    /// **Thirty-two schedules, each with a tick due when its stop is**, so a
+    /// select that takes either of the two when both are ready — the tick
+    /// half the time — escapes all of them one time in 2^32. **Found by a
+    /// review**: with one schedule, that select passed three runs in four.
     #[tokio::test(flavor = "multi_thread")]
     async fn a_stop_waits_for_the_run_it_finds_and_begins_none_after() {
         use std::sync::Arc;
@@ -294,50 +299,65 @@ mod tests {
 
         use core::time::Duration;
 
-        let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
-        let (began, mut beginning) = tokio::sync::mpsc::unbounded_channel::<()>();
-        let release = Arc::new(tokio::sync::Notify::new());
-        let ran = Arc::new(AtomicU32::new(0));
-        let (releasing, counting) = (Arc::clone(&release), Arc::clone(&ran));
-        let mut schedule = tokio::spawn(async move {
-            super::on_schedule(
-                Duration::from_millis(1),
-                async {
-                    let _ = stopped.await;
-                },
-                move || {
-                    let (began, release, ran) =
-                        (began.clone(), Arc::clone(&releasing), Arc::clone(&counting));
-                    async move {
-                        let _ = began.send(());
-                        release.notified().await;
-                        ran.fetch_add(1, Ordering::SeqCst);
-                    }
-                },
-            )
-            .await;
-        });
-        tokio::time::timeout(Duration::from_secs(30), beginning.recv())
-            .await
-            .expect("the first run began at once")
-            .expect("a run began");
-        stop.send(()).expect("the schedule is waiting for a stop");
-        assert!(
-            tokio::time::timeout(Duration::from_millis(200), &mut schedule)
+        for schedule in 0..32 {
+            let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
+            let (began, mut beginning) = tokio::sync::mpsc::unbounded_channel::<()>();
+            let release = Arc::new(tokio::sync::Notify::new());
+            let ran = Arc::new(AtomicU32::new(0));
+            let (releasing, counting) = (Arc::clone(&release), Arc::clone(&ran));
+            let mut task = tokio::spawn(async move {
+                super::on_schedule(
+                    Duration::from_millis(1),
+                    async {
+                        let _ = stopped.await;
+                    },
+                    move || {
+                        let (began, release, ran) =
+                            (began.clone(), Arc::clone(&releasing), Arc::clone(&counting));
+                        async move {
+                            let _ = began.send(());
+                            release.notified().await;
+                            ran.fetch_add(1, Ordering::SeqCst);
+                        }
+                    },
+                )
+                .await;
+            });
+            tokio::time::timeout(Duration::from_secs(30), beginning.recv())
                 .await
-                .is_err(),
-            "the schedule ended inside the run a stop found"
-        );
-        release.notify_one();
-        tokio::time::timeout(Duration::from_secs(30), schedule)
+                .expect("the first run began at once")
+                .expect("a run began");
+            stop.send(()).expect("the schedule is waiting for a stop");
+            // Longer than the schedule's period, so its next tick is due
+            // when the run ends.
+            assert!(
+                tokio::time::timeout(Duration::from_millis(20), &mut task)
+                    .await
+                    .is_err(),
+                "schedule {schedule} ended inside the run a stop found"
+            );
+            release.notify_one();
+            let ended = tokio::time::timeout(Duration::from_secs(30), async {
+                tokio::select! {
+                    ended = &mut task => ended.is_ok(),
+                    // A run begun says so; a schedule that ended closes the
+                    // channel, which is no run.
+                    Some(()) = beginning.recv() => false,
+                }
+            })
             .await
-            .expect("the schedule ended once its run did")
-            .expect("it did not panic");
-        assert_eq!(
-            ran.load(Ordering::SeqCst),
-            1,
-            "a run began after the stop was asked for"
-        );
+            .expect("the schedule ended once its run did");
+            task.abort();
+            assert!(
+                ended,
+                "schedule {schedule} began a run after the stop was asked for"
+            );
+            assert_eq!(
+                ran.load(Ordering::SeqCst),
+                1,
+                "schedule {schedule} ran a run after the stop was asked for"
+            );
+        }
     }
 
     /// A stop waits for the schedule's task until its bound, and gives up on

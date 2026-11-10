@@ -94,7 +94,7 @@ fn answer(
                     0,
                     format!(
                         "noctua-daemon: stopped when it was asked to, after {} ms, giving up \
-                         on {} dispatch(es) still running",
+                         on {} dispatch(es), pump(s) or sweep(s) still running",
                         stopped.ran.as_millis(),
                         stopped.abandoned
                     ),

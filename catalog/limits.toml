@@ -468,9 +468,9 @@ pump_every_ms = 1_000
 # `[kernel] blob_orphan_grace_ms`, which the compiler holds it to, so an orphan
 # is gone within its grace and one sweep, never two graces.
 sweep_every_ms = 600_000
-# How long a stop waits for the dispatches already running, and for a pump or a
-# sweep it finds inside a run, to end before the daemon writes its mark and
-# exits. At least `[kernel] dispatch_deadline_ms`, which the compiler holds it
+# How long a stop waits for the dispatches already running, for a pump or a
+# sweep it finds inside a run, and for each connection to write its last
+# answer, before the daemon writes its mark and exits. At least `[kernel] dispatch_deadline_ms`, which the compiler holds it
 # to: the kernel lets a call tree run that long, so a stop that waited less
 # would cut short a dispatch the kernel would let finish, and leave its unit for
 # the next start to recover.
