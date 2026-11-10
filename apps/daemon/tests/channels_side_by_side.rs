@@ -15,8 +15,9 @@
 //! with `start`, which spawns its daemon detached, held running by `status`,
 //! and stopped with `stop`. Their profiles and endpoints are held apart on
 //! disk; then each in turn is stopped while the other three are asked again,
-//! and started again. It spawns processes, so no mutation command runs it; a
-//! guard stops every daemon through the CLI however the test leaves.
+//! and started again; then one is restarted. It spawns processes, so no
+//! mutation command runs it; a guard stops every daemon through the CLI
+//! however the test leaves.
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -210,8 +211,8 @@ fn held_apart(running: &Running) {
     }
 }
 
-/// Four channels run at once, their profiles and endpoints apart, and each
-/// stopped while the other three answer.
+/// Four channels run at once, their profiles and endpoints apart, each
+/// stopped while the other three answer, and one restarted.
 #[test]
 fn four_installs_run_side_by_side_and_one_stopped_leaves_the_others() {
     let scratch = Scratch::new();
@@ -275,6 +276,44 @@ fn four_installs_run_side_by_side_and_one_stopped_leaves_the_others() {
         pids[stopped] = nc_channel::record::read(&found.layout.pid_file, &found.user)
             .expect("a daemon started again has a record")
             .pid;
+    }
+    // A restart ends the daemon its record names and starts another, the mark
+    // written and removed between them, and leaves the other three running.
+    let restarted = &running.0[0];
+    let record = || {
+        nc_channel::record::read(&restarted.layout.pid_file, &restarted.user)
+            .expect("a running daemon's record")
+    };
+    let before = record();
+    let outcome = run(restarted, "restart");
+    assert_eq!(outcome.exit, Exit::Success, "{outcome:?}");
+    assert!(outcome.stdout.contains("is running"), "{outcome:?}");
+    let after = record();
+    assert_ne!(
+        (after.pid, &after.started, after.instance),
+        (before.pid, &before.started, before.instance),
+        "the restart left the daemon it was to stop"
+    );
+    let ended = nc_platform::process::Verified::open(&before.identity());
+    assert!(
+        matches!(ended, Err(nc_platform::process::Unverified::Gone(_))),
+        "the daemon a restart stopped still runs: {ended:?}"
+    );
+    assert!(
+        !restarted.layout.stopped.exists(),
+        "a restart left the `stopped` mark"
+    );
+    let status = run(restarted, "status");
+    assert!(
+        status.stdout.contains(&format!("\"pid\":{}", after.pid)),
+        "the restarted daemon is not the one its record names: {status:?}"
+    );
+    for (other, found) in running.0.iter().enumerate().skip(1) {
+        let status = run(found, "status");
+        assert!(
+            status.stdout.contains(&format!("\"pid\":{}", pids[other])),
+            "restarting the first restarted {other}: {status:?}"
+        );
     }
     drop(running);
     drop(scratch);

@@ -19446,7 +19446,7 @@ mod the_frozen_path_rule {
         ("cli/args.rs", 40, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/client.rs", 38, 13),
-        ("cli/control.rs", 46, 3),
+        ("cli/control.rs", 57, 13),
         ("cli/exit.rs", 9, 2),
         ("cli/help.rs", 17, 3),
         ("cli/install.rs", 35, 8),
@@ -19459,7 +19459,7 @@ mod the_frozen_path_rule {
         ("daemon/device.rs", 22, 5),
         ("daemon/environment.rs", 12, 16),
         ("daemon/every_command_from_the_cli.rs", 26, 2),
-        ("daemon/exit_codes.rs", 25, 1),
+        ("daemon/exit_codes.rs", 26, 1),
         ("daemon/ipc_refusals.rs", 7, 0),
         ("daemon/lib.rs", 7, 14),
         ("daemon/main.rs", 17, 6),
@@ -22426,8 +22426,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 697 scratches this tree
-    /// builds, 610 of the 697 are removed however the test leaves and 87 are
+    /// directories accumulated in an afternoon. Of the 699 scratches this tree
+    /// builds, 612 of the 699 are removed however the test leaves and 87 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22495,7 +22495,7 @@ mod the_frozen_path_rule {
     #[cfg(test)]
     const BUILDS_A_SCRATCH: [(&str, usize, usize); 55] = [
         ("cli/client.rs", 7, 7),
-        ("cli/control.rs", 10, 10),
+        ("cli/control.rs", 12, 12),
         ("cli/install.rs", 7, 7),
         ("cli/run.rs", 6, 6),
         ("daemon/channels_side_by_side.rs", 2, 2),
@@ -25493,7 +25493,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 17958;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 17977;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25512,7 +25512,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4579;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4590;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25529,7 +25529,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1542;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1545;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25563,7 +25563,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 24434;
+    const THE_REARRANGEMENTS_JUDGED: usize = 24460;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25617,7 +25617,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **519 of 24,434 are accepted by the first-line
+    /// rules the gates apply: **519 of 24,460 are accepted by the first-line
     /// rule alone, and 282 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25650,7 +25650,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1542 of
+    /// this tree offers, **1545 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -37481,7 +37481,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2079] = [
+    static OPERATORS: [(&str, &str, &str); 2088] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -46744,6 +46744,51 @@ Options:
             "cli_control",
             "running",
             "a start says it runs only once the status says so",
+        ),
+        (
+            "cli_control",
+            "controlled",
+            "a restart stops before it starts",
+        ),
+        (
+            "cli_control",
+            "controlled",
+            "a restart whose stop did not finish starts nothing",
+        ),
+        (
+            "cli_control",
+            "signalled",
+            "a daemon that does not end when asked is killed",
+        ),
+        (
+            "cli_control",
+            "signalled",
+            "a daemon is asked to end before it is killed",
+        ),
+        (
+            "cli_control",
+            "signalled",
+            "a daemon that ends when asked is not killed",
+        ),
+        (
+            "cli_control",
+            "given_up",
+            "a start gives up at once on a daemon that ended",
+        ),
+        (
+            "cli_control",
+            "given_up",
+            "a start waits for a silent daemon until its deadline",
+        ),
+        (
+            "cli_control",
+            "tail_of",
+            "a failed start shows the last lines its daemon wrote",
+        ),
+        (
+            "cli_control",
+            "tail_of",
+            "a failed start says so when its daemon wrote nothing",
         ),
     ];
 

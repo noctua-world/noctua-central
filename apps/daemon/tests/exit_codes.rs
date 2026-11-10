@@ -9,10 +9,10 @@
 //! a namespace of its own (`nc_daemon::testing::Installed`), with the
 //! reference plugin installed and granted what its commands reach for but the
 //! network; and 11, process control's, against the same install with no
-//! daemon running. One outcome of the table is not run here, because no daemon
-//! brings it about: 1, the CLI unable to write what it answered, which
-//! `noctua`'s own unit tests hold. It spawns a process, so no mutation command
-//! runs it.
+//! daemon running, and with one that ends before it answers. One outcome of
+//! the table is not run here, because no daemon brings it about: 1, the CLI
+//! unable to write what it answered, which `noctua`'s own unit tests hold. It
+//! spawns a process, so no mutation command runs it.
 
 use std::ffi::OsString;
 use std::path::Path;
@@ -539,6 +539,57 @@ fn process_control_that_does_not_finish_is_exit_11() {
         outcome.stderr
     );
     assert!(installed.layout.stopped.is_file(), "the stop wrote no mark");
+}
+
+/// A start whose daemon ends before it answers ends the run in 11 at once,
+/// with what that daemon wrote to its standard error.
+///
+/// The daemon is the one this build made, where the layout names it beside the
+/// manifest, and the manifest names a central log off this machine, which the
+/// daemon refuses as it starts.
+#[test]
+fn a_start_whose_daemon_ends_before_it_answers_is_exit_11_with_what_it_wrote() {
+    let installed = Installed::new(Path::new(BINARY));
+    let layout = &installed.layout;
+    let daemon = layout.install.join(format!(
+        "{}{}",
+        layout.daemon,
+        nc_platform::EXECUTABLE_SUFFIX
+    ));
+    if std::fs::hard_link(BINARY, &daemon).is_err() {
+        std::fs::copy(BINARY, &daemon).expect("the daemon is copied where the layout names it");
+    }
+    installed.with_a_central_log_refused();
+    let found = nc_channel::found::beside(&installed.executable).expect("the install reads");
+    let began = std::time::Instant::now();
+    let outcome = nc_cli::run(
+        &[OsString::from("start")],
+        &found,
+        &nc_cli::Env::of(|_| None),
+    );
+    let took = began.elapsed();
+    ended_in(
+        &outcome,
+        Exit::ProcessControl,
+        ErrorCode::CliDaemonDidNotStart,
+    );
+    assert!(
+        outcome.stderr.contains("before it answered"),
+        "{}",
+        outcome.stderr
+    );
+    assert!(
+        outcome
+            .stderr
+            .contains(&format!("[{}]", ErrorCode::DaemonNoCentralLog.code())),
+        "the daemon's refusal is not shown: {}",
+        outcome.stderr
+    );
+    let within = core::time::Duration::from_millis(nc_catalog::DAEMON.start_within_ms);
+    assert!(
+        took < within / 2,
+        "a start waited {took:?} for a daemon that had ended"
+    );
 }
 
 /// An install the CLI cannot read ends its run in 12, and stops the daemon too.

@@ -414,24 +414,57 @@ fn still_there(cli: &str, pid: u32, within: Duration, why: &str) -> Failure {
     )
 }
 
-/// Ends `verified` — asked first, then killed — and answers what was done.
-fn signalled(cli: &str, verified: &Verified) -> Result<String, Failure> {
-    let pid = verified.pid();
+/// What a stop ends a daemon that does not answer through.
+///
+/// [`Verified`] in a run, and nothing else: a stand-in only in this module's
+/// tests, which hold the order of [`signalled`] without a process to end.
+trait Ends {
+    /// Its process id.
+    fn pid(&self) -> u32;
+    /// Asks it to end.
+    fn terminate(&self) -> std::io::Result<()>;
+    /// Ends it outright.
+    fn kill(&self) -> std::io::Result<()>;
+    /// Whether it has ended within `within`.
+    fn wait(&self, within: Duration) -> std::io::Result<bool>;
+}
+
+impl Ends for Verified {
+    fn pid(&self) -> u32 {
+        Self::pid(self)
+    }
+
+    fn terminate(&self) -> std::io::Result<()> {
+        Self::terminate(self)
+    }
+
+    fn kill(&self) -> std::io::Result<()> {
+        Self::kill(self)
+    }
+
+    fn wait(&self, within: Duration) -> std::io::Result<bool> {
+        Self::wait(self, within)
+    }
+}
+
+/// Ends `process` — asked first, then killed — and answers what was done.
+fn signalled(cli: &str, process: &impl Ends) -> Result<String, Failure> {
+    let pid = process.pid();
     let unsent = |error: std::io::Error| {
         failed(
             ErrorCode::CliDaemonDidNotStop,
             format!("the daemon of {cli}, process {pid}, could not be signalled: {error}"),
         )
     };
-    verified.terminate().map_err(unsent)?;
-    if verified.wait(kill_within()).unwrap_or(false) {
+    process.terminate().map_err(unsent)?;
+    if process.wait(kill_within()).unwrap_or(false) {
         return Ok(format!(
             "The daemon of {cli}, process {pid}, did not answer, and was asked to end through \
              the process its record names; it ended.\n"
         ));
     }
-    verified.kill().map_err(unsent)?;
-    if verified.wait(kill_within()).unwrap_or(false) {
+    process.kill().map_err(unsent)?;
+    if process.wait(kill_within()).unwrap_or(false) {
         return Ok(format!(
             "The daemon of {cli}, process {pid}, did not answer or end when asked, and was \
              killed through the process its record names.\n"
@@ -475,17 +508,11 @@ async fn start(found: &Found) -> Result<String, Failure> {
         if let Ok(connection) = client::connect(found).await {
             return Ok(running(connection, cli, deadline).await);
         }
-        let ended = detached.ended().unwrap_or(None);
-        if ended.is_some() || tokio::time::Instant::now() >= deadline {
-            let how = ended.map_or_else(
-                || {
-                    format!(
-                        "did not answer within {} ms",
-                        nc_catalog::DAEMON.start_within_ms
-                    )
-                },
-                |status| format!("ended ({status}) before it answered"),
-            );
+        let ended = detached
+            .ended()
+            .unwrap_or(None)
+            .map(|status| status.to_string());
+        if let Some(how) = given_up(ended, tokio::time::Instant::now() >= deadline) {
             return Err(failed(
                 ErrorCode::CliDaemonDidNotStart,
                 format!(
@@ -496,6 +523,21 @@ async fn start(found: &Found) -> Result<String, Failure> {
             ));
         }
         tokio::time::sleep(BETWEEN_LOOKS).await;
+    }
+}
+
+/// Why a start gives up on the daemon it started, or nothing while it waits.
+///
+/// At once for one that `ended`, as the system says it did, before it
+/// answered; and for one silent still only once `past` the deadline.
+fn given_up(ended: Option<String>, past: bool) -> Option<String> {
+    match ended {
+        Some(status) => Some(format!("ended ({status}) before it answered")),
+        None if past => Some(format!(
+            "did not answer within {} ms",
+            nc_catalog::DAEMON.start_within_ms
+        )),
+        None => None,
     }
 }
 
@@ -1119,5 +1161,133 @@ mod tests {
         );
         assert!(!layout.stopped.exists(), "the start left the mark");
         assert_eq!(daemon.heard(), Vec::<Request>::new());
+    }
+
+    /// A stand-in for a process held to its record, which ends on the call
+    /// it names, or never, and keeps every call made of it in order.
+    struct StandIn {
+        /// The call after which it has ended: `terminate`, `kill` or none.
+        ends_on: Option<&'static str>,
+        /// Every call made of it, in order.
+        calls: std::cell::RefCell<Vec<&'static str>>,
+    }
+
+    impl super::Ends for StandIn {
+        fn pid(&self) -> u32 {
+            u32::MAX
+        }
+
+        fn terminate(&self) -> std::io::Result<()> {
+            self.calls.borrow_mut().push("terminate");
+            Ok(())
+        }
+
+        fn kill(&self) -> std::io::Result<()> {
+            self.calls.borrow_mut().push("kill");
+            Ok(())
+        }
+
+        fn wait(&self, _within: core::time::Duration) -> std::io::Result<bool> {
+            let mut calls = self.calls.borrow_mut();
+            let ended = self.ends_on.is_some_and(|call| calls.contains(&call));
+            calls.push("wait");
+            Ok(ended)
+        }
+    }
+
+    /// A daemon that does not answer is asked to end, then killed.
+    ///
+    /// It is killed only when it has not ended by then, and one that ends
+    /// neither way is a stop that did not finish.
+    #[test]
+    fn a_silent_daemon_is_asked_to_end_and_killed_only_when_it_does_not() {
+        let all = ["terminate", "wait", "kill", "wait"];
+        for (ends_on, calls, said) in [
+            (Some("terminate"), &all[..2], Some("it ended")),
+            (Some("kill"), &all[..], Some("was killed")),
+            (None, &all[..], None),
+        ] {
+            let process = StandIn {
+                ends_on,
+                calls: std::cell::RefCell::default(),
+            };
+            let done = super::signalled("noctua", &process);
+            assert_eq!(*process.calls.borrow(), calls, "{ends_on:?}");
+            if let Some(said) = said {
+                let done = done.expect("it ended");
+                assert!(done.contains(said), "{done}");
+            } else {
+                let refused = done.expect_err("it never ended");
+                assert_eq!(refused.code, ErrorCode::CliDaemonDidNotStop, "{refused:?}");
+                assert_eq!(refused.exit, Exit::ProcessControl);
+                assert!(refused.detail.contains("was killed"), "{refused:?}");
+            }
+        }
+    }
+
+    /// A restart stops the daemon before it starts one, and starts nothing
+    /// when its stop did not finish.
+    ///
+    /// The scripted daemon answers the stop; the start that follows finds
+    /// nothing answering and no daemon beside the CLI to start, so it fails,
+    /// once it has removed the stop's mark.
+    #[test]
+    fn a_restart_stops_before_it_starts_and_starts_nothing_after_a_stop_refused() {
+        let installed = Scratch::new("restart");
+        let stopped = &installed.found.layout.stopped;
+        let token = Token::fresh().expect("a token");
+        installed.token(&token);
+        let daemon = Scripted::serve(
+            &installed,
+            Script {
+                token,
+                welcome: installed.welcome(),
+                connections: vec![vec![Answer::Stopping]],
+            },
+        );
+        let refused = controlled(&installed, Control::Restart).expect_err("nothing to start");
+        assert_eq!(refused.code, ErrorCode::CliDaemonDidNotStart, "{refused:?}");
+        assert_eq!(refused.exit, Exit::ProcessControl);
+        assert!(!stopped.exists(), "no start followed the stop's mark");
+        assert_eq!(daemon.heard(), vec![Request::Stop]);
+        // Nothing answers now, and the record does not read: a stop refused.
+        recorded_as(&installed, "{\"pid\":0}");
+        let refused = controlled(&installed, Control::Restart).expect_err("the stop is refused");
+        assert_eq!(refused.code, ErrorCode::CliProcessUnverified, "{refused:?}");
+        assert_eq!(refused.exit, Exit::ProcessControl);
+        assert!(
+            stopped.is_file(),
+            "a start followed a stop that did not finish"
+        );
+    }
+
+    /// A start gives up at once on a daemon that ended before it answered,
+    /// and on one that is silent only once the deadline has passed.
+    #[test]
+    fn a_start_gives_up_at_once_on_a_daemon_that_ended() {
+        let ended = super::given_up(Some("exit status: 1".to_owned()), false);
+        assert_eq!(
+            ended.as_deref(),
+            Some("ended (exit status: 1) before it answered")
+        );
+        assert_eq!(super::given_up(None, false), None);
+        let silent = super::given_up(None, true).expect("given up at the deadline");
+        assert!(silent.starts_with("did not answer within"), "{silent}");
+    }
+
+    /// A failed start shows the last lines its daemon wrote, on one line,
+    /// and says so when it wrote nothing.
+    #[test]
+    fn a_failed_start_shows_the_last_lines_its_daemon_wrote() {
+        use std::io::Write as _;
+        let installed = Scratch::new("tail");
+        let path = installed.path("daemon.err");
+        assert_eq!(super::tail_of(&path), "nothing");
+        let lines: Vec<String> = (1..=25).map(|line| format!("line {line}")).collect();
+        nc_platform::create_private(&path)
+            .expect("a standard error")
+            .write_all(format!("{}\n", lines.join("\n")).as_bytes())
+            .expect("written");
+        assert_eq!(super::tail_of(&path), lines[5..].join(" | "));
     }
 }
