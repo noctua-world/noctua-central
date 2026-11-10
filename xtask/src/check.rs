@@ -19446,10 +19446,10 @@ mod the_frozen_path_rule {
         ("cli/args.rs", 40, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/client.rs", 38, 13),
-        ("cli/control.rs", 38, 3),
+        ("cli/control.rs", 43, 3),
         ("cli/exit.rs", 9, 2),
         ("cli/help.rs", 17, 3),
-        ("cli/install.rs", 32, 8),
+        ("cli/install.rs", 34, 8),
         ("cli/lib.rs", 1, 8),
         ("cli/main.rs", 6, 5),
         ("cli/render.rs", 20, 4),
@@ -19593,11 +19593,11 @@ mod the_frozen_path_rule {
         ("nc-log/value.rs", 18, 36),
         ("nc-platform/ipc.rs", 20, 13),
         ("nc-platform/lib.rs", 93, 22),
-        ("nc-platform/process.rs", 39, 13),
+        ("nc-platform/process.rs", 42, 15),
         ("nc-platform/service.rs", 155, 18),
-        ("nc-platform/testing.rs", 30, 1),
-        ("nc-platform/unix.rs", 97, 4),
-        ("nc-platform/windows.rs", 135, 11),
+        ("nc-platform/testing.rs", 31, 1),
+        ("nc-platform/unix.rs", 98, 4),
+        ("nc-platform/windows.rs", 139, 11),
         ("nc-policy/an_entity_type_is_a_name_cedar_parses.rs", 7, 3),
         ("nc-policy/cases.rs", 10, 13),
         ("nc-policy/lib.rs", 103, 20),
@@ -22426,8 +22426,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 691 scratches this tree
-    /// builds, 604 of the 691 are removed however the test leaves and 87 are
+    /// directories accumulated in an afternoon. Of the 694 scratches this tree
+    /// builds, 607 of the 694 are removed however the test leaves and 87 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22495,8 +22495,8 @@ mod the_frozen_path_rule {
     #[cfg(test)]
     const BUILDS_A_SCRATCH: [(&str, usize, usize); 55] = [
         ("cli/client.rs", 7, 7),
-        ("cli/control.rs", 6, 6),
-        ("cli/install.rs", 5, 5),
+        ("cli/control.rs", 8, 8),
+        ("cli/install.rs", 6, 6),
         ("cli/run.rs", 6, 6),
         ("daemon/channels_side_by_side.rs", 2, 2),
         ("daemon/device.rs", 7, 7),
@@ -25493,7 +25493,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 17913;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 17936;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25512,7 +25512,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4551;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4580;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25529,7 +25529,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1532;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1542;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25563,7 +25563,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 24347;
+    const THE_REARRANGEMENTS_JUDGED: usize = 24393;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25617,7 +25617,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **519 of 24,347 are accepted by the first-line
+    /// rules the gates apply: **519 of 24,393 are accepted by the first-line
     /// rule alone, and 282 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25650,7 +25650,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1532 of
+    /// this tree offers, **1542 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -37481,7 +37481,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2068] = [
+    static OPERATORS: [(&str, &str, &str); 2074] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -46693,6 +46693,32 @@ Options:
             "loader",
             "check_daemon_control",
             "a stop shorter than twice the drain is refused",
+        ),
+        (
+            "platform_process",
+            "held_to",
+            "a process read and not held is judged before it is called another",
+        ),
+        (
+            "cli_control",
+            "ended_once_asked",
+            "a daemon that said it is stopping is never signalled",
+        ),
+        (
+            "cli_control",
+            "when_unanswered",
+            "an endpoint something holds with no record is never a daemon stopped",
+        ),
+        (
+            "cli_control",
+            "listening_after",
+            "nothing answering is told from something holding the endpoint",
+        ),
+        ("cli_install", "install_with", "the CLI is copied runnable"),
+        (
+            "cli_install",
+            "install_with",
+            "the daemon is copied runnable",
         ),
     ];
 
