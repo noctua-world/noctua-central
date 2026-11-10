@@ -7083,6 +7083,9 @@ WEAKENINGS = [
     ("cli_run", "unlisted", "under `--json` help with no registry is the refusal alone",
      "        return refused;\n",
      ""),
+    ("cli_run", "asks_for_json", "only the options before the command ask for `--json`",
+     "        .take_while(|word| word.to_str()",
+     "        .filter(|word| word.to_str()"),
 ]
 
 # **Every member tree, as `MEMBER_TREES` in `xtask/src/members.rs` names them**,

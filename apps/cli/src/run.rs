@@ -359,6 +359,21 @@ mod tests {
             let code = ErrorCode::CliCommandLineUnreadable.code();
             assert!(written.contains(code), "{written}");
         }
+        // `--json` after the command's name is the command's own flag, never
+        // the CLI's option, so the refusal is written for a person.
+        let outcome = super::run(
+            &argv(&["Journal.Verify", "--json"]),
+            &installed.found,
+            &english(),
+        );
+        assert_eq!(outcome.exit, Exit::Invalid, "{outcome:?}");
+        assert_eq!(outcome.stdout, "", "{outcome:?}");
+        let code = ErrorCode::CliCommandLineUnreadable.code();
+        assert!(
+            outcome.stderr.starts_with(&format!("error[{code}]")),
+            "{}",
+            outcome.stderr
+        );
     }
 
     /// Help lists every command the registry holds by its name and title, and
@@ -612,6 +627,16 @@ mod tests {
             outcome
                 .stderr
                 .starts_with(&format!("error[{}]", missing.code().code()))
+        );
+        // `--json` after the command's name is the command's, not the CLI's.
+        let outcome = crate::unfound(&argv(&["journal.verify", "--json"]), &missing, &english());
+        assert_eq!(outcome.stdout, "", "{outcome:?}");
+        assert!(
+            outcome
+                .stderr
+                .starts_with(&format!("error[{}]", missing.code().code())),
+            "{}",
+            outcome.stderr
         );
         let outcome = crate::unfound(&argv(&["--json", "help"]), &missing, &english());
         let document = nc_canon::parse(outcome.stdout.trim_end()).expect("one document");

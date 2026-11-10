@@ -37245,7 +37245,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1966] = [
+    static OPERATORS: [(&str, &str, &str); 1967] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -46015,6 +46015,11 @@ Options:
             "cli_run",
             "unlisted",
             "under `--json` help with no registry is the refusal alone",
+        ),
+        (
+            "cli_run",
+            "asks_for_json",
+            "only the options before the command ask for `--json`",
         ),
     ];
 
