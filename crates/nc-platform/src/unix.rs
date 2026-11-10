@@ -317,8 +317,8 @@ fn boot_session() -> io::Result<String> {
     if let Some(boot) = BOOT.get() {
         return Ok(boot.clone());
     }
-    let asked = asked("/usr/sbin/sysctl", &["-n", "kern.bootsessionuuid"])?;
-    Ok(BOOT.get_or_init(|| asked.trim().to_owned()).clone())
+    let said = asked("/usr/sbin/sysctl", &["-n", "kern.bootsessionuuid"])?;
+    Ok(BOOT.get_or_init(|| said.trim().to_owned()).clone())
 }
 
 /// What an executable's name ends with here: nothing.
@@ -520,7 +520,7 @@ pub(crate) struct Process {
 ///
 /// **macOS** has no `/proc` and no pidfd: whether a process holds the id is
 /// asked with signal 0, and what it is with `ps` — its user, its start and its
-/// executable — by the absolute path, in the C locale and UTC.
+/// executable, then its state — by the absolute path, in the C locale and UTC.
 #[cfg(not(target_os = "linux"))]
 pub(crate) fn open(
     record: &crate::process::Identity,
@@ -543,12 +543,15 @@ pub(crate) fn open(
             format!("`ps` printed no user, start and executable for process {number}"),
         )
     })?;
+    // A zombie keeps its id, its start and its name until its parent hears
+    // it, so its state is what says it has ended.
+    let state = asked_of_one("/bin/ps", &["-o", "stat=", "-p", &number])?.unwrap_or_default();
     let seen = crate::process::Seen {
         boot: Some(boot_session()?),
         started,
         executable: std::fs::canonicalize(command).ok(),
         ours: uid == rustix::process::getuid().as_raw(),
-        ended: false,
+        ended: state.trim_start().starts_with('Z'),
     };
     Ok(Some((
         Process {

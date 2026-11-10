@@ -24,7 +24,7 @@
 //! | System | Held through | What is read |
 //! |---|---|---|
 //! | Linux | a pidfd, opened first | `/proc/<pid>/stat` field 22 and its state, the boot's id, `/proc/<pid>/exe` and the owner of `/proc/<pid>`, then the pidfd asked again which process it holds |
-//! | macOS | the process id | `/bin/ps -o uid=,lstart=,comm=` in the C locale and UTC, and the boot's session, read again before each signal |
+//! | macOS | the process id | `/bin/ps -o uid=,lstart=,comm=` in the C locale and UTC, its state, and the boot's session, read again before each signal |
 //! | Windows | one process handle | its creation time, its image's path and its token's user |
 //!
 //! **A signal goes through what was verified**: a Linux pidfd names one
@@ -405,7 +405,9 @@ pub(crate) fn seen_in_ps(said: &str) -> Option<(u32, String, PathBuf)> {
         rest = after.trim_start();
     }
     let started = started_in_ps(&words.join(" "))?;
-    (!rest.is_empty()).then(|| (uid, started, PathBuf::from(rest)))
+    // The line is trimmed, so a fifth word followed by whitespace is followed
+    // by something: what is left is never empty.
+    Some((uid, started, PathBuf::from(rest)))
 }
 
 /// The start a Linux `/proc/<pid>/stat` holds: its field 22, counted after the
