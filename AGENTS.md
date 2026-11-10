@@ -3211,7 +3211,9 @@ rather than anything decided for the project, and each is a maintainer's to reop
   membership the family pack confers, which has begun and has no end: the kernel's suites'
   `g.current` ends on 2027-01-01, and a daemon decides on the system's clock.
 - **A daemon a suite started outlives a suite killed outright.** Each suite stops its
-  daemons through the endpoint and kills them on the way out, but a test process killed
+  daemons through the endpoint and kills them on the way out, and stops one the CLI's
+  `start` spawned through the CLI's own `stop`, which reaches a daemon only once its PID
+  record is written, so one hung before that outlives its test too. A test process killed
   with no destructor run leaves its daemon running, holding none of the runner's output,
   with its scratch install under the temporary directory, until it is stopped by hand.
 - **Another account is kept off the endpoint by what no test can be**: no hosted runner
