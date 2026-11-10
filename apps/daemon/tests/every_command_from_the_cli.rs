@@ -289,12 +289,14 @@ struct Registered {
 /// A daemon of a scratch install with the reference plugin installed, running,
 /// with what the CLI reads its install by and its registry as it answers it.
 struct Serving {
-    installed: Installed,
+    // Fields drop in the order they are written, so a test that panics
+    // kills the daemon and waits for it before its install is removed.
     daemon: nc_daemon::testing::Running,
     client: nc_ipc::Client,
     runtime: tokio::runtime::Runtime,
     found: nc_channel::found::Found,
     registry: BTreeMap<String, Registered>,
+    installed: Installed,
 }
 
 impl Serving {
@@ -332,12 +334,12 @@ impl Serving {
             );
         });
         Self {
-            installed,
             daemon,
             client,
             runtime,
             found,
             registry,
+            installed,
         }
     }
 

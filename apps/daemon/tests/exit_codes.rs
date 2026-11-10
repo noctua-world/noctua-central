@@ -37,11 +37,13 @@ const GRANTED: &str = "id = \"noctua:reference\"\nnamespace = \"reference\"\ncap
 /// A daemon of a scratch install with the reference plugin installed, and
 /// what the CLI reads its install by.
 struct Serving {
-    installed: Installed,
+    // Fields drop in the order they are written, so a test that panics
+    // kills the daemon and waits for it before its install is removed.
     daemon: nc_daemon::testing::Running,
     client: nc_ipc::Client,
     runtime: tokio::runtime::Runtime,
     found: nc_channel::found::Found,
+    installed: Installed,
 }
 
 impl Serving {
@@ -66,11 +68,11 @@ impl Serving {
         let found = nc_channel::found::beside(&installed.executable)
             .expect("the CLI reads the install the daemon runs from");
         Self {
-            installed,
             daemon,
             client,
             runtime,
             found,
+            installed,
         }
     }
 

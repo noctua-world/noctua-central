@@ -90,8 +90,8 @@ pub enum Refused {
     Install(nc_channel::found::Refused),
     /// A directory or a file of the profile is not this user's alone.
     NotPrivate(nc_platform::Refusal),
-    /// The filesystem could not answer for a path of the install or the
-    /// profile.
+    /// The filesystem could not answer for a path of the profile, or the
+    /// system for something a start asks of it.
     Unavailable {
         /// What was being done, naming the path.
         doing: String,

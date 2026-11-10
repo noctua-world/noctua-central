@@ -210,16 +210,23 @@ mod tests {
         );
     }
 
-    /// The daemon run outside an install is a refusal, exit code 1 with the
-    /// channel's code, and nothing is started.
+    /// The daemon run outside an install is exit code 1 in the shared reader's
+    /// words: the channel's code once, and the manifest it looked for.
     #[test]
     fn the_daemon_outside_an_install_is_exit_code_1() {
         let scratch = Scratch::new("serve");
         let executable = scratch.executable();
-        let (code, line) = super::answer(&[], || Ok(executable));
+        let (code, line) = super::answer(&[], || Ok(executable.clone()));
         assert_eq!(code, 1, "{line}");
+        // The reader's sentence, and not a second code of the daemon's before it.
+        let refused = nc_channel::found::beside(&executable).expect_err("no manifest is there");
+        assert_eq!(line, format!("noctua-daemon: {refused}"));
         let code = nc_catalog::ErrorCode::ChannelNoManifest.code();
-        assert!(line.contains(&format!("[{code}]")), "{line}");
+        assert_eq!(line.matches(&format!("[{code}]")).count(), 1, "{line}");
+        let manifest = std::fs::canonicalize(&executable)
+            .expect("the stand-in is there")
+            .with_file_name(nc_channel::MANIFEST);
+        assert!(line.contains(&manifest.display().to_string()), "{line}");
     }
 
     /// A refusal is exit code 1 with its code — outside an install, and when

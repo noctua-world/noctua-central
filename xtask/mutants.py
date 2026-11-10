@@ -519,9 +519,10 @@ SOURCES = {
     # **The daemon's profile**: which code each refusal carries — the
     # install's among them, read through `nc_channel::found` — the profile's
     # directories and world, the device's seed and record, the identifiers'
-    # mark, and the binary's own invocation. Decided by each module's own unit tests, the binary's among
-    # them, inside scratch directories; the suites that run the binary and kill
-    # a child are evidence no operator here runs (`ELSEWHERE` says why).
+    # mark, and the binary's own invocation. Decided by each module's own unit
+    # tests, the binary's among them, inside scratch directories; the suites
+    # that run the binary and kill a child are evidence no operator here runs
+    # (`ELSEWHERE` says why).
     "daemon_main": os.path.join(ROOT, "apps/daemon/src/main.rs"),
     "daemon_lib": os.path.join(ROOT, "apps/daemon/src/lib.rs"),
     "daemon_profile": os.path.join(ROOT, "apps/daemon/src/profile.rs"),
@@ -6647,6 +6648,9 @@ WEAKENINGS = [
     ("daemon_lib", "judged", "a path refused is not this user's alone",
      "            nc_platform::Judged::Refused(refused) => Self::NotPrivate(refused),",
      "            nc_platform::Judged::Refused(refused) => Self::Install(nc_channel::found::Refused::NotPrivate(refused)),"),
+    ("daemon_lib", "fmt", "an install's refusal is said in the shared reader's words",
+     "        if let Self::Install(refused) = self {\n            return write!(formatter, \"{refused}\");\n        }\n",
+     ""),
     ("daemon_profile", "prepare", "a directory already there is judged",
      "                nc_platform::judge(directory, Kind::Directory, user).map_err(Refused::judged)?;",
      "                let _ = nc_platform::judge(directory, Kind::Directory, user);"),
@@ -7468,7 +7472,8 @@ ELSEWHERE = {
     # nothing else (`a_suite_that_spawns_a_process_is_run_by_no_mutation_command`
     # in `xtask/src/check.rs` holds it): the binary's own unit tests, `--bin`,
     # for `main.rs`; for the crate root, which holds no test, the two modules
-    # whose tests read the codes it maps.
+    # whose tests read the codes it maps, and in `ALSO_RUN` the binary's, which
+    # print its refusals.
     "daemon_main": ["cargo", "test", "-q", "-p", "nc-daemon", "--bin", "noctua-daemon"],
     "daemon_lib": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "device::", "profile::"],
     "daemon_profile": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "profile::"],
@@ -7779,6 +7784,11 @@ ALSO_RUN = {
     # reference-plugin schema read from a command line, which the module's own
     # filter selects nothing of.
     "cli_args": ["cargo", "test", "-q", "-p", "nc-cli", "--test", "arguments_from_schemas"],
+    # **The line a refusal of the crate root is printed in.** `lib.rs` holds no
+    # test, and how its refusal reads is what the binary prints: the binary's
+    # own unit tests, `--bin`, hold an install's refusal to the shared reader's
+    # sentence, its code said once.
+    "daemon_lib": ["cargo", "test", "-q", "-p", "nc-daemon", "--bin", "noctua-daemon"],
 }
 
 
