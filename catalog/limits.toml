@@ -409,3 +409,69 @@ log_ring_lines = 256
 log_line_bytes = 1_024
 undo_history = 100
 confirmation_ttl_ms = 60_000
+
+# --- The daemon (§11.1, §16.2) ---
+#
+# **The bounds the daemon holds itself to, and the only place they are
+# written.** The daemon reads `nc_catalog::DAEMON` and nothing else, and so does
+# `crates/nc-ipc`, the protocol it is reached through. Every value is above
+# zero, and the compiler holds each to the bound outside this table it has to
+# keep: the mark's lease below a day, a frame above the kernel's payload and
+# what wraps it, the silence a peer is dropped after above two heartbeats, and
+# the connections within what a Windows pipe's instances hold.
+
+[daemon]
+# How far past the clock the identifiers' persisted ceiling is raised (§16.2).
+# The daemon writes `now + mark_lease_ms` to its mark file before it hands out
+# a millisecond past the ceiling it holds, so a write is made at most once per
+# lease under load and never when idle, and a start after a crash waits at most
+# this long for the clock to pass the ceiling. A clean stop writes the exact
+# high-water mark instead, so a clean restart waits for nothing. Below a day,
+# which the compiler holds it to: a minter takes a mark further ahead than that
+# for a corrupt number and refuses.
+mark_lease_ms = 2_000
+# The IPC channel (§11.1): the most one frame may carry, its length prefix
+# apart. A frame claiming more is refused from its prefix alone, before
+# anything is allocated for it, so a connection costs the daemon at most this
+# much at once. At least the kernel's `payload_bytes` and 64 KiB more, which
+# the compiler holds it to: a dispatch's arguments and its answer are each one
+# payload, carried inside a frame with its type, a command's name or a
+# refusal's code and sentence around it, so a payload the kernel accepts always
+# fits one frame.
+ipc_frame_max_bytes = 2_097_152
+# How long a connection has to prove it holds the channel's token, from the
+# daemon's challenge to its welcome; one that has not finished by then is
+# dropped. A client waits as long for the daemon's own proof.
+ipc_handshake_ms = 5_000
+# How long either side of a connection stays silent before it sends a ping:
+# each side speaks at least this often, so the other can tell a peer that is
+# waiting from one that is gone.
+ipc_heartbeat_ms = 2_000
+# How long a peer may be silent before the connection to it is dropped. More
+# than two heartbeats, which the compiler holds it to, so a peer that missed
+# one ping is waited for and only one that stopped speaking is dropped. This is
+# how the interface knows within seconds that the daemon is gone.
+ipc_silent_after_ms = 10_000
+# How many connections the daemon holds open at once; one past it is closed as
+# soon as it is accepted. At most 252, which the compiler holds it to: on
+# Windows each connection is an instance of the daemon's pipe, one more always
+# waits for the next client and one more is the connection past the bound,
+# held until the next is waiting, and a pipe holds at most 254.
+ipc_connections_max = 32
+# How often the daemon pumps its kernel (§11.1): fires the timers due, delivers
+# the events queued and holds the local database's tables to their bounds,
+# between call trees. At most `[kernel] timer_min_interval_ms`, which the
+# compiler holds it to, so the shortest timer a plugin may set is fired within
+# its own interval of being due rather than a pump later.
+pump_every_ms = 1_000
+# How often the daemon sweeps the blobs no committed unit holds (§11.5). At most
+# `[kernel] blob_orphan_grace_ms`, which the compiler holds it to, so an orphan
+# is gone within its grace and one sweep, never two graces.
+sweep_every_ms = 600_000
+# How long a stop waits for the dispatches already running, for a pump or a
+# sweep it finds inside a run, and for each connection to write its last
+# answer, before the daemon writes its mark and exits. At least `[kernel] dispatch_deadline_ms`, which the compiler holds it
+# to: the kernel lets a call tree run that long, so a stop that waited less
+# would cut short a dispatch the kernel would let finish, and leave its unit for
+# the next start to recover.
+stop_drain_ms = 30_000

@@ -714,9 +714,9 @@ fn rendering_an_unknown_key_answers_nothing_rather_than_an_empty_sentence() {
 /// kernel's own sources are read for.
 #[test]
 fn a_registry_entry_is_sealed_against_construction() {
-    // The ten, at the top of the body: clippy refuses an item after a
+    // The eleven, at the top of the body: clippy refuses an item after a
     // statement, and this is the list the whole test is written around.
-    const SEALED: [&str; 10] = [
+    const SEALED: [&str; 11] = [
         // The registry entry a dispatcher checks an action against.
         "Command",
         "EventSpec",
@@ -736,6 +736,9 @@ fn a_registry_entry_is_sealed_against_construction() {
         "KernelLimits",
         "CapabilitySpec",
         "Ungated",
+        // The daemon's bounds on itself, sealed as the kernel's are: the daemon
+        // reads `DAEMON` and takes no value of the type from its caller.
+        "DaemonLimits",
     ];
 
     let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR")));

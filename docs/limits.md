@@ -5,7 +5,7 @@
 
 Every bound this catalog declares. A table that can grow without bound and has no entry here **fails the build** — that gate is what makes this a policy rather than a habit (`§15.8`).
 
-**Declared is not the same as enforced, and each part of this page has its own answer.** The kernel holds every plugin to every bound under **Kernel**. A `local` table is held by `crates/nc-local`, which refuses a unit at a `refuse-at-limit` bound as it commits, and by the pruner, which `Kernel::pump` and the `limits.prune` command run over the local database — and nothing in this tree calls either on a timer yet. Nothing here prunes a `server` table, and there is no rate limiter and no key derivation, as their own sections say. This paragraph said *nothing on this page has a runner* while every `refuse-at-limit` bound under **Tables** was refused at already. One thing is enforced and is not a number — `access_records`' ordering column, which a trigger assigns (`migrations/0006_access_records_orders_by_insertion.sql`), because a bound that orders by a value a caller writes is a bound a caller can move.
+**Declared is not the same as enforced, and each part of this page has its own answer.** The kernel holds every plugin to every bound under **Kernel**, and the daemon and the IPC channel it is reached through hold to every bound under **Daemon**. A `local` table is held by `crates/nc-local`, which refuses a unit at a `refuse-at-limit` bound as it commits, and by the pruner, which `Kernel::pump` and the `limits.prune` command run over the local database — and nothing in this tree calls either on a timer yet. Nothing here prunes a `server` table, and there is no rate limiter and no key derivation, as their own sections say. This paragraph said *nothing on this page has a runner* while every `refuse-at-limit` bound under **Tables** was refused at already. One thing is enforced and is not a number — `access_records`' ordering column, which a trigger assigns (`migrations/0006_access_records_orders_by_insertion.sql`), because a bound that orders by a value a caller writes is a bound a caller can move.
 
 **A table is in one of two databases**, and its `Database` column says which: `server` is PostgreSQL, built by `migrations/`, and `local` is the SQLite file on the user's own machine, built by `local-migrations/`. A table whose strategy is `refuse-at-limit` is one whose oldest rows are not the pruner's to take — user state, what a plugin keeps or a blob a unit pinned, or a unit's images and notes, which an undo needs whole and which leave with their unit — so nothing prunes it by its own count: its `Maximum rows` is where its writer refuses a new row, and the refusal is the bound. `Counted over` says whose rows that number counts: a table counted over each plugin's rows in each realm holds that many for every plugin installed in every realm the machine serves, and one counted over each unit's rows that many for every unit the store holds, so its own size is the number times its owners, not the number.
 
@@ -110,3 +110,25 @@ The bounds the local kernel holds every plugin to (`§11.3`), read from `[kernel
 | `log_line_bytes` | 1 KiB (1024 bytes) | How long one line of a plugin's log may be |
 | `undo_history` | 100 | How many of a person's newest steps an undo looks through, and of their newest units a redo does |
 | `confirmation_ttl_ms` | 60000 milliseconds | How long a confirmation a person gave stays good for |
+
+## Daemon
+
+The bounds the daemon holds itself to, read from `[daemon]` and from nowhere else (`§11.1`, `§16.2`).
+
+**The mark's lease is enforced by `apps/daemon`.** It raises the identifiers' persisted ceiling `mark_lease_ms` past the clock before it hands out a millisecond past the one it holds, so a daemon stopped at any instant has minted nothing above what its next start resumes at, and a start after a crash waits at most that long for the clock to pass it. The compiler holds the lease below a day, the furthest ahead a minter takes a mark to be early rather than corrupt.
+
+**The `ipc_` bounds are enforced by `crates/nc-ipc`**, which reads them itself: a frame longer than `ipc_frame_max_bytes` is refused from its length prefix, before anything is allocated for it; a handshake not finished within `ipc_handshake_ms` is dropped; each side pings after `ipc_heartbeat_ms` of its own silence and drops a peer silent for `ipc_silent_after_ms`; and the listener it binds closes a connection past `ipc_connections_max` as soon as it is accepted. The compiler holds a frame to the kernel's `payload_bytes` and 64 KiB more, the silence to more than two heartbeats, and the connections to 252, two fewer than a Windows pipe's instances.
+
+**The schedule and the stop are enforced by `apps/daemon`.** It pumps its kernel every `pump_every_ms` — the timers due, the events queued and the pruner over the local database — and sweeps the blobs every `sweep_every_ms`, each between call trees; a stop begins no pump and no sweep, and waits `stop_drain_ms` at most for the dispatches already running, for a pump or a sweep it finds inside a run, and for each connection to write its last answer, giving up on what still runs then. The compiler holds the pump to the kernel's `timer_min_interval_ms`, the sweep to its `blob_orphan_grace_ms`, and the drain to at least its `dispatch_deadline_ms`, the longest the kernel lets one call tree run: a stop waits out any one tree, and gives up only on trees run one after another — a pump's callbacks, or a dispatch that waited for a pump — that outlast the drain together.
+
+| Limit | Value | What it bounds |
+|---|---|---|
+| `mark_lease_ms` | 2000 milliseconds | How far past the clock the identifiers' persisted ceiling is raised |
+| `ipc_frame_max_bytes` | 2 MiB (2097152 bytes) | How much one frame of the IPC channel may carry |
+| `ipc_handshake_ms` | 5000 milliseconds | How long a connection has to prove it holds the channel's token |
+| `ipc_heartbeat_ms` | 2000 milliseconds | How long either side of a connection stays silent before it pings |
+| `ipc_silent_after_ms` | 10000 milliseconds | How long a peer may be silent before its connection is dropped |
+| `ipc_connections_max` | 32 | How many connections the daemon holds open at once |
+| `pump_every_ms` | 1000 milliseconds | How often the daemon fires its timers, delivers its events and prunes |
+| `sweep_every_ms` | 600000 milliseconds | How often the daemon sweeps the blobs no committed unit holds |
+| `stop_drain_ms` | 30000 milliseconds | How long a stop waits for the dispatches already running |

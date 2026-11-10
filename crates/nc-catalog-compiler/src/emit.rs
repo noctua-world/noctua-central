@@ -215,7 +215,7 @@ fn lib() -> String {
          pub use errors::{ErrorCode, Severity, AREAS};\n\
          pub use events::{EventSpec, FieldKind, FieldSpec, Level, EVENTS};\n\
          pub use i18n::{message, render, Locale, KEYS};\n\
-         pub use limits::{rate_limit, Argon2Id, Budget, Database, KernelLimits, OnLockout, RateLimit, StoreLimit, Strategy, TableLimit, ARGON2ID_DEVICE_PIN, ARGON2ID_PASSWORD, KERNEL, RATE_LIMITS, STORES, TABLES};\n\
+         pub use limits::{rate_limit, Argon2Id, Budget, DaemonLimits, Database, KernelLimits, OnLockout, RateLimit, StoreLimit, Strategy, TableLimit, ARGON2ID_DEVICE_PIN, ARGON2ID_PASSWORD, DAEMON, KERNEL, RATE_LIMITS, STORES, TABLES};\n\
          pub use notifications::Notification;\n",
     );
     out
@@ -746,6 +746,48 @@ fn limits(catalog: &Catalog) -> String {
     out.push_str(&hashing(catalog));
     out.push_str(&rates(catalog));
     out.push_str(&kernel(catalog));
+    out.push_str(&daemon(catalog));
+    out
+}
+
+/// The daemon's limits, as one struct and the one constant of it.
+///
+/// **Sealed against construction, like `KernelLimits`**, for the same reason:
+/// the daemon reads `DAEMON` and nothing else, so a value a caller could write
+/// would be a second source of its bounds.
+fn daemon(catalog: &Catalog) -> String {
+    let limits = catalog.limits.daemon.each();
+    let mut out = String::new();
+    out.push_str("\n/// The bounds the daemon holds itself to (`NOCTUA.md §11.1`, `§16.2`).\n");
+    out.push_str("///\n");
+    out.push_str("/// `DAEMON` is the value the daemon reads, and the only one this crate\n");
+    out.push_str(
+        "/// builds; the type is sealed against a struct literal, as `KernelLimits` is.\n",
+    );
+    out.push_str("#[derive(Debug, Clone, Copy, PartialEq, Eq)]\n");
+    out.push_str("#[non_exhaustive]\npub struct DaemonLimits {\n");
+    for limit in &limits {
+        let sentence = limit.unit.in_words().map_or_else(
+            || format!("{}.", limit.bounds),
+            |unit| format!("{}, in {unit}.", limit.bounds),
+        );
+        let _ = write!(out, "    {}", doc(&sentence));
+        let _ = writeln!(
+            out,
+            "    pub {}: {},",
+            limit.name,
+            if limit.wide { "u64" } else { "u32" }
+        );
+    }
+    out.push_str("}\n\n");
+    out.push_str(
+        "/// The daemon's limits, as `catalog/limits.toml` declares them under `[daemon]`.\n",
+    );
+    out.push_str("pub const DAEMON: DaemonLimits = DaemonLimits {\n");
+    for limit in &limits {
+        let _ = writeln!(out, "    {}: {},", limit.name, number(limit.value));
+    }
+    out.push_str("};\n");
     out
 }
 

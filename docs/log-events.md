@@ -5,7 +5,51 @@
 
 Every event the central log can receive. **No field here can be written as free text at a logging call**: the kinds below are the only ones the registry has, `type = "id"` is refused outright, and a `String` cannot be made into a `LogValue` (`§15.4`). What that closes is a sentence a caller composed; what it does not close is a caller who encodes something into a value of a kind the registry does allow — `Snowflake` is written as its Crockford base32 text, and twelve of its characters are the caller’s. The source gate refuses the conversion at a logging call site, which is where it is visible; `crates/nc-log/src/value.rs` states the residual, and `NOCTUA.md §5.1` owns it.
 
-**`nc-kernel` is the one crate outside `nc-log` that logs.** It emits every `kernel.*` event below, `net.refused`, `journal.verified` and `journal.broken`; every other event is declared for a later stage, and `cargo xtask check` counts the crates that may log beside their logging call sites. The types and the guarantee are real today; the traffic is the kernel's alone.
+**`nc-kernel` and `nc-daemon` are the crates outside `nc-log` that log.** The kernel emits every `kernel.*` event below, `net.refused`, `journal.verified` and `journal.broken`; the daemon emits `ids.clock_backwards`, `ipc.refused`, `daemon.started`, `daemon.stopped`, `daemon.plugin_refused` and `daemon.prune_stuck`; every other event is declared for a later stage, and `cargo xtask check` counts the crates that may log beside their logging call sites. The types and the guarantee are real today.
+
+## `daemon.plugin_refused`
+
+A plugin installed in the profile was not loaded, by the code of what refused it; the daemon runs without it
+
+Level: `error`
+
+| Field | Kind | Optional |
+|---|---|---|
+| `code` | code from the error registry | no |
+
+## `daemon.prune_stuck`
+
+The pruner was refused on every pump of a run of them — a table skipped every tick is a refusal wearing a wait's clothes — logged at two pumps and at each doubling after
+
+Level: `error`
+
+| Field | Kind | Optional |
+|---|---|---|
+| `code` | code from the error registry | no |
+| `pumps` | whole number, at most 32 bits wide | no |
+
+## `daemon.started`
+
+The daemon reached running: its kernel is open, its plugins loaded or refused, and its schedule begun
+
+Level: `info`
+
+| Field | Kind | Optional |
+|---|---|---|
+| `pid` | whole number, at most 32 bits wide | no |
+| `loaded` | whole number, at most 32 bits wide | no |
+| `refused` | whole number, at most 32 bits wide | no |
+
+## `daemon.stopped`
+
+The daemon stopped when it was asked to: its dispatches and its schedule drained or given up, its mark settled and its endpoint gone
+
+Level: `info`
+
+| Field | Kind | Optional |
+|---|---|---|
+| `ran` | span of time | no |
+| `abandoned` | whole number, at most 32 bits wide | no |
 
 ## `db.migrated`
 
@@ -48,6 +92,16 @@ Level: `debug`
 | Field | Kind | Optional |
 |---|---|---|
 | `waited` | span of time | no |
+
+## `ipc.refused`
+
+The daemon refused a connection before it read a request — a peer not shown to be its user, one past the bound, or a handshake that did not prove the token — or closed a proven one that broke the protocol, fell silent, took nothing or was lost
+
+Level: `warn`
+
+| Field | Kind | Optional |
+|---|---|---|
+| `code` | code from the error registry | no |
 
 ## `journal.appended`
 

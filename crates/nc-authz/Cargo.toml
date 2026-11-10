@@ -33,6 +33,10 @@ nc-catalog.workspace = true
 # A decision's context is handed to Cedar as JSON, which is Cedar's own format
 # for it, and read against the schema.
 serde_json.workspace = true
+# A profile's world file, read as one canonical document (`LocalWorld::parse`):
+# the same reader every boundary uses, so a file in another spelling is refused
+# rather than read the way a second parser would read it.
+nc-canon.workspace = true
 
 [dev-dependencies]
 # **Itself, with the door open, so the documentation gate can read this crate's

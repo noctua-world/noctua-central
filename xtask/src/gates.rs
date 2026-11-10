@@ -65,7 +65,7 @@ const NOTHING_ELSE_MAY_BE_SKIPPED: [&str; 3] = [".git", "target", "node_modules"
 /// reach this too", and a directory holding no files yet cannot be listed: the
 /// walk-level test would fail for the absence rather than for a skip.
 #[cfg(test)]
-const COVERED: [&str; 22] = [
+const COVERED: [&str; 24] = [
     "crates/nc-authz/src",
     "crates/nc-canon/src",
     "crates/nc-catalog/src",
@@ -73,6 +73,7 @@ const COVERED: [&str; 22] = [
     "crates/nc-channel/src",
     "crates/nc-guest/src",
     "crates/nc-ids/src",
+    "crates/nc-ipc/src",
     "crates/nc-journal/src",
     "crates/nc-kernel/src",
     "crates/nc-local/src",
@@ -81,6 +82,8 @@ const COVERED: [&str; 22] = [
     "crates/nc-policy/src",
     "crates/nc-prune/src",
     "crates/nc-schema/src",
+    // The binaries a person's machine runs, each a library and a thin binary.
+    "apps/daemon/src",
     "xtask/src",
     "catalog",
     "policy",
@@ -1183,18 +1186,31 @@ fn hidden(file: &str, index: usize, by: &str) -> Finding {
 /// and a code it spells out is one the registry cannot renumber just the same
 /// — measured with `plugins/` outside the scope, `NC-JRNL-0003` written into a
 /// title in `plugins/reference/src/behaviour.rs` left this step's line
-/// identical to a clean run.
+/// identical to a clean run. **And every tree of members**, read through
+/// `MEMBER_TREES`, so a tree added beside the two is inside the walk and its
+/// floor in the same edit as the manifest.
 pub(crate) fn in_the_error_code_scope(relative: &str) -> bool {
-    if !(relative.starts_with("crates/")
-        || relative.starts_with("migrations/")
-        || relative.starts_with("local-migrations/")
-        || relative.starts_with("plugins/"))
+    if !the_error_code_ground()
+        .iter()
+        .any(|tree| crate::members::under(relative, tree))
     {
         return false;
     }
     !OUTSIDE_THE_ERROR_CODE_SCOPE
         .iter()
         .any(|excluded| relative.starts_with(excluded))
+}
+
+/// The directories `§15.1`'s walk reads, before its exclusions: every tree of
+/// members, and both migration directories.
+///
+/// The scope above and the floor in `check.rs` both ask this, so the ground
+/// one reads and the other recounts is one list.
+// allow-logging: `the_error_code_ground` hands back the trees `MEMBER_TREES` and this function write
+pub(crate) fn the_error_code_ground() -> Vec<&'static str> {
+    let mut ground: Vec<&'static str> = crate::members::trees_of_members().collect();
+    ground.extend(["migrations", "local-migrations"]);
+    ground
 }
 
 /// The crates `§15.1` must judge, written out — one entry per member crate.
@@ -1223,12 +1239,13 @@ pub(crate) fn in_the_error_code_scope(relative: &str) -> bool {
 /// per member crate.* A member added here and to the exclusion list in the
 /// same edit is a contradiction the test names.
 #[cfg(test)]
-const JUDGED_BY_THE_ERROR_CODE_RULE: [&str; 14] = [
+const JUDGED_BY_THE_ERROR_CODE_RULE: [&str; 16] = [
     "crates/nc-authz/",
     "crates/nc-canon/",
     "crates/nc-channel/",
     "crates/nc-guest/",
     "crates/nc-ids/",
+    "crates/nc-ipc/",
     "crates/nc-journal/",
     "crates/nc-kernel/",
     "crates/nc-local/",
@@ -1238,12 +1255,13 @@ const JUDGED_BY_THE_ERROR_CODE_RULE: [&str; 14] = [
     "crates/nc-prune/",
     "crates/nc-schema/",
     "plugins/reference/",
+    "apps/daemon/",
 ];
 
 /// The directories `§15.1` does not judge, named rather than patterned.
 ///
 /// `catalog/`, `docs/` and `xtask/` are here for completeness of the sentence
-/// above; `crates/ + migrations/ + plugins/` does not contain them, which is why
+/// above; [`the_error_code_ground`] does not contain them, which is why
 /// `check.rs`'s floor must subtract only the two that *are* inside the scope —
 /// subtracting a directory the scope never held can saturate a floor to zero,
 /// and then it stops being a floor at all. `xtask/` is a workspace member, and
@@ -2479,10 +2497,10 @@ fn in_the_compose_files(root: &Path, findings: &mut Vec<Finding>) -> usize {
 
 /// The path below the member a file belongs to, when it is directly under one.
 ///
-/// **Every member tree cargo resolves**: the ones [`inside_a_member`] reads —
-/// `crates/*` and `plugins/*` — and `xtask`. With only `crates/*` and `xtask`
-/// named, a canary directory at a plugin's root is none to the predicates over
-/// it while a crate's is one. Used
+/// **Every member tree cargo resolves**: the trees of members
+/// [`inside_a_member`] reads, and each tree that is a member itself, `xtask`.
+/// With only `crates/*` and `xtask` named, a canary directory at a plugin's
+/// root is none to the predicates over it while a crate's is one. Used
 /// by [`inside_a_canary_directory`] for the same reason [`an_integration_test`]
 /// reads the directory directly under the member: a directory cargo treats
 /// specially is one *at* a member's root, and the word anywhere in a path is a
@@ -2490,7 +2508,10 @@ fn in_the_compose_files(root: &Path, findings: &mut Vec<Finding>) -> usize {
 fn directly_under_a_member(relative: &str) -> Option<&str> {
     inside_a_member(relative)
         .map(|(_, inside)| inside)
-        .or_else(|| relative.strip_prefix("xtask/"))
+        .or_else(|| {
+            crate::members::trees_that_are_members()
+                .find_map(|tree| relative.strip_prefix(tree)?.strip_prefix('/'))
+        })
 }
 
 /// Whether a file is itself inside a `canaries/` directory.
@@ -3465,17 +3486,22 @@ fn an_integration_test(relative: &str) -> bool {
     inside_a_member(relative).is_some_and(|(_, inside)| inside.starts_with("tests/"))
 }
 
-/// A file's member directory under `crates/` or `plugins/`, and its path inside
+/// A file's member directory under a tree of members, and its path inside
 /// that member.
 ///
-/// **Both member trees, in one place.** The raising walk, its integration-test
-/// exclusion and its per-member name map all ask this, so a member tree is
-/// inside all three or none — with `strip_prefix("crates/")` spelled in each,
-/// the plugin tree is outside all three at once.
+/// **Every tree of members, in one place.** The raising walk, its
+/// integration-test exclusion and its per-member name map all ask this, so a
+/// member tree is inside all three or none — with `strip_prefix("crates/")`
+/// spelled in each, the plugin tree is outside all three at once. The trees are
+/// the ones `MEMBER_TREES` names, so one the manifest gains is inside all three
+/// with it.
 pub(crate) fn inside_a_member(relative: &str) -> Option<(&str, &str)> {
-    ["crates/", "plugins/"].iter().find_map(|tree| {
-        let (member, inside) = relative.strip_prefix(tree)?.split_once('/')?;
-        Some((&relative[..tree.len() + member.len()], inside))
+    crate::members::trees_of_members().find_map(|tree| {
+        let (member, inside) = relative
+            .strip_prefix(tree)?
+            .strip_prefix('/')?
+            .split_once('/')?;
+        Some((&relative[..tree.len() + 1 + member.len()], inside))
     })
 }
 
@@ -3531,14 +3557,15 @@ pub(crate) fn codes_something_raises(root: &Path) -> Result<(Vec<String>, usize)
         };
         sources.push((relative, text));
     };
-    walk(&root.join("crates"), &mut visit)?;
-    // **And the plugin tree, which cargo builds like `crates/`.** A plugin that
+    // **Every tree of members, which cargo builds alike.** A plugin that
     // constructs a registry code produces it as surely as a crate does, and
-    // `docs/errors.md` would publish that code as raised by nothing. Walked
-    // when it is there: a tree with no plugin yet has nothing to read.
-    let plugins = root.join("plugins");
-    if plugins.is_dir() {
-        walk(&plugins, &mut visit)?;
+    // `docs/errors.md` would publish that code as raised by nothing. Each is
+    // walked when it is there: a tree with no member yet has nothing to read.
+    for tree in crate::members::trees_of_members() {
+        let under = root.join(tree);
+        if under.is_dir() {
+            walk(&under, &mut visit)?;
+        }
     }
 
     // The names each member gives the enum, from every file the member has.
@@ -5410,6 +5437,475 @@ mod asserted_tests {
     }
 }
 
+/// The daemon serves nothing a network can reach, and no code outside
+/// `nc-platform` decides what to do by the system it runs on (`NOCTUA.md
+/// §2.7`, `§11.1`).
+#[cfg(test)]
+mod the_system_rules {
+    use super::{Finding, blanked, walk};
+
+    /// The constructors of a socket a network can reach: a TCP listener, a
+    /// socket that listens or connects by number, and a datagram socket.
+    ///
+    /// **Named as the types are, not as the calls**: `TcpListener::bind`,
+    /// `TcpSocket::listen` and `UdpSocket::bind` each start from the type's
+    /// name, in `std::net` and `tokio::net` alike, so a type written at all is
+    /// a socket written.
+    pub(super) const LISTENERS: [&str; 3] = ["TcpListener", "TcpSocket", "UdpSocket"];
+
+    /// The shipped sources the no-listener rule reads: every app's, and the two
+    /// crates a daemon's endpoint and protocol are built from.
+    pub(super) const SERVE_NOTHING: [&str; 3] =
+        ["apps/", "crates/nc-ipc/src/", "crates/nc-platform/src/"];
+
+    /// Whether `relative` is a shipped source the no-listener rule reads:
+    /// under a crate of [`SERVE_NOTHING`], or under an app's `src/`.
+    pub(super) fn serves_nothing(relative: &str) -> bool {
+        SERVE_NOTHING.iter().any(|tree| {
+            relative.strip_prefix(tree).is_some_and(|rest| {
+                !tree.starts_with("apps/")
+                    || rest
+                        .split_once('/')
+                        .is_some_and(|(_, inside)| inside.starts_with("src/"))
+            })
+        })
+    }
+
+    /// The tree the system's own answers are written in, and nowhere else.
+    pub(super) const THE_PLATFORM: &str = "crates/nc-platform/";
+
+    /// The predicates of a `cfg` that name a system: its family, its own
+    /// name, and the vendor, the environment and the ABI that tell one
+    /// system's builds apart — every part of a target but its architecture
+    /// and its pointer width.
+    pub(super) const SYSTEMS: [&str; 7] = [
+        "unix",
+        "windows",
+        "target_os",
+        "target_family",
+        "target_vendor",
+        "target_env",
+        "target_abi",
+    ];
+
+    /// The lines outside [`THE_PLATFORM`] that ask the system, each by its
+    /// file and its text: the gate's own.
+    ///
+    /// **Which of the gate's steps apply on a system is the gate's to decide**
+    /// — the stack runs on Linux alone (`check::RUNS_THE_STACK`) — and two of
+    /// its tests hold that answer to the system they run on. Nothing the
+    /// platform ships is among them.
+    pub(super) const THE_GATES_OWN: [(&str, &str); 4] = [
+        (
+            "xtask/src/check.rs",
+            "pub(crate) const RUNS_THE_STACK: bool = cfg!(target_os = \"linux\");",
+        ),
+        ("xtask/src/check.rs", "if cfg!(target_os = \"linux\") {"),
+        (
+            "xtask/src/check.rs",
+            "let written: &[&str] = if cfg!(target_os = \"linux\") {",
+        ),
+        ("xtask/src/check.rs", "} else if cfg!(windows) {"),
+    ];
+
+    /// Whether the character at `at` of `code` continues a word.
+    fn word(code: &[char], at: usize) -> bool {
+        code.get(at)
+            .is_some_and(|character| character.is_alphanumeric() || *character == '_')
+    }
+
+    /// Every place in `code` that `needle` is written as a whole word, by
+    /// character.
+    fn whole_words(code: &[char], needle: &str) -> Vec<usize> {
+        let needle: Vec<char> = needle.chars().collect();
+        (0..code.len().saturating_sub(needle.len().saturating_sub(1)))
+            .filter(|&at| {
+                code[at..].starts_with(&needle)
+                    && (at == 0 || !word(code, at - 1))
+                    && !word(code, at + needle.len())
+            })
+            .collect()
+    }
+
+    /// The line the character `at` of `code` is on, counted from one.
+    fn line_of(code: &[char], at: usize) -> usize {
+        code[..at].iter().filter(|c| **c == '\n').count() + 1
+    }
+
+    /// The lines of `text` that write a listener constructor as code, each
+    /// with the type it names.
+    pub(super) fn listeners_written(text: &str) -> Vec<(usize, String)> {
+        let code: Vec<char> = blanked(text).chars().collect();
+        let mut found: Vec<(usize, String)> = LISTENERS
+            .iter()
+            .flat_map(|name| {
+                whole_words(&code, name)
+                    .into_iter()
+                    .map(|at| (line_of(&code, at), (*name).to_owned()))
+                    .collect::<Vec<_>>()
+            })
+            .collect();
+        found.sort_unstable();
+        found
+    }
+
+    /// Where the first character of `code` from `at` on that is not a space is.
+    fn past_spaces(code: &[char], mut at: usize) -> usize {
+        while code.get(at).is_some_and(|c| c.is_whitespace()) {
+            at += 1;
+        }
+        at
+    }
+
+    /// Whether `predicate` names a system: one of [`SYSTEMS`] written in it as
+    /// a whole word.
+    fn names_a_system(predicate: &[char]) -> bool {
+        SYSTEMS
+            .iter()
+            .any(|system| !whole_words(predicate, system).is_empty())
+    }
+
+    /// The predicate of every arm of every `cfg_select!` written in `code`,
+    /// each with the character its first word starts at.
+    ///
+    /// **An arm's predicate is what follows the end of the arm before it** —
+    /// the select's own opening, a `,` that ends an expression, or the `}`
+    /// that ends a block — up to the arm's `=>`, each read at the select's own
+    /// depth: a predicate holds none of them outside its parentheses, so what
+    /// an arm answers with is never read as the next arm's question.
+    fn arms_selected(code: &[char]) -> Vec<(usize, &[char])> {
+        let mut arms = Vec::new();
+        for at in whole_words(code, "cfg_select") {
+            let bang = past_spaces(code, at + "cfg_select".len());
+            if code.get(bang) != Some(&'!') {
+                continue;
+            }
+            let opens = past_spaces(code, bang + 1);
+            if !matches!(code.get(opens), Some('(' | '[' | '{')) {
+                continue;
+            }
+            let mut depth = 0_usize;
+            let mut start = opens + 1;
+            for (index, character) in code.iter().enumerate().skip(opens) {
+                match character {
+                    '(' | '[' | '{' => depth += 1,
+                    ')' | ']' | '}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                        if depth == 1 && *character == '}' {
+                            start = index + 1;
+                        }
+                    }
+                    ',' if depth == 1 => start = index + 1,
+                    '=' if depth == 1 && code.get(index + 1) == Some(&'>') => {
+                        arms.push((past_spaces(code, start).min(index), &code[start..index]));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        arms
+    }
+
+    /// The lines of `text` whose `cfg`, `cfg!`, `cfg_attr` or `cfg_select!`
+    /// names a system, as code.
+    ///
+    /// **The predicate is what is read**, inside the parentheses that follow
+    /// the attribute or the macro: `cfg(any(unix, windows))` and
+    /// `cfg_attr(not(windows), …)` name a system, and `cfg(test)` does not.
+    /// A `cfg_select!` asks once an arm, and an arm whose predicate names a
+    /// system is found at the line that predicate starts on.
+    pub(super) fn systems_asked(text: &str) -> Vec<usize> {
+        let code: Vec<char> = blanked(text).chars().collect();
+        let mut lines = Vec::new();
+        for opens in ["cfg", "cfg_attr"] {
+            for at in whole_words(&code, opens) {
+                let mut after = past_spaces(&code, at + opens.chars().count());
+                if code.get(after) == Some(&'!') {
+                    after = past_spaces(&code, after + 1);
+                }
+                if code.get(after) != Some(&'(') {
+                    continue;
+                }
+                let mut depth = 0_usize;
+                let mut end = after;
+                while let Some(character) = code.get(end) {
+                    match character {
+                        '(' => depth += 1,
+                        ')' => {
+                            depth -= 1;
+                            if depth == 0 {
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                    end += 1;
+                }
+                if names_a_system(&code[after..end.min(code.len())]) {
+                    lines.push(line_of(&code, at));
+                }
+            }
+        }
+        for (at, predicate) in arms_selected(&code) {
+            if names_a_system(predicate) {
+                lines.push(line_of(&code, at));
+            }
+        }
+        lines.sort_unstable();
+        lines.dedup();
+        lines
+    }
+
+    /// Every listener constructor written in a shipped source under `root`
+    /// that [`serves_nothing`] reads, each as a finding at its line, and
+    /// every file read.
+    pub(super) fn listeners_under(root: &std::path::Path) -> (Vec<Finding>, Vec<String>) {
+        let mut found = Vec::new();
+        let mut read = Vec::new();
+        walk(root, &mut |path| {
+            if path.extension().is_none_or(|kind| kind != "rs") {
+                return;
+            }
+            let relative = crate::relative_to(root, path);
+            if !serves_nothing(&relative) {
+                return;
+            }
+            let text = std::fs::read_to_string(path)
+                .unwrap_or_else(|error| panic!("`{relative}` is readable: {error}"));
+            for (line, name) in listeners_written(&text) {
+                found.push(Finding {
+                    file: relative.clone(),
+                    line,
+                    what: format!("`{name}` is written here, which a network can reach"),
+                    fix: "a daemon and what its endpoint is built from serve no network: the \
+                          endpoint is a socket or a pipe this user alone reaches \
+                          (`nc_platform::ipc`), and a listener anywhere else is refused \
+                          (`AGENTS.md`, the invariant that the daemon has no network listener)"
+                        .to_owned(),
+                });
+            }
+            read.push(relative);
+        })
+        .expect("the tree walks");
+        (found, read)
+    }
+
+    /// Every `cfg` naming a system written in a Rust source under `root`
+    /// outside [`THE_PLATFORM`], each as a finding at its line — the gate's own
+    /// lines among them, which the caller excuses — and every file read.
+    pub(super) fn systems_asked_under(root: &std::path::Path) -> (Vec<Finding>, Vec<String>) {
+        let mut found = Vec::new();
+        let mut read = Vec::new();
+        walk(root, &mut |path| {
+            if path.extension().is_none_or(|kind| kind != "rs") {
+                return;
+            }
+            let relative = crate::relative_to(root, path);
+            if relative.starts_with(THE_PLATFORM) {
+                return;
+            }
+            let text = std::fs::read_to_string(path)
+                .unwrap_or_else(|error| panic!("`{relative}` is readable: {error}"));
+            for line in systems_asked(&text) {
+                found.push(Finding {
+                    file: relative.clone(),
+                    line,
+                    what: "a `cfg` here decides by the system this is built for".to_owned(),
+                    fix: "a system's answer is a fact `nc-platform` states and every system's \
+                          code reads (`NOCTUA.md §2.7`): write the per-system half there, and \
+                          the decision here in code every system compiles"
+                        .to_owned(),
+                });
+            }
+            read.push(relative);
+        })
+        .expect("the tree walks");
+        (found, read)
+    }
+
+    /// The findings of [`systems_asked_under`] the gate's own lines do not
+    /// excuse, and how many of [`THE_GATES_OWN`] were found where they are
+    /// written.
+    pub(super) fn not_the_gates_own(
+        root: &std::path::Path,
+        found: Vec<Finding>,
+    ) -> (Vec<Finding>, usize) {
+        let mut excused = 0;
+        let left = found
+            .into_iter()
+            .filter(|finding| {
+                let text = std::fs::read_to_string(root.join(&finding.file)).unwrap_or_default();
+                let line = text
+                    .lines()
+                    .nth(finding.line - 1)
+                    .map(str::trim)
+                    .unwrap_or_default();
+                let own = THE_GATES_OWN
+                    .iter()
+                    .any(|(file, written)| *file == finding.file && *written == line);
+                excused += usize::from(own);
+                !own
+            })
+            .collect();
+        (left, excused)
+    }
+
+    /// A listener type in code is found, and one in a comment, a string or a
+    /// longer name is not.
+    #[test]
+    fn a_listener_in_code_is_found_and_one_in_prose_is_not() {
+        let text = [
+            "// a TcpListener in a comment\n",
+            "let s = \"UdpSocket\";\n",
+            "struct MyTcpListenerish;\n",
+            "let l = std::net::TcpListener::bind(\"0.0.0.0:0\");\n",
+            "let u = tokio::net::UdpSocket::bind(a);\n",
+            "let t = tokio::net::TcpSocket::new_v4();\n",
+        ]
+        .concat();
+        assert_eq!(
+            listeners_written(&text),
+            [
+                (4, "TcpListener".to_owned()),
+                (5, "UdpSocket".to_owned()),
+                (6, "TcpSocket".to_owned())
+            ]
+        );
+    }
+
+    /// A `cfg` naming a system is found as an attribute, a macro, a
+    /// `cfg_attr` and an arm of a `cfg_select!`, however its predicate nests
+    /// and by whichever part of the target names it, and one naming no system
+    /// — an architecture, a pointer width, or prose — is not.
+    ///
+    /// **The `cfg_select!` cases were found by a review**: the macro is stable
+    /// on the gate's own toolchain, and a file selecting by `windows` and
+    /// `target_os` through it passed `no_system_is_asked_outside_the_platform`
+    /// while the same file with `#[cfg(unix)]` failed it. Each arm is asked
+    /// alone: a block or an expression answering one arm with
+    /// `.windows(2)` asks nothing.
+    #[test]
+    fn a_cfg_naming_a_system_is_found_and_one_naming_none_is_not() {
+        let text = [
+            "#[cfg(test)]\n",
+            "#[cfg(unix)]\n",
+            "#![cfg(windows)]\n",
+            "let x = cfg!(target_os = \"macos\");\n",
+            "#[cfg(any(test, all(not(target_family = \"wasm\"))))]\n",
+            "#[cfg_attr(windows, expect(dead_code, reason = \"x\"))]\n",
+            "#[cfg_attr(test, derive(Default))]\n",
+            "// #[cfg(unix)] in a comment\n",
+            "let s = \"#[cfg(windows)]\";\n",
+            "#[cfg(feature = \"unix\")]\n",
+            "let cfg = unix;\n",
+            "#[cfg(target_vendor = \"apple\")]\n",
+            "let msvc = cfg!(target_env = \"msvc\");\n",
+            "#[cfg_attr(target_abi = \"eabihf\", inline)]\n",
+            "#[cfg(target_arch = \"wasm32\")]\n",
+            "#[cfg(target_pointer_width = \"64\")]\n",
+            "let spaced = cfg !(unix);\n",
+            "cfg_select! {\n",
+            "    target_arch = \"x86\" => { v.windows(2).count() }\n",
+            "    windows => { let a = 1; }\n",
+            "    target_pointer_width = \"32\" => v.windows(3).count(),\n",
+            "    any(\n",
+            "        target_os = \"linux\", target_arch = \"arm\") => 0,\n",
+            "    _ => 1,\n",
+            "}\n",
+            "let n = core::cfg_select!(target_arch = \"arm\" => 1, _ => 2);\n",
+            "let m = std::cfg_select ! [target_env = \"gnu\" => 1, _ => 2];\n",
+            "let cfg_select = unix;\n",
+        ]
+        .concat();
+        assert_eq!(
+            systems_asked(&text),
+            [2, 3, 4, 5, 6, 12, 13, 14, 17, 20, 22, 27]
+        );
+    }
+
+    /// The shipped sources the no-listener rule reads are an app's own and the
+    /// two crates', and nothing else.
+    #[test]
+    fn the_listener_rule_reads_the_daemons_shipped_sources_alone() {
+        for read in [
+            "apps/daemon/src/server.rs",
+            "apps/daemon/src/main.rs",
+            "apps/cli/src/client/x.rs",
+            "crates/nc-ipc/src/lib.rs",
+            "crates/nc-platform/src/unix.rs",
+        ] {
+            assert!(serves_nothing(read), "{read}");
+        }
+        for unread in [
+            "apps/daemon/tests/serves_its_kernel.rs",
+            "apps/daemon/Cargo.toml",
+            "crates/nc-ipc/tests/frames.rs",
+            "crates/nc-platform/tests/x.rs",
+            "crates/nc-kernel/src/logging.rs",
+            "xtask/src/apps/daemon/src/x.rs",
+        ] {
+            assert!(!serves_nothing(unread), "{unread}");
+        }
+    }
+
+    /// No listener constructor is written in the daemon's shipped sources, or
+    /// in the two crates its endpoint and protocol are built from.
+    #[test]
+    fn the_daemon_has_no_network_listener() {
+        let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+        let (found, read) = listeners_under(root);
+        assert!(
+            found.is_empty(),
+            "a socket a network can reach is written where the daemon is built: {found:?}"
+        );
+        for expected in [
+            "apps/daemon/src/server.rs",
+            "crates/nc-ipc/src/connection.rs",
+            "crates/nc-platform/src/ipc.rs",
+        ] {
+            assert!(
+                read.iter().any(|file| file == expected),
+                "`{expected}` was not read, so this walk did not reach the code it is about"
+            );
+        }
+    }
+
+    /// No code outside `nc-platform` decides by the system it is built for,
+    /// but the gate's own lines, each found where it is written.
+    #[test]
+    fn no_system_is_asked_outside_the_platform() {
+        let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+        let (found, read) = systems_asked_under(root);
+        let (left, excused) = not_the_gates_own(root, found);
+        assert!(
+            left.is_empty(),
+            "a `cfg` outside `{THE_PLATFORM}` decides by the system: {left:?}"
+        );
+        assert_eq!(
+            excused,
+            THE_GATES_OWN.len(),
+            "a line of the gate's own that asks the system is not where it is written down"
+        );
+        for expected in [
+            "apps/daemon/src/run.rs",
+            "crates/nc-ipc/src/lib.rs",
+            "xtask/src/check.rs",
+        ] {
+            assert!(
+                read.iter().any(|file| file == expected),
+                "`{expected}` was not read, so this walk did not reach the code it is about"
+            );
+        }
+        assert!(
+            !read.iter().any(|file| file.starts_with(THE_PLATFORM)),
+            "the walk read `{THE_PLATFORM}`, where the system's answers are written"
+        );
+    }
+}
+
 #[cfg(test)]
 mod the_unsafe_rule {
     use super::{blanked, walk};
@@ -6227,16 +6723,20 @@ struct Tally {
 /// declare would be a rule that refuses an ordinary arrangement.
 fn the_crates_that_shut_their_doors(root: &Path) -> std::collections::BTreeSet<String> {
     let mut shut = std::collections::BTreeSet::new();
-    let Ok(entries) = std::fs::read_dir(root.join("crates")) else {
-        return shut;
-    };
-    for entry in entries.flatten() {
-        let manifest = entry.path().join("Cargo.toml");
-        let Ok(text) = std::fs::read_to_string(&manifest) else {
+    // Every tree of members: a library under any of them may declare the
+    // feature, and its claim about its default surface is the same claim.
+    for tree in crate::members::trees_of_members() {
+        let Ok(entries) = std::fs::read_dir(root.join(tree)) else {
             continue;
         };
-        if text.contains("\n[features]") && text.contains(&format!("\n{DOORS_ARE_BEHIND} =")) {
-            shut.insert(crate::relative_to(root, &entry.path()));
+        for entry in entries.flatten() {
+            let manifest = entry.path().join("Cargo.toml");
+            let Ok(text) = std::fs::read_to_string(&manifest) else {
+                continue;
+            };
+            if text.contains("\n[features]") && text.contains(&format!("\n{DOORS_ARE_BEHIND} =")) {
+                shut.insert(crate::relative_to(root, &entry.path()));
+            }
         }
     }
     shut
@@ -6443,8 +6943,9 @@ pub(crate) fn every_hatch_carries_its_reason(
     // down in the same tree. Measured with `crates/` and `xtask/` walked
     // alone: `#[allow(clippy::must_use_candidate)]` with no reason in
     // `plugins/reference/src/behaviour.rs` left this step's line
-    // byte-identical to a clean run.
-    for tree in ["crates", "plugins", "xtask"] {
+    // byte-identical to a clean run. So every member tree is walked, read
+    // through `MEMBER_TREES`, and a tree the manifest gains is walked with it.
+    for tree in crate::members::member_tree_roots() {
         let root_of = root.join(tree);
         if !root_of.is_dir() {
             continue;
@@ -6610,13 +7111,10 @@ pub(crate) fn every_hatch_carries_its_reason(
 ///
 /// Split out of the walk so the fixture that plants in every real directory can
 /// ask the walk's own scope instead of restating it. The rule is the walk's
-/// own: many of the real directories are outside `crates/`, `plugins/` and
-/// `xtask/`, and an expectation that ignores that refuses a tree with nothing
-/// wrong with it.
+/// own: many of the real directories are outside every member tree, and an
+/// expectation that ignores that refuses a tree with nothing wrong with it.
 pub(crate) fn in_the_hatch_scope(relative: &str) -> bool {
-    (relative.starts_with("crates/")
-        || relative.starts_with("plugins/")
-        || relative.starts_with("xtask/"))
+    crate::members::in_a_member_tree(relative)
         // The extension is asked of the path rather than of the text — and
         // `ends_with` here is a lint in this workspace, because it decides
         // `.RS` the other way on a case-insensitive filesystem.
@@ -8983,7 +9481,7 @@ mod tests {
         let planted: Vec<(String, usize)> = all
             .iter()
             .filter(|(file, _)| {
-                (file.starts_with("crates/") || file.starts_with("plugins/"))
+                crate::members::trees_of_members().any(|tree| crate::members::under(file, tree))
                     && super::in_the_raising_scope(file)
             })
             .cloned()
@@ -9027,8 +9525,9 @@ mod tests {
         every_source_of_those_crates_is_in_the_raising_scope();
         assert_eq!(
             read,
-            super::rust_files_under(&root, "crates", super::in_the_raising_scope)
-                + super::rust_files_under(&root, "plugins", super::in_the_raising_scope),
+            crate::members::trees_of_members()
+                .map(|tree| super::rust_files_under(&root, tree, super::in_the_raising_scope))
+                .sum::<usize>(),
             "the walk read a different number of files than a second count of the same \
              ground, so something inside it is filtering"
         );
@@ -9314,6 +9813,71 @@ mod tests {
         and_a_file_under_every_name_it_opens(&root, &mut planted, defect, "");
         let (findings, _) = super::the_unsafe_rule::unsafe_written_under(&root);
         reached_every_one(&findings, &planted, "the unsafe-token walk");
+    }
+
+    /// The listener walk reaches a listener planted in every shipped source it
+    /// names — in every directory this tree really has and under every name it
+    /// opens — and reports each, and none planted anywhere else.
+    #[test]
+    fn the_listener_walk_goes_everywhere_inside_its_scope() {
+        let defect = "pub fn f() { let _ = std::net::TcpListener::bind(\"0.0.0.0:0\"); }";
+        let (_held, root, mut planted) = in_every_real_directory(defect, "");
+        and_a_file_under_every_name_it_opens(&root, &mut planted, defect, "");
+        let (findings, _) = super::the_system_rules::listeners_under(&root);
+        let judged: Vec<(String, usize)> = planted
+            .into_iter()
+            .filter(|(file, _)| super::the_system_rules::serves_nothing(file))
+            .collect();
+        for tree in super::the_system_rules::SERVE_NOTHING {
+            assert!(
+                judged.iter().any(|(file, _)| file.starts_with(tree)),
+                "nothing was planted under `{tree}`, so its reach is not shown"
+            );
+        }
+        assert_eq!(
+            findings.len(),
+            judged.len(),
+            "the listener walk reported one planted outside its scope"
+        );
+        reached_every_one(&findings, &judged, "the listener walk");
+    }
+
+    /// The system-cfg walk reaches a `cfg` naming a system planted in every
+    /// directory this tree really has and under every name it opens, but the
+    /// platform's own, and reports each.
+    #[test]
+    fn the_system_walk_goes_everywhere_outside_the_platform() {
+        let defect = "#[cfg(target_vendor = \"apple\")] pub fn f() {}";
+        // Every other directory asks through a `cfg_select!` arm instead, so
+        // the walk is held to finding both forms wherever they are written.
+        let (_held, root, mut planted) = in_every_real_directory_each(
+            &|index| {
+                if index % 2 == 0 {
+                    defect.to_owned()
+                } else {
+                    "cfg_select! { target_arch = \"x86\" => {} windows => { pub fn f() {} } }"
+                        .to_owned()
+                }
+            },
+            "",
+        );
+        and_a_file_under_every_name_it_opens(&root, &mut planted, defect, "");
+        let (findings, _) = super::the_system_rules::systems_asked_under(&root);
+        let platform = super::the_system_rules::THE_PLATFORM;
+        assert!(
+            planted.iter().any(|(file, _)| file.starts_with(platform)),
+            "nothing was planted under `{platform}`, so its exclusion is not shown"
+        );
+        let judged: Vec<(String, usize)> = planted
+            .into_iter()
+            .filter(|(file, _)| !file.starts_with(platform))
+            .collect();
+        assert_eq!(
+            findings.len(),
+            judged.len(),
+            "the system-cfg walk reported one planted in the platform"
+        );
+        reached_every_one(&findings, &judged, "the system-cfg walk");
     }
 
     /// The vouched-statement walk reaches a statement built from a value,
@@ -9936,7 +10500,7 @@ mod tests {
     // SCOPE` naming the compiler's crate, and a second copy of that text
     // anywhere in this file leaves the operator with nothing unique to apply to
     // — reported as `not applicable`, which is a clause with no coverage.
-    const READ_BY_THE_HATCH_WALK: [&str; 17] = [
+    const READ_BY_THE_HATCH_WALK: [&str; 19] = [
         "crates/nc-authz",
         "crates/nc-canon",
         "crates/nc-catalog",
@@ -9944,6 +10508,7 @@ mod tests {
         "crates/nc-channel",
         "crates/nc-guest",
         "crates/nc-ids",
+        "crates/nc-ipc",
         "crates/nc-journal",
         "crates/nc-kernel",
         "crates/nc-local",
@@ -9953,6 +10518,7 @@ mod tests {
         "crates/nc-prune",
         "crates/nc-schema",
         "plugins/reference",
+        "apps/daemon",
         "xtask",
     ];
 
@@ -9965,12 +10531,13 @@ mod tests {
     ///
     /// The registry's own crate and its compiler are absent on purpose: they are
     /// the declaration rather than a producer.
-    const JUDGED_BY_THE_RAISING_RULE: [&str; 14] = [
+    const JUDGED_BY_THE_RAISING_RULE: [&str; 16] = [
         "crates/nc-authz/",
         "crates/nc-canon/",
         "crates/nc-channel/",
         "crates/nc-guest/",
         "crates/nc-ids/",
+        "crates/nc-ipc/",
         "crates/nc-journal/",
         "crates/nc-kernel/",
         "crates/nc-local/",
@@ -9980,6 +10547,7 @@ mod tests {
         "crates/nc-prune/",
         "crates/nc-schema/",
         "plugins/reference/",
+        "apps/daemon/",
     ];
 
     /// The determinism walk reaches a clock in each of `EMITS`, not one of three.
@@ -10089,7 +10657,7 @@ mod tests {
     ///
     /// It is a hand list on purpose. Deriving it from the source would make it
     /// agree with whatever the source does — the derived-expectation trap.
-    const REACHED_BY_THE_PLANTED_FIXTURE: [(&str, &str); 10] = [
+    const REACHED_BY_THE_PLANTED_FIXTURE: [(&str, &str); 12] = [
         (
             "the blanket-allow walk",
             "a_walk_reaches_a_defect_planted_where_no_filter_can_name_it",
@@ -10111,6 +10679,14 @@ mod tests {
         (
             "the vouched-statement walk",
             "the_vouched_statement_walk_goes_everywhere",
+        ),
+        (
+            "the listener walk",
+            "the_listener_walk_goes_everywhere_inside_its_scope",
+        ),
+        (
+            "the system-cfg walk",
+            "the_system_walk_goes_everywhere_outside_the_platform",
         ),
     ];
 
@@ -10796,6 +11372,114 @@ mod tests {
             root.display()
         );
         found
+    }
+
+    /// Every gate that asks where the platform's code is reads every member
+    /// tree, whether or not the real tree holds a member there.
+    ///
+    /// **The hole a new tree opens, tested before it opens.** The fixtures
+    /// below plant in the directories the repository really has, so a tree with
+    /// no member yet is one they never plant in, and a gate spelling `crates/`
+    /// and `plugins/` itself would pass them on the day the tree arrives. This
+    /// builds a member in every tree the list names and plants each gate's
+    /// target in each: a code written out, a code raised, a reason left off an
+    /// allow, and a crate shutting its doors behind a feature.
+    #[test]
+    fn every_gate_reads_every_member_tree() {
+        let held = crate::check::LeavesNothingBehind::new("member-trees");
+        let root = held.root.clone();
+        let write = |relative: &str, text: &str| {
+            let path = root.join(relative);
+            std::fs::create_dir_all(path.parent().expect("a parent")).expect("a writable scratch");
+            std::fs::write(&path, text).expect("a writable scratch");
+        };
+        let mut members: Vec<(String, String)> = Vec::new();
+        for (index, tree) in crate::members::trees_of_members().enumerate() {
+            let member = format!("{tree}/probe{index}");
+            write(
+                &format!("{member}/src/lib.rs"),
+                &format!(
+                    "pub const WRITTEN: &str = \"NC-KERN-424{index}\";\n\
+                     pub const fn produces() -> nc_catalog::ErrorCode {{ \
+                     nc_catalog::ErrorCode::Planted{index} }}\n\
+                     #[allow(dead_code)]\npub const PROBE: usize = 1;\n"
+                ),
+            );
+            write(
+                &format!("{member}/Cargo.toml"),
+                "[package]\nname = \"probe\"\n\n[features]\ntest-support = []\n",
+            );
+            members.push((member, format!("Planted{index}")));
+        }
+        for tree in crate::members::trees_that_are_members() {
+            write(
+                &format!("{tree}/src/probe.rs"),
+                "#[allow(dead_code)]\npub const PROBE: usize = 1;\n",
+            );
+        }
+        assert!(
+            members.len() >= 2,
+            "`MEMBER_TREES` names {} tree(s) of members, so this plants in less than the \
+             manifest builds",
+            members.len()
+        );
+
+        let (written, _, _) =
+            super::no_code_is_written_at_a_call_site(&root, &[]).expect("the scratch walks");
+        let (raised, _) = super::codes_something_raises(&root).expect("the scratch walks");
+        let (hatches, _, _) =
+            super::every_hatch_carries_its_reason(&root).expect("the scratch walks");
+        let shut = super::the_crates_that_shut_their_doors(&root);
+        for (member, code) in &members {
+            let source = format!("{member}/src/lib.rs");
+            assert!(
+                written.iter().any(|finding| finding.file == source),
+                "the §15.1 walk did not read `{member}`, a member of a tree `MEMBER_TREES` \
+                 names: {written:#?}"
+            );
+            assert!(
+                raised.contains(code),
+                "the raising walk did not read `{member}`: {raised:?}"
+            );
+            assert!(
+                hatches.iter().any(|finding| finding.file == source),
+                "the hatch walk did not read `{member}`: {hatches:#?}"
+            );
+            assert!(
+                shut.contains(member),
+                "the doors' walk did not read `{member}`'s manifest: {shut:?}"
+            );
+            assert_eq!(
+                super::inside_a_member(&source),
+                Some((member.as_str(), "src/lib.rs"))
+            );
+        }
+        for tree in crate::members::trees_that_are_members() {
+            let source = format!("{tree}/src/probe.rs");
+            assert!(
+                hatches.iter().any(|finding| finding.file == source),
+                "the hatch walk did not read `{tree}`, a member tree of its own: {hatches:#?}"
+            );
+            assert_eq!(
+                super::directly_under_a_member(&source),
+                Some("src/probe.rs")
+            );
+        }
+        // **And a tree the list names that is not on disk is skipped, not a
+        // panic**: the same walks over a tree holding one member tree only.
+        let lone = crate::check::LeavesNothingBehind::new("member-trees-lone");
+        let only = crate::members::member_tree_roots()
+            .last()
+            .expect("a member tree");
+        std::fs::create_dir_all(lone.root.join(only).join("src")).expect("a writable scratch");
+        std::fs::write(
+            lone.root.join(only).join("src/probe.rs"),
+            "#[expect(dead_code, reason = \"a probe\")]\nconst PROBE: usize = 1;\n",
+        )
+        .expect("a writable scratch");
+        assert!(super::codes_something_raises(&lone.root).is_ok());
+        assert!(super::every_hatch_carries_its_reason(&lone.root).is_ok());
+        assert!(super::the_crates_that_shut_their_doors(&lone.root).is_empty());
     }
 
     /// A defect in **every** directory the real repository has, at a line and a
@@ -12392,6 +13076,7 @@ mod tests {
                 "crates/nc-channel/src",
                 "crates/nc-guest/src",
                 "crates/nc-ids/src",
+                "crates/nc-ipc/src",
                 "crates/nc-journal/src",
                 "crates/nc-kernel/src",
                 "crates/nc-local/src",
@@ -12400,6 +13085,7 @@ mod tests {
                 "crates/nc-policy/src",
                 "crates/nc-prune/src",
                 "crates/nc-schema/src",
+                "apps/daemon/src",
                 "xtask/src",
                 "catalog",
                 "policy",

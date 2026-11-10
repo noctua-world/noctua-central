@@ -1,0 +1,39 @@
+[package]
+name = "nc-ipc"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "The protocol a daemon is reached through: frames of canonical JSON, a handshake that proves both ends, one request at a time, and a heartbeat."
+
+[dependencies]
+# Every refusal carries its catalog code (`NOCTUA.md §15.1`), and `DAEMON` holds
+# the channel's bounds, which this crate reads itself and takes from no caller.
+nc-catalog.workspace = true
+# **A frame is canonical JSON, read and written by the one implementation of
+# it** (`§16.4`): a second reader would accept what `nc-canon` refuses, and the
+# two ends of one connection would disagree about what was said.
+nc-canon.workspace = true
+# The channel the daemon's welcome names, spelled as the manifest spells it.
+nc-channel.workspace = true
+# The system's random bytes a token and every nonce are drawn from, and the
+# endpoint a listener is bound on.
+nc-platform.workspace = true
+# The proofs: BLAKE3 keyed by the token, compared in constant time.
+blake3.workspace = true
+# The reads and writes a frame is made of (`io-util`), the handshake's deadline
+# and the heartbeat (`time`), and the two tasks a connection runs on, which a
+# channel joins to the caller (`rt`, `sync`). Already in the graph with each of
+# them; never `process` or `signal`.
+tokio = { workspace = true, features = ["io-util", "time", "sync", "rt"] }
+
+[dev-dependencies]
+# **Itself, so the documentation gate can read this crate's integration
+# tests**, as every crate with a `tests/` suite does.
+nc-ipc = { path = "." }
+# A paused clock the heartbeat's silences are measured on, rather than waited
+# out (`tokio::time::pause`).
+tokio = { workspace = true, features = ["test-util"] }
+
+[lints]
+workspace = true

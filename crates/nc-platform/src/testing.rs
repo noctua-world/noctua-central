@@ -171,6 +171,16 @@ pub fn is_held(directory: &Path, name: &str) -> bool {
     imp::is_held(directory, name)
 }
 
+/// The session the process `pid` is in, as the system numbers it, or nothing
+/// where this system has no session of the POSIX kind.
+///
+/// # Errors
+///
+/// [`io::Error`] as the system answered it.
+pub fn session_of(pid: u32) -> io::Result<Option<u32>> {
+    imp::session_of(pid)
+}
+
 /// A user that is not `user`: what a path another user owns is judged
 /// against, since one cannot be made without the superuser.
 #[must_use]
@@ -240,4 +250,51 @@ pub fn every_harmless_restriction(kind: Kind) -> Vec<Opening> {
         .into_iter()
         .map(Opening)
         .collect()
+}
+
+/// Whether an IPC endpoint is a name on disk that a bind judges, which it is
+/// on Unix alone.
+///
+/// **A socket's path on Unix; on Windows a pipe's name is the system's**, and
+/// nothing is made at the socket's path there.
+pub const ENDPOINT_ON_DISK: bool = imp::ENDPOINT_ON_DISK;
+
+/// Whether `listener`'s endpoint is made as this crate makes one private, read
+/// back from the system.
+///
+/// **On Unix a socket of the listener's user, mode `0600`**, read from the
+/// socket's file; on Windows a pipe owned by the user whose protected access
+/// list holds one entry, the user with every right, read from the instance
+/// waiting for the next client.
+#[must_use]
+pub fn endpoint_is_as_created(listener: &crate::ipc::Listener) -> bool {
+    imp::endpoint_is_as_created(&listener.inner, &listener.user.0)
+}
+
+/// What a daemon stopped without removing its endpoint leaves at it: on Unix
+/// a socket nothing listens on; on Windows nothing, since a pipe goes with
+/// the last of its instances.
+///
+/// # Errors
+///
+/// [`io::Error`] as the system answered it.
+pub fn leave_a_dead_endpoint(endpoint: &crate::ipc::Endpoint) -> io::Result<()> {
+    imp::leave_a_dead_endpoint(endpoint)
+}
+
+/// What a bind makes of what stands at `endpoint`'s name for `user`, before
+/// it asks whether anything answers there: on Unix the very judgement a bind
+/// makes of the socket's path, so a test can hand it a user it cannot be; on
+/// Windows nothing, since a pipe's name is the system's.
+///
+/// # Errors
+///
+/// [`crate::ipc::Refused::NotPrivate`] for anything at the name but a socket
+/// of `user`'s, which a bind leaves as it was, and
+/// [`crate::ipc::Refused::Failed`] where the name could not be read.
+pub fn judge_what_stands_at(
+    endpoint: &crate::ipc::Endpoint,
+    user: &User,
+) -> Result<(), crate::ipc::Refused> {
+    imp::judge_what_stands_at(endpoint, &user.0)
 }

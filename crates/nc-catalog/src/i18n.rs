@@ -278,6 +278,13 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "error.channel.manifest-not-private",
+        [
+            "The file saying which installation this is could be changed by another account on this computer, so Noctua did not read it. Install Noctua again.",
+            "O arquivo que diz qual instalação é esta poderia ser alterado por outra conta deste computador, então o Noctua não o leu. Instale o Noctua de novo.",
+        ],
+    ),
+    (
         "error.channel.manifest-unreadable",
         [
             "Noctua could not read the file that says which installation this is, so it stopped before doing anything. Install Noctua again.",
@@ -292,10 +299,108 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         ],
     ),
     (
+        "error.channel.no-manifest",
+        [
+            "This copy of Noctua has no file saying which installation it is, so it stopped before doing anything. Install Noctua again.",
+            "Esta cópia do Noctua não tem o arquivo que diz qual instalação ela é, então parou antes de fazer qualquer coisa. Instale o Noctua de novo.",
+        ],
+    ),
+    (
         "error.channel.unknown",
         [
             "This installation names a release channel Noctua does not know, so it stopped before doing anything. Install Noctua again.",
             "Esta instalação indica um canal de versões que o Noctua não conhece, então ele parou antes de fazer qualquer coisa. Instale o Noctua novamente.",
+        ],
+    ),
+    (
+        "error.daemon.device-unreadable",
+        [
+            "This computer's identity in Noctua is damaged, so Noctua did not start. Someone needs to look at it.",
+            "A identidade deste computador no Noctua está danificada, então o Noctua não iniciou. Alguém precisa olhar isso.",
+        ],
+    ),
+    (
+        "error.daemon.engine-refused",
+        [
+            "Noctua could not prepare what runs its plugins, so it did not start. Someone needs to look at it.",
+            "O Noctua não conseguiu preparar o que executa seus plugins, então não iniciou. Alguém precisa verificar isso.",
+        ],
+    ),
+    (
+        "error.daemon.instance-held",
+        [
+            "Noctua is already running for this installation, so a second copy did not start.",
+            "O Noctua já está em execução para esta instalação, então uma segunda cópia não iniciou.",
+        ],
+    ),
+    (
+        "error.daemon.mark-unreadable",
+        [
+            "Noctua could not read how far it has numbered what it saves, so it did not start rather than risk numbering something twice.",
+            "O Noctua não conseguiu ler até onde já numerou o que salva, então não iniciou para não arriscar numerar algo duas vezes.",
+        ],
+    ),
+    (
+        "error.daemon.no-central-log",
+        [
+            "This installation names a place for Noctua's own log that Noctua cannot write to, so Noctua did not start. Install Noctua again.",
+            "Esta instalação indica, para o registro do próprio Noctua, um lugar onde o Noctua não consegue escrever, então o Noctua não iniciou. Instale o Noctua de novo.",
+        ],
+    ),
+    (
+        "error.daemon.no-device",
+        [
+            "This installation has no identity for this computer yet, so Noctua did not start. Install Noctua again.",
+            "Esta instalação ainda não tem uma identidade para este computador, então o Noctua não iniciou. Instale o Noctua de novo.",
+        ],
+    ),
+    (
+        "error.daemon.no-world",
+        [
+            "Noctua does not know whose it is on this computer yet, so it did not start.",
+            "O Noctua ainda não sabe de quem é neste computador, então não iniciou.",
+        ],
+    ),
+    (
+        "error.daemon.not-running",
+        [
+            "Noctua is still starting, so it could not do that yet. Try again in a moment.",
+            "O Noctua ainda está iniciando, então não pôde fazer isso ainda. Tente de novo em instantes.",
+        ],
+    ),
+    (
+        "error.daemon.pid-record-unreadable",
+        [
+            "The note saying which process is Noctua could not be read, so it was not trusted.",
+            "A anotação que diz qual processo é o Noctua não pôde ser lida, então não foi considerada.",
+        ],
+    ),
+    (
+        "error.daemon.profile-not-private",
+        [
+            "A folder or file where Noctua keeps your data could be reached by another account on this computer, so Noctua did not use it and left it as it was.",
+            "Uma pasta ou arquivo onde o Noctua guarda seus dados poderia ser acessado por outra conta deste computador, então o Noctua não o usou e o deixou como estava.",
+        ],
+    ),
+    (
+        "error.daemon.profile-unavailable",
+        [
+            "Noctua could not read or create a folder where it keeps your data. Check that the disk has room and is connected, then try again.",
+            "O Noctua não conseguiu ler ou criar uma pasta onde guarda seus dados. Veja se o disco tem espaço e está conectado e tente de novo.",
+        ],
+    ),
+    (
+        "error.daemon.stopping",
+        [
+            "Noctua is stopping, so it did not do that. Nothing was done.",
+            "O Noctua está parando, então não fez isso. Nada foi feito.",
+        ],
+    ),
+    (
+        "error.daemon.world-unreadable",
+        [
+            "The file saying whose Noctua this is could not be read, so Noctua did not start.",
+            "O arquivo que diz de quem é este Noctua não pôde ser lido, então o Noctua não iniciou.",
         ],
     ),
     (
@@ -345,6 +450,13 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         [
             "Noctua cannot reach its data right now. Try again in a moment.",
             "O Noctua não está conseguindo alcançar os próprios dados agora. Tente de novo em instantes.",
+        ],
+    ),
+    (
+        "error.ids.ceiling-not-raised",
+        [
+            "Noctua could not save where its numbering has reached, so nothing new was saved. Try again in a moment, and check the disk has room if this does not clear.",
+            "O Noctua não conseguiu salvar até onde sua numeração chegou, então nada novo foi salvo. Tente de novo em instantes e, se não resolver, veja se o disco tem espaço.",
         ],
     ),
     (
@@ -401,6 +513,125 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
         [
             "A lot is being saved at once, so Noctua paused for an instant. Nothing was lost.",
             "Muita coisa está sendo salva ao mesmo tempo, então o Noctua pausou por um instante. Nada foi perdido.",
+        ],
+    ),
+    (
+        "error.ipc.busy",
+        [
+            "Noctua already has as many connections open as it allows. Close one and try again.",
+            "O Noctua já tem abertas tantas conexões quanto permite. Feche uma e tente de novo.",
+        ],
+    ),
+    (
+        "error.ipc.client-unproven",
+        [
+            "Something tried to talk to Noctua without proving it belongs to this installation, so Noctua closed that connection.",
+            "Algo tentou falar com o Noctua sem provar que pertence a esta instalação, então o Noctua fechou essa conexão.",
+        ],
+    ),
+    (
+        "error.ipc.daemon-unproven",
+        [
+            "What answered could not prove it is this installation's Noctua, so nothing was sent to it.",
+            "O que respondeu não conseguiu provar que é o Noctua desta instalação, então nada foi enviado a ele.",
+        ],
+    ),
+    (
+        "error.ipc.endpoint-not-private",
+        [
+            "The place Noctua is reached through could be reached by another account on this computer, so Noctua did not use it and left it as it was.",
+            "O lugar por onde o Noctua é alcançado poderia ser alcançado por outra conta neste computador, então o Noctua não o usou e o deixou como estava.",
+        ],
+    ),
+    (
+        "error.ipc.endpoint-taken",
+        [
+            "Something else already answers where Noctua is reached, so Noctua did not take that place.",
+            "Outra coisa já responde onde o Noctua é alcançado, então o Noctua não ocupou esse lugar.",
+        ],
+    ),
+    (
+        "error.ipc.endpoint-too-long",
+        [
+            "The place Noctua is reached through has a longer name than this computer allows. Install Noctua again in a folder with a shorter path.",
+            "O lugar por onde o Noctua é alcançado tem um nome mais longo do que este computador permite. Instale o Noctua de novo em uma pasta com um caminho mais curto.",
+        ],
+    ),
+    (
+        "error.ipc.endpoint-unavailable",
+        [
+            "Noctua could not open the place it is reached through. Try again.",
+            "O Noctua não conseguiu abrir o lugar por onde é alcançado. Tente de novo.",
+        ],
+    ),
+    (
+        "error.ipc.frame-too-large",
+        [
+            "Something sent Noctua more at once than it accepts, so Noctua closed that connection.",
+            "Algo enviou ao Noctua, de uma só vez, mais do que ele aceita, então o Noctua fechou essa conexão.",
+        ],
+    ),
+    (
+        "error.ipc.handshake-slow",
+        [
+            "The other side took too long to answer, so the connection to Noctua was closed. Try again.",
+            "O outro lado demorou demais para responder, então a conexão com o Noctua foi fechada. Tente de novo.",
+        ],
+    ),
+    (
+        "error.ipc.lost",
+        [
+            "The connection to Noctua closed before it finished. Try again.",
+            "A conexão com o Noctua foi fechada antes de terminar. Tente de novo.",
+        ],
+    ),
+    (
+        "error.ipc.malformed",
+        [
+            "Something sent Noctua a message it does not understand, so Noctua closed that connection.",
+            "Algo enviou ao Noctua uma mensagem que ele não entende, então o Noctua fechou essa conexão.",
+        ],
+    ),
+    (
+        "error.ipc.peer-unverified",
+        [
+            "The other side of the connection could not be shown to be yours, so Noctua closed it.",
+            "Não foi possível mostrar que o outro lado da conexão é seu, então o Noctua a fechou.",
+        ],
+    ),
+    (
+        "error.ipc.protocol",
+        [
+            "This program and the running Noctua are different versions, so they could not talk to each other. Restart Noctua so both are the same version.",
+            "Este programa e o Noctua em execução são de versões diferentes, então não conseguiram se comunicar. Reinicie o Noctua para que os dois tenham a mesma versão.",
+        ],
+    ),
+    (
+        "error.ipc.silent",
+        [
+            "The other side stopped answering, so the connection to Noctua was closed. Try again.",
+            "O outro lado parou de responder, então a conexão com o Noctua foi fechada. Tente de novo.",
+        ],
+    ),
+    (
+        "error.ipc.unreachable",
+        [
+            "Noctua is not running, so nothing answered. Start it and try again.",
+            "O Noctua não está em execução, então nada respondeu. Inicie-o e tente de novo.",
+        ],
+    ),
+    (
+        "error.ipc.unread",
+        [
+            "The other side stopped taking what Noctua sent, so the connection to Noctua was closed. Try again.",
+            "O outro lado parou de receber o que o Noctua enviava, então a conexão com o Noctua foi fechada. Tente de novo.",
+        ],
+    ),
+    (
+        "error.ipc.unsendable",
+        [
+            "Noctua had more to send at once than a connection carries, so it sent none of it.",
+            "O Noctua tinha mais para enviar de uma só vez do que uma conexão leva, então não enviou nada disso.",
         ],
     ),
     (
@@ -961,9 +1192,24 @@ pub const KEYS: &[&str] = &[
     "error.canon.unparsable",
     "error.channel.base-malformed",
     "error.channel.checkout-malformed",
+    "error.channel.manifest-not-private",
     "error.channel.manifest-unreadable",
     "error.channel.namespace-malformed",
+    "error.channel.no-manifest",
     "error.channel.unknown",
+    "error.daemon.device-unreadable",
+    "error.daemon.engine-refused",
+    "error.daemon.instance-held",
+    "error.daemon.mark-unreadable",
+    "error.daemon.no-central-log",
+    "error.daemon.no-device",
+    "error.daemon.no-world",
+    "error.daemon.not-running",
+    "error.daemon.pid-record-unreadable",
+    "error.daemon.profile-not-private",
+    "error.daemon.profile-unavailable",
+    "error.daemon.stopping",
+    "error.daemon.world-unreadable",
     "error.db.local-open-refused",
     "error.db.local-schema-unexpected",
     "error.db.migration-failed",
@@ -971,6 +1217,7 @@ pub const KEYS: &[&str] = &[
     "error.db.prune-refused",
     "error.db.table-not-bounded",
     "error.db.unreachable",
+    "error.ids.ceiling-not-raised",
     "error.ids.clock-backwards",
     "error.ids.clock-out-of-range",
     "error.ids.clock-stuck",
@@ -979,6 +1226,23 @@ pub const KEYS: &[&str] = &[
     "error.ids.name-unparsable",
     "error.ids.not-an-identifier",
     "error.ids.sequence-exhausted",
+    "error.ipc.busy",
+    "error.ipc.client-unproven",
+    "error.ipc.daemon-unproven",
+    "error.ipc.endpoint-not-private",
+    "error.ipc.endpoint-taken",
+    "error.ipc.endpoint-too-long",
+    "error.ipc.endpoint-unavailable",
+    "error.ipc.frame-too-large",
+    "error.ipc.handshake-slow",
+    "error.ipc.lost",
+    "error.ipc.malformed",
+    "error.ipc.peer-unverified",
+    "error.ipc.protocol",
+    "error.ipc.silent",
+    "error.ipc.unreachable",
+    "error.ipc.unread",
+    "error.ipc.unsendable",
     "error.journal.chain-broken",
     "error.journal.contended",
     "error.journal.entry-tampered",

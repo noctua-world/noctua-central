@@ -30,6 +30,95 @@
 
 use std::path::Path;
 
+/// Every tree `members` in `Cargo.toml` names, as it names them, beside what a
+/// member's package adds in front of its directory's name.
+///
+/// **One list, and every gate that asks where the platform's code is reads
+/// it.** A walk that spells `crates/` and `plugins/` itself reads nothing of a
+/// tree added beside them, and the floor that recounts the same spelling agrees
+/// with it, so a new tree would sit outside the §15.1 walk, the raising walk,
+/// the hatch walk and their floors with every printed number whole. So this is
+/// held to the manifest both ways (`the_member_trees_are_the_globs_cargo_reads`),
+/// and `every_gate_reads_every_member_tree` plants each gate's target in every
+/// tree it names, a tree that holds no member yet included.
+///
+/// A glob is a directory each of whose children is a member; a plain path is a
+/// member itself. **A tree that is not on disk is skipped by every walk, never
+/// a panic**: a checkout copied without one, or a tree whose first member has
+/// not arrived, is a tree with nothing to read. The second field is the
+/// package's prefix: a plugin under `plugins/<dir>` is `nc-plugin-<dir>`,
+/// which the plugin build refuses any other name for, and an app under
+/// `apps/<dir>` is `nc-<dir>`, so the daemon in `apps/daemon` is the package
+/// named after it.
+pub(crate) const MEMBER_TREES: [(&str, &str); 4] = [
+    ("crates/*", ""),
+    ("plugins/*", "nc-plugin-"),
+    ("apps/*", "nc-"),
+    ("xtask", ""),
+];
+
+/// The directory each member tree is, whether or not it holds a member yet.
+// allow-logging: `member_tree_roots` hands back the trees `MEMBER_TREES` writes in this file
+pub(crate) fn member_tree_roots() -> impl Iterator<Item = &'static str> {
+    MEMBER_TREES
+        .iter()
+        .map(|(tree, _)| tree.strip_suffix("/*").unwrap_or(tree))
+}
+
+/// The trees each of whose children is a member: `crates`, `plugins`, `apps`.
+// allow-logging: `trees_of_members` hands back the trees `MEMBER_TREES` writes in this file
+pub(crate) fn trees_of_members() -> impl Iterator<Item = &'static str> {
+    MEMBER_TREES
+        .iter()
+        .filter_map(|(tree, _)| tree.strip_suffix("/*"))
+}
+
+/// The member trees that are a member themselves: `xtask`.
+// allow-logging: `trees_that_are_members` hands back the trees `MEMBER_TREES` writes in this file
+pub(crate) fn trees_that_are_members() -> impl Iterator<Item = &'static str> {
+    MEMBER_TREES
+        .iter()
+        .map(|(tree, _)| *tree)
+        .filter(|tree| !tree.ends_with("/*"))
+}
+
+/// Whether `relative` lies inside `directory`: under it, and not merely
+/// beginning with its name.
+pub(crate) fn under(relative: &str, directory: &str) -> bool {
+    relative
+        .strip_prefix(directory)
+        .is_some_and(|rest| rest.starts_with('/'))
+}
+
+/// Whether `relative` lies inside a member tree.
+pub(crate) fn in_a_member_tree(relative: &str) -> bool {
+    member_tree_roots().any(|tree| under(relative, tree))
+}
+
+/// The member `relative` belongs to and its package — `crates/nc-ids/src/lib.rs`
+/// is `crates/nc-ids` and `nc-ids` — or nothing outside every member.
+///
+/// **One reading of the naming**, for the rules that turn a path into the
+/// package a command must name: spelled in each, a tree added beside the others
+/// is read as `xtask`'s by whichever spelling falls through to it.
+#[cfg(test)]
+pub(crate) fn the_member_owning(relative: &str) -> Option<(String, String)> {
+    MEMBER_TREES.iter().find_map(|(tree, prefix)| {
+        if let Some(tree) = tree.strip_suffix("/*") {
+            let (directory, _) = relative
+                .strip_prefix(tree)?
+                .strip_prefix('/')?
+                .split_once('/')?;
+            Some((
+                format!("{tree}/{directory}"),
+                format!("{prefix}{directory}"),
+            ))
+        } else {
+            under(relative, tree).then(|| ((*tree).to_owned(), (*tree).to_owned()))
+        }
+    })
+}
+
 /// The crate whose dependency decides whether a crate may log.
 const LOG: &str = "nc-log";
 
@@ -874,6 +963,85 @@ mod tests {
         Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."))
     }
 
+    /// The member trees are the globs the workspace's manifest names, in its
+    /// order, and no other.
+    ///
+    /// **Both ways, because each direction is a different hole.** A glob the
+    /// manifest gains and the list does not is a tree cargo builds that no walk
+    /// reads; a tree the list keeps after the manifest dropped it is a walk
+    /// reading code nothing builds, whose floor still balances.
+    #[test]
+    fn the_member_trees_are_the_globs_cargo_reads() {
+        let manifest: toml::Value = toml::from_str(
+            &std::fs::read_to_string(root().join("Cargo.toml")).expect("the manifest reads"),
+        )
+        .expect("the manifest is TOML");
+        let globs: Vec<&str> = manifest
+            .get("workspace")
+            .and_then(|workspace| workspace.get("members"))
+            .and_then(toml::Value::as_array)
+            .expect("the workspace names its members")
+            .iter()
+            .map(|glob| glob.as_str().expect("a member glob is text"))
+            .collect();
+        let listed: Vec<&str> = super::MEMBER_TREES.iter().map(|(tree, _)| *tree).collect();
+        assert_eq!(
+            globs, listed,
+            "`Cargo.toml`'s `members` and `MEMBER_TREES` in `xtask/src/members.rs` name \
+             different trees. Every gate that asks where the platform's code is reads the \
+             list, so a tree only the manifest names is built and never judged"
+        );
+        assert_eq!(
+            super::member_tree_roots().collect::<Vec<_>>(),
+            ["crates", "plugins", "apps", "xtask"]
+        );
+        assert_eq!(
+            super::trees_of_members().collect::<Vec<_>>(),
+            ["crates", "plugins", "apps"]
+        );
+        assert_eq!(
+            super::trees_that_are_members().collect::<Vec<_>>(),
+            ["xtask"]
+        );
+    }
+
+    /// A path is owned by the member its tree names, under the package that
+    /// tree's naming gives it, and a path outside every member by none.
+    #[test]
+    fn a_path_is_owned_by_the_member_its_tree_names() {
+        let owned = |relative: &str| super::the_member_owning(relative);
+        let pair =
+            |directory: &str, package: &str| Some((directory.to_owned(), package.to_owned()));
+        assert_eq!(
+            owned("crates/nc-ids/src/lib.rs"),
+            pair("crates/nc-ids", "nc-ids")
+        );
+        assert_eq!(
+            owned("plugins/reference/src/behaviour.rs"),
+            pair("plugins/reference", "nc-plugin-reference")
+        );
+        assert_eq!(
+            owned("apps/daemon/src/mark.rs"),
+            pair("apps/daemon", "nc-daemon")
+        );
+        assert_eq!(owned("xtask/src/check.rs"), pair("xtask", "xtask"));
+        // A file at a tree's root belongs to no member of it, and a directory
+        // whose name a tree's begins with is not inside that tree.
+        for outside in [
+            "crates/Cargo.toml",
+            "crates",
+            "cratesx/nc-ids/src/lib.rs",
+            "xtaskx/src/main.rs",
+            "catalog/limits.toml",
+        ] {
+            assert_eq!(owned(outside), None, "{outside}");
+        }
+        assert!(super::in_a_member_tree("plugins/reference/Cargo.toml"));
+        assert!(super::in_a_member_tree("xtask/mutants.py"));
+        assert!(!super::in_a_member_tree("pluginsx/reference/Cargo.toml"));
+        assert!(!super::in_a_member_tree("policy/world.json"));
+    }
+
     /// The kernel's HTTP client is built with no decoder, no transcoding and
     /// no cookie jar, in any build of this workspace.
     ///
@@ -993,6 +1161,7 @@ mod tests {
         assert_eq!(
             super::opening_the_local_database(root()).expect("cargo metadata"),
             [
+                "apps/daemon",
                 "crates/nc-kernel",
                 "crates/nc-local",
                 "crates/nc-prune",
@@ -1043,9 +1212,9 @@ mod tests {
             paths.contains(&"crates/nc-log") && paths.contains(&"xtask"),
             "{paths:?}"
         );
-        // The floor is a real number, not `> 0`: this workspace has seventeen
+        // The floor is a real number, not `> 0`: this workspace has eighteen
         // members and a resolution that lost one is the defect being closed.
-        assert_eq!(found.len(), 17, "{paths:?}");
+        assert_eq!(found.len(), 19, "{paths:?}");
         // And `nc-log` does not depend on itself, so the consumer count this
         // feeds cannot be inflated by the log's own manifest.
         assert!(

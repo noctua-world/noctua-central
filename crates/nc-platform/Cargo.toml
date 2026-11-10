@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish = false
-description = "Who this process runs as, and a directory or a file private to that user: the one place each system's answer is written."
+description = "Who this process runs as, a directory or a file private to that user, the system's random bytes, which process this is, and the endpoint a daemon is reached through: the one place each system's answer is written."
 
 [features]
 # The doors other crates' suites stage a path through: one another user can
@@ -13,9 +13,14 @@ description = "Who this process runs as, and a directory or a file private to th
 # shipped can loosen a path through this crate.
 test-support = []
 
-# **The Win32 security calls, and nothing else of Windows** (`NOCTUA.md §2.3`,
-# decided 2026-11-02): who the token says this process is, an access list built
-# and read, a file and a directory created with one, and a handle's attributes.
+# **The Win32 calls of security, of random bytes and of the processes at either
+# end of a named pipe, and nothing else of Windows** (`NOCTUA.md §2.3`, decided
+# 2026-11-02): who the token says this process is, an access list built and
+# read, a file and a directory created with one, a handle's attributes, the
+# system's generator of random bytes (`Win32_Security_Cryptography`, for
+# `BCryptGenRandom` alone), and the process at the other end of the daemon's
+# pipe (`Win32_System_Pipes`) with the user its token names (`OpenProcess`,
+# beside `OpenProcessToken` in `Win32_System_Threading`).
 # Each feature is a module of the declarations this crate calls, and none is
 # turned on for a call it does not make. Already in the graph at this version,
 # under `tokio`'s `mio`, so it adds no package; compiled only for a Windows
@@ -26,10 +31,37 @@ windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_Security",
     "Win32_Security_Authorization",
+    "Win32_Security_Cryptography",
     "Win32_Storage_FileSystem",
     "Win32_System_SystemServices",
     "Win32_System_Threading",
+    # Which process is at the other end of the daemon's pipe, asked from either
+    # end (`GetNamedPipeClientProcessId`, `GetNamedPipeServerProcessId`).
+    "Win32_System_Pipes",
 ] }
+
+# **A session of the daemon's own, and the session a test reads back**
+# (`NOCTUA.md §17.1`, decided 2026-11-08): `setsid` and `getsid`, the safe
+# wrappers `process` holds, with `std` so an error is a `std::io::Error`. No FFI
+# is written on Unix, so a call the standard library does not make is made
+# through this, never through `libc` by hand. Already in the graph at this
+# version, under `wasmtime` and `tempfile`, so it adds no package; compiled only
+# for a Unix target, and never with `stdio`, `fs` or `net`.
+[target.'cfg(unix)'.dependencies]
+rustix = { workspace = true, features = ["std", "process"] }
+
+[dependencies]
+# **The IPC endpoint's socket and pipe, and nothing else of the runtime**
+# (`NOCTUA.md §11.1`): a Unix socket's listener and stream with the peer's
+# credentials, and a Windows named pipe's server and client. Here and not in a
+# crate above, because the call that creates a pipe with a security descriptor
+# of its own, `create_with_security_attributes_raw`, is `unsafe`, and this is
+# the one crate that may write it, in `src/windows.rs`. `net` is the socket and
+# the pipe, `io-util` the reads and writes a test makes through them, and `time`
+# the wait before a pipe whose every instance is busy is asked again. Already in
+# the graph, with each of these features, under `sqlx`, so it adds no package
+# and no feature; never `process` or `signal`.
+tokio = { workspace = true, features = ["net", "io-util", "time"] }
 
 [dev-dependencies]
 # **Itself, with the doors open**, so the documentation gate can read this

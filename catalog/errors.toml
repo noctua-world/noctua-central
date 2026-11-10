@@ -47,6 +47,8 @@ IDS  = "Identifiers: Snowflake, the machine flake, file names"
 JRNL = "The command journal and its hash chain"
 POL  = "Policy packs: loading, validation, evaluation"
 CHAN = "Channels and installs: the manifest an install names itself by, and every name derived from it (§17.1)"
+DMN  = "The daemon: the profile it keeps, the device it mints on, and the identifiers' mark (§11.1, §16.2)"
+IPC  = "The IPC channel a daemon is reached through: its endpoint, its frames, the handshake that proves both ends, and the heartbeat (§11.1)"
 
 # --- The journal (§14.9) ---
 
@@ -298,6 +300,21 @@ code = "NC-IDS-0007"
 description = "The clock has stopped, so no more identifiers can be minted on this machine"
 message = "error.ids.clock-stuck"
 severity = "critical"
+retryable = true
+
+[[error]]
+# **The store's refusal, not the clock's.** A minter hands out no millisecond
+# past the ceiling a store has made durable, so a process stopped at any instant
+# has minted nothing the next one does not resume above (§16.2); when the write
+# that raises the ceiling fails, minting refuses before any identifier exists.
+# `retryable = true`: what failed is a write — a full disk, a volume read-only
+# for a moment — and the same mint asked again raises it once the write lands.
+# Not NC-IDS-0001, whose sentence is about a clock that stepped back, which this
+# clock did not.
+code = "NC-IDS-0009"
+description = "The highest identifier time could not be saved, so no identifier past it was minted"
+message = "error.ids.ceiling-not-raised"
+severity = "error"
 retryable = true
 
 # --- The central log (§15.4) ---
@@ -1116,3 +1133,296 @@ description = "An install manifest's namespace is not one to sixteen lower-case 
 message = "error.channel.namespace-malformed"
 severity = "error"
 retryable = false
+
+[[error]]
+# What every binary refuses before it reads anything else: no manifest beside
+# the executable it runs as. **No channel is built in to fall back to** — a
+# default would make every binary a build leaves behind a live client of the
+# developer's own channel — so this is the answer, and installing again is the
+# fix.
+code = "NC-CHAN-0006"
+description = "No install manifest is beside this executable, so it names no channel and does not run"
+message = "error.channel.no-manifest"
+severity = "error"
+retryable = false
+
+[[error]]
+# The manifest names every directory the profile is kept in, so one another
+# account could write chooses where this user's device seed and world are read
+# from. Judged by `nc_platform::judge` and left as it was.
+code = "NC-CHAN-0007"
+description = "The install manifest, or the directory holding it, is not this user's alone, so it was not read"
+message = "error.channel.manifest-not-private"
+severity = "critical"
+retryable = false
+
+# --- The daemon (§11.1, §16.2) ---
+#
+# What a daemon refuses to start on, each by what it found, so a log is
+# queried by which part of the profile it was (`§15.1`). **Only the one that is
+# the filesystem's answer is retryable**: the rest are the profile's contents,
+# which reading again reads the same.
+
+[[error]]
+code = "NC-DMN-0001"
+description = "A folder or a file of the daemon's profile is not this user's alone, so the daemon did not use it"
+message = "error.daemon.profile-not-private"
+severity = "critical"
+retryable = false
+
+[[error]]
+# A disk that is full or read-only for a moment, a base directory unmounted:
+# the same start may succeed once it is back.
+code = "NC-DMN-0002"
+description = "A folder or a file of the daemon's profile could not be read or made"
+message = "error.daemon.profile-unavailable"
+severity = "error"
+retryable = true
+
+[[error]]
+# The installer draws the device's seed and records its flake; the daemon
+# never makes one (§16.2), because a seed it drew on a profile that lost its
+# own would be a new device with a new flake, minting beside the old one.
+code = "NC-DMN-0003"
+description = "The daemon's profile holds no device, and the daemon never makes one"
+message = "error.daemon.no-device"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-DMN-0004"
+description = "The daemon's device is not one this build wrote: a seed of another length, or a record that is not the seed's"
+message = "error.daemon.device-unreadable"
+severity = "critical"
+retryable = false
+
+[[error]]
+# §5.13: a daemon decides for one person of one realm, read from the world
+# file the installer copies in, and nothing makes one up for a person with no
+# account.
+code = "NC-DMN-0005"
+description = "The daemon's profile names no realm and no person to decide as, so the daemon did not start"
+message = "error.daemon.no-world"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-DMN-0006"
+description = "The daemon's world file is not one this build reads, or names a person its realm does not hold"
+message = "error.daemon.world-unreadable"
+severity = "error"
+retryable = false
+
+[[error]]
+# Neither slot of the mark is whole, so the daemon cannot know which
+# identifiers it handed out, and does not start rather than resume from
+# nothing — the one way to repeat one (§16.2).
+code = "NC-DMN-0007"
+description = "The identifiers' mark is unreadable in both of its slots, so the daemon did not start"
+message = "error.daemon.mark-unreadable"
+severity = "critical"
+retryable = false
+
+[[error]]
+# One daemon keeps one profile: a second over the same state directory would
+# take the first one's open units for a stopped process's, and serve a second
+# kernel over one journal. The lock is the state directory's, never the data
+# directory's, which the local database holds for each open.
+code = "NC-DMN-0008"
+description = "Another daemon of this channel holds its profile, so this one did not start"
+message = "error.daemon.instance-held"
+severity = "error"
+retryable = false
+
+[[error]]
+# Answered to a dispatch or a registry asked of a daemon still reading its
+# profile, waiting for its clock to pass the mark, or recovering what a stopped
+# process left: the same request is answered once it runs.
+code = "NC-DMN-0009"
+description = "The daemon is not running its kernel yet: it is starting, waiting for its clock, or recovering"
+message = "error.daemon.not-running"
+severity = "warning"
+retryable = true
+
+[[error]]
+code = "NC-DMN-0010"
+description = "The daemon is stopping, and takes no new dispatch"
+message = "error.daemon.stopping"
+severity = "warning"
+retryable = true
+
+[[error]]
+# The central log is how an operator learns what a daemon refused (§15.4), so a
+# daemon whose install names a store it cannot speak to — one off this machine,
+# or no endpoint at all — does not run with its events sent somewhere the
+# install did not name. An install naming no store is not this, nor is a store
+# that does not answer: their lines go to the daemon's standard error.
+code = "NC-DMN-0011"
+description = "The install names no central log the daemon can speak to, so the daemon did not start"
+message = "error.daemon.no-central-log"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-DMN-0012"
+description = "The kernel's engine refused its configuration, so the daemon did not start"
+message = "error.daemon.engine-refused"
+severity = "critical"
+retryable = false
+
+[[error]]
+# A record whose process is zero or below would be a signal to a process group
+# or to every process the user owns, so it is refused as a record and never
+# read as a process (§17.1).
+code = "NC-DMN-0013"
+description = "The daemon's PID record is not one this build wrote: malformed, or naming no process"
+message = "error.daemon.pid-record-unreadable"
+severity = "error"
+retryable = false
+
+# --- The IPC channel (§11.1) ---
+#
+# What the channel a daemon is reached through refuses, each by what it met, so
+# a log is queried by which part of the connection it was (`§15.1`): the
+# endpoint (0009 to 0015), a frame read (0001 to 0003) or one this side would
+# not send (0016), the handshake (0004 to 0007) and the heartbeat (0008, and
+# 0017 for a write a peer left waiting). **Retryable where the same attempt may
+# succeed later** — a connection lost, a handshake or a peer too slow, a daemon
+# not yet listening or holding every connection it allows, the system not
+# answering — and not where it met what it was: a peer of another user, a
+# proof that does not hold, a frame that is not one, a value too long for one.
+
+[[error]]
+# Refused from the length prefix alone, before anything is allocated for it: a
+# connection costs the reader at most `ipc_frame_max_bytes` at once.
+code = "NC-IPC-0001"
+description = "A frame claimed more than `ipc_frame_max_bytes`, and was refused from its length prefix before anything was allocated for it"
+message = "error.ipc.frame-too-large"
+severity = "warning"
+retryable = false
+
+[[error]]
+code = "NC-IPC-0002"
+description = "A frame was not one message of the protocol: of no length, not UTF-8, not canonical JSON, a message the receiver does not read there, or a request before the last one was answered"
+message = "error.ipc.malformed"
+severity = "warning"
+retryable = false
+
+[[error]]
+code = "NC-IPC-0003"
+description = "The connection closed, or was lost, before what was being read or written was whole"
+message = "error.ipc.lost"
+severity = "warning"
+retryable = true
+
+[[error]]
+code = "NC-IPC-0004"
+description = "The other end of a connection speaks another version of the protocol"
+message = "error.ipc.protocol"
+severity = "error"
+retryable = false
+
+[[error]]
+# The daemon's refusal of a client: its proof is not keyed by the token in the
+# daemon's runtime directory, so it is something that never read that file.
+code = "NC-IPC-0005"
+description = "A client's proof was refused: it is not keyed by the channel's token"
+message = "error.ipc.client-unproven"
+severity = "error"
+retryable = false
+
+[[error]]
+# A client's refusal of what answered at the endpoint: something that does not
+# hold the token is not the channel's daemon, whoever made the endpoint.
+code = "NC-IPC-0006"
+description = "The daemon's proof was refused: what answered at the endpoint is not keyed by the channel's token"
+message = "error.ipc.daemon-unproven"
+severity = "critical"
+retryable = false
+
+[[error]]
+code = "NC-IPC-0007"
+description = "A handshake did not finish within `ipc_handshake_ms`"
+message = "error.ipc.handshake-slow"
+severity = "warning"
+retryable = true
+
+[[error]]
+code = "NC-IPC-0008"
+description = "A peer was silent for `ipc_silent_after_ms`, and its connection was dropped"
+message = "error.ipc.silent"
+severity = "warning"
+retryable = true
+
+[[error]]
+# Judged as `nc_platform::judge` judges a path, and left as it was.
+code = "NC-IPC-0009"
+description = "The endpoint's runtime directory, or what stood at the endpoint's name, is not this user's alone, so it was not used"
+message = "error.ipc.endpoint-not-private"
+severity = "critical"
+retryable = false
+
+[[error]]
+code = "NC-IPC-0010"
+description = "The endpoint's name is longer than this system holds for a socket's path or a pipe's name"
+message = "error.ipc.endpoint-too-long"
+severity = "error"
+retryable = false
+
+[[error]]
+# A live daemon of the profile, or a squatter that made the pipe first: either
+# way the endpoint is not this daemon's to take.
+code = "NC-IPC-0011"
+description = "Something already answers at the endpoint, so it was not taken"
+message = "error.ipc.endpoint-taken"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-IPC-0012"
+description = "The other end of a connection is not shown to be this user's: it runs as another user, its pipe belongs to another, or the system did not say which process it is"
+message = "error.ipc.peer-unverified"
+severity = "critical"
+retryable = false
+
+[[error]]
+code = "NC-IPC-0013"
+description = "A connection past `ipc_connections_max` was closed as soon as it was accepted"
+message = "error.ipc.busy"
+severity = "warning"
+retryable = true
+
+[[error]]
+code = "NC-IPC-0014"
+description = "Nothing answers at the endpoint: no daemon of the channel is listening"
+message = "error.ipc.unreachable"
+severity = "warning"
+retryable = true
+
+[[error]]
+code = "NC-IPC-0015"
+description = "The endpoint could not be bound, accepted on or reached: the system did not answer"
+message = "error.ipc.endpoint-unavailable"
+severity = "error"
+retryable = true
+
+[[error]]
+# This side's own refusal, made before a byte of the frame is written: what a
+# reader would refuse as `NC-IPC-0001` is never sent, and the connection is
+# left as it was, so a daemon can answer the same request with a refusal.
+code = "NC-IPC-0016"
+description = "A value was longer than `ipc_frame_max_bytes` as a frame, so nothing of it was sent"
+message = "error.ipc.unsendable"
+severity = "error"
+retryable = false
+
+[[error]]
+# A write waits only once the system's buffer for the connection is full, so a
+# peer that pings and reads nothing holds its connection, and one of
+# `ipc_connections_max`, until this side's writes fill that buffer; this is
+# what ends it then, where it would otherwise last as long as the peer pinged.
+code = "NC-IPC-0017"
+description = "A peer took nothing written to it for `ipc_silent_after_ms`, and its connection was dropped"
+message = "error.ipc.unread"
+severity = "warning"
+retryable = true

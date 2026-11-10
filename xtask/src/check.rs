@@ -195,7 +195,7 @@ pub(crate) const fn the_parts_not_applicable(stack: Stack) -> &'static [&'static
 /// a refusal on the system that stood it aside. On Linux the list is empty,
 /// which `the_suites_a_system_stands_aside_are_the_ones_written_down_for_it`
 /// and `nothing_is_not_applicable_on_linux` hold.
-fn what_does_not_apply(stack: Stack, has: [bool; 2]) -> Vec<String> {
+fn what_does_not_apply(stack: Stack, has: [bool; 4]) -> Vec<String> {
     let mut parts: Vec<String> = the_parts_not_applicable(stack)
         .iter()
         .map(|part| (*part).to_owned())
@@ -872,19 +872,21 @@ fn without_the_canary(
 /// floor that subtracts too little and quietly stops being exact, the way one
 /// that subtracts too much saturates to zero.
 ///
-/// What is taken is exactly the walk's exclusions *within* `under`: `docs/`,
-/// `catalog/` and `xtask/` are in the walk's list and are dropped here, because
-/// `crates/ + migrations/ + plugins/` does not contain them and subtracting a
-/// directory the scope never held is the same mistake in the other direction.
+/// What is taken is exactly the walk's exclusions *within* its ground,
+/// `gates::the_error_code_ground`: `docs/`, `catalog/` and `xtask/` are in the
+/// walk's list and are dropped here, because the ground does not contain them
+/// and subtracting a directory the scope never held is the same mistake in the
+/// other direction.
 // allow-logging: `scoped_out` hands back a list of names written in this file
 fn scoped_out() -> Vec<&'static str> {
+    let ground = gates::the_error_code_ground();
     gates::OUTSIDE_THE_ERROR_CODE_SCOPE
         .iter()
         .copied()
         .filter(|excluded| {
-            excluded.starts_with("crates/")
-                || excluded.starts_with("migrations/")
-                || excluded.starts_with("plugins/")
+            ground
+                .iter()
+                .any(|tree| crate::members::under(excluded, tree))
         })
         .map(|excluded| excluded.trim_end_matches('/'))
         .collect()
@@ -908,7 +910,7 @@ fn floor_the_static_string_walk(
         root,
         lines,
         "the static-string walk",
-        &["crates", "plugins", "xtask"],
+        &crate::members::member_tree_roots().collect::<Vec<_>>(),
         &outside_the_wall,
         failures,
     );
@@ -935,9 +937,9 @@ fn floor_on_the_rust_lines(
     minus: &[&str],
     failures: &mut Vec<String>,
 ) {
-    // **Counted over the walk's own scope.** The §15.1 walk reads `crates/`,
-    // `migrations/`, `local-migrations/` and `plugins/` and nothing else — a minority of the tree's
-    // Rust lines — so a floor
+    // **Counted over the walk's own scope.** The §15.1 walk reads every tree of
+    // members, `migrations/` and `local-migrations/` and nothing else — a
+    // minority of the tree's Rust lines — so a floor
     // against the whole tree would fire on a correct run and be turned off. What
     // a floor must compare is the same ground.
     let expected: usize = if under.is_empty() {
@@ -1109,9 +1111,10 @@ fn every_code_is_what_the_registry_says_it_is(
     // crate produces no code outside its tests — and two `reserved` codes are
     // then produced by a public function with `check passed` and every printed
     // number up.
-    // Both member trees the walk reads: `crates/` and `plugins/`.
-    let expected = gates::rust_files_under(root, "crates", gates::in_the_raising_scope)
-        + gates::rust_files_under(root, "plugins", gates::in_the_raising_scope);
+    // Every tree of members the walk reads, as `MEMBER_TREES` names them.
+    let expected: usize = crate::members::trees_of_members()
+        .map(|tree| gates::rust_files_under(root, tree, gates::in_the_raising_scope))
+        .sum();
     if read != expected {
         ui::failure(&format!(
             "the code-producer walk read {read} file(s) and a second count of the same \
@@ -1222,11 +1225,11 @@ fn no_code_is_written_by_hand(root: &Path, ledger: &str, failures: &mut Vec<Stri
                     root,
                     raw,
                     "the §15.1 walk",
-                    // `plugins/` too, because it is a member tree:
-                    // the walk's scope is `gates::in_the_error_code_scope`,
-                    // and a floor over less ground than it reads is short on
-                    // a correct run.
-                    &["crates", "migrations", "local-migrations", "plugins"],
+                    // The walk's own ground, every tree of members and both
+                    // migration directories: its scope is
+                    // `gates::in_the_error_code_scope`, and a floor over less
+                    // ground than it reads is short on a correct run.
+                    &gates::the_error_code_ground(),
                     // The exclusions belong to this walk alone: passed to every
                     // caller, they would make the emitter's floor subtract more
                     // than its scope holds — measured, 6776 minus 9007,
@@ -3903,7 +3906,7 @@ fn the_excused_lines_are_counted(
 #[cfg(test)]
 const EXCUSED: [(&str, usize); 6] = [
     ("allow-reference:", 73),
-    ("allow-logging:", 80),
+    ("allow-logging:", 84),
     ("allow-nondeterminism:", 20),
     ("allow-count:", 12),
     ("nc:bounded:", 31),
@@ -3928,7 +3931,7 @@ const EXCUSED: [(&str, usize); 6] = [
 /// summed out of it rather than kept beside it — so a hatch added is one row
 /// here and two numbers the test then tells you to move.
 #[cfg(test)]
-const EXCUSED_WHERE: [(&str, &str, usize); 73] = [
+const EXCUSED_WHERE: [(&str, &str, usize); 75] = [
     (".gitignore", "allow-reference:", 5),
     ("AGENTS.md", "allow-reference:", 5),
     (
@@ -4027,12 +4030,14 @@ const EXCUSED_WHERE: [(&str, &str, usize); 73] = [
     ("xtask/src/determinism.rs", "allow-count:", 1),
     ("xtask/src/determinism.rs", "allow-logging:", 1),
     ("xtask/src/determinism.rs", "allow-nondeterminism:", 1),
+    ("xtask/src/gates.rs", "allow-logging:", 1),
     ("xtask/src/gates.rs", "allow-reference:", 11),
     ("xtask/src/limits.rs", "allow-count:", 1),
     ("xtask/src/limits.rs", "allow-logging:", 2),
     ("xtask/src/limits.rs", "allow-nondeterminism:", 1),
     ("xtask/src/limits.rs", "allow-reference:", 1),
     ("xtask/src/limits.rs", "nc:bounded:", 8),
+    ("xtask/src/members.rs", "allow-logging:", 3),
     ("xtask/src/members.rs", "allow-reference:", 2),
     ("xtask/src/plugins.rs", "allow-reference:", 1),
     ("xtask/src/policy.rs", "nc:narrows:", 1),
@@ -4114,9 +4119,9 @@ const EXCUSED_IN: [(&str, usize); 48] = [
     ("xtask/src/corpus.rs", 5),
     ("xtask/src/counts.rs", 11),
     ("xtask/src/determinism.rs", 3),
-    ("xtask/src/gates.rs", 11),
+    ("xtask/src/gates.rs", 12),
     ("xtask/src/limits.rs", 13),
-    ("xtask/src/members.rs", 2),
+    ("xtask/src/members.rs", 5),
     ("xtask/src/plugins.rs", 1),
     ("xtask/src/policy.rs", 1),
     ("xtask/src/references.rs", 26),
@@ -5701,7 +5706,7 @@ const ANNOUNCES_NO_DATABASE: [(&str, &str, &str, usize); 6] = [
 /// [`THE_SUITES_A_SYSTEM_STANDS_ASIDE`]. On Linux none of these does, which
 /// `linux_lacks_nothing_a_suite_stands_aside_for` holds in `nc-platform`,
 /// since the Linux job is the one that runs them.
-const ANNOUNCES_WHAT_THE_SYSTEM_LACKS: [(&str, &str, &str, usize); 2] = [
+const ANNOUNCES_WHAT_THE_SYSTEM_LACKS: [(&str, &str, &str, usize); 4] = [
     // A directory listed in the order its entries were made, without which the
     // suite about the order on disk has two layouts in one order.
     (
@@ -5717,6 +5722,24 @@ const ANNOUNCES_WHAT_THE_SYSTEM_LACKS: [(&str, &str, &str, usize); 2] = [
         "!nc_platform::system::A_POSIX_SHELL",
         "skipped, not applicable on",
         10,
+    ),
+    // Sessions of the POSIX kind, which the suite about a process leaving the
+    // one it was started in reads. `nc-platform`'s own, so named here by hand:
+    // the walk that finds the others leaves out the crate that defines the
+    // answers.
+    (
+        "crates/nc-platform/src/lib.rs",
+        "!super::system::POSIX_SESSIONS",
+        "skipped, not applicable on",
+        1,
+    ),
+    // Sessions of the POSIX kind again, which the suite about the daemon
+    // leaving the one it was started in reads.
+    (
+        "apps/daemon/tests/serves_its_kernel.rs",
+        "!nc_platform::system::POSIX_SESSIONS",
+        "skipped, not applicable on",
+        1,
     ),
 ];
 
@@ -5737,9 +5760,11 @@ const ANNOUNCES_WHAT_THE_SYSTEM_LACKS: [(&str, &str, &str, usize); 2] = [
 /// chooses it, in [`the_suites_the_system_stands_aside`], and
 /// `every_suite_a_system_stands_aside_says_so` drives that and holds what it
 /// prints to this list.
-pub(crate) const THE_SUITES_A_SYSTEM_STANDS_ASIDE: [&str; 2] = [
+pub(crate) const THE_SUITES_A_SYSTEM_STANDS_ASIDE: [&str; 4] = [
     "running the suite about the order on disk, which needs a directory that lists its entries in the order they were made",
     "running the checkout script's guards, which need a POSIX shell of the system's own",
+    "running the suite about leaving a session, which needs sessions of the POSIX kind",
+    "running the suite about the daemon leaving its session, which needs sessions of the POSIX kind",
 ];
 
 /// What this system has of what each suite of
@@ -5749,14 +5774,16 @@ pub(crate) const THE_SUITES_A_SYSTEM_STANDS_ASIDE: [&str; 2] = [
 /// is the one place a system is asked what it has (`NOCTUA.md §2.7`), fixed
 /// when it is built, and each suite's guard asks the same constant, so the
 /// gate and a guard cannot disagree about which suite stood aside.
-const WHAT_THIS_SYSTEM_HAS: [bool; 2] = [
+const WHAT_THIS_SYSTEM_HAS: [bool; 4] = [
     nc_platform::system::LISTED_AS_MADE.is_some(),
     nc_platform::system::A_POSIX_SHELL,
+    nc_platform::system::POSIX_SESSIONS,
+    nc_platform::system::POSIX_SESSIONS,
 ];
 
 /// The suites a system that has `has` stands aside, in order: each one whose
 /// need it lacks. Owned, for the reason [`what_does_not_apply`] gives.
-fn the_suites_not_applicable(has: [bool; 2]) -> Vec<String> {
+fn the_suites_not_applicable(has: [bool; 4]) -> Vec<String> {
     THE_SUITES_A_SYSTEM_STANDS_ASIDE
         .into_iter()
         .zip(has)
@@ -5773,8 +5800,13 @@ fn the_suites_not_applicable(has: [bool; 2]) -> Vec<String> {
 /// short. Its own function so a test can hand it each answer: each suite
 /// writes its sentence here, beside the answer that chooses it, and
 /// [`THE_SUITES_A_SYSTEM_STANDS_ASIDE`] writes it again for the verdict.
-fn the_suites_the_system_stands_aside(has: [bool; 2]) {
-    let [listed_as_made, a_posix_shell] = has;
+fn the_suites_the_system_stands_aside(has: [bool; 4]) {
+    let [
+        listed_as_made,
+        a_posix_shell,
+        posix_sessions,
+        daemon_sessions,
+    ] = has;
     if !listed_as_made {
         ui::not_applicable(
             "running the suite about the order on disk, which needs a directory that lists its entries in the order they were made",
@@ -5783,6 +5815,16 @@ fn the_suites_the_system_stands_aside(has: [bool; 2]) {
     if !a_posix_shell {
         ui::not_applicable(
             "running the checkout script's guards, which need a POSIX shell of the system's own",
+        );
+    }
+    if !posix_sessions {
+        ui::not_applicable(
+            "running the suite about leaving a session, which needs sessions of the POSIX kind",
+        );
+    }
+    if !daemon_sessions {
+        ui::not_applicable(
+            "running the suite about the daemon leaving its session, which needs sessions of the POSIX kind",
         );
     }
 }
@@ -5813,7 +5855,7 @@ fn the_suites_the_system_stands_aside(has: [bool; 2]) {
 /// The names are written down in `STANDS_ASIDE_WITHOUT_A_WORKSPACE` and read
 /// out of the sources, as the database half of this same clause has its census
 /// and its reader.
-fn what_the_count_leaves_out(stack: Stack, a_workspace_above: bool, has: [bool; 2]) -> Vec<String> {
+fn what_the_count_leaves_out(stack: Stack, a_workspace_above: bool, has: [bool; 4]) -> Vec<String> {
     let mut caveats = Vec::new();
     if !stack.asked() {
         caveats.push("the ones that need a database".to_owned());
@@ -7714,7 +7756,7 @@ fn ends_in_a_backslash(path: &str) -> bool {
 /// failure is silent.
 ///
 /// Each is a crate and the file cargo announces as `Running tests/<name>`.
-const SUITES: [(&str, &str); 35] = [
+const SUITES: [(&str, &str); 43] = [
     ("nc-authz", "the_embedded_pack_decides.rs"),
     ("nc-canon", "properties.rs"),
     ("nc-catalog", "the_generated_surface.rs"),
@@ -7723,8 +7765,24 @@ const SUITES: [(&str, &str); 35] = [
     // The one naming function, over every channel, two users and two
     // namespaces: it touches no disk and spawns nothing.
     ("nc-channel", "the_names_are_disjoint.rs"),
+    // The daemon's binary, copied into a scratch install beside a manifest.
+    ("nc-daemon", "the_binary_prepares_a_profile.rs"),
+    // A child of the test binary killed while it mints behind the real mark,
+    // and a start from what it left with the clock moved back.
+    ("nc-daemon", "the_mark_survives_a_crash.rs"),
+    // A real daemon handed connections that do not prove the token.
+    ("nc-daemon", "ipc_refusals.rs"),
+    // A real daemon serving its kernel, its schedule and its stop.
+    ("nc-daemon", "serves_its_kernel.rs"),
     ("nc-ids", "against_denote.rs"),
     ("nc-ids", "properties.rs"),
+    // The protocol: the daemon's listener at the catalog's bound over a real
+    // endpoint, and the frames, the handshake and the heartbeat over streams in
+    // memory on a paused clock. None spawns a process.
+    ("nc-ipc", "endpoint.rs"),
+    ("nc-ipc", "frames.rs"),
+    ("nc-ipc", "handshake.rs"),
+    ("nc-ipc", "heartbeat.rs"),
     ("nc-journal", "across_threads.rs"),
     ("nc-journal", "in_postgres.rs"),
     ("nc-journal", "tampering.rs"),
@@ -7894,7 +7952,7 @@ fn the_test_targets_are_documented_too(root: &Path, offline: bool, failures: &mu
 /// constant**, as `OPERATORS` is: one copy rather than one per use, and nothing
 /// reads it at compile time.
 #[cfg(test)]
-static WHAT_THE_GATE_CAN_SAY: [&str; 1059] = [
+static WHAT_THE_GATE_CAN_SAY: [&str; 1061] = [
     // The workflows' bounds (`xtask/src/workflow.rs`): what `.github/` may hold,
     // the authority each workflow opens with, the pins, and how the release is
     // made; and the `CI` step's two verdicts about them.
@@ -8104,6 +8162,8 @@ static WHAT_THE_GATE_CAN_SAY: [&str; 1059] = [
     "running the stack's own tests and the image-pin cases, which ask docker what it resolves",
     "running the suite about the order on disk, which needs a directory that lists its entries in the order they were made",
     "running the checkout script's guards, which need a POSIX shell of the system's own",
+    "running the suite about leaving a session, which needs sessions of the POSIX kind",
+    "running the suite about the daemon leaving its session, which needs sessions of the POSIX kind",
     "the container stack, which this verb brings up and takes down",
     "not applicable here: {part}",
     "not run: {skip}",
@@ -13150,16 +13210,16 @@ fn the_hatches(root: &Path, failures: &mut Vec<String>) {
                 ui::failure(&problem);
                 failures.push("the hatch walk read nothing".to_owned());
             } else {
-                // **Over the walk's own ground.** It reads `crates/`,
-                // `plugins/` and `xtask/` and skips `xtask/canaries/`, whose
-                // whole purpose is to hold the fixtures the gates must find — so
-                // a tree-wide count would be short by exactly the canaries and
-                // the floor would fire on a correct run.
+                // **Over the walk's own ground.** It reads every member tree
+                // and skips `xtask/canaries/`, whose whole purpose is to hold
+                // the fixtures the gates must find — so a tree-wide count would
+                // be short by exactly the canaries and the floor would fire on
+                // a correct run.
                 floor_on_the_rust_lines(
                     root,
                     read,
                     "the hatch walk",
-                    &["crates", "plugins", "xtask"],
+                    &crate::members::member_tree_roots().collect::<Vec<_>>(),
                     &["xtask/canaries"],
                     failures,
                 );
@@ -15888,19 +15948,24 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     /// `no crate outside nc-log depends on it`.
     #[test]
     fn the_walls_scope_is_read_by_something_that_would_notice_it_changing() {
-        // Today, and stated as the fact it is: the kernel is the one crate
-        // that depends on `nc-log`, so the scope is the log's own source and
-        // the kernel's, and the consumer count is one. A crate that takes the
-        // dependency changes both here, in the same change as the code.
+        // Today, and stated as the fact it is: the kernel and the daemon are
+        // the crates that depend on `nc-log`, so the scope is the log's own
+        // source, the daemon's and the kernel's, and the consumer count is two.
+        // A crate that takes the dependency changes both here, in the same
+        // change as the code.
         let scope = crates_that_can_log(root()).expect("cargo reads this workspace");
         assert_eq!(
             scope,
-            vec!["crates/nc-kernel".to_owned(), LOG_CRATE.to_owned()],
+            vec![
+                "apps/daemon".to_owned(),
+                "crates/nc-kernel".to_owned(),
+                LOG_CRATE.to_owned()
+            ],
             "{scope:?}"
         );
         assert_eq!(
             scope.len().saturating_sub(1),
-            1,
+            2,
             "the sentence `check` prints counts consumers, not the list's length"
         );
 
@@ -16109,10 +16174,12 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
             "the suites this system stands aside are not the ones written down for it"
         );
         for (has, aside) in [
-            ([true, true], &[][..]),
-            ([false, true], &ASIDE[..1]),
-            ([true, false], &ASIDE[1..]),
-            ([false, false], &ASIDE[..]),
+            ([true, true, true, true], &[][..]),
+            ([false, true, true, true], &ASIDE[..1]),
+            ([true, false, true, true], &ASIDE[1..2]),
+            ([true, true, false, true], &ASIDE[2..3]),
+            ([true, true, true, false], &ASIDE[3..]),
+            ([false, false, false, false], &ASIDE[..]),
         ] {
             assert_eq!(
                 the_suites_not_applicable(has),
@@ -16144,7 +16211,15 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
             what_does_not_apply,
         };
         let _printing = crate::ui::printing();
-        for has in [[true, true], [false, true], [true, false], [false, false]] {
+        for has in [
+            [true, true, true, true],
+            [false, true, true, true],
+            [true, false, true, true],
+            [true, true, false, true],
+            [true, true, true, false],
+            [false, true, false, false],
+            [false, false, false, false],
+        ] {
             let aside = the_suites_not_applicable(has);
             ui::forget_counts();
             the_suites_the_system_stands_aside(has);
@@ -16200,18 +16275,24 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     fn the_count_line_names_what_it_leaves_out() {
         use super::{Stack, in_one_clause, what_the_count_leaves_out};
         assert!(
-            what_the_count_leaves_out(Stack::Asked, true, [true, true]).is_empty(),
+            what_the_count_leaves_out(Stack::Asked, true, [true; 4]).is_empty(),
             "a run that left nothing out says it did"
         );
         assert_eq!(
-            what_the_count_leaves_out(Stack::Offline, true, [true, true]),
+            what_the_count_leaves_out(Stack::Offline, true, [true; 4]),
             ["the ones that need a database"]
         );
         assert_eq!(
-            what_the_count_leaves_out(Stack::Asked, false, [true, true]),
+            what_the_count_leaves_out(Stack::Asked, false, [true; 4]),
             ["the ones that need the workspace above this repository"]
         );
-        for has in [[false, true], [true, false], [false, false]] {
+        for has in [
+            [false, true, true, true],
+            [true, false, true, true],
+            [true, true, false, true],
+            [true, true, true, false],
+            [false, false, false, false],
+        ] {
             assert_eq!(
                 what_the_count_leaves_out(Stack::Asked, true, has),
                 ["the ones that need what this system lacks"],
@@ -16219,7 +16300,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
                  does not say so"
             );
         }
-        let every = what_the_count_leaves_out(Stack::NotApplicable, false, [false, false]);
+        let every = what_the_count_leaves_out(Stack::NotApplicable, false, [false; 4]);
         assert_eq!(
             in_one_clause(&every),
             "the ones that need a database, the ones that need the workspace above this \
@@ -17107,7 +17188,7 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
 
         // And the real manifest, or the assertions above are about a shape
         // nothing here is written in.
-        assert_eq!(members_of(root()), 17);
+        assert_eq!(members_of(root()), 19);
 
         // **Zero when cargo cannot say**, rather than a number invented from a
         // tree that is not a workspace; the caller reads the members itself and
@@ -17296,14 +17377,16 @@ test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
     /// against — four sets compared with a set the same call produces. A bound
     /// under it shrinks with the run it is judging, which is the shape this
     /// table exists to refuse.
-    const SOURCE_ROOTS: [(&str, usize); 17] = [
+    const SOURCE_ROOTS: [(&str, usize); 19] = [
         ("nc-authz", 2),
         ("nc-canon", 2),
         ("nc-catalog", 2),
         ("nc-catalog-compiler", 3),
         ("nc-channel", 2),
+        ("nc-daemon", 6),
         ("nc-guest", 1),
         ("nc-ids", 3),
+        ("nc-ipc", 5),
         ("nc-journal", 5),
         ("nc-kernel", 11),
         ("nc-local", 4),
@@ -19330,23 +19413,40 @@ mod the_frozen_path_rule {
     }
 
     /// Every file: the doc blocks that sit on an item, and the items with none.
-    const DOCUMENTED: [(&str, usize, usize); 153] = [
-        ("nc-authz/directory.rs", 28, 13),
+    const DOCUMENTED: [(&str, usize, usize); 181] = [
+        ("daemon/device.rs", 22, 5),
+        ("daemon/environment.rs", 12, 16),
+        ("daemon/install.rs", 14, 6),
+        ("daemon/ipc_refusals.rs", 7, 0),
+        ("daemon/lib.rs", 7, 15),
+        ("daemon/main.rs", 15, 6),
+        ("daemon/mark.rs", 27, 15),
+        ("daemon/pidfile.rs", 19, 8),
+        ("daemon/plugins.rs", 17, 6),
+        ("daemon/profile.rs", 19, 5),
+        ("daemon/run.rs", 9, 1),
+        ("daemon/schedule.rs", 18, 2),
+        ("daemon/server.rs", 44, 6),
+        ("daemon/serves_its_kernel.rs", 19, 3),
+        ("daemon/testing.rs", 30, 8),
+        ("daemon/the_binary_prepares_a_profile.rs", 7, 4),
+        ("daemon/the_mark_survives_a_crash.rs", 15, 12),
+        ("nc-authz/directory.rs", 38, 15),
         ("nc-authz/embedded.rs", 12, 4),
         ("nc-authz/lib.rs", 30, 19),
         ("nc-authz/the_embedded_pack_decides.rs", 24, 30),
         ("nc-canon/lib.rs", 31, 40),
         ("nc-canon/parse.rs", 18, 40),
         ("nc-canon/properties.rs", 14, 0),
-        ("nc-catalog-compiler/docs.rs", 22, 15),
-        ("nc-catalog-compiler/emit.rs", 27, 15),
+        ("nc-catalog-compiler/docs.rs", 23, 15),
+        ("nc-catalog-compiler/emit.rs", 28, 15),
         ("nc-catalog-compiler/ledger.rs", 24, 16),
         ("nc-catalog-compiler/lib.rs", 22, 14),
-        ("nc-catalog-compiler/load.rs", 52, 19),
+        ("nc-catalog-compiler/load.rs", 58, 19),
         ("nc-catalog-compiler/messages.rs", 20, 8),
-        ("nc-catalog-compiler/model.rs", 47, 16),
+        ("nc-catalog-compiler/model.rs", 49, 17),
         ("nc-catalog-compiler/problem.rs", 4, 9),
-        ("nc-catalog-compiler/the_gates_fire.rs", 65, 93),
+        ("nc-catalog-compiler/the_gates_fire.rs", 73, 93),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             13,
@@ -19359,7 +19459,7 @@ mod the_frozen_path_rule {
         ("nc-catalog/events.rs", 6, 3),
         ("nc-catalog/i18n.rs", 14, 1),
         ("nc-catalog/lib.rs", 0, 8),
-        ("nc-catalog/limits.rs", 16, 0),
+        ("nc-catalog/limits.rs", 18, 0),
         ("nc-catalog/notifications.rs", 7, 1),
         ("nc-catalog/the_generated_surface.rs", 10, 15),
         ("nc-channel/lib.rs", 53, 14),
@@ -19368,10 +19468,19 @@ mod the_frozen_path_rule {
         ("nc-ids/against_denote.rs", 6, 6),
         ("nc-ids/base32.rs", 11, 18),
         ("nc-ids/flake.rs", 21, 26),
-        ("nc-ids/lib.rs", 45, 27),
+        ("nc-ids/lib.rs", 47, 28),
         ("nc-ids/naming.rs", 40, 37),
         ("nc-ids/properties.rs", 11, 6),
-        ("nc-ids/snowflake.rs", 56, 80),
+        ("nc-ids/snowflake.rs", 70, 90),
+        ("nc-ipc/connection.rs", 15, 9),
+        ("nc-ipc/endpoint.rs", 4, 5),
+        ("nc-ipc/frame.rs", 5, 0),
+        ("nc-ipc/frames.rs", 8, 6),
+        ("nc-ipc/handshake.rs", 10, 0),
+        ("nc-ipc/handshake.rs", 13, 15),
+        ("nc-ipc/heartbeat.rs", 15, 19),
+        ("nc-ipc/lib.rs", 9, 15),
+        ("nc-ipc/message.rs", 41, 5),
         ("nc-journal/across_threads.rs", 2, 5),
         ("nc-journal/entry.rs", 31, 16),
         ("nc-journal/in_postgres.rs", 75, 110),
@@ -19425,23 +19534,25 @@ mod the_frozen_path_rule {
         ("nc-kernel/where_a_blob_is.rs", 40, 36),
         ("nc-kernel/world.rs", 4, 1),
         ("nc-local/a_unit_lands_whole_or_not_at_all.rs", 52, 15),
-        ("nc-local/journal.rs", 25, 11),
+        ("nc-local/journal.rs", 26, 11),
         ("nc-local/lib.rs", 12, 9),
         ("nc-local/open.rs", 19, 6),
         ("nc-local/opening_refuses_what_it_did_not_make.rs", 64, 4),
         ("nc-local/schema.rs", 23, 2),
         ("nc-local/store.rs", 83, 12),
-        ("nc-local/the_local_journal.rs", 32, 12),
-        ("nc-log/events.rs", 22, 110),
-        ("nc-log/every_event_reaches_the_store.rs", 4, 1),
-        ("nc-log/lib.rs", 19, 25),
-        ("nc-log/ship.rs", 106, 50),
+        ("nc-local/the_local_journal.rs", 33, 12),
+        ("nc-log/events.rs", 27, 135),
+        ("nc-log/every_event_reaches_the_store.rs", 5, 1),
+        ("nc-log/lib.rs", 22, 27),
+        ("nc-log/ship.rs", 108, 50),
         ("nc-log/value.rs", 18, 36),
-        ("nc-platform/lib.rs", 45, 22),
+        ("nc-platform/ipc.rs", 20, 13),
+        ("nc-platform/lib.rs", 84, 22),
+        ("nc-platform/process.rs", 8, 1),
         ("nc-platform/service.rs", 155, 18),
-        ("nc-platform/testing.rs", 24, 1),
-        ("nc-platform/unix.rs", 46, 2),
-        ("nc-platform/windows.rs", 84, 11),
+        ("nc-platform/testing.rs", 29, 1),
+        ("nc-platform/unix.rs", 77, 2),
+        ("nc-platform/windows.rs", 122, 11),
         ("nc-policy/an_entity_type_is_a_name_cedar_parses.rs", 7, 3),
         ("nc-policy/cases.rs", 10, 13),
         ("nc-policy/lib.rs", 103, 20),
@@ -19462,7 +19573,7 @@ mod the_frozen_path_rule {
         ("reference/behaviour.rs", 133, 60),
         ("reference/lib.rs", 0, 2),
         ("xtask/build.rs", 27, 6),
-        ("xtask/check.rs", 675, 56),
+        ("xtask/check.rs", 685, 57),
         ("xtask/corpus.rs", 44, 25),
         ("xtask/counts.rs", 45, 29),
         ("xtask/database.rs", 30, 6),
@@ -19470,20 +19581,20 @@ mod the_frozen_path_rule {
         ("xtask/dev.rs", 73, 8),
         ("xtask/docs.rs", 8, 1),
         ("xtask/every_generated_value_is_compared.rs", 30, 8),
-        ("xtask/gates.rs", 223, 33),
+        ("xtask/gates.rs", 250, 33),
         ("xtask/history.rs", 115, 3),
         ("xtask/limits.rs", 176, 59),
         ("xtask/local.rs", 83, 8),
         ("xtask/main.rs", 3, 25),
-        ("xtask/members.rs", 35, 7),
+        ("xtask/members.rs", 44, 7),
         ("xtask/plugins.rs", 25, 5),
         ("xtask/policy.rs", 57, 5),
         ("xtask/references.rs", 54, 26),
         ("xtask/release.rs", 235, 13),
         ("xtask/sections.rs", 38, 10),
         ("xtask/store.rs", 29, 4),
-        ("xtask/the_pages_reach_the_catalog.rs", 37, 20),
-        ("xtask/the_registry_reaches_the_code.rs", 26, 21),
+        ("xtask/the_pages_reach_the_catalog.rs", 38, 21),
+        ("xtask/the_registry_reaches_the_code.rs", 26, 22),
         ("xtask/the_stack_enforces_the_declared_bounds.rs", 32, 6),
         ("xtask/ui.rs", 52, 12),
         ("xtask/wall.rs", 129, 28),
@@ -20466,11 +20577,20 @@ mod the_frozen_path_rule {
                 );
             }
         }
+        // **Every root cargo declares, read, and as many as the members have**:
+        // one each, and a second for each member written down as building a
+        // library and a binary — each one a crate the lint level stops at. The
+        // count is held to the members and that list, both from outside the
+        // walk, so a member whose roots cargo stopped declaring is a number
+        // short here rather than a root nobody asked about.
+        let expected = built.len() + the_members_with_a_library_and_a_binary(&built);
         assert_eq!(
             read,
+            expected,
+            "the walk read {read} crate root(s), and {} member(s) with {} building a \
+             library and a binary have {expected}",
             built.len(),
-            "the walk read {read} crate root(s) and cargo builds {}",
-            built.len()
+            expected - built.len()
         );
     }
 
@@ -22261,8 +22381,8 @@ mod the_frozen_path_rule {
     /// [`super::LeavesNothingBehind`] exists because a test that panics removes
     /// nothing on the way out — its own doc records 2.6 MB and 168 files left
     /// under one name, and `crates/nc-policy`'s suite records 1,275
-    /// directories accumulated in an afternoon. Of the 571 scratches this tree
-    /// builds, 484 of the 571 are removed however the test leaves and 87 are
+    /// directories accumulated in an afternoon. Of the 654 scratches this tree
+    /// builds, 567 of the 654 are removed however the test leaves and 87 are
     /// removed only on the path that reaches the end of the function — which is
     /// every path except the one a failing test takes.
     ///
@@ -22328,14 +22448,26 @@ mod the_frozen_path_rule {
     /// uncancellable — a guarded test deleted and an unguarded one written in
     /// its place moves the second while the first does not.
     #[cfg(test)]
-    const BUILDS_A_SCRATCH: [(&str, usize, usize); 36] = [
+    const BUILDS_A_SCRATCH: [(&str, usize, usize); 48] = [
+        ("daemon/device.rs", 7, 7),
+        ("daemon/environment.rs", 2, 2),
+        ("daemon/install.rs", 8, 8),
+        ("daemon/main.rs", 4, 4),
+        ("daemon/mark.rs", 8, 8),
+        ("daemon/pidfile.rs", 5, 5),
+        ("daemon/plugins.rs", 3, 3),
+        ("daemon/profile.rs", 8, 8),
+        ("daemon/testing.rs", 2, 2),
+        ("daemon/the_binary_prepares_a_profile.rs", 2, 2),
+        ("daemon/the_mark_survives_a_crash.rs", 2, 2),
         ("nc-catalog-compiler/ledger.rs", 1, 0),
-        ("nc-catalog-compiler/the_gates_fire.rs", 149, 149),
+        ("nc-catalog-compiler/the_gates_fire.rs", 164, 164),
         (
             "nc-catalog-compiler/the_order_on_disk_stays_on_disk.rs",
             2,
             2,
         ),
+        ("nc-ipc/endpoint.rs", 2, 2),
         ("nc-kernel/blobs.rs", 10, 10),
         ("nc-kernel/the_decision_point.rs", 5, 5),
         ("nc-kernel/the_rest_of_the_world.rs", 2, 2),
@@ -22345,7 +22477,7 @@ mod the_frozen_path_rule {
         ("nc-local/open.rs", 4, 4),
         ("nc-local/opening_refuses_what_it_did_not_make.rs", 43, 43),
         ("nc-local/the_local_journal.rs", 9, 9),
-        ("nc-platform/lib.rs", 14, 14),
+        ("nc-platform/lib.rs", 27, 27),
         ("nc-platform/service.rs", 6, 6),
         ("nc-policy/the_denial_gate_fires.rs", 87, 87),
         ("nc-prune/in_sqlite.rs", 13, 13),
@@ -22357,7 +22489,7 @@ mod the_frozen_path_rule {
         ("xtask/dev.rs", 1, 0),
         ("xtask/docs.rs", 2, 2),
         ("xtask/every_generated_value_is_compared.rs", 1, 0),
-        ("xtask/gates.rs", 17, 9),
+        ("xtask/gates.rs", 19, 11),
         ("xtask/history.rs", 1, 1),
         ("xtask/limits.rs", 26, 13),
         ("xtask/local.rs", 6, 6),
@@ -25309,7 +25441,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 15877;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 17149;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25328,7 +25460,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 3369;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4048;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25345,7 +25477,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1109;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1349;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25362,7 +25494,7 @@ mod the_frozen_path_rule {
     /// before it is paid, so a residual smaller because the tree is smaller is
     /// told from one smaller because a rule stopped reaching it.
     #[cfg(test)]
-    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [82, 16, 34, 35, 89];
+    const THE_RESIDUAL_BY_SHAPE: [usize; 5] = [93, 21, 38, 39, 92];
 
     /// How many rearrangements this tree offers to judge at all.
     ///
@@ -25379,7 +25511,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 22317;
+    const THE_REARRANGEMENTS_JUDGED: usize = 23598;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25397,7 +25529,7 @@ mod the_frozen_path_rule {
     /// once the block that raised it is rewritten as a summary, a blank line and
     /// the rest, or shown to need nothing.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 481;
+    const THE_REARRANGEMENTS_THE_FIRST_LINE_RULE_ACCEPTED: usize = 520;
 
     /// A doc block begins where a sentence begins.
     ///
@@ -25433,8 +25565,8 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **481 of 22,317 are accepted by the first-line
-    /// rule alone, and 256 survive all three.** All three numbers are frozen and
+    /// rules the gates apply: **520 of 23,598 are accepted by the first-line
+    /// rule alone, and 283 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
     /// that drifts from one.
@@ -25455,9 +25587,9 @@ mod the_frozen_path_rule {
     /// Counted per rearrangement rather than in one number, a line-wise sort of
     /// a doc block in `crates/nc-canon/src/lib.rs` survived all three rules.
     /// The real residual is
-    /// [`THE_RESIDUAL_BY_SHAPE`] — **82 ascending sorts, 16 descending, 34
-    /// swaps, 35 rotations and 89 reversals** — so the reversal is the largest
-    /// part of it, not the whole.
+    /// [`THE_RESIDUAL_BY_SHAPE`] — **93 ascending sorts, 21 descending, 38
+    /// swaps, 39 rotations and 92 reversals** — so the reversal is one of its
+    /// two largest parts, with the ascending sort, and not the whole.
     ///
     /// **That sentence is held against the array**, because a sentence giving
     /// the shape can be wrong in more than one number: counting the identity —
@@ -25466,7 +25598,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1109 of
+    /// this tree offers, **1349 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -26229,6 +26361,27 @@ mod the_frozen_path_rule {
         );
     }
 
+    /// How many members build a library and a binary both, once each is shown
+    /// to: an app is a library its suites drive and a thin binary.
+    ///
+    /// **Written down, so the floor is still from outside**: a member gaining
+    /// a second root is a row here, and a kind dropped from `is_documented`
+    /// still leaves the count short.
+    #[cfg(test)]
+    fn the_members_with_a_library_and_a_binary(members: &[crate::members::Member]) -> usize {
+        const A_LIBRARY_AND_A_BINARY: [&str; 1] = ["apps/daemon"];
+        for both in A_LIBRARY_AND_A_BINARY {
+            assert!(
+                members
+                    .iter()
+                    .any(|member| member.path == both && member.documented.len() == 2),
+                "`{both}` is written down as building a library and a binary, and cargo \
+                 does not document two roots for it"
+            );
+        }
+        A_LIBRARY_AND_A_BINARY.len()
+    }
+
     /// A `documentation` step that read part of the tree is reported, not
     /// printed `ok`.
     ///
@@ -26246,6 +26399,7 @@ mod the_frozen_path_rule {
     fn a_documentation_step_that_read_part_of_the_tree_is_reported() {
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
         let members = crate::members::members(root).expect("cargo can read this workspace");
+        let both = the_members_with_a_library_and_a_binary(&members);
         let declared: Vec<String> = members
             .iter()
             .flat_map(|member| member.documented.clone())
@@ -26269,9 +26423,10 @@ mod the_frozen_path_rule {
         // count too; this is that.
         assert_eq!(
             declared.len(),
-            members.len(),
+            members.len() + both,
             "cargo builds {} member(s) and {} documented source root(s) are declared. \
-             Every member of this workspace has one library or binary root, so these \
+             Every member of this workspace has one library or binary root but the ones \
+             written down with both, so these \
              two disagreeing means `members::is_documented` no longer names a kind \
              cargo builds — and the set this test compares against would then shrink \
              with the run it is judging, which is the one thing it exists to refuse: \
@@ -27007,7 +27162,9 @@ mod the_frozen_path_rule {
     /// is a suite standing aside on macOS or Windows with nothing judging
     /// whether it says so. Each door is looked for by its own name, through
     /// [`names_a_door`], in every source but `nc-platform`'s, which defines
-    /// the doors and pins every system's answer to them.
+    /// the doors and pins every system's answer to them; a suite of that
+    /// crate's own that stands aside is named by hand, and held to its count
+    /// of guards with the others.
     #[test]
     fn every_source_that_asks_what_the_system_lacks_is_one_the_census_names() {
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
@@ -27028,6 +27185,7 @@ mod the_frozen_path_rule {
         let mut named: Vec<String> = super::ANNOUNCES_WHAT_THE_SYSTEM_LACKS
             .iter()
             .map(|(file, _, _, _)| (*file).to_owned())
+            .filter(|file| !file.starts_with("crates/nc-platform/"))
             .collect();
         named.sort();
         assert_eq!(
@@ -27105,7 +27263,7 @@ mod the_frozen_path_rule {
         let doors = the_doors_a_suite_stands_aside_by();
         assert_eq!(
             doors,
-            ["A_POSIX_SHELL", "LISTED_AS_MADE"],
+            ["A_POSIX_SHELL", "LISTED_AS_MADE", "POSIX_SESSIONS"],
             "the census asks other doors than these fixtures do, so they hold nothing"
         );
         for (how, text) in [
@@ -28090,7 +28248,7 @@ mod the_frozen_path_rule {
     /// verdicts that agree for that long are one row, and — because a prefix
     /// matches nothing the two censuses hold — every row is a shipped literal
     /// accounted for nowhere. Written out, each row is its own accounting.
-    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 491] = [
+    const WHAT_THE_CONSOLE_SAYS_IN_ORDER: [(&str, &str); 493] = [
         ("—", "compiled catalog/"),
         (
             "—",
@@ -28863,6 +29021,14 @@ mod the_frozen_path_rule {
         (
             "if !a_posix_shell",
             "running the checkout script's guards, which need a POSIX shell of the system's own",
+        ),
+        (
+            "if !posix_sessions",
+            "running the suite about leaving a session, which needs sessions of the POSIX kind",
+        ),
+        (
+            "if !daemon_sessions",
+            "running the suite about the daemon leaving its session, which needs sessions of the POSIX kind",
         ),
         (
             "let Ok(text) = std::fs::read_to_string(root.join(named)) else",
@@ -32541,7 +32707,7 @@ mod the_frozen_path_rule {
     /// The third column is how few files that tree may hold and still be worth
     /// asking about: a walk that reached one file proves nothing about a tree of
     /// hundreds, and `.cargo/` really does hold one.
-    const WHAT_MAY_SIT_UNDER: [(&str, &[&str], usize); 10] = [
+    const WHAT_MAY_SIT_UNDER: [(&str, &[&str], usize); 11] = [
         // The `cargo xtask` alias, and nothing else.
         (".cargo", &["toml"], 1),
         // The workflow. Composite actions and scripts would be more kinds, and
@@ -32566,6 +32732,9 @@ mod the_frozen_path_rule {
         // the kernel reads — every plugin is a crate, and nothing else sits
         // here.
         ("plugins", &["rs", "toml"], 4),
+        // The binaries a person's machine runs: each one's sources and its
+        // cargo manifest, and nothing else.
+        ("apps", &["rs", "toml"], 4),
         // Policies, the schema, the world the cases are decided against, the
         // packs' prose, the case files and each pack's `pack.toml`. Where a
         // `.toml` may sit is `nc-policy`'s rule: a case file inside a `tests/`
@@ -32694,7 +32863,7 @@ mod the_frozen_path_rule {
     /// The both-directions assertions below keep each row honest: a kind pinned
     /// to a name must be a kind its tree is allowed to hold at all, and the name
     /// must be a file of that kind.
-    const ONLY_UNDER_THIS_NAME: [(&str, &str, &str); 13] = [
+    const ONLY_UNDER_THIS_NAME: [(&str, &str, &str); 14] = [
         // The `cargo xtask` alias, and nothing else. The file cargo reads a
         // registry token from is a `.toml` in this very directory, which is
         // what makes the extension's allowance here an allowance for one name.
@@ -32720,6 +32889,8 @@ mod the_frozen_path_rule {
         // two TOML files a plugin has, both at its own root.
         ("plugins", "toml", "Cargo.toml"),
         ("plugins", "toml", "plugin.toml"),
+        // An app's cargo manifest, at its own root, and the one TOML file it has.
+        ("apps", "toml", "Cargo.toml"),
         // The gate's own manifest.
         ("xtask", "toml", "Cargo.toml"),
         // The meta-gate, which is the one Python file in this repository.
@@ -33619,6 +33790,7 @@ mod every_report_wire {
                 ),
                 ("crates/nc-kernel/src/lib.rs", "fn g() {}\n"),
                 ("crates/nc-prune/src/sqlite.rs", "fn h() {}\n"),
+                ("apps/daemon/src/lib.rs", "fn i() {}\n"),
             ],
         );
         let mut failures = Vec::new();
@@ -33931,7 +34103,7 @@ mod the_meta_gate {
     /// own doc: a module directory may be called anything. Every row here is a
     /// prefix of a workspace-relative path, anchored at its start, so what it
     /// excuses is what it names.
-    const NOT_MUTATED: [(&str, &str); 42] = [
+    const NOT_MUTATED: [(&str, &str); 50] = [
         (
             "crates/nc-platform/src/windows.rs",
             "another system's: the Windows half of what makes a path private, \
@@ -34001,12 +34173,92 @@ mod the_meta_gate {
              file would remove evidence rather than uncover an undecided clause",
         ),
         (
+            "apps/daemon/tests/the_binary_prepares_a_profile.rs",
+            "a suite: the daemon's binary run as a process, refusing an invocation \
+             it does not answer and a start outside an install, and preparing a \
+             profile from a copy beside a manifest. It spawns a process, so no \
+             mutation command runs it: what it drives in `main.rs` and `lib.rs` is \
+             decided by their own modules' unit tests, which the runner's commands \
+             for them run, and a weakening of this file would remove evidence \
+             rather than uncover an undecided clause",
+        ),
+        (
+            "apps/daemon/tests/the_mark_survives_a_crash.rs",
+            "a suite: a child of the test binary killed while it mints behind the \
+             real mark, and a start from what it left with the clock moved back. It \
+             spawns a process, so no mutation command runs it: what it drives in \
+             `mark.rs` is decided by that module's unit tests, which the runner's \
+             command for it runs, and a weakening of this file would remove \
+             evidence rather than uncover an undecided clause",
+        ),
+        (
+            "apps/daemon/tests/ipc_refusals.rs",
+            "a suite: a real daemon process handed connections that do not prove the \
+             token, each refused and logged with nothing journaled. It spawns a \
+             process, so no mutation command runs it: what it drives in `server.rs` \
+             is decided by that module's unit tests, and the refusals themselves by \
+             `nc-ipc`'s and `nc-platform`'s, which the runner's commands for them \
+             run, and a weakening of this file would remove evidence rather than \
+             uncover an undecided clause",
+        ),
+        (
+            "apps/daemon/tests/serves_its_kernel.rs",
+            "a suite: a real daemon process serving its registry, its status, \
+             journaled dispatches and its schedule, refusing a second daemon, \
+             holding none of its spawner's handles and stopping. It spawns a \
+             process, so no mutation command runs it: what it drives in `server.rs`, \
+             `schedule.rs`, `plugins.rs`, `pidfile.rs` and `environment.rs` is \
+             decided by those modules' unit tests, which the runner's commands for \
+             them run, and a weakening of this file would remove evidence rather \
+             than uncover an undecided clause",
+        ),
+        (
             "crates/nc-channel/tests/the_names_are_disjoint.rs",
             "a suite: every channel's names derived for two users and two \
              namespaces and held apart, the spellings, the ports and the manifest. \
              The one source it drives, `lib.rs`, is edited by the runner under the \
              crate's own command, which builds this suite, and a weakening of this \
              file would remove evidence rather than uncover an undecided clause",
+        ),
+        (
+            "crates/nc-ipc/tests/endpoint.rs",
+            "a suite: the daemon's listener bound at the catalog's bound of \
+             connections over a real endpoint in a scratch directory, and the \
+             handshake across it. It starts no process. What it drives — \
+             `listen` in `lib.rs`, and the endpoint `nc-platform` makes — is \
+             edited by the runner under each crate's own command, which builds \
+             this suite, and a weakening of this file would remove evidence \
+             rather than uncover an undecided clause",
+        ),
+        (
+            "crates/nc-ipc/tests/frames.rs",
+            "a suite: frames round-tripped, cut at every byte, past the bound with \
+             the writer still open, and in every spelling that is not canonical, \
+             and a dispatch and its answer at the kernel's whole payload. The \
+             sources it drives — `frame.rs`, `message.rs`, `handshake.rs` and \
+             `connection.rs` — are edited by the runner under the crate's own \
+             command, which builds this suite, and a weakening of this file would \
+             remove evidence rather than uncover an undecided clause",
+        ),
+        (
+            "crates/nc-ipc/tests/handshake.rs",
+            "a suite: both ends' proofs, refused wrong, missing, replayed, \
+             forged, reflected and keyed by another token, another protocol, an \
+             unread field, both deadlines, and no byte of the token on the wire. \
+             The sources it drives — `handshake.rs`, `message.rs`, `lib.rs` and \
+             `frame.rs` — are edited by the runner under the crate's own command, \
+             which builds this suite, and a weakening of this file would \
+             remove evidence rather than uncover an undecided clause",
+        ),
+        (
+            "crates/nc-ipc/tests/heartbeat.rs",
+            "a suite: a relay between a real client and a real daemon on a paused \
+             clock, swallowing either side or repeating its next message — a \
+             silent peer dropped from either end, pings that keep a connection, a \
+             dispatch outlasting the bound, one request at a time. The sources it \
+             drives — `connection.rs`, `message.rs` and `frame.rs` — are edited by \
+             the runner under the crate's own command, which builds this suite, and a weakening of this file would remove \
+             evidence rather than uncover an undecided clause",
         ),
         (
             "crates/nc-authz/tests/the_embedded_pack_decides.rs",
@@ -34460,13 +34712,22 @@ mod the_meta_gate {
 
     /// Where the sources of `package` are: the way back from [`the_package_owning`].
     fn the_sources_of(package: &str) -> String {
-        if package == "xtask" {
-            return "xtask/src".to_owned();
-        }
-        if let Some(plugin) = package.strip_prefix("nc-plugin-") {
-            return format!("plugins/{plugin}/src");
-        }
-        format!("crates/{package}/src")
+        // Through `MEMBER_TREES`, so an app's package resolves as a crate's and
+        // a plugin's do; a name two trees could spell is the one on disk.
+        let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+        crate::members::MEMBER_TREES
+            .iter()
+            .find_map(|(tree, prefix)| {
+                let directory = match tree.strip_suffix("/*") {
+                    Some(parent) => format!("{parent}/{}", package.strip_prefix(prefix)?),
+                    None => (*tree == package).then(|| (*tree).to_owned())?,
+                };
+                root.join(&directory)
+                    .join("Cargo.toml")
+                    .is_file()
+                    .then(|| format!("{directory}/src"))
+            })
+            .unwrap_or_else(|| panic!("`{package}` is the package of no member tree"))
     }
 
     /// A suite filter is resolved in the package its own command names.
@@ -34505,6 +34766,7 @@ mod the_meta_gate {
             "nc-platform",
             "nc-catalog-compiler",
             "nc-plugin-reference",
+            "nc-daemon",
         ] {
             assert_eq!(
                 the_package_owning(&format!("{}/lib.rs", the_sources_of(package))),
@@ -34808,18 +35070,23 @@ mod the_meta_gate {
         "xtask/canaries/",
     ];
 
+    /// What a row of [`NOT_PRESSURE_BUT_PROVENANCE`] says of a suite that runs
+    /// a process, and which the rule about such suites holds true of it.
+    const SPAWNS_A_PROCESS: &str = "spawns a process, so no mutation command runs it";
+
     /// The suites [`NOT_MUTATED`] excuses for a reason that is not pressure.
     ///
     /// A row of the census names the sources a suite exercises, and for most of
     /// them that is also why the suite need not be mutated: those sources *are*
-    /// mutated, and a command that runs this suite decides the weakening. Three
-    /// rows name sources for a different reason, and each says so in its own
-    /// words — which is what the second column here holds them to, the way
-    /// `JUDGED_OUTSIDE_ITS_PACKAGE` holds its rows to a name in both ends.
+    /// mutated, and a command that runs this suite decides the weakening. The
+    /// rows here name sources for a different reason, or none, and each says so
+    /// in its own words — which is what the second column here holds them to,
+    /// the way `JUDGED_OUTSIDE_ITS_PACKAGE` holds its rows to a name in both
+    /// ends.
     ///
     /// A row added here with a phrase its excuse does not contain cannot be
     /// written truthfully, and a row whose excuse stops saying it fails.
-    const NOT_PRESSURE_BUT_PROVENANCE: [(&str, &str); 5] = [
+    const NOT_PRESSURE_BUT_PROVENANCE: [(&str, &str); 9] = [
         (
             "crates/nc-catalog/tests/the_generated_surface.rs",
             "reads the generated crate on disk",
@@ -34844,6 +35111,22 @@ mod the_meta_gate {
             "xtask/tests/the_stack_enforces_the_declared_bounds.rs",
             "second copy",
         ),
+        // **The suites that spawn a process, which no mutation command runs**,
+        // so they press on no source the runner edits: the sources they drive
+        // are decided by their own unit tests instead.
+        // `a_suite_that_spawns_a_process_is_run_by_no_mutation_command` holds
+        // both halves of the phrase — that each one spawns, and that no command
+        // runs a test of it.
+        (
+            "apps/daemon/tests/the_binary_prepares_a_profile.rs",
+            SPAWNS_A_PROCESS,
+        ),
+        (
+            "apps/daemon/tests/the_mark_survives_a_crash.rs",
+            SPAWNS_A_PROCESS,
+        ),
+        ("apps/daemon/tests/ipc_refusals.rs", SPAWNS_A_PROCESS),
+        ("apps/daemon/tests/serves_its_kernel.rs", SPAWNS_A_PROCESS),
     ];
 
     /// The runner refuses a run it cannot judge its database-backed files in.
@@ -34913,8 +35196,18 @@ mod the_meta_gate {
         // package. A filter such as `database::` belongs to the xtask binary and
         // is held by the loop above.
         let mut panicking = std::collections::BTreeSet::new();
-        for member in std::fs::read_dir(root.join("crates")).expect("the crates are here") {
+        // Every tree of members, each skipped where it is not on disk: a
+        // suite that panics without a database panics in any of them.
+        let members = crate::members::trees_of_members()
+            .filter_map(|tree| std::fs::read_dir(root.join(tree)).ok())
+            .flatten();
+        for member in members {
             let member = member.expect("a member's directory entry reads");
+            let package = crate::members::the_member_owning(&format!(
+                "{}/",
+                crate::relative_to(root, &member.path())
+            ))
+            .map(|(_, package)| package);
             let mut walking = vec![member.path().join("tests")];
             while let Some(directory) = walking.pop() {
                 // A crate with no `tests/` has no suite to refuse with.
@@ -34930,7 +35223,7 @@ mod the_meta_gate {
                             .expect("a suite's source reads")
                             .contains("\"DATABASE_URL is not set")
                     {
-                        panicking.insert(member.file_name().to_string_lossy().into_owned());
+                        panicking.insert(package.clone().expect("a member's package"));
                     }
                 }
             }
@@ -35324,7 +35617,9 @@ mod the_meta_gate {
             .expect("Python 3 imports the meta-gate");
         let table: Vec<(String, String)> = serde_json::from_slice(&asked.stdout)
             .expect("`NEVER_REACHED` is pairs of a saying and its fix");
-        let the_code = the_rust_under(&root.join("crates"));
+        let the_code: Vec<String> = crate::members::trees_of_members()
+            .flat_map(|tree| the_rust_under(&root.join(tree)))
+            .collect();
         for (said, _) in &table {
             assert!(
                 the_code.iter().any(|text| text.contains(said.as_str())),
@@ -35452,17 +35747,13 @@ mod the_meta_gate {
     /// **One reading for the three rules that ask it.** Spelled in each as
     /// `crates/<package>/` or else `xtask`, a plugin's source, which is
     /// neither, would read as `xtask`'s, and the command that really judges it
-    /// would look like one pointed at the wrong package. A plugin under
-    /// `plugins/<dir>/` is the package `nc-plugin-<dir>`, and the plugin build
-    /// (`xtask/src/plugins.rs`) refuses one named anything else.
+    /// would look like one pointed at the wrong package. The naming is each
+    /// member tree's own, written once beside it in `MEMBER_TREES`: a plugin
+    /// under `plugins/<dir>/` is the package `nc-plugin-<dir>`, and the plugin
+    /// build (`xtask/src/plugins.rs`) refuses one named anything else.
     fn the_package_owning(relative: &str) -> String {
-        if let Some(rest) = relative.strip_prefix("crates/") {
-            return rest.split('/').next().unwrap_or_default().to_owned();
-        }
-        if let Some(rest) = relative.strip_prefix("plugins/") {
-            return format!("nc-plugin-{}", rest.split('/').next().unwrap_or_default());
-        }
-        "xtask".to_owned()
+        crate::members::the_member_owning(relative)
+            .map_or_else(|| "xtask".to_owned(), |(_, package)| package)
     }
 
     /// What a command is being asked to run: the file, its module, and the filters
@@ -35695,6 +35986,22 @@ mod the_meta_gate {
             return false;
         }
         let names_the_module = |filter: &String| filter.trim_end_matches("::") == ran.module;
+        let carried = the_test_name_filters(command);
+        let appended = command.last().is_some_and(|word| word == "--")
+            && ran.filters.iter().any(names_the_module);
+        if carried.is_empty() {
+            return command.last().is_none_or(|word| word != "--") || appended;
+        }
+        carried.into_iter().any(names_the_module) || appended
+    }
+
+    /// The test-name filters a command carries: its positionals, before `--`
+    /// and after it.
+    ///
+    /// Its own function because two rules ask it — which of a file's own tests a
+    /// command runs, and whether it runs any test of a suite that spawns a
+    /// process — and a second copy of a parse is a second thing to keep true.
+    fn the_test_name_filters(command: &[String]) -> Vec<&String> {
         // **A filter need not hold `::` and need not follow `--`.** cargo's
         // ordinary narrowing is a bare substring of the test name —
         // `cargo test -q -p nc-journal tampering` — which holds neither, so a
@@ -35740,12 +36047,7 @@ mod the_meta_gate {
             command.join(" "),
             carried.len()
         );
-        let appended = command.last().is_some_and(|word| word == "--")
-            && ran.filters.iter().any(names_the_module);
-        if carried.is_empty() {
-            return command.last().is_none_or(|word| word != "--") || appended;
-        }
-        carried.into_iter().any(names_the_module) || appended
+        carried
     }
 
     /// The help reader is given both layouts, verbatim, including what fooled it.
@@ -35975,9 +36277,12 @@ Options:
         // Three kinds, and the file's path says which: a `tests/` file is its
         // own integration target named for its stem, `xtask/src/` is the
         // binary, and everything else is its crate's library.
+        // An app's binary is the `main.rs` at the root of its sources, beside
+        // the library its other sources are.
         let (is_test, is_binary) = (
             relative.contains("/tests/"),
-            relative.starts_with("xtask/src/"),
+            relative.starts_with("xtask/src/")
+                || (crate::members::under(relative, "apps") && relative.ends_with("/src/main.rs")),
         );
         let names_it = the_package_selection_covers(command, package);
         let excluded = command.iter().enumerate().any(|(at, word)| {
@@ -36104,6 +36409,31 @@ Options:
             })
             .collect()
     }
+
+    /// The mutated sources whose tests live somewhere else, each said here.
+    const WITHOUT_TESTS_OF_THEIR_OWN: [&str; 13] = [
+        "xtask/src/main.rs",
+        "plugins/reference/src/lib.rs",
+        "plugins/reference/src/adapter.rs",
+        // Each system's half of `nc-platform`, whose tests sit in the crate
+        // root over the interface both halves answer, and the test doors,
+        // which the suites of other crates call.
+        "crates/nc-platform/src/unix.rs",
+        "crates/nc-platform/src/testing.rs",
+        // The daemon's library root, whose refusals each module's tests hold.
+        "apps/daemon/src/lib.rs",
+        // The install the daemon's suites start it in, compiled for tests
+        // alone and held by `run`'s.
+        "apps/daemon/src/testing.rs",
+        // The endpoint's decisions, held by the crate root's tests.
+        "crates/nc-platform/src/ipc.rs",
+        // The protocol, which its suites in `tests/` drive.
+        "crates/nc-ipc/src/lib.rs",
+        "crates/nc-ipc/src/frame.rs",
+        "crates/nc-ipc/src/message.rs",
+        "crates/nc-ipc/src/handshake.rs",
+        "crates/nc-ipc/src/connection.rs",
+    ];
 
     /// Every source the runner mutates is judged by something that runs its own
     /// tests.
@@ -36253,16 +36583,7 @@ Options:
         // ignored-test gate reads one, so all of them are asked.
         assert_eq!(
             without_tests,
-            vec![
-                "xtask/src/main.rs".to_owned(),
-                "plugins/reference/src/lib.rs".to_owned(),
-                "plugins/reference/src/adapter.rs".to_owned(),
-                // Each system's half of `nc-platform`, whose tests sit in the
-                // crate root over the interface both halves answer, and the test
-                // doors, which the suites of other crates call.
-                "crates/nc-platform/src/unix.rs".to_owned(),
-                "crates/nc-platform/src/testing.rs".to_owned(),
-            ],
+            WITHOUT_TESTS_OF_THEIR_OWN.map(str::to_owned).to_vec(),
             "the sources carrying no `#[test]` of their own are not the ones written \
              down. A file that stops carrying tests leaves this rule asking nothing of \
              it, which is the silence the rule exists to break"
@@ -36324,13 +36645,11 @@ Options:
                 continue;
             }
             let package = owner_of(suite);
-            let owns = if package == "xtask" {
-                "xtask/".to_owned()
-            } else if let Some(directory) = package.strip_prefix("nc-plugin-") {
-                format!("plugins/{directory}/")
-            } else {
-                format!("crates/{package}/")
-            };
+            // The suite's own member's directory, read with the same naming.
+            let owns = crate::members::the_member_owning(suite).map_or_else(
+                || "xtask/".to_owned(),
+                |(directory, _)| format!("{directory}/"),
+            );
             let stem = std::path::Path::new(suite)
                 .file_stem()
                 .and_then(std::ffi::OsStr::to_str)
@@ -36390,6 +36709,252 @@ Options:
             judged >= held && held > 10,
             "{judged} (suite, source) pair(s) were read out of {held} row(s) this rule \
              is about, so a row is being passed over"
+        );
+    }
+
+    /// The suites that spawn a process and that a mutation command runs.
+    ///
+    /// **Written down when the first app's suites arrived, and only to
+    /// shrink.** Each is run once per operator over its package — a child of
+    /// the test binary killed mid-commit among them — and a suite of an app
+    /// starts daemons and registers units with the system's manager, which no
+    /// run of the runner may do once per operator. So a suite that spawns joins
+    /// no mutation command, and a row here is the one way to be the exception.
+    const SPAWNED_BY_THE_RUNNER: [&str; 3] = [
+        "crates/nc-kernel/tests/the_decision_point.rs",
+        "crates/nc-local/tests/a_unit_lands_whole_or_not_at_all.rs",
+        "crates/nc-local/tests/opening_refuses_what_it_did_not_make.rs",
+    ];
+
+    /// The names of the tests a suite holds, with every module of it in front
+    /// of each, which is more than libtest names and never fewer.
+    fn the_tests_a_suite_holds(code: &str) -> Vec<String> {
+        let mut names: Vec<String> = Vec::new();
+        let mut attributed = false;
+        for line in code.lines().map(str::trim_start) {
+            if crate::gates::is_a_test_attribute(line) {
+                attributed = true;
+            } else if attributed && let Some((_, rest)) = line.split_once("fn ") {
+                let name: String = rest
+                    .chars()
+                    .take_while(|letter| letter.is_alphanumeric() || *letter == '_')
+                    .collect();
+                names.push(name);
+                attributed = false;
+            }
+        }
+        let modules: Vec<String> = code
+            .lines()
+            .filter_map(|line| line.trim_start().strip_prefix("mod "))
+            .map(|rest| {
+                rest.chars()
+                    .take_while(|letter| letter.is_alphanumeric() || *letter == '_')
+                    .collect()
+            })
+            .collect();
+        let nested: Vec<String> = modules
+            .iter()
+            .flat_map(|module| names.iter().map(move |name| format!("{module}::{name}")))
+            .collect();
+        names.extend(nested);
+        names
+    }
+
+    /// Whether `command` runs any test of the suite at `relative`, whose tests
+    /// are `names`: it reaches the suite's target, and carries no test-name
+    /// filter or one some test of it is named by.
+    fn a_command_runs_a_test_of(
+        command: &[String],
+        package: &str,
+        relative: &str,
+        names: &[String],
+    ) -> bool {
+        // **`cargo test` and nothing else runs a test**: the plugin build is
+        // `cargo run -p xtask`, which names the package and runs none of it.
+        let subcommand = command
+            .iter()
+            .skip(1)
+            .find(|word| !word.starts_with('-') && !word.starts_with('+'));
+        if subcommand.is_none_or(|word| word != "test")
+            || !the_files_target_is_reached(command, package, relative)
+        {
+            return false;
+        }
+        let filters = the_test_name_filters(command);
+        filters.is_empty()
+            || filters
+                .iter()
+                .any(|filter| names.iter().any(|name| name.contains(filter.as_str())))
+    }
+
+    /// A command runs a test of a suite only where it reaches the suite and
+    /// selects one of its tests.
+    ///
+    /// **Each way a command narrows, asked once**: a module's filter that no
+    /// test of the suite is named by, the binary's or the library's tests, a
+    /// suite of its own, another package, and `cargo run`, against the whole
+    /// package, a filter one of its tests is named by, and the suite by name.
+    #[test]
+    fn a_command_runs_a_test_of_a_suite_only_where_it_reaches_and_selects_one() {
+        let names = the_tests_a_suite_holds(
+            "#[test]\nfn a_daemon_killed_while_it_mints() {}\n\
+             mod after {\n    #[test]\n    fn the_start_waits() {}\n}\n",
+        );
+        let relative = "apps/daemon/tests/the_mark_survives_a_crash.rs";
+        for (command, runs) in [
+            ("cargo test -q -p nc-daemon", true),
+            ("cargo test -q -p nc-daemon -- a_daemon_killed", true),
+            ("cargo test -q -p nc-daemon -- after::the_start", true),
+            (
+                "cargo test -q -p nc-daemon --test the_mark_survives_a_crash",
+                true,
+            ),
+            ("cargo test -q --workspace", true),
+            ("cargo test -q -p nc-daemon -- mark::", false),
+            ("cargo test -q -p nc-daemon -- device:: profile::", false),
+            ("cargo test -q -p nc-daemon --bin noctua-daemon", false),
+            ("cargo test -q -p nc-daemon --lib", false),
+            (
+                "cargo test -q -p nc-daemon --test the_binary_prepares_a_profile",
+                false,
+            ),
+            ("cargo test -q -p nc-local", false),
+            ("cargo run -q -p nc-daemon", false),
+        ] {
+            let words: Vec<String> = command.split_whitespace().map(str::to_owned).collect();
+            assert_eq!(
+                a_command_runs_a_test_of(&words, "nc-daemon", relative, &names),
+                runs,
+                "`{command}`"
+            );
+        }
+    }
+
+    /// No mutation command runs a test of a suite that spawns a process, but
+    /// the ones written down in [`SPAWNED_BY_THE_RUNNER`].
+    ///
+    /// **A suite that spawns, under a command that reaches it, runs once per
+    /// operator**, and the suites of an app start daemons and register units:
+    /// a run of the runner would start hundreds of them. So it is asked of every
+    /// suite of every member cargo lists, against every command the runner
+    /// judges any source by — the command reaches the suite's target and carries
+    /// no filter, or a filter a test of it is named by, and it runs that suite.
+    ///
+    /// **And the phrase that takes a suite out of the pressure rule is held to
+    /// this rule**: a row of [`NOT_PRESSURE_BUT_PROVENANCE`] saying
+    /// [`SPAWNS_A_PROCESS`] names a suite that spawns, so it cannot be written
+    /// for one whose sources' commands ought to run it.
+    #[test]
+    fn a_suite_that_spawns_a_process_is_run_by_no_mutation_command() {
+        let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+        let python = std::fs::read_to_string(root.join("xtask/mutants.py"))
+            .expect("the meta-gate is in this repository");
+        let elsewhere = runner_rows(&python, "ELSEWHERE = {");
+        let also = runner_rows(&python, "ALSO_RUN = {");
+        let fallback = the_runners_default_command(&python);
+        let commands: Vec<Vec<String>> = runner_rows(&python, "SOURCES = {")
+            .iter()
+            .flat_map(|row| {
+                let key = row.first().expect("a source row names its key");
+                the_commands_that_judge(key, &elsewhere, &also, &fallback)
+            })
+            .collect();
+        let members = crate::members::members(root).expect("cargo lists this workspace");
+        let (mut suites, mut spawning) = (0_usize, Vec::<String>::new());
+        for member in &members {
+            let Ok(entries) = std::fs::read_dir(root.join(&member.path).join("tests")) else {
+                continue;
+            };
+            for path in entries.flatten().map(|entry| entry.path()) {
+                if path.extension().is_none_or(|kind| kind != "rs") {
+                    continue;
+                }
+                let name = path.file_name().and_then(std::ffi::OsStr::to_str);
+                let relative = format!("{}/tests/{}", member.path, name.expect("a named suite"));
+                let text = std::fs::read_to_string(&path).expect("a suite is readable");
+                suites += 1;
+                // **Code, not prose**: a comment or a string naming the type is
+                // not a process started. **And a door that starts one**: a
+                // suite that spawns through a helper of its crate's test doors
+                // — the daemon's `testing::Installed::spawn` — names neither
+                // the type nor its constructor, and starts a process all the
+                // same; `.spawn()` with nothing in its parentheses is that call,
+                // where a thread's or a task's spawn takes what it runs.
+                let code = crate::gates::without_string_contents(&crate::gates::without_comments(
+                    &text, "//",
+                ));
+                if !(code.contains("process::Command")
+                    || code.contains("Command::new(")
+                    || code.contains(".spawn()"))
+                {
+                    continue;
+                }
+                let names = the_tests_a_suite_holds(&code);
+                assert!(
+                    !names.is_empty(),
+                    "`{relative}` spawns and holds no test this reads"
+                );
+                let running: Vec<String> = commands
+                    .iter()
+                    .filter(|command| {
+                        a_command_runs_a_test_of(command, &member.name, &relative, &names)
+                    })
+                    .map(|command| command.join(" "))
+                    .collect();
+                if SPAWNED_BY_THE_RUNNER.contains(&relative.as_str()) {
+                    assert!(
+                        !running.is_empty(),
+                        "`{relative}` is written down as spawned by the runner and no \
+                         command runs it any more: take its row out, since the list only \
+                         shrinks"
+                    );
+                } else {
+                    assert!(
+                        running.is_empty(),
+                        "`{relative}` spawns a process and {running:?} run a test of it, \
+                         once per operator. Judge the sources it drives by their own unit \
+                         tests — a module's filter, or `--bin` for a binary — and say \
+                         `{SPAWNS_A_PROCESS}` in its `NOT_MUTATED` row"
+                    );
+                }
+                spawning.push(relative);
+            }
+        }
+        for written in SPAWNED_BY_THE_RUNNER {
+            assert!(
+                spawning.iter().any(|found| found == written),
+                "`{written}` is written down as a suite the runner spawns from, and it \
+                 is not a suite that spawns"
+            );
+        }
+        let phrased: Vec<&str> = NOT_PRESSURE_BUT_PROVENANCE
+            .iter()
+            .filter(|(_, phrase)| *phrase == SPAWNS_A_PROCESS)
+            .map(|(suite, _)| *suite)
+            .collect();
+        for suite in &phrased {
+            assert!(
+                spawning.iter().any(|found| found == suite),
+                "`{suite}` is excused from the pressure rule as a suite that spawns a \
+                 process, and it is not one"
+            );
+        }
+        // **Floors from outside the walk**: every suite file the census
+        // excuses was read, and every suite written down as spawning was found
+        // spawning, so a reader that stopped finding them fails here rather than
+        // agreeing with an empty list.
+        let excused = NOT_MUTATED
+            .iter()
+            .filter(|(path, _)| {
+                path.contains("/tests/")
+                    && std::path::Path::new(path).extension() == Some(std::ffi::OsStr::new("rs"))
+            })
+            .count();
+        assert!(
+            suites >= excused && spawning.len() >= SPAWNED_BY_THE_RUNNER.len() + phrased.len(),
+            "{suites} suite(s) read, of {excused} the census excuses, and {} found \
+             spawning, so the walk is reading something other than the members' `tests/`",
+            spawning.len()
         );
     }
 
@@ -36731,8 +37296,8 @@ Options:
         // `the_documented_items_are_the_ones_written_down` anyway, so the cost
         // is one already being paid.
         assert_eq!(
-            walked, 167,
-            "{walked} Rust source(s) were walked, and this tree holds 119. A filter \
+            walked, 195,
+            "{walked} Rust source(s) were walked, and another number is written down. A filter \
              inside this walk removes files from the census without removing them from \
              the tree, which is how a file in neither list stops being one"
         );
@@ -36771,7 +37336,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1824] = [
+    static OPERATORS: [(&str, &str, &str); 1985] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -36799,6 +37364,36 @@ Options:
             "snowflake",
             "wait_past_with",
             "a wait on a stopped clock spends its yields",
+        ),
+        (
+            "snowflake",
+            "under_the_ceiling",
+            "a millisecond past the ceiling is raised for",
+        ),
+        (
+            "snowflake",
+            "under_the_ceiling",
+            "a millisecond at the ceiling asks nothing",
+        ),
+        (
+            "snowflake",
+            "under_the_ceiling",
+            "a ceiling below the millisecond is a refusal",
+        ),
+        (
+            "snowflake",
+            "mint",
+            "the ceiling is asked before the minter moves",
+        ),
+        (
+            "snowflake",
+            "settle_ceiling",
+            "a settled ceiling is raised for again",
+        ),
+        (
+            "ids",
+            "of_device_key",
+            "a device's byte keeps its leading zero",
         ),
         ("flake", "from_value", "the range bound is a bound"),
         ("flake", "candidate", "the domain is length-prefixed"),
@@ -37649,16 +38244,16 @@ Options:
             "no_code_is_written_at_a_call_site",
             "run-time upper-casing: to_uppercase",
         ),
-        ("gates", "in_the_error_code_scope", "migrations/ too"),
+        ("gates", "the_error_code_ground", "migrations/ too"),
         (
             "gates",
-            "in_the_error_code_scope",
-            "plugins/ is inside the §15.1 scope",
+            "the_error_code_ground",
+            "every tree of members is inside the §15.1 scope",
         ),
         (
             "gates",
             "codes_something_raises",
-            "the raising walk opens plugins/",
+            "the raising walk opens every tree of members",
         ),
         (
             "gates",
@@ -37732,12 +38327,12 @@ Options:
         (
             "gates",
             "every_hatch_carries_its_reason",
-            "the hatch walk opens plugins/",
+            "the hatch walk opens every member tree",
         ),
         (
             "gates",
             "in_the_hatch_scope",
-            "plugins/ is inside the hatch scope",
+            "every member tree is inside the hatch scope",
         ),
         (
             "gates",
@@ -39983,6 +40578,21 @@ Options:
             "a principal is minted only for an entity the world holds",
         ),
         (
+            "authz_directory",
+            "parse",
+            "a world file in another spelling is refused",
+        ),
+        (
+            "authz_directory",
+            "parse",
+            "a key a world file does not read is refused",
+        ),
+        (
+            "authz_directory",
+            "parse",
+            "the person is one of the realm's",
+        ),
+        (
             "authz_embedded",
             "carried",
             "a profile selects only its own pack",
@@ -40856,6 +41466,16 @@ Options:
         ),
         (
             "loader",
+            "check_daemon",
+            "a daemon limit of zero is refused",
+        ),
+        (
+            "loader",
+            "check_daemon",
+            "a mark's lease of a day is refused",
+        ),
+        (
+            "loader",
             "check_capabilities",
             "a function is granted once per interface",
         ),
@@ -40946,7 +41566,7 @@ Options:
         ),
         (
             "gates",
-            "in_the_error_code_scope",
+            "the_error_code_ground",
             "local-migrations/ is inside the §15.1 scope",
         ),
         (
@@ -41145,6 +41765,16 @@ Options:
             "check",
             "the_suites_the_system_stands_aside",
             "a suite the system stands aside need not say so",
+        ),
+        (
+            "check",
+            "the_suites_the_system_stands_aside",
+            "the suite about leaving a session need not say so",
+        ),
+        (
+            "check",
+            "the_suites_the_system_stands_aside",
+            "the suite about the daemon leaving its session need not say so",
         ),
         (
             "check",
@@ -44412,6 +45042,11 @@ Options:
         ),
         ("platform_unix", "hold", "one open of a profile at a time"),
         (
+            "platform_unix",
+            "random",
+            "a draw is the kernel's generator",
+        ),
+        (
             "platform_testing",
             "open_to_another_user",
             "a path opened to another user is opened",
@@ -44583,6 +45218,33 @@ Options:
             "directly_under_a_member",
             "a canary directory at any member's root is one",
         ),
+        ("gates", "SYSTEMS", "a cfg naming a vendor names a system"),
+        ("gates", "arms_selected", "a cfg_select's arms are read"),
+        (
+            "gates",
+            "arms_selected",
+            "an arm's question starts past the expression before it",
+        ),
+        (
+            "gates",
+            "arms_selected",
+            "an arm's question starts past the block before it",
+        ),
+        (
+            "gates",
+            "systems_asked",
+            "a cfg! spaced from its bang is read",
+        ),
+        (
+            "members",
+            "under",
+            "a tree's name is not a prefix of another's",
+        ),
+        (
+            "members",
+            "trees_of_members",
+            "every tree of members is one",
+        ),
         (
             "channel",
             "digest_of",
@@ -44721,6 +45383,386 @@ Options:
         ("channel", "spelled", "a spelled character opens with `_`"),
         ("channel", "spelled", "a spelled character closes with `_`"),
         ("channel", "spelled", "nobody is written as somebody"),
+        (
+            "daemon_main",
+            "answer",
+            "an invocation the binary does not answer is refused",
+        ),
+        ("daemon_main", "answer", "a refusal is a failure"),
+        ("daemon_main", "asked", "--initialize alone is answered"),
+        ("daemon_lib", "code", "a profile with no device says so"),
+        (
+            "daemon_lib",
+            "judged",
+            "a path refused is not this user's alone",
+        ),
+        (
+            "daemon_install",
+            "beside",
+            "no manifest beside the binary is said as none",
+        ),
+        (
+            "daemon_install",
+            "beside",
+            "the manifest is read beside the canonical executable",
+        ),
+        (
+            "daemon_install",
+            "beside",
+            "a directory another account can reach is the manifest's refusal",
+        ),
+        (
+            "daemon_install",
+            "manifest_judged",
+            "a manifest another account can reach is the manifest's refusal",
+        ),
+        (
+            "daemon_profile",
+            "prepare",
+            "a directory already there is judged",
+        ),
+        (
+            "daemon_profile",
+            "directories",
+            "the runtime directory is made",
+        ),
+        (
+            "daemon_profile",
+            "copy_world",
+            "a world is read before it is copied in",
+        ),
+        (
+            "daemon_profile",
+            "copy_world",
+            "a configuration directory another account can reach is refused",
+        ),
+        (
+            "daemon_profile",
+            "copy_world",
+            "a copy left beside the world is removed",
+        ),
+        (
+            "daemon_profile",
+            "copy_world",
+            "a copy beside the world another account can reach is refused",
+        ),
+        (
+            "daemon_profile",
+            "world_and_pack",
+            "a world another account can reach is refused",
+        ),
+        ("daemon_device", "read", "a record is the seed's key"),
+        (
+            "daemon_device",
+            "read",
+            "a record's flake is its key's candidate",
+        ),
+        (
+            "daemon_device",
+            "record_of",
+            "a record is read only as it is written",
+        ),
+        (
+            "daemon_device",
+            "judged_as_there",
+            "a device file another account can reach is refused",
+        ),
+        (
+            "daemon_device",
+            "initialize",
+            "a data directory another account can reach is refused",
+        ),
+        (
+            "daemon_mark",
+            "decode",
+            "a slot that does not check is passed over",
+        ),
+        ("daemon_mark", "open", "the newest whole slot wins"),
+        (
+            "daemon_mark",
+            "open",
+            "a mark another account can reach is refused",
+        ),
+        (
+            "daemon_mark",
+            "open",
+            "a slot holding no ceiling is a first start",
+        ),
+        ("daemon_mark", "made", "a first mark holds a whole slot"),
+        (
+            "daemon_mark",
+            "write",
+            "a write goes to the slot that is not newest",
+        ),
+        (
+            "daemon_mark",
+            "raise",
+            "a raise writes the ceiling a lease past",
+        ),
+        (
+            "daemon_mark",
+            "barrier",
+            "a start resumes past the larger of the two",
+        ),
+        (
+            "daemon_mark",
+            "minter",
+            "only a clock back by more than the lease is logged",
+        ),
+        (
+            "daemon_mark",
+            "minter",
+            "a clock back by exactly the lease is not logged",
+        ),
+        (
+            "daemon_mark",
+            "minter",
+            "a first start's minter raises the mark before it mints past it",
+        ),
+        (
+            "daemon_mark",
+            "minter",
+            "a resumed start's minter raises the mark before it mints past it",
+        ),
+        (
+            "platform_ipc",
+            "admits",
+            "a peer of another user is refused",
+        ),
+        (
+            "platform_ipc",
+            "admitted",
+            "every part the system named is judged",
+        ),
+        (
+            "platform_ipc",
+            "admitted",
+            "a process numbered zero is no process",
+        ),
+        (
+            "platform_ipc",
+            "accept",
+            "a connection past the bound is closed",
+        ),
+        (
+            "platform_ipc",
+            "named",
+            "a name past the system's limit is refused",
+        ),
+        (
+            "platform_ipc",
+            "named",
+            "the socket is in the runtime directory judged",
+        ),
+        (
+            "platform_ipc",
+            "bind",
+            "the runtime directory is judged before binding",
+        ),
+        (
+            "platform_ipc",
+            "bind",
+            "a bound of no connections is refused",
+        ),
+        (
+            "platform_ipc",
+            "connect",
+            "nothing listening is told apart from a refusal",
+        ),
+        (
+            "platform_unix",
+            "NAME_MAX",
+            "a socket's path is held to what sun_path holds",
+        ),
+        (
+            "platform_unix",
+            "bind",
+            "a socket something answers at is not taken",
+        ),
+        (
+            "platform_unix",
+            "a_socket_of_its_own",
+            "only a socket is replaced",
+        ),
+        (
+            "platform_unix",
+            "a_socket_of_its_own",
+            "only a socket of this user's is replaced",
+        ),
+        (
+            "platform_unix",
+            "a_socket_of_its_own",
+            "a link at the socket's name is refused as one",
+        ),
+        ("platform_unix", "bind", "the socket is made private"),
+        (
+            "platform_unix",
+            "drop",
+            "a listener removes only the socket it made",
+        ),
+        (
+            "platform_unix",
+            "said_by",
+            "the process read is the other end's",
+        ),
+        (
+            "platform_unix",
+            "said_by",
+            "the user read is the other end's",
+        ),
+        (
+            "ipc_frame",
+            "read",
+            "a frame past the bound is refused before it is read",
+        ),
+        (
+            "ipc_frame",
+            "read",
+            "a frame of no length is refused from its prefix",
+        ),
+        (
+            "ipc_frame",
+            "read",
+            "only the canonical spelling of a value is taken",
+        ),
+        (
+            "ipc_frame",
+            "read",
+            "a connection cut inside a prefix was lost",
+        ),
+        (
+            "ipc_frame",
+            "encode",
+            "a writer refuses what no reader would take",
+        ),
+        (
+            "ipc_handshake",
+            "welcomed",
+            "a client's proof is held to the token",
+        ),
+        (
+            "ipc_handshake",
+            "welcome_of",
+            "the daemon's proof is held to the token",
+        ),
+        (
+            "ipc_handshake",
+            "DAEMON",
+            "the daemon proves over a domain of its own",
+        ),
+        (
+            "ipc_handshake",
+            "deadline",
+            "the handshake is bounded by the catalog",
+        ),
+        (
+            "ipc_handshake",
+            "goodbye",
+            "a side says why before it closes",
+        ),
+        ("ipc_lib", "prove", "a proof is over the daemon's nonce"),
+        ("ipc_lib", "prove", "a proof is over the client's nonce"),
+        ("ipc_lib", "prove", "a proof is keyed by the token"),
+        (
+            "ipc_lib",
+            "listen",
+            "the listener holds the catalog's bound",
+        ),
+        (
+            "ipc_connection",
+            "writing",
+            "a side pings after a heartbeat of silence",
+        ),
+        (
+            "ipc_connection",
+            "writing",
+            "a write the peer does not take in time ends the connection",
+        ),
+        (
+            "ipc_connection",
+            "reading",
+            "a peer silent past the bound is dropped",
+        ),
+        (
+            "ipc_connection",
+            "reading",
+            "a connection whose writer gave up is over",
+        ),
+        (
+            "ipc_connection",
+            "reading",
+            "a ping is no message for the caller",
+        ),
+        (
+            "ipc_connection",
+            "reading",
+            "a goodbye ends the connection with the peer's code",
+        ),
+        (
+            "ipc_connection",
+            "reading",
+            "one request is answered at a time",
+        ),
+        (
+            "ipc_connection",
+            "reading",
+            "an answer goes only to a request",
+        ),
+        (
+            "ipc_connection",
+            "answer",
+            "an answer needs a request waiting for it",
+        ),
+        (
+            "ipc_connection",
+            "ask",
+            "a request abandoned before its answer ends the asking",
+        ),
+        (
+            "ipc_connection",
+            "ask",
+            "a request never handed to the writer abandons nothing",
+        ),
+        (
+            "ipc_connection",
+            "drop",
+            "dropping an end closes the connection",
+        ),
+        (
+            "ipc_connection",
+            "closed",
+            "a connection closed waits for its last frame to be written",
+        ),
+        (
+            "ipc_message",
+            "done",
+            "a field the protocol does not read is refused",
+        ),
+        (
+            "ipc_message",
+            "protocol",
+            "a message of another protocol is refused as that",
+        ),
+        (
+            "ipc_message",
+            "read_welcomed",
+            "a welcome naming no process is refused",
+        ),
+        (
+            "loader",
+            "check_daemon_ipc",
+            "a frame holds the kernel's payload and its envelope",
+        ),
+        (
+            "loader",
+            "check_daemon_ipc",
+            "a peer is dropped only after more than two heartbeats",
+        ),
+        (
+            "loader",
+            "check_daemon_ipc",
+            "the connections fit a pipe's instances",
+        ),
         (
             "platform_service",
             "systemd_word",
@@ -44911,6 +45953,262 @@ Options:
             "platform_service",
             "sweep_scratches",
             "a sweep keeps to its checkout's prefix",
+        ),
+        (
+            "daemon_pidfile",
+            "process_of",
+            "a record naming process zero is refused",
+        ),
+        (
+            "daemon_pidfile",
+            "parse",
+            "a PID record is read only as it is written",
+        ),
+        (
+            "daemon_pidfile",
+            "parse",
+            "a record holding a key it does not read is refused",
+        ),
+        (
+            "daemon_pidfile",
+            "read",
+            "a record another account can reach is refused",
+        ),
+        (
+            "daemon_pidfile",
+            "remove_if_ours",
+            "only the instance that wrote a record removes it",
+        ),
+        (
+            "daemon_pidfile",
+            "replace_private",
+            "a file left beside one is removed once judged",
+        ),
+        (
+            "daemon_plugins",
+            "names",
+            "the plugins directory is judged before it is listed",
+        ),
+        (
+            "daemon_plugins",
+            "names",
+            "the plugins are loaded in the order of their names",
+        ),
+        (
+            "daemon_plugins",
+            "read",
+            "a plugin's file another account can reach is refused",
+        ),
+        (
+            "daemon_plugins",
+            "names_refused",
+            "a refused plugin is logged",
+        ),
+        (
+            "daemon_schedule",
+            "noted",
+            "one refused pump is a wait, not a run",
+        ),
+        ("daemon_schedule", "noted", "a clean pump ends the run"),
+        ("daemon_schedule", "pumped", "a stuck run is logged"),
+        ("daemon_schedule", "swept", "a sweep's refusal is noted"),
+        (
+            "daemon_schedule",
+            "on_schedule",
+            "a stop is asked only between runs",
+        ),
+        (
+            "daemon_schedule",
+            "on_schedule",
+            "no run begins once a stop was asked for",
+        ),
+        (
+            "daemon_schedule",
+            "on_schedule",
+            "a stop is preferred to a tick that came due with it",
+        ),
+        (
+            "daemon_schedule",
+            "ended",
+            "a run still going at the bound is counted",
+        ),
+        ("daemon_schedule", "ended", "a run given up on is let go"),
+        (
+            "daemon_server",
+            "reach",
+            "nothing moves a stopping daemon's state back",
+        ),
+        (
+            "daemon_server",
+            "answer",
+            "a stop asked for stops the daemon",
+        ),
+        (
+            "daemon_server",
+            "kernel_if_running",
+            "a stopping daemon says it is stopping",
+        ),
+        (
+            "daemon_server",
+            "none_left",
+            "nothing running is nothing given up",
+        ),
+        (
+            "daemon_server",
+            "status",
+            "a development daemon names its checkout",
+        ),
+        (
+            "daemon_server",
+            "kind_of",
+            "a refusal is told by the kernel's own word",
+        ),
+        (
+            "daemon_server",
+            "listed",
+            "a command's reversibility is its own word",
+        ),
+        (
+            "daemon_server",
+            "admitted_after",
+            "a dispatch is counted before its state is read",
+        ),
+        (
+            "daemon_server",
+            "drop",
+            "a dispatch refused or answered is no longer counted",
+        ),
+        (
+            "daemon_server",
+            "wound_down",
+            "a stop waits for every connection to close",
+        ),
+        (
+            "daemon_server",
+            "serve_one_after",
+            "a connection is counted before it is served",
+        ),
+        (
+            "daemon_server",
+            "connection",
+            "a connection writes its last answer before it is let go",
+        ),
+        (
+            "daemon_server",
+            "connection",
+            "a stop ends a connection between two requests",
+        ),
+        (
+            "daemon_server",
+            "Drop for Open",
+            "a closed connection is no longer counted",
+        ),
+        (
+            "daemon_environment",
+            "log",
+            "an install naming no central log writes to standard error",
+        ),
+        (
+            "daemon_environment",
+            "log",
+            "a central log nc_log refuses is a refusal",
+        ),
+        (
+            "daemon_environment",
+            "store",
+            "a start reads the newest unit its journal holds",
+        ),
+        (
+            "daemon_mark",
+            "settled",
+            "a clean stop writes the exact high-water mark",
+        ),
+        ("daemon_main", "asked", "no argument runs the daemon"),
+        ("daemon_main", "answer", "a refused start is a failure"),
+        (
+            "daemon_profile",
+            "directories",
+            "the plugins directory is made",
+        ),
+        (
+            "platform_unix",
+            "try_hold",
+            "a directory held is not held again",
+        ),
+        (
+            "platform_unix",
+            "detach",
+            "a daemon starts a session of its own",
+        ),
+        (
+            "platform_process",
+            "started_in_stat",
+            "the start is field 22",
+        ),
+        (
+            "platform_process",
+            "started_in_ps",
+            "a start printed by `ps` is five words",
+        ),
+        (
+            "local_journal",
+            "newest_unit",
+            "a unit of thirteen digits is newer than one of twelve",
+        ),
+        (
+            "loader",
+            "check_daemon_schedule",
+            "a pump as far apart as the shortest timer is taken",
+        ),
+        (
+            "loader",
+            "check_daemon_schedule",
+            "a sweep as far apart as an orphan's grace is taken",
+        ),
+        (
+            "loader",
+            "check_daemon_schedule",
+            "a drain as long as a dispatch is taken",
+        ),
+        (
+            "daemon_run",
+            "serve",
+            "a profile another daemon holds is refused as held",
+        ),
+        (
+            "daemon_testing",
+            "install_at",
+            "two installs never share a namespace",
+        ),
+        (
+            "daemon_testing",
+            "install_at",
+            "an install names a central log nothing answers at",
+        ),
+        (
+            "daemon_testing",
+            "drop",
+            "an install's scratch goes with it",
+        ),
+        (
+            "daemon_testing",
+            "without_a_central_log",
+            "an install told of no central log names none",
+        ),
+        (
+            "daemon_testing",
+            "with_a_central_log_refused",
+            "a fence names a central log a start refuses",
+        ),
+        (
+            "daemon_testing",
+            "namespace_of",
+            "two processes' installs never spell one namespace",
+        ),
+        (
+            "log_root",
+            "record",
+            "a log told of no store writes every line to stderr",
         ),
     ];
 
@@ -47515,6 +48813,37 @@ impl<T: Shown> Shown for Option<T> {
             rest = &after[close + 1..];
         }
         found
+    }
+
+    /// The runner touches every member tree before a suite runs, and nothing
+    /// else.
+    ///
+    /// **Its own list, so it is held to the one the gates read.** A source the
+    /// runner restores in a tree it does not touch keeps the timestamp the
+    /// weakened copy gave it, and cargo can run the build that saw the
+    /// weakening as the verdict on the restored tree.
+    #[test]
+    fn the_runner_touches_every_member_tree() {
+        let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+        let python = std::fs::read_to_string(root.join("xtask/mutants.py"))
+            .expect("the meta-gate is in this repository");
+        let line = python
+            .lines()
+            .find(|line| line.starts_with("TOUCH = ["))
+            .expect("the runner names what it touches");
+        let words = quoted(line);
+        assert_eq!(words.first().map(String::as_str), Some("find"), "{line}");
+        let trees: Vec<&str> = words
+            .iter()
+            .skip(1)
+            .take_while(|word| !word.starts_with('-'))
+            .map(String::as_str)
+            .collect();
+        assert_eq!(
+            trees,
+            crate::members::member_tree_roots().collect::<Vec<_>>(),
+            "`TOUCH` in `xtask/mutants.py` touches other trees than `MEMBER_TREES` names"
+        );
     }
 
     /// The rows of a table the runner writes at column zero.

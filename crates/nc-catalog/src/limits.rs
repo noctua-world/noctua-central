@@ -465,3 +465,43 @@ pub const KERNEL: KernelLimits = KernelLimits {
     undo_history: 100,
     confirmation_ttl_ms: 60_000,
 };
+
+/// The bounds the daemon holds itself to (`NOCTUA.md §11.1`, `§16.2`).
+///
+/// `DAEMON` is the value the daemon reads, and the only one this crate
+/// builds; the type is sealed against a struct literal, as `KernelLimits` is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct DaemonLimits {
+    /// How far past the clock the identifiers' persisted ceiling is raised, in milliseconds.
+    pub mark_lease_ms: u64,
+    /// How much one frame of the IPC channel may carry, in bytes.
+    pub ipc_frame_max_bytes: u64,
+    /// How long a connection has to prove it holds the channel's token, in milliseconds.
+    pub ipc_handshake_ms: u64,
+    /// How long either side of a connection stays silent before it pings, in milliseconds.
+    pub ipc_heartbeat_ms: u64,
+    /// How long a peer may be silent before its connection is dropped, in milliseconds.
+    pub ipc_silent_after_ms: u64,
+    /// How many connections the daemon holds open at once.
+    pub ipc_connections_max: u32,
+    /// How often the daemon fires its timers, delivers its events and prunes, in milliseconds.
+    pub pump_every_ms: u64,
+    /// How often the daemon sweeps the blobs no committed unit holds, in milliseconds.
+    pub sweep_every_ms: u64,
+    /// How long a stop waits for the dispatches already running, in milliseconds.
+    pub stop_drain_ms: u64,
+}
+
+/// The daemon's limits, as `catalog/limits.toml` declares them under `[daemon]`.
+pub const DAEMON: DaemonLimits = DaemonLimits {
+    mark_lease_ms: 2_000,
+    ipc_frame_max_bytes: 2_097_152,
+    ipc_handshake_ms: 5_000,
+    ipc_heartbeat_ms: 2_000,
+    ipc_silent_after_ms: 10_000,
+    ipc_connections_max: 32,
+    pump_every_ms: 1_000,
+    sweep_every_ms: 600_000,
+    stop_drain_ms: 30_000,
+};

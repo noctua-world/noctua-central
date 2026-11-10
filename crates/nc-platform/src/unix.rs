@@ -15,6 +15,7 @@ use std::os::unix::fs::{
 };
 use std::path::Path;
 
+use crate::ipc::{Endpoint, Refused, Said, Whose};
 use crate::{Failed, Judged, Kind, Refusal};
 
 /// The mode bits nobody but the owner may hold on anything here.
@@ -50,6 +51,10 @@ pub(crate) const LISTED_AS_MADE: Option<&str> = if cfg!(target_os = "linux") {
 /// The system's own `sh`, which spends a path as POSIX says.
 pub(crate) const A_POSIX_SHELL: bool = true;
 
+/// Every process here is in a session, which `setsid` starts and a
+/// terminal's hangup reaches.
+pub(crate) const POSIX_SESSIONS: bool = true;
+
 /// Python 3 by the name a Unix system gives it.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) const PYTHON: &str = "python3";
@@ -61,6 +66,17 @@ pub(crate) struct User(u32);
 impl core::fmt::Display for User {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(formatter, "{}", self.0)
+    }
+}
+
+/// Whom the system says something belongs to: a user's number.
+pub(crate) type Who = u32;
+
+/// What a peer's credentials are held to.
+impl User {
+    /// The number a peer's credentials are compared with.
+    pub(crate) const fn who(&self) -> Who {
+        self.0
     }
 }
 
@@ -178,12 +194,7 @@ pub(crate) fn create_private(path: &Path) -> io::Result<std::fs::File> {
 /// through the database file would take SQLite's own with it when it is let
 /// go. A directory takes no lock file, so `_name` is not made.
 pub(crate) fn hold(directory: &Path, _name: &str, _user: &User) -> Result<std::fs::File, Judged> {
-    let held = std::fs::File::open(directory).map_err(|error| {
-        Failed::new(
-            format!("`{}` could not be read", directory.display()),
-            error,
-        )
-    })?;
+    let held = to_hold(directory)?;
     held.lock().map_err(|error| {
         Failed::new(
             format!("`{}` could not be held for this open", directory.display()),
@@ -193,10 +204,149 @@ pub(crate) fn hold(directory: &Path, _name: &str, _user: &User) -> Result<std::f
     Ok(held)
 }
 
+/// `directory`, held through a handle of its own unless another holds it now:
+/// nothing then, at once.
+pub(crate) fn try_hold(
+    directory: &Path,
+    _name: &str,
+    _user: &User,
+) -> Result<Option<std::fs::File>, Judged> {
+    let held = to_hold(directory)?;
+    match held.try_lock() {
+        Ok(()) => Ok(Some(held)),
+        Err(std::fs::TryLockError::WouldBlock) => Ok(None),
+        Err(std::fs::TryLockError::Error(error)) => Err(Judged::Failed(Failed::new(
+            format!("`{}` could not be held", directory.display()),
+            error,
+        ))),
+    }
+}
+
+/// A handle of `directory`'s own, which a lock is taken through.
+fn to_hold(directory: &Path) -> Result<std::fs::File, Judged> {
+    std::fs::File::open(directory).map_err(|error| {
+        Judged::Failed(Failed::new(
+            format!("`{}` could not be read", directory.display()),
+            error,
+        ))
+    })
+}
+
+/// Starts a session of this process's own, so no terminal it was started from
+/// signals it or is its controlling one.
+///
+/// **A process group's leader cannot start a session** (`EPERM`), and is
+/// answered as detached: it leads a group of its own already — the one a
+/// service manager or a spawner made it — which no other group's signals
+/// reach.
+pub(crate) fn detach() -> io::Result<()> {
+    match rustix::process::setsid() {
+        Ok(_) | Err(rustix::io::Errno::PERM) => Ok(()),
+        Err(error) => Err(error.into()),
+    }
+}
+
+/// Nothing: a spawn puts what it hands a child, null or not, in place of
+/// each standard handle, and the standard library opens every other
+/// descriptor closed on `exec`.
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "one signature for both halves, and the Windows one can fail"
+)]
+pub(crate) fn keep_standard_handles_from_children() -> io::Result<()> {
+    Ok(())
+}
+
+/// The session `pid` is in, as the system numbers it.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn session_of(pid: u32) -> io::Result<Option<u32>> {
+    let pid = i32::try_from(pid)
+        .ok()
+        .and_then(rustix::process::Pid::from_raw)
+        .ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))?;
+    let session = rustix::process::getsid(Some(pid))?;
+    Ok(u32::try_from(session.as_raw_nonzero().get()).ok())
+}
+
+/// The boot this process runs in and when it started, as the system says.
+///
+/// **Linux** reads the boot's own identifier and the start in clock ticks
+/// since boot, field 22 of `/proc/<pid>/stat` — counted after the last `)`,
+/// which ends a name that may hold spaces and parentheses of its own.
+#[cfg(target_os = "linux")]
+pub(crate) fn this_process() -> io::Result<(Option<String>, String)> {
+    let boot = std::fs::read_to_string("/proc/sys/kernel/random/boot_id")?;
+    let stat = std::fs::read_to_string("/proc/self/stat")?;
+    let started = crate::process::started_in_stat(&stat).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "`/proc/self/stat` holds no start time after its name",
+        )
+    })?;
+    Ok((Some(boot.trim().to_owned()), started))
+}
+
+/// The boot this process runs in and when it started, as the system says.
+///
+/// **macOS** has no `/proc`: the boot's session identifier is the kernel's
+/// `kern.bootsessionuuid`, and the start is what `ps` prints for the process,
+/// both asked of the system's own tools by their absolute paths, with an
+/// environment of nothing but the C locale and UTC, so the text is the one a
+/// later reading compares with.
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn this_process() -> io::Result<(Option<String>, String)> {
+    let pid = std::process::id().to_string();
+    let boot = asked("/usr/sbin/sysctl", &["-n", "kern.bootsessionuuid"])?;
+    let said = asked("/bin/ps", &["-o", "lstart=", "-p", &pid])?;
+    let started = crate::process::started_in_ps(&said).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "`ps` printed no start for this process",
+        )
+    })?;
+    Ok((Some(boot.trim().to_owned()), started))
+}
+
+/// What the system's tool `program` prints for `arguments`, in the C locale
+/// and UTC and nothing else of this process's environment.
+#[cfg(not(target_os = "linux"))]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the system's own tool, named by its absolute path and handed an environment of \
+              the C locale and UTC alone, is how macOS says when a process started"
+)]
+fn asked(program: &str, arguments: &[&str]) -> io::Result<String> {
+    let output = std::process::Command::new(program)
+        .args(arguments)
+        .env_clear()
+        .env("LC_ALL", "C")
+        .env("TZ", "UTC")
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .output()?;
+    if !output.status.success() {
+        return Err(io::Error::other(format!(
+            "`{program}` answered {}",
+            output.status
+        )));
+    }
+    String::from_utf8(output.stdout)
+        .map_err(|_| io::Error::new(io::ErrorKind::InvalidData, "an answer that is not UTF-8"))
+}
+
 /// The directory synced through a handle of its own, which is what makes a
 /// rename into it durable.
 pub(crate) fn sync_directory(directory: &Path) -> io::Result<()> {
     std::fs::File::open(directory)?.sync_all()
+}
+
+/// `buffer` filled from `/dev/urandom`, whole, or the error that stopped it.
+///
+/// `read_exact` reads until every byte is there, so a short read is retried
+/// rather than handed back as a key with a tail of zeros.
+pub(crate) fn random(buffer: &mut [u8]) -> io::Result<()> {
+    use std::io::Read as _;
+    std::fs::File::open("/dev/urandom")?.read_exact(buffer)
 }
 
 /// The time `path` was last written, set to `at` through a handle opened to
@@ -231,6 +381,210 @@ fn whoami(directory: &Path) -> Result<User, Failed> {
         Failed::new(format!("`{}` could not be removed", probe.display()), error)
     })?;
     Ok(owner)
+}
+
+/// The most bytes a socket's path holds here, its terminating NUL apart: what
+/// the system's `sun_path` holds, less one.
+///
+/// **Measured on the CI runners** as the longest path each binds: 107 bytes
+/// on Linux, whose `sun_path` is 108, and 103 on macOS, whose is 104.
+pub(crate) const NAME_MAX: usize = if cfg!(target_os = "macos") { 103 } else { 107 };
+
+/// How a refusal says what [`NAME_MAX`] bounds, before the number.
+pub(crate) const NAME_HOLDS: &str = "a socket's path on this system holds at most";
+
+/// What [`NAME_MAX`] counts.
+pub(crate) const NAME_UNIT: &str = "bytes";
+
+/// How long the endpoint's name is, as [`NAME_MAX`] counts it: its socket's
+/// path, in bytes.
+pub(crate) fn length_of(endpoint: &Endpoint) -> usize {
+    endpoint.socket.as_os_str().len()
+}
+
+/// The endpoint's name as a person reads it: its socket's path.
+pub(crate) fn name_of(endpoint: &Endpoint) -> String {
+    endpoint.socket.display().to_string()
+}
+
+/// A connection through the socket.
+pub(crate) type Stream = tokio::net::UnixStream;
+
+/// The socket, listened on, and which file it made, so it removes that one
+/// and nothing put at its name since.
+#[derive(Debug)]
+pub(crate) struct Listener {
+    /// The listening socket.
+    listening: tokio::net::UnixListener,
+    /// Its path.
+    path: std::path::PathBuf,
+    /// The device and the inode of the file it made.
+    made: (u64, u64),
+}
+
+/// A listener let go removes the socket it made.
+impl Drop for Listener {
+    /// The socket's file removed, when it is still the one this made: a socket
+    /// nothing listens on is what the next bind judges and replaces.
+    fn drop(&mut self) {
+        if std::fs::symlink_metadata(&self.path)
+            .is_ok_and(|found| (found.dev(), found.ino()) == self.made)
+        {
+            let _ = std::fs::remove_file(&self.path);
+        }
+    }
+}
+
+/// Whether what stands at a socket's name, read as `found`, is a socket the
+/// user owns: the one thing a bind replaces, and only once nothing answers at it.
+fn a_socket_of_its_own(path: &Path, found: &Metadata, user: &User) -> Result<(), Refused> {
+    use std::os::unix::fs::FileTypeExt as _;
+
+    let refused = |what: String| Err(Refused::NotPrivate(Refusal::of(path, what)));
+    let file_type = found.file_type();
+    if file_type.is_symlink() {
+        return refused("is a symbolic link".to_owned());
+    }
+    if !file_type.is_socket() {
+        return refused("is not a socket".to_owned());
+    }
+    if found.uid() != user.0 {
+        return refused(format!(
+            "belongs to user {} and this process runs as user {user}",
+            found.uid()
+        ));
+    }
+    Ok(())
+}
+
+/// The socket at `endpoint`'s path, bound for `user` and made `0600`.
+///
+/// **What stands at the name already is judged, never removed unread**: a
+/// socket of this user's that refuses a connection is a dead daemon's and is
+/// replaced; one something answers at is taken; anything else is refused and
+/// left as it was. The caller holds the profile's instance lock, so no daemon
+/// of the profile is between its stop and its socket's removal.
+///
+/// **Whether something answers is asked by connecting**, so a live listener is
+/// handed that connection, closed at once: macOS no longer names a peer that
+/// has closed, so its accept refuses it, and Linux, which still does, hands it
+/// over as any other.
+pub(crate) fn bind(
+    endpoint: &Endpoint,
+    user: &User,
+    _connections: usize,
+) -> Result<Listener, Refused> {
+    let path = &endpoint.socket;
+    let failed = |doing: &str, error: io::Error| {
+        Refused::Failed(Failed::new(format!("`{}` {doing}", path.display()), error))
+    };
+    match std::fs::symlink_metadata(path) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(failed("could not be read", error)),
+        Ok(found) => {
+            a_socket_of_its_own(path, &found, user)?;
+            match std::os::unix::net::UnixStream::connect(path) {
+                Ok(_) => {
+                    return Err(Refused::Taken {
+                        name: name_of(endpoint),
+                    });
+                }
+                Err(error) if error.kind() == io::ErrorKind::ConnectionRefused => {
+                    std::fs::remove_file(path)
+                        .map_err(|error| failed("could not be removed", error))?;
+                }
+                Err(error) => return Err(failed("could not be asked whether it answers", error)),
+            }
+        }
+    }
+    let listening = tokio::net::UnixListener::bind(path).map_err(|error| {
+        if error.kind() == io::ErrorKind::AddrInUse {
+            Refused::Taken {
+                name: name_of(endpoint),
+            }
+        } else {
+            failed("could not be bound", error)
+        }
+    })?;
+    let made =
+        std::fs::symlink_metadata(path).map_err(|error| failed("could not be read", error))?;
+    // Built before the mode is set, so a failure from here on removes it.
+    let listener = Listener {
+        listening,
+        path: path.clone(),
+        made: (made.dev(), made.ino()),
+    };
+    std::fs::set_permissions(path, Permissions::from_mode(OWNER_OF_A_FILE))
+        .map_err(|error| failed("could not be made private", error))?;
+    Ok(listener)
+}
+
+/// What the system says about the other end of `stream`: the user its peer
+/// credentials name, and the process.
+fn said_by(stream: &Stream) -> io::Result<Said> {
+    let credentials = stream.peer_cred()?;
+    Ok(Said {
+        users: vec![(Whose::Process, credentials.uid())],
+        pid: credentials.pid().map(i64::from),
+    })
+}
+
+/// The next connection to `listener`, and what the system says of its other
+/// end.
+pub(crate) async fn accept(listener: &mut Listener) -> io::Result<(Stream, Said)> {
+    let (stream, _) = listener.listening.accept().await?;
+    let said = said_by(&stream)?;
+    Ok((stream, said))
+}
+
+/// A connection to `endpoint`'s socket, and what the system says of the
+/// process listening on it.
+pub(crate) async fn connect(endpoint: &Endpoint) -> io::Result<(Stream, Said)> {
+    let stream = tokio::net::UnixStream::connect(&endpoint.socket).await?;
+    let said = said_by(&stream)?;
+    Ok((stream, said))
+}
+
+/// Whether an endpoint is a name on disk, which a bind judges: a socket's
+/// path here.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) const ENDPOINT_ON_DISK: bool = true;
+
+/// Whether `listener`'s socket is what a bind makes: a socket of `user`'s,
+/// mode `0600`.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn endpoint_is_as_created(listener: &Listener, user: &User) -> bool {
+    use std::os::unix::fs::FileTypeExt as _;
+
+    std::fs::symlink_metadata(&listener.path).is_ok_and(|found| {
+        found.file_type().is_socket()
+            && found.uid() == user.0
+            && found.mode() & 0o777 == OWNER_OF_A_FILE
+    })
+}
+
+/// A socket at `endpoint`'s path that nothing listens on: what a daemon
+/// stopped without removing its own leaves.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn leave_a_dead_endpoint(endpoint: &Endpoint) -> io::Result<()> {
+    drop(std::os::unix::net::UnixListener::bind(&endpoint.socket)?);
+    Ok(())
+}
+
+/// What a bind makes of what stands at `endpoint`'s path for `user`.
+///
+/// The very judgement [`bind`] makes before it asks whether anything answers
+/// there, handed a user a test cannot be.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn judge_what_stands_at(endpoint: &Endpoint, user: &User) -> Result<(), Refused> {
+    let path = &endpoint.socket;
+    let found = std::fs::symlink_metadata(path).map_err(|error| {
+        Refused::Failed(Failed::new(
+            format!("`{}` could not be read", path.display()),
+            error,
+        ))
+    })?;
+    a_socket_of_its_own(path, &found, user)
 }
 
 /// What a path lets in: its mode bits.

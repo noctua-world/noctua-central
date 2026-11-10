@@ -960,7 +960,7 @@ fn the_generated_surface_is_judged_whole() {
     let emitted = emitted();
     assert_eq!(
         emitted.len(),
-        169,
+        187,
         "the walk over the generated crate found {} value(s) rather than the number \
          written down. A filter inside it narrows what every rule in this file judges \
          and moves the comparison's own expectation with it",
@@ -1087,7 +1087,7 @@ fn every_field_and_accessor_the_compiler_emits_is_named_by_a_comparison() {
     // the judging with the equality above still green.
     assert_eq!(
         judged,
-        115,
+        124,
         "{judged} of {} emitted value(s) were judged. A value moved into an excuse \
          list leaves the equality below true and this number smaller, so what the \
          gate judges is written down here as well",

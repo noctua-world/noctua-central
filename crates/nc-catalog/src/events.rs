@@ -107,6 +107,72 @@ pub struct EventSpec {
 /// Every event, in name order.
 pub const EVENTS: &[EventSpec] = &[
     EventSpec {
+        name: "daemon.plugin_refused",
+        description: "A plugin installed in the profile was not loaded, by the code of what refused it; the daemon runs without it",
+        level: Level::Error,
+        fields: &[FieldSpec {
+            name: "code",
+            kind: FieldKind::ErrorCode,
+            optional: false,
+        }],
+    },
+    EventSpec {
+        name: "daemon.prune_stuck",
+        description: "The pruner was refused on every pump of a run of them — a table skipped every tick is a refusal wearing a wait's clothes — logged at two pumps and at each doubling after",
+        level: Level::Error,
+        fields: &[
+            FieldSpec {
+                name: "code",
+                kind: FieldKind::ErrorCode,
+                optional: false,
+            },
+            FieldSpec {
+                name: "pumps",
+                kind: FieldKind::U32,
+                optional: false,
+            },
+        ],
+    },
+    EventSpec {
+        name: "daemon.started",
+        description: "The daemon reached running: its kernel is open, its plugins loaded or refused, and its schedule begun",
+        level: Level::Info,
+        fields: &[
+            FieldSpec {
+                name: "pid",
+                kind: FieldKind::U32,
+                optional: false,
+            },
+            FieldSpec {
+                name: "loaded",
+                kind: FieldKind::U32,
+                optional: false,
+            },
+            FieldSpec {
+                name: "refused",
+                kind: FieldKind::U32,
+                optional: false,
+            },
+        ],
+    },
+    EventSpec {
+        name: "daemon.stopped",
+        description: "The daemon stopped when it was asked to: its dispatches and its schedule drained or given up, its mark settled and its endpoint gone",
+        level: Level::Info,
+        fields: &[
+            FieldSpec {
+                name: "ran",
+                kind: FieldKind::Duration,
+                optional: false,
+            },
+            FieldSpec {
+                name: "abandoned",
+                kind: FieldKind::U32,
+                optional: false,
+            },
+        ],
+    },
+    EventSpec {
         name: "db.migrated",
         description: "Migrations were applied",
         level: Level::Info,
@@ -157,6 +223,16 @@ pub const EVENTS: &[EventSpec] = &[
         fields: &[FieldSpec {
             name: "waited",
             kind: FieldKind::Duration,
+            optional: false,
+        }],
+    },
+    EventSpec {
+        name: "ipc.refused",
+        description: "The daemon refused a connection before it read a request — a peer not shown to be its user, one past the bound, or a handshake that did not prove the token — or closed a proven one that broke the protocol, fell silent, took nothing or was lost",
+        level: Level::Warn,
+        fields: &[FieldSpec {
+            name: "code",
+            kind: FieldKind::ErrorCode,
             optional: false,
         }],
     },

@@ -508,6 +508,57 @@ async fn a_history_written_is_the_one_the_next_open_reads_back() {
     reopened.close().await;
 }
 
+/// The newest unit is the largest any entry names, in every realm, whichever
+/// entry came last — and a unit needing a thirteenth digit is larger than any
+/// of twelve, whatever its text sorts as.
+#[tokio::test]
+async fn the_newest_unit_is_the_largest_any_entry_names_in_any_realm() {
+    let (store, mut journal) = a_local_journal().await;
+    assert_eq!(
+        journal.newest_unit().await,
+        Ok(None),
+        "an empty journal names none"
+    );
+    transcript_of(
+        &mut journal,
+        &[
+            opens(1),
+            elsewhere(opens(2)),
+            in_unit(1),
+            opens(0),
+            commits(1),
+        ],
+    )
+    .await;
+    assert_eq!(journal.newest_unit().await, Ok(Some(unit(2))));
+    let twelve = Snowflake::from_crockford("ZZZZZZZZZZZZ").expect("twelve digits");
+    let thirteen = Snowflake::from_crockford("1000000000000").expect("thirteen digits");
+    assert!(thirteen > twelve);
+    let head = journal.head().await.expect("the head reads");
+    let (sequence, hash) = head.expect("a history");
+    let mut record = a_record(9, REALMS[0], "Write", Outcome::Allowed, Some(thirteen));
+    journal
+        .append(Entry::chain(sequence + 1, Some(hash), record.clone()))
+        .await
+        .expect("appended");
+    record.work_unit = Some(twelve);
+    let head = journal
+        .head()
+        .await
+        .expect("the head reads")
+        .expect("a history");
+    journal
+        .append(Entry::chain(head.0 + 1, Some(head.1), record))
+        .await
+        .expect("appended");
+    assert_eq!(
+        journal.newest_unit().await,
+        Ok(Some(thirteen)),
+        "a unit of twelve digits was read as newer than one of thirteen"
+    );
+    store.close().await;
+}
+
 /// The table refuses to be edited or emptied, whoever asks: an `UPDATE`, a
 /// `DELETE` of one row and a `DELETE` of every row are each refused by the
 /// table's own trigger, and the history is as it was.

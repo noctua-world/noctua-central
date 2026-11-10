@@ -492,6 +492,10 @@ SOURCES = {
     # which the command below skips, since a run of those per operator would
     # register a unit with the developer's manager hundreds of times.
     "platform_service": os.path.join(ROOT, "crates/nc-platform/src/service.rs"),
+    # **Which process this is**: the parsers of what each system says of a
+    # process's start, compiled everywhere and decided by the module's own
+    # tests on Linux.
+    "platform_process": os.path.join(ROOT, "crates/nc-platform/src/process.rs"),
     "local_schema": os.path.join(ROOT, "crates/nc-local/src/schema.rs"),
     "local_store": os.path.join(ROOT, "crates/nc-local/src/store.rs"),
     # **The journal's store on the person's machine**: the link and a unit's
@@ -512,6 +516,49 @@ SOURCES = {
     # that crate's own tests, which derive the names of every channel and touch
     # no disk but to canonicalize a path.
     "channel": os.path.join(ROOT, "crates/nc-channel/src/lib.rs"),
+    # **The daemon's profile**: which code each refusal carries, the install
+    # read beside the executable, the profile's directories and world, the
+    # device's seed and record, the identifiers' mark, and the binary's own
+    # invocation. Decided by each module's own unit tests, the binary's among
+    # them, inside scratch directories; the suites that run the binary and kill
+    # a child are evidence no operator here runs (`ELSEWHERE` says why).
+    "daemon_main": os.path.join(ROOT, "apps/daemon/src/main.rs"),
+    "daemon_lib": os.path.join(ROOT, "apps/daemon/src/lib.rs"),
+    "daemon_install": os.path.join(ROOT, "apps/daemon/src/install.rs"),
+    "daemon_profile": os.path.join(ROOT, "apps/daemon/src/profile.rs"),
+    "daemon_device": os.path.join(ROOT, "apps/daemon/src/device.rs"),
+    "daemon_mark": os.path.join(ROOT, "apps/daemon/src/mark.rs"),
+    # **The daemon that serves**: its PID record, the plugins installed in its
+    # profile, its schedule, its server and the environment its kernel opens
+    # in. Decided by each module's own unit tests.
+    "daemon_pidfile": os.path.join(ROOT, "apps/daemon/src/pidfile.rs"),
+    "daemon_plugins": os.path.join(ROOT, "apps/daemon/src/plugins.rs"),
+    "daemon_schedule": os.path.join(ROOT, "apps/daemon/src/schedule.rs"),
+    "daemon_server": os.path.join(ROOT, "apps/daemon/src/server.rs"),
+    "daemon_environment": os.path.join(ROOT, "apps/daemon/src/environment.rs"),
+    # The start's refusals before anything of its run is made, and the install
+    # the suites start a daemon in, each by its own module's unit tests, which
+    # start no process: what the start does past them, and what the suites do
+    # with an install, is the spawning suites' evidence.
+    "daemon_run": os.path.join(ROOT, "apps/daemon/src/run.rs"),
+    "daemon_testing": os.path.join(ROOT, "apps/daemon/src/testing.rs"),
+    # **The endpoint a daemon is reached through**, and every comparison of
+    # who is at the other end of a connection: the name's length, the runtime
+    # directory judged, the peer's user and process, the bound. Decided by
+    # `nc-platform`'s own tests, which bind real endpoints in scratch
+    # directories and hold the process read to a child's.
+    "platform_ipc": os.path.join(ROOT, "crates/nc-platform/src/ipc.rs"),
+    # **The protocol over it**: a frame bounded before it is read and refused
+    # unless canonical, the handshake's two proofs and their domains, the
+    # heartbeat, one request at a time, and every message read strictly.
+    # Decided by the crate's own suites, which drive a real daemon's end and a
+    # real client's over in-memory streams on a paused clock, with the
+    # misbehaving peer driven by hand or by a relay between the two.
+    "ipc_lib": os.path.join(ROOT, "crates/nc-ipc/src/lib.rs"),
+    "ipc_frame": os.path.join(ROOT, "crates/nc-ipc/src/frame.rs"),
+    "ipc_message": os.path.join(ROOT, "crates/nc-ipc/src/message.rs"),
+    "ipc_handshake": os.path.join(ROOT, "crates/nc-ipc/src/handshake.rs"),
+    "ipc_connection": os.path.join(ROOT, "crates/nc-ipc/src/connection.rs"),
 }
 
 # (source, predicate, label, from, to). `from` must appear exactly once in it.
@@ -555,6 +602,27 @@ WEAKENINGS = [
     ("snowflake", "wait_past_with", "a wait on a stopped clock spends its yields",
      "        for _ in 0..YIELDS_PER_WAIT {\n",
      "        for _ in 0..YIELDS_PER_WAIT / 10_000 {\n"),
+    # **The ceiling a persisted mark is kept behind** (`§16.2`): raised before
+    # a millisecond past it is handed out, a short answer refused, asked
+    # before the minter moves, and raised for again after a clean stop.
+    ("snowflake", "under_the_ceiling", "a millisecond past the ceiling is raised for",
+     "        if now <= held.at {\n",
+     "        if true {\n"),
+    ("snowflake", "under_the_ceiling", "a millisecond at the ceiling asks nothing",
+     "        if now <= held.at {\n",
+     "        if now < held.at {\n"),
+    ("snowflake", "under_the_ceiling", "a ceiling below the millisecond is a refusal",
+     "            Ok(raised) if raised >= now => {",
+     "            Ok(raised) => {"),
+    ("snowflake", "mint", "the ceiling is asked before the minter moves",
+     "        self.under_the_ceiling(now)?;\n        self.sequence = sequence;\n        self.last_millis = now;\n",
+     "        self.sequence = sequence;\n        self.last_millis = now;\n        self.under_the_ceiling(now)?;\n"),
+    ("snowflake", "settle_ceiling", "a settled ceiling is raised for again",
+     "        held.store.settle(high)?;\n        held.at = high;\n",
+     "        held.store.settle(high)?;\n"),
+    ("ids", "of_device_key", "a device's byte keeps its leading zero",
+     '            let _ = write!(text, "{byte:02x}");',
+     '            let _ = write!(text, "{byte:x}");'),
     # -- flake: the ten bits that say which machine minted an identifier --
     ("flake", "from_value", "the range bound is a bound",
      "        if value >= RANGE {",
@@ -1348,18 +1416,18 @@ WEAKENINGS = [
      'line.contains("to_ascii_uppercase")'),
 
     # -- the rule's scope ---------------------------------------------------
-    ("gates", "in_the_error_code_scope", "migrations/ too",
-     '        || relative.starts_with("migrations/")\n        || relative.starts_with("local-migrations/")',
-     '        || relative.starts_with("local-migrations/")'),
-    # `plugins/` is in the scope because the plugin tree is a member tree:
-    # measured without it, a hand-written code in the reference plugin passed
-    # the step.
-    ("gates", "in_the_error_code_scope", "plugins/ is inside the §15.1 scope",
-     '        || relative.starts_with("local-migrations/")\n        || relative.starts_with("plugins/"))',
-     '        || relative.starts_with("local-migrations/"))'),
-    ("gates", "codes_something_raises", "the raising walk opens plugins/",
-     '    if plugins.is_dir() {\n        walk(&plugins, &mut visit)?;',
-     '    if false {\n        walk(&plugins, &mut visit)?;'),
+    ("gates", "the_error_code_ground", "migrations/ too",
+     '    ground.extend(["migrations", "local-migrations"]);',
+     '    ground.extend(["local-migrations"]);'),
+    # Every tree of members is in the scope: measured with `plugins/` outside
+    # it, a hand-written code in the reference plugin passed the step. Kept to
+    # the first tree, the weakening is the scope spelling `crates/` alone.
+    ("gates", "the_error_code_ground", "every tree of members is inside the §15.1 scope",
+     "    let mut ground: Vec<&'static str> = crate::members::trees_of_members().collect();",
+     "    let mut ground: Vec<&'static str> = crate::members::trees_of_members().take(1).collect();"),
+    ("gates", "codes_something_raises", "the raising walk opens every tree of members",
+     '        if under.is_dir() {\n            walk(&under, &mut visit)?;',
+     '        if under.is_dir() && tree == "crates" {\n            walk(&under, &mut visit)?;'),
     # The scope is `in_the_error_code_scope` and its named list, so the
     # walk, its floor and its fixture read one rule rather than three copies.
     # Both halves are weakened here: dropping the compiler from the exclusion
@@ -1415,15 +1483,15 @@ WEAKENINGS = [
     ("gates", "every_hatch_carries_its_reason", "an attribute is code, not a string",
      'let code = bare.get(index).map_or("", |line| line.trim());',
      'let code = lines.get(index).map_or("", |line| line.trim());'),
-    # The plugin tree, in both halves of the walk: the directories it opens and
-    # the predicate every file is asked. Either alone left a reasonless allow in
-    # `plugins/reference/src/` unjudged.
-    ("gates", "every_hatch_carries_its_reason", "the hatch walk opens plugins/",
-     'for tree in ["crates", "plugins", "xtask"] {',
-     'for tree in ["crates", "xtask"] {'),
-    ("gates", "in_the_hatch_scope", "plugins/ is inside the hatch scope",
-     '        || relative.starts_with("plugins/")\n        || relative.starts_with("xtask/"))',
-     '        || relative.starts_with("xtask/"))'),
+    # Every member tree, in both halves of the walk: the directories it opens
+    # and the predicate every file is asked. Either alone, with the plugin tree
+    # left out, left a reasonless allow in `plugins/reference/src/` unjudged.
+    ("gates", "every_hatch_carries_its_reason", "the hatch walk opens every member tree",
+     '    for tree in crate::members::member_tree_roots() {\n        let root_of = root.join(tree);',
+     '    for tree in crate::members::member_tree_roots().filter(|tree| *tree != "plugins") {\n        let root_of = root.join(tree);'),
+    ("gates", "in_the_hatch_scope", "every member tree is inside the hatch scope",
+     '    crate::members::in_a_member_tree(relative)\n',
+     '    (relative.starts_with("crates/") || relative.starts_with("xtask/"))\n'),
 
     # -- is_a_test_attribute + runs + no_ignored_test: the whole suite --------
     ("gates", "is_a_test_attribute", "the last path segment, not a prefix",
@@ -3245,6 +3313,17 @@ WEAKENINGS = [
     ("authz_directory", "principal", "a principal is minted only for an entity the world holds",
      "        self.world.get(&uid(kind.type_name(), id)?)?;\n        Some(Principal",
      "        Some(Principal"),
+    # A profile's world file: one spelling, three keys, and a person of the
+    # realm it names — each refused otherwise by `nc-authz`'s own tests.
+    ("authz_directory", "parse", "a world file in another spelling is refused",
+     "        if value.to_canonical() != text {",
+     "        if false {"),
+    ("authz_directory", "parse", "a key a world file does not read is refused",
+     "            .find(|key| !WORLD_KEYS.contains(&key.as_str()))\n",
+     "            .find(|_| false)\n"),
+    ("authz_directory", "parse", "the person is one of the realm's",
+     "            .filter(|_| inside)\n",
+     ""),
     ("authz_embedded", "carried", "a profile selects only its own pack",
      "    CARRIED.iter().find(|pack| pack.profile == profile)",
      "    CARRIED.iter().find(|_| true)"),
@@ -3783,8 +3862,8 @@ WEAKENINGS = [
      "if mode & OTHERS != 0 {",
      "if mode & OTHERS == OTHERS {"),
     ("platform_unix", "judged", "a link is refused however it points",
-     "if file_type.is_symlink() {",
-     "if false {"),
+     "    if file_type.is_symlink() {\n        return refused(\"is a symbolic link\".to_owned());\n    }\n    match kind {",
+     "    if false {\n        return refused(\"is a symbolic link\".to_owned());\n    }\n    match kind {"),
     ("platform_unix", "judged", "a foreign owner is refused",
      "if found.uid() != owner.0 {",
      "if false {"),
@@ -3873,8 +3952,16 @@ WEAKENINGS = [
      "kernel.payload_bytes <= kernel.store_value_bytes,",
      "kernel.payload_bytes <= kernel.store_value_bytes + 1,"),
     ("loader", "check_kernel_nonzero", "a kernel limit of zero is refused at either width",
-     "        if limit.value == 0 {",
-     "        if limit.value == 0 && limit.wide {"),
+     "    for limit in kernel.each() {\n        if limit.value == 0 {",
+     "    for limit in kernel.each() {\n        if limit.value == 0 && limit.wide {"),
+    # The daemon's: a limit of zero, and a mark's lease of a day, which a
+    # minter would read back as corrupt — the boundary being the rule.
+    ("loader", "check_daemon", "a daemon limit of zero is refused",
+     "    for limit in daemon.each() {\n        if limit.value == 0 {",
+     "    for limit in daemon.each() {\n        if false {"),
+    ("loader", "check_daemon", "a mark's lease of a day is refused",
+     "    if daemon.mark_lease_ms >= A_DAY_MS {",
+     "    if daemon.mark_lease_ms > A_DAY_MS {"),
     ("loader", "check_capabilities", "a function is granted once per interface",
      "granted.insert((&entry.interface, function), &entry.name)",
      "granted.insert((&entry.name, function), &entry.name)"),
@@ -3941,9 +4028,9 @@ WEAKENINGS = [
     ("limits", "one_directory_declares_its_bounds", "a table is bounded only in its own database",
      "        .filter(|table| table.database == database)\n        .map(|table| table.name)\n        .collect();",
      "        .map(|table| table.name)\n        .collect();"),
-    ("gates", "in_the_error_code_scope", "local-migrations/ is inside the §15.1 scope",
-     "        || relative.starts_with(\"local-migrations/\")\n",
-     ""),
+    ("gates", "the_error_code_ground", "local-migrations/ is inside the §15.1 scope",
+     '    ground.extend(["migrations", "local-migrations"]);',
+     '    ground.extend(["migrations"]);'),
     # More clauses of the local database, each held here so a test has to
     # decide it: a version floor, a quota one number wide for a unit that writes
     # for several, a probe
@@ -4077,10 +4164,16 @@ WEAKENINGS = [
      "        .filter(|&(_, has)| has)"),
     ("check", "what_does_not_apply", "the verdict is not held to the suites a system stands aside",
      "    parts.extend(the_suites_not_applicable(has));",
-     "    parts.extend(the_suites_not_applicable([true; 2]));"),
+     "    parts.extend(the_suites_not_applicable([true; 4]));"),
     ("check", "the_suites_the_system_stands_aside", "a suite the system stands aside need not say so",
      "    if !a_posix_shell {",
      "    if !a_posix_shell && listed_as_made {"),
+    ("check", "the_suites_the_system_stands_aside", "the suite about leaving a session need not say so",
+     "    if !posix_sessions {",
+     "    if !posix_sessions && listed_as_made {"),
+    ("check", "the_suites_the_system_stands_aside", "the suite about the daemon leaving its session need not say so",
+     "    if !daemon_sessions {",
+     "    if !daemon_sessions && listed_as_made {"),
     ("check", "what_the_count_leaves_out", "the count line need not say what the system stood aside",
      "    if !the_suites_not_applicable(has).is_empty() {",
      "    if the_suites_not_applicable(has).len() > THE_SUITES_A_SYSTEM_STANDS_ASIDE.len() {"),
@@ -6223,6 +6316,11 @@ WEAKENINGS = [
     ("platform_unix", "hold", "one open of a profile at a time",
      "    held.lock().map_err(|error| {",
      "    Ok::<(), std::io::Error>(()).map_err(|error| {"),
+    # The bytes a device's seed and the daemon's token are drawn from: the
+    # kernel's generator, which a fill of zeros the test was handed would not be.
+    ("platform_unix", "random", "a draw is the kernel's generator",
+     '    std::fs::File::open("/dev/urandom")?.read_exact(buffer)',
+     '    std::fs::File::open("/dev/zero")?.read_exact(buffer)'),
     # **The doors other crates' suites stage a path through.** A door that
     # stages nothing leaves the refusal it is there to provoke unprovoked, and
     # the suite that asked for it red.
@@ -6340,8 +6438,36 @@ WEAKENINGS = [
      "        let path = at >= 2 && code[at - 2..at] == [':', ':'];",
      "        let path = false;"),
     ("gates", "directly_under_a_member", "a canary directory at any member's root is one",
-     "    inside_a_member(relative)\n        .map(|(_, inside)| inside)\n        .or_else(|| relative.strip_prefix(\"xtask/\"))",
+     "    inside_a_member(relative)\n        .map(|(_, inside)| inside)\n        .or_else(|| {\n            crate::members::trees_that_are_members()\n                .find_map(|tree| relative.strip_prefix(tree)?.strip_prefix('/'))\n        })",
      "    relative.strip_prefix(\"xtask/\")"),
+    # A `cfg` naming a system by its vendor is one the system rule reads.
+    ("gates", "SYSTEMS", "a cfg naming a vendor names a system",
+     "        \"target_vendor\",\n",
+     "        \"target_arch\",\n"),
+    # A `cfg_select!` asks the system once an arm, and each arm is read alone:
+    # killed by `a_cfg_naming_a_system_is_found_and_one_naming_none_is_not`.
+    ("gates", "arms_selected", "a cfg_select's arms are read",
+     '        for at in whole_words(code, "cfg_select") {',
+     '        for at in whole_words(code, "cfg_selected") {'),
+    ("gates", "arms_selected", "an arm's question starts past the expression before it",
+     "                    ',' if depth == 1 => start = index + 1,\n",
+     "                    ',' if depth == 1 => {}\n"),
+    ("gates", "arms_selected", "an arm's question starts past the block before it",
+     "                        if depth == 1 && *character == '}' {\n                            start = index + 1;\n                        }\n",
+     ""),
+    ("gates", "systems_asked", "a cfg! spaced from its bang is read",
+     "                let mut after = past_spaces(&code, at + opens.chars().count());",
+     "                let mut after = at + opens.chars().count();"),
+    # **The one list every gate reads where the platform's code is**
+    # (`MEMBER_TREES`): a tree's name read as a prefix of another's, and a
+    # list of trees cut short, each decided by the members' own tests and by
+    # the fixture planting in every tree the list names.
+    ("members", "under", "a tree's name is not a prefix of another's",
+     "        .is_some_and(|rest| rest.starts_with('/'))",
+     "        .is_some()"),
+    ("members", "trees_of_members", "every tree of members is one",
+     '        .filter_map(|(tree, _)| tree.strip_suffix("/*"))\n}',
+     '        .filter_map(|(tree, _)| tree.strip_suffix("/*"))\n        .take(1)\n}'),
 
     # -- channel: every name an install gives the system -------------------
     ("channel", "digest_of", "the digest starts from FNV-1a's offset basis",
@@ -6470,6 +6596,263 @@ WEAKENINGS = [
     ("channel", "spelled", "nobody is written as somebody",
      "        out.push('_');\n    }\n    out\n}",
      "    }\n    out\n}"),
+    # -- the daemon: its install, profile, device and mark --------------------
+    ("daemon_main", "answer", "an invocation the binary does not answer is refused",
+     "            UNANSWERED,\n",
+     "            0,\n"),
+    ("daemon_main", "answer", "a refusal is a failure",
+     "        Err(refused) => (REFUSED, format!(\"noctua-daemon: {refused}\")),\n    }\n}",
+     "        Err(refused) => (0, format!(\"noctua-daemon: {refused}\")),\n    }\n}"),
+    ("daemon_main", "asked", "--initialize alone is answered",
+     "        [initialize] if initialize == \"--initialize\" => Some(Asked::Initialize { world: None }),",
+     "        [initialize] if initialize == \"--initialise\" => Some(Asked::Initialize { world: None }),"),
+    ("daemon_lib", "code", "a profile with no device says so",
+     "            Self::NoDevice { .. } => ErrorCode::DaemonNoDevice,",
+     "            Self::NoDevice { .. } => ErrorCode::DaemonNoWorld,"),
+    ("daemon_lib", "judged", "a path refused is not this user's alone",
+     "            nc_platform::Judged::Refused(refused) => Self::NotPrivate(refused),",
+     "            nc_platform::Judged::Refused(refused) => Self::ManifestNotPrivate(refused),"),
+    ("daemon_install", "beside", "no manifest beside the binary is said as none",
+     "        Err(Judged::Failed(failed)) if failed.error().kind() == std::io::ErrorKind::NotFound => {\n            return Err(Refused::NoManifest { path: manifest });",
+     "        Err(Judged::Failed(failed)) if false => {\n            return Err(Refused::NoManifest { path: manifest });"),
+    ("daemon_install", "beside", "the manifest is read beside the canonical executable",
+     "    let canonical = std::fs::canonicalize(executable).map_err(|error| {",
+     "    let canonical = Ok::<_, std::io::Error>(executable.to_path_buf()).map_err(|error| {"),
+    ("daemon_install", "beside", "a directory another account can reach is the manifest's refusal",
+     "    let user = nc_platform::user_in(directory).map_err(manifest_judged)?;",
+     "    let user = nc_platform::user_in(directory).map_err(Refused::judged)?;"),
+    ("daemon_install", "manifest_judged", "a manifest another account can reach is the manifest's refusal",
+     "        Judged::Refused(refused) => Refused::ManifestNotPrivate(refused),",
+     "        Judged::Refused(refused) => Refused::NotPrivate(refused),"),
+    ("daemon_profile", "prepare", "a directory already there is judged",
+     "                nc_platform::judge(directory, Kind::Directory, user).map_err(Refused::judged)?;",
+     "                let _ = nc_platform::judge(directory, Kind::Directory, user);"),
+    ("daemon_profile", "directories", "the runtime directory is made",
+     "        &layout.runtime,\n    ]",
+     "        &layout.log,\n    ]"),
+    ("daemon_profile", "copy_world", "a world is read before it is copied in",
+     "    read_world(from, &text)?;\n",
+     ""),
+    ("daemon_profile", "copy_world", "a configuration directory another account can reach is refused",
+     "    nc_platform::judge(&layout.config, Kind::Directory, user).map_err(Refused::judged)?;",
+     "    let _ = nc_platform::judge(&layout.config, Kind::Directory, user);"),
+    ("daemon_profile", "copy_world", "a copy left beside the world is removed",
+     "        Ok(()) => std::fs::remove_file(&beside).map_err(|error| failed(\"removed\", error))?,",
+     "        Ok(()) => {}"),
+    ("daemon_profile", "copy_world", "a copy beside the world another account can reach is refused",
+     "        Err(left) => return Err(Refused::judged(left)),",
+     "        Err(_) => {}"),
+    ("daemon_profile", "world_and_pack", "a world another account can reach is refused",
+     "        Err(judged) => return Err(Refused::judged(judged)),",
+     "        Err(_) => {}"),
+    ("daemon_device", "read", "a record is the seed's key",
+     "        if recorded != public {",
+     "        if false {"),
+    ("daemon_device", "read", "a record's flake is its key's candidate",
+     "        if candidate.value() != flake {",
+     "        if false {"),
+    ("daemon_device", "record_of", "a record is read only as it is written",
+     "    if value.to_canonical() != text {",
+     "    if false {"),
+    ("daemon_device", "judged_as_there", "a device file another account can reach is refused",
+     "        Err(judged) => Err(Refused::judged(judged)),",
+     "        Err(_) => Ok(()),"),
+    ("daemon_device", "initialize", "a data directory another account can reach is refused",
+     "        nc_platform::judge(&layout.data, Kind::Directory, user).map_err(Refused::judged)?;",
+     "        let _ = nc_platform::judge(&layout.data, Kind::Directory, user);"),
+    ("daemon_mark", "decode", "a slot that does not check is passed over",
+     "    if slot.len() != SLOT || slot[16..] != checksum(head) {",
+     "    if slot.len() != SLOT {"),
+    ("daemon_mark", "open", "the newest whole slot wins",
+     "            .max_by_key(|(_, (generation, _))| *generation);",
+     "            .min_by_key(|(_, (generation, _))| *generation);"),
+    ("daemon_mark", "open", "a mark another account can reach is refused",
+     "            Err(judged) => return Err(Refused::judged(judged)),",
+     "            Err(_) => {}"),
+    ("daemon_mark", "open", "a slot holding no ceiling is a first start",
+     "        Ok((mark, (ceiling > 0).then_some(ceiling)))",
+     "        Ok((mark, Some(ceiling)))"),
+    ("daemon_mark", "made", "a first mark holds a whole slot",
+     "        first[..SLOT].copy_from_slice(&encode(1, 0));",
+     "        first[..SLOT].copy_from_slice(&encode(0, 0));"),
+    ("daemon_mark", "write", "a write goes to the slot that is not newest",
+     "        let slot = 1 - self.newest;",
+     "        let slot = self.newest;"),
+    ("daemon_mark", "raise", "a raise writes the ceiling a lease past",
+     "        let ceiling = at_least.checked_add(self.lease_ms).ok_or(CeilingRefused)?;",
+     "        let ceiling = at_least.checked_add(0).ok_or(CeilingRefused)?;"),
+    ("daemon_mark", "barrier", "a start resumes past the larger of the two",
+     "    mark.max(unit)",
+     "    mark.or(unit)"),
+    ("daemon_mark", "minter", "only a clock back by more than the lease is logged",
+     "                if drift > lease && !logged {",
+     "                if !logged {"),
+    ("daemon_mark", "minter", "a clock back by exactly the lease is not logged",
+     "                if drift > lease && !logged {",
+     "                if drift >= lease && !logged {"),
+    ("daemon_mark", "minter", "a first start's minter raises the mark before it mints past it",
+     "        return Ok(Minter::new(flake, clock.clone()).with_ceiling(Box::new(mark), held));",
+     "        return Ok(Minter::new(flake, clock.clone()).with_ceiling(Box::new(mark), u64::MAX));"),
+    ("daemon_mark", "minter", "a resumed start's minter raises the mark before it mints past it",
+     "            Ok(minter) => return Ok(minter.with_ceiling(Box::new(mark), held)),",
+     "            Ok(minter) => return Ok(minter.with_ceiling(Box::new(mark), u64::MAX)),"),
+    # The IPC channel: the endpoint's decisions and its Unix half, the
+    # protocol's frames, proofs, heartbeat and messages, and the catalog's
+    # relations between its bounds. Each, applied by hand, fails under the
+    # command that decides its source, measured.
+    ("platform_ipc", "admits", "a peer of another user is refused",
+     "    if *found == ours {",
+     "    if true {"),
+    ("platform_ipc", "admitted", "every part the system named is judged",
+     "    for (whose, found) in &users {",
+     "    for (whose, found) in users.iter().take(0) {"),
+    ("platform_ipc", "admitted", "a process numbered zero is no process",
+     "        .filter(|pid| *pid > 0)\n",
+     ""),
+    ("platform_ipc", "accept", "a connection past the bound is closed",
+     "        if Arc::strong_count(&self.live) > self.connections {",
+     "        if Arc::strong_count(&self.live) > self.connections + 1 {"),
+    ("platform_ipc", "named", "a name past the system's limit is refused",
+     "    if length > imp::NAME_MAX {",
+     "    if length > imp::NAME_MAX + 1 {"),
+    ("platform_ipc", "named", "the socket is in the runtime directory judged",
+     "    if endpoint.socket.parent() != Some(endpoint.runtime.as_path()) {",
+     "    if false {"),
+    ("platform_ipc", "bind", "the runtime directory is judged before binding",
+     "        crate::judge(&endpoint.runtime, Kind::Directory, user).map_err(Refused::judged)?;",
+     "        let _ = crate::judge(&endpoint.runtime, Kind::Directory, user);"),
+    ("platform_ipc", "bind", "a bound of no connections is refused",
+     "        if connections == 0 || connections > CONNECTIONS_MAX {",
+     "        if connections > CONNECTIONS_MAX {"),
+    ("platform_ipc", "connect", "nothing listening is told apart from a refusal",
+     "            io::ErrorKind::NotFound | io::ErrorKind::ConnectionRefused",
+     "            io::ErrorKind::ConnectionRefused"),
+    ("platform_unix", "NAME_MAX", "a socket's path is held to what sun_path holds",
+     "if cfg!(target_os = \"macos\") { 103 } else { 107 }",
+     "if cfg!(target_os = \"macos\") { 104 } else { 108 }"),
+    ("platform_unix", "bind", "a socket something answers at is not taken",
+     "            match std::os::unix::net::UnixStream::connect(path) {",
+     "            match Err::<std::os::unix::net::UnixStream, _>(io::Error::from(io::ErrorKind::ConnectionRefused)) {"),
+    ("platform_unix", "a_socket_of_its_own", "only a socket is replaced",
+     "    if !file_type.is_socket() {",
+     "    if false {"),
+    ("platform_unix", "a_socket_of_its_own", "only a socket of this user's is replaced",
+     "    if found.uid() != user.0 {",
+     "    if false {"),
+    ("platform_unix", "a_socket_of_its_own", "a link at the socket's name is refused as one",
+     "    if file_type.is_symlink() {\n        return refused(\"is a symbolic link\".to_owned());\n    }\n    if !file_type.is_socket() {",
+     "    if !file_type.is_socket() {"),
+    ("platform_unix", "bind", "the socket is made private",
+     "    std::fs::set_permissions(path, Permissions::from_mode(OWNER_OF_A_FILE))",
+     "    std::fs::set_permissions(path, Permissions::from_mode(0o644))"),
+    ("platform_unix", "drop", "a listener removes only the socket it made",
+     "            .is_ok_and(|found| (found.dev(), found.ino()) == self.made)",
+     "            .is_ok()"),
+    ("platform_unix", "said_by", "the process read is the other end's",
+     "        pid: credentials.pid().map(i64::from),",
+     "        pid: Some(i64::from(std::process::id())),"),
+    ("platform_unix", "said_by", "the user read is the other end's",
+     "        users: vec![(Whose::Process, credentials.uid())],",
+     "        users: vec![(Whose::Process, 0)],"),
+    ("ipc_frame", "read", "a frame past the bound is refused before it is read",
+     "    if length > MOST {\n        return Err(IpcError::TooLarge { length });\n    }\n    let mut body",
+     "    if length > MOST * 4096 {\n        return Err(IpcError::TooLarge { length });\n    }\n    let mut body"),
+    ("ipc_frame", "read", "a frame of no length is refused from its prefix",
+     "    if length == 0 {",
+     "    if false {"),
+    ("ipc_frame", "read", "only the canonical spelling of a value is taken",
+     "    if value.to_canonical() != text {",
+     "    if false {"),
+    ("ipc_frame", "read", "a connection cut inside a prefix was lost",
+     "            return if have == 0 {",
+     "            return if true {"),
+    ("ipc_frame", "encode", "a writer refuses what no reader would take",
+     "    if length > MOST {\n        return Err(IpcError::Unsendable { length });\n    }\n    let prefix",
+     "    if false {\n        return Err(IpcError::Unsendable { length });\n    }\n    let prefix"),
+    ("ipc_handshake", "welcomed", "a client's proof is held to the token",
+     "    if proof != token.prove(CLIENT, &ours, &theirs) {",
+     "    if false {"),
+    ("ipc_handshake", "welcome_of", "the daemon's proof is held to the token",
+     "    if proof != token.prove(DAEMON, &theirs, &ours) {",
+     "    if false {"),
+    ("ipc_handshake", "DAEMON", "the daemon proves over a domain of its own",
+     "const DAEMON: &str = \"nc-ipc/1 the daemon's proof\";",
+     "const DAEMON: &str = \"nc-ipc/1 the client's proof\";"),
+    ("ipc_handshake", "deadline", "the handshake is bounded by the catalog",
+     "    std::time::Duration::from_millis(nc_catalog::DAEMON.ipc_handshake_ms)",
+     "    std::time::Duration::from_millis(nc_catalog::DAEMON.ipc_handshake_ms * 2)"),
+    ("ipc_handshake", "goodbye", "a side says why before it closes",
+     "    let _ = tokio::time::timeout(deadline(), frame::write(stream, &said)).await;",
+     "    let _ = said;"),
+    ("ipc_lib", "prove", "a proof is over the daemon's nonce",
+     "        hasher.update(daemons);\n",
+     ""),
+    ("ipc_lib", "prove", "a proof is over the client's nonce",
+     "        hasher.update(clients);\n",
+     ""),
+    ("ipc_lib", "prove", "a proof is keyed by the token",
+     "        let mut hasher = blake3::Hasher::new_keyed(&self.0);",
+     "        let mut hasher = blake3::Hasher::new_keyed(&[0; 32]);"),
+    ("ipc_lib", "listen", "the listener holds the catalog's bound",
+     "    let connections = usize::try_from(nc_catalog::DAEMON.ipc_connections_max).unwrap_or(0);",
+     "    let connections = usize::try_from(nc_catalog::DAEMON.ipc_connections_max).unwrap_or(0) + 1;"),
+    ("ipc_connection", "writing", "a side pings after a heartbeat of silence",
+     "            Err(_) => match frame::encode(&message::ping()) {\n                Ok(ping) => ping,\n                Err(error) => break error,\n            },",
+     "            Err(_) => continue,"),
+    ("ipc_connection", "writing", "a write the peer does not take in time ends the connection",
+     "        match tokio::time::timeout(silence(), frame::put(&mut writer, &frame)).await {",
+     "        match tokio::time::timeout(silence() * 1000, frame::put(&mut writer, &frame)).await {"),
+    ("ipc_connection", "reading", "a peer silent past the bound is dropped",
+     "            read = tokio::time::timeout(silence(), frame::read(&mut reader)) => read,",
+     "            read = tokio::time::timeout(silence() * 1000, frame::read(&mut reader)) => read,"),
+    ("ipc_connection", "reading", "a connection whose writer gave up is over",
+     "            gave_up = &mut writer_gave_up => break gave_up.unwrap_or_else(|_| {",
+     "            gave_up = &mut writer_gave_up, if false => break gave_up.unwrap_or_else(|_| {"),
+    ("ipc_connection", "reading", "a ping is no message for the caller",
+     "            Ok(Heard::Ping) => continue,",
+     "            Ok(Heard::Ping) => message::ping(),"),
+    ("ipc_connection", "reading", "a goodbye ends the connection with the peer's code",
+     "            Ok(Heard::Goodbye(code)) => break IpcError::TurnedAway(code),",
+     "            Ok(Heard::Goodbye(_)) => break IpcError::Silent,"),
+    ("ipc_connection", "reading", "one request is answered at a time",
+     "            Side::Daemon => !awaiting.swap(true, Ordering::SeqCst),",
+     "            Side::Daemon => true,"),
+    ("ipc_connection", "reading", "an answer goes only to a request",
+     "            Side::Client => awaiting.swap(false, Ordering::SeqCst),",
+     "            Side::Client => true,"),
+    ("ipc_connection", "answer", "an answer needs a request waiting for it",
+     "        if !self.connection.awaiting.swap(false, Ordering::SeqCst) {",
+     "        if false {"),
+    ("ipc_connection", "ask", "a request abandoned before its answer ends the asking",
+     "        if self.abandoned {",
+     "        if false {"),
+    ("ipc_connection", "ask", "a request never handed to the writer abandons nothing",
+     "        self.connection.awaiting.store(true, Ordering::SeqCst);\n        self.connection.send(frame).await?;",
+     "        self.abandoned = true;\n        self.connection.awaiting.store(true, Ordering::SeqCst);\n        self.connection.send(frame).await?;"),
+    ("ipc_connection", "drop", "dropping an end closes the connection",
+     "        self.reading.abort();",
+     "        let _ = &self.reading;"),
+    ("ipc_connection", "closed", "a connection closed waits for its last frame to be written",
+     "            let _ = writing.await;",
+     "            let _ = writing;"),
+    ("ipc_message", "done", "a field the protocol does not read is refused",
+     "        match self.left.keys().next() {",
+     "        match None::<&String> {"),
+    ("ipc_message", "protocol", "a message of another protocol is refused as that",
+     "        if theirs == i64::from(PROTOCOL) {",
+     "        if true {"),
+    ("ipc_message", "read_welcomed", "a welcome naming no process is refused",
+     "        .filter(|pid| *pid > 0)\n        .ok_or_else(|| malformed(\"a welcome whose `pid` is no process\"))?;",
+     "        .ok_or_else(|| malformed(\"a welcome whose `pid` is no process\"))?;"),
+    ("loader", "check_daemon_ipc", "a frame holds the kernel's payload and its envelope",
+     "    if daemon.ipc_frame_max_bytes < kernel.payload_bytes.saturating_add(IPC_ENVELOPE_BYTES) {",
+     "    if daemon.ipc_frame_max_bytes < kernel.payload_bytes {"),
+    ("loader", "check_daemon_ipc", "a peer is dropped only after more than two heartbeats",
+     "    if daemon.ipc_silent_after_ms <= daemon.ipc_heartbeat_ms.saturating_mul(2) {",
+     "    if daemon.ipc_silent_after_ms < daemon.ipc_heartbeat_ms.saturating_mul(2) {"),
+    ("loader", "check_daemon_ipc", "the connections fit a pipe's instances",
+     "    if u64::from(daemon.ipc_connections_max).saturating_add(2) > PIPE_INSTANCES {",
+     "    if u64::from(daemon.ipc_connections_max).saturating_add(1) > PIPE_INSTANCES {"),
 
     # -- platform_service: a program registered with the service manager ---
     ("platform_service", "systemd_word", "a `%` in a unit is written twice",
@@ -6589,9 +6972,213 @@ WEAKENINGS = [
     ("platform_service", "sweep_scratches", "a sweep keeps to its checkout's prefix",
      ".is_some_and(|name| name.starts_with(prefix));",
      ".is_some();"),
+    # **The daemon serves.** Its PID record names a process or is refused, is
+    # read only as it is written and only once judged, and is removed only by
+    # the instance that wrote it; a file left beside one is removed once
+    # judged.
+    ("daemon_pidfile", "process_of", "a record naming process zero is refused",
+     "    if pid <= 0 {",
+     "    if pid < 0 {"),
+    ("daemon_pidfile", "parse", "a PID record is read only as it is written",
+     "        if value.to_canonical() != text {",
+     "        if false {"),
+    ("daemon_pidfile", "parse", "a record holding a key it does not read is refused",
+     ".find(|key| !KEYS.contains(&key.as_str()))",
+     ".find(|_| false)"),
+    ("daemon_pidfile", "read", "a record another account can reach is refused",
+     "    nc_platform::judge(path, Kind::File, user).map_err(Refused::judged)?;\n    let text",
+     "    let _ = nc_platform::judge(path, Kind::File, user);\n    let text"),
+    ("daemon_pidfile", "remove_if_ours", "only the instance that wrote a record removes it",
+     "        Ok(record) if record.instance == instance =>",
+     "        Ok(_) =>"),
+    ("daemon_pidfile", "replace_private", "a file left beside one is removed once judged",
+     "        Ok(()) => std::fs::remove_file(&beside).map_err(|error| failed(\"removed\", error))?,",
+     "        Ok(()) => {}"),
+    # The plugins installed in a profile: read from a directory judged this
+    # user's, in order, each file judged, and each refused one logged.
+    ("daemon_plugins", "names", "the plugins directory is judged before it is listed",
+     "    nc_platform::judge(directory, Kind::Directory, user).map_err(judged)?;\n    let entries",
+     "    let _ = nc_platform::judge(directory, Kind::Directory, user);\n    let entries"),
+    ("daemon_plugins", "names", "the plugins are loaded in the order of their names",
+     "    names.sort();\n",
+     ""),
+    ("daemon_plugins", "read", "a plugin's file another account can reach is refused",
+     "    nc_platform::judge(path, Kind::File, user).map_err(judged)?;",
+     "    let _ = nc_platform::judge(path, Kind::File, user);"),
+    ("daemon_plugins", "names_refused", "a refused plugin is logged",
+     "        log.record(&nc_log::events::DaemonPluginRefused { code: *code });",
+     "        let _ = code;"),
+    # The schedule: a run of refused pumps logged at two and each doubling,
+    # ended by a clean one, and each pump and sweep noted.
+    ("daemon_schedule", "noted", "one refused pump is a wait, not a run",
+     "(self.pumps >= 2 && self.pumps.is_power_of_two())",
+     "(self.pumps >= 1 && self.pumps.is_power_of_two())"),
+    ("daemon_schedule", "noted", "a clean pump ends the run",
+     "            *self = Self::default();\n",
+     ""),
+    ("daemon_schedule", "pumped", "a stuck run is logged",
+     "        log.record(&nc_log::events::DaemonPruneStuck { code, pumps });",
+     "        let _ = (code, pumps);"),
+    ("daemon_schedule", "swept", "a sweep's refusal is noted",
+     "    done.sweep_refused = refused;\n",
+     ""),
+    # A stop is asked between runs and never inside one, no run begins once
+    # it was asked for, and a run still going at the drain's bound is counted
+    # and let go.
+    ("daemon_schedule", "on_schedule", "a stop is asked only between runs",
+     "        once().await;\n",
+     "        tokio::select! {\n            () = &mut stopped => return,\n            () = once() => {}\n        }\n"),
+    ("daemon_schedule", "on_schedule", "no run begins once a stop was asked for",
+     "            () = &mut stopped => return,\n            _ = every.tick() => {}",
+     "            _ = every.tick() => {}\n            () = &mut stopped => return,"),
+    ("daemon_schedule", "on_schedule", "a stop is preferred to a tick that came due with it",
+     "            biased;\n",
+     ""),
+    ("daemon_schedule", "ended", "a run still going at the bound is counted",
+     "    running.abort();\n    1\n",
+     "    running.abort();\n    0\n"),
+    ("daemon_schedule", "ended", "a run given up on is let go",
+     "    running.abort();\n",
+     ""),
+    # The server: a stop has the last word on the state, a dispatch is refused
+    # by why the kernel does not run, a drain says what it gave up on, and the
+    # status and the registry say what the daemon and its kernel are.
+    ("daemon_server", "reach", "nothing moves a stopping daemon's state back",
+     "let moved = *now != State::Stopping && *now != state;",
+     "let moved = *now != state;"),
+    ("daemon_server", "answer", "a stop asked for stops the daemon",
+     "                self.stop();\n                Answer::Stopping",
+     "                Answer::Stopping"),
+    ("daemon_server", "kernel_if_running", "a stopping daemon says it is stopping",
+     "                code: ErrorCode::DaemonStopping,",
+     "                code: ErrorCode::DaemonNotRunning,"),
+    ("daemon_server", "none_left", "nothing running is nothing given up",
+     "            if running == 0 {\n                return 0;\n            }",
+     "            if running == 0 {\n                return 1;\n            }"),
+    ("daemon_server", "status", "a development daemon names its checkout",
+     "            fields.push((\"checkout\", Value::text(checkout.to_string())));",
+     "            let _ = checkout;"),
+    ("daemon_server", "kind_of", "a refusal is told by the kernel's own word",
+     "        nc_kernel::RefusalKind::NotFound => RefusalKind::NotFound,",
+     "        nc_kernel::RefusalKind::NotFound => RefusalKind::Invalid,"),
+    ("daemon_server", "listed", "a command's reversibility is its own word",
+     "                Reversibility::Irreversible => \"irreversible\",",
+     "                Reversibility::Irreversible => \"write\","),
+    ("daemon_server", "admitted_after", "a dispatch is counted before its state is read",
+     "        self.running.fetch_add(1, Ordering::SeqCst);\n        let admitted = Admitted(self);\n        meanwhile();\n        let kernel = self.kernel_if_running()?;",
+     "        let kernel = self.kernel_if_running();\n        self.running.fetch_add(1, Ordering::SeqCst);\n        let admitted = Admitted(self);\n        meanwhile();\n        let kernel = kernel?;"),
+    ("daemon_server", "drop", "a dispatch refused or answered is no longer counted",
+     "        if self.0.running.fetch_sub(1, Ordering::SeqCst) == 1 {",
+     "        if self.0.running.load(Ordering::SeqCst) == 1 {"),
+    # A stop waits for every connection to write its last answer and close:
+    # each counted before it is served and until it is closed, and each ended
+    # between two requests once a stop was asked for.
+    ("daemon_server", "wound_down", "a stop waits for every connection to close",
+     "tokio::join!(self.drained(deadline), runs, self.closed(deadline));",
+     "tokio::join!(self.drained(deadline), runs, core::future::ready(0_u32));"),
+    ("daemon_server", "serve_one_after", "a connection is counted before it is served",
+     "        self.connections.fetch_add(1, Ordering::SeqCst);\n",
+     ""),
+    ("daemon_server", "connection", "a connection writes its last answer before it is let go",
+     "        served.close().await;\n",
+     "        drop(served);\n"),
+    ("daemon_server", "connection", "a stop ends a connection between two requests",
+     "                () = self.stopping() => break None,",
+     "                () = self.stopping(), if false => break None,"),
+    ("daemon_server", "Drop for Open", "a closed connection is no longer counted",
+     "        if self.0.connections.fetch_sub(1, Ordering::SeqCst) == 1 {",
+     "        if self.0.connections.load(Ordering::SeqCst) == 1 {"),
+    # The environment: no central log named is the standard error alone, one
+    # `nc_log` refuses is a refusal, and a start reads the newest unit its
+    # journal holds.
+    ("daemon_environment", "log", "an install naming no central log writes to standard error",
+     "        None => nc_log::Log::to_standard_error(origin()),",
+     "        None => return Err(Refused::NoCentralLog { why: String::new() }),"),
+    ("daemon_environment", "log", "a central log nc_log refuses is a refusal",
+     "            nc_log::Log::open(origin(), endpoint).map_err(|why| Refused::NoCentralLog {\n                why: format!(\"the install's central log is refused: {why}\"),\n            })?",
+     "            nc_log::Log::open(origin(), endpoint)\n                .unwrap_or_else(|_| nc_log::Log::to_standard_error(origin()))"),
+    ("daemon_environment", "store", "a start reads the newest unit its journal holds",
+     "        Ok(newest) => Ok((store, newest)),",
+     "        Ok(_) => Ok((store, None)),"),
+    # A clean stop settles the mark; the binary run with no argument is the
+    # daemon; the plugins directory is part of the profile.
+    ("daemon_mark", "settled", "a clean stop writes the exact high-water mark",
+     "        .settle_ceiling()\n}",
+     "        .high_water_mark()\n        .map_or(Ok(()), |_| Ok(()))\n}"),
+    ("daemon_main", "asked", "no argument runs the daemon",
+     "        [] => Some(Asked::Serve),",
+     "        [] => None,"),
+    ("daemon_main", "answer", "a refused start is a failure",
+     "                Err(refused) => (REFUSED, format!(\"noctua-daemon: {refused}\")),\n            };",
+     "                Err(refused) => (0, format!(\"noctua-daemon: {refused}\")),\n            };"),
+    ("daemon_profile", "directories", "the plugins directory is made",
+     "        &layout.plugins,\n",
+     "        &layout.data,\n"),
+    # The platform's: a lock held is not taken again at once, a daemon leaves
+    # its session, and a process's start is read where the system writes it.
+    ("platform_unix", "try_hold", "a directory held is not held again",
+     "        Err(std::fs::TryLockError::WouldBlock) => Ok(None),\n        Err(std::fs::TryLockError::Error(error)) => Err(Judged::Failed(Failed::new(\n            format!(\"`{}` could not be held\", directory.display()),",
+     "        Err(std::fs::TryLockError::WouldBlock) => Ok(Some(held)),\n        Err(std::fs::TryLockError::Error(error)) => Err(Judged::Failed(Failed::new(\n            format!(\"`{}` could not be held\", directory.display()),"),
+    ("platform_unix", "detach", "a daemon starts a session of its own",
+     "    match rustix::process::setsid() {",
+     "    match Ok::<(), rustix::io::Errno>(()) {"),
+    ("platform_process", "started_in_stat", "the start is field 22",
+     ".nth(19)?;",
+     ".nth(18)?;"),
+    ("platform_process", "started_in_ps", "a start printed by `ps` is five words",
+     "(words.len() == 5)",
+     "(words.len() >= 4)"),
+    # The local journal's newest unit is the largest identifier, not the
+    # largest text.
+    ("local_journal", "newest_unit", "a unit of thirteen digits is newer than one of twelve",
+     "ORDER BY length(work_unit) DESC, work_unit DESC LIMIT 1",
+     "ORDER BY work_unit DESC LIMIT 1"),
+    # The daemon's schedule keeps the kernel's bounds it runs beside.
+    ("loader", "check_daemon_schedule", "a pump as far apart as the shortest timer is taken",
+     "    if daemon.pump_every_ms > kernel.timer_min_interval_ms {",
+     "    if daemon.pump_every_ms >= kernel.timer_min_interval_ms {"),
+    ("loader", "check_daemon_schedule", "a sweep as far apart as an orphan's grace is taken",
+     "    if daemon.sweep_every_ms > kernel.blob_orphan_grace_ms {",
+     "    if daemon.sweep_every_ms >= kernel.blob_orphan_grace_ms {"),
+    ("loader", "check_daemon_schedule", "a drain as long as a dispatch is taken",
+     "    if daemon.stop_drain_ms < kernel.dispatch_deadline_ms {",
+     "    if daemon.stop_drain_ms <= kernel.dispatch_deadline_ms {"),
+    # A start refuses a profile another daemon holds by the profile's code,
+    # and the suites' install is its own and gone with its guard.
+    ("daemon_run", "serve", "a profile another daemon holds is refused as held",
+     "        .ok_or_else(|| Refused::Held {\n            path: layout.state.clone(),",
+     "        .ok_or_else(|| Refused::NoManifest {\n            path: layout.state.clone(),"),
+    ("daemon_testing", "install_at", "two installs never share a namespace",
+     "MADE.fetch_add(1, Ordering::SeqCst)",
+     "MADE.load(Ordering::SeqCst)"),
+    ("daemon_testing", "install_at", "an install names a central log nothing answers at",
+     "        log_endpoint: Some(NOBODY_LISTENS.to_owned()),",
+     "        log_endpoint: None,"),
+    ("daemon_testing", "drop", "an install's scratch goes with it",
+     "        let _ = std::fs::remove_dir_all(&self.0);",
+     ""),
+    ("daemon_testing", "without_a_central_log", "an install told of no central log names none",
+     "        self.rewritten(None);",
+     "        self.rewritten(Some(NOBODY_LISTENS));"),
+    ("daemon_testing", "with_a_central_log_refused", "a fence names a central log a start refuses",
+     "        self.rewritten(Some(OFF_THIS_MACHINE));",
+     "        self.rewritten(None);"),
+    ("daemon_testing", "namespace_of", "two processes' installs never spell one namespace",
+     "    format!(\"t{pid:x}n{made}\")",
+     "    format!(\"t{pid:x}{made}\")"),
+    # A log told of no store writes every line to stderr.
+    ("log_root", "record", "a log told of no store writes every line to stderr",
+     "            None => ship::kept_on_stderr(&line),",
+     "            None => {}"),
 ]
 
-TOUCH = ["find", "crates", "xtask", "-name", "*.rs", "-exec", "touch", "{}", "+"]
+# **Every member tree, as `MEMBER_TREES` in `xtask/src/members.rs` names them**,
+# so a source restored in any of them is one cargo builds again: a tree left out
+# here leaves its restored sources older than the build that saw the weakening.
+# `the_runner_touches_every_member_tree` in `xtask/src/check.rs` holds the two
+# lists together; `find` names a tree that is not on disk and goes on, and the
+# run ignores its exit.
+TOUCH = ["find", "crates", "plugins", "apps", "xtask", "-name", "*.rs", "-exec", "touch", "{}", "+"]
 # **Two suites, not the corpus alone.** Measured, of the clauses in `limits.rs`
 # that any test decides, **22** were decided only by `limits::tests` and **10**
 # by `corpus::` — so with the corpus alone, two thirds of that file's covered
@@ -6710,6 +7297,40 @@ ELSEWHERE = {
     # holds every name, the ports and the manifest. Neither spawns a process
     # or registers anything with a system.
     "channel": ["cargo", "test", "-q", "-p", "nc-channel"],
+    # **An app's sources by their own unit tests, and never by a suite that runs
+    # a process.** `apps/daemon/tests/` starts the daemon's binary and kills a
+    # child of its own test binary, and the suites after them start daemons and
+    # register units with the system's manager — once per operator, under the
+    # whole package. So each module's command runs that module's tests and
+    # nothing else (`a_suite_that_spawns_a_process_is_run_by_no_mutation_command`
+    # in `xtask/src/check.rs` holds it): the binary's own unit tests, `--bin`,
+    # for `main.rs`; for the crate root, which holds no test, the two modules
+    # whose tests read the codes it maps.
+    "daemon_main": ["cargo", "test", "-q", "-p", "nc-daemon", "--bin", "noctua-daemon"],
+    "daemon_lib": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "device::", "profile::"],
+    "daemon_install": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "install::"],
+    "daemon_profile": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "profile::"],
+    "daemon_device": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "device::"],
+    "daemon_mark": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "mark::"],
+    "daemon_pidfile": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "pidfile::"],
+    "daemon_plugins": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "plugins::"],
+    "daemon_schedule": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "schedule::"],
+    "daemon_server": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "server::"],
+    "daemon_environment": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "environment::"],
+    "daemon_run": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "run::", "--test-threads=1"],
+    # The suites' install has no test module of its own: its file is compiled
+    # only for tests, and the tests that hold it are `run`'s — one at a time,
+    # so a weakening that gives two installs one namespace is caught by the
+    # test about it rather than met by another test's install.
+    "daemon_testing": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "run::", "--test-threads=1"],
+    # The endpoint, by `nc-platform`'s own tests; the protocol, by every suite
+    # of `nc-ipc`, none of which starts a process.
+    "platform_ipc": ["cargo", "test", "-q", "-p", "nc-platform"],
+    "ipc_lib": ["cargo", "test", "-q", "-p", "nc-ipc"],
+    "ipc_frame": ["cargo", "test", "-q", "-p", "nc-ipc"],
+    "ipc_message": ["cargo", "test", "-q", "-p", "nc-ipc"],
+    "ipc_handshake": ["cargo", "test", "-q", "-p", "nc-ipc"],
+    "ipc_connection": ["cargo", "test", "-q", "-p", "nc-ipc"],
     # The whole crate, both targets: the unit tests hold the layout and the
     # alphabet, and `crates/nc-ids/tests/properties.rs` and
     # `crates/nc-ids/tests/against_denote.rs` hold the round trips. A weakening
@@ -6863,6 +7484,7 @@ ELSEWHERE = {
     "platform": ["cargo", "test", "-q", "-p", "nc-platform", "--", "--skip", "with_the_manager"],
     "platform_unix": ["cargo", "test", "-q", "-p", "nc-platform", "--", "--skip", "with_the_manager"],
     "platform_testing": ["cargo", "test", "-q", "-p", "nc-platform", "--", "--skip", "with_the_manager"],
+    "platform_process": ["cargo", "test", "-q", "-p", "nc-platform", "--", "--skip", "with_the_manager"],
     # **The service manager's module, by its own tests alone**: the
     # generators' texts, the escaping, the readers and the commands — and not
     # the two that register a real service, which judge none of its clauses.

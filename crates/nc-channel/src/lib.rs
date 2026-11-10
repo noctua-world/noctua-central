@@ -843,6 +843,8 @@ pub struct Layout {
     pub manifest: PathBuf,
     /// The plugins installed in the profile: `<data>/plugins`.
     pub plugins: PathBuf,
+    /// The bytes of the blobs the profile keeps: `<data>/blobs`.
+    pub blobs: PathBuf,
     /// The device's secret seed: `<data>/device.key`.
     pub device_key: PathBuf,
     /// The device's public key and flake: `<data>/device.json`.
@@ -921,6 +923,7 @@ pub fn layout(install: &Install, user: &str) -> Layout {
     Layout {
         manifest: install_directory.join(MANIFEST),
         plugins: data.join("plugins"),
+        blobs: data.join("blobs"),
         device_key: data.join("device.key"),
         device: data.join("device.json"),
         world: config.join("world.json"),

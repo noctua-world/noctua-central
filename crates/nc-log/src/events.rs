@@ -13,6 +13,108 @@ use nc_catalog::Level;
 
 use crate::{Event, Field, LogValue as _};
 
+/// `daemon.plugin_refused` — A plugin installed in the profile was not loaded, by the code of what refused it; the daemon runs without it
+#[derive(Debug, Clone)]
+pub struct DaemonPluginRefused {
+    /// A code from the error registry.
+    pub code: nc_catalog::ErrorCode,
+}
+
+impl crate::sealed::Sealed for DaemonPluginRefused {}
+
+impl Event for DaemonPluginRefused {
+    fn name(&self) -> &'static str {
+        "daemon.plugin_refused"
+    }
+    fn level(&self) -> Level {
+        Level::Error
+    }
+    fn fields(&self) -> Vec<(&'static str, Field)> {
+        vec![("code", self.code.to_field())]
+    }
+}
+
+/// `daemon.prune_stuck` — The pruner was refused on every pump of a run of them — a table skipped every tick is a refusal wearing a wait's clothes — logged at two pumps and at each doubling after
+#[derive(Debug, Clone)]
+pub struct DaemonPruneStuck {
+    /// A code from the error registry.
+    pub code: nc_catalog::ErrorCode,
+    /// A whole number, at most 32 bits wide.
+    pub pumps: u32,
+}
+
+impl crate::sealed::Sealed for DaemonPruneStuck {}
+
+impl Event for DaemonPruneStuck {
+    fn name(&self) -> &'static str {
+        "daemon.prune_stuck"
+    }
+    fn level(&self) -> Level {
+        Level::Error
+    }
+    fn fields(&self) -> Vec<(&'static str, Field)> {
+        vec![
+            ("code", self.code.to_field()),
+            ("pumps", self.pumps.to_field()),
+        ]
+    }
+}
+
+/// `daemon.started` — The daemon reached running: its kernel is open, its plugins loaded or refused, and its schedule begun
+#[derive(Debug, Clone)]
+pub struct DaemonStarted {
+    /// A whole number, at most 32 bits wide.
+    pub pid: u32,
+    /// A whole number, at most 32 bits wide.
+    pub loaded: u32,
+    /// A whole number, at most 32 bits wide.
+    pub refused: u32,
+}
+
+impl crate::sealed::Sealed for DaemonStarted {}
+
+impl Event for DaemonStarted {
+    fn name(&self) -> &'static str {
+        "daemon.started"
+    }
+    fn level(&self) -> Level {
+        Level::Info
+    }
+    fn fields(&self) -> Vec<(&'static str, Field)> {
+        vec![
+            ("pid", self.pid.to_field()),
+            ("loaded", self.loaded.to_field()),
+            ("refused", self.refused.to_field()),
+        ]
+    }
+}
+
+/// `daemon.stopped` — The daemon stopped when it was asked to: its dispatches and its schedule drained or given up, its mark settled and its endpoint gone
+#[derive(Debug, Clone)]
+pub struct DaemonStopped {
+    /// A span of time.
+    pub ran: core::time::Duration,
+    /// A whole number, at most 32 bits wide.
+    pub abandoned: u32,
+}
+
+impl crate::sealed::Sealed for DaemonStopped {}
+
+impl Event for DaemonStopped {
+    fn name(&self) -> &'static str {
+        "daemon.stopped"
+    }
+    fn level(&self) -> Level {
+        Level::Info
+    }
+    fn fields(&self) -> Vec<(&'static str, Field)> {
+        vec![
+            ("ran", self.ran.to_field()),
+            ("abandoned", self.abandoned.to_field()),
+        ]
+    }
+}
+
 /// `db.migrated` — Migrations were applied
 #[derive(Debug, Clone)]
 pub struct DbMigrated {
@@ -104,6 +206,27 @@ impl Event for IdsSequenceExhausted {
     }
     fn fields(&self) -> Vec<(&'static str, Field)> {
         vec![("waited", self.waited.to_field())]
+    }
+}
+
+/// `ipc.refused` — The daemon refused a connection before it read a request — a peer not shown to be its user, one past the bound, or a handshake that did not prove the token — or closed a proven one that broke the protocol, fell silent, took nothing or was lost
+#[derive(Debug, Clone)]
+pub struct IpcRefused {
+    /// A code from the error registry.
+    pub code: nc_catalog::ErrorCode,
+}
+
+impl crate::sealed::Sealed for IpcRefused {}
+
+impl Event for IpcRefused {
+    fn name(&self) -> &'static str {
+        "ipc.refused"
+    }
+    fn level(&self) -> Level {
+        Level::Warn
+    }
+    fn fields(&self) -> Vec<(&'static str, Field)> {
+        vec![("code", self.code.to_field())]
     }
 }
 

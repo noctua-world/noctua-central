@@ -218,6 +218,8 @@ pub struct Limits {
     pub rate_limits: Vec<RateLimit>,
     /// The bounds the local kernel holds every plugin to (`NOCTUA.md §11.3`).
     pub kernel: KernelLimits,
+    /// The bounds the daemon holds itself to (`NOCTUA.md §11.1`, `§16.2`).
+    pub daemon: DaemonLimits,
 }
 
 /// The bounds the local kernel holds every plugin to (`NOCTUA.md §11.3`).
@@ -360,10 +362,11 @@ impl Unit {
     }
 }
 
-/// One kernel limit as the generated crate and the page carry it.
+/// One limit of the kernel's or the daemon's, as the generated crate and the
+/// page carry it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct KernelLimit {
-    /// The key `[kernel]` writes it under, which is also the generated field.
+pub struct NamedLimit {
+    /// The key its table writes it under, which is also the generated field.
     pub name: &'static str,
     /// Its value.
     pub value: u64,
@@ -389,7 +392,7 @@ impl KernelLimits {
         reason = "one row per limit and nothing else: splitting the table would split \
                   the destructuring that makes a forgotten limit a compile error"
     )]
-    pub fn each(&self) -> Vec<KernelLimit> {
+    pub fn each(&self) -> Vec<NamedLimit> {
         let Self {
             memory_bytes,
             instances,
@@ -436,14 +439,14 @@ impl KernelLimits {
             undo_history,
             confirmation_ttl_ms,
         } = *self;
-        let wide = |name, value, unit, bounds| KernelLimit {
+        let wide = |name, value, unit, bounds| NamedLimit {
             name,
             value,
             wide: true,
             unit,
             bounds,
         };
-        let narrow = |name, value: u32, bounds| KernelLimit {
+        let narrow = |name, value: u32, bounds| NamedLimit {
             name,
             value: u64::from(value),
             wide: false,
@@ -702,6 +705,122 @@ impl KernelLimits {
                 confirmation_ttl_ms,
                 Unit::Milliseconds,
                 "How long a confirmation a person gave stays good for",
+            ),
+        ]
+    }
+}
+
+/// The bounds the daemon holds itself to (`NOCTUA.md §11.1`, `§16.2`).
+///
+/// **Every one required, and every one a number above zero**, for the reason
+/// [`KernelLimits`] gives: a bound missing here is one the daemon would have to
+/// invent. The relations they keep with a bound outside this table are checked
+/// where they are read (`load.rs`).
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[cfg_attr(test, derive(Default))]
+#[serde(deny_unknown_fields)]
+pub struct DaemonLimits {
+    /// How far past the clock the identifiers' persisted ceiling is raised,
+    /// each time a later millisecond needs one.
+    pub mark_lease_ms: u64,
+    /// The most one IPC frame may carry, its length prefix apart.
+    pub ipc_frame_max_bytes: u64,
+    /// How long a connection has to finish the handshake.
+    pub ipc_handshake_ms: u64,
+    /// How long either side of a connection stays silent before it pings.
+    pub ipc_heartbeat_ms: u64,
+    /// How long a peer may be silent before its connection is dropped.
+    pub ipc_silent_after_ms: u64,
+    /// How many connections the daemon holds open at once.
+    pub ipc_connections_max: u32,
+    /// How often the daemon pumps its kernel.
+    pub pump_every_ms: u64,
+    /// How often the daemon sweeps the blobs no committed unit holds.
+    pub sweep_every_ms: u64,
+    /// How long a stop waits for the dispatches running to end.
+    pub stop_drain_ms: u64,
+}
+
+impl DaemonLimits {
+    /// Every limit, in the order `[daemon]` is documented in.
+    ///
+    /// **Destructured**, as [`KernelLimits::each`] is, so a field the struct
+    /// gains is a compile error here rather than a limit nothing publishes.
+    #[must_use]
+    pub fn each(&self) -> Vec<NamedLimit> {
+        let Self {
+            mark_lease_ms,
+            ipc_frame_max_bytes,
+            ipc_handshake_ms,
+            ipc_heartbeat_ms,
+            ipc_silent_after_ms,
+            ipc_connections_max,
+            pump_every_ms,
+            sweep_every_ms,
+            stop_drain_ms,
+        } = *self;
+        let wide = |name, value, unit, bounds| NamedLimit {
+            name,
+            value,
+            wide: true,
+            unit,
+            bounds,
+        };
+        vec![
+            wide(
+                "mark_lease_ms",
+                mark_lease_ms,
+                Unit::Milliseconds,
+                "How far past the clock the identifiers' persisted ceiling is raised",
+            ),
+            wide(
+                "ipc_frame_max_bytes",
+                ipc_frame_max_bytes,
+                Unit::Bytes,
+                "How much one frame of the IPC channel may carry",
+            ),
+            wide(
+                "ipc_handshake_ms",
+                ipc_handshake_ms,
+                Unit::Milliseconds,
+                "How long a connection has to prove it holds the channel's token",
+            ),
+            wide(
+                "ipc_heartbeat_ms",
+                ipc_heartbeat_ms,
+                Unit::Milliseconds,
+                "How long either side of a connection stays silent before it pings",
+            ),
+            wide(
+                "ipc_silent_after_ms",
+                ipc_silent_after_ms,
+                Unit::Milliseconds,
+                "How long a peer may be silent before its connection is dropped",
+            ),
+            NamedLimit {
+                name: "ipc_connections_max",
+                value: u64::from(ipc_connections_max),
+                wide: false,
+                unit: Unit::Count,
+                bounds: "How many connections the daemon holds open at once",
+            },
+            wide(
+                "pump_every_ms",
+                pump_every_ms,
+                Unit::Milliseconds,
+                "How often the daemon fires its timers, delivers its events and prunes",
+            ),
+            wide(
+                "sweep_every_ms",
+                sweep_every_ms,
+                Unit::Milliseconds,
+                "How often the daemon sweeps the blobs no committed unit holds",
+            ),
+            wide(
+                "stop_drain_ms",
+                stop_drain_ms,
+                Unit::Milliseconds,
+                "How long a stop waits for the dispatches already running",
             ),
         ]
     }

@@ -1979,6 +1979,223 @@ fn a_kernel_limit_of_zero_fails_the_build() {
     }
 }
 
+/// A daemon limit of zero fails the build.
+#[test]
+fn a_daemon_limit_of_zero_fails_the_build() {
+    let scratch = Scratch::new("daemon-zero");
+    scratch.replacing(
+        "catalog/limits.toml",
+        "mark_lease_ms = 2_000",
+        "mark_lease_ms = 0",
+    );
+    scratch.must_fail_saying("daemon-limit-zero", "`[daemon] mark_lease_ms` is zero");
+}
+
+/// A mark's lease of a day fails the build, and one a millisecond under it
+/// does not.
+///
+/// **At the boundary**: a minter takes a mark more than a day ahead of its
+/// clock for a corrupt number, so a lease of exactly a day is the first one a
+/// restart right after a raise could meet as corrupt.
+#[test]
+fn a_mark_lease_of_a_day_fails_the_build() {
+    let scratch = Scratch::new("daemon-lease-a-day");
+    scratch.replacing(
+        "catalog/limits.toml",
+        "mark_lease_ms = 2_000",
+        "mark_lease_ms = 86_400_000",
+    );
+    scratch.must_fail_saying(
+        "mark-lease-past-a-day",
+        "`[daemon] mark_lease_ms` is 86400000, which is not below a day, 86400000",
+    );
+    let under = Scratch::new("daemon-lease-under-a-day");
+    under.replacing(
+        "catalog/limits.toml",
+        "mark_lease_ms = 2_000",
+        "mark_lease_ms = 86_399_999",
+    );
+    assert!(
+        under
+            .problems()
+            .iter()
+            .all(|problem| problem.check != "mark-lease-past-a-day"),
+        "a lease under a day was refused as a day"
+    );
+}
+
+/// An IPC frame one byte short of the kernel's payload and its envelope fails
+/// the build, and one that holds both exactly does not.
+///
+/// **At the boundary**: a dispatch's answer is one payload inside a frame, so
+/// a frame a byte smaller than the payload and what wraps it is the first one
+/// that refuses an answer the kernel gave.
+#[test]
+fn an_ipc_frame_below_a_payload_and_its_envelope_fails_the_build() {
+    let scratch = Scratch::new("daemon-frame-short");
+    scratch.replacing(
+        "catalog/limits.toml",
+        "ipc_frame_max_bytes = 2_097_152",
+        "ipc_frame_max_bytes = 1_114_111",
+    );
+    scratch.must_fail_saying(
+        "ipc-frame-below-a-payload",
+        "`[daemon] ipc_frame_max_bytes` is 1114111, below `[kernel] payload_bytes`, 1048576, \
+         and the 65536 bytes a frame wraps a payload in",
+    );
+    let exact = Scratch::new("daemon-frame-exact");
+    exact.replacing(
+        "catalog/limits.toml",
+        "ipc_frame_max_bytes = 2_097_152",
+        "ipc_frame_max_bytes = 1_114_112",
+    );
+    assert!(
+        exact
+            .problems()
+            .iter()
+            .all(|problem| problem.check != "ipc-frame-below-a-payload"),
+        "a frame holding the payload and its envelope exactly was refused"
+    );
+}
+
+/// A peer dropped after exactly two heartbeats of silence fails the build, and
+/// one dropped a millisecond later does not.
+#[test]
+fn an_ipc_silence_of_two_heartbeats_fails_the_build() {
+    let scratch = Scratch::new("daemon-silence-two-beats");
+    scratch.replacing(
+        "catalog/limits.toml",
+        "ipc_silent_after_ms = 10_000",
+        "ipc_silent_after_ms = 4_000",
+    );
+    scratch.must_fail_saying(
+        "ipc-silence-within-two-heartbeats",
+        "`[daemon] ipc_silent_after_ms` is 4000, which is not more than two \
+         `ipc_heartbeat_ms`, 2000",
+    );
+    let past = Scratch::new("daemon-silence-past-two-beats");
+    past.replacing(
+        "catalog/limits.toml",
+        "ipc_silent_after_ms = 10_000",
+        "ipc_silent_after_ms = 4_001",
+    );
+    assert!(
+        past.problems()
+            .iter()
+            .all(|problem| problem.check != "ipc-silence-within-two-heartbeats"),
+        "a silence past two heartbeats was refused"
+    );
+}
+
+/// A bound of connections a Windows pipe cannot hold with the two instances a
+/// listener keeps beside them fails the build, and the largest it can does not.
+#[test]
+fn ipc_connections_a_pipe_cannot_hold_fail_the_build() {
+    let scratch = Scratch::new("daemon-connections-253");
+    scratch.replacing(
+        "catalog/limits.toml",
+        "ipc_connections_max = 32",
+        "ipc_connections_max = 253",
+    );
+    scratch.must_fail_saying(
+        "ipc-connections-past-a-pipe",
+        "`[daemon] ipc_connections_max` is 253, which with the two instances a listener \
+         keeps beside its connections is more than a Windows pipe's 254",
+    );
+    let most = Scratch::new("daemon-connections-252");
+    most.replacing(
+        "catalog/limits.toml",
+        "ipc_connections_max = 32",
+        "ipc_connections_max = 252",
+    );
+    assert!(
+        most.problems()
+            .iter()
+            .all(|problem| problem.check != "ipc-connections-past-a-pipe"),
+        "the most connections a pipe holds with one instance waiting was refused"
+    );
+}
+
+/// A pump a millisecond further apart than the shortest timer fails the
+/// build, and one exactly as far apart does not.
+#[test]
+fn a_pump_slower_than_the_shortest_timer_fails_the_build() {
+    let scratch = Scratch::new("daemon-pump-slow");
+    scratch.replacing(
+        "catalog/limits.toml",
+        "pump_every_ms = 1_000",
+        "pump_every_ms = 1_001",
+    );
+    scratch.must_fail_saying(
+        "pump-slower-than-the-shortest-timer",
+        "`[daemon] pump_every_ms` is 1001, above `[kernel] timer_min_interval_ms`, 1000",
+    );
+    // The shipped catalog pumps exactly as often as the shortest timer.
+    let exact = Scratch::new("daemon-pump-exact");
+    assert!(
+        exact
+            .problems()
+            .iter()
+            .all(|problem| problem.check != "pump-slower-than-the-shortest-timer"),
+        "a pump exactly as far apart as the shortest timer was refused"
+    );
+}
+
+/// A sweep a millisecond further apart than an orphan's grace fails the
+/// build, and one exactly as far apart does not.
+#[test]
+fn a_sweep_slower_than_the_orphan_grace_fails_the_build() {
+    let scratch = Scratch::new("daemon-sweep-slow");
+    scratch.replacing(
+        "catalog/limits.toml",
+        "sweep_every_ms = 600_000",
+        "sweep_every_ms = 86_400_001",
+    );
+    scratch.must_fail_saying(
+        "sweep-slower-than-the-orphan-grace",
+        "`[daemon] sweep_every_ms` is 86400001, above `[kernel] blob_orphan_grace_ms`, \
+         86400000",
+    );
+    let exact = Scratch::new("daemon-sweep-exact");
+    exact.replacing(
+        "catalog/limits.toml",
+        "sweep_every_ms = 600_000",
+        "sweep_every_ms = 86_400_000",
+    );
+    assert!(
+        exact
+            .problems()
+            .iter()
+            .all(|problem| problem.check != "sweep-slower-than-the-orphan-grace"),
+        "a sweep exactly as far apart as an orphan's grace was refused"
+    );
+}
+
+/// A stop that waits a millisecond less than a dispatch may run fails the
+/// build, and one that waits exactly as long does not.
+#[test]
+fn a_stop_drain_shorter_than_a_dispatch_fails_the_build() {
+    let scratch = Scratch::new("daemon-drain-short");
+    scratch.replacing(
+        "catalog/limits.toml",
+        "stop_drain_ms = 30_000",
+        "stop_drain_ms = 29_999",
+    );
+    scratch.must_fail_saying(
+        "stop-drain-shorter-than-a-dispatch",
+        "`[daemon] stop_drain_ms` is 29999, below `[kernel] dispatch_deadline_ms`, 30000",
+    );
+    // The shipped catalog waits exactly as long as a dispatch may run.
+    let exact = Scratch::new("daemon-drain-exact");
+    assert!(
+        exact
+            .problems()
+            .iter()
+            .all(|problem| problem.check != "stop-drain-shorter-than-a-dispatch"),
+        "a stop that waits exactly as long as a dispatch may run was refused"
+    );
+}
+
 /// Every relation between two kernel limits is refused at the number where it
 /// stops holding, and not one past it.
 ///

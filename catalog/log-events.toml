@@ -336,3 +336,51 @@ fields = [
   { name = "reason", type = "enum" },
   { name = "code", type = "error_code" },
 ]
+
+# --- The daemon a channel runs (§11.1) ---
+
+[[event]]
+name = "daemon.started"
+description = "The daemon reached running: its kernel is open, its plugins loaded or refused, and its schedule begun"
+level = "info"
+fields = [
+  { name = "pid", type = "u32" },
+  # How many plugins it loaded and how many it refused, each refused one
+  # logged on its own as `daemon.plugin_refused` with its code.
+  { name = "loaded", type = "u32" },
+  { name = "refused", type = "u32" },
+]
+
+[[event]]
+name = "daemon.stopped"
+description = "The daemon stopped when it was asked to: its dispatches and its schedule drained or given up, its mark settled and its endpoint gone"
+level = "info"
+fields = [
+  { name = "ran", type = "duration" },
+  # The dispatches, pumps and sweeps still running when `stop_drain_ms` ran
+  # out, which a start recovers; zero for a stop that waited for every one.
+  { name = "abandoned", type = "u32" },
+]
+
+[[event]]
+name = "daemon.plugin_refused"
+description = "A plugin installed in the profile was not loaded, by the code of what refused it; the daemon runs without it"
+level = "error"
+fields = [{ name = "code", type = "error_code" }]
+
+[[event]]
+name = "daemon.prune_stuck"
+description = "The pruner was refused on every pump of a run of them — a table skipped every tick is a refusal wearing a wait's clothes — logged at two pumps and at each doubling after"
+level = "error"
+fields = [
+  { name = "code", type = "error_code" },
+  { name = "pumps", type = "u32" },
+]
+
+# --- The IPC channel a daemon is reached through (§11.1) ---
+
+[[event]]
+name = "ipc.refused"
+description = "The daemon refused a connection before it read a request — a peer not shown to be its user, one past the bound, or a handshake that did not prove the token — or closed a proven one that broke the protocol, fell silent, took nothing or was lost"
+level = "warn"
+fields = [{ name = "code", type = "error_code" }]

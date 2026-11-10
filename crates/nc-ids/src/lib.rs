@@ -26,7 +26,7 @@ pub mod snowflake;
 pub use flake::MachineFlake;
 pub use naming::{FileName, NameError};
 pub use snowflake::EPOCH_MS;
-pub use snowflake::{Clock, MintError, Minter, Snowflake, SystemClock};
+pub use snowflake::{Ceiling, CeilingRefused, Clock, MintError, Minter, Snowflake, SystemClock};
 
 /// An **opaque identifier** (`NOCTUA.md §16.1`), held as what it is: an opaque string
 /// of bounded length.
@@ -153,6 +153,33 @@ impl OpaqueId {
         Ok(Self(text))
     }
 
+    /// The identifier a device's public key is derived to: the 64 lower-case
+    /// hexadecimal digits of a domain-separated BLAKE3 digest of it.
+    ///
+    /// **Derived, never copied** (`§5.1`), and minted here rather than at the
+    /// caller, because a crate that reaches the central log may not mint one
+    /// from text at all. **A digest, so nothing a caller hands in can be read
+    /// back out**: thirty-two bytes chosen to spell something come out as
+    /// digits that spell nothing, which is what lets the log's wall name this
+    /// a route that carries no caller text. This decides nothing about the
+    /// shape `§5.1` leaves open: it is one opaque string, with no accessor for
+    /// any part of it.
+    #[must_use]
+    pub fn of_device_key(public: &[u8; 32]) -> Self {
+        use core::fmt::Write as _;
+        const DOMAIN: &str = "noctua-central/ids/device-identifier/v1";
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(&(DOMAIN.len() as u64).to_le_bytes());
+        hasher.update(DOMAIN.as_bytes());
+        hasher.update(public);
+        let mut text = String::with_capacity(64);
+        for byte in hasher.finalize().as_bytes() {
+            // Writing to a `String` cannot fail.
+            let _ = write!(text, "{byte:02x}");
+        }
+        Self(text)
+    }
+
     /// The identifier as text, for storing and for sending.
     ///
     /// Deliberately a whole string, and deliberately the only *accessor*: there
@@ -177,6 +204,42 @@ impl core::fmt::Display for OpaqueId {
 
 #[cfg(test)]
 mod tests {
+    /// A device's key is derived to an identifier of its own, the same each
+    /// time, holding none of the key's bytes.
+    ///
+    /// **And one the constructor of text would take**, so it is stored and
+    /// sent like any other.
+    #[test]
+    fn a_device_key_is_derived_to_an_identifier_of_its_own() {
+        use core::fmt::Write as _;
+        let mut key = [0_u8; 32];
+        let zero = super::OpaqueId::of_device_key(&key);
+        // **Frozen**: every journal a device keeps names its keeper this way,
+        // so a derivation that moved is every history's keeper renamed.
+        assert_eq!(
+            zero.as_str(),
+            "e1a15cfa5b6144c05041ca067a920cc24a5099dcb9dd2e10f37b1d240d52a4a4",
+            "the derivation moved"
+        );
+        assert_eq!(zero, super::OpaqueId::of_device_key(&key));
+        assert_eq!(
+            super::OpaqueId::new(zero.as_str()),
+            Ok(zero.clone()),
+            "the derived text is one the constructor of text admits"
+        );
+        key[31] = 1;
+        assert_ne!(super::OpaqueId::of_device_key(&key), zero);
+        // **And the bytes do not come back out**: thirty-two bytes that spell
+        // something are not in what they derive, written either way.
+        let spelled = *b"ana, born 1988-04-12, id 1234567";
+        let derived = super::OpaqueId::of_device_key(&spelled);
+        let mut hex = String::new();
+        for byte in spelled {
+            let _ = write!(hex, "{byte:02x}");
+        }
+        assert!(!derived.as_str().contains(&hex[..16]) && !derived.as_str().contains("ana"));
+    }
+
     /// Every identifier failure says which failure it is.
     ///
     /// **All three `NC-IDS-0006` producers, asserted.** Without this, two of
@@ -873,11 +936,11 @@ mod an_opaque_identifier_holds_no_shape {
         traits.sort();
         assert_eq!(
             methods,
-            ["as_str", "new"],
-            "`OpaqueId`'s inherent surface is not the two the crate root and `as_str` \
-             describe. A second reader is a second thing a later stage can come to \
-             depend on before `NOCTUA.md §5.1` is answered, and the paragraph above \
-             the type would go on saying there is one"
+            ["as_str", "new", "of_device_key"],
+            "`OpaqueId`'s inherent surface is not the reader and the two constructors \
+             the crate root and `as_str` describe. A second reader is a second thing a \
+             later stage can come to depend on before `NOCTUA.md §5.1` is answered, and \
+             the paragraph above the type would go on saying there is one"
         );
         assert_eq!(
             traits,

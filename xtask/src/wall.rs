@@ -7668,6 +7668,7 @@ mod the_exemption_is_one_directory {
             "crates/nc-channel/src/lib.rs",
             "crates/nc-guest/src/lib.rs",
             "crates/nc-ids/src/lib.rs",
+            "crates/nc-ipc/src/lib.rs",
             "crates/nc-journal/src/lib.rs",
             "crates/nc-kernel/src/lib.rs",
             "crates/nc-local/src/lib.rs",
@@ -7677,6 +7678,8 @@ mod the_exemption_is_one_directory {
             "crates/nc-prune/src/lib.rs",
             "crates/nc-schema/src/lib.rs",
             "plugins/reference/src/lib.rs",
+            "apps/daemon/src/lib.rs",
+            "apps/daemon/src/main.rs",
             "xtask/src/main.rs",
             // The fixtures' own crate, outside the fixtures directory.
             "crates/nc-log/src/ship.rs",
@@ -8280,7 +8283,12 @@ mod the_routes_into_an_identifier {
         /// carry. Written beside the route because the pair is what a reader
         /// needs to check, and because the assertion below is exact: an entry
         /// mis-spelled is an entry that catches nothing.
-        const COVERED: [(&str, &str, &str); 4] = [
+        ///
+        /// `OpaqueId::of_device_key` takes bytes and keeps only a digest of
+        /// them, so nothing a caller hands it can be read back out of the
+        /// identifier: like `Minter::mint`, it carries no caller text, and a
+        /// crate that reaches the log may call it.
+        const COVERED: [(&str, &str, &str); 5] = [
             (
                 "Snowflake::from_crockford",
                 "from_crockford(",
@@ -8289,6 +8297,11 @@ mod the_routes_into_an_identifier {
             ("OpaqueId::new", "::new(", "OpaqueId::new"),
             ("FileName::id", "::parse(", "FileName::parse"),
             ("Minter::mint", "takes no argument", "takes no argument"),
+            (
+                "OpaqueId::of_device_key",
+                "keeps only a digest",
+                "keeps only a digest",
+            ),
         ];
 
         let mut found = the_routes_nc_ids_offers();
@@ -8313,7 +8326,7 @@ mod the_routes_into_an_identifier {
              why it cannot carry caller text"
         );
         for (route, needle, away) in COVERED {
-            if needle == "takes no argument" {
+            if needle == "takes no argument" || needle == "keeps only a digest" {
                 continue;
             }
             assert!(

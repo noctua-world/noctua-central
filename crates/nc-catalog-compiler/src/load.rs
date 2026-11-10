@@ -28,9 +28,9 @@ use std::path::Path;
 use serde::de::DeserializeOwned;
 
 use crate::model::{
-    Budget, CapabilityEntry, CapabilityFile, Catalog, CommandEntry, CommandFile, Email, EmailFile,
-    ErrorFile, EventEntry, EventFile, KernelLimits, Limits, Locale, LocaleFile, Notification,
-    NotificationFile, Reversibility, Strategy, UngatedEntry,
+    Budget, CapabilityEntry, CapabilityFile, Catalog, CommandEntry, CommandFile, DaemonLimits,
+    Email, EmailFile, ErrorFile, EventEntry, EventFile, KernelLimits, Limits, Locale, LocaleFile,
+    Notification, NotificationFile, Reversibility, Strategy, UngatedEntry,
 };
 use crate::problem::{Problem, line_of};
 
@@ -757,6 +757,211 @@ fn check_limits(limits: &Limits, text: &str, problems: &mut Vec<Problem>) {
     check_rate_limits(limits, text, problems);
     check_kernel_nonzero(&limits.kernel, text, problems);
     check_kernel(&limits.kernel, text, problems);
+    check_daemon(limits.daemon, text, problems);
+    check_daemon_ipc(limits.daemon, &limits.kernel, text, problems);
+    check_daemon_schedule(limits.daemon, &limits.kernel, text, problems);
+}
+
+/// What an IPC frame carries around a payload — its type, a dispatch's command
+/// name, a refusal's code, kind and sentence — written as a bound of its own.
+///
+/// **Generous on purpose**: a frame refuses what it cannot hold rather than
+/// cutting it, so an envelope larger than this is a frame refused, never a
+/// payload half sent; `crates/nc-ipc`'s frames suite writes a dispatch's
+/// answer at the kernel's whole payload and reads it back.
+const IPC_ENVELOPE_BYTES: u64 = 65_536;
+
+/// How many instances one Windows named pipe may have, unlimited apart: the
+/// constant `PIPE_UNLIMITED_INSTANCES` is 255, and every number below it is a
+/// bound.
+///
+/// **Written here and not asked of `nc-platform`**, for the reason [`A_DAY_MS`]
+/// gives; a test in `crates/nc-ipc`,
+/// `the_catalogs_connections_fit_the_pipes_instances`, holds the generated
+/// value to `nc_platform::ipc::CONNECTIONS_MAX`.
+const PIPE_INSTANCES: u64 = 254;
+
+/// The IPC channel's limits keep the bounds outside `[daemon]` they answer to.
+///
+/// **A frame holds the kernel's whole payload with its envelope**, or a
+/// dispatch the kernel accepts would be one the channel cannot carry; **a peer
+/// is dropped only after more than two heartbeats of silence**, or one ping
+/// late — a busy machine, a scheduler's pause — would drop a peer that is
+/// there; and **the connections fit a pipe's instances** with two more — the
+/// one always waiting for the next client, and the connection past the bound,
+/// held until the next is waiting — or a daemon on Windows could not take the
+/// connection its own bound allows.
+fn check_daemon_ipc(
+    daemon: DaemonLimits,
+    kernel: &KernelLimits,
+    text: &str,
+    problems: &mut Vec<Problem>,
+) {
+    let at = |name: &str| line_of(text, &format!("{name} = "), 1).or(line_of(text, "[daemon]", 1));
+    if daemon.ipc_frame_max_bytes < kernel.payload_bytes.saturating_add(IPC_ENVELOPE_BYTES) {
+        push(
+            problems,
+            "catalog/limits.toml",
+            at("ipc_frame_max_bytes"),
+            format!(
+                "`[daemon] ipc_frame_max_bytes` is {}, below `[kernel] payload_bytes`, {}, \
+                 and the {IPC_ENVELOPE_BYTES} bytes a frame wraps a payload in",
+                daemon.ipc_frame_max_bytes, kernel.payload_bytes
+            ),
+            "a dispatch's arguments and its answer are each one payload, carried inside a \
+             frame with its type and a command's name or a refusal's sentence around it, so \
+             a frame smaller than both together refuses a dispatch the kernel would accept. \
+             Make `ipc_frame_max_bytes` at least `payload_bytes` and 64 KiB more",
+            "ipc-frame-below-a-payload",
+        );
+    }
+    if daemon.ipc_silent_after_ms <= daemon.ipc_heartbeat_ms.saturating_mul(2) {
+        push(
+            problems,
+            "catalog/limits.toml",
+            at("ipc_silent_after_ms"),
+            format!(
+                "`[daemon] ipc_silent_after_ms` is {}, which is not more than two \
+                 `ipc_heartbeat_ms`, {}",
+                daemon.ipc_silent_after_ms, daemon.ipc_heartbeat_ms
+            ),
+            "each side pings after a heartbeat of its own silence, so a peer dropped after \
+             two heartbeats or fewer is dropped for one ping a busy machine delivered late. \
+             Make `ipc_silent_after_ms` more than twice `ipc_heartbeat_ms`",
+            "ipc-silence-within-two-heartbeats",
+        );
+    }
+    if u64::from(daemon.ipc_connections_max).saturating_add(2) > PIPE_INSTANCES {
+        push(
+            problems,
+            "catalog/limits.toml",
+            at("ipc_connections_max"),
+            format!(
+                "`[daemon] ipc_connections_max` is {}, which with the two instances a \
+                 listener keeps beside its connections is more than a Windows pipe's \
+                 {PIPE_INSTANCES}",
+                daemon.ipc_connections_max
+            ),
+            "on Windows each connection is an instance of the daemon's pipe, one more always \
+             waits for the next client and one more is the connection past the bound, held \
+             until the next is waiting, so a bound a pipe cannot hold is one the daemon \
+             cannot keep there. Make `ipc_connections_max` at most 252",
+            "ipc-connections-past-a-pipe",
+        );
+    }
+}
+
+/// The daemon's schedule keeps the kernel's bounds it runs beside.
+///
+/// **A pump at most as far apart as the shortest timer**, or a timer a plugin
+/// may set is fired a pump late rather than within its own interval; **a
+/// sweep at most as far apart as an orphan's grace**, or an orphan outlives
+/// two graces before it goes; and **a stop that waits at least as long as a
+/// dispatch may run**, or a stop cuts short a call tree the kernel would let
+/// finish and leaves its unit for the next start to recover.
+fn check_daemon_schedule(
+    daemon: DaemonLimits,
+    kernel: &KernelLimits,
+    text: &str,
+    problems: &mut Vec<Problem>,
+) {
+    let at = |name: &str| line_of(text, &format!("{name} = "), 1).or(line_of(text, "[daemon]", 1));
+    if daemon.pump_every_ms > kernel.timer_min_interval_ms {
+        push(
+            problems,
+            "catalog/limits.toml",
+            at("pump_every_ms"),
+            format!(
+                "`[daemon] pump_every_ms` is {}, above `[kernel] timer_min_interval_ms`, {}",
+                daemon.pump_every_ms, kernel.timer_min_interval_ms
+            ),
+            "a timer fires only when the daemon pumps, so pumps further apart than the \
+             shortest interval a plugin may set fire that timer a pump late, every time. Make \
+             `pump_every_ms` at most `timer_min_interval_ms`",
+            "pump-slower-than-the-shortest-timer",
+        );
+    }
+    if daemon.sweep_every_ms > kernel.blob_orphan_grace_ms {
+        push(
+            problems,
+            "catalog/limits.toml",
+            at("sweep_every_ms"),
+            format!(
+                "`[daemon] sweep_every_ms` is {}, above `[kernel] blob_orphan_grace_ms`, {}",
+                daemon.sweep_every_ms, kernel.blob_orphan_grace_ms
+            ),
+            "an orphaned blob goes only when a sweep finds its grace over, so sweeps further \
+             apart than the grace keep it for more than two graces. Make `sweep_every_ms` at \
+             most `blob_orphan_grace_ms`",
+            "sweep-slower-than-the-orphan-grace",
+        );
+    }
+    if daemon.stop_drain_ms < kernel.dispatch_deadline_ms {
+        push(
+            problems,
+            "catalog/limits.toml",
+            at("stop_drain_ms"),
+            format!(
+                "`[daemon] stop_drain_ms` is {}, below `[kernel] dispatch_deadline_ms`, {}",
+                daemon.stop_drain_ms, kernel.dispatch_deadline_ms
+            ),
+            "the kernel lets a call tree run until its deadline, so a stop that waits less \
+             cuts short a dispatch the kernel would let finish and leaves its unit for the \
+             next start to recover. Make `stop_drain_ms` at least `dispatch_deadline_ms`",
+            "stop-drain-shorter-than-a-dispatch",
+        );
+    }
+}
+
+/// How far ahead of the clock a persisted mark may be before a minter reads
+/// it as corrupt rather than early: `nc-ids`' plausible drift, a day.
+///
+/// **Written here and not asked of `nc-ids`**, because this compiler depends on
+/// nothing of the workspace that is built from what it writes, and `nc-ids` is;
+/// `the_lease_is_inside_the_drift_a_minter_waits_out` in `apps/daemon` holds the
+/// two to each other through the generated value.
+const A_DAY_MS: u64 = 24 * 60 * 60 * 1_000;
+
+/// The daemon's limits are numbers above zero, and the mark's lease is one a
+/// restart waits out rather than refuses.
+///
+/// **A lease of a day or more is a daemon that will not start after a crash.**
+/// The ceiling is written `mark_lease_ms` past the clock, and a minter resuming
+/// at a mark further ahead of the clock than a day takes it for a corrupt
+/// number and refuses (`MintError::MarkOutOfRange`), so a crash right after a
+/// raise would leave a profile no restart opens until somebody repairs it.
+fn check_daemon(daemon: DaemonLimits, text: &str, problems: &mut Vec<Problem>) {
+    let line = line_of(text, "[daemon]", 1);
+    for limit in daemon.each() {
+        if limit.value == 0 {
+            push(
+                problems,
+                "catalog/limits.toml",
+                line_of(text, &format!("{} = ", limit.name), 1).or(line),
+                format!("`[daemon] {}` is zero", limit.name),
+                "a daemon limit of zero is a bound that stops everything it counts — a \
+                 lease of no time is a write before every identifier — so it is never what \
+                 was meant. Give it the number the daemon should hold to (NOCTUA.md §16.2)",
+                "daemon-limit-zero",
+            );
+        }
+    }
+    if daemon.mark_lease_ms >= A_DAY_MS {
+        push(
+            problems,
+            "catalog/limits.toml",
+            line,
+            format!(
+                "`[daemon] mark_lease_ms` is {}, which is not below a day, {A_DAY_MS}",
+                daemon.mark_lease_ms
+            ),
+            "the ceiling is written that far past the clock, and a minter resuming at a mark \
+             more than a day ahead takes it for a corrupt number and refuses, so a crash \
+             right after a raise would leave a daemon that never starts again. Make \
+             `mark_lease_ms` well below a day",
+            "mark-lease-past-a-day",
+        );
+    }
 }
 
 /// The kernel's limits are numbers above zero.

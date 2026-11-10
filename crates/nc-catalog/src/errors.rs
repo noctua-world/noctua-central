@@ -83,6 +83,10 @@ pub enum ErrorCode {
     ChannelBaseMalformed,
     /// NC-CHAN-0005 — An install manifest's namespace is not one to sixteen lower-case letters and digits holding a digit
     ChannelNamespaceMalformed,
+    /// NC-CHAN-0006 — No install manifest is beside this executable, so it names no channel and does not run
+    ChannelNoManifest,
+    /// NC-CHAN-0007 — The install manifest, or the directory holding it, is not this user's alone, so it was not read
+    ChannelManifestNotPrivate,
     /// NC-DB-0001 — The database did not answer
     DbUnreachable,
     /// NC-DB-0002 — A migration failed to apply
@@ -97,6 +101,32 @@ pub enum ErrorCode {
     DbLocalOpenRefused,
     /// NC-DB-0007 — The local database is not the one this build expects, so it was not used
     DbLocalSchemaUnexpected,
+    /// NC-DMN-0001 — A folder or a file of the daemon's profile is not this user's alone, so the daemon did not use it
+    DaemonProfileNotPrivate,
+    /// NC-DMN-0002 — A folder or a file of the daemon's profile could not be read or made
+    DaemonProfileUnavailable,
+    /// NC-DMN-0003 — The daemon's profile holds no device, and the daemon never makes one
+    DaemonNoDevice,
+    /// NC-DMN-0004 — The daemon's device is not one this build wrote: a seed of another length, or a record that is not the seed's
+    DaemonDeviceUnreadable,
+    /// NC-DMN-0005 — The daemon's profile names no realm and no person to decide as, so the daemon did not start
+    DaemonNoWorld,
+    /// NC-DMN-0006 — The daemon's world file is not one this build reads, or names a person its realm does not hold
+    DaemonWorldUnreadable,
+    /// NC-DMN-0007 — The identifiers' mark is unreadable in both of its slots, so the daemon did not start
+    DaemonMarkUnreadable,
+    /// NC-DMN-0008 — Another daemon of this channel holds its profile, so this one did not start
+    DaemonInstanceHeld,
+    /// NC-DMN-0009 — The daemon is not running its kernel yet: it is starting, waiting for its clock, or recovering
+    DaemonNotRunning,
+    /// NC-DMN-0010 — The daemon is stopping, and takes no new dispatch
+    DaemonStopping,
+    /// NC-DMN-0011 — The install names no central log the daemon can speak to, so the daemon did not start
+    DaemonNoCentralLog,
+    /// NC-DMN-0012 — The kernel's engine refused its configuration, so the daemon did not start
+    DaemonEngineRefused,
+    /// NC-DMN-0013 — The daemon's PID record is not one this build wrote: malformed, or naming no process
+    DaemonPidRecordUnreadable,
     /// NC-IDS-0001 — The clock moved backwards, so minting would repeat an identifier it has issued
     IdsClockBackwards,
     /// NC-IDS-0002 — This millisecond's sequence was exhausted and minting waited
@@ -113,6 +143,42 @@ pub enum ErrorCode {
     IdsClockStuck,
     /// NC-IDS-0008 — The clock is outside the range this identifier layout can represent
     IdsClockOutOfRange,
+    /// NC-IDS-0009 — The highest identifier time could not be saved, so no identifier past it was minted
+    IdsCeilingNotRaised,
+    /// NC-IPC-0001 — A frame claimed more than `ipc_frame_max_bytes`, and was refused from its length prefix before anything was allocated for it
+    IpcFrameTooLarge,
+    /// NC-IPC-0002 — A frame was not one message of the protocol: of no length, not UTF-8, not canonical JSON, a message the receiver does not read there, or a request before the last one was answered
+    IpcMalformed,
+    /// NC-IPC-0003 — The connection closed, or was lost, before what was being read or written was whole
+    IpcLost,
+    /// NC-IPC-0004 — The other end of a connection speaks another version of the protocol
+    IpcProtocol,
+    /// NC-IPC-0005 — A client's proof was refused: it is not keyed by the channel's token
+    IpcClientUnproven,
+    /// NC-IPC-0006 — The daemon's proof was refused: what answered at the endpoint is not keyed by the channel's token
+    IpcDaemonUnproven,
+    /// NC-IPC-0007 — A handshake did not finish within `ipc_handshake_ms`
+    IpcHandshakeSlow,
+    /// NC-IPC-0008 — A peer was silent for `ipc_silent_after_ms`, and its connection was dropped
+    IpcSilent,
+    /// NC-IPC-0009 — The endpoint's runtime directory, or what stood at the endpoint's name, is not this user's alone, so it was not used
+    IpcEndpointNotPrivate,
+    /// NC-IPC-0010 — The endpoint's name is longer than this system holds for a socket's path or a pipe's name
+    IpcEndpointTooLong,
+    /// NC-IPC-0011 — Something already answers at the endpoint, so it was not taken
+    IpcEndpointTaken,
+    /// NC-IPC-0012 — The other end of a connection is not shown to be this user's: it runs as another user, its pipe belongs to another, or the system did not say which process it is
+    IpcPeerUnverified,
+    /// NC-IPC-0013 — A connection past `ipc_connections_max` was closed as soon as it was accepted
+    IpcBusy,
+    /// NC-IPC-0014 — Nothing answers at the endpoint: no daemon of the channel is listening
+    IpcUnreachable,
+    /// NC-IPC-0015 — The endpoint could not be bound, accepted on or reached: the system did not answer
+    IpcEndpointUnavailable,
+    /// NC-IPC-0016 — A value was longer than `ipc_frame_max_bytes` as a frame, so nothing of it was sent
+    IpcUnsendable,
+    /// NC-IPC-0017 — A peer took nothing written to it for `ipc_silent_after_ms`, and its connection was dropped
+    IpcUnread,
     /// NC-JRNL-0001 — The journal's hash chain is broken at an entry
     JournalChainBroken,
     /// NC-JRNL-0002 — An entry's hash does not match the entry's own contents
@@ -279,6 +345,8 @@ impl ErrorCode {
         Self::ChannelCheckoutMalformed,
         Self::ChannelBaseMalformed,
         Self::ChannelNamespaceMalformed,
+        Self::ChannelNoManifest,
+        Self::ChannelManifestNotPrivate,
         Self::DbUnreachable,
         Self::DbMigrationFailed,
         Self::DbPruneFailed,
@@ -286,6 +354,19 @@ impl ErrorCode {
         Self::DbPruneRefused,
         Self::DbLocalOpenRefused,
         Self::DbLocalSchemaUnexpected,
+        Self::DaemonProfileNotPrivate,
+        Self::DaemonProfileUnavailable,
+        Self::DaemonNoDevice,
+        Self::DaemonDeviceUnreadable,
+        Self::DaemonNoWorld,
+        Self::DaemonWorldUnreadable,
+        Self::DaemonMarkUnreadable,
+        Self::DaemonInstanceHeld,
+        Self::DaemonNotRunning,
+        Self::DaemonStopping,
+        Self::DaemonNoCentralLog,
+        Self::DaemonEngineRefused,
+        Self::DaemonPidRecordUnreadable,
         Self::IdsClockBackwards,
         Self::IdsSequenceExhausted,
         Self::IdsFlakeExhausted,
@@ -294,6 +375,24 @@ impl ErrorCode {
         Self::IdsNotAnIdentifier,
         Self::IdsClockStuck,
         Self::IdsClockOutOfRange,
+        Self::IdsCeilingNotRaised,
+        Self::IpcFrameTooLarge,
+        Self::IpcMalformed,
+        Self::IpcLost,
+        Self::IpcProtocol,
+        Self::IpcClientUnproven,
+        Self::IpcDaemonUnproven,
+        Self::IpcHandshakeSlow,
+        Self::IpcSilent,
+        Self::IpcEndpointNotPrivate,
+        Self::IpcEndpointTooLong,
+        Self::IpcEndpointTaken,
+        Self::IpcPeerUnverified,
+        Self::IpcBusy,
+        Self::IpcUnreachable,
+        Self::IpcEndpointUnavailable,
+        Self::IpcUnsendable,
+        Self::IpcUnread,
         Self::JournalChainBroken,
         Self::JournalEntryTampered,
         Self::JournalUnavailable,
@@ -387,6 +486,8 @@ impl ErrorCode {
             Self::ChannelCheckoutMalformed => "NC-CHAN-0003",
             Self::ChannelBaseMalformed => "NC-CHAN-0004",
             Self::ChannelNamespaceMalformed => "NC-CHAN-0005",
+            Self::ChannelNoManifest => "NC-CHAN-0006",
+            Self::ChannelManifestNotPrivate => "NC-CHAN-0007",
             Self::DbUnreachable => "NC-DB-0001",
             Self::DbMigrationFailed => "NC-DB-0002",
             Self::DbPruneFailed => "NC-DB-0003",
@@ -394,6 +495,19 @@ impl ErrorCode {
             Self::DbPruneRefused => "NC-DB-0005",
             Self::DbLocalOpenRefused => "NC-DB-0006",
             Self::DbLocalSchemaUnexpected => "NC-DB-0007",
+            Self::DaemonProfileNotPrivate => "NC-DMN-0001",
+            Self::DaemonProfileUnavailable => "NC-DMN-0002",
+            Self::DaemonNoDevice => "NC-DMN-0003",
+            Self::DaemonDeviceUnreadable => "NC-DMN-0004",
+            Self::DaemonNoWorld => "NC-DMN-0005",
+            Self::DaemonWorldUnreadable => "NC-DMN-0006",
+            Self::DaemonMarkUnreadable => "NC-DMN-0007",
+            Self::DaemonInstanceHeld => "NC-DMN-0008",
+            Self::DaemonNotRunning => "NC-DMN-0009",
+            Self::DaemonStopping => "NC-DMN-0010",
+            Self::DaemonNoCentralLog => "NC-DMN-0011",
+            Self::DaemonEngineRefused => "NC-DMN-0012",
+            Self::DaemonPidRecordUnreadable => "NC-DMN-0013",
             Self::IdsClockBackwards => "NC-IDS-0001",
             Self::IdsSequenceExhausted => "NC-IDS-0002",
             Self::IdsFlakeExhausted => "NC-IDS-0003",
@@ -402,6 +516,24 @@ impl ErrorCode {
             Self::IdsNotAnIdentifier => "NC-IDS-0006",
             Self::IdsClockStuck => "NC-IDS-0007",
             Self::IdsClockOutOfRange => "NC-IDS-0008",
+            Self::IdsCeilingNotRaised => "NC-IDS-0009",
+            Self::IpcFrameTooLarge => "NC-IPC-0001",
+            Self::IpcMalformed => "NC-IPC-0002",
+            Self::IpcLost => "NC-IPC-0003",
+            Self::IpcProtocol => "NC-IPC-0004",
+            Self::IpcClientUnproven => "NC-IPC-0005",
+            Self::IpcDaemonUnproven => "NC-IPC-0006",
+            Self::IpcHandshakeSlow => "NC-IPC-0007",
+            Self::IpcSilent => "NC-IPC-0008",
+            Self::IpcEndpointNotPrivate => "NC-IPC-0009",
+            Self::IpcEndpointTooLong => "NC-IPC-0010",
+            Self::IpcEndpointTaken => "NC-IPC-0011",
+            Self::IpcPeerUnverified => "NC-IPC-0012",
+            Self::IpcBusy => "NC-IPC-0013",
+            Self::IpcUnreachable => "NC-IPC-0014",
+            Self::IpcEndpointUnavailable => "NC-IPC-0015",
+            Self::IpcUnsendable => "NC-IPC-0016",
+            Self::IpcUnread => "NC-IPC-0017",
             Self::JournalChainBroken => "NC-JRNL-0001",
             Self::JournalEntryTampered => "NC-JRNL-0002",
             Self::JournalUnavailable => "NC-JRNL-0003",
@@ -496,6 +628,8 @@ impl ErrorCode {
             Self::ChannelCheckoutMalformed => "CHAN",
             Self::ChannelBaseMalformed => "CHAN",
             Self::ChannelNamespaceMalformed => "CHAN",
+            Self::ChannelNoManifest => "CHAN",
+            Self::ChannelManifestNotPrivate => "CHAN",
             Self::DbUnreachable => "DB",
             Self::DbMigrationFailed => "DB",
             Self::DbPruneFailed => "DB",
@@ -503,6 +637,19 @@ impl ErrorCode {
             Self::DbPruneRefused => "DB",
             Self::DbLocalOpenRefused => "DB",
             Self::DbLocalSchemaUnexpected => "DB",
+            Self::DaemonProfileNotPrivate => "DMN",
+            Self::DaemonProfileUnavailable => "DMN",
+            Self::DaemonNoDevice => "DMN",
+            Self::DaemonDeviceUnreadable => "DMN",
+            Self::DaemonNoWorld => "DMN",
+            Self::DaemonWorldUnreadable => "DMN",
+            Self::DaemonMarkUnreadable => "DMN",
+            Self::DaemonInstanceHeld => "DMN",
+            Self::DaemonNotRunning => "DMN",
+            Self::DaemonStopping => "DMN",
+            Self::DaemonNoCentralLog => "DMN",
+            Self::DaemonEngineRefused => "DMN",
+            Self::DaemonPidRecordUnreadable => "DMN",
             Self::IdsClockBackwards => "IDS",
             Self::IdsSequenceExhausted => "IDS",
             Self::IdsFlakeExhausted => "IDS",
@@ -511,6 +658,24 @@ impl ErrorCode {
             Self::IdsNotAnIdentifier => "IDS",
             Self::IdsClockStuck => "IDS",
             Self::IdsClockOutOfRange => "IDS",
+            Self::IdsCeilingNotRaised => "IDS",
+            Self::IpcFrameTooLarge => "IPC",
+            Self::IpcMalformed => "IPC",
+            Self::IpcLost => "IPC",
+            Self::IpcProtocol => "IPC",
+            Self::IpcClientUnproven => "IPC",
+            Self::IpcDaemonUnproven => "IPC",
+            Self::IpcHandshakeSlow => "IPC",
+            Self::IpcSilent => "IPC",
+            Self::IpcEndpointNotPrivate => "IPC",
+            Self::IpcEndpointTooLong => "IPC",
+            Self::IpcEndpointTaken => "IPC",
+            Self::IpcPeerUnverified => "IPC",
+            Self::IpcBusy => "IPC",
+            Self::IpcUnreachable => "IPC",
+            Self::IpcEndpointUnavailable => "IPC",
+            Self::IpcUnsendable => "IPC",
+            Self::IpcUnread => "IPC",
             Self::JournalChainBroken => "JRNL",
             Self::JournalEntryTampered => "JRNL",
             Self::JournalUnavailable => "JRNL",
@@ -615,6 +780,12 @@ impl ErrorCode {
             Self::ChannelNamespaceMalformed => {
                 "An install manifest's namespace is not one to sixteen lower-case letters and digits holding a digit"
             }
+            Self::ChannelNoManifest => {
+                "No install manifest is beside this executable, so it names no channel and does not run"
+            }
+            Self::ChannelManifestNotPrivate => {
+                "The install manifest, or the directory holding it, is not this user's alone, so it was not read"
+            }
             Self::DbUnreachable => "The database did not answer",
             Self::DbMigrationFailed => "A migration failed to apply",
             Self::DbPruneFailed => "Pruning a table did not finish, and a later run may",
@@ -627,6 +798,43 @@ impl ErrorCode {
             }
             Self::DbLocalSchemaUnexpected => {
                 "The local database is not the one this build expects, so it was not used"
+            }
+            Self::DaemonProfileNotPrivate => {
+                "A folder or a file of the daemon's profile is not this user's alone, so the daemon did not use it"
+            }
+            Self::DaemonProfileUnavailable => {
+                "A folder or a file of the daemon's profile could not be read or made"
+            }
+            Self::DaemonNoDevice => {
+                "The daemon's profile holds no device, and the daemon never makes one"
+            }
+            Self::DaemonDeviceUnreadable => {
+                "The daemon's device is not one this build wrote: a seed of another length, or a record that is not the seed's"
+            }
+            Self::DaemonNoWorld => {
+                "The daemon's profile names no realm and no person to decide as, so the daemon did not start"
+            }
+            Self::DaemonWorldUnreadable => {
+                "The daemon's world file is not one this build reads, or names a person its realm does not hold"
+            }
+            Self::DaemonMarkUnreadable => {
+                "The identifiers' mark is unreadable in both of its slots, so the daemon did not start"
+            }
+            Self::DaemonInstanceHeld => {
+                "Another daemon of this channel holds its profile, so this one did not start"
+            }
+            Self::DaemonNotRunning => {
+                "The daemon is not running its kernel yet: it is starting, waiting for its clock, or recovering"
+            }
+            Self::DaemonStopping => "The daemon is stopping, and takes no new dispatch",
+            Self::DaemonNoCentralLog => {
+                "The install names no central log the daemon can speak to, so the daemon did not start"
+            }
+            Self::DaemonEngineRefused => {
+                "The kernel's engine refused its configuration, so the daemon did not start"
+            }
+            Self::DaemonPidRecordUnreadable => {
+                "The daemon's PID record is not one this build wrote: malformed, or naming no process"
             }
             Self::IdsClockBackwards => {
                 "The clock moved backwards, so minting would repeat an identifier it has issued"
@@ -645,6 +853,58 @@ impl ErrorCode {
             }
             Self::IdsClockOutOfRange => {
                 "The clock is outside the range this identifier layout can represent"
+            }
+            Self::IdsCeilingNotRaised => {
+                "The highest identifier time could not be saved, so no identifier past it was minted"
+            }
+            Self::IpcFrameTooLarge => {
+                "A frame claimed more than `ipc_frame_max_bytes`, and was refused from its length prefix before anything was allocated for it"
+            }
+            Self::IpcMalformed => {
+                "A frame was not one message of the protocol: of no length, not UTF-8, not canonical JSON, a message the receiver does not read there, or a request before the last one was answered"
+            }
+            Self::IpcLost => {
+                "The connection closed, or was lost, before what was being read or written was whole"
+            }
+            Self::IpcProtocol => {
+                "The other end of a connection speaks another version of the protocol"
+            }
+            Self::IpcClientUnproven => {
+                "A client's proof was refused: it is not keyed by the channel's token"
+            }
+            Self::IpcDaemonUnproven => {
+                "The daemon's proof was refused: what answered at the endpoint is not keyed by the channel's token"
+            }
+            Self::IpcHandshakeSlow => "A handshake did not finish within `ipc_handshake_ms`",
+            Self::IpcSilent => {
+                "A peer was silent for `ipc_silent_after_ms`, and its connection was dropped"
+            }
+            Self::IpcEndpointNotPrivate => {
+                "The endpoint's runtime directory, or what stood at the endpoint's name, is not this user's alone, so it was not used"
+            }
+            Self::IpcEndpointTooLong => {
+                "The endpoint's name is longer than this system holds for a socket's path or a pipe's name"
+            }
+            Self::IpcEndpointTaken => {
+                "Something already answers at the endpoint, so it was not taken"
+            }
+            Self::IpcPeerUnverified => {
+                "The other end of a connection is not shown to be this user's: it runs as another user, its pipe belongs to another, or the system did not say which process it is"
+            }
+            Self::IpcBusy => {
+                "A connection past `ipc_connections_max` was closed as soon as it was accepted"
+            }
+            Self::IpcUnreachable => {
+                "Nothing answers at the endpoint: no daemon of the channel is listening"
+            }
+            Self::IpcEndpointUnavailable => {
+                "The endpoint could not be bound, accepted on or reached: the system did not answer"
+            }
+            Self::IpcUnsendable => {
+                "A value was longer than `ipc_frame_max_bytes` as a frame, so nothing of it was sent"
+            }
+            Self::IpcUnread => {
+                "A peer took nothing written to it for `ipc_silent_after_ms`, and its connection was dropped"
             }
             Self::JournalChainBroken => "The journal's hash chain is broken at an entry",
             Self::JournalEntryTampered => "An entry's hash does not match the entry's own contents",
@@ -850,6 +1110,8 @@ impl ErrorCode {
             Self::ChannelCheckoutMalformed => "error.channel.checkout-malformed",
             Self::ChannelBaseMalformed => "error.channel.base-malformed",
             Self::ChannelNamespaceMalformed => "error.channel.namespace-malformed",
+            Self::ChannelNoManifest => "error.channel.no-manifest",
+            Self::ChannelManifestNotPrivate => "error.channel.manifest-not-private",
             Self::DbUnreachable => "error.db.unreachable",
             Self::DbMigrationFailed => "error.db.migration-failed",
             Self::DbPruneFailed => "error.db.prune-failed",
@@ -857,6 +1119,19 @@ impl ErrorCode {
             Self::DbPruneRefused => "error.db.prune-refused",
             Self::DbLocalOpenRefused => "error.db.local-open-refused",
             Self::DbLocalSchemaUnexpected => "error.db.local-schema-unexpected",
+            Self::DaemonProfileNotPrivate => "error.daemon.profile-not-private",
+            Self::DaemonProfileUnavailable => "error.daemon.profile-unavailable",
+            Self::DaemonNoDevice => "error.daemon.no-device",
+            Self::DaemonDeviceUnreadable => "error.daemon.device-unreadable",
+            Self::DaemonNoWorld => "error.daemon.no-world",
+            Self::DaemonWorldUnreadable => "error.daemon.world-unreadable",
+            Self::DaemonMarkUnreadable => "error.daemon.mark-unreadable",
+            Self::DaemonInstanceHeld => "error.daemon.instance-held",
+            Self::DaemonNotRunning => "error.daemon.not-running",
+            Self::DaemonStopping => "error.daemon.stopping",
+            Self::DaemonNoCentralLog => "error.daemon.no-central-log",
+            Self::DaemonEngineRefused => "error.daemon.engine-refused",
+            Self::DaemonPidRecordUnreadable => "error.daemon.pid-record-unreadable",
             Self::IdsClockBackwards => "error.ids.clock-backwards",
             Self::IdsSequenceExhausted => "error.ids.sequence-exhausted",
             Self::IdsFlakeExhausted => "error.ids.flake-exhausted",
@@ -865,6 +1140,24 @@ impl ErrorCode {
             Self::IdsNotAnIdentifier => "error.ids.not-an-identifier",
             Self::IdsClockStuck => "error.ids.clock-stuck",
             Self::IdsClockOutOfRange => "error.ids.clock-out-of-range",
+            Self::IdsCeilingNotRaised => "error.ids.ceiling-not-raised",
+            Self::IpcFrameTooLarge => "error.ipc.frame-too-large",
+            Self::IpcMalformed => "error.ipc.malformed",
+            Self::IpcLost => "error.ipc.lost",
+            Self::IpcProtocol => "error.ipc.protocol",
+            Self::IpcClientUnproven => "error.ipc.client-unproven",
+            Self::IpcDaemonUnproven => "error.ipc.daemon-unproven",
+            Self::IpcHandshakeSlow => "error.ipc.handshake-slow",
+            Self::IpcSilent => "error.ipc.silent",
+            Self::IpcEndpointNotPrivate => "error.ipc.endpoint-not-private",
+            Self::IpcEndpointTooLong => "error.ipc.endpoint-too-long",
+            Self::IpcEndpointTaken => "error.ipc.endpoint-taken",
+            Self::IpcPeerUnverified => "error.ipc.peer-unverified",
+            Self::IpcBusy => "error.ipc.busy",
+            Self::IpcUnreachable => "error.ipc.unreachable",
+            Self::IpcEndpointUnavailable => "error.ipc.endpoint-unavailable",
+            Self::IpcUnsendable => "error.ipc.unsendable",
+            Self::IpcUnread => "error.ipc.unread",
             Self::JournalChainBroken => "error.journal.chain-broken",
             Self::JournalEntryTampered => "error.journal.entry-tampered",
             Self::JournalUnavailable => "error.journal.unavailable",
@@ -959,6 +1252,8 @@ impl ErrorCode {
             Self::ChannelCheckoutMalformed => Severity::Error,
             Self::ChannelBaseMalformed => Severity::Error,
             Self::ChannelNamespaceMalformed => Severity::Error,
+            Self::ChannelNoManifest => Severity::Error,
+            Self::ChannelManifestNotPrivate => Severity::Critical,
             Self::DbUnreachable => Severity::Critical,
             Self::DbMigrationFailed => Severity::Critical,
             Self::DbPruneFailed => Severity::Error,
@@ -966,6 +1261,19 @@ impl ErrorCode {
             Self::DbPruneRefused => Severity::Error,
             Self::DbLocalOpenRefused => Severity::Critical,
             Self::DbLocalSchemaUnexpected => Severity::Critical,
+            Self::DaemonProfileNotPrivate => Severity::Critical,
+            Self::DaemonProfileUnavailable => Severity::Error,
+            Self::DaemonNoDevice => Severity::Error,
+            Self::DaemonDeviceUnreadable => Severity::Critical,
+            Self::DaemonNoWorld => Severity::Error,
+            Self::DaemonWorldUnreadable => Severity::Error,
+            Self::DaemonMarkUnreadable => Severity::Critical,
+            Self::DaemonInstanceHeld => Severity::Error,
+            Self::DaemonNotRunning => Severity::Warning,
+            Self::DaemonStopping => Severity::Warning,
+            Self::DaemonNoCentralLog => Severity::Error,
+            Self::DaemonEngineRefused => Severity::Critical,
+            Self::DaemonPidRecordUnreadable => Severity::Error,
             Self::IdsClockBackwards => Severity::Error,
             Self::IdsSequenceExhausted => Severity::Info,
             Self::IdsFlakeExhausted => Severity::Critical,
@@ -974,6 +1282,24 @@ impl ErrorCode {
             Self::IdsNotAnIdentifier => Severity::Error,
             Self::IdsClockStuck => Severity::Critical,
             Self::IdsClockOutOfRange => Severity::Error,
+            Self::IdsCeilingNotRaised => Severity::Error,
+            Self::IpcFrameTooLarge => Severity::Warning,
+            Self::IpcMalformed => Severity::Warning,
+            Self::IpcLost => Severity::Warning,
+            Self::IpcProtocol => Severity::Error,
+            Self::IpcClientUnproven => Severity::Error,
+            Self::IpcDaemonUnproven => Severity::Critical,
+            Self::IpcHandshakeSlow => Severity::Warning,
+            Self::IpcSilent => Severity::Warning,
+            Self::IpcEndpointNotPrivate => Severity::Critical,
+            Self::IpcEndpointTooLong => Severity::Error,
+            Self::IpcEndpointTaken => Severity::Error,
+            Self::IpcPeerUnverified => Severity::Critical,
+            Self::IpcBusy => Severity::Warning,
+            Self::IpcUnreachable => Severity::Warning,
+            Self::IpcEndpointUnavailable => Severity::Error,
+            Self::IpcUnsendable => Severity::Error,
+            Self::IpcUnread => Severity::Warning,
             Self::JournalChainBroken => Severity::Critical,
             Self::JournalEntryTampered => Severity::Critical,
             Self::JournalUnavailable => Severity::Critical,
@@ -1068,6 +1394,8 @@ impl ErrorCode {
             Self::ChannelCheckoutMalformed => false,
             Self::ChannelBaseMalformed => false,
             Self::ChannelNamespaceMalformed => false,
+            Self::ChannelNoManifest => false,
+            Self::ChannelManifestNotPrivate => false,
             Self::DbUnreachable => true,
             Self::DbMigrationFailed => false,
             Self::DbPruneFailed => true,
@@ -1075,6 +1403,19 @@ impl ErrorCode {
             Self::DbPruneRefused => false,
             Self::DbLocalOpenRefused => false,
             Self::DbLocalSchemaUnexpected => false,
+            Self::DaemonProfileNotPrivate => false,
+            Self::DaemonProfileUnavailable => true,
+            Self::DaemonNoDevice => false,
+            Self::DaemonDeviceUnreadable => false,
+            Self::DaemonNoWorld => false,
+            Self::DaemonWorldUnreadable => false,
+            Self::DaemonMarkUnreadable => false,
+            Self::DaemonInstanceHeld => false,
+            Self::DaemonNotRunning => true,
+            Self::DaemonStopping => true,
+            Self::DaemonNoCentralLog => false,
+            Self::DaemonEngineRefused => false,
+            Self::DaemonPidRecordUnreadable => false,
             Self::IdsClockBackwards => true,
             Self::IdsSequenceExhausted => false,
             Self::IdsFlakeExhausted => false,
@@ -1083,6 +1424,24 @@ impl ErrorCode {
             Self::IdsNotAnIdentifier => false,
             Self::IdsClockStuck => true,
             Self::IdsClockOutOfRange => false,
+            Self::IdsCeilingNotRaised => true,
+            Self::IpcFrameTooLarge => false,
+            Self::IpcMalformed => false,
+            Self::IpcLost => true,
+            Self::IpcProtocol => false,
+            Self::IpcClientUnproven => false,
+            Self::IpcDaemonUnproven => false,
+            Self::IpcHandshakeSlow => true,
+            Self::IpcSilent => true,
+            Self::IpcEndpointNotPrivate => false,
+            Self::IpcEndpointTooLong => false,
+            Self::IpcEndpointTaken => false,
+            Self::IpcPeerUnverified => false,
+            Self::IpcBusy => true,
+            Self::IpcUnreachable => true,
+            Self::IpcEndpointUnavailable => true,
+            Self::IpcUnsendable => false,
+            Self::IpcUnread => true,
             Self::JournalChainBroken => false,
             Self::JournalEntryTampered => false,
             Self::JournalUnavailable => true,
@@ -1177,6 +1536,8 @@ impl ErrorCode {
             Self::ChannelCheckoutMalformed => &[],
             Self::ChannelBaseMalformed => &[],
             Self::ChannelNamespaceMalformed => &[],
+            Self::ChannelNoManifest => &[],
+            Self::ChannelManifestNotPrivate => &[],
             Self::DbUnreachable => &[],
             Self::DbMigrationFailed => &[],
             Self::DbPruneFailed => &[],
@@ -1184,6 +1545,19 @@ impl ErrorCode {
             Self::DbPruneRefused => &[],
             Self::DbLocalOpenRefused => &[],
             Self::DbLocalSchemaUnexpected => &[],
+            Self::DaemonProfileNotPrivate => &[],
+            Self::DaemonProfileUnavailable => &[],
+            Self::DaemonNoDevice => &[],
+            Self::DaemonDeviceUnreadable => &[],
+            Self::DaemonNoWorld => &[],
+            Self::DaemonWorldUnreadable => &[],
+            Self::DaemonMarkUnreadable => &[],
+            Self::DaemonInstanceHeld => &[],
+            Self::DaemonNotRunning => &[],
+            Self::DaemonStopping => &[],
+            Self::DaemonNoCentralLog => &[],
+            Self::DaemonEngineRefused => &[],
+            Self::DaemonPidRecordUnreadable => &[],
             Self::IdsClockBackwards => &[],
             Self::IdsSequenceExhausted => &[],
             Self::IdsFlakeExhausted => &[],
@@ -1192,6 +1566,24 @@ impl ErrorCode {
             Self::IdsNotAnIdentifier => &[],
             Self::IdsClockStuck => &[],
             Self::IdsClockOutOfRange => &[],
+            Self::IdsCeilingNotRaised => &[],
+            Self::IpcFrameTooLarge => &[],
+            Self::IpcMalformed => &[],
+            Self::IpcLost => &[],
+            Self::IpcProtocol => &[],
+            Self::IpcClientUnproven => &[],
+            Self::IpcDaemonUnproven => &[],
+            Self::IpcHandshakeSlow => &[],
+            Self::IpcSilent => &[],
+            Self::IpcEndpointNotPrivate => &[],
+            Self::IpcEndpointTooLong => &[],
+            Self::IpcEndpointTaken => &[],
+            Self::IpcPeerUnverified => &[],
+            Self::IpcBusy => &[],
+            Self::IpcUnreachable => &[],
+            Self::IpcEndpointUnavailable => &[],
+            Self::IpcUnsendable => &[],
+            Self::IpcUnread => &[],
             Self::JournalChainBroken => &[],
             Self::JournalEntryTampered => &[],
             Self::JournalUnavailable => &[],
@@ -1315,12 +1707,20 @@ pub const AREAS: &[(&str, &str)] = &[
         "Databases: PostgreSQL's connections, migrations and pruning, and the local SQLite file",
     ),
     (
+        "DMN",
+        "The daemon: the profile it keeps, the device it mints on, and the identifiers' mark (§11.1, §16.2)",
+    ),
+    (
         "GW",
         "The public gateway: ingress, rate limiting, transport",
     ),
     (
         "IDS",
         "Identifiers: Snowflake, the machine flake, file names",
+    ),
+    (
+        "IPC",
+        "The IPC channel a daemon is reached through: its endpoint, its frames, the handshake that proves both ends, and the heartbeat (§11.1)",
     ),
     ("JRNL", "The command journal and its hash chain"),
     ("KERN", "The local kernel and command dispatch"),
