@@ -21,12 +21,13 @@
 //! 4. **Only when it does not answer, a signal — and only through what was
 //!    verified**: asked to end, `kill_within_ms`, then killed, `kill_within_ms`
 //!    again. **Nothing unverified is signalled, and no process numbered zero
-//!    or below**: a record missing, or naming a process that runs no more, is
-//!    a daemon already stopped while nothing holds its endpoint; a record
-//!    naming another process — another executable, another user — or one
-//!    that cannot be read or asked about, and an endpoint something still
-//!    holds with no record to hold it to a process, are never signalled, and
-//!    the stop ends in exit 11 with `NC-CLI-0009`.
+//!    or below**: a record missing, or naming a process that runs no more —
+//!    or one this user may not read, which is not its daemon — is a daemon
+//!    already stopped while nothing holds its endpoint; a record naming
+//!    another process — another executable, another user — or one that does
+//!    not read, and an endpoint something still holds with no record to hold
+//!    it to a process, are never signalled, and the stop ends in exit 11 with
+//!    `NC-CLI-0009`.
 //!
 //! # A start
 //!

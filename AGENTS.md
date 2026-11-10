@@ -803,12 +803,12 @@ held by its tests, and by no gate over a signal sent another way.
     A stop asks the daemon through its endpoint first and signals only one that does not
     answer: one that answers it is stopping is waited for and never signalled
     (`NC-CLI-0008` when it outlasts the wait). A record naming a process that runs no
-    more — judged before anything else, so whoever holds its id now, as long as this user
-    may read that process — is a daemon already stopped while nothing holds its endpoint;
-    one naming another process, one naming a process this user may not read at all (on
-    Windows, another account's, for an account that is not an elevated administrator),
-    one that does not read, and an endpoint something holds with no record to hold it to
-    a process are never signalled (`NC-CLI-0009`).
+    more — judged before anything else, so whoever holds its id now — or a process this
+    user may not read at all, which is not its daemon (on Windows, another account's, for
+    an account that is not an elevated administrator), is a daemon already stopped while
+    nothing holds its endpoint; one naming another process, one that does not read, and an
+    endpoint something holds with no record to hold it to a process are never signalled
+    (`NC-CLI-0009`).
     `nc_channel::record` refuses a record naming process zero or below, and
     `Verified::open` refuses process zero. **Enforced by**
     `apps/daemon/tests/a_recycled_pid_is_never_signalled.rs` — four stale records, a
@@ -2324,19 +2324,20 @@ is installed.
   record missing or naming a process that runs no more is a daemon stopped (exit 0) while
   nothing holds its endpoint; something that holds it and does not answer, with no record
   to hold it to a process, is never signalled (`NC-CLI-0009`, exit 11); and a record naming
-  another process — another executable, another user, one the system would not let this
-  read at all — or one that does not read is never signalled (`NC-CLI-0009`, exit 11).
-  **A process gone is judged before another** (`nc_platform::process::held_to`), so a
-  record of another start names a process that runs no more whoever holds its id now, as
-  long as this user may read that process: on Windows a process this user may query and
-  may not hold — one above this process's integrity, or another account's where this
-  user may query it, as the hosted runner's elevated account, which holds the debug
-  privilege, may query any — is read through a handle that may only query it, never held,
-  so a record a reboot left stale whose id such a process now holds is a daemon stopped,
-  not a refusal. **A process this user may not even query is not read, and is refused**
-  (`NC-CLI-0009`): on Windows, for an account that is not an elevated administrator, that
-  is every process of another account, as the hosted runner measured under a filtered
-  token.
+  another process — another executable, another user — or one that does not read is never
+  signalled (`NC-CLI-0009`, exit 11). **A process gone is judged before another**
+  (`nc_platform::process::held_to`), so a record of another start names a process that
+  runs no more whoever holds its id now: on Windows a process this user may query and may
+  not hold — one above this process's integrity, or another account's where this user may
+  query it, as the hosted runner's elevated account, which holds the debug privilege, may
+  query any — is read through a handle that may only query it, never held, so a record a
+  reboot left stale whose id such a process now holds is a daemon stopped, not a refusal.
+  **A process this user may not even read is not its daemon**
+  (`nc_platform::process::unread`), which runs as this user: its record is read as one
+  whose process runs no more, never signalled, and the next start writes its own — on
+  Windows, for an account that is not an elevated administrator, that is every process of
+  another account, as the hosted runner measured under a filtered token. A daemon read so
+  wrongly still holds its profile's instance lock, which refuses a second.
 - **A start runs the install's own daemon.** It is the executable the layout names beside
   this CLI — never one found on `PATH` — started detached
   (`nc_platform::process::spawn_detached`): standard input and output null, standard
@@ -2385,9 +2386,9 @@ held to its record and refused for each part of one that is not its own, asked t
 killed through what held it, a record of another start gone and one of the process as it
 is another, never held, for a process this user may read and may not hold — process 1 on
 Unix, and on Windows a child whose access list lets this user query it alone, read on a
-thread holding no privilege — a detached child leading a group of its own, and the
-decision for every system's reading — and by the operators over those sources in
-`xtask/mutants.py`.
+thread holding no privilege — a process this user may not read gone for its record, a
+detached child leading a group of its own, and the decision for every system's reading —
+and by the operators over those sources in `xtask/mutants.py`.
 
 **Not answered:** a process running as the same user, which can stop the daemon, remove
 the mark, rewrite the record or replace an install's binaries; on macOS the moment between
@@ -2395,9 +2396,9 @@ the last reading of a process and its signal; on Windows a terminate as hard as 
 daemon that does not answer and whose record was lost, which no stop can end; a daemon
 that said it is stopping and does not end, which no stop signals; on Windows, for an
 account that is not an elevated administrator, a record a reboot left whose id another
-account's process now holds, which is refused rather than read; and a start that gave
-up, which leaves the daemon it started running (each under **What is deliberately not
-claimed**).
+account's process now holds, which is read as a daemon stopped without that process being
+read; and a start that gave up, which leaves the daemon it started running (each under
+**What is deliberately not claimed**).
 
 ### The stack binds to loopback and nothing else
 
@@ -3189,11 +3190,13 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **On Windows a stale record may name a process this user may not read**: a record a
   reboot left, whose id another account's process now holds, is told from the daemon by
   that process's start, read through a handle that may only query it, and an account that
-  is not an elevated administrator may not even query another account's process. For that
-  account such a stop is refused (`NC-CLI-0009`, exit 11), with nothing signalled and the
-  mark written, and so are a `restart`, a development install made again and an uninstall,
-  until a `start` writes a record of its own. Reading a process's start with no handle on
-  it is `NtQuerySystemInformation`, in a windows-sys feature
+  is not an elevated administrator may not even query another account's process. Such a
+  process is not this user's daemon, so its record is read as one whose process runs no
+  more — never signalled, and replaced by the next start — without its start ever being
+  read: a refusal to read a process is taken for its being another account's, so a daemon
+  of this user's that the system refused to show would be read as stopped too, while its
+  instance lock still refuses a second daemon. Reading a process's start with no handle
+  on it is `NtQuerySystemInformation`, in a windows-sys feature
   (`Wdk_System_SystemInformation`) outside the ones decided for this tree.
 - **A start that gave up leaves its daemon running**: one that does not answer within
   `start_within_ms` is reported as a start that failed and is not ended, since what it is

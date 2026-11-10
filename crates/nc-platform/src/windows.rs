@@ -1080,7 +1080,8 @@ pub(crate) struct Process(OwnedHandle);
 /// (`crate::process::held_to`). One this user may not even query is the
 /// system's refusal, `PermissionDenied`: for an account that is not an elevated
 /// administrator that is every process of another account, as the hosted
-/// runner measured under a filtered token.
+/// runner measured under a filtered token — and so never this user's daemon,
+/// which `crate::process::unread` reads it as.
 pub(crate) fn open(
     record: &crate::process::Identity,
 ) -> io::Result<Option<(Option<Process>, crate::process::Seen)>> {

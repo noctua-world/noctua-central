@@ -7516,6 +7516,9 @@ WEAKENINGS = [
     ("cli_control", "tail_of", "a failed start says so when its daemon wrote nothing",
      "        \"nothing\".to_owned()",
      "        String::new()"),
+    ("platform_process", "unread", "a process this user may not read is not its daemon",
+     "        return Unverified::Gone(format!(\n            \"process {pid} is one this user may not read",
+     "        return Unverified::Other(format!(\n            \"process {pid} is one this user may not read"),
 ]
 
 # **Every member tree, as `MEMBER_TREES` in `xtask/src/members.rs` names them**,
