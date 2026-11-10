@@ -7477,6 +7477,18 @@ WEAKENINGS = [
     ("cli_control", "listening_after", "an endpoint no socket can have is held by nothing",
      "            !matches!(refused, Refused::Nobody(_) | Refused::TooLong { .. })",
      "            !matches!(refused, Refused::Nobody(_))"),
+    ("cli_install", "uninstall", "an uninstall stops the daemon first",
+     "    stopped(&found)?;\n    let layout = found.layout;",
+     "    let layout = found.layout;"),
+    ("cli_control", "ended_once_asked", "with nothing verified a record still naming it holds the stop",
+     "        if !listening && !named {",
+     "        if !listening {"),
+    ("cli_control", "ended_once_asked", "with nothing verified an endpoint still held holds the stop",
+     "        if !listening && !named {",
+     "        if !named {"),
+    ("cli_control", "running", "a start says it runs only once the status says so",
+     "        if state.contains(&running) {",
+     "        if true {"),
 ]
 
 # **Every member tree, as `MEMBER_TREES` in `xtask/src/members.rs` names them**,

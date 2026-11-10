@@ -803,10 +803,12 @@ held by its tests, and by no gate over a signal sent another way.
     A stop asks the daemon through its endpoint first and signals only one that does not
     answer: one that answers it is stopping is waited for and never signalled
     (`NC-CLI-0008` when it outlasts the wait). A record naming a process that runs no
-    more — judged before anything else, so whoever holds its id now, another account's
-    process included — is a daemon already stopped while nothing holds its endpoint; one
-    naming another process, one that does not read, and an endpoint something holds with
-    no record to hold it to a process are never signalled (`NC-CLI-0009`).
+    more — judged before anything else, so whoever holds its id now, as long as this user
+    may read that process — is a daemon already stopped while nothing holds its endpoint;
+    one naming another process, one naming a process this user may not read at all (on
+    Windows, another account's, for an account that is not an elevated administrator),
+    one that does not read, and an endpoint something holds with no record to hold it to
+    a process are never signalled (`NC-CLI-0009`).
     `nc_channel::record` refuses a record naming process zero or below, and
     `Verified::open` refuses process zero. **Enforced by**
     `apps/daemon/tests/a_recycled_pid_is_never_signalled.rs` — four stale records, a
@@ -2325,11 +2327,16 @@ is installed.
   another process — another executable, another user, one the system would not let this
   read at all — or one that does not read is never signalled (`NC-CLI-0009`, exit 11).
   **A process gone is judged before another** (`nc_platform::process::held_to`), so a
-  record of another start names a process that runs no more whoever holds its id now: on
-  Windows a process this user may not hold — another account's, or one above this
-  process's integrity — is read through a handle that may only query it, never held, so a
-  record a reboot left stale whose id another account's process now holds is a daemon
-  stopped, not a refusal.
+  record of another start names a process that runs no more whoever holds its id now, as
+  long as this user may read that process: on Windows a process this user may query and
+  may not hold — one above this process's integrity, or another account's where this
+  user may query it, as the hosted runner's elevated account, which holds the debug
+  privilege, may query any — is read through a handle that may only query it, never held,
+  so a record a reboot left stale whose id such a process now holds is a daemon stopped,
+  not a refusal. **A process this user may not even query is not read, and is refused**
+  (`NC-CLI-0009`): on Windows, for an account that is not an elevated administrator, that
+  is every process of another account, as the hosted runner measured under a filtered
+  token.
 - **A start runs the install's own daemon.** It is the executable the layout names beside
   this CLI — never one found on `PATH` — started detached
   (`nc_platform::process::spawn_detached`): standard input and output null, standard
@@ -2360,23 +2367,30 @@ decision that signals only a verified process, the mark written, kept, removed a
 refused, a stop nothing answers ending well over a record of a process gone and refusing
 one of another executable or one that does not read, a stop that ends a child held to its
 record, a daemon that said it is stopping left running and unsignalled once the wait is
-over, a stop something answers otherwise refused with no record or a record of a process
-gone, an endpoint no socket can have taken for nothing there, a stop and a status the
-daemon answers, a status with nothing answering, a start
-with no daemon beside it and one with a daemon running — of `apps/cli/src/install.rs`,
-whose copies of this test binary run, and of `crates/nc-channel/src/record.rs`, by the
+over, and one nothing verified waited for until its endpoint and its record let it go, a
+stop something answers otherwise refused with no record or a record of a process gone, an
+endpoint no socket can have taken for nothing there, a stop and a status the daemon
+answers, a status with nothing answering, a start with no daemon beside it and one with a
+daemon running, and a start that says its daemon runs only once its status says so — of
+`apps/cli/src/install.rs`, whose copies of this test binary run and whose uninstall leaves
+every file of an install whose daemon did not stop, and of
+`crates/nc-channel/src/record.rs`, by the
 `Verified` and `spawn_detached` tests of `crates/nc-platform/src/process.rs` — a child
 held to its record and refused for each part of one that is not its own, asked to end and
-killed through what held it, a record of another start gone and one of its own start
-another for the process each system runs under an account of its own, a detached child
-leading a group of its own, and the decision for every system's reading — and by the
-operators over those sources in `xtask/mutants.py`.
+killed through what held it, a record of another start gone and one of the process as it
+is another, never held, for a process this user may read and may not hold — process 1 on
+Unix, and on Windows a child whose access list lets this user query it alone, read on a
+thread holding no privilege — a detached child leading a group of its own, and the
+decision for every system's reading — and by the operators over those sources in
+`xtask/mutants.py`.
 
 **Not answered:** a process running as the same user, which can stop the daemon, remove
 the mark, rewrite the record or replace an install's binaries; on macOS the moment between
 the last reading of a process and its signal; on Windows a terminate as hard as a kill; a
 daemon that does not answer and whose record was lost, which no stop can end; a daemon
-that said it is stopping and does not end, which no stop signals; and a start that gave
+that said it is stopping and does not end, which no stop signals; on Windows, for an
+account that is not an elevated administrator, a record a reboot left whose id another
+account's process now holds, which is refused rather than read; and a start that gave
 up, which leaves the daemon it started running (each under **What is deliberately not
 claimed**).
 
@@ -3167,6 +3181,15 @@ rather than anything decided for the project, and each is a maintainer's to reop
   daemon that does not answer `stop` is ended by `TerminateProcess` at once, with what a
   crash leaves for its next start to read past; a graceful stop is always the one asked
   through the endpoint.
+- **On Windows a stale record may name a process this user may not read**: a record a
+  reboot left, whose id another account's process now holds, is told from the daemon by
+  that process's start, read through a handle that may only query it, and an account that
+  is not an elevated administrator may not even query another account's process. For that
+  account such a stop is refused (`NC-CLI-0009`, exit 11), with nothing signalled and the
+  mark written, and so are a `restart`, a development install made again and an uninstall,
+  until a `start` writes a record of its own. Reading a process's start with no handle on
+  it is `NtQuerySystemInformation`, in a windows-sys feature
+  (`Wdk_System_SystemInformation`) outside the ones decided for this tree.
 - **A start that gave up leaves its daemon running**: one that does not answer within
   `start_within_ms` is reported as a start that failed and is not ended, since what it is
   doing is its own to say; `stop` ends it.
@@ -4343,7 +4366,7 @@ and `sqlx`, and are named because the kernel matches on a type of each.
 | `clap`, `anstream`, `anstyle` | The command surface, in `xtask` only |
 | `rustix` | Unix's process calls the standard library does not make, in `crates/nc-platform`'s Unix half alone and for a Unix target alone — decided on 2026-11-08: a session of the daemon's own (`setsid`), and the session a test reads back (`getsid`); a process held to its PID record and signalled through it — a pidfd on Linux (`pidfd_open`, `pidfd_send_signal`), signal 0 and `kill` on macOS — and the user the process runs as (`getuid`); and the group a test reads back (`getpgid`), all through safe wrappers, so no FFI is written on Unix. `default-features = false`, with `std` and `process` and nothing else. Already in the graph at this version under `wasmtime`, so it adds no package (`cargo tree -i rustix`) |
 | `ed25519-dalek` | A device's key (`NOCTUA.md §16.2`): the Ed25519 public key a profile's flake and its journal's keeper derive from, and the key iroh takes as the device's identity in Stage 25 (`§13.2`), at the major iroh pins — a cryptographic primitive, which `§2.3` names as not viable in-house. `default-features = false` and `zeroize` alone: no `rand_core`, because the seed is drawn by `nc_platform::random`; no `fast`, because the one public key a start derives needs no precomputed tables. Its family arrives with it and adds nothing to write: `curve25519-dalek` (and `curve25519-dalek-derive`, its SIMD backend's macro), `ed25519` (the signature's type), `signature`, `fiat-crypto` (a backend compiled for some targets only), and `rustc_version`, which `curve25519-dalek`'s build script reads; `sha2` 0.11 and `subtle` are in the graph already. `cargo tree -i ed25519-dalek` says who takes it |
-| `windows-sys` | The Win32 security calls of `crates/nc-platform`'s Windows half, and only there, compiled for a Windows target alone — decided on 2026-11-02: who the process token names (`OpenProcessToken`, `GetTokenInformation`), an access list built (`InitializeAcl`, `AddAccessAllowedAceEx`) and read (`GetSecurityInfo`, `GetAce`), a file and a directory created with a descriptor of their own (`CreateFileW`, `CreateDirectoryW`), the system's random bytes, which a device's seed and the daemon's token are drawn from (`BCryptGenRandom`), and the other end of a named pipe — its process from either end (`GetNamedPipeClientProcessId`, `GetNamedPipeServerProcessId`, feature `Win32_System_Pipes`), the user that process's token names (`OpenProcess`, `OpenProcessToken`), and the pipe's owner (`GetSecurityInfo` over a kernel object); when this process started, which its PID record holds (`GetProcessTimes`); a process held to its PID record through one handle — opened to query, terminate and wait for it (`OpenProcess`), its creation time, its image's path (`QueryFullProcessImageNameW`) and its token's user read through it, and it ended and waited for through it (`TerminateProcess`, `WaitForSingleObject`), and one this user may not hold read through a handle opened to query it alone, which is never held; and its own standard handles kept from every child but as the handles a spawn hands one (`SetHandleInformation`); and, behind the test doors alone, a descriptor written onto one path through its handle (`SetKernelObjectSecurity`), from its text when it holds a conditional entry (`ConvertStringSecurityDescriptorToSecurityDescriptorW`). Not written here because the declarations — every structure's layout and every function's signature — would be ours to get right, with no compiler to check them against the system's. Version 0.61, which `tokio`'s `mio` already brings, so it adds no package; its features are the modules those calls are in, pinned in that crate's manifest. It is the one dependency whose calls are `unsafe`, and invariant 17 says how that is held |
+| `windows-sys` | The Win32 security calls of `crates/nc-platform`'s Windows half, and only there, compiled for a Windows target alone — decided on 2026-11-02: who the process token names (`OpenProcessToken`, `GetTokenInformation`), an access list built (`InitializeAcl`, `AddAccessAllowedAceEx`) and read (`GetSecurityInfo`, `GetAce`), a file and a directory created with a descriptor of their own (`CreateFileW`, `CreateDirectoryW`), the system's random bytes, which a device's seed and the daemon's token are drawn from (`BCryptGenRandom`), and the other end of a named pipe — its process from either end (`GetNamedPipeClientProcessId`, `GetNamedPipeServerProcessId`, feature `Win32_System_Pipes`), the user that process's token names (`OpenProcess`, `OpenProcessToken`), and the pipe's owner (`GetSecurityInfo` over a kernel object); when this process started, which its PID record holds (`GetProcessTimes`); a process held to its PID record through one handle — opened to query, terminate and wait for it (`OpenProcess`), its creation time, its image's path (`QueryFullProcessImageNameW`) and its token's user read through it, and it ended and waited for through it (`TerminateProcess`, `WaitForSingleObject`), and one this user may not hold read through a handle opened to query it alone, which is never held; and its own standard handles kept from every child but as the handles a spawn hands one (`SetHandleInformation`); and, behind the test doors alone, a descriptor written onto one path or one process through its handle (`SetKernelObjectSecurity`), from its text when it holds a conditional entry (`ConvertStringSecurityDescriptorToSecurityDescriptorW`), and a thread made to act as this user holding no privilege (`CreateRestrictedToken`, `ImpersonateLoggedOnUser`, `RevertToSelf`). Not written here because the declarations — every structure's layout and every function's signature — would be ours to get right, with no compiler to check them against the system's. Version 0.61, which `tokio`'s `mio` already brings, so it adds no package; its features are the modules those calls are in, pinned in that crate's manifest. It is the one dependency whose calls are `unsafe`, and invariant 17 says how that is held |
 | `noctua-design` | The only cross-repository dependency this repository has: a `[workspace.dependencies]` path entry with the git-tag form in a comment above it (`NOCTUA.md §10.11`), reached by path while the two repositories are edited together. `noctua-colors` is reached **through** it and never directly (`§8.6`), which a gate holds |
 
 **Three things are written here rather than taken**, all three a maintainer's call: the
