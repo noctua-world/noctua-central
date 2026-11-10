@@ -80,8 +80,9 @@ use windows_sys::Win32::System::SystemServices::{
 };
 use windows_sys::Win32::System::Threading::{
     CREATE_NEW_PROCESS_GROUP, CREATE_NO_WINDOW, DETACHED_PROCESS, GetCurrentProcess,
-    GetProcessTimes, OpenProcessToken, PROCESS_NAME_WIN32, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE,
-    QueryFullProcessImageNameW, TerminateProcess, WaitForSingleObject,
+    GetProcessTimes, OpenProcessToken, PROCESS_ACCESS_RIGHTS, PROCESS_NAME_WIN32,
+    PROCESS_SYNCHRONIZE, PROCESS_TERMINATE, QueryFullProcessImageNameW, TerminateProcess,
+    WaitForSingleObject,
 };
 
 use crate::{Failed, Judged, Kind, Refusal};
@@ -129,6 +130,11 @@ pub(crate) const POSIX_SESSIONS: bool = false;
 /// is anything, the system's shortcut to its app store.
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) const PYTHON: &str = "python";
+
+/// The process Windows names `System`, which its own account runs from the
+/// boot on and which is always process 4.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) const A_PROCESS_OF_ANOTHER_ACCOUNT: u32 = 4;
 
 /// What a link is called when one is refused: any reparse point, of which a
 /// symbolic link and a junction are two.
@@ -1070,20 +1076,61 @@ pub(crate) struct Process(OwnedHandle);
 /// is read of it, and what the system says of it through that handle; nothing
 /// when no process holds its id.
 ///
-/// A process another user runs, or one this process may not open, is the
-/// system's refusal, `PermissionDenied`.
+/// **A process this user may not hold is still read.** One another account
+/// runs, or one above this process's integrity, refuses a handle that may end
+/// it; it is opened again with a handle that may only query it, and its start,
+/// its image and its user are read through that one, which is never held. So a
+/// record of another start is told from it as from any process
+/// (`crate::process::held_to`), and only one this user may not even query is
+/// the system's refusal, `PermissionDenied`.
 pub(crate) fn open(
     record: &crate::process::Identity,
-) -> io::Result<Option<(Process, crate::process::Seen)>> {
+) -> io::Result<Option<(Option<Process>, crate::process::Seen)>> {
+    match process_opened(
+        record.pid,
+        PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE | PROCESS_SYNCHRONIZE,
+    ) {
+        Ok(None) => Ok(None),
+        Ok(Some(handle)) => {
+            let process = Process(handle);
+            let raw = process.0.as_raw_handle();
+            let seen = crate::process::Seen {
+                boot: None,
+                started: created(raw)?,
+                executable: canonical_image_of(raw),
+                ours: ours(raw)?,
+                ended: waited(&process, 0)?,
+            };
+            Ok(Some((Some(process), seen)))
+        }
+        Err(error) if error.raw_os_error() == i32::try_from(ERROR_ACCESS_DENIED).ok() => {
+            let Some(handle) = process_opened(record.pid, PROCESS_QUERY_LIMITED_INFORMATION)?
+            else {
+                return Ok(None);
+            };
+            let raw = handle.as_raw_handle();
+            let seen = crate::process::Seen {
+                boot: None,
+                started: created(raw)?,
+                executable: canonical_image_of(raw),
+                ours: ours(raw)?,
+                // A handle that may only query cannot wait, so an end is not
+                // read here; a process read and not held is never signalled,
+                // so an end unseen changes only which refusal is said.
+                ended: false,
+            };
+            Ok(Some((None, seen)))
+        }
+        Err(error) => Err(error),
+    }
+}
+
+/// A handle of process `pid` with `rights`; nothing when no process holds its
+/// id.
+fn process_opened(pid: u32, rights: PROCESS_ACCESS_RIGHTS) -> io::Result<Option<OwnedHandle>> {
     // SAFETY: no pointer is handed over; the call answers a handle this
     // function then owns, or null.
-    let handle = unsafe {
-        OpenProcess(
-            PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE | PROCESS_SYNCHRONIZE,
-            FALSE,
-            record.pid,
-        )
-    };
+    let handle = unsafe { OpenProcess(rights, FALSE, pid) };
     if handle.is_null() {
         let error = io::Error::last_os_error();
         // No process holds the id.
@@ -1094,18 +1141,27 @@ pub(crate) fn open(
     }
     // SAFETY: the handle `OpenProcess` just answered, which nothing else
     // holds; the `OwnedHandle` closes it once, on every path.
-    let process = Process(unsafe { OwnedHandle::from_raw_handle(handle) });
-    let raw = process.0.as_raw_handle();
-    let seen = crate::process::Seen {
-        boot: None,
-        started: created(raw)?,
-        executable: image_of(raw)
-            .ok()
-            .and_then(|image| std::fs::canonicalize(image).ok()),
-        ours: user_of(raw)? == this_user()?.sid,
-        ended: waited(&process, 0)?,
-    };
-    Ok(Some((process, seen)))
+    Ok(Some(unsafe { OwnedHandle::from_raw_handle(handle) }))
+}
+
+/// The executable the process `process` is a handle of runs, canonicalized;
+/// nothing where it could not be read.
+fn canonical_image_of(process: HANDLE) -> Option<std::path::PathBuf> {
+    image_of(process)
+        .ok()
+        .and_then(|image| std::fs::canonicalize(image).ok())
+}
+
+/// Whether the process `process` is a handle of runs as this process's user.
+///
+/// A token this user may not query is another account's, or one above this
+/// process's integrity, and is never taken for this user's.
+fn ours(process: HANDLE) -> io::Result<bool> {
+    match user_of(process) {
+        Ok(user) => Ok(user == this_user()?.sid),
+        Err(error) if error.raw_os_error() == i32::try_from(ERROR_ACCESS_DENIED).ok() => Ok(false),
+        Err(error) => Err(error),
+    }
 }
 
 /// The path of the executable the process `process` is a handle of runs.

@@ -59,6 +59,11 @@ pub(crate) const POSIX_SESSIONS: bool = true;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) const PYTHON: &str = "python3";
 
+/// The process a Unix system starts first, as root, and which runs until it
+/// stops: `init` on Linux, `launchd` on macOS.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) const A_PROCESS_OF_ANOTHER_ACCOUNT: u32 = 1;
+
 /// A user, by the number the system knows it by.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct User(u32);
@@ -397,7 +402,7 @@ pub(crate) struct Process {
 #[cfg(target_os = "linux")]
 pub(crate) fn open(
     record: &crate::process::Identity,
-) -> io::Result<Option<(Process, crate::process::Seen)>> {
+) -> io::Result<Option<(Option<Process>, crate::process::Seen)>> {
     let Some(pid) = pid_of(record.pid) else {
         return Ok(None);
     };
@@ -438,7 +443,7 @@ pub(crate) fn open(
     if !process.holds_its_id()? {
         return Ok(None);
     }
-    Ok(Some((process, seen)))
+    Ok(Some((Some(process), seen)))
 }
 
 /// Whether a `stat` line says its process has ended: a zombie, or one dead.
@@ -524,7 +529,7 @@ pub(crate) struct Process {
 #[cfg(not(target_os = "linux"))]
 pub(crate) fn open(
     record: &crate::process::Identity,
-) -> io::Result<Option<(Process, crate::process::Seen)>> {
+) -> io::Result<Option<(Option<Process>, crate::process::Seen)>> {
     let Some(pid) = pid_of(record.pid) else {
         return Ok(None);
     };
@@ -554,9 +559,9 @@ pub(crate) fn open(
         ended: state.trim_start().starts_with('Z'),
     };
     Ok(Some((
-        Process {
+        Some(Process {
             record: record.clone(),
-        },
+        }),
         seen,
     )))
 }

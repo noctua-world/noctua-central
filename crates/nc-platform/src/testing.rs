@@ -26,6 +26,13 @@ pub const HOLDS_THROUGH_A_FILE: bool = imp::HOLDS_THROUGH_A_FILE;
 /// script in it: `python3` on Unix and `python` on Windows.
 pub const PYTHON: &str = imp::PYTHON;
 
+/// A process this system runs under an account of its own from its boot on,
+/// which a test reads as another account's.
+///
+/// It is process 1 on Unix, `init` or `launchd`, and on Windows process 4,
+/// the one named `System`.
+pub const A_PROCESS_OF_ANOTHER_ACCOUNT: u32 = imp::A_PROCESS_OF_ANOTHER_ACCOUNT;
+
 /// What a path lets in, read so that two readings compare: on Unix its mode
 /// bits; on Windows its owner, every entry of its access list and its
 /// read-only mark.

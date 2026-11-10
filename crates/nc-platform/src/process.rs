@@ -25,7 +25,7 @@
 //! |---|---|---|
 //! | Linux | a pidfd, opened first | `/proc/<pid>/stat` field 22 and its state, the boot's id, `/proc/<pid>/exe` and the owner of `/proc/<pid>`, then the pidfd asked again which process it holds |
 //! | macOS | the process id | `/bin/ps -o uid=,lstart=,comm=` in the C locale and UTC, its state, and the boot's session, read again before each signal |
-//! | Windows | one process handle | its creation time, its image's path and its token's user |
+//! | Windows | one process handle | its creation time, its image's path and its token's user; a process this user may not hold is read through a handle that may only query it, and is never held |
 //!
 //! **A signal goes through what was verified**: a Linux pidfd names one
 //! process for as long as it is open, so a process id handed out again after
@@ -120,7 +120,7 @@ pub enum Unverified {
     /// A process holds the record's id and its start, and is not what it names.
     ///
     /// It runs another executable, or as another user, or is a process this
-    /// user may not ask about; the text says which.
+    /// user may not ask about or may not signal; the text says which.
     Other(String),
     /// The system could not be asked.
     Failed(std::io::Error),
@@ -162,13 +162,10 @@ impl Verified {
             ));
         }
         match imp::open(record) {
-            Ok(Some((held, seen))) => {
-                judged(record, &seen)?;
-                Ok(Self {
-                    pid: record.pid,
-                    held,
-                })
-            }
+            Ok(Some((held, seen))) => Ok(Self {
+                pid: record.pid,
+                held: held_to(record, &seen, held)?,
+            }),
             Ok(None) => Err(Unverified::Gone(format!("no process {} runs", record.pid))),
             Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => {
                 Err(Unverified::Other(format!(
@@ -273,6 +270,24 @@ pub(crate) fn judged(record: &Identity, seen: &Seen) -> Result<(), Unverified> {
         ))),
         Some(_) => Ok(()),
     }
+}
+
+/// The process `record` names, `held` for a signal, once what the system says
+/// of it is what the record names.
+///
+/// **Gone before other, here too**: a process this user may read and may not
+/// hold for a signal — another account's, or on Windows one above this
+/// process's integrity — is judged first, so a record of another start names
+/// one that runs no more whoever holds its id now, and only a process with the
+/// record's own start that cannot be held is another.
+pub(crate) fn held_to<P>(record: &Identity, seen: &Seen, held: Option<P>) -> Result<P, Unverified> {
+    judged(record, seen)?;
+    held.ok_or_else(|| {
+        Unverified::Other(format!(
+            "process {} is one this user may read and may not signal",
+            record.pid
+        ))
+    })
 }
 
 /// A process started detached from this one, which is waited for once it is
@@ -455,8 +470,8 @@ mod tests {
     use core::time::Duration;
 
     use super::{
-        Identity, Seen, Unverified, Verified, judged, pid_in_fdinfo, seen_in_ps, started_in_ps,
-        started_in_stat, state_in_stat,
+        Identity, Seen, Unverified, Verified, held_to, judged, pid_in_fdinfo, seen_in_ps,
+        started_in_ps, started_in_stat, state_in_stat,
     };
 
     /// How long a child of these tests is waited for at most.
@@ -497,6 +512,19 @@ mod tests {
         fn drop(&mut self) {
             let _ = self.0.kill();
             let _ = self.0.wait();
+        }
+    }
+
+    /// A child started detached, killed and waited for however the test
+    /// leaves: what [`super::Detached`] lets go of only once it has ended.
+    struct Ended(super::Detached);
+
+    impl Drop for Ended {
+        fn drop(&mut self) {
+            if let Some(child) = self.0.child.as_mut() {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
         }
     }
 
@@ -736,6 +764,24 @@ mod tests {
             ..seen.clone()
         });
         assert!(unread.contains("could not be read"), "{unread}");
+        // A process read and not held is judged first, so one of another
+        // start is gone; only one with the record's own start is another, and
+        // only one held is handed back.
+        let unheld = Seen {
+            started: "1".to_owned(),
+            ours: false,
+            executable: None,
+            ..seen.clone()
+        };
+        assert!(
+            matches!(held_to(&record, &unheld, None::<()>), Err(Unverified::Gone(why)) if why.contains("handed out again")),
+            "a record of another start was taken for a process that may not be signalled"
+        );
+        assert!(matches!(
+            held_to(&record, &seen, None::<()>),
+            Err(Unverified::Other(why)) if why.contains("may not signal")
+        ));
+        assert!(matches!(held_to(&record, &seen, Some(())), Ok(())));
         let another = other(Seen {
             executable: Some(PathBuf::from("/bin/sleep")),
             ..seen
@@ -743,6 +789,36 @@ mod tests {
         assert!(
             another.contains("`/bin/sleep`") && another.contains("noctua-daemon"),
             "{another}"
+        );
+    }
+
+    /// A record of another start is gone whoever holds its id now.
+    ///
+    /// It holds for another account's process too, which this user may read
+    /// and may not signal: the process each system starts first under an
+    /// account of its own (`crate::testing::A_PROCESS_OF_ANOTHER_ACCOUNT`),
+    /// recorded with this test's start, is one that runs no more, and recorded
+    /// with its own start it is another, never held.
+    #[test]
+    fn a_record_of_another_start_is_gone_whoever_holds_its_id_now() {
+        let record = Identity {
+            pid: crate::testing::A_PROCESS_OF_ANOTHER_ACCOUNT,
+            ..super::this_process().expect("this process is read")
+        };
+        match Verified::open(&record) {
+            Err(Unverified::Gone(why)) => assert!(why.contains("handed out again"), "{why}"),
+            answered => panic!("{record:?} was answered {answered:?}"),
+        }
+        let Ok(Some((_, seen))) = crate::imp::open(&record) else {
+            panic!("process {} was not read", record.pid);
+        };
+        let its_own = Identity {
+            started: seen.started,
+            ..record
+        };
+        assert!(
+            matches!(Verified::open(&its_own), Err(Unverified::Other(_))),
+            "another account's process was held to a record"
         );
     }
 
@@ -862,7 +938,9 @@ mod tests {
         let scratch = Scratch::new("detached");
         let error_file = scratch.0.join("detached.err");
         let error = crate::create_private(&error_file).expect("the child's standard error");
-        let mut detached = super::spawn_detached(
+        // Held after the scratch, so the child is ended before its standard
+        // error's directory is removed, however the test leaves.
+        let mut detached = Ended(super::spawn_detached(
             &std::env::current_exe().expect("this test binary"),
             &[
                 "--exact",
@@ -874,7 +952,7 @@ mod tests {
             ],
             error,
         )
-        .expect("the child starts");
+        .expect("the child starts"));
         let deadline = std::time::Instant::now() + PATIENCE;
         let report = loop {
             let written = std::fs::read_to_string(&error_file).unwrap_or_default();
@@ -882,7 +960,7 @@ mod tests {
                 break line.to_owned();
             }
             assert!(
-                detached.ended().expect("asked").is_none(),
+                detached.0.ended().expect("asked").is_none(),
                 "the detached child ended before it said anything: {written}"
             );
             assert!(
@@ -892,7 +970,7 @@ mod tests {
             std::thread::sleep(Duration::from_millis(20));
         };
         let identity = said("detached", &report).expect("the child said which process it is");
-        assert_eq!(identity.pid, detached.pid(), "{report}");
+        assert_eq!(identity.pid, detached.0.pid(), "{report}");
         if crate::system::POSIX_SESSIONS {
             assert_eq!(
                 report.rsplit('\t').next(),
