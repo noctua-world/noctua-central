@@ -47,6 +47,7 @@ jobs:
               [StructLayout(LayoutKind.Sequential)] public struct SID_AND_ATTRIBUTES { public IntPtr Sid; public uint Attributes; }
               [StructLayout(LayoutKind.Sequential)] public struct TOKEN_MANDATORY_LABEL { public SID_AND_ATTRIBUTES Label; }
 
+              static string Labelled = "";
               const uint LIMITED = 0x1000, FULL = 0x1000 | 0x0001 | 0x00100000;
 
               static string Tried(uint pid, uint access) {
@@ -89,7 +90,7 @@ jobs:
                   IntPtr medium;
                   ConvertStringSidToSidW("S-1-16-8192", out medium);
                   TOKEN_MANDATORY_LABEL label = new TOKEN_MANDATORY_LABEL { Label = new SID_AND_ATTRIBUTES { Sid = medium, Attributes = 0x20 } };
-                  if (!SetTokenInformation(restricted, 25, ref label, (uint)Marshal.SizeOf(label) + GetLengthSid(medium))) throw new Exception("label " + Marshal.GetLastWin32Error());
+                  Labelled = SetTokenInformation(restricted, 25, ref label, (uint)Marshal.SizeOf(label) + GetLengthSid(medium)) ? "medium" : "unchanged " + Marshal.GetLastWin32Error();
                   return restricted;
               }
 
@@ -99,7 +100,7 @@ jobs:
                   if (!ImpersonateLoggedOnUser(filtered)) throw new Exception("impersonate " + Marshal.GetLastWin32Error());
                   try {
                       WindowsPrincipal principal = new WindowsPrincipal(WindowsIdentity.GetCurrent());
-                      o.AppendLine("filtered: administrator " + principal.IsInRole(WindowsBuiltInRole.Administrator));
+                      o.AppendLine("filtered: administrator " + principal.IsInRole(WindowsBuiltInRole.Administrator) + ", label " + Labelled);
                   } finally { RevertToSelf(); }
                   string me = WindowsIdentity.GetCurrent().User.Value;
                   Process child = Process.Start(new ProcessStartInfo("ping.exe", "-n 120 127.0.0.1") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true });
