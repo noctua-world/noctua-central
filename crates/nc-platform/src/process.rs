@@ -25,7 +25,7 @@
 //! |---|---|---|
 //! | Linux | a pidfd, opened first | `/proc/<pid>/stat` field 22 and its state, the boot's id, `/proc/<pid>/exe` and the owner of `/proc/<pid>`, then the pidfd asked again which process it holds |
 //! | macOS | the process id | `/bin/ps -o uid=,lstart=,comm=` in the C locale and UTC, its state, and the boot's session, read again before each signal |
-//! | Windows | one process handle | its creation time, its image's path and its token's user; a process this user may not hold is read through a handle that may only query it, and is never held |
+//! | Windows | one process handle | its creation time, its image's path and its token's user; a process this user may not hold is read through a handle that may only query it, and is never held; one it may not even query is refused |
 //!
 //! **A signal goes through what was verified**: a Linux pidfd names one
 //! process for as long as it is open, so a process id handed out again after
@@ -794,32 +794,41 @@ mod tests {
 
     /// A record of another start is gone whoever holds its id now.
     ///
-    /// It holds for another account's process too, which this user may read
-    /// and may not signal: the process each system starts first under an
-    /// account of its own (`crate::testing::A_PROCESS_OF_ANOTHER_ACCOUNT`),
-    /// recorded with this test's start, is one that runs no more, and recorded
-    /// with its own start it is another, never held.
+    /// It holds for a process this user may read and may not signal
+    /// (`crate::testing::a_process_read_and_not_held`): recorded with this
+    /// test's start it is one that runs no more, and recorded as it is it is
+    /// another, never held. It is read on a thread holding no privilege, so
+    /// what decides is the process's own access list, whoever runs the test.
     #[test]
     fn a_record_of_another_start_is_gone_whoever_holds_its_id_now() {
+        let target = crate::testing::a_process_read_and_not_held().expect("a process to read");
         let record = Identity {
-            pid: crate::testing::A_PROCESS_OF_ANOTHER_ACCOUNT,
+            pid: target.pid(),
             ..super::this_process().expect("this process is read")
         };
-        match Verified::open(&record) {
-            Err(Unverified::Gone(why)) => assert!(why.contains("handed out again"), "{why}"),
-            answered => panic!("{record:?} was answered {answered:?}"),
-        }
-        let Ok(Some((_, seen))) = crate::imp::open(&record) else {
-            panic!("process {} was not read", record.pid);
-        };
-        let its_own = Identity {
-            started: seen.started,
-            ..record
-        };
-        assert!(
-            matches!(Verified::open(&its_own), Err(Unverified::Other(_))),
-            "another account's process was held to a record"
-        );
+        crate::testing::without_privileges(|| {
+            match Verified::open(&record) {
+                Err(Unverified::Gone(why)) => assert!(why.contains("handed out again"), "{why}"),
+                answered => panic!("{record:?} was answered {answered:?}"),
+            }
+            let Ok(Some((_, seen))) = crate::imp::open(&record) else {
+                panic!("process {} was not read", record.pid);
+            };
+            let as_it_is = Identity {
+                pid: record.pid,
+                boot: seen.boot,
+                started: seen.started,
+                executable: seen.executable.unwrap_or_default(),
+            };
+            match Verified::open(&as_it_is) {
+                Err(Unverified::Other(why)) => assert!(
+                    why.contains("another user") || why.contains("may not signal"),
+                    "{why}"
+                ),
+                answered => panic!("{as_it_is:?} was held to its record: {answered:?}"),
+            }
+        })
+        .expect("this thread holds no privilege");
     }
 
     /// A child is held to its record and ended through it.

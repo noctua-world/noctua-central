@@ -59,10 +59,29 @@ pub(crate) const POSIX_SESSIONS: bool = true;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) const PYTHON: &str = "python3";
 
-/// The process a Unix system starts first, as root, and which runs until it
-/// stops: `init` on Linux, `launchd` on macOS.
+/// Process 1, which this user may read and, as another account's, may not signal.
+///
+/// `init` on Linux and `launchd` on macOS, which the system starts first, as
+/// root, and which runs until it stops; nothing is started for it.
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) const A_PROCESS_OF_ANOTHER_ACCOUNT: u32 = 1;
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "one signature for both halves, and the Windows one starts a child"
+)]
+pub(crate) fn a_process_read_and_not_held() -> io::Result<(u32, Option<std::process::Child>)> {
+    Ok((1, None))
+}
+
+/// `run`, as it is: what this user may signal here is its user's to decide,
+/// and a test does not change it.
+#[cfg(any(test, feature = "test-support"))]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "one signature for both halves, and the Windows one can fail"
+)]
+pub(crate) fn without_privileges<T>(run: impl FnOnce() -> T) -> io::Result<T> {
+    Ok(run())
+}
 
 /// A user, by the number the system knows it by.
 #[derive(Debug, Clone, PartialEq, Eq)]

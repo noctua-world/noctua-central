@@ -131,11 +131,6 @@ pub(crate) const POSIX_SESSIONS: bool = false;
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) const PYTHON: &str = "python";
 
-/// The process Windows names `System`, which its own account runs from the
-/// boot on and which is always process 4.
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) const A_PROCESS_OF_ANOTHER_ACCOUNT: u32 = 4;
-
 /// What a link is called when one is refused: any reparse point, of which a
 /// symbolic link and a junction are two.
 const A_LINK: &str = "is a symbolic link, a junction or another reparse point";
@@ -1076,13 +1071,16 @@ pub(crate) struct Process(OwnedHandle);
 /// is read of it, and what the system says of it through that handle; nothing
 /// when no process holds its id.
 ///
-/// **A process this user may not hold is still read.** One another account
-/// runs, or one above this process's integrity, refuses a handle that may end
-/// it; it is opened again with a handle that may only query it, and its start,
-/// its image and its user are read through that one, which is never held. So a
-/// record of another start is told from it as from any process
-/// (`crate::process::held_to`), and only one this user may not even query is
-/// the system's refusal, `PermissionDenied`.
+/// **A process this user may not hold is still read, where it may query it.**
+/// One another account runs, or one above this process's integrity, refuses a
+/// handle that may end it to a process holding no debug privilege; it is
+/// opened again with a handle that may only query it, and its start, its image
+/// and its user are read through that one, which is never held. So a record of
+/// another start is told from it as from any process
+/// (`crate::process::held_to`). One this user may not even query is the
+/// system's refusal, `PermissionDenied`: for an account that is not an elevated
+/// administrator that is every process of another account, as the hosted
+/// runner measured under a filtered token.
 pub(crate) fn open(
     record: &crate::process::Identity,
 ) -> io::Result<Option<(Option<Process>, crate::process::Seen)>> {
@@ -1239,6 +1237,112 @@ pub(crate) fn signal(process: &Process, _ending: crate::process::Ending) -> io::
 /// Whether `process` has ended.
 pub(crate) fn ended(process: &Process) -> io::Result<bool> {
     waited(process, 0)
+}
+
+/// A child this process starts, whose access list lets this user query it alone.
+///
+/// It is the system's command interpreter, waiting on its input: a thread
+/// holding no privilege ([`without_privileges`]) is refused a handle that may
+/// end it and handed one that may only query it, whoever this user is. Its
+/// id is answered, and the child, which only the handle that started it ends.
+#[cfg(any(test, feature = "test-support"))]
+#[expect(
+    clippy::disallowed_methods,
+    reason = "a child a test reads and never signals but through the handle that started it; \
+              its input a pipe, its output null"
+)]
+pub(crate) fn a_process_read_and_not_held() -> io::Result<(u32, Option<std::process::Child>)> {
+    let root = std::env::var_os("SystemRoot")
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "`SystemRoot` is not set"))?;
+    let mut child = std::process::Command::new(Path::new(&root).join("System32").join("cmd.exe"))
+        .args(["/d", "/q"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()?;
+    let listed = this_user()
+        .and_then(|user| acl_of(&[Ace::allow(user.sid, PROCESS_QUERY_LIMITED_INFORMATION, 0)]))
+        .and_then(|list| write_list(&child, Some(&list)));
+    if let Err(error) = listed {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(error);
+    }
+    Ok((child.id(), Some(child)))
+}
+
+/// `run`, on this thread, as this process's user holding no privilege: a
+/// restricted copy of this process's token with every privilege taken out,
+/// which the thread acts as until `run` ends, however it ends.
+///
+/// **The debug privilege opens any process whatever its access list says**,
+/// and an elevated account may hold it enabled, as the hosted runner's does;
+/// so what a list lets this user open is read within this.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn without_privileges<T>(run: impl FnOnce() -> T) -> io::Result<T> {
+    use windows_sys::Win32::Security::{
+        CreateRestrictedToken, DISABLE_MAX_PRIVILEGE, ImpersonateLoggedOnUser, RevertToSelf,
+        TOKEN_ASSIGN_PRIMARY, TOKEN_DUPLICATE,
+    };
+
+    /// This thread, itself again once this is dropped.
+    struct Itself;
+
+    impl Drop for Itself {
+        fn drop(&mut self) {
+            // SAFETY: no pointer is handed over; the call ends the acting as
+            // another token this thread began, and allocates nothing.
+            let _itself_again = unsafe { RevertToSelf() };
+        }
+    }
+
+    let mut own: HANDLE = null_mut();
+    // SAFETY: `GetCurrentProcess` answers a pseudo-handle that needs no
+    // closing; `own` is a local the call writes a handle into.
+    let opened = unsafe {
+        OpenProcessToken(
+            GetCurrentProcess(),
+            TOKEN_ASSIGN_PRIMARY | TOKEN_DUPLICATE | TOKEN_QUERY,
+            &raw mut own,
+        )
+    };
+    if opened == FALSE {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: the call succeeded, so `own` is a handle this function owns and
+    // nothing else holds; the `OwnedHandle` closes it once, on every path.
+    let own = unsafe { OwnedHandle::from_raw_handle(own) };
+    let mut restricted: HANDLE = null_mut();
+    // SAFETY: `own` is open across the call with the right to duplicate it; no
+    // SID or privilege is handed over, each count zero and each pointer null;
+    // `restricted` is a local the call writes a handle into.
+    let made = unsafe {
+        CreateRestrictedToken(
+            own.as_raw_handle(),
+            DISABLE_MAX_PRIVILEGE,
+            0,
+            core::ptr::null(),
+            0,
+            core::ptr::null(),
+            0,
+            core::ptr::null(),
+            &raw mut restricted,
+        )
+    };
+    if made == FALSE {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: as for `own`.
+    let restricted = unsafe { OwnedHandle::from_raw_handle(restricted) };
+    // SAFETY: `restricted` is open across the call with every right on it; the
+    // call has this thread act as a copy of it, and keeps no pointer.
+    if unsafe { ImpersonateLoggedOnUser(restricted.as_raw_handle()) } == FALSE {
+        return Err(io::Error::last_os_error());
+    }
+    let itself = Itself;
+    let answered = run();
+    drop(itself);
+    Ok(answered)
 }
 
 /// Nothing: Windows has no handle to sync a directory through, and NTFS
@@ -1762,15 +1866,18 @@ fn write_owner(file: &File, owner: &Sid) -> io::Result<()> {
     Ok(())
 }
 
-/// Gives what `file` is open on the access list `list`, protected from its
-/// parent's — none at all for no list.
+/// Gives the access list `list` to what `object` is a handle of, a file or a
+/// process, protected from its parent's; none at all for no list.
 ///
 /// **Through the handle, and nothing else**, as [`write_owner`] is. The calls
 /// that write a list by a path's name carry its inheritable entries down to
 /// every file and directory under it, and a list denying the user the right
 /// to list a directory would refuse that very walk.
 #[cfg(any(test, feature = "test-support"))]
-fn write_list(file: &File, list: Option<&[u32]>) -> io::Result<()> {
+fn write_list(
+    object: &impl std::os::windows::io::AsRawHandle,
+    list: Option<&[u32]>,
+) -> io::Result<()> {
     use windows_sys::Win32::Security::SetKernelObjectSecurity;
 
     let mut descriptor = SECURITY_DESCRIPTOR::default();
@@ -1788,10 +1895,10 @@ fn write_list(file: &File, list: Option<&[u32]>) -> io::Result<()> {
     if unsafe { SetSecurityDescriptorControl(at, SE_DACL_PROTECTED, SE_DACL_PROTECTED) } == FALSE {
         return Err(io::Error::last_os_error());
     }
-    // SAFETY: the handle is `file`'s, open across the call with the right to
+    // SAFETY: the handle is `object`'s, open across the call with the right to
     // write the list; `at` and the list it points at are alive across it, and
     // the call only reads them.
-    if unsafe { SetKernelObjectSecurity(file.as_raw_handle(), DACL_SECURITY_INFORMATION, at) }
+    if unsafe { SetKernelObjectSecurity(object.as_raw_handle(), DACL_SECURITY_INFORMATION, at) }
         == FALSE
     {
         return Err(io::Error::last_os_error());
