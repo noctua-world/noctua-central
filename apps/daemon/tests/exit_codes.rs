@@ -541,6 +541,24 @@ fn process_control_that_does_not_finish_is_exit_11() {
     assert!(installed.layout.stopped.is_file(), "the stop wrote no mark");
 }
 
+/// The install a test's `start` was asked of, its daemon stopped when this
+/// drops.
+///
+/// The CLI's `stop` ends that daemon through its endpoint, or through its
+/// record verified, so a daemon a start spawned detached outlives no test,
+/// however the test ends.
+struct Started<'a>(&'a nc_channel::found::Found);
+
+impl Drop for Started<'_> {
+    fn drop(&mut self) {
+        let _ = nc_cli::run(
+            &[OsString::from("stop")],
+            self.0,
+            &nc_cli::Env::of(|_| None),
+        );
+    }
+}
+
 /// A start whose daemon ends before it answers ends the run in 11 at once,
 /// with what that daemon wrote to its standard error.
 ///
@@ -561,6 +579,9 @@ fn a_start_whose_daemon_ends_before_it_answers_is_exit_11_with_what_it_wrote() {
     }
     installed.with_a_central_log_refused();
     let found = nc_channel::found::beside(&installed.executable).expect("the install reads");
+    // Declared after the install, so it drops first: a daemon that did not
+    // end as this test expects is stopped before its scratch is removed.
+    let _started = Started(&found);
     let began = std::time::Instant::now();
     let outcome = nc_cli::run(
         &[OsString::from("start")],
