@@ -42,6 +42,7 @@ detects it and says so.
 
 ```sh
 cargo xtask dev      # PostgreSQL and the central log store, on loopback
+cargo xtask dev --install   # this checkout as its development channel
 cargo xtask build    # compile the catalog into the crate that carries it
 cargo xtask build --plugins   # every plugin, built for wasm32 as a component
 cargo xtask check    # the whole gate. CI runs this, `cargo xtask dev` for the
@@ -66,6 +67,18 @@ run alone — is told them by exporting what `dev` prints. `POSTGRES_PORT` and `
 move a port, and a port `dev` cannot bind that its own stack does not hold — something else
 listening there, or one below 1024, which a user without the privilege may not bind — fails
 `dev` with the reason, naming the one to set.
+
+**This checkout as a channel you run.** `cargo xtask dev --install` installs the
+checkout as its development channel, on Linux, macOS and Windows alike, stack or no
+stack: it builds the CLI, the daemon and the plugins, copies them out of `target/` into
+the install under your base directories — the XDG ones on Linux, the home's Library on macOS,
+`%LOCALAPPDATA%` and `%APPDATA%` on Windows — with its manifest, a device, the test world
+(`policy/world.json`, as `ana` in `home`) and the plugins, and stops a daemon an earlier
+install left running first. **It changes neither `PATH` nor anything that starts with
+the computer**: the CLI is `noctua-dev-<checkout>`, at the path the install prints — run
+it by that path or a link you make — and `noctua-dev-<checkout> start` starts the daemon,
+`stop` stops it and keeps it down, `status` says how it is. `cargo xtask dev --uninstall`
+stops the daemon and removes the binaries, and keeps the profile.
 
 ## What the gate checks, and where
 
