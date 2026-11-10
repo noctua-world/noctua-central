@@ -19446,7 +19446,7 @@ mod the_frozen_path_rule {
         ("cli/args.rs", 40, 10),
         ("cli/arguments_from_schemas.rs", 10, 0),
         ("cli/client.rs", 38, 13),
-        ("cli/control.rs", 43, 3),
+        ("cli/control.rs", 44, 3),
         ("cli/exit.rs", 9, 2),
         ("cli/help.rs", 17, 3),
         ("cli/install.rs", 34, 8),
@@ -25493,7 +25493,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 17936;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 17939;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25512,7 +25512,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4580;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4577;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25529,7 +25529,7 @@ mod the_frozen_path_rule {
     /// It rises with every block written in line order, whose ascending sort is
     /// the block itself.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1542;
+    const THE_REARRANGEMENTS_THAT_MOVED_NOTHING: usize = 1541;
 
     /// Which rearrangements the residual is made of, not merely how many.
     ///
@@ -25563,7 +25563,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 24393;
+    const THE_REARRANGEMENTS_JUDGED: usize = 24402;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25617,7 +25617,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **519 of 24,393 are accepted by the first-line
+    /// rules the gates apply: **519 of 24,402 are accepted by the first-line
     /// rule alone, and 282 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -25650,7 +25650,7 @@ mod the_frozen_path_rule {
     /// made the ascending sort look a far larger part of the gap than it is.
     /// Those are
     /// [`THE_REARRANGEMENTS_THAT_MOVED_NOTHING`], and of every rearrangement
-    /// this tree offers, **1542 of
+    /// this tree offers, **1541 of
     /// those were the identity** when it was last counted.
     ///
     /// What that costs is written down rather than closed: a rearrangement of a
@@ -37481,7 +37481,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2074] = [
+    static OPERATORS: [(&str, &str, &str); 2075] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -46719,6 +46719,11 @@ Options:
             "cli_install",
             "install_with",
             "the daemon is copied runnable",
+        ),
+        (
+            "cli_control",
+            "listening_after",
+            "an endpoint no socket can have is held by nothing",
         ),
     ];
 

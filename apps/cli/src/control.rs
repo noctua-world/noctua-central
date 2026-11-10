@@ -60,7 +60,8 @@ use nc_catalog::ErrorCode;
 use nc_channel::Layout;
 use nc_channel::found::Found;
 use nc_channel::record::{self, Record, Unread};
-use nc_ipc::{Answer, Request};
+use nc_ipc::{Answer, IpcError, Request};
+use nc_platform::ipc::Refused;
 use nc_platform::process::{Unverified, Verified};
 use nc_platform::{Judged, Kind, User};
 
@@ -261,10 +262,17 @@ const fn when_unanswered(recorded: &Recorded, listening: bool) -> Unanswered {
 }
 
 /// Whether anything holds the endpoint that a connection which failed with
-/// the refusal `unasked` was made to: anything but nothing answering there.
+/// the refusal `unasked` was made to.
+///
+/// Nothing does where nothing answers, or where the endpoint's name is longer
+/// than this system lets a socket have, so none can be bound there; anything
+/// else on the way to a request is something there, or may be, and is taken
+/// for one.
 fn listening_after(unasked: &client::Unasked) -> bool {
     match unasked {
-        client::Unasked::Connecting(error) => error.code() != ErrorCode::IpcUnreachable,
+        client::Unasked::Connecting(IpcError::Endpoint(refused)) => {
+            !matches!(refused, Refused::Nobody(_) | Refused::TooLong { .. })
+        }
         _ => true,
     }
 }
@@ -663,6 +671,32 @@ mod tests {
                 when_unanswered(&Recorded::Unverified("another".to_owned()), listening),
                 Unanswered::Refuse
             );
+        }
+    }
+
+    /// An endpoint no socket can have is held by nothing, and every other
+    /// refusal on the way to a request is something there.
+    ///
+    /// It is the one that stood for a stopped daemon on macOS, where a
+    /// relocated install's socket path is longer than the system holds: taken
+    /// for something there, it turned a stop of a stopped daemon into a
+    /// refusal.
+    #[test]
+    fn an_endpoint_no_socket_can_have_is_held_by_nothing() {
+        use nc_ipc::IpcError;
+        use nc_platform::ipc::Refused;
+        let endpoint = |refused| super::client::Unasked::Connecting(IpcError::Endpoint(refused));
+        assert!(!super::listening_after(&endpoint(Refused::TooLong {
+            name: "s".to_owned(),
+            length: 200,
+        })));
+        for there in [
+            endpoint(Refused::NoProcess),
+            endpoint(Refused::Busy { connections: 1 }),
+            super::client::Unasked::Handshake(IpcError::Slow),
+            super::client::Unasked::TokenUnreadable("absent".to_owned()),
+        ] {
+            assert!(super::listening_after(&there), "{there:?}");
         }
     }
 

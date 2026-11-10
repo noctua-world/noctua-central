@@ -2361,7 +2361,8 @@ refused, a stop nothing answers ending well over a record of a process gone and 
 one of another executable or one that does not read, a stop that ends a child held to its
 record, a daemon that said it is stopping left running and unsignalled once the wait is
 over, a stop something answers otherwise refused with no record or a record of a process
-gone, a stop and a status the daemon answers, a status with nothing answering, a start
+gone, an endpoint no socket can have taken for nothing there, a stop and a status the
+daemon answers, a status with nothing answering, a start
 with no daemon beside it and one with a daemon running — of `apps/cli/src/install.rs`,
 whose copies of this test binary run, and of `crates/nc-channel/src/record.rs`, by the
 `Verified` and `spawn_detached` tests of `crates/nc-platform/src/process.rs` — a child
