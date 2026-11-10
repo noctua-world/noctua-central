@@ -129,6 +129,18 @@ pub enum ErrorCode {
     DaemonWorldUnreadable,
     /// NC-DMN-0007 — The identifiers' mark is unreadable in both of its slots, so the daemon did not start
     DaemonMarkUnreadable,
+    /// NC-DMN-0008 — Another daemon of this channel holds its profile, so this one did not start
+    DaemonInstanceHeld,
+    /// NC-DMN-0009 — The daemon is not running its kernel yet: it is starting, waiting for its clock, or recovering
+    DaemonNotRunning,
+    /// NC-DMN-0010 — The daemon is stopping, and takes no new dispatch
+    DaemonStopping,
+    /// NC-DMN-0011 — The install names no central log the daemon can speak to, so the daemon did not start
+    DaemonNoCentralLog,
+    /// NC-DMN-0012 — The kernel's engine refused its configuration, so the daemon did not start
+    DaemonEngineRefused,
+    /// NC-DMN-0013 — The daemon's PID record is not one this build wrote: malformed, or naming no process
+    DaemonPidRecordUnreadable,
     /// NC-IDS-0001 — The clock moved backwards, so minting would repeat an identifier it has issued
     IdsClockBackwards,
     /// NC-IDS-0002 — This millisecond's sequence was exhausted and minting waited
@@ -370,6 +382,12 @@ impl ErrorCode {
         Self::DaemonNoWorld,
         Self::DaemonWorldUnreadable,
         Self::DaemonMarkUnreadable,
+        Self::DaemonInstanceHeld,
+        Self::DaemonNotRunning,
+        Self::DaemonStopping,
+        Self::DaemonNoCentralLog,
+        Self::DaemonEngineRefused,
+        Self::DaemonPidRecordUnreadable,
         Self::IdsClockBackwards,
         Self::IdsSequenceExhausted,
         Self::IdsFlakeExhausted,
@@ -512,6 +530,12 @@ impl ErrorCode {
             Self::DaemonNoWorld => "NC-DMN-0005",
             Self::DaemonWorldUnreadable => "NC-DMN-0006",
             Self::DaemonMarkUnreadable => "NC-DMN-0007",
+            Self::DaemonInstanceHeld => "NC-DMN-0008",
+            Self::DaemonNotRunning => "NC-DMN-0009",
+            Self::DaemonStopping => "NC-DMN-0010",
+            Self::DaemonNoCentralLog => "NC-DMN-0011",
+            Self::DaemonEngineRefused => "NC-DMN-0012",
+            Self::DaemonPidRecordUnreadable => "NC-DMN-0013",
             Self::IdsClockBackwards => "NC-IDS-0001",
             Self::IdsSequenceExhausted => "NC-IDS-0002",
             Self::IdsFlakeExhausted => "NC-IDS-0003",
@@ -655,6 +679,12 @@ impl ErrorCode {
             Self::DaemonNoWorld => "DMN",
             Self::DaemonWorldUnreadable => "DMN",
             Self::DaemonMarkUnreadable => "DMN",
+            Self::DaemonInstanceHeld => "DMN",
+            Self::DaemonNotRunning => "DMN",
+            Self::DaemonStopping => "DMN",
+            Self::DaemonNoCentralLog => "DMN",
+            Self::DaemonEngineRefused => "DMN",
+            Self::DaemonPidRecordUnreadable => "DMN",
             Self::IdsClockBackwards => "IDS",
             Self::IdsSequenceExhausted => "IDS",
             Self::IdsFlakeExhausted => "IDS",
@@ -845,6 +875,22 @@ impl ErrorCode {
             }
             Self::DaemonMarkUnreadable => {
                 "The identifiers' mark is unreadable in both of its slots, so the daemon did not start"
+            }
+            Self::DaemonInstanceHeld => {
+                "Another daemon of this channel holds its profile, so this one did not start"
+            }
+            Self::DaemonNotRunning => {
+                "The daemon is not running its kernel yet: it is starting, waiting for its clock, or recovering"
+            }
+            Self::DaemonStopping => "The daemon is stopping, and takes no new dispatch",
+            Self::DaemonNoCentralLog => {
+                "The install names no central log the daemon can speak to, so the daemon did not start"
+            }
+            Self::DaemonEngineRefused => {
+                "The kernel's engine refused its configuration, so the daemon did not start"
+            }
+            Self::DaemonPidRecordUnreadable => {
+                "The daemon's PID record is not one this build wrote: malformed, or naming no process"
             }
             Self::IdsClockBackwards => {
                 "The clock moved backwards, so minting would repeat an identifier it has issued"
@@ -1143,6 +1189,12 @@ impl ErrorCode {
             Self::DaemonNoWorld => "error.daemon.no-world",
             Self::DaemonWorldUnreadable => "error.daemon.world-unreadable",
             Self::DaemonMarkUnreadable => "error.daemon.mark-unreadable",
+            Self::DaemonInstanceHeld => "error.daemon.instance-held",
+            Self::DaemonNotRunning => "error.daemon.not-running",
+            Self::DaemonStopping => "error.daemon.stopping",
+            Self::DaemonNoCentralLog => "error.daemon.no-central-log",
+            Self::DaemonEngineRefused => "error.daemon.engine-refused",
+            Self::DaemonPidRecordUnreadable => "error.daemon.pid-record-unreadable",
             Self::IdsClockBackwards => "error.ids.clock-backwards",
             Self::IdsSequenceExhausted => "error.ids.sequence-exhausted",
             Self::IdsFlakeExhausted => "error.ids.flake-exhausted",
@@ -1286,6 +1338,12 @@ impl ErrorCode {
             Self::DaemonNoWorld => Severity::Error,
             Self::DaemonWorldUnreadable => Severity::Error,
             Self::DaemonMarkUnreadable => Severity::Critical,
+            Self::DaemonInstanceHeld => Severity::Error,
+            Self::DaemonNotRunning => Severity::Warning,
+            Self::DaemonStopping => Severity::Warning,
+            Self::DaemonNoCentralLog => Severity::Error,
+            Self::DaemonEngineRefused => Severity::Critical,
+            Self::DaemonPidRecordUnreadable => Severity::Error,
             Self::IdsClockBackwards => Severity::Error,
             Self::IdsSequenceExhausted => Severity::Info,
             Self::IdsFlakeExhausted => Severity::Critical,
@@ -1429,6 +1487,12 @@ impl ErrorCode {
             Self::DaemonNoWorld => false,
             Self::DaemonWorldUnreadable => false,
             Self::DaemonMarkUnreadable => false,
+            Self::DaemonInstanceHeld => false,
+            Self::DaemonNotRunning => true,
+            Self::DaemonStopping => true,
+            Self::DaemonNoCentralLog => false,
+            Self::DaemonEngineRefused => false,
+            Self::DaemonPidRecordUnreadable => false,
             Self::IdsClockBackwards => true,
             Self::IdsSequenceExhausted => false,
             Self::IdsFlakeExhausted => false,
@@ -1572,6 +1636,12 @@ impl ErrorCode {
             Self::DaemonNoWorld => &[],
             Self::DaemonWorldUnreadable => &[],
             Self::DaemonMarkUnreadable => &[],
+            Self::DaemonInstanceHeld => &[],
+            Self::DaemonNotRunning => &[],
+            Self::DaemonStopping => &[],
+            Self::DaemonNoCentralLog => &[],
+            Self::DaemonEngineRefused => &[],
+            Self::DaemonPidRecordUnreadable => &[],
             Self::IdsClockBackwards => &[],
             Self::IdsSequenceExhausted => &[],
             Self::IdsFlakeExhausted => &[],

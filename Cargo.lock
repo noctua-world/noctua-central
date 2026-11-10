@@ -1819,9 +1819,14 @@ dependencies = [
  "nc-channel",
  "nc-daemon",
  "nc-ids",
+ "nc-ipc",
+ "nc-journal",
  "nc-kernel",
+ "nc-local",
  "nc-log",
  "nc-platform",
+ "nc-schema",
+ "tokio",
 ]
 
 [[package]]
@@ -1932,6 +1937,7 @@ version = "0.1.0-rc.1"
 dependencies = [
  "nc-channel",
  "nc-platform",
+ "rustix",
  "tokio",
  "windows-sys 0.61.2",
 ]

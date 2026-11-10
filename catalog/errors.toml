@@ -1234,6 +1234,63 @@ message = "error.daemon.mark-unreadable"
 severity = "critical"
 retryable = false
 
+[[error]]
+# One daemon keeps one profile: a second over the same state directory would
+# take the first one's open units for a stopped process's, and serve a second
+# kernel over one journal. The lock is the state directory's, never the data
+# directory's, which the local database holds for each open.
+code = "NC-DMN-0008"
+description = "Another daemon of this channel holds its profile, so this one did not start"
+message = "error.daemon.instance-held"
+severity = "error"
+retryable = false
+
+[[error]]
+# Answered to a dispatch or a registry asked of a daemon still reading its
+# profile, waiting for its clock to pass the mark, or recovering what a stopped
+# process left: the same request is answered once it runs.
+code = "NC-DMN-0009"
+description = "The daemon is not running its kernel yet: it is starting, waiting for its clock, or recovering"
+message = "error.daemon.not-running"
+severity = "warning"
+retryable = true
+
+[[error]]
+code = "NC-DMN-0010"
+description = "The daemon is stopping, and takes no new dispatch"
+message = "error.daemon.stopping"
+severity = "warning"
+retryable = true
+
+[[error]]
+# The central log is how an operator learns what a daemon refused (§15.4), so a
+# daemon whose install names a store it cannot speak to — one off this machine,
+# or no endpoint at all — does not run with its events sent somewhere the
+# install did not name. An install naming no store is not this, nor is a store
+# that does not answer: their lines go to the daemon's standard error.
+code = "NC-DMN-0011"
+description = "The install names no central log the daemon can speak to, so the daemon did not start"
+message = "error.daemon.no-central-log"
+severity = "error"
+retryable = false
+
+[[error]]
+code = "NC-DMN-0012"
+description = "The kernel's engine refused its configuration, so the daemon did not start"
+message = "error.daemon.engine-refused"
+severity = "critical"
+retryable = false
+
+[[error]]
+# A record whose process is zero or below would be a signal to a process group
+# or to every process the user owns, so it is refused as a record and never
+# read as a process (§17.1).
+code = "NC-DMN-0013"
+description = "The daemon's PID record is not one this build wrote: malformed, or naming no process"
+message = "error.daemon.pid-record-unreadable"
+severity = "error"
+retryable = false
+
 # --- The IPC channel (§11.1) ---
 #
 # What the channel a daemon is reached through refuses, each by what it met, so

@@ -1,10 +1,14 @@
-//! `noctua-daemon`, the binary an installer runs to prepare a profile.
+//! `noctua-daemon`, the daemon a channel runs, and the binary an installer
+//! runs to prepare its profile.
 //!
 //! **Thin**: it reads its arguments, hands them to `nc_daemon`, and writes what
-//! comes back through the one printing door below. It answers
-//! `noctua-daemon --initialize`, the installer's entry, with `--world <file>`
-//! to copy a world in, and refuses any other invocation with exit code 2; a
-//! refusal of the profile is exit code 1, with its code and its sentence.
+//! comes back through the one printing door below. Run with no argument it is
+//! the daemon (`nc_daemon::run::serve`), which answers exit code 0 once it
+//! stopped when it was asked to. It answers `noctua-daemon --initialize`, the
+//! installer's entry, with `--world <file>` to copy a world in, and refuses
+//! any other invocation with exit code 2; a refusal — of the install, the
+//! profile or anything else a start reads — is exit code 1, with its code and
+//! its sentence.
 //!
 //! **Which invocation is answered, and with which exit code, is decided by
 //! functions this file's own tests call**, so a weakening of either is judged
@@ -32,20 +36,25 @@ fn main() -> ExitCode {
     ExitCode::from(code)
 }
 
-/// The one invocation this build answers: `--initialize`, and the world file
-/// named by `--world` when it follows.
+/// An invocation this build answers.
 #[derive(Debug, PartialEq, Eq)]
-struct Initialize {
-    /// The world file to copy into the profile, when one is named.
-    world: Option<PathBuf>,
+enum Asked {
+    /// No argument: run the daemon until it is asked to stop.
+    Serve,
+    /// `--initialize`, and the world file named by `--world` when it follows.
+    Initialize {
+        /// The world file to copy into the profile, when one is named.
+        world: Option<PathBuf>,
+    },
 }
 
 /// What `arguments` ask of this build, or nothing it answers.
-fn asked(arguments: &[OsString]) -> Option<Initialize> {
+fn asked(arguments: &[OsString]) -> Option<Asked> {
     match arguments {
-        [initialize] if initialize == "--initialize" => Some(Initialize { world: None }),
+        [] => Some(Asked::Serve),
+        [initialize] if initialize == "--initialize" => Some(Asked::Initialize { world: None }),
         [initialize, named, world] if initialize == "--initialize" && named == "--world" => {
-            Some(Initialize {
+            Some(Asked::Initialize {
                 world: Some(PathBuf::from(world)),
             })
         }
@@ -59,11 +68,11 @@ fn answer(
     arguments: &[OsString],
     executable: impl FnOnce() -> std::io::Result<PathBuf>,
 ) -> (u8, String) {
-    let Some(Initialize { world }) = asked(arguments) else {
+    let Some(asked) = asked(arguments) else {
         return (
             UNANSWERED,
-            "noctua-daemon: the one invocation this build answers is \
-             `noctua-daemon --initialize [--world <file>]`"
+            "noctua-daemon: the invocations this build answers are `noctua-daemon`, which \
+             runs the daemon, and `noctua-daemon --initialize [--world <file>]`"
                 .to_owned(),
         );
     };
@@ -77,6 +86,23 @@ fn answer(
                 ),
             );
         }
+    };
+    let world = match asked {
+        Asked::Serve => {
+            return match nc_daemon::run::serve(&executable) {
+                Ok(stopped) => (
+                    0,
+                    format!(
+                        "noctua-daemon: stopped when it was asked to, after {} ms, giving up \
+                         on {} dispatch(es), pump(s) or sweep(s) still running",
+                        stopped.ran.as_millis(),
+                        stopped.abandoned
+                    ),
+                ),
+                Err(refused) => (REFUSED, format!("noctua-daemon: {refused}")),
+            };
+        }
+        Asked::Initialize { world } => world,
     };
     match nc_daemon::initialize(&executable, world.as_deref()) {
         Ok(initialized) => (
@@ -144,23 +170,23 @@ mod tests {
         panic!("an invocation this build does not answer asked which executable this is")
     }
 
-    /// `--initialize` is answered alone and with `--world <file>`, and any
-    /// other invocation is not.
+    /// No argument runs the daemon, `--initialize` is answered alone and
+    /// with `--world <file>`, and any other invocation is not.
     #[test]
-    fn initialize_is_answered_alone_and_with_a_world_and_nothing_else_is() {
+    fn the_daemon_and_initialize_are_answered_and_nothing_else_is() {
+        assert_eq!(super::asked(&[]), Some(super::Asked::Serve));
         assert_eq!(
             super::asked(&words(&["--initialize"])),
-            Some(super::Initialize { world: None })
+            Some(super::Asked::Initialize { world: None })
         );
         assert_eq!(
             super::asked(&words(&["--initialize", "--world", "w.json"])),
-            Some(super::Initialize {
+            Some(super::Asked::Initialize {
                 world: Some(PathBuf::from("w.json"))
             })
         );
         for unanswered in [
-            &[][..],
-            &["--serve"],
+            &["--serve"][..],
             &["--initialise"],
             &["--initialize", "--world"],
             &["--initialize", "--globe", "w.json"],
@@ -178,6 +204,22 @@ mod tests {
         let (code, line) = super::answer(&words(&["--serve"]), never);
         assert_eq!(code, 2, "{line}");
         assert!(line.contains("--initialize [--world <file>]"), "{line}");
+        assert!(
+            line.contains("`noctua-daemon`, which runs the daemon"),
+            "{line}"
+        );
+    }
+
+    /// The daemon run outside an install is a refusal, exit code 1 with the
+    /// channel's code, and nothing is started.
+    #[test]
+    fn the_daemon_outside_an_install_is_exit_code_1() {
+        let scratch = Scratch::new("serve");
+        let executable = scratch.executable();
+        let (code, line) = super::answer(&[], || Ok(executable));
+        assert_eq!(code, 1, "{line}");
+        let code = nc_catalog::ErrorCode::ChannelNoManifest.code();
+        assert!(line.contains(&format!("[{code}]")), "{line}");
     }
 
     /// A refusal is exit code 1 with its code — outside an install, and when

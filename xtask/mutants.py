@@ -492,6 +492,10 @@ SOURCES = {
     # which the command below skips, since a run of those per operator would
     # register a unit with the developer's manager hundreds of times.
     "platform_service": os.path.join(ROOT, "crates/nc-platform/src/service.rs"),
+    # **Which process this is**: the parsers of what each system says of a
+    # process's start, compiled everywhere and decided by the module's own
+    # tests on Linux.
+    "platform_process": os.path.join(ROOT, "crates/nc-platform/src/process.rs"),
     "local_schema": os.path.join(ROOT, "crates/nc-local/src/schema.rs"),
     "local_store": os.path.join(ROOT, "crates/nc-local/src/store.rs"),
     # **The journal's store on the person's machine**: the link and a unit's
@@ -524,6 +528,20 @@ SOURCES = {
     "daemon_profile": os.path.join(ROOT, "apps/daemon/src/profile.rs"),
     "daemon_device": os.path.join(ROOT, "apps/daemon/src/device.rs"),
     "daemon_mark": os.path.join(ROOT, "apps/daemon/src/mark.rs"),
+    # **The daemon that serves**: its PID record, the plugins installed in its
+    # profile, its schedule, its server and the environment its kernel opens
+    # in. Decided by each module's own unit tests.
+    "daemon_pidfile": os.path.join(ROOT, "apps/daemon/src/pidfile.rs"),
+    "daemon_plugins": os.path.join(ROOT, "apps/daemon/src/plugins.rs"),
+    "daemon_schedule": os.path.join(ROOT, "apps/daemon/src/schedule.rs"),
+    "daemon_server": os.path.join(ROOT, "apps/daemon/src/server.rs"),
+    "daemon_environment": os.path.join(ROOT, "apps/daemon/src/environment.rs"),
+    # The start's refusals before anything of its run is made, and the install
+    # the suites start a daemon in, each by its own module's unit tests, which
+    # start no process: what the start does past them, and what the suites do
+    # with an install, is the spawning suites' evidence.
+    "daemon_run": os.path.join(ROOT, "apps/daemon/src/run.rs"),
+    "daemon_testing": os.path.join(ROOT, "apps/daemon/src/testing.rs"),
     # **The endpoint a daemon is reached through**, and every comparison of
     # who is at the other end of a connection: the name's length, the runtime
     # directory judged, the peer's user and process, the bound. Decided by
@@ -4165,10 +4183,16 @@ WEAKENINGS = [
      "        .filter(|&(_, has)| has)"),
     ("check", "what_does_not_apply", "the verdict is not held to the suites a system stands aside",
      "    parts.extend(the_suites_not_applicable(has));",
-     "    parts.extend(the_suites_not_applicable([true; 2]));"),
+     "    parts.extend(the_suites_not_applicable([true; 4]));"),
     ("check", "the_suites_the_system_stands_aside", "a suite the system stands aside need not say so",
      "    if !a_posix_shell {",
      "    if !a_posix_shell && listed_as_made {"),
+    ("check", "the_suites_the_system_stands_aside", "the suite about leaving a session need not say so",
+     "    if !posix_sessions {",
+     "    if !posix_sessions && listed_as_made {"),
+    ("check", "the_suites_the_system_stands_aside", "the suite about the daemon leaving its session need not say so",
+     "    if !daemon_sessions {",
+     "    if !daemon_sessions && listed_as_made {"),
     ("check", "what_the_count_leaves_out", "the count line need not say what the system stood aside",
      "    if !the_suites_not_applicable(has).is_empty() {",
      "    if the_suites_not_applicable(has).len() > THE_SUITES_A_SYSTEM_STANDS_ASIDE.len() {"),
@@ -6435,6 +6459,24 @@ WEAKENINGS = [
     ("gates", "directly_under_a_member", "a canary directory at any member's root is one",
      "    inside_a_member(relative)\n        .map(|(_, inside)| inside)\n        .or_else(|| {\n            crate::members::trees_that_are_members()\n                .find_map(|tree| relative.strip_prefix(tree)?.strip_prefix('/'))\n        })",
      "    relative.strip_prefix(\"xtask/\")"),
+    # A `cfg` naming a system by its vendor is one the system rule reads.
+    ("gates", "SYSTEMS", "a cfg naming a vendor names a system",
+     "        \"target_vendor\",\n",
+     "        \"target_arch\",\n"),
+    # A `cfg_select!` asks the system once an arm, and each arm is read alone:
+    # killed by `a_cfg_naming_a_system_is_found_and_one_naming_none_is_not`.
+    ("gates", "arms_selected", "a cfg_select's arms are read",
+     '        for at in whole_words(code, "cfg_select") {',
+     '        for at in whole_words(code, "cfg_selected") {'),
+    ("gates", "arms_selected", "an arm's question starts past the expression before it",
+     "                    ',' if depth == 1 => start = index + 1,\n",
+     "                    ',' if depth == 1 => {}\n"),
+    ("gates", "arms_selected", "an arm's question starts past the block before it",
+     "                        if depth == 1 && *character == '}' {\n                            start = index + 1;\n                        }\n",
+     ""),
+    ("gates", "systems_asked", "a cfg! spaced from its bang is read",
+     "                let mut after = past_spaces(&code, at + opens.chars().count());",
+     "                let mut after = at + opens.chars().count();"),
     # **The one list every gate reads where the platform's code is**
     # (`MEMBER_TREES`): a tree's name read as a prefix of another's, and a
     # list of trees cut short, each decided by the members' own tests and by
@@ -6578,11 +6620,11 @@ WEAKENINGS = [
      "            UNANSWERED,\n",
      "            0,\n"),
     ("daemon_main", "answer", "a refusal is a failure",
-     "        Err(refused) => (REFUSED, format!(\"noctua-daemon: {refused}\")),",
-     "        Err(refused) => (0, format!(\"noctua-daemon: {refused}\")),"),
+     "        Err(refused) => (REFUSED, format!(\"noctua-daemon: {refused}\")),\n    }\n}",
+     "        Err(refused) => (0, format!(\"noctua-daemon: {refused}\")),\n    }\n}"),
     ("daemon_main", "asked", "--initialize alone is answered",
-     "        [initialize] if initialize == \"--initialize\" => Some(Initialize { world: None }),",
-     "        [initialize] if initialize == \"--initialise\" => Some(Initialize { world: None }),"),
+     "        [initialize] if initialize == \"--initialize\" => Some(Asked::Initialize { world: None }),",
+     "        [initialize] if initialize == \"--initialise\" => Some(Asked::Initialize { world: None }),"),
     ("daemon_lib", "code", "a profile with no device says so",
      "            Self::NoDevice { .. } => ErrorCode::DaemonNoDevice,",
      "            Self::NoDevice { .. } => ErrorCode::DaemonNoWorld,"),
@@ -6619,7 +6661,7 @@ WEAKENINGS = [
     ("daemon_profile", "copy_world", "a copy beside the world another account can reach is refused",
      "        Err(left) => return Err(Refused::judged(left)),",
      "        Err(_) => {}"),
-    ("daemon_profile", "world", "a world another account can reach is refused",
+    ("daemon_profile", "world_and_pack", "a world another account can reach is refused",
      "        Err(judged) => return Err(Refused::judged(judged)),",
      "        Err(_) => {}"),
     ("daemon_device", "read", "a record is the seed's key",
@@ -6809,6 +6851,9 @@ WEAKENINGS = [
     ("ipc_connection", "drop", "dropping an end closes the connection",
      "        self.reading.abort();",
      "        let _ = &self.reading;"),
+    ("ipc_connection", "closed", "a connection closed waits for its last frame to be written",
+     "            let _ = writing.await;",
+     "            let _ = writing;"),
     ("ipc_message", "done", "a field the protocol does not read is refused",
      "        match self.left.keys().next() {",
      "        match None::<&String> {"),
@@ -6946,6 +6991,204 @@ WEAKENINGS = [
     ("platform_service", "sweep_scratches", "a sweep keeps to its checkout's prefix",
      ".is_some_and(|name| name.starts_with(prefix));",
      ".is_some();"),
+    # **The daemon serves.** Its PID record names a process or is refused, is
+    # read only as it is written and only once judged, and is removed only by
+    # the instance that wrote it; a file left beside one is removed once
+    # judged.
+    ("daemon_pidfile", "process_of", "a record naming process zero is refused",
+     "    if pid <= 0 {",
+     "    if pid < 0 {"),
+    ("daemon_pidfile", "parse", "a PID record is read only as it is written",
+     "        if value.to_canonical() != text {",
+     "        if false {"),
+    ("daemon_pidfile", "parse", "a record holding a key it does not read is refused",
+     ".find(|key| !KEYS.contains(&key.as_str()))",
+     ".find(|_| false)"),
+    ("daemon_pidfile", "read", "a record another account can reach is refused",
+     "    nc_platform::judge(path, Kind::File, user).map_err(Refused::judged)?;\n    let text",
+     "    let _ = nc_platform::judge(path, Kind::File, user);\n    let text"),
+    ("daemon_pidfile", "remove_if_ours", "only the instance that wrote a record removes it",
+     "        Ok(record) if record.instance == instance =>",
+     "        Ok(_) =>"),
+    ("daemon_pidfile", "replace_private", "a file left beside one is removed once judged",
+     "        Ok(()) => std::fs::remove_file(&beside).map_err(|error| failed(\"removed\", error))?,",
+     "        Ok(()) => {}"),
+    # The plugins installed in a profile: read from a directory judged this
+    # user's, in order, each file judged, and each refused one logged.
+    ("daemon_plugins", "names", "the plugins directory is judged before it is listed",
+     "    nc_platform::judge(directory, Kind::Directory, user).map_err(judged)?;\n    let entries",
+     "    let _ = nc_platform::judge(directory, Kind::Directory, user);\n    let entries"),
+    ("daemon_plugins", "names", "the plugins are loaded in the order of their names",
+     "    names.sort();\n",
+     ""),
+    ("daemon_plugins", "read", "a plugin's file another account can reach is refused",
+     "    nc_platform::judge(path, Kind::File, user).map_err(judged)?;",
+     "    let _ = nc_platform::judge(path, Kind::File, user);"),
+    ("daemon_plugins", "names_refused", "a refused plugin is logged",
+     "        log.record(&nc_log::events::DaemonPluginRefused { code: *code });",
+     "        let _ = code;"),
+    # The schedule: a run of refused pumps logged at two and each doubling,
+    # ended by a clean one, and each pump and sweep noted.
+    ("daemon_schedule", "noted", "one refused pump is a wait, not a run",
+     "(self.pumps >= 2 && self.pumps.is_power_of_two())",
+     "(self.pumps >= 1 && self.pumps.is_power_of_two())"),
+    ("daemon_schedule", "noted", "a clean pump ends the run",
+     "            *self = Self::default();\n",
+     ""),
+    ("daemon_schedule", "pumped", "a stuck run is logged",
+     "        log.record(&nc_log::events::DaemonPruneStuck { code, pumps });",
+     "        let _ = (code, pumps);"),
+    ("daemon_schedule", "swept", "a sweep's refusal is noted",
+     "    done.sweep_refused = refused;\n",
+     ""),
+    # A stop is asked between runs and never inside one, no run begins once
+    # it was asked for, and a run still going at the drain's bound is counted
+    # and let go.
+    ("daemon_schedule", "on_schedule", "a stop is asked only between runs",
+     "        once().await;\n",
+     "        tokio::select! {\n            () = &mut stopped => return,\n            () = once() => {}\n        }\n"),
+    ("daemon_schedule", "on_schedule", "no run begins once a stop was asked for",
+     "            () = &mut stopped => return,\n            _ = every.tick() => {}",
+     "            _ = every.tick() => {}\n            () = &mut stopped => return,"),
+    ("daemon_schedule", "on_schedule", "a stop is preferred to a tick that came due with it",
+     "            biased;\n",
+     ""),
+    ("daemon_schedule", "ended", "a run still going at the bound is counted",
+     "    running.abort();\n    1\n",
+     "    running.abort();\n    0\n"),
+    ("daemon_schedule", "ended", "a run given up on is let go",
+     "    running.abort();\n",
+     ""),
+    # The server: a stop has the last word on the state, a dispatch is refused
+    # by why the kernel does not run, a drain says what it gave up on, and the
+    # status and the registry say what the daemon and its kernel are.
+    ("daemon_server", "reach", "nothing moves a stopping daemon's state back",
+     "let moved = *now != State::Stopping && *now != state;",
+     "let moved = *now != state;"),
+    ("daemon_server", "answer", "a stop asked for stops the daemon",
+     "                self.stop();\n                Answer::Stopping",
+     "                Answer::Stopping"),
+    ("daemon_server", "kernel_if_running", "a stopping daemon says it is stopping",
+     "                code: ErrorCode::DaemonStopping,",
+     "                code: ErrorCode::DaemonNotRunning,"),
+    ("daemon_server", "none_left", "nothing running is nothing given up",
+     "            if running == 0 {\n                return 0;\n            }",
+     "            if running == 0 {\n                return 1;\n            }"),
+    ("daemon_server", "status", "a development daemon names its checkout",
+     "            fields.push((\"checkout\", Value::text(checkout.to_string())));",
+     "            let _ = checkout;"),
+    ("daemon_server", "kind_of", "a refusal is told by the kernel's own word",
+     "        nc_kernel::RefusalKind::NotFound => RefusalKind::NotFound,",
+     "        nc_kernel::RefusalKind::NotFound => RefusalKind::Invalid,"),
+    ("daemon_server", "listed", "a command's reversibility is its own word",
+     "                Reversibility::Irreversible => \"irreversible\",",
+     "                Reversibility::Irreversible => \"write\","),
+    ("daemon_server", "admitted_after", "a dispatch is counted before its state is read",
+     "        self.running.fetch_add(1, Ordering::SeqCst);\n        let admitted = Admitted(self);\n        meanwhile();\n        let kernel = self.kernel_if_running()?;",
+     "        let kernel = self.kernel_if_running();\n        self.running.fetch_add(1, Ordering::SeqCst);\n        let admitted = Admitted(self);\n        meanwhile();\n        let kernel = kernel?;"),
+    ("daemon_server", "drop", "a dispatch refused or answered is no longer counted",
+     "        if self.0.running.fetch_sub(1, Ordering::SeqCst) == 1 {",
+     "        if self.0.running.load(Ordering::SeqCst) == 1 {"),
+    # A stop waits for every connection to write its last answer and close:
+    # each counted before it is served and until it is closed, and each ended
+    # between two requests once a stop was asked for.
+    ("daemon_server", "wound_down", "a stop waits for every connection to close",
+     "tokio::join!(self.drained(deadline), runs, self.closed(deadline));",
+     "tokio::join!(self.drained(deadline), runs, core::future::ready(0_u32));"),
+    ("daemon_server", "serve_one_after", "a connection is counted before it is served",
+     "        self.connections.fetch_add(1, Ordering::SeqCst);\n",
+     ""),
+    ("daemon_server", "connection", "a connection writes its last answer before it is let go",
+     "        served.close().await;\n",
+     "        drop(served);\n"),
+    ("daemon_server", "connection", "a stop ends a connection between two requests",
+     "                () = self.stopping() => break None,",
+     "                () = self.stopping(), if false => break None,"),
+    ("daemon_server", "Drop for Open", "a closed connection is no longer counted",
+     "        if self.0.connections.fetch_sub(1, Ordering::SeqCst) == 1 {",
+     "        if self.0.connections.load(Ordering::SeqCst) == 1 {"),
+    # The environment: no central log named is the standard error alone, one
+    # `nc_log` refuses is a refusal, and a start reads the newest unit its
+    # journal holds.
+    ("daemon_environment", "log", "an install naming no central log writes to standard error",
+     "        None => nc_log::Log::to_standard_error(origin()),",
+     "        None => return Err(Refused::NoCentralLog { why: String::new() }),"),
+    ("daemon_environment", "log", "a central log nc_log refuses is a refusal",
+     "            nc_log::Log::open(origin(), endpoint).map_err(|why| Refused::NoCentralLog {\n                why: format!(\"the install's central log is refused: {why}\"),\n            })?",
+     "            nc_log::Log::open(origin(), endpoint)\n                .unwrap_or_else(|_| nc_log::Log::to_standard_error(origin()))"),
+    ("daemon_environment", "store", "a start reads the newest unit its journal holds",
+     "        Ok(newest) => Ok((store, newest)),",
+     "        Ok(_) => Ok((store, None)),"),
+    # A clean stop settles the mark; the binary run with no argument is the
+    # daemon; the plugins directory is part of the profile.
+    ("daemon_mark", "settled", "a clean stop writes the exact high-water mark",
+     "        .settle_ceiling()\n}",
+     "        .high_water_mark()\n        .map_or(Ok(()), |_| Ok(()))\n}"),
+    ("daemon_main", "asked", "no argument runs the daemon",
+     "        [] => Some(Asked::Serve),",
+     "        [] => None,"),
+    ("daemon_main", "answer", "a refused start is a failure",
+     "                Err(refused) => (REFUSED, format!(\"noctua-daemon: {refused}\")),\n            };",
+     "                Err(refused) => (0, format!(\"noctua-daemon: {refused}\")),\n            };"),
+    ("daemon_profile", "directories", "the plugins directory is made",
+     "        &layout.plugins,\n",
+     "        &layout.data,\n"),
+    # The platform's: a lock held is not taken again at once, a daemon leaves
+    # its session, and a process's start is read where the system writes it.
+    ("platform_unix", "try_hold", "a directory held is not held again",
+     "        Err(std::fs::TryLockError::WouldBlock) => Ok(None),\n        Err(std::fs::TryLockError::Error(error)) => Err(Judged::Failed(Failed::new(\n            format!(\"`{}` could not be held\", directory.display()),",
+     "        Err(std::fs::TryLockError::WouldBlock) => Ok(Some(held)),\n        Err(std::fs::TryLockError::Error(error)) => Err(Judged::Failed(Failed::new(\n            format!(\"`{}` could not be held\", directory.display()),"),
+    ("platform_unix", "detach", "a daemon starts a session of its own",
+     "    match rustix::process::setsid() {",
+     "    match Ok::<(), rustix::io::Errno>(()) {"),
+    ("platform_process", "started_in_stat", "the start is field 22",
+     ".nth(19)?;",
+     ".nth(18)?;"),
+    ("platform_process", "started_in_ps", "a start printed by `ps` is five words",
+     "(words.len() == 5)",
+     "(words.len() >= 4)"),
+    # The local journal's newest unit is the largest identifier, not the
+    # largest text.
+    ("local_journal", "newest_unit", "a unit of thirteen digits is newer than one of twelve",
+     "ORDER BY length(work_unit) DESC, work_unit DESC LIMIT 1",
+     "ORDER BY work_unit DESC LIMIT 1"),
+    # The daemon's schedule keeps the kernel's bounds it runs beside.
+    ("loader", "check_daemon_schedule", "a pump as far apart as the shortest timer is taken",
+     "    if daemon.pump_every_ms > kernel.timer_min_interval_ms {",
+     "    if daemon.pump_every_ms >= kernel.timer_min_interval_ms {"),
+    ("loader", "check_daemon_schedule", "a sweep as far apart as an orphan's grace is taken",
+     "    if daemon.sweep_every_ms > kernel.blob_orphan_grace_ms {",
+     "    if daemon.sweep_every_ms >= kernel.blob_orphan_grace_ms {"),
+    ("loader", "check_daemon_schedule", "a drain as long as a dispatch is taken",
+     "    if daemon.stop_drain_ms < kernel.dispatch_deadline_ms {",
+     "    if daemon.stop_drain_ms <= kernel.dispatch_deadline_ms {"),
+    # A start refuses a profile another daemon holds by the profile's code,
+    # and the suites' install is its own and gone with its guard.
+    ("daemon_run", "serve", "a profile another daemon holds is refused as held",
+     "        .ok_or_else(|| Refused::Held {\n            path: layout.state.clone(),",
+     "        .ok_or_else(|| Refused::NoManifest {\n            path: layout.state.clone(),"),
+    ("daemon_testing", "install_at", "two installs never share a namespace",
+     "MADE.fetch_add(1, Ordering::SeqCst)",
+     "MADE.load(Ordering::SeqCst)"),
+    ("daemon_testing", "install_at", "an install names a central log nothing answers at",
+     "        log_endpoint: Some(NOBODY_LISTENS.to_owned()),",
+     "        log_endpoint: None,"),
+    ("daemon_testing", "drop", "an install's scratch goes with it",
+     "        let _ = std::fs::remove_dir_all(&self.0);",
+     ""),
+    ("daemon_testing", "without_a_central_log", "an install told of no central log names none",
+     "        self.rewritten(None);",
+     "        self.rewritten(Some(NOBODY_LISTENS));"),
+    ("daemon_testing", "with_a_central_log_refused", "a fence names a central log a start refuses",
+     "        self.rewritten(Some(OFF_THIS_MACHINE));",
+     "        self.rewritten(None);"),
+    ("daemon_testing", "namespace_of", "two processes' installs never spell one namespace",
+     "    format!(\"t{pid:x}n{made}\")",
+     "    format!(\"t{pid:x}{made}\")"),
+    # A log told of no store writes every line to stderr.
+    ("log_root", "record", "a log told of no store writes every line to stderr",
+     "            None => ship::kept_on_stderr(&line),",
+     "            None => {}"),
     # **Stage 13's command line** (`NOCTUA.md §20.2`): what a schema shows and
     # refuses once decoded, the manifest beside an executable, and the CLI.
     ("schema", "the_kind_of", "a decoded annotation holds nothing a reader cannot see",
@@ -7228,6 +7471,17 @@ ELSEWHERE = {
     "daemon_profile": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "profile::"],
     "daemon_device": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "device::"],
     "daemon_mark": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "mark::"],
+    "daemon_pidfile": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "pidfile::"],
+    "daemon_plugins": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "plugins::"],
+    "daemon_schedule": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "schedule::"],
+    "daemon_server": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "server::"],
+    "daemon_environment": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "environment::"],
+    "daemon_run": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "run::", "--test-threads=1"],
+    # The suites' install has no test module of its own: its file is compiled
+    # only for tests, and the tests that hold it are `run`'s — one at a time,
+    # so a weakening that gives two installs one namespace is caught by the
+    # test about it rather than met by another test's install.
+    "daemon_testing": ["cargo", "test", "-q", "-p", "nc-daemon", "--", "run::", "--test-threads=1"],
     # The endpoint, by `nc-platform`'s own tests; the protocol, by every suite
     # of `nc-ipc`, none of which starts a process.
     "platform_ipc": ["cargo", "test", "-q", "-p", "nc-platform"],
@@ -7389,6 +7643,7 @@ ELSEWHERE = {
     "platform": ["cargo", "test", "-q", "-p", "nc-platform", "--", "--skip", "with_the_manager"],
     "platform_unix": ["cargo", "test", "-q", "-p", "nc-platform", "--", "--skip", "with_the_manager"],
     "platform_testing": ["cargo", "test", "-q", "-p", "nc-platform", "--", "--skip", "with_the_manager"],
+    "platform_process": ["cargo", "test", "-q", "-p", "nc-platform", "--", "--skip", "with_the_manager"],
     # **The service manager's module, by its own tests alone**: the
     # generators' texts, the escaping, the readers and the commands — and not
     # the two that register a real service, which judge none of its clauses.

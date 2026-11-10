@@ -25,6 +25,9 @@
 //!
 //! Dropping a [`Client`] or a [`Served`] closes the connection: the reader
 //! stops, and the writer sends what it was handed and shuts its half.
+//! [`Served::close`] does the same and waits for the writer, so a daemon that
+//! ends once its connections are closed ends after its last answers are
+//! written.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -70,6 +73,9 @@ pub(crate) struct Connection {
     awaiting: Arc<AtomicBool>,
     /// The reader, stopped when the connection is dropped.
     reading: tokio::task::JoinHandle<()>,
+    /// The writer, waited for when the connection is closed rather than
+    /// dropped.
+    writing: Option<tokio::task::JoinHandle<()>>,
 }
 
 impl Drop for Connection {
@@ -90,7 +96,7 @@ impl Connection {
         let (taken, inbox) = mpsc::channel(1);
         let (gave_up, writer_gave_up) = oneshot::channel();
         let awaiting = Arc::new(AtomicBool::new(false));
-        tokio::spawn(writing(writer, sending, gave_up));
+        let writing = tokio::spawn(writing(writer, sending, gave_up));
         let reading = tokio::spawn(reading(
             reader,
             taken,
@@ -104,6 +110,19 @@ impl Connection {
             inbox,
             awaiting,
             reading,
+            writing: Some(writing),
+        }
+    }
+
+    /// Closes the connection as dropping it does, and waits until the writer
+    /// has sent every frame it was handed and shut its half.
+    async fn closed(mut self) {
+        let writing = self.writing.take();
+        // The reader stopped and the outbox gone, the writer's channel ends
+        // once it has handed over what it holds.
+        drop(self);
+        if let Some(writing) = writing {
+            let _ = writing.await;
         }
     }
 
@@ -327,5 +346,19 @@ impl Served {
             ));
         }
         self.connection.send(frame).await
+    }
+
+    /// Closes the connection once the answers handed to it are sent: the
+    /// reader stops, and this waits while the writer sends them and shuts its
+    /// half.
+    ///
+    /// **What dropping does, waited for**, so a daemon that ends once its
+    /// connections are closed does not end with an answer still on its way —
+    /// dropped with the runtime its writer ran on. The wait is the writer's:
+    /// a write the client leaves waiting gives up after
+    /// `ipc_silent_after_ms`, and a caller that cannot wait that long bounds
+    /// it.
+    pub async fn close(self) {
+        self.connection.closed().await;
     }
 }

@@ -2116,6 +2116,86 @@ fn ipc_connections_a_pipe_cannot_hold_fail_the_build() {
     );
 }
 
+/// A pump a millisecond further apart than the shortest timer fails the
+/// build, and one exactly as far apart does not.
+#[test]
+fn a_pump_slower_than_the_shortest_timer_fails_the_build() {
+    let scratch = Scratch::new("daemon-pump-slow");
+    scratch.replacing(
+        "catalog/limits.toml",
+        "pump_every_ms = 1_000",
+        "pump_every_ms = 1_001",
+    );
+    scratch.must_fail_saying(
+        "pump-slower-than-the-shortest-timer",
+        "`[daemon] pump_every_ms` is 1001, above `[kernel] timer_min_interval_ms`, 1000",
+    );
+    // The shipped catalog pumps exactly as often as the shortest timer.
+    let exact = Scratch::new("daemon-pump-exact");
+    assert!(
+        exact
+            .problems()
+            .iter()
+            .all(|problem| problem.check != "pump-slower-than-the-shortest-timer"),
+        "a pump exactly as far apart as the shortest timer was refused"
+    );
+}
+
+/// A sweep a millisecond further apart than an orphan's grace fails the
+/// build, and one exactly as far apart does not.
+#[test]
+fn a_sweep_slower_than_the_orphan_grace_fails_the_build() {
+    let scratch = Scratch::new("daemon-sweep-slow");
+    scratch.replacing(
+        "catalog/limits.toml",
+        "sweep_every_ms = 600_000",
+        "sweep_every_ms = 86_400_001",
+    );
+    scratch.must_fail_saying(
+        "sweep-slower-than-the-orphan-grace",
+        "`[daemon] sweep_every_ms` is 86400001, above `[kernel] blob_orphan_grace_ms`, \
+         86400000",
+    );
+    let exact = Scratch::new("daemon-sweep-exact");
+    exact.replacing(
+        "catalog/limits.toml",
+        "sweep_every_ms = 600_000",
+        "sweep_every_ms = 86_400_000",
+    );
+    assert!(
+        exact
+            .problems()
+            .iter()
+            .all(|problem| problem.check != "sweep-slower-than-the-orphan-grace"),
+        "a sweep exactly as far apart as an orphan's grace was refused"
+    );
+}
+
+/// A stop that waits a millisecond less than a dispatch may run fails the
+/// build, and one that waits exactly as long does not.
+#[test]
+fn a_stop_drain_shorter_than_a_dispatch_fails_the_build() {
+    let scratch = Scratch::new("daemon-drain-short");
+    scratch.replacing(
+        "catalog/limits.toml",
+        "stop_drain_ms = 30_000",
+        "stop_drain_ms = 29_999",
+    );
+    scratch.must_fail_saying(
+        "stop-drain-shorter-than-a-dispatch",
+        "`[daemon] stop_drain_ms` is 29999, below `[kernel] dispatch_deadline_ms`, 30000",
+    );
+    // The shipped catalog waits exactly as long as a dispatch may run.
+    let exact = Scratch::new("daemon-drain-exact");
+    assert!(
+        exact
+            .problems()
+            .iter()
+            .all(|problem| problem.check != "stop-drain-shorter-than-a-dispatch"),
+        "a stop that waits exactly as long as a dispatch may run was refused"
+    );
+}
+
 /// Every relation between two kernel limits is refused at the number where it
 /// stops holding, and not one past it.
 ///

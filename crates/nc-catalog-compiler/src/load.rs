@@ -759,6 +759,7 @@ fn check_limits(limits: &Limits, text: &str, problems: &mut Vec<Problem>) {
     check_kernel(&limits.kernel, text, problems);
     check_daemon(limits.daemon, text, problems);
     check_daemon_ipc(limits.daemon, &limits.kernel, text, problems);
+    check_daemon_schedule(limits.daemon, &limits.kernel, text, problems);
 }
 
 /// What an IPC frame carries around a payload — its type, a dispatch's command
@@ -846,6 +847,68 @@ fn check_daemon_ipc(
              until the next is waiting, so a bound a pipe cannot hold is one the daemon \
              cannot keep there. Make `ipc_connections_max` at most 252",
             "ipc-connections-past-a-pipe",
+        );
+    }
+}
+
+/// The daemon's schedule keeps the kernel's bounds it runs beside.
+///
+/// **A pump at most as far apart as the shortest timer**, or a timer a plugin
+/// may set is fired a pump late rather than within its own interval; **a
+/// sweep at most as far apart as an orphan's grace**, or an orphan outlives
+/// two graces before it goes; and **a stop that waits at least as long as a
+/// dispatch may run**, or a stop cuts short a call tree the kernel would let
+/// finish and leaves its unit for the next start to recover.
+fn check_daemon_schedule(
+    daemon: DaemonLimits,
+    kernel: &KernelLimits,
+    text: &str,
+    problems: &mut Vec<Problem>,
+) {
+    let at = |name: &str| line_of(text, &format!("{name} = "), 1).or(line_of(text, "[daemon]", 1));
+    if daemon.pump_every_ms > kernel.timer_min_interval_ms {
+        push(
+            problems,
+            "catalog/limits.toml",
+            at("pump_every_ms"),
+            format!(
+                "`[daemon] pump_every_ms` is {}, above `[kernel] timer_min_interval_ms`, {}",
+                daemon.pump_every_ms, kernel.timer_min_interval_ms
+            ),
+            "a timer fires only when the daemon pumps, so pumps further apart than the \
+             shortest interval a plugin may set fire that timer a pump late, every time. Make \
+             `pump_every_ms` at most `timer_min_interval_ms`",
+            "pump-slower-than-the-shortest-timer",
+        );
+    }
+    if daemon.sweep_every_ms > kernel.blob_orphan_grace_ms {
+        push(
+            problems,
+            "catalog/limits.toml",
+            at("sweep_every_ms"),
+            format!(
+                "`[daemon] sweep_every_ms` is {}, above `[kernel] blob_orphan_grace_ms`, {}",
+                daemon.sweep_every_ms, kernel.blob_orphan_grace_ms
+            ),
+            "an orphaned blob goes only when a sweep finds its grace over, so sweeps further \
+             apart than the grace keep it for more than two graces. Make `sweep_every_ms` at \
+             most `blob_orphan_grace_ms`",
+            "sweep-slower-than-the-orphan-grace",
+        );
+    }
+    if daemon.stop_drain_ms < kernel.dispatch_deadline_ms {
+        push(
+            problems,
+            "catalog/limits.toml",
+            at("stop_drain_ms"),
+            format!(
+                "`[daemon] stop_drain_ms` is {}, below `[kernel] dispatch_deadline_ms`, {}",
+                daemon.stop_drain_ms, kernel.dispatch_deadline_ms
+            ),
+            "the kernel lets a call tree run until its deadline, so a stop that waits less \
+             cuts short a dispatch the kernel would let finish and leaves its unit for the \
+             next start to recover. Make `stop_drain_ms` at least `dispatch_deadline_ms`",
+            "stop-drain-shorter-than-a-dispatch",
         );
     }
 }

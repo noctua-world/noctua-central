@@ -19,8 +19,8 @@
 # sentences replaced — with the gate green.
 
 [meta]
-checksum = "8e31769af1abff4bb10039342cef36566352e34dccfb172313c6e95cb76a0362"
-count = 136
+checksum = "07699d1638771314297d53831ad458aaa9519f8aecdff7a00043f40b42197195"
+count = 142
 
 [reserved]
 "NC-BLOB-0001" = "error.blob.malformed-hash — warning — retryable:false — params:[] — A blob was named by text that is not a BLAKE3 hash"
@@ -59,6 +59,12 @@ count = 136
 "NC-DMN-0005" = "error.daemon.no-world — error — retryable:false — params:[] — The daemon's profile names no realm and no person to decide as, so the daemon did not start"
 "NC-DMN-0006" = "error.daemon.world-unreadable — error — retryable:false — params:[] — The daemon's world file is not one this build reads, or names a person its realm does not hold"
 "NC-DMN-0007" = "error.daemon.mark-unreadable — critical — retryable:false — params:[] — The identifiers' mark is unreadable in both of its slots, so the daemon did not start"
+"NC-DMN-0008" = "error.daemon.instance-held — error — retryable:false — params:[] — Another daemon of this channel holds its profile, so this one did not start"
+"NC-DMN-0009" = "error.daemon.not-running — warning — retryable:true — params:[] — The daemon is not running its kernel yet: it is starting, waiting for its clock, or recovering"
+"NC-DMN-0010" = "error.daemon.stopping — warning — retryable:true — params:[] — The daemon is stopping, and takes no new dispatch"
+"NC-DMN-0011" = "error.daemon.no-central-log — error — retryable:false — params:[] — The install names no central log the daemon can speak to, so the daemon did not start"
+"NC-DMN-0012" = "error.daemon.engine-refused — critical — retryable:false — params:[] — The kernel's engine refused its configuration, so the daemon did not start"
+"NC-DMN-0013" = "error.daemon.pid-record-unreadable — error — retryable:false — params:[] — The daemon's PID record is not one this build wrote: malformed, or naming no process"
 "NC-IDS-0001" = "error.ids.clock-backwards — error — retryable:true — params:[] — The clock moved backwards, so minting would repeat an identifier it has issued"
 "NC-IDS-0002" = "error.ids.sequence-exhausted — info — retryable:false — params:[] — This millisecond's sequence was exhausted and minting waited"
 "NC-IDS-0003" = "error.ids.flake-exhausted — critical — retryable:false — params:[] — Every machine-flake candidate in the sequence was already taken"

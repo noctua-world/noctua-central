@@ -397,4 +397,34 @@ fn record_one_of_each(log: &nc_log::Log) {
         rows: 97,
         max_rows: 98,
     });
+    record_the_daemons(log);
+}
+
+/// One of each event the daemon and its endpoint log, with a distinguishable
+/// value in every field — the rest of [`record_one_of_each`], split from it at
+/// clippy's line bound.
+fn record_the_daemons(log: &nc_log::Log) {
+    use core::time::Duration;
+    use nc_catalog::ErrorCode;
+    use nc_log::events;
+
+    log.record(&events::DaemonStarted {
+        pid: 71,
+        loaded: 72,
+        refused: 73,
+    });
+    log.record(&events::DaemonStopped {
+        ran: Duration::from_millis(74),
+        abandoned: 75,
+    });
+    log.record(&events::DaemonPluginRefused {
+        code: ErrorCode::PluginManifestInvalid,
+    });
+    log.record(&events::DaemonPruneStuck {
+        code: ErrorCode::DbPruneFailed,
+        pumps: 76,
+    });
+    log.record(&events::IpcRefused {
+        code: ErrorCode::IpcClientUnproven,
+    });
 }

@@ -49,8 +49,9 @@ use std::ptr::null_mut;
 use std::sync::OnceLock;
 
 use windows_sys::Win32::Foundation::{
-    ERROR_SUCCESS, FALSE, GENERIC_ALL, GENERIC_EXECUTE, GENERIC_READ, GENERIC_WRITE, HANDLE,
-    INVALID_HANDLE_VALUE, LocalFree, TRUE, WIN32_ERROR,
+    ERROR_SUCCESS, FALSE, FILETIME, GENERIC_ALL, GENERIC_EXECUTE, GENERIC_READ, GENERIC_WRITE,
+    HANDLE, HANDLE_FLAG_INHERIT, INVALID_HANDLE_VALUE, LocalFree, SetHandleInformation, TRUE,
+    WIN32_ERROR,
 };
 use windows_sys::Win32::Security::Authorization::{GetSecurityInfo, SE_FILE_OBJECT};
 use windows_sys::Win32::Security::Cryptography::{
@@ -77,7 +78,7 @@ use windows_sys::Win32::Storage::FileSystem::{SYNCHRONIZE, WRITE_DAC, WRITE_OWNE
 use windows_sys::Win32::System::SystemServices::{
     ACCESS_ALLOWED_ACE_TYPE, ACCESS_DENIED_ACE_TYPE, SECURITY_DESCRIPTOR_REVISION,
 };
-use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+use windows_sys::Win32::System::Threading::{GetCurrentProcess, GetProcessTimes, OpenProcessToken};
 
 use crate::{Failed, Judged, Kind, Refusal};
 
@@ -116,6 +117,9 @@ pub(crate) const LISTED_AS_MADE: Option<&str> = None;
 /// No `sh` of the system's own: the one Git ships hands every path to a
 /// system that spends it as Windows does.
 pub(crate) const A_POSIX_SHELL: bool = false;
+
+/// No process here is in a session of the POSIX kind.
+pub(crate) const POSIX_SESSIONS: bool = false;
 
 /// Python 3 by the name its installers give it here: `python3` is, where it
 /// is anything, the system's shortcut to its app store.
@@ -884,6 +888,33 @@ fn judged(path: &Path, file: &File, kind: Kind, user: &User, owned: Owned) -> Re
 /// alone, which is all a lock needs and all a file marked read-only lets a
 /// handle be opened with before it is judged.
 pub(crate) fn hold(directory: &Path, name: &str, user: &User) -> Result<File, Judged> {
+    let held = lock_file(directory, name, user)?;
+    held.lock().map_err(|error| {
+        Failed::new(
+            format!("`{}` could not be held for this open", directory.display()),
+            error,
+        )
+    })?;
+    Ok(held)
+}
+
+/// `directory`, held through the private file `name` in it unless another
+/// holds it now: nothing then, at once.
+pub(crate) fn try_hold(directory: &Path, name: &str, user: &User) -> Result<Option<File>, Judged> {
+    let held = lock_file(directory, name, user)?;
+    match held.try_lock() {
+        Ok(()) => Ok(Some(held)),
+        Err(std::fs::TryLockError::WouldBlock) => Ok(None),
+        Err(std::fs::TryLockError::Error(error)) => Err(Judged::Failed(Failed::new(
+            format!("`{}` could not be held", directory.display()),
+            error,
+        ))),
+    }
+}
+
+/// The file `name` in `directory` a lock is taken on: created private when it
+/// is missing, and judged when it is there.
+fn lock_file(directory: &Path, name: &str, user: &User) -> Result<File, Judged> {
     let path = directory.join(name);
     let held = match create_private(&path) {
         Ok(held) => held,
@@ -901,13 +932,92 @@ pub(crate) fn hold(directory: &Path, name: &str, user: &User) -> Result<File, Ju
             )));
         }
     };
-    held.lock().map_err(|error| {
-        Failed::new(
-            format!("`{}` could not be held for this open", directory.display()),
-            error,
-        )
-    })?;
     Ok(held)
+}
+
+/// Nothing: a Windows process has no session of the POSIX kind to leave, and
+/// one started detached has no console, which its spawner gives it
+/// (`DETACHED_PROCESS`).
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "one signature for both halves, and the Unix one can fail"
+)]
+pub(crate) fn detach() -> io::Result<()> {
+    Ok(())
+}
+
+/// This process's own standard handles, made ones no child inherits but as
+/// the standard handles a spawn hands it.
+///
+/// **Windows hands a child every inheritable handle of its parent**, and the
+/// standard library spawns with inheritance on: a handle this process was
+/// itself handed as its standard output is inheritable, so a child spawned
+/// with every standard handle null would still hold it open — the pipe of
+/// whatever is reading this process's output — for as long as it lives. A
+/// spawn that hands a child one of these duplicates it as inheritable for
+/// that child alone, so clearing the flag here takes nothing from it.
+#[expect(
+    clippy::disallowed_methods,
+    reason = "the standard streams' handles are read, never written through: the flag that \
+              hands them to every child is cleared"
+)]
+pub(crate) fn keep_standard_handles_from_children() -> io::Result<()> {
+    use std::os::windows::io::AsRawHandle as _;
+    for handle in [
+        std::io::stdin().as_raw_handle(),
+        std::io::stdout().as_raw_handle(),
+        std::io::stderr().as_raw_handle(),
+    ] {
+        if handle.is_null() || handle == INVALID_HANDLE_VALUE {
+            continue;
+        }
+        // SAFETY: a handle the standard library holds for one of this
+        // process's standard streams, which nothing closes while the process
+        // runs; the call changes one flag of it and allocates nothing.
+        if unsafe { SetHandleInformation(handle, HANDLE_FLAG_INHERIT, 0) } == FALSE {
+            return Err(io::Error::last_os_error());
+        }
+    }
+    Ok(())
+}
+
+/// Nothing: Windows has no session of the POSIX kind to read.
+#[cfg(any(test, feature = "test-support"))]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "one signature for both halves, and the Unix one can fail"
+)]
+pub(crate) fn session_of(_pid: u32) -> io::Result<Option<u32>> {
+    Ok(None)
+}
+
+/// When this process started, as the system says: its creation time, in the
+/// hundred-nanosecond intervals since 1601 Windows counts in. Windows names
+/// no boot a later reading could tell apart, so there is none.
+pub(crate) fn this_process() -> io::Result<(Option<String>, String)> {
+    let empty = || FILETIME {
+        dwLowDateTime: 0,
+        dwHighDateTime: 0,
+    };
+    let (mut creation, mut exit, mut kernel, mut user) = (empty(), empty(), empty(), empty());
+    // SAFETY: `GetCurrentProcess` answers a pseudo-handle that needs no
+    // closing, and each pointer is to a local `FILETIME` that lives across the
+    // call and that the call alone writes; nothing is allocated, so nothing is
+    // freed.
+    let answered = unsafe {
+        GetProcessTimes(
+            GetCurrentProcess(),
+            &raw mut creation,
+            &raw mut exit,
+            &raw mut kernel,
+            &raw mut user,
+        )
+    };
+    if answered == FALSE {
+        return Err(io::Error::last_os_error());
+    }
+    let started = (u64::from(creation.dwHighDateTime) << 32) | u64::from(creation.dwLowDateTime);
+    Ok((None, started.to_string()))
 }
 
 /// Nothing: Windows has no handle to sync a directory through, and NTFS

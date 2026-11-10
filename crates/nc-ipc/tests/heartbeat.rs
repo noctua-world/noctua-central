@@ -1,6 +1,7 @@
 //! Each side pings after a heartbeat of its own silence and drops a peer
-//! silent past the bound; one request is answered at a time, and an answer
-//! goes only to the request that asked for it.
+//! silent past the bound; one request is answered at a time, an answer goes
+//! only to the request that asked for it, and a connection the daemon closes
+//! has sent its last answer when the close returns.
 //!
 //! **On a paused clock**, so a silence of seconds costs nothing and is
 //! measured exactly. **A relay stands between a real client and a real
@@ -497,4 +498,54 @@ async fn a_request_abandoned_before_its_answer_leaves_the_connection_unasked() {
         Err(IpcError::Malformed(_)) => {}
         other => panic!("a connection with an answer on its way was asked again: {other:?}"),
     }
+}
+
+/// A connection the daemon closes has sent the last answer it was handed by
+/// the time the close returns.
+///
+/// **The daemon's end on a runtime of its own, dropped as soon as the close
+/// returns**, as a daemon's runtime is once its run is over: a writer still
+/// holding the answer then is dropped with it, and the client reads the daemon
+/// as lost. The client is on another thread with a runtime of its own, taking
+/// one byte at a time, so the answer is not written in one go either; on real
+/// time, which a paused clock cannot share between two runtimes.
+#[test]
+fn a_connection_closed_has_sent_its_last_answer() {
+    let (daemon, client) = tokio::io::duplex(1);
+    let token = Token::fresh().expect("a token");
+    let proof = Token::from_text(&token.to_text()).expect("the token reads back");
+    let runtime = || {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("a runtime")
+    };
+    let asking = std::thread::spawn(move || {
+        runtime().block_on(async {
+            let (mut client, _) = within("a handshake", nc_ipc::connect(client, &proof))
+                .await
+                .expect("connected");
+            within("the answer", client.ask(&Request::Status)).await
+        })
+    });
+    let serving = runtime();
+    serving.block_on(async {
+        let mut served = within("a handshake", nc_ipc::serve(daemon, &token, &welcome()))
+            .await
+            .expect("served");
+        assert_eq!(
+            within("a request", served.next()).await.expect("read"),
+            Some(Request::Status)
+        );
+        within("an answer", served.answer(&status()))
+            .await
+            .expect("handed to the writer");
+        within("the close", served.close()).await;
+    });
+    drop(serving);
+    let answered = asking.join().expect("the client did not panic");
+    assert_eq!(
+        answered.expect("the client was answered before the connection closed"),
+        status()
+    );
 }

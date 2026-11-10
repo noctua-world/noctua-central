@@ -284,6 +284,21 @@ pub fn minter<C: Clock + Clone>(
     }
 }
 
+/// Settles the ceiling of the minter a start handed out, shared by every
+/// journal of the profile, to exactly its high-water mark: what a clean stop
+/// writes, so a clean restart has nothing to wait for.
+///
+/// # Errors
+///
+/// [`CeilingRefused`] when the mark could not be written; the ceiling the
+/// last raise wrote stands then, and nothing was minted past it.
+pub fn settled<C: Clock>(minter: &std::sync::Mutex<Minter<C>>) -> Result<(), CeilingRefused> {
+    minter
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .settle_ceiling()
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -505,6 +520,39 @@ mod tests {
             }
             earlier = Some(ceiling);
         }
+    }
+
+    /// A clean stop settles the mark to exactly the last millisecond handed
+    /// out, below the ceiling the raises wrote, so the next start resumes
+    /// there and waits for nothing.
+    #[test]
+    fn a_settled_mark_is_the_last_millisecond_handed_out() {
+        let held = Scratch::new("settled");
+        let (path, user) = held.mark();
+        let (mark, read) = MarkFile::open(&path, &user).expect("opened");
+        let clock = Set(Arc::new(AtomicU64::new(NOW)));
+        let minter = super::minter(
+            mark,
+            read,
+            None,
+            flake(),
+            &clock,
+            &nc_kernel::logging::Captured::default(),
+            &mut |_| panic!("a first start waits for nothing"),
+        )
+        .expect("the start resumes");
+        let minter = std::sync::Mutex::new(minter);
+        let last = minter.lock().expect("held").mint().expect("mints");
+        let (_, raised) = MarkFile::open(&path, &user).expect("reopened");
+        assert!(raised > Some(last.millis_since_epoch() + EPOCH_MS));
+        super::settled(&minter).expect("settled");
+        drop(minter);
+        let (_, read) = MarkFile::open(&path, &user).expect("reopened");
+        assert_eq!(
+            read,
+            Some(last.millis_since_epoch() + EPOCH_MS),
+            "a clean stop left the ceiling a lease ahead"
+        );
     }
 
     /// A clock behind the mark by no more than the lease is waited out with

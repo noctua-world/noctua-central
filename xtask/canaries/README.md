@@ -590,8 +590,11 @@ start and restore, its `service.rs`, the endpoint a daemon is reached through,
 `message.rs`, `handshake.rs` and `connection.rs`, every name an install gives the system,
 `nc-channel`'s `lib.rs` and the manifest's reader beside it, `found.rs`, the
 daemon's `lib.rs`, `main.rs`, `install.rs`, `profile.rs`, `device.rs` and
-`mark.rs`, the CLI's `lib.rs`, `main.rs`, `args.rs`, `help.rs`, `render.rs`,
-`exit.rs`, `client.rs` and `run.rs`, `nc-prune`'s `sqlite.rs`, and
+`mark.rs`, what it serves, its `run.rs`, `server.rs`, `environment.rs`,
+`plugins.rs`, `schedule.rs` and `pidfile.rs`, the install its suites start it in,
+`testing.rs`, which process it is, `nc-platform`'s `process.rs`, the CLI's
+`lib.rs`, `main.rs`, `args.rs`, `help.rs`, `render.rs`, `exit.rs`, `client.rs`
+and `run.rs`, `nc-prune`'s `sqlite.rs`, and
 `local.rs`, which builds that database's schema from its migrations, and restores **all of them** before each mutation: its first multi-file version
 restored only the one it was editing, so sixteen weakenings were reported killed
 by a corpus that had not seen them.

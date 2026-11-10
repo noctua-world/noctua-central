@@ -147,9 +147,12 @@ backend services — everything `NOCTUA.md §1` describes. What is in it today:
   proves it holds the channel's token without sending it, one request at a time, and a
   heartbeat (`NOCTUA.md §11.1`).
 - **The daemon a channel runs** (`apps/daemon`): the install read beside its executable,
-  the profile it keeps, the device it mints identifiers on, and the mark that keeps those
-  identifiers unique across a crash and a clock moved back (`NOCTUA.md §16.2`). Its
-  binary, `noctua-daemon`, answers `--initialize`, the installer's entry.
+  the profile it keeps, the device it mints identifiers on, the mark that keeps those
+  identifiers unique across a crash and a clock moved back (`NOCTUA.md §16.2`), and the
+  kernel it serves at its endpoint — one daemon to a profile, the plugins installed in it,
+  and the pump and the blob sweep on the catalog's schedule (`NOCTUA.md §11.1`). Its
+  binary, `noctua-daemon`, is the daemon, and answers `--initialize`, the installer's
+  entry.
 - **The command line a channel is reached through** (`apps/cli`): a command line read
   into a command's arguments against the schema the daemon's registry lists, the
   daemon reached and proven before anything is sent, help from the registry, and one
@@ -157,8 +160,8 @@ backend services — everything `NOCTUA.md §1` describes. What is in it today:
 
 It is one repository on purpose (`NOCTUA.md §10.1`): those parts share the command
 catalog, the policy pack, the generated types and the journal format. `NOCTUA.md §10.2`
-says which directories are absent until a stage fills them — the daemon that runs the
-kernel among them, which is Stage 13 of the plan.
+says which directories are absent until a stage fills them — every app but the daemon,
+and the services, among them.
 
 `NOCTUA.md` is the authority on what this is and by what rules, and the plan
 (`NOCTUA-PLAN.md`) says what to build and in what order. Two files under `reference/` —
@@ -278,7 +281,7 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 │   ├── nc-log/                     the central log's type wall (§15.4)
 │   │   ├── events.rs              in src/ — GENERATED, one struct per event
 │   │   └── fixtures/               the files that MUST NOT COMPILE
-│   ├── nc-platform/                a path one user's alone, and a program the service manager restores, per system (§2.7) — THE ONE `unsafe`
+│   ├── nc-platform/                a path one user's alone, which process this is, and a program the service manager restores, per system (§2.7) — THE ONE `unsafe`
 │   ├── nc-channel/                 every name an install gives the system, from one function (§17.1)
 │   ├── nc-ipc/                     the protocol a daemon is reached through: frames, the handshake, the heartbeat (§11.1)
 │   ├── nc-policy/                  the pack's compiler, validator and case runner
@@ -292,7 +295,7 @@ noctua-central/                     <!-- allow-reference: names `noctua-central/
 ├── plugins/                        WASM components, one directory each (§11.3)
 │   └── reference/                  the plugin the kernel is proven with
 ├── apps/                           the binaries a person's machine runs, each a library and a thin binary (§10.2)
-│   ├── daemon/                     `noctua-daemon`: the install, the profile, the device and the identifiers' mark (§11.1, §16.2)
+│   ├── daemon/                     `noctua-daemon`: the install, the profile, the device, the identifiers' mark, and the kernel it serves (§11.1, §16.2)
 │   └── cli/                        `noctua`: a command line read against a command's schema, the daemon asked, the exit codes (§20.2)
 └── xtask/                          HAND-WRITTEN — the five verbs
     └── canaries/                   NOT COMPILED — what the gates must find, and the review loop
@@ -415,7 +418,7 @@ fails a gate a minute or two later.
 | a migration with a table | `migrations/NNNN_*.sql` + `catalog/limits.toml` | `[tables.<name>]` — `strategy` and `order_by` always, plus `max_rows` and `prune_batch` when the strategy is `oldest-first`; a `policy-pack` table carries `pack_reason` instead and **no numbers**, which is what `journal_entries` does; a `refuse-at-limit` table is one whose oldest rows are not the pruner's to take — user state, or a unit's images and notes — and carries `max_rows`, where its writer refuses a new row, and `per = "plugin"` or `per = "unit"` when that writer counts each plugin's or each unit's rows rather than the table's (the compiler refuses `per` on any other strategy, and `docs/limits.md` publishes it as `Counted over`) — an ordering column that is `NOT NULL` and sorts in creation order — or `-- nc:bounded: <reason>` in the comment block above the table. The file's name is also a row of `MIGRATIONS_ON_DISK` in `xtask/src/check.rs` |
 | a local migration | `local-migrations/NNNN_*.sql` + `catalog/limits.toml` + `crates/nc-local/src/schema.rs` | SQLite, never in `migrations/`; its tables are bounded like the server's, with `database = "local"` in the entry. The file is a row of `LOCAL_MIGRATIONS_ON_DISK` with the SHA-384 `sqlx` keeps for it, and **a migration a build has carried is never edited**, a comment included — every file that build made records the checksum and is refused at every open once it differs (`NC-DB-0007`) — so a change is a new migration, and a rewrite before any release is an edit of the pin, which `check` holds each file to. Every object it builds is a row of `nc_local::schema::EXPECTED` with the BLAKE3 of the SQL SQLite stores for it and the migration that builds it (`since`): `cargo test -p nc-local` fails printing each digest until the list is updated, and `check` builds a scratch file one migration at a time and holds each step to the list, because the crate judges a file one migration behind by what its own history built. To the gate a trigger's `BEGIN … END` body is one statement, and SQLite's `[name]` and `` `name` `` are names as `"name"` is. `CREATE VIRTUAL TABLE` is refused — its rows live in shadow tables no entry can bound — and so is every statement invariant 18 lists, anywhere in the sources `WRITERS` in `xtask/src/local.rs` names: every member whose manifest takes SQLite (`sqlx` with a `sqlite` or `any` feature, or a crate that hands the file over), read whole or named in `NOT_READ` with its reason (`every_member_that_opens_the_local_database_is_read_or_named`), a SQL comment inside a string read as the gap SQLite reads it as. So is a migrator built when the store runs, which would migrate the user's file with whatever SQL sits in the daemon's working directory: `sqlx::migrate!` of this directory is the one migrator. Then **touch `crates/nc-local/src/store.rs`**: `sqlx::migrate!` embeds the directory when the crate compiles and, on stable Rust, does not tell cargo it read it, so a new file is not in the build until a source changes — `the_embedded_migrations_are_the_ones_on_disk` fails naming both lists until then. And the tests that put a file one migration behind name the newest migration's table and number — `one_migration_behind` and `what_the_file_holds` in `crates/nc-local/tests/opening_refuses_what_it_did_not_make.rs` — while the gate's own tests in `xtask/src/local.rs` count the shipped migrations and plant one numbered past the newest |
 | a crate | `crates/<name>/` | more than the `members` glob suggests. The manifest takes `[lints]` with `workspace = true` and `version.workspace = true`, a crate with a `tests/` suite depends on itself under `[dev-dependencies]` or rustdoc cannot resolve the suite's `use`, and the crate root denies printing. Then `cargo test -p xtask --bin xtask` fails naming each list the crate has to join — the error-code scope (`JUDGED_BY_THE_ERROR_CODE_RULE` or `OUTSIDE_THE_ERROR_CODE_SCOPE`), the mutation census (`SOURCES` in `xtask/mutants.py`, or `NOT_MUTATED`), `SUITES`, `DOCUMENTED` and the source-count pins. Three lists in `xtask/src/gates.rs` are joined by hand, because nothing holds them to the crates: `JUDGED_BY_THE_RAISING_RULE`, `READ_BY_THE_HATCH_WALK` and `COVERED` — a crate taken out of all three leaves that command green |
-| a member under `apps/` | `apps/<dir>/`: `Cargo.toml` and `src/`, a library and its binary | every list a crate joins (the row above), by its path under `apps/` — the trees are `MEMBER_TREES` in `xtask/src/members.rs`, so the walks read it already, and the hand-kept lists in `xtask/src/gates.rs` are the ones to join. The package is `nc-<dir>` — the mutation runner reads it from the path — and the binary is named in a `[[bin]]` table: what the app does is the library's, and the binary's `main.rs` reads its arguments and prints through the one printing door, the invocation it answers and its exit codes decided by functions its own unit tests call. **A source's mutation command runs its own module's unit tests, and never a suite that spawns a process**: `cargo test -p nc-<dir> -- <module>::` for a module and `--bin <binary>` for `main.rs` (`--lib` is refused outright), so a suite in `tests/` that starts the binary, a daemon or a child, or registers a unit, runs under no operator. `a_suite_that_spawns_a_process_is_run_by_no_mutation_command` in `xtask/src/check.rs` holds every suite of every member to that, but the ones `SPAWNED_BY_THE_RUNNER` writes down, and such a suite's `NOT_MUTATED` row says `spawns a process, so no mutation command runs it`. It makes its scratch, its children and its files under a scratch root, each with a guard that removes it |
+| a member under `apps/` | `apps/<dir>/`: `Cargo.toml` and `src/`, a library and its binary | every list a crate joins (the row above), by its path under `apps/` — the trees are `MEMBER_TREES` in `xtask/src/members.rs`, so the walks read it already, and the hand-kept lists in `xtask/src/gates.rs` are the ones to join. The package is `nc-<dir>` — the mutation runner reads it from the path — and the binary is named in a `[[bin]]` table: what the app does is the library's, and the binary's `main.rs` reads its arguments and prints through the one printing door, the invocation it answers and its exit codes decided by functions its own unit tests call. **A source's mutation command runs its own module's unit tests, and never a suite that spawns a process**: `cargo test -p nc-<dir> -- <module>::` for a module and `--bin <binary>` for `main.rs` (`--lib` is refused outright), so a suite in `tests/` that starts the binary, a daemon or a child, or registers a unit, runs under no operator. `a_suite_that_spawns_a_process_is_run_by_no_mutation_command` in `xtask/src/check.rs` holds every suite of every member to that — one that starts a process through its crate's test doors, a `.spawn()` with nothing in its parentheses, included — but the ones `SPAWNED_BY_THE_RUNNER` writes down, and such a suite's `NOT_MUTATED` row says `spawns a process, so no mutation command runs it`. It makes its scratch, its children and its files under a scratch root, each with a guard that removes it |
 | a plugin | `plugins/<dir>/`: `Cargo.toml`, `plugin.toml` and `src/` | the lists a crate joins in `xtask/src/gates.rs` — `JUDGED_BY_THE_ERROR_CODE_RULE`, which the census of every member cargo resolves holds it to, and `JUDGED_BY_THE_RAISING_RULE` and `READ_BY_THE_HATCH_WALK` by hand — because the §15.1, raising and hatch walks read `plugins/` as they read `crates/`. The package is `nc-plugin-<dir>` — the plugin build refuses any other name, and the mutation runner reads the package from the path — with `crate-type = ["cdylib", "rlib"]`: what the plugin does goes in a module the host target tests, and `impl Guest` with `nc_guest::generated::export!` in an `adapter` module whose file opens with `#![cfg(target_arch = "wasm32")]`, because a host `cdylib` holding the exports does not link — the condition inside the file, since one on the `mod` line reads to the ignored-test gate as hiding every test in it. `cargo xtask build --plugins`, and `check` before the tests, builds it for `wasm32` and encodes it, refusing a component that imports anything the world `plugin` does not declare (which is what a dependency with bindings of its own brings in), then lints and documents it for that target — the only run that reads the adapter; a kernel suite loads it through `nc_kernel::component_for_tests`, which refuses a component its sources no longer build. Every `.rs` joins the mutation census, and the adapter's command is the plugin build |
 | the plugin world | `reference/noctua-kernel.wit` in the workspace, then `crates/nc-kernel/wit/noctua-kernel.wit` | the workspace's file first — it is normative — then the copy, byte for byte, then `WIT_BLAKE3` in `crates/nc-kernel/src/world.rs`. `the_kernel_world_is_the_reference_world` holds the copy to the reference wherever the workspace is there, and the digest holds it in a checkout; a new `package` version is `WORLD_VERSION` as well |
 | a command | `catalog/commands.toml`, both locales | its `args_schema` is held to the closed subset `crates/nc-schema` documents — every object `"additionalProperties": false`, no keyword outside `nc_schema::KEYWORDS`, and no character `nc_schema::unseen` answers for — `INVISIBLE_RANGES` and the default-ignorable `BLANK_RANGES` — but JSON's own whitespace, which the title is held to as well — and an `argument:<name>` selector needs that argument required, a string with `x-entity` naming its Cedar type, and `maxLength` at most 128, and never selects `Realm`, which `realm` alone does; the kernel judges every command a plugin declares at `activate` by the same function (`NOCTUA.md §11.7`), so a rule written there reaches both |
@@ -435,7 +438,7 @@ fails a gate a minute or two later.
 | a restorer's shape | its generator in `crates/nc-platform/src/service.rs` — `systemd_unit`, `launchd_plist` or `task_xml` — and the table of restorers in that module's header | the generator's text is written out whole in the module's tests, and every character its format reads specially is escaped there or refused when the service is described; what each restorer does is measured, not assumed, so a change to one is measured again on its system's runner by the scratch services in `with_the_manager` in the same file — the test binary registered under this checkout's test prefix, killed, and read back through the manager's own counters — and `NOCTUA.md §17.3` says what each system's restorer is |
 | a kernel limit | `[kernel]` in `catalog/limits.toml`, and a field of `KernelLimits` in `crates/nc-catalog-compiler/src/model.rs` with its row in `KernelLimits::each` | every limit is required and above zero, and one that bounds another is held to it where both are written (`check_kernel` in the compiler's `load.rs`); `xtask/tests/the_registry_reaches_the_code.rs` compares every field by name, so a new one is a line there as well, and `docs/limits.md` publishes it with its unit. A plugin's manifest may lower only what `Lowering` in `crates/nc-kernel/src/limits.rs` names, and never raise it |
 | an IPC message | `crates/nc-ipc/src/message.rs` — a variant of `Request` or `Answer`, or a message of the handshake — and the module header of `crates/nc-ipc/src/lib.rs` | its encoding and its reading in the same file, the reading **strict**: every field it holds taken by `Fields` and `done()` refusing the rest, so a field an older build does not read is a refusal rather than a value dropped in silence; a message the handshake reads names the protocol first, and a change of what an existing message means is a new `PROTOCOL`, never the same number; a case in `crates/nc-ipc/tests/` that sends it through a real `serve` and `connect`, and one that sends it malformed by hand through `nc_ipc::frame`. Whatever the daemon answers is held to `ipc_frame_max_bytes`, which the compiler holds above the kernel's `payload_bytes` and the envelope of 64 KiB `crates/nc-catalog-compiler/src/load.rs` names, so an answer that may grow without bound — the registry, a status — is refused to the daemon before anything of it is sent (`NC-IPC-0016`), its request still waiting for an answer the daemon can send instead, and never a frame cut short |
-| a daemon limit | `[daemon]` in `catalog/limits.toml`, and a field of `DaemonLimits` in `crates/nc-catalog-compiler/src/model.rs` with its row in `DaemonLimits::each` | every limit is required and above zero, and one that must keep a bound outside its table is held to it where it is written (`check_daemon` and `check_daemon_ipc` in the compiler's `load.rs`, with a failing case in `crates/nc-catalog-compiler/tests/the_gates_fire.rs` at the boundary): `mark_lease_ms` below the day past which a minter reads a mark as corrupt, `ipc_frame_max_bytes` at least the kernel's `payload_bytes` and the frame's envelope, `ipc_silent_after_ms` above two `ipc_heartbeat_ms`, and `ipc_connections_max` at most 252, what a Windows pipe's instances hold with one waiting and one past the bound. `xtask/tests/the_registry_reaches_the_code.rs` compares every field by name and counts them, `xtask/tests/every_generated_value_is_compared.rs` counts the generated surface, and `docs/limits.md` publishes it under **Daemon** with its unit, whose prose `xtask/tests/the_pages_reach_the_catalog.rs` pins. The daemon and `crates/nc-ipc` read `nc_catalog::DAEMON` and take no value of the type from a caller |
+| a daemon limit | `[daemon]` in `catalog/limits.toml`, and a field of `DaemonLimits` in `crates/nc-catalog-compiler/src/model.rs` with its row in `DaemonLimits::each` | every limit is required and above zero, and one that must keep a bound outside its table is held to it where it is written (`check_daemon` and `check_daemon_ipc` in the compiler's `load.rs`, with a failing case in `crates/nc-catalog-compiler/tests/the_gates_fire.rs` at the boundary): `mark_lease_ms` below the day past which a minter reads a mark as corrupt, `ipc_frame_max_bytes` at least the kernel's `payload_bytes` and the frame's envelope, `ipc_silent_after_ms` above two `ipc_heartbeat_ms`, `ipc_connections_max` at most 252, what a Windows pipe's instances hold with one waiting and one past the bound, and the schedule beside the kernel's bounds (`check_daemon_schedule`): `pump_every_ms` at most `timer_min_interval_ms`, `sweep_every_ms` at most `blob_orphan_grace_ms`, and `stop_drain_ms` at least `dispatch_deadline_ms`. `xtask/tests/the_registry_reaches_the_code.rs` compares every field by name and counts them, `xtask/tests/every_generated_value_is_compared.rs` counts the generated surface, and `docs/limits.md` publishes it under **Daemon** with its unit, whose prose `xtask/tests/the_pages_reach_the_catalog.rs` pins. The daemon and `crates/nc-ipc` read `nc_catalog::DAEMON` and take no value of the type from a caller |
 | an advisory left out of the audit | `[advisories] ignore` in `deny.toml`, and `THE_ADVISORIES_LEFT_OUT` in `xtask/src/check.rs` | only one the lock cannot get past and that is argued not to reach this tree: the entry's `reason` says in one sentence why and when it leaves, the paragraph above `ignore` gives the argument, and the bullet of **What is deliberately not claimed** it rests on says so. The gate holds the list to the constant, in its order, and refuses an entry with no reason however TOML spells it; cargo-deny warns `advisory-not-detected` for an entry no crate matches while `[advisories] unused-ignored-advisory` is `warn`, which `deny.toml` writes out and `THE_AUDIT_IS_NOT_NARROWED` holds, and the warning fails the dependency step, so the change that moves the lock past the advisory takes it out of both lists |
 | a CLI verb | `VERBS` in `apps/cli/src/args.rs`, its line in `what_it_does` in `apps/cli/src/help.rs`, and its arm in `apps/cli/src/run.rs` | one undotted word, which no registered command's name can be — every one is dotted (`nc_schema::command_name_is_well_formed`) — and `the_verbs_and_the_registered_names_never_meet` holds the two apart, over the catalog's and the reference plugin's names; a verb acts without dispatching, so it is what only the CLI can do — help, and process control — never a feature a registered command could carry, which reaches every surface (`NOCTUA.md §2.8`). A run that ends in a new way is a row of `Exit` in `apps/cli/src/exit.rs`, and `help exit-codes` prints that one table |
 
@@ -611,7 +614,8 @@ effect; 22 is gated over the statements written today and by nothing over the ne
     `forbid(unsafe_code)` means here, exactly.** Every member takes
     `unsafe_code = "forbid"`, the plugins included, but `crates/nc-platform`, whose
     Windows half makes the Win32 calls `windows-sys` declares `unsafe` — the security
-    calls, the system's random bytes, the processes at either end of a named pipe — and
+    calls, the system's random bytes, the processes at either end of a named pipe, when
+    this process started and whether its standard handles reach a child — and
     creates the daemon's pipe through `tokio`'s `create_with_security_attributes_raw`,
     which is `unsafe` for the descriptor it is handed (decided on 2026-11-02,
     `NOCTUA.md §2.7`): a `forbid` cannot be lifted by anything
@@ -746,6 +750,36 @@ effect; 22 is gated over the statements written today and by nothing over the ne
     skips `write_exactly` and is not added there is refused by nothing — no gate reads the
     store's source for an `execute` outside it.
 
+23. **The daemon has no network listener.** What a daemon serves, it serves at its
+    endpoint — a socket or a pipe its user alone reaches (`nc_platform::ipc`) — and
+    nowhere a network can: no `TcpListener`, `TcpSocket` or `UdpSocket` is written in the
+    shipped sources of any app under `apps/`, of `crates/nc-ipc` or of
+    `crates/nc-platform`. **Gated** by `the_daemon_has_no_network_listener` in
+    `xtask/src/gates.rs`, over those sources with comments and strings blanked, and by
+    `the_listener_walk_goes_everywhere_inside_its_scope`, which plants a listener in every
+    directory the tree has and holds the walk to finding each one in its scope and none
+    outside it. **Not held**: a listener a dependency opens on the daemon's behalf, which no
+    source here names — the kernel's transport dials out and listens nowhere.
+
+24. **No code outside `nc-platform` decides by the system it is built for**
+    (`NOCTUA.md §2.7`): a `cfg`, `cfg!`, `cfg_attr` or `cfg_select!` arm naming `unix`, `windows`,
+    `target_os`, `target_family`, `target_vendor`, `target_env` or `target_abi` — every
+    part of a target but its architecture and its pointer width — is written in
+    `crates/nc-platform` alone, which states each system's answer as a fact every system's
+    code reads, so the decision is code the Linux job compiles, tests and mutates. The gate's own lines are the exception, each
+    written down by its file and its text (`THE_GATES_OWN` in `xtask/src/gates.rs`):
+    `check::RUNS_THE_STACK`, and two tests holding that answer to the system they run on.
+    **Gated** by `no_system_is_asked_outside_the_platform`, over every Rust source of every
+    member tree with comments and strings blanked, the predicate read inside its
+    parentheses and each arm of a `cfg_select!` read before its `=>`, and by
+    `the_system_walk_goes_everywhere_outside_the_platform`, which plants both forms. **Not
+    held**: a manifest's `[target.'cfg(…)']` table, which only `nc-platform`'s holds today;
+    a `cfg` by architecture or pointer width, which names no system — the reference
+    plugin's `target_arch = "wasm32"` among them; `cfg!` or `cfg_select!` renamed by a
+    `use … as`, or handed its predicate by a macro of this tree's, where no predicate is
+    written beside the name; and the system asked another way — `std::env::consts::OS`
+    compared at run time — which is a decision this gate cannot read.
+
 ## The security answer §2.4 asks for
 
 `NOCTUA.md §2.4` asks, on every implementation, how it could be made more secure, and
@@ -780,7 +814,8 @@ entry owns.
 | Another account reading the local database | `0700` and `0600` on Unix, an access list naming the user alone on Windows, owner and link checks, `trusted_schema = OFF`, `main.`-qualified statements and append-only images | "The local database is private to its user, and refuses what it did not make" |
 | Another account reaching the daemon's endpoint, or standing in for it | a socket `0600` in a runtime directory judged `0700`, or a pipe made first with an access list naming the user alone and remote clients rejected; the user and the process at the other end read off the system both ways, before a frame crosses | "A daemon's endpoint lets in its user alone, and each end reads the other off the system" |
 | Something that never read the token speaking to the daemon, or answering for it | a proof keyed by the token at each end, over both nonces and a domain of its own, compared in constant time, with the token never sent | "Each end of a connection proves it holds the token, and neither sends it" |
-| An identifier handed out twice, across a crash or a clock moved back | a ceiling made durable before a millisecond past it is handed out, and a start that resumes above it and the newest unit it hands in, waiting for the clock | "A daemon starts only on a profile that is its user's alone, and mints nothing it cannot resume above" |
+| An identifier handed out twice, across a crash or a clock moved back | a ceiling made durable before a millisecond past it is handed out, and a start that resumes above it and the newest unit its local journal holds, waiting for the clock | "A daemon starts only on a profile that is its user's alone, and mints nothing it cannot resume above" |
+| Two daemons over one profile, a network reaching a daemon, or a request reaching the kernel unproven | an instance lock taken at once or refused, no listener a network can reach, and every connection proven before a request is read, each refusal logged | "A daemon serves its kernel to its user alone, one to a profile, and to nothing a network reaches" |
 | A sandbox escape through this repository's own code | no `unsafe` written anywhere but the Win32 calls of `nc-platform`'s Windows half, each beside its reason, plugins included, and what `forbid` does not reach written down | invariant 17 |
 | Something that is not this install's daemon answering the CLI, or the CLI printing what a terminal acts on | the endpoint's other end read off the system, the token read only when private, the daemon's proof, the welcome held to the process and the channel, and every text from the daemon escaped | "The CLI sends nothing until both ends are proven, and prints nothing a terminal acts on" |
 
@@ -1241,8 +1276,8 @@ killed or unloaded.
 callback changing its own plugin's state, which it cannot — a command of that plugin
 dispatched from it is a dispatch into itself — so a timer reaches its plugin's data only
 through another plugin's command; timers and events across a restart of the kernel, which
-keeps none on disk in this build, and when the pump runs, which is the daemon's (Stage
-13); an event published or a timer set by a command that only reads and then trapped,
+keeps none on disk in this build, and when the pump runs, which is the daemon's schedule
+(`pump_every_ms`); an event published or a timer set by a command that only reads and then trapped,
 queued or armed when its tree ends because the trap's entry was taken — such a timer only
 reads when it fires; and one plugin publishing the queue full, which refuses every other
 plugin's events until the next pump: the queue's bounds are the kernel's, with no share a
@@ -1467,7 +1502,10 @@ stderr, never a lost line. Whether to write lines out and whether the store has 
 two questions: a silent store keeps its lines **and** is not counted against, and only a
 peer that closed is concluded gone (`GIVE_UP_AFTER`). The shutdown shortens the connect
 and the write (`bounds`) and the answer (the `abandoning` flag); only the last is reached
-in ordinary running, as `bounds`' own doc says.
+in ordinary running, as `bounds`' own doc says. A log told of no store
+(`Log::to_standard_error`, a daemon whose install names none) writes every line there
+itself, in the shape and through the bounded writer a shipper's fallback uses, and its
+`Drop` waits one `GRACE` for that writer as a shipper's does.
 
 ### The chain is over bytes, not over formatting
 
@@ -1872,8 +1910,8 @@ area at the first thing it cannot vouch for.
   of it a start reads — the seed, the device's record, the world and the mark — judged
   before it is read, and the data and configuration directories `--initialize` writes a
   seed and a world into, judged before anything is written there, with the same code. The
-  plugins directory under the data one is not among them: no start makes, judges or reads
-  it yet (under **What is deliberately not claimed**).
+  plugins directory under the data one is made or judged with the rest, and each plugin in
+  it is judged before it is read (the daemon's entry below).
 - **A device is drawn once and never again.** Its seed is 32 bytes from the system's own
   generator, written into a file created private that refuses any name already there, so
   it is never overwritten and its flake, `MachineFlake::candidate(public, 0)`, never
@@ -1893,10 +1931,13 @@ area at the first thing it cannot vouch for.
   synced, so a torn write spoils one and the other holds the ceiling nothing was minted
   past; with neither whole the start refuses (`NC-DMN-0007`). The lease is the catalog's,
   which the mark reads itself, so no caller chooses how far a raise reaches. A start
-  resumes above the larger of the mark and the newest unit it hands in, waits for a clock
-  behind it — logging `ids.clock_backwards` past the lease — and refuses a mark more than
-  a day ahead; settling the ceiling (`nc_ids::Minter::settle_ceiling`) writes the exact
-  high-water mark.
+  resumes above the larger of the mark and the newest unit its local journal holds
+  (`nc_local::LocalJournal::newest_unit`, the largest identifier any entry names, in
+  every realm), so a mark lost or rolled back is still above every unit kept; it waits for
+  a clock behind it — logging `ids.clock_backwards` past the lease — and refuses a mark
+  more than a day ahead; and a clean stop settles the ceiling (`mark::settled`, through
+  `nc_ids::Minter::settle_ceiling`) to the exact high-water mark, so a clean restart waits
+  for nothing.
 
 **Enforced by** the unit tests of each module in `apps/daemon/src/` — a missing, reachable
 and malformed manifest, a manifest in a directory another account can reach refused and
@@ -1920,8 +1961,13 @@ until it is killed, with its output still read, and every identifier it printed 
 against a start from what it left, with the clock back by more than the lease and by more
 than a day, which repeats nothing and refuses respectively, and the mark the restarted
 start leaves is above everything it minted, by the ceiling's tests in
-`crates/nc-ids/src/snowflake.rs`, and by the operators over those sources in
-`xtask/mutants.py`, each judged by its own module's unit tests.
+`crates/nc-ids/src/snowflake.rs`, by
+`the_newest_unit_is_the_largest_any_entry_names_in_any_realm` in
+`crates/nc-local/tests/the_local_journal.rs` and
+`a_start_reads_the_newest_unit_its_journal_holds` in `apps/daemon/src/environment.rs`, by
+`a_settled_mark_is_the_last_millisecond_handed_out` in `apps/daemon/src/mark.rs`, and by
+the operators over those sources in `xtask/mutants.py`, each judged by its own module's
+unit tests.
 
 **Not answered:** a process running as the same user, which can rewrite the manifest, the
 world or the mark, or delete the mark so that a start resumes from the local journal alone;
@@ -1932,6 +1978,116 @@ seed's first write, which leaves a seed of another length that no start and no
 `--initialize` reads (`NC-DMN-0004`), so the profile does not start until it is removed by
 hand; a disk that answers a sync before the bytes are on it; and an administrator. What
 the daemon leaves undone is under **What is deliberately not claimed**.
+
+### A daemon serves its kernel to its user alone, one to a profile, and to nothing a network reaches
+
+`apps/daemon` (`run`, `server`, `environment`, `plugins`, `schedule` and `pidfile`, whose
+headers have the rules) runs what the entry above reads: a start in the order `run`'s
+header gives, the endpoint served, and a stop.
+
+**Guaranteed:**
+
+- **One daemon to a profile.** A start takes the instance lock in the profile's state
+  directory at once or not at all (`nc_platform::try_hold`), before it reads the device or
+  writes anything of its run, and a second refuses (`NC-DMN-0008`) with the first left as it
+  was — so no two kernels take each other's open units for a stopped process's, and no two
+  minters share a flake. The lock is never the data directory's, which each open of the
+  local database holds while it opens.
+- **The endpoint is the only door, and nothing reaches the kernel before it is proven.**
+  A connection is accepted only once the system shows its other end to be this user's, and
+  served only once the client proves it holds the token (the two entries above); each
+  refusal of either is logged as `ipc.refused` with its code, and closes the connection
+  before a request is read. A proven connection that then sends what is not a request,
+  falls silent past `ipc_silent_after_ms`, takes nothing or is lost is closed and logged
+  the same way; one its client closes between requests ends well. The daemon binds nothing
+  a network can reach (invariant 23). A dispatch or the registry asked before the kernel
+  runs is refused as not running yet (`NC-DMN-0009`) and one asked after a stop began as
+  stopping (`NC-DMN-0010`); the status and a stop are answered from the first moment, and
+  every answer handed to a connection is written before the daemon lets it go.
+- **Every dispatch is the kernel's to decide, as the profile's person.** The daemon hands
+  `Kernel::dispatch` the person the world names and the arguments as they arrived, decides
+  nothing itself, and hands back the kernel's answer or its refusal by the kernel's own code
+  and kind — the journal holds each, whoever asked.
+- **The token is fresh at each start, and the record names a process, not a number.** The
+  token is drawn from the system's generator and the PID record holds the process as the
+  system knows it — its boot, its start, its executable — and the instance the start drew,
+  each written into a private file beside it, synced and renamed over the last, the token
+  first so a record naming the process says the token beside it is that start's. A record
+  naming process zero or below is refused as a record (`NC-DMN-0013`), never read as one;
+  a file a write left beside either is removed only once judged this user's alone; and a
+  clean stop removes the record only where it names its own instance, and the token.
+- **A plugin is installed by its user and refused alone.** The plugins directory, each
+  plugin's directory, its manifest and its component are judged this user's alone before
+  they are read; one refused — by that judgement, its manifest or the kernel — is logged as
+  `daemon.plugin_refused` with its code and shown in the status with its sentence, and the
+  daemon runs without it.
+- **The schedule is the catalog's, and a stuck pruner is escalated.** The pump runs every
+  `pump_every_ms` and the blob sweep every `sweep_every_ms`, between call trees, each to
+  its end before the next is waited for; a run of pumps whose pruning was refused is logged
+  as `daemon.prune_stuck` at two and each doubling, and a clean one ends it.
+- **The central log is the install's, and goes nowhere the install did not name.** An
+  install naming no store has the daemon's lines written to its standard error alone
+  (`nc_log::Log::to_standard_error`), and a store that does not answer has them written
+  there by `nc_log`; an install naming a store `nc_log` refuses — one off this machine —
+  does not start (`NC-DMN-0011`). A start and a stop are logged (`daemon.started`,
+  `daemon.stopped`, with what a stop gave up on).
+- **A stop leaves nothing of the run but its effects.** New dispatches are refused — each
+  counted as running before the state is read, so a stop either refuses one or waits for
+  it — no connection is taken, and no pump and no sweep begins. The stop then waits
+  `stop_drain_ms` at most — at least one call tree's whole deadline, which the compiler
+  holds — for the dispatches running, for a pump or a sweep it finds inside a run, and for
+  every connection to write its last answer, the stop's own among them, and close
+  (`nc_ipc::Served::close`): each connection is counted before it is served, and ended
+  between two requests. Then the mark is settled, the local database closed, the record and
+  the token removed, the socket with the listener, and the lock let go. A stop asked while
+  the start is under way waits for the connections alike.
+- **A spawned daemon holds none of its spawner's handles**: a suite starts it with its
+  standard input and output null and its standard error a file in its profile, after
+  keeping this process's own standard handles from every child
+  (`nc_platform::process::keep_standard_handles_from_children` — on Windows a child is
+  otherwise handed every inheritable handle its parent holds); and a daemon that does not
+  lead its process group starts a session of its own (`nc_platform::leave_the_session`),
+  so no terminal it was started from signals it.
+
+**Enforced by** `apps/daemon/tests/ipc_refusals.rs` — a real daemon process handed a hello
+with no proof, a proof keyed by another token and nothing at all, each turned away with its
+code, each logged once, a dispatch sent after each never read, the journal empty afterwards
+and the daemon still answering a client that proves itself — by
+`apps/daemon/tests/serves_its_kernel.rs` — the registry held both ways to the catalog's
+commands with the reference plugin's beside them, a plugin refused shown and logged, every
+dispatch found in the journal with the outcome it was answered with and as the world's
+person, the pump on its schedule and the sweep once, a second daemon refused with the first
+still answering, a stop that ends with exit 0 and leaves no record, token, socket or lock and
+a profile that starts again with a new instance, a spawner whose output ends while the
+daemon it started runs, and a daemon that leads a session of its own and not the suite's
+(`the_daemon_leads_a_session_of_its_own`) — by the unit tests of `server` (among them
+`a_dispatch_is_counted_before_its_state_is_read` and
+`a_stop_is_answered_whole_before_its_connection_is_let_go`, whose server runs on a runtime
+dropped as soon as the stop has wound down, and whose client takes one byte at a time),
+`pidfile`, `plugins`, `schedule`
+(`a_stop_waits_for_the_run_it_finds_and_begins_none_after`, over thirty-two schedules,
+and `a_run_still_going_at_the_bound_is_given_up_on_and_counted`) and `environment`, by
+`a_connection_closed_has_sent_its_last_answer` in `crates/nc-ipc/tests/heartbeat.rs`, by
+`a_log_told_of_no_store_writes_every_line_to_stderr` in `crates/nc-log/src/lib.rs`, by
+`a_directory_held_is_not_held_again_at_once` and
+`a_detached_process_leads_a_session_of_its_own` in `crates/nc-platform/src/lib.rs` — which,
+with the daemon's own, stands aside on Windows, where no process has such a session, by
+`nc_platform::system::POSIX_SESSIONS` — by invariant 23's gate, and by the operators over
+those sources in `xtask/mutants.py`, each judged by its own module's unit tests.
+
+**Not answered:** a process running as the same user, which can read the token and dispatch
+as the person, stop the daemon, or install a plugin — authorization decides every dispatch
+whoever asked (`§14`); a daemon killed, which runs no handler and leaves its record, its
+token and its socket for the next start to replace; a daemon that leads its process group
+— started by hand as a job of a shell, or spawned as a group's leader — which cannot start
+a session and stays in the one it was started in, where that terminal's hangup reaches it;
+a stop asked while the start waits for its clock, which abandons the start and leaves the
+mark as the last raise wrote it; a dispatch, a pump or a sweep still running past
+`stop_drain_ms` — trees run one after another, such as a pump's callbacks, that outlast
+the drain together — which the stop gives up on, counts in `daemon.stopped`, and closes
+the local database under, and whose unit the next start recovers; and a connection whose
+client has not taken its last answer by that bound, which goes with the daemon's runtime,
+the answer unwritten and uncounted. What the daemon leaves undone is under **What is deliberately not claimed**.
 
 ### A program registered with the service manager runs as it was described, and a test's registration is its own
 
@@ -2755,13 +2911,14 @@ rather than anything decided for the project, and each is a maintainer's to reop
   bracket it cannot name keeps the kernel shut, as the decision point's **Not answered**
   says. Two kernels over one journal would each take the other's open units for a stopped
   process's; one daemon keeps one profile.
-- **Nothing runs on a schedule, and nothing put off outlives the kernel.** Timers and
-  events are kept on no disk. `nc-prune` is a library the pump runs over the local
-  database and `limits.prune` runs when a guardian holding a quorum's approval dispatches
-  it, and `Kernel::sweep_blobs` deletes what is due when called; calling them from time to
-  time is the daemon's, in Stage 13 (`NOCTUA.md §15.8` asks for a schedule). What is owed
-  and gated today is that each is correct, matches its declaration, and is run by the pump
-  and the command.
+- **The schedule is the running daemon's, and nothing put off outlives the kernel.**
+  Timers and events are kept on no disk. A daemon pumps its kernel every `pump_every_ms`
+  — the timers due, the events queued, and `nc-prune` over the local database — and
+  sweeps the blobs every `sweep_every_ms` (`apps/daemon/src/schedule.rs`, `NOCTUA.md
+  §15.8`); `limits.prune` runs when a guardian holding a quorum's approval dispatches it.
+  A kernel opened by anything but a daemon runs none of them on its own, and nothing runs
+  `journal.verify` on a schedule. A table the pruner skips is escalated by the run of pumps
+  that met it (`daemon.prune_stuck`), never by the table, which `Pumped` does not name.
 - **`deactivate` is never called**: `Kernel::unload` removes a plugin's commands, timers,
   surfaces and unheard events without calling it, so a plugin cannot count on it.
 - **A blob is never fetched, and never announced** — reaching another machine's blobs is
@@ -2832,19 +2989,25 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **The stack is the checkout's, not its user's**: two accounts working in one checkout
   directory share one compose project and its ports, on a Docker daemon and a loopback
   the machine shares, and none of the three carries the user.
-- **No process runs the daemon's start yet**: the library holds the start up to the mark —
-  the install, the profile, the device, the world and a minter behind its ceiling — and
-  `noctua-daemon` answers `--initialize` and nothing else, so no channel's daemon keeps
-  running or serves its kernel. The local journal's newest unit is the start's to read and
-  hand to `nc_daemon::mark::minter`, and nothing reads it yet, so no start resumes above a
-  unit the mark does not cover; no stop calls `nc_ids::Minter::settle_ceiling`, so none
-  writes the exact high-water mark yet; and no start makes, judges or reads the plugins
-  directory under the data one (`nc_channel::Layout::plugins`), because nothing loads a
-  plugin from it yet. Nor does any daemon bind its endpoint or serve the protocol:
-  `nc_ipc::listen` and `nc_ipc::serve` are what a running daemon will speak through, and
-  nothing writes the channel's token into the runtime directory, so the CLI, which reads
-  one only from a file judged private and holds the welcome's process to the system's,
-  has no daemon to reach yet.
+- **A daemon is started by hand or by a suite, and nothing restores it or speaks to it but
+  the suites**: `noctua-daemon` with no argument is the daemon, but no installer writes a
+  development install, so no CLI built here finds an install to reach it through; no CLI
+  starts or stops it, no service manager restores it, and nothing honours the `stopped`
+  mark (`--restored`, the restorers' entry, is not answered yet). The daemon writes its
+  token private and fresh at each start and its PID record beside it. The CLI reads the
+  token only from a file judged private and holds the welcome's process to the one the
+  system shows at the other end, but nothing but the suites reads the PID record, so no
+  client yet holds the welcome's process to the record, and no stop yet verifies a
+  recorded process before it signals one.
+- **A daemon decides as a person who holds no grant.** The world file names the realm and
+  the person every dispatch is decided as, and the directory a daemon opens over it holds
+  no grant for anybody and the realm's epoch as zero (`nc_authz::LocalWorld`), so the
+  decision point denies every dispatch a daemon serves (`NC-POL-0003`) and the journal
+  records each as denied, until the world file names a grant the person holds.
+- **A daemon a suite started outlives a suite killed outright.** Each suite stops its
+  daemons through the endpoint and kills them on the way out, but a test process killed
+  with no destructor run leaves its daemon running, holding none of the runner's output,
+  with its scratch install under the temporary directory, until it is stopped by hand.
 - **Another account is kept off the endpoint by what no test can be**: no hosted runner
   has a second account and an unprivileged test cannot make one, so a connection from
   another user is never made. What stands in for it, on every system, is the endpoint read back
@@ -2943,10 +3106,13 @@ rather than anything decided for the project, and each is a maintainer's to reop
   aborted, a reversal refused (`kernel.revert_failed`), a unit recovered
   (`kernel.recovered`), a step undone or redone (`kernel.step_reversed`), a fetch refused
   (`net.refused`), the chain verified or broken (`journal.verified`, `journal.broken`),
-  and a start whose clock is behind its mark by more than the lease
-  (`ids.clock_backwards`) — each a struct `catalog/log-events.toml` generates; nothing else
-  of the platform logs yet. A daemon hands the kernel `nc_log::Log` behind a mutex, the
-  one `nc_kernel::logging::LogSink` it writes its own events to too; the kernel's suites
+  a start whose clock is behind its mark by more than the lease
+  (`ids.clock_backwards`), a daemon started and stopped (`daemon.started`,
+  `daemon.stopped`), a plugin it refused (`daemon.plugin_refused`), a pruner stuck
+  (`daemon.prune_stuck`) and a connection it refused (`ipc.refused`) — each a struct
+  `catalog/log-events.toml` generates; nothing else of the platform logs yet. A daemon hands the kernel `nc_log::Log` behind a mutex, the
+  one `nc_kernel::logging::LogSink` it writes its own events to too — to its standard
+  error alone when its install names no store; the kernel's suites
   log into a capture,
   and `the_central_log_sink_ships_what_the_kernel_records` in
   `crates/nc-kernel/src/logging.rs` drives the real shipper to a store it stands up.
@@ -3703,9 +3869,9 @@ holds to each other.
 **A suite that needs what a system lacks asks `nc_platform::system`, and the gate names
 it.** The system's answer is a constant of that crate, fixed per system as
 `RUNS_THE_STACK` is — `LISTED_AS_MADE`, a directory listed in the order its entries were
-made, and `A_POSIX_SHELL` — never a probe of the machine, so a Linux machine cannot stand a
-suite aside, and `linux_lacks_nothing_a_suite_stands_aside_for` holds every answer on every
-system. That module is compiled in every build, not behind `test-support`, because the
+made, `A_POSIX_SHELL`, and `POSIX_SESSIONS`, a session of the POSIX kind for a process to
+leave — never a probe of the machine, so a Linux machine cannot stand a suite aside, and
+`linux_lacks_nothing_a_suite_stands_aside_for` holds every answer on every system. That module is compiled in every build, not behind `test-support`, because the
 gate reads it too. Each guard prints `skipped, not applicable on <system>:` and why — and
 cargo counts the test as passed and captures that line with the rest of a passing test's
 output, which the gate prints none of. So the gate's test step says it instead, from the
@@ -3713,14 +3879,17 @@ same constants: before the tests, a `not applicable` line for each suite this sy
 aside (`THE_SUITES_A_SYSTEM_STANDS_ASIDE`); after them, `the ones that need what this
 system lacks` on the count line; and beside the verdict, `not applicable here: <suite>`.
 `finish` holds those lines to the list as it holds the stack's parts, so on macOS (the
-order on disk) and on Windows (that and the checkout script's guards) a suite that stopped
-saying so is a refusal, and
+order on disk) and on Windows (that, the checkout script's guards and the two suites about
+leaving a session, `nc-platform`'s and the daemon's) a suite that stopped saying so is a
+refusal, and
 `the_suites_a_system_stands_aside_are_the_ones_written_down_for_it` holds the list per
 system, empty on Linux. `ANNOUNCES_WHAT_THE_SYSTEM_LACKS` in `xtask/src/check.rs` counts
 the guards into the same line as the database suites, read by the same rule — a count of
 the guards in the sources, the same on every system — with
 `every_source_that_asks_what_the_system_lacks_is_one_the_census_names` naming every source
-outside `nc-platform` whose code names a door. It looks for the door by its own name, as a
+outside `nc-platform` whose code names a door; a suite of `nc-platform`'s own, where the
+doors are defined, is a row written by hand and held to its count of guards the same way.
+It looks for the door by its own name, as a
 whole word, so a suite that reaches it through `use nc_platform::system;`, or under
 another name, is found as one writing the whole path is, and
 `a_door_is_asked_however_it_was_brought_into_scope` hands that reader the spellings the
@@ -3978,7 +4147,7 @@ and `sqlx`, and are named because the kernel matches on a type of each.
 |---|---|
 | `cedar-policy` | The authorization engine, `NOCTUA.md §4` [CLOSED]. `nc-policy` validates the pack with it and `nc-authz` decides with it, and a pack validated by one Cedar and decided by another is validated against a second implementation of its semantics. Cargo already resolves compatible requirements to one version (`cargo tree -i cedar-policy`), so the one `[workspace.dependencies]` line is not what unifies them: it is the one place the requirement is written, so raising it moves both, and it keeps either member from moving to another major version — a second Cedar beside the first — or to an exact `=` pin that silently decides the other's version |
 | `sqlx` | Driver, pool and migration runner in one. `macros` is **on**, because `sqlx::migrate!` needs it and needs no database; what is refused is the `query!` family, which checks SQL against a live database *while compiling* — and `gates::no_compile_time_query` fails the build on one, in every Rust file in the tree. A feature list cannot say "this macro and not that one", so the rule is a source gate. From 0.9, text built at run time reaches `query`, `query_as`, `query_scalar`, `raw_sql` or an `Executor` only inside `sqlx::AssertSqlSafe(..)`, a claim the compiler takes on trust, so `gates::ASSERTED_STATEMENTS` names each file that makes one, how many, and every value their text is built from — a new wrap, or an old one built from a new value, is a finding until somebody has read where the value comes from. What stays outside what the compiler refuses is listed on `gates::Asserted` with how each is held — a reading of `sqlx`'s signatures, not a proof there is no other: `QueryBuilder`, whose `new` and `push` wrap whatever they are handed inside `sqlx` and which the same walk therefore refuses by name; `copy_in_raw` and `copy_out_raw`, which take a whole `COPY` statement as a plain `&str` and are read the way a wrap is, so a `COPY` built from values is counted in its file's row and one written as a literal needs none; `sqlx-sqlite`'s `SqliteConnectOptions::pragma`, whose key and value are any `Into<Cow<'static, str>>` written unquoted into a batch it runs on every connection, read the same way, so a pragma set from values is counted and one set from literals — every one this tree writes — needs no row; a migrator built when the store runs — `Migrator::new` over a path, `with_migrations`, a `MigrationSource`, `ResolveWith`, `resolve_blocking` — which reads its `.sql` then and hands the text to the database vouched for inside `sqlx`, refused by name in the sources `WRITERS` in `xtask/src/local.rs` names, where `sqlx::migrate!("../../local-migrations")`, embedded when the crate compiles, is the one migrator (`a_store_migrates_with_what_the_build_embedded_wherever_it_runs` opens a store from another working directory); and, held by nothing, a `String` leaked into a `&'static str` and the migrator's own table and schema names, which no migrator here sets. **SQLite, bundled, for the local database** (`NOCTUA.md §4`): `crates/nc-local`, `nc-prune`'s second target and `xtask`'s schema gate each take the `sqlite-bundled` feature — not `sqlite`, which in 0.9 also compiles extension loading, `deserialize` and unlock notification — and the workspace line stays without it. Which SQLite is linked is `Cargo.lock`'s choice, not a manifest's: `sqlx-sqlite` accepts `libsqlite3-sys` `>=0.30.1, <0.38`, `cargo update -p sqlx` alone keeps an old one, and `cargo tree -i libsqlite3-sys` says which; `nc-local`'s self-check at every open and the local schema gate in `check` refuse one below 3.50.2 |
-| `tokio` | Arrives with `sqlx`, and drives the kernel and its tests — and `nc-local`, for its blocking pool alone, where an open waits for its profile's lock; `nc-platform`, for the daemon's socket and named pipe (`net`), because `create_with_security_attributes_raw`, the one call that makes a pipe with a descriptor of its own, is `unsafe` and that crate is where `unsafe` may be written; `nc-ipc`, for the frames' reads and writes, the handshake's deadline, the heartbeat and the two tasks a connection runs on; and `nc-cli`, for the one-thread runtime a run of the CLI makes its one connection on (`rt`, `net`, `time`) — a direct dependency there, already in the graph so taking it adds nothing to the lockfile, and still the developer's to confirm (`§2.3`): `wasmtime` instantiates and calls a plugin asynchronously, so that a host function can await the journal, the directory and the store, which are asynchronous themselves. The kernel takes `sync`, for the journal and the bus a call tree holds across an await, and `time`, for the deadlines the directory and every host call a plugin makes are held to — and runs a nested dispatch as a task of its own, off the plugin's stack |
+| `tokio` | Arrives with `sqlx`, and drives the kernel and its tests — and `nc-local`, for its blocking pool alone, where an open waits for its profile's lock; `nc-platform`, for the daemon's socket and named pipe (`net`), because `create_with_security_attributes_raw`, the one call that makes a pipe with a descriptor of its own, is `unsafe` and that crate is where `unsafe` may be written; and `nc-ipc`, for the frames' reads and writes, the handshake's deadline, the heartbeat and the two tasks a connection runs on; `nc-daemon`, whose run is a multi-threaded runtime — so a plugin running on one worker never holds up the heartbeat of a connection on another — with `time` for its schedule and `sync` for its state and its stop; and `nc-cli`, for the one-thread runtime a run of the CLI makes its one connection on (`rt`, `net`, `time`) — a direct dependency there, already in the graph so taking it adds nothing to the lockfile, and still the developer's to confirm (`§2.3`): `wasmtime` instantiates and calls a plugin asynchronously, so that a host function can await the journal, the directory and the store, which are asynchronous themselves. The kernel takes `sync`, for the journal and the bus a call tree holds across an await, and `time`, for the deadlines the directory and every host call a plugin makes are held to — and runs a nested dispatch as a task of its own, off the plugin's stack |
 | `wasmtime` | The plugin runtime, `NOCTUA.md §4` [CLOSED]: the Component Model, fuel and epoch interruption. Every default feature is off, and the feature list beside the `wasmtime` line in `Cargo.toml` names the ones the kernel runs, with what was left off and why — `call-hook` among them, which is how the epoch counts a plugin's own running and not the host's — and `cache` above all of what is off, whose reading half is `Component::deserialize`, which is `unsafe`, so the kernel compiles a component on every load |
 | `wit-bindgen` | The guest half of the same world (`§4`: the Component Model "with `wit-bindgen`"), in `crates/nc-guest` only, `macros` only. Its `build.rs` links two prebuilt archives into every `wasm32` build — `deny.toml` says which and why its build-script rule does not see them |
 | `wit-component` | What turns a plugin's core module into a component, inside `cargo xtask` rather than as a tool somebody installs, and what reads the component back. The encoder refuses only an import no embedded world describes, and a dependency with bindings of its own embeds one — `wasip2`'s `wasi:random` encoded without a word — so `xtask/src/plugins.rs` decodes each component and refuses any import the world `plugin` does not declare |
@@ -3990,8 +4159,9 @@ and `sqlx`, and are named because the kernel matches on a type of each.
 | `serde`, `serde_json`, `toml` | Reading the registries and writing canonical output, and reading a command's argument schema for `crates/nc-schema` to validate — and the arguments the CLI holds to it, read back from their canonical text as the kernel reads them |
 | `proptest` | `§16.3` and `§16.4` have algebraic laws, and `§19.2` puts those under property test |
 | `clap`, `anstream`, `anstyle` | The command surface, in `xtask` only |
+| `rustix` | Unix's process calls the standard library does not make, in `crates/nc-platform`'s Unix half alone and for a Unix target alone — decided on 2026-11-08: a session of the daemon's own (`setsid`), and the session a test reads back (`getsid`), through safe wrappers, so no FFI is written on Unix. `default-features = false`, with `std` and `process` and nothing else. Already in the graph at this version under `wasmtime`, so it adds no package (`cargo tree -i rustix`) |
 | `ed25519-dalek` | A device's key (`NOCTUA.md §16.2`): the Ed25519 public key a profile's flake and its journal's keeper derive from, and the key iroh takes as the device's identity in Stage 25 (`§13.2`), at the major iroh pins — a cryptographic primitive, which `§2.3` names as not viable in-house. `default-features = false` and `zeroize` alone: no `rand_core`, because the seed is drawn by `nc_platform::random`; no `fast`, because the one public key a start derives needs no precomputed tables. Its family arrives with it and adds nothing to write: `curve25519-dalek` (and `curve25519-dalek-derive`, its SIMD backend's macro), `ed25519` (the signature's type), `signature`, `fiat-crypto` (a backend compiled for some targets only), and `rustc_version`, which `curve25519-dalek`'s build script reads; `sha2` 0.11 and `subtle` are in the graph already. `cargo tree -i ed25519-dalek` says who takes it |
-| `windows-sys` | The Win32 security calls of `crates/nc-platform`'s Windows half, and only there, compiled for a Windows target alone — decided on 2026-11-02: who the process token names (`OpenProcessToken`, `GetTokenInformation`), an access list built (`InitializeAcl`, `AddAccessAllowedAceEx`) and read (`GetSecurityInfo`, `GetAce`), a file and a directory created with a descriptor of their own (`CreateFileW`, `CreateDirectoryW`), the system's random bytes, which a device's seed and the daemon's token are drawn from (`BCryptGenRandom`), and the other end of a named pipe — its process from either end (`GetNamedPipeClientProcessId`, `GetNamedPipeServerProcessId`, feature `Win32_System_Pipes`), the user that process's token names (`OpenProcess`, `OpenProcessToken`), and the pipe's owner (`GetSecurityInfo` over a kernel object); and, behind the test doors alone, a descriptor written onto one path through its handle (`SetKernelObjectSecurity`), from its text when it holds a conditional entry (`ConvertStringSecurityDescriptorToSecurityDescriptorW`). Not written here because the declarations — every structure's layout and every function's signature — would be ours to get right, with no compiler to check them against the system's. Version 0.61, which `tokio`'s `mio` already brings, so it adds no package; its features are the modules those calls are in, pinned in that crate's manifest. It is the one dependency whose calls are `unsafe`, and invariant 17 says how that is held |
+| `windows-sys` | The Win32 security calls of `crates/nc-platform`'s Windows half, and only there, compiled for a Windows target alone — decided on 2026-11-02: who the process token names (`OpenProcessToken`, `GetTokenInformation`), an access list built (`InitializeAcl`, `AddAccessAllowedAceEx`) and read (`GetSecurityInfo`, `GetAce`), a file and a directory created with a descriptor of their own (`CreateFileW`, `CreateDirectoryW`), the system's random bytes, which a device's seed and the daemon's token are drawn from (`BCryptGenRandom`), and the other end of a named pipe — its process from either end (`GetNamedPipeClientProcessId`, `GetNamedPipeServerProcessId`, feature `Win32_System_Pipes`), the user that process's token names (`OpenProcess`, `OpenProcessToken`), and the pipe's owner (`GetSecurityInfo` over a kernel object); when this process started, which its PID record holds (`GetProcessTimes`); and its own standard handles kept from every child but as the handles a spawn hands one (`SetHandleInformation`); and, behind the test doors alone, a descriptor written onto one path through its handle (`SetKernelObjectSecurity`), from its text when it holds a conditional entry (`ConvertStringSecurityDescriptorToSecurityDescriptorW`). Not written here because the declarations — every structure's layout and every function's signature — would be ours to get right, with no compiler to check them against the system's. Version 0.61, which `tokio`'s `mio` already brings, so it adds no package; its features are the modules those calls are in, pinned in that crate's manifest. It is the one dependency whose calls are `unsafe`, and invariant 17 says how that is held |
 | `noctua-design` | The only cross-repository dependency this repository has: a `[workspace.dependencies]` path entry with the git-tag form in a comment above it (`NOCTUA.md §10.11`), reached by path while the two repositories are edited together. `noctua-colors` is reached **through** it and never directly (`§8.6`), which a gate holds |
 
 **Three things are written here rather than taken**, all three a maintainer's call: the
