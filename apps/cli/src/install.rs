@@ -590,6 +590,66 @@ mod tests {
         assert!(installed.stopped.is_none(), "nothing ran before");
     }
 
+    /// Whether the copy of this test binary at `binary` runs and ends well,
+    /// listing no test.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a copy of this test binary an install made is started to show it runs; it \
+                  lists nothing and ends, its standard handles null"
+    )]
+    fn runs(binary: &Path) -> bool {
+        // A file just written may still be open in a sibling test's child,
+        // between its fork and its exec, which Linux answers as a file busy:
+        // asked again, for a bounded time.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+        loop {
+            match std::process::Command::new(binary)
+                .args(["--exact", "no::such::test"])
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+            {
+                Ok(status) => return status.success(),
+                Err(error)
+                    if error.kind() == std::io::ErrorKind::ExecutableFileBusy
+                        && std::time::Instant::now() < deadline =>
+                {
+                    std::thread::sleep(std::time::Duration::from_millis(20));
+                }
+                Err(error) => panic!("`{}` did not start: {error}", binary.display()),
+            }
+        }
+    }
+
+    /// The binaries are copied runnable by their owner alone.
+    ///
+    /// This test binary stands in for both, and each copy is run as an
+    /// install runs it: the daemon by the installer, the CLI by its user.
+    #[test]
+    fn the_binaries_are_copied_runnable_by_their_owner_alone() {
+        let scratch = Scratch::new("runs");
+        let this = std::env::current_exe().expect("this test binary");
+        let install = scratch.install("ti4");
+        let plan = Plan {
+            install: install.clone(),
+            cli: &this,
+            daemon: &this,
+            world: "{}",
+            plugins: Vec::new(),
+        };
+        let user = nc_platform::user_in(&scratch.0).expect("private");
+        let installed = super::install_with(&plan, |daemon: &Path, _: &Path| {
+            assert!(runs(daemon), "the daemon was copied and does not run");
+            nc_platform::judge(daemon, nc_platform::Kind::File, &user).expect("its owner's alone");
+            Ok(())
+        })
+        .expect("made");
+        assert!(runs(&installed.cli), "the CLI was copied and does not run");
+        nc_platform::judge(&installed.cli, nc_platform::Kind::File, &user)
+            .expect("its owner's alone");
+    }
+
     /// An install made again replaces every file, stops what the earlier one
     /// runs first, and a refused initialize is the install's refusal.
     #[test]
