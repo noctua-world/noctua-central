@@ -18,7 +18,11 @@
 //! of each connection. A daemon's start asks three things more: its profile
 //! held at once or not at all ([`try_hold`]), a session of its own
 //! ([`leave_the_session`]), and which process it is, as the system says ([`process`]).
-//! This crate is what they need, and no more.
+//! The CLI's process control asks two: a process held to its PID record before
+//! anything signals it, and a daemon started detached ([`process`]); and an
+//! installer the base directories a user's profiles are kept under
+//! ([`base_directories`]) and an executable written private
+//! ([`create_private_executable`]). This crate is what they need, and no more.
 //!
 //! **And a program registered with this system's service manager**
 //! ([`service`]), for an installer and the tests that stand in for one: its
@@ -458,6 +462,168 @@ pub fn sync_directory(directory: &Path) -> std::io::Result<()> {
 /// filled less than asked.
 pub fn random(buffer: &mut [u8]) -> std::io::Result<()> {
     imp::random(buffer)
+}
+
+/// What an executable's name ends with on this system: `.exe` on Windows,
+/// nothing elsewhere.
+pub const EXECUTABLE_SUFFIX: &str = imp::EXECUTABLE_SUFFIX;
+
+/// A new file at `path` that this user alone may read, write and run, open to
+/// write: an installer's copy of an executable.
+///
+/// **New, never truncated, never through a link**, as [`create_private`]
+/// makes a file; on Unix `0700`, so its owner may run it, and on Windows the
+/// same access list as any file this crate makes, whose one entry is full
+/// control.
+///
+/// # Errors
+///
+/// What the system answered — [`std::io::ErrorKind::AlreadyExists`] for a name
+/// that is there.
+pub fn create_private_executable(path: &Path) -> std::io::Result<std::fs::File> {
+    imp::create_private_executable(path)
+}
+
+/// The four directories an installer keeps an install's profile under, as
+/// this system names them for a user.
+///
+/// **Read at install, never by a running binary**: an installer writes them
+/// into the install's manifest, so a daemon a service manager starts — which
+/// never sees the installer's environment — keeps its profile exactly where the
+/// installer put it (`NOCTUA.md §17.1`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BaseDirectories {
+    /// What a profile keeps.
+    pub data: PathBuf,
+    /// What a profile is configured with.
+    pub config: PathBuf,
+    /// What a profile can lose.
+    pub cache: PathBuf,
+    /// What a profile's running keeps between runs, and its executables.
+    pub state: PathBuf,
+}
+
+/// The convention a system's base directories follow.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Bases {
+    /// The XDG base directories, as Linux reads them.
+    #[cfg_attr(
+        all(windows, not(test)),
+        expect(
+            dead_code,
+            reason = "Linux's, and named on every Unix; tested on every system"
+        )
+    )]
+    Xdg,
+    /// The home's Library, as macOS keeps one.
+    #[cfg_attr(
+        all(windows, not(test)),
+        expect(
+            dead_code,
+            reason = "macOS's, and named on every Unix; tested on every system"
+        )
+    )]
+    Library,
+    /// `%LOCALAPPDATA%` and `%APPDATA%`, as Windows keeps them.
+    #[cfg_attr(
+        all(not(windows), not(test)),
+        expect(dead_code, reason = "Windows'; tested on every system")
+    )]
+    KnownFolders,
+}
+
+/// The base directories of the user whose environment `variable` reads.
+///
+/// **Each system's convention, and on Unix data never where the state is**:
+/// a lock there holds the directory itself, so the profile's database and its
+/// instance lock in one directory would be one lock held twice. Windows locks
+/// a file of its own in each, so there the two may share one:
+///
+/// | System | data | config | cache | state |
+/// |---|---|---|---|---|
+/// | Linux | `$XDG_DATA_HOME` | `$XDG_CONFIG_HOME` | `$XDG_CACHE_HOME` | `$XDG_STATE_HOME` |
+/// | macOS | Application Support | Preferences | Caches | Logs |
+/// | Windows | `%LOCALAPPDATA%` | `%APPDATA%` | `%LOCALAPPDATA%` | `%LOCALAPPDATA%` |
+///
+/// macOS's are the folders of those names in the home's Library. On Linux each
+/// falls back, when unset or not an absolute path, to the folder the XDG
+/// specification names under the home: its data, configuration, cache and
+/// state ones under the hidden local and configuration folders. On Windows a
+/// device's seed is kept in the local directory, never the roaming one, which
+/// would carry it to another machine.
+///
+/// # Errors
+///
+/// [`std::io::ErrorKind::NotFound`] when the variable a base comes from — the
+/// home directory, or a Windows folder — is unset, and
+/// [`std::io::ErrorKind::InvalidInput`] when it is not an absolute path.
+pub fn base_directories(
+    variable: impl Fn(&str) -> Option<std::ffi::OsString>,
+) -> std::io::Result<BaseDirectories> {
+    bases_of(imp::BASES, &variable)
+}
+
+/// The base directories `bases` names, read through `variable`: every
+/// system's convention, compiled and tested on every system.
+pub(crate) fn bases_of(
+    bases: Bases,
+    variable: &dyn Fn(&str) -> Option<std::ffi::OsString>,
+) -> std::io::Result<BaseDirectories> {
+    let absolute = |name: &str| -> std::io::Result<PathBuf> {
+        let value = variable(name).ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("`{name}` is not set, so no base directory can be read from it"),
+            )
+        })?;
+        let path = PathBuf::from(value);
+        if path.is_absolute() {
+            Ok(path)
+        } else {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!(
+                    "`{name}` is `{}`, which is not an absolute path",
+                    path.display()
+                ),
+            ))
+        }
+    };
+    match bases {
+        Bases::Xdg => {
+            let home = absolute("HOME")?;
+            let xdg = |name: &str, fallback: &str| {
+                variable(name)
+                    .map(PathBuf::from)
+                    .filter(|path| path.is_absolute())
+                    .unwrap_or_else(|| home.join(fallback))
+            };
+            Ok(BaseDirectories {
+                data: xdg("XDG_DATA_HOME", ".local/share"),
+                config: xdg("XDG_CONFIG_HOME", ".config"),
+                cache: xdg("XDG_CACHE_HOME", ".cache"),
+                state: xdg("XDG_STATE_HOME", ".local/state"),
+            })
+        }
+        Bases::Library => {
+            let library = absolute("HOME")?.join("Library");
+            Ok(BaseDirectories {
+                data: library.join("Application Support"),
+                config: library.join("Preferences"),
+                cache: library.join("Caches"),
+                state: library.join("Logs"),
+            })
+        }
+        Bases::KnownFolders => {
+            let local = absolute("LOCALAPPDATA")?;
+            Ok(BaseDirectories {
+                config: absolute("APPDATA")?,
+                data: local.clone(),
+                cache: local.clone(),
+                state: local,
+            })
+        }
+    }
 }
 
 /// Sets the time the file `path` was last written to `at`, and leaves its
@@ -1879,5 +2045,182 @@ mod tests {
                 other => panic!("an endpoint nothing listens at was {other:?}"),
             }
         });
+    }
+
+    /// Each system's base directories are read from the environment they are
+    /// handed, and a home or a folder unset, or not an absolute path, refuses.
+    ///
+    /// **Every system's convention on every system**, through `bases_of`, so
+    /// the Linux job tests the macOS and Windows rules too; and this system's
+    /// own is the one `base_directories` reads.
+    #[test]
+    fn each_systems_base_directories_are_read_from_the_environment_handed_over() {
+        use std::ffi::OsString;
+
+        use super::{BaseDirectories, Bases, bases_of};
+
+        // Absolute on every system, and nothing is made under it.
+        let root = std::env::current_exe().expect("this test binary");
+        let at = |name: &str| root.with_file_name(name);
+        let environment = |pairs: Vec<(&'static str, OsString)>| {
+            move |name: &str| {
+                pairs
+                    .iter()
+                    .find(|(variable, _)| *variable == name)
+                    .map(|(_, value)| value.clone())
+            }
+        };
+        let home = || ("HOME", at("h").into_os_string());
+        let read = bases_of(Bases::Xdg, &environment(vec![home()])).expect("a home is enough");
+        assert_eq!(
+            read,
+            BaseDirectories {
+                data: at("h").join(".local/share"),
+                config: at("h").join(".config"),
+                cache: at("h").join(".cache"),
+                state: at("h").join(".local/state"),
+            }
+        );
+        let named = bases_of(
+            Bases::Xdg,
+            &environment(vec![
+                home(),
+                ("XDG_DATA_HOME", at("d").into_os_string()),
+                ("XDG_CONFIG_HOME", at("c").into_os_string()),
+                ("XDG_CACHE_HOME", at("k").into_os_string()),
+                ("XDG_STATE_HOME", OsString::from("relative/state")),
+            ]),
+        )
+        .expect("read");
+        assert_eq!(
+            named,
+            BaseDirectories {
+                data: at("d"),
+                config: at("c"),
+                cache: at("k"),
+                state: at("h").join(".local/state"),
+            },
+            "an XDG directory is taken when absolute, and a relative one is passed over"
+        );
+        let library = at("h").join("Library");
+        assert_eq!(
+            bases_of(Bases::Library, &environment(vec![home()])).expect("read"),
+            BaseDirectories {
+                data: library.join("Application Support"),
+                config: library.join("Preferences"),
+                cache: library.join("Caches"),
+                state: library.join("Logs"),
+            }
+        );
+        assert_eq!(
+            bases_of(
+                Bases::KnownFolders,
+                &environment(vec![
+                    ("LOCALAPPDATA", at("local").into_os_string()),
+                    ("APPDATA", at("roaming").into_os_string()),
+                ]),
+            )
+            .expect("read"),
+            BaseDirectories {
+                data: at("local"),
+                config: at("roaming"),
+                cache: at("local"),
+                state: at("local"),
+            }
+        );
+        let everything = environment(vec![
+            home(),
+            ("LOCALAPPDATA", at("local").into_os_string()),
+            ("APPDATA", at("roaming").into_os_string()),
+        ]);
+        assert_eq!(
+            super::base_directories(&everything).expect("read"),
+            bases_of(super::imp::BASES, &everything).expect("read"),
+        );
+    }
+
+    /// A home or a folder a base comes from, unset or not an absolute path,
+    /// is refused by its kind.
+    #[test]
+    fn a_base_unset_or_relative_is_refused() {
+        use std::ffi::OsString;
+
+        use super::{Bases, bases_of};
+
+        // Absolute on every system, and nothing is made under it.
+        let here = std::env::current_exe().expect("this test binary");
+        let at = |name: &str| here.with_file_name(name);
+        let environment = |pairs: Vec<(&'static str, OsString)>| {
+            move |name: &str| {
+                pairs
+                    .iter()
+                    .find(|(variable, _)| *variable == name)
+                    .map(|(_, value)| value.clone())
+            }
+        };
+        for (bases, pairs, kind) in [
+            (Bases::Xdg, vec![], std::io::ErrorKind::NotFound),
+            (
+                Bases::Library,
+                vec![("HOME", OsString::from("relative"))],
+                std::io::ErrorKind::InvalidInput,
+            ),
+            (
+                Bases::KnownFolders,
+                vec![("LOCALAPPDATA", at("local").into_os_string())],
+                std::io::ErrorKind::NotFound,
+            ),
+            (
+                Bases::KnownFolders,
+                vec![
+                    ("LOCALAPPDATA", OsString::from("relative")),
+                    ("APPDATA", at("roaming").into_os_string()),
+                ],
+                std::io::ErrorKind::InvalidInput,
+            ),
+        ] {
+            let refused = bases_of(bases, &environment(pairs)).expect_err("refused");
+            assert_eq!(refused.kind(), kind, "{bases:?}: {refused}");
+        }
+    }
+
+    /// A private executable is new, its owner's alone and run by its owner,
+    /// and a name that is there is refused.
+    ///
+    /// **Run, not read for a bit**: this test binary is copied into one and
+    /// started, which is what an installer's copy of the daemon is for.
+    #[test]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "a copy of this test binary is started to show the file it was written into \
+                  runs; it lists nothing and ends"
+    )]
+    fn a_private_executable_is_new_its_owners_alone_and_runs() {
+        use std::io::Write as _;
+        let scratch = Scratch::new("executable");
+        let user = user_in(&scratch.0).expect("private");
+        let path = scratch.0.join(format!("tool{}", super::EXECUTABLE_SUFFIX));
+        let mut made = super::create_private_executable(&path).expect("made");
+        made.write_all(
+            &std::fs::read(std::env::current_exe().expect("this test binary"))
+                .expect("this test binary reads"),
+        )
+        .expect("written");
+        drop(made);
+        judge(&path, Kind::File, &user).expect("its owner's alone");
+        let ran = std::process::Command::new(&path)
+            .args(["--exact", "no::such::test"])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .expect("the copy runs");
+        assert!(ran.success(), "{ran:?}");
+        assert_eq!(
+            super::create_private_executable(&path)
+                .expect_err("a name that is there")
+                .kind(),
+            std::io::ErrorKind::AlreadyExists
+        );
     }
 }

@@ -18,9 +18,12 @@ test-support = []
 # 2026-11-02): who the token says this process is, an access list built and
 # read, a file and a directory created with one, a handle's attributes, the
 # system's generator of random bytes (`Win32_Security_Cryptography`, for
-# `BCryptGenRandom` alone), and the process at the other end of the daemon's
-# pipe (`Win32_System_Pipes`) with the user its token names (`OpenProcess`,
-# beside `OpenProcessToken` in `Win32_System_Threading`).
+# `BCryptGenRandom` alone), the process at the other end of the daemon's pipe
+# (`Win32_System_Pipes`) with the user its token names (`OpenProcess`, beside
+# `OpenProcessToken` in `Win32_System_Threading`), and a process held to its
+# PID record through one handle, ended and waited for through it
+# (`QueryFullProcessImageNameW`, `TerminateProcess`, `WaitForSingleObject`, in
+# the same module).
 # Each feature is a module of the declarations this crate calls, and none is
 # turned on for a call it does not make. Already in the graph at this version,
 # under `tokio`'s `mio`, so it adds no package; compiled only for a Windows
@@ -42,7 +45,10 @@ windows-sys = { version = "0.61", features = [
 
 # **A session of the daemon's own, and the session a test reads back**
 # (`NOCTUA.md §17.1`, decided 2026-11-08): `setsid` and `getsid`, the safe
-# wrappers `process` holds, with `std` so an error is a `std::io::Error`. No FFI
+# wrappers `process` holds, with `std` so an error is a `std::io::Error`; and a
+# process held to its PID record and signalled through it — `pidfd_open` and
+# `pidfd_send_signal` on Linux, signal 0 and `kill` on macOS — with `getuid`
+# and the group a test reads back, `getpgid`. No FFI
 # is written on Unix, so a call the standard library does not make is made
 # through this, never through `libc` by hand. Already in the graph at this
 # version, under `wasmtime` and `tempfile`, so it adds no package; compiled only

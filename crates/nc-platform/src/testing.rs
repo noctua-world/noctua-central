@@ -181,6 +181,16 @@ pub fn session_of(pid: u32) -> io::Result<Option<u32>> {
     imp::session_of(pid)
 }
 
+/// The process group the process `pid` is in, as the system numbers it, or
+/// nothing where this system has no group of the POSIX kind.
+///
+/// # Errors
+///
+/// [`io::Error`] as the system answered it.
+pub fn group_of(pid: u32) -> io::Result<Option<u32>> {
+    imp::group_of(pid)
+}
+
 /// A user that is not `user`: what a path another user owns is judged
 /// against, since one cannot be made without the superuser.
 #[must_use]
