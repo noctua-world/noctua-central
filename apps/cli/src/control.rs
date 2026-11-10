@@ -16,14 +16,17 @@
 //!    ([`crate::client`]); once it answers that it is stopping it is waited
 //!    for, `stop_within_ms` at most — through what verified it, or, with
 //!    nothing verified, until its endpoint answers no more and its record no
-//!    longer names it.
+//!    longer names it — and **never signalled**: one still there by then is a
+//!    stop that did not finish (`NC-CLI-0008`, exit 11).
 //! 4. **Only when it does not answer, a signal — and only through what was
 //!    verified**: asked to end, `kill_within_ms`, then killed, `kill_within_ms`
 //!    again. **Nothing unverified is signalled, and no process numbered zero
 //!    or below**: a record missing, or naming a process that runs no more, is
-//!    a daemon already stopped; a record naming another process — another
-//!    executable, another user — or one that cannot be read or asked about is
-//!    never signalled, and the stop ends in exit 11 with `NC-CLI-0009`.
+//!    a daemon already stopped while nothing holds its endpoint; a record
+//!    naming another process — another executable, another user — or one
+//!    that cannot be read or asked about, and an endpoint something still
+//!    holds with no record to hold it to a process, are never signalled, and
+//!    the stop ends in exit 11 with `NC-CLI-0009`.
 //!
 //! # A start
 //!
@@ -243,11 +246,26 @@ enum Unanswered {
 
 /// What a stop does with what the record said, once the daemon did not
 /// answer: **only a process verified is signalled**.
-const fn when_unanswered(recorded: &Recorded) -> Unanswered {
+///
+/// With no record, or one naming a process that runs no more, the daemon is
+/// stopped only while nothing at all `listening` holds its endpoint; one that
+/// does and did not answer is a daemon hung with its record lost, which
+/// nothing here can hold to a process, and so is refused.
+const fn when_unanswered(recorded: &Recorded, listening: bool) -> Unanswered {
     match recorded {
         Recorded::Verified(..) => Unanswered::Signal,
+        Recorded::Nothing | Recorded::Gone(_) if listening => Unanswered::Refuse,
         Recorded::Nothing | Recorded::Gone(_) => Unanswered::Stopped,
         Recorded::Unverified(_) => Unanswered::Refuse,
+    }
+}
+
+/// Whether anything holds the endpoint that a connection which failed with
+/// the refusal `unasked` was made to: anything but nothing answering there.
+fn listening_after(unasked: &client::Unasked) -> bool {
+    match unasked {
+        client::Unasked::Connecting(error) => error.code() != ErrorCode::IpcUnreachable,
+        _ => true,
     }
 }
 
@@ -257,14 +275,18 @@ async fn stop(found: &Found) -> Result<String, Failure> {
     let cli = &found.layout.cli;
     mark(&found.layout, &found.user)?;
     let recorded = recorded(found);
-    if let Ok(mut connection) = client::connect(found).await
-        && let Ok(Answer::Stopping) = connection.ask(&Request::Stop).await
-    {
-        let pid = connection.welcome().pid;
-        drop(connection);
-        return ended_once_asked(found, recorded, pid).await;
-    }
-    let unanswered = when_unanswered(&recorded);
+    let listening = match client::connect(found).await {
+        Ok(mut connection) => {
+            if let Ok(Answer::Stopping) = connection.ask(&Request::Stop).await {
+                let pid = connection.welcome().pid;
+                drop(connection);
+                return ended_once_asked(found, recorded, pid, stop_within()).await;
+            }
+            true
+        }
+        Err(unasked) => listening_after(&unasked),
+    };
+    let unanswered = when_unanswered(&recorded, listening);
     match recorded {
         Recorded::Verified(verified, _) if unanswered == Unanswered::Signal => {
             signalled(cli, &verified)
@@ -276,7 +298,14 @@ async fn stop(found: &Found) -> Result<String, Failure> {
             "The daemon of {cli} is stopped: nothing answers at its endpoint.\n"
         )),
         // Refused, and anything the decision did not answer: never signalled.
-        Recorded::Unverified(why) | Recorded::Gone(why) => Err(unverified(cli, &why)),
+        Recorded::Unverified(why) => Err(unverified(cli, &why)),
+        Recorded::Gone(why) => Err(unverified(
+            cli,
+            &format!(
+                "something still holds its endpoint, and its PID record names a process that \
+                 runs no more ({why})"
+            ),
+        )),
         Recorded::Verified(_, record) => Err(unverified(
             cli,
             &format!(
@@ -284,7 +313,11 @@ async fn stop(found: &Found) -> Result<String, Failure> {
                 record.pid
             ),
         )),
-        Recorded::Nothing => Err(unverified(cli, "no PID record is there")),
+        Recorded::Nothing => Err(unverified(
+            cli,
+            "something still holds its endpoint, and no PID record is there to hold it to a \
+             process",
+        )),
     }
 }
 
@@ -300,18 +333,30 @@ fn unverified(cli: &str, why: &str) -> Failure {
     )
 }
 
-/// Waits for a daemon that answered it is stopping, process `pid`, to end.
-async fn ended_once_asked(found: &Found, recorded: Recorded, pid: u32) -> Result<String, Failure> {
+/// Waits `within` for a daemon that answered it is stopping, process `pid`, to
+/// end, and **never signals it**: a daemon that answers is not silent, and
+/// only a silent one is signalled.
+async fn ended_once_asked(
+    found: &Found,
+    recorded: Recorded,
+    pid: u32,
+    within: Duration,
+) -> Result<String, Failure> {
     let cli = &found.layout.cli;
     if let Recorded::Verified(verified, record) = recorded
         && record.pid == pid
     {
-        if verified.wait(stop_within()).unwrap_or(false) {
+        if verified.wait(within).unwrap_or(false) {
             return Ok(format!(
                 "The daemon of {cli}, process {pid}, stopped when it was asked to.\n"
             ));
         }
-        return signalled(cli, &verified);
+        return Err(still_there(
+            cli,
+            pid,
+            within,
+            "since a daemon that answers a stop is never signalled",
+        ));
     }
     // Nothing verified the process that answered, so it is waited for until
     // its endpoint answers no more and its record no longer names it, and
@@ -321,7 +366,7 @@ async fn ended_once_asked(found: &Found, recorded: Recorded, pid: u32) -> Result
         &found.layout.socket,
         found.layout.pipe.as_str(),
     );
-    let deadline = tokio::time::Instant::now() + stop_within();
+    let deadline = tokio::time::Instant::now() + within;
     loop {
         let listening = nc_platform::ipc::connect(&endpoint, &found.user)
             .await
@@ -337,18 +382,28 @@ async fn ended_once_asked(found: &Found, recorded: Recorded, pid: u32) -> Result
             ));
         }
         if tokio::time::Instant::now() >= deadline {
-            return Err(failed(
-                ErrorCode::CliDaemonDidNotStop,
-                format!(
-                    "the daemon of {cli}, process {pid}, said it was stopping and was still \
-                     there after {} ms; it was not signalled, since nothing held it to its \
-                     record",
-                    nc_catalog::DAEMON.stop_within_ms
-                ),
+            return Err(still_there(
+                cli,
+                pid,
+                within,
+                "since nothing held it to its record",
             ));
         }
         tokio::time::sleep(BETWEEN_LOOKS).await;
     }
+}
+
+/// The failure of a stop whose daemon, process `pid`, said it was stopping and
+/// was still there `within` later, not signalled for the reason `why`.
+fn still_there(cli: &str, pid: u32, within: Duration, why: &str) -> Failure {
+    failed(
+        ErrorCode::CliDaemonDidNotStop,
+        format!(
+            "the daemon of {cli}, process {pid}, said it was stopping and was still there after \
+             {} ms; it was not signalled, {why}, and a stop asked again waits for it again",
+            within.as_millis()
+        ),
+    )
 }
 
 /// Ends `verified` — asked first, then killed — and answers what was done.
@@ -587,23 +642,32 @@ mod tests {
 
     /// Only a process verified is signalled once the daemon does not answer;
     /// no record, or one naming a process that runs no more, is a daemon
-    /// stopped; and anything else is refused.
+    /// stopped while nothing holds its endpoint; and anything else is refused.
     #[test]
     fn only_a_verified_process_is_signalled_when_the_daemon_does_not_answer() {
-        assert_eq!(when_unanswered(&Recorded::Nothing), Unanswered::Stopped);
+        let gone = || Recorded::Gone("it ended".to_owned());
         assert_eq!(
-            when_unanswered(&Recorded::Gone("it ended".to_owned())),
+            when_unanswered(&Recorded::Nothing, false),
             Unanswered::Stopped
         );
+        assert_eq!(when_unanswered(&gone(), false), Unanswered::Stopped);
+        // Something that holds the endpoint and did not answer, with no
+        // record holding it to a process, is a daemon hung and never stopped.
         assert_eq!(
-            when_unanswered(&Recorded::Unverified("another".to_owned())),
+            when_unanswered(&Recorded::Nothing, true),
             Unanswered::Refuse
         );
+        assert_eq!(when_unanswered(&gone(), true), Unanswered::Refuse);
+        for listening in [false, true] {
+            assert_eq!(
+                when_unanswered(&Recorded::Unverified("another".to_owned()), listening),
+                Unanswered::Refuse
+            );
+        }
     }
 
-    /// What tells a child of
-    /// [`a_stop_nothing_answers_ends_the_process_its_record_is_held_to`] that
-    /// it is one: it says its record, then waits for its input to close.
+    /// What tells a child of [`a_sleeper`] that it is one: it says its
+    /// record, then waits for its input to close.
     const SLEEPER: &str = "NC_CLI_CONTROL_SLEEPER";
 
     /// A child of this test binary, killed and waited for however the test
@@ -617,29 +681,15 @@ mod tests {
         }
     }
 
-    /// A stop nothing answers ends the process its record is held to, and
-    /// through what held it: a child of this test, recorded as it is.
-    #[test]
+    /// A child of this test binary that says its record and waits for its
+    /// input to close, and the record it said, as a daemon writes one.
     #[expect(
         clippy::disallowed_methods,
-        reason = "the process a stop ends has to be another one than this test; the child is \
-                  this same test binary, which says its record on its output and waits"
+        reason = "the process a stop is about has to be another one than this test; the child \
+                  is this same test binary, its input a pipe the guard closes"
     )]
-    fn a_stop_nothing_answers_ends_the_process_its_record_is_held_to() {
-        use std::io::{BufRead as _, Read as _, Write as _};
-        if std::env::var_os(SLEEPER).is_some() {
-            let record = nc_channel::record::Record::of(
-                nc_platform::process::this_process().expect("this process is read"),
-                [9; 16],
-            );
-            let mut out = std::io::stdout().lock();
-            writeln!(out, "record\t{}", record.to_canonical().expect("written")).expect("said");
-            out.flush().expect("said");
-            let mut rest = Vec::new();
-            let _ = std::io::stdin().read_to_end(&mut rest);
-            return;
-        }
-        let installed = Scratch::new("verified");
+    fn a_sleeper() -> (Child, String) {
+        use std::io::BufRead as _;
         let mut child = Child(
             std::process::Command::new(std::env::current_exe().expect("this test binary"))
                 .args([
@@ -657,7 +707,7 @@ mod tests {
         );
         let mut lines = std::io::BufReader::new(child.0.stdout.take().expect("piped"));
         let mut line = String::new();
-        let record = loop {
+        loop {
             line.clear();
             assert!(
                 lines
@@ -667,9 +717,36 @@ mod tests {
                 "the child ended without saying its record"
             );
             if let Some(at) = line.find("record\t") {
-                break line[at + "record\t".len()..].trim_end().to_owned();
+                let record = line[at + "record\t".len()..].trim_end().to_owned();
+                return (child, record);
             }
-        };
+        }
+    }
+
+    /// A stop nothing answers ends the process its record is held to, and
+    /// through what held it: a child of this test, recorded as it is.
+    #[test]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the process a stop ends has to be another one than this test; the child is \
+                  this same test binary, which says its record on its output and waits"
+    )]
+    fn a_stop_nothing_answers_ends_the_process_its_record_is_held_to() {
+        use std::io::{Read as _, Write as _};
+        if std::env::var_os(SLEEPER).is_some() {
+            let record = nc_channel::record::Record::of(
+                nc_platform::process::this_process().expect("this process is read"),
+                [9; 16],
+            );
+            let mut out = std::io::stdout().lock();
+            writeln!(out, "record\t{}", record.to_canonical().expect("written")).expect("said");
+            out.flush().expect("said");
+            let mut rest = Vec::new();
+            let _ = std::io::stdin().read_to_end(&mut rest);
+            return;
+        }
+        let installed = Scratch::new("verified");
+        let (mut child, record) = a_sleeper();
         recorded_as(&installed, &record);
         let done = controlled(&installed, Control::Stop).expect("the child is ended");
         assert!(
@@ -678,6 +755,78 @@ mod tests {
         );
         let status = child.0.wait().expect("reaped");
         assert!(!status.success(), "the child ended on its own: {status:?}");
+    }
+
+    /// A daemon that said it is stopping is waited for and never signalled.
+    ///
+    /// A child of this test held to its record stands in for it, and still
+    /// runs once the wait is over.
+    #[test]
+    fn a_daemon_that_said_it_is_stopping_is_never_signalled() {
+        let installed = Scratch::new("said");
+        let (mut child, record) = a_sleeper();
+        recorded_as(&installed, &record);
+        let recorded = super::recorded(&installed.found);
+        assert!(matches!(recorded, Recorded::Verified(..)), "{recorded:?}");
+        let refused = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("a runtime")
+            .block_on(super::ended_once_asked(
+                &installed.found,
+                recorded,
+                child.0.id(),
+                core::time::Duration::from_millis(50),
+            ))
+            .expect_err("the child is still there");
+        assert_eq!(refused.code, ErrorCode::CliDaemonDidNotStop, "{refused:?}");
+        assert_eq!(refused.exit, Exit::ProcessControl);
+        assert!(refused.detail.contains("not signalled"), "{refused:?}");
+        assert!(
+            child.0.try_wait().expect("asked").is_none(),
+            "a daemon that said it is stopping was signalled"
+        );
+    }
+
+    /// A stop something answers otherwise, with no record or a record of a
+    /// process gone, signals nothing and says so rather than calling it
+    /// stopped.
+    #[test]
+    fn a_stop_something_answers_otherwise_with_no_record_held_is_refused() {
+        let installed = Scratch::new("held");
+        let token = Token::fresh().expect("a token");
+        installed.token(&token);
+        let status = nc_canon::Value::object([("state", nc_canon::Value::text("running"))]);
+        let daemon = Scripted::serve(
+            &installed,
+            Script {
+                token,
+                welcome: installed.welcome(),
+                connections: vec![
+                    vec![Answer::Status(status.clone())],
+                    vec![Answer::Status(status)],
+                ],
+            },
+        );
+        for (record, said) in [
+            (None, "no PID record is there"),
+            (
+                Some(this_process_but(|record| record.started.push('0'))),
+                "runs no more",
+            ),
+        ] {
+            if let Some(record) = record {
+                recorded_as(&installed, &record);
+            }
+            let refused = controlled(&installed, Control::Stop).expect_err("something holds it");
+            assert_eq!(refused.code, ErrorCode::CliProcessUnverified, "{refused:?}");
+            assert_eq!(refused.exit, Exit::ProcessControl);
+            assert!(
+                refused.detail.contains(said) && refused.detail.contains("nothing was signalled"),
+                "{refused:?}"
+            );
+        }
+        assert_eq!(daemon.heard(), vec![Request::Stop, Request::Stop]);
     }
 
     /// The mark is written private and kept when it is there already, and
