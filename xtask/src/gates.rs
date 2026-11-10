@@ -5549,23 +5549,82 @@ mod the_system_rules {
         found
     }
 
-    /// The lines of `text` whose `cfg`, `cfg!` or `cfg_attr` names a system,
-    /// as code.
+    /// Where the first character of `code` from `at` on that is not a space is.
+    fn past_spaces(code: &[char], mut at: usize) -> usize {
+        while code.get(at).is_some_and(|c| c.is_whitespace()) {
+            at += 1;
+        }
+        at
+    }
+
+    /// Whether `predicate` names a system: one of [`SYSTEMS`] written in it as
+    /// a whole word.
+    fn names_a_system(predicate: &[char]) -> bool {
+        SYSTEMS
+            .iter()
+            .any(|system| !whole_words(predicate, system).is_empty())
+    }
+
+    /// The predicate of every arm of every `cfg_select!` written in `code`,
+    /// each with the character its first word starts at.
+    ///
+    /// **An arm's predicate is what follows the end of the arm before it** —
+    /// the select's own opening, a `,` that ends an expression, or the `}`
+    /// that ends a block — up to the arm's `=>`, each read at the select's own
+    /// depth: a predicate holds none of them outside its parentheses, so what
+    /// an arm answers with is never read as the next arm's question.
+    fn arms_selected(code: &[char]) -> Vec<(usize, &[char])> {
+        let mut arms = Vec::new();
+        for at in whole_words(code, "cfg_select") {
+            let bang = past_spaces(code, at + "cfg_select".len());
+            if code.get(bang) != Some(&'!') {
+                continue;
+            }
+            let opens = past_spaces(code, bang + 1);
+            if !matches!(code.get(opens), Some('(' | '[' | '{')) {
+                continue;
+            }
+            let mut depth = 0_usize;
+            let mut start = opens + 1;
+            for (index, character) in code.iter().enumerate().skip(opens) {
+                match character {
+                    '(' | '[' | '{' => depth += 1,
+                    ')' | ']' | '}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            break;
+                        }
+                        if depth == 1 && *character == '}' {
+                            start = index + 1;
+                        }
+                    }
+                    ',' if depth == 1 => start = index + 1,
+                    '=' if depth == 1 && code.get(index + 1) == Some(&'>') => {
+                        arms.push((past_spaces(code, start).min(index), &code[start..index]));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        arms
+    }
+
+    /// The lines of `text` whose `cfg`, `cfg!`, `cfg_attr` or `cfg_select!`
+    /// names a system, as code.
     ///
     /// **The predicate is what is read**, inside the parentheses that follow
     /// the attribute or the macro: `cfg(any(unix, windows))` and
     /// `cfg_attr(not(windows), …)` name a system, and `cfg(test)` does not.
+    /// A `cfg_select!` asks once an arm, and an arm whose predicate names a
+    /// system is found at the line that predicate starts on.
     pub(super) fn systems_asked(text: &str) -> Vec<usize> {
         let code: Vec<char> = blanked(text).chars().collect();
         let mut lines = Vec::new();
         for opens in ["cfg", "cfg_attr"] {
             for at in whole_words(&code, opens) {
-                let mut after = at + opens.chars().count();
+                let mut after = past_spaces(&code, at + opens.chars().count());
                 if code.get(after) == Some(&'!') {
-                    after += 1;
-                }
-                while code.get(after).is_some_and(|c| c.is_whitespace()) {
-                    after += 1;
+                    after = past_spaces(&code, after + 1);
                 }
                 if code.get(after) != Some(&'(') {
                     continue;
@@ -5585,13 +5644,14 @@ mod the_system_rules {
                     }
                     end += 1;
                 }
-                let predicate = &code[after..end.min(code.len())];
-                if SYSTEMS
-                    .iter()
-                    .any(|system| !whole_words(predicate, system).is_empty())
-                {
+                if names_a_system(&code[after..end.min(code.len())]) {
                     lines.push(line_of(&code, at));
                 }
+            }
+        }
+        for (at, predicate) in arms_selected(&code) {
+            if names_a_system(predicate) {
+                lines.push(line_of(&code, at));
             }
         }
         lines.sort_unstable();
@@ -5716,10 +5776,17 @@ mod the_system_rules {
         );
     }
 
-    /// A `cfg` naming a system is found as an attribute, a macro and a
-    /// `cfg_attr`, however its predicate nests and by whichever part of the
-    /// target names it, and one naming no system — an architecture, a pointer
-    /// width, or prose — is not.
+    /// A `cfg` naming a system is found as an attribute, a macro, a
+    /// `cfg_attr` and an arm of a `cfg_select!`, however its predicate nests
+    /// and by whichever part of the target names it, and one naming no system
+    /// — an architecture, a pointer width, or prose — is not.
+    ///
+    /// **The `cfg_select!` cases were found by a review**: the macro is stable
+    /// on the gate's own toolchain, and a file selecting by `windows` and
+    /// `target_os` through it passed `no_system_is_asked_outside_the_platform`
+    /// while the same file with `#[cfg(unix)]` failed it. Each arm is asked
+    /// alone: a block or an expression answering one arm with
+    /// `.windows(2)` asks nothing.
     #[test]
     fn a_cfg_naming_a_system_is_found_and_one_naming_none_is_not() {
         let text = [
@@ -5739,9 +5806,24 @@ mod the_system_rules {
             "#[cfg_attr(target_abi = \"eabihf\", inline)]\n",
             "#[cfg(target_arch = \"wasm32\")]\n",
             "#[cfg(target_pointer_width = \"64\")]\n",
+            "let spaced = cfg !(unix);\n",
+            "cfg_select! {\n",
+            "    target_arch = \"x86\" => { v.windows(2).count() }\n",
+            "    windows => { let a = 1; }\n",
+            "    target_pointer_width = \"32\" => v.windows(3).count(),\n",
+            "    any(\n",
+            "        target_os = \"linux\", target_arch = \"arm\") => 0,\n",
+            "    _ => 1,\n",
+            "}\n",
+            "let n = core::cfg_select!(target_arch = \"arm\" => 1, _ => 2);\n",
+            "let m = std::cfg_select ! [target_env = \"gnu\" => 1, _ => 2];\n",
+            "let cfg_select = unix;\n",
         ]
         .concat();
-        assert_eq!(systems_asked(&text), [2, 3, 4, 5, 6, 12, 13, 14]);
+        assert_eq!(
+            systems_asked(&text),
+            [2, 3, 4, 5, 6, 12, 13, 14, 17, 20, 22, 27]
+        );
     }
 
     /// The shipped sources the no-listener rule reads are an app's own and the
@@ -9766,7 +9848,19 @@ mod tests {
     #[test]
     fn the_system_walk_goes_everywhere_outside_the_platform() {
         let defect = "#[cfg(target_vendor = \"apple\")] pub fn f() {}";
-        let (_held, root, mut planted) = in_every_real_directory(defect, "");
+        // Every other directory asks through a `cfg_select!` arm instead, so
+        // the walk is held to finding both forms wherever they are written.
+        let (_held, root, mut planted) = in_every_real_directory_each(
+            &|index| {
+                if index % 2 == 0 {
+                    defect.to_owned()
+                } else {
+                    "cfg_select! { target_arch = \"x86\" => {} windows => { pub fn f() {} } }"
+                        .to_owned()
+                }
+            },
+            "",
+        );
         and_a_file_under_every_name_it_opens(&root, &mut planted, defect, "");
         let (findings, _) = super::the_system_rules::systems_asked_under(&root);
         let platform = super::the_system_rules::THE_PLATFORM;

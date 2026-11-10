@@ -6444,6 +6444,20 @@ WEAKENINGS = [
     ("gates", "SYSTEMS", "a cfg naming a vendor names a system",
      "        \"target_vendor\",\n",
      "        \"target_arch\",\n"),
+    # A `cfg_select!` asks the system once an arm, and each arm is read alone:
+    # killed by `a_cfg_naming_a_system_is_found_and_one_naming_none_is_not`.
+    ("gates", "arms_selected", "a cfg_select's arms are read",
+     '        for at in whole_words(code, "cfg_select") {',
+     '        for at in whole_words(code, "cfg_selected") {'),
+    ("gates", "arms_selected", "an arm's question starts past the expression before it",
+     "                    ',' if depth == 1 => start = index + 1,\n",
+     "                    ',' if depth == 1 => {}\n"),
+    ("gates", "arms_selected", "an arm's question starts past the block before it",
+     "                        if depth == 1 && *character == '}' {\n                            start = index + 1;\n                        }\n",
+     ""),
+    ("gates", "systems_asked", "a cfg! spaced from its bang is read",
+     "                let mut after = past_spaces(&code, at + opens.chars().count());",
+     "                let mut after = at + opens.chars().count();"),
     # **The one list every gate reads where the platform's code is**
     # (`MEMBER_TREES`): a tree's name read as a prefix of another's, and a
     # list of trees cut short, each decided by the members' own tests and by

@@ -19581,7 +19581,7 @@ mod the_frozen_path_rule {
         ("xtask/dev.rs", 73, 8),
         ("xtask/docs.rs", 8, 1),
         ("xtask/every_generated_value_is_compared.rs", 30, 8),
-        ("xtask/gates.rs", 247, 33),
+        ("xtask/gates.rs", 250, 33),
         ("xtask/history.rs", 115, 3),
         ("xtask/limits.rs", 176, 59),
         ("xtask/local.rs", 83, 8),
@@ -25441,7 +25441,7 @@ mod the_frozen_path_rule {
     /// paragraph it follows and never after a bare `///`. Which edit moved it is
     /// the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 17144;
+    const THE_PARAGRAPH_OPENINGS_JUDGED: usize = 17149;
 
     /// How many rearrangements produce an arrangement already judged.
     ///
@@ -25460,7 +25460,7 @@ mod the_frozen_path_rule {
     /// before it is paid: a smaller tree, and not a gate reading less of the
     /// same one.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4046;
+    const THE_REARRANGEMENTS_ALREADY_JUDGED: usize = 4048;
 
     /// How many of the five rearrangements leave a block exactly as it was.
     ///
@@ -25511,7 +25511,7 @@ mod the_frozen_path_rule {
     /// the thing counted getting smaller, never a rule that stopped reading.
     /// Which edit moved it is the commit message's to say, not this block's.
     #[cfg(test)]
-    const THE_REARRANGEMENTS_JUDGED: usize = 23590;
+    const THE_REARRANGEMENTS_JUDGED: usize = 23598;
 
     /// What the first-line rule alone accepted, for the difference.
     ///
@@ -25565,7 +25565,7 @@ mod the_frozen_path_rule {
     /// every multi-line block through the five rearrangements an accident
     /// produces — an ascending line-wise sort, a descending one, a swap of the
     /// first two lines, a rotation and a reversal — and judges each by the same
-    /// rules the gates apply: **520 of 23,590 are accepted by the first-line
+    /// rules the gates apply: **520 of 23,598 are accepted by the first-line
     /// rule alone, and 283 survive all three.** All three numbers are frozen and
     /// this sentence is held against them, so a rule that stops catching
     /// something is a number somebody has to write down — and so is a paragraph
@@ -37336,7 +37336,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 1981] = [
+    static OPERATORS: [(&str, &str, &str); 1985] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -45219,6 +45219,22 @@ Options:
             "a canary directory at any member's root is one",
         ),
         ("gates", "SYSTEMS", "a cfg naming a vendor names a system"),
+        ("gates", "arms_selected", "a cfg_select's arms are read"),
+        (
+            "gates",
+            "arms_selected",
+            "an arm's question starts past the expression before it",
+        ),
+        (
+            "gates",
+            "arms_selected",
+            "an arm's question starts past the block before it",
+        ),
+        (
+            "gates",
+            "systems_asked",
+            "a cfg! spaced from its bang is read",
+        ),
         (
             "members",
             "under",

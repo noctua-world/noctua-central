@@ -756,7 +756,7 @@ effect; 22 is gated over the statements written today and by nothing over the ne
     source here names — the kernel's transport dials out and listens nowhere.
 
 24. **No code outside `nc-platform` decides by the system it is built for**
-    (`NOCTUA.md §2.7`): a `cfg`, `cfg!` or `cfg_attr` naming `unix`, `windows`,
+    (`NOCTUA.md §2.7`): a `cfg`, `cfg!`, `cfg_attr` or `cfg_select!` arm naming `unix`, `windows`,
     `target_os`, `target_family`, `target_vendor`, `target_env` or `target_abi` — every
     part of a target but its architecture and its pointer width — is written in
     `crates/nc-platform` alone, which states each system's answer as a fact every system's
@@ -765,12 +765,14 @@ effect; 22 is gated over the statements written today and by nothing over the ne
     `check::RUNS_THE_STACK`, and two tests holding that answer to the system they run on.
     **Gated** by `no_system_is_asked_outside_the_platform`, over every Rust source of every
     member tree with comments and strings blanked, the predicate read inside its
-    parentheses, and by `the_system_walk_goes_everywhere_outside_the_platform`. **Not
+    parentheses and each arm of a `cfg_select!` read before its `=>`, and by
+    `the_system_walk_goes_everywhere_outside_the_platform`, which plants both forms. **Not
     held**: a manifest's `[target.'cfg(…)']` table, which only `nc-platform`'s holds today;
     a `cfg` by architecture or pointer width, which names no system — the reference
-    plugin's `target_arch = "wasm32"` among them; and the system asked another way —
-    `std::env::consts::OS` compared at run time — which is a decision this gate cannot
-    read.
+    plugin's `target_arch = "wasm32"` among them; `cfg!` or `cfg_select!` renamed by a
+    `use … as`, or handed its predicate by a macro of this tree's, where no predicate is
+    written beside the name; and the system asked another way — `std::env::consts::OS`
+    compared at run time — which is a decision this gate cannot read.
 
 ## The security answer §2.4 asks for
 
