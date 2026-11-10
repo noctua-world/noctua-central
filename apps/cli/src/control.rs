@@ -822,6 +822,122 @@ mod tests {
         );
     }
 
+    /// With nothing verified, a stop waits for the endpoint and the record to let go.
+    ///
+    /// A daemon that said it is stopping is stopped only once its endpoint
+    /// answers no more and its record no longer names it; while either still
+    /// holds, the stop does not finish, and nothing is signalled.
+    #[test]
+    fn with_nothing_verified_a_stop_waits_for_the_endpoint_and_the_record_to_let_go() {
+        let installed = Scratch::new("unheld");
+        let found = &installed.found;
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("a runtime");
+        let ended = |holding: bool| {
+            runtime.block_on(async {
+                // Something holds the endpoint as a daemon winding down does,
+                // every connection accepted and let go.
+                let accepting = holding.then(|| {
+                    let instance =
+                        nc_platform::hold(&found.layout.state, "instance.lock", &found.user)
+                            .expect("the lock");
+                    let endpoint = nc_platform::ipc::Endpoint::new(
+                        &found.layout.runtime,
+                        &found.layout.socket,
+                        found.layout.pipe.as_str(),
+                    );
+                    let mut listener =
+                        nc_ipc::listen(&endpoint, &found.user, &instance).expect("bound");
+                    tokio::spawn(async move {
+                        let _instance = instance;
+                        loop {
+                            let _ = listener.accept().await;
+                        }
+                    })
+                });
+                let ended = super::ended_once_asked(
+                    found,
+                    Recorded::Unverified("another executable".to_owned()),
+                    std::process::id(),
+                    core::time::Duration::from_millis(50),
+                )
+                .await;
+                if let Some(accepting) = accepting {
+                    accepting.abort();
+                    let _ = accepting.await;
+                }
+                ended
+            })
+        };
+        recorded_as(
+            &installed,
+            &this_process_but(|record| record.started.push('0')),
+        );
+        let named = ended(false).expect_err("its record still names it");
+        std::fs::remove_file(&found.layout.pid_file).expect("removed");
+        let held = ended(true).expect_err("its endpoint is still held");
+        for refused in [named, held] {
+            assert_eq!(refused.code, ErrorCode::CliDaemonDidNotStop, "{refused:?}");
+            assert_eq!(refused.exit, Exit::ProcessControl);
+            assert!(
+                refused
+                    .detail
+                    .contains("since nothing held it to its record"),
+                "{refused:?}"
+            );
+        }
+        let stopped = ended(false).expect("nothing holds it any more");
+        assert!(stopped.contains("stopped when it was asked"), "{stopped}");
+    }
+
+    /// A start says the daemon it reached runs only once its status says so,
+    /// and that it is still starting when the wait ends first.
+    #[test]
+    fn a_start_says_the_daemon_runs_only_once_its_status_says_so() {
+        let installed = Scratch::new("runs");
+        let token = Token::fresh().expect("a token");
+        installed.token(&token);
+        let state = |word: &str| {
+            Answer::Status(nc_canon::Value::object([(
+                "state",
+                nc_canon::Value::text(word),
+            )]))
+        };
+        let daemon = Scripted::serve(
+            &installed,
+            Script {
+                token,
+                welcome: installed.welcome(),
+                connections: vec![
+                    vec![state("starting"), state("running")],
+                    vec![state("starting")],
+                ],
+            },
+        );
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("a runtime");
+        let said = |within: core::time::Duration| {
+            runtime.block_on(async {
+                let connection = crate::client::connect(&installed.found)
+                    .await
+                    .expect("the daemon answers");
+                super::running(connection, "noctua", tokio::time::Instant::now() + within).await
+            })
+        };
+        let running = said(core::time::Duration::from_secs(60));
+        assert!(running.contains("is running"), "{running}");
+        let starting = said(core::time::Duration::ZERO);
+        assert!(starting.contains("still starting"), "{starting}");
+        assert_eq!(
+            daemon.heard(),
+            vec![Request::Status, Request::Status, Request::Status]
+        );
+    }
+
     /// A stop something answers otherwise, with no record or a record of a
     /// process gone, signals nothing and says so rather than calling it
     /// stopped.

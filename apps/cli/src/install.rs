@@ -730,6 +730,65 @@ mod tests {
         assert!(super::uninstall(&install).expect("again").is_none());
     }
 
+    /// An uninstall stops the daemon first: one that did not stop leaves
+    /// every file of the install where it was, and the mark the stop writes
+    /// stays with the profile either way.
+    #[test]
+    fn an_uninstall_stops_the_daemon_first() {
+        use std::io::Write as _;
+        let scratch = Scratch::new("first");
+        let (cli, daemon) = (
+            scratch.file("noctua", "c"),
+            scratch.file("noctua-daemon", "d"),
+        );
+        let install = scratch.install("ti5");
+        let user = nc_platform::user_in(&scratch.0).expect("private");
+        let layout = nc_channel::layout(&install, &user.to_string());
+        let kept = std::cell::RefCell::new(None);
+        let plan = Plan {
+            install: install.clone(),
+            cli: &cli,
+            daemon: &daemon,
+            world: "{}",
+            plugins: Vec::new(),
+        };
+        let installed =
+            super::install_with(&plan, initialize_as_the_daemon(&layout, &kept)).expect("made");
+        // A record that does not read names nothing a stop may signal, so the
+        // stop is refused.
+        nc_platform::create_private_directory(&layout.runtime).expect("a runtime directory");
+        nc_platform::create_private(&layout.pid_file)
+            .expect("a record")
+            .write_all(b"{\"pid\":0}")
+            .expect("written");
+        let refused = super::uninstall(&install).expect_err("the daemon did not stop");
+        assert!(
+            refused
+                .to_string()
+                .contains(nc_catalog::ErrorCode::CliProcessUnverified.code()),
+            "{refused}"
+        );
+        let suffix = nc_platform::EXECUTABLE_SUFFIX;
+        for file in [
+            installed.cli,
+            layout.install.join(format!("{}{suffix}", layout.daemon)),
+            layout.manifest.clone(),
+        ] {
+            assert!(
+                file.is_file(),
+                "`{}` went with a daemon that did not stop",
+                file.display()
+            );
+        }
+        assert!(layout.stopped.is_file(), "the stop wrote no mark");
+        std::fs::remove_file(&layout.pid_file).expect("removed");
+        super::uninstall(&install)
+            .expect("removed")
+            .expect("there was one");
+        assert!(!layout.install.exists(), "`bin` outlived the uninstall");
+        assert!(layout.stopped.is_file(), "the mark went with the install");
+    }
+
     /// A development install is read from the environment it is handed.
     ///
     /// Its bases are the system's, it is relocated under a namespace when one
