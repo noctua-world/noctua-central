@@ -8,11 +8,11 @@
 //! copied where an installer puts it beside a manifest under a scratch root and
 //! a namespace of its own (`nc_daemon::testing::Installed`), with the
 //! reference plugin installed and granted what its commands reach for but the
-//! network. Two outcomes of the table are not run here, because no daemon
-//! brings them about: 1, the CLI unable to write what it answered, which
-//! `noctua`'s own unit tests hold; and 11, process control's, which belongs to
-//! verbs this CLI does not have yet. It spawns a process, so no mutation
-//! command runs it.
+//! network; and 11, process control's, against the same install with no
+//! daemon running. One outcome of the table is not run here, because no daemon
+//! brings it about: 1, the CLI unable to write what it answered, which
+//! `noctua`'s own unit tests hold. It spawns a process, so no mutation command
+//! runs it.
 
 use std::ffi::OsString;
 use std::path::Path;
@@ -495,6 +495,50 @@ fn a_token_that_is_not_the_daemons_is_exit_10() {
         "{}",
         serving.installed.standard_error()
     );
+}
+
+/// Process control that does not finish ends the run in 11: a start whose
+/// daemon is not where the install keeps it, and a stop nothing answers whose
+/// PID record names a process that is not the daemon — which it never
+/// signals.
+///
+/// **This test process stands in for that process**, recorded with another
+/// executable, so a stop that signalled it would end the test.
+#[test]
+fn process_control_that_does_not_finish_is_exit_11() {
+    use std::io::Write as _;
+    let installed = Installed::new(Path::new(BINARY));
+    let found = nc_channel::found::beside(&installed.executable).expect("the install reads");
+    let run = |verb: &str| nc_cli::run(&[OsString::from(verb)], &found, &nc_cli::Env::of(|_| None));
+    // The suites install the daemon under the name the build gave it, and
+    // `start` runs the one the layout names, which is not there.
+    let outcome = run("start");
+    ended_in(
+        &outcome,
+        Exit::ProcessControl,
+        ErrorCode::CliDaemonDidNotStart,
+    );
+    let mut record = nc_channel::record::Record::of(
+        nc_platform::process::this_process().expect("this process is read"),
+        [7; 16],
+    );
+    record.executable = std::fs::canonicalize(&installed.executable).expect("installed");
+    nc_platform::create_private(&installed.layout.pid_file)
+        .expect("a record")
+        .write_all(record.to_canonical().expect("written").as_bytes())
+        .expect("written");
+    let outcome = run("stop");
+    ended_in(
+        &outcome,
+        Exit::ProcessControl,
+        ErrorCode::CliProcessUnverified,
+    );
+    assert!(
+        outcome.stderr.contains("nothing was signalled"),
+        "{}",
+        outcome.stderr
+    );
+    assert!(installed.layout.stopped.is_file(), "the stop wrote no mark");
 }
 
 /// An install the CLI cannot read ends its run in 12, and stops the daemon too.
