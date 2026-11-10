@@ -923,12 +923,21 @@ mod tests {
             "a directory a waiting hold has was held a second time"
         );
         drop(waited);
-        assert!(
-            super::try_hold(&scratch.0, "lock", &user)
-                .expect("asked")
-                .is_some(),
-            "a directory nothing holds was not held"
-        );
+        // **Asked again until a bound, because a lock is let go once every
+        // copy of it is closed.** A child another test of this binary starts
+        // holds a copy of each descriptor from its fork until its exec, so the
+        // directory can still be held for that moment: measured by a review,
+        // one run of this binary in ten failed here when it asked once. A lock
+        // that is never let go still fails, at the bound.
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        let again = loop {
+            let tried = super::try_hold(&scratch.0, "lock", &user).expect("asked");
+            if tried.is_some() || std::time::Instant::now() >= deadline {
+                break tried;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        };
+        assert!(again.is_some(), "a directory nothing holds was not held");
     }
 
     /// The variable that turns [`a_detached_process_leads_a_session_of_its_own`]
