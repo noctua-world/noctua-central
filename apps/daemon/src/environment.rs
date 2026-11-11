@@ -234,8 +234,33 @@ mod tests {
         }
     }
 
-    /// The local database a start opens is the profile's, and the newest unit
-    /// it reads is the newest its journal holds — none in a new profile.
+    /// A unit of `kind` as the kernel commits one, writing nothing.
+    ///
+    /// Committed by the store alone, as a reversal is: no journal entry names
+    /// it.
+    fn committed(unit: nc_ids::Snowflake, kind: nc_local::UnitKind) -> nc_local::UnitRecord {
+        nc_local::UnitRecord {
+            unit,
+            meta: nc_local::UnitMeta {
+                realm: nc_ids::OpaqueId::of_device_key(&[7; 32]),
+                principal: nc_ids::OpaqueId::of_device_key(&[8; 32]),
+                kind,
+                label: "a unit".to_owned(),
+                committed_at_ms: 1_767_225_600_001,
+            },
+            writes: Vec::new(),
+            blobs: Vec::new(),
+            notes: Vec::new(),
+            unpinned: Vec::new(),
+            marks: Vec::new(),
+        }
+    }
+
+    /// The local database a start opens is the profile's.
+    ///
+    /// The newest unit it reads is the newest it keeps — the largest its
+    /// journal names, or a reversal's the store committed, which no entry
+    /// names — and none in a new profile.
     #[tokio::test]
     async fn a_start_reads_the_newest_unit_its_journal_holds() {
         use nc_journal::Store as _;
@@ -260,9 +285,25 @@ mod tests {
         // Minted and derived, as the daemon's own are: nothing here is built
         // out of text.
         let flake = nc_ids::MachineFlake::from_value(3).expect("a flake");
-        let unit = nc_ids::Minter::new(flake, nc_ids::SystemClock)
-            .mint()
-            .expect("a unit");
+        let mut minter = nc_ids::Minter::new(flake, nc_ids::SystemClock);
+        let step = minter.mint().expect("a unit");
+        let unit = minter.mint().expect("a unit");
+        assert!(step < unit, "minted before the journal's");
+        let quotas = nc_local::Quotas {
+            entries_per_plugin: 1,
+            lowered: std::collections::BTreeMap::new(),
+            blobs: 1,
+            writes_per_unit: 1,
+            notes_per_unit: 1,
+        };
+        // **A step the store committed before the journal's unit**, which the
+        // journal's must beat: the state after any dispatch that opened a
+        // unit and committed nothing. Found by a review: a start that read the
+        // journal only where the store held nothing passed every test.
+        store
+            .commit(&committed(step, nc_local::UnitKind::Step), &quotas)
+            .await
+            .expect("committed");
         let someone = nc_ids::OpaqueId::of_device_key(&[7; 32]);
         let mut record = nc_journal::Record::new(
             someone.clone(),
@@ -280,7 +321,11 @@ mod tests {
             .expect("appended");
         store.close().await;
         let (store, newest) = super::store(&layout).await.expect("opened again");
-        assert_eq!(newest, Some(unit));
+        assert_eq!(
+            newest,
+            Some(unit),
+            "the journal's unit was passed over for an older one the store committed"
+        );
         // **A reversal's unit, which no entry names**, is newer than every
         // unit the journal holds once the kernel commits it; the start reads
         // it all the same. Found by a review: read from the journal alone,
@@ -289,29 +334,13 @@ mod tests {
             .mint()
             .expect("a unit");
         assert!(reversal > unit, "minted after the journal's");
-        let record = nc_local::UnitRecord {
-            unit: reversal,
-            meta: nc_local::UnitMeta {
-                realm: nc_ids::OpaqueId::of_device_key(&[7; 32]),
-                principal: nc_ids::OpaqueId::of_device_key(&[8; 32]),
-                kind: nc_local::UnitKind::Undo { target: unit },
-                label: "a reversal".to_owned(),
-                committed_at_ms: 1_767_225_600_001,
-            },
-            writes: Vec::new(),
-            blobs: Vec::new(),
-            notes: Vec::new(),
-            unpinned: Vec::new(),
-            marks: Vec::new(),
-        };
-        let quotas = nc_local::Quotas {
-            entries_per_plugin: 1,
-            lowered: std::collections::BTreeMap::new(),
-            blobs: 1,
-            writes_per_unit: 1,
-            notes_per_unit: 1,
-        };
-        store.commit(&record, &quotas).await.expect("committed");
+        store
+            .commit(
+                &committed(reversal, nc_local::UnitKind::Undo { target: unit }),
+                &quotas,
+            )
+            .await
+            .expect("committed");
         store.close().await;
         let (store, newest) = super::store(&layout).await.expect("opened a third time");
         assert_eq!(

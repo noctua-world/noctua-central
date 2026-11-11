@@ -7728,6 +7728,11 @@ WEAKENINGS = [
     ("cli_control", "free_to_start", "a start gives up on a profile still held as the lock refuses a second daemon",
      "                ErrorCode::DaemonInstanceHeld,\n",
      "                ErrorCode::CliDaemonDidNotStart,\n"),
+    # The newest unit a start reads is the larger of its journal's and its
+    # store's, whichever is newer.
+    ("daemon_environment", "newest_kept", "a start reads the journal's unit over an older one its store committed",
+     "    Ok(journaled.max(committed))\n",
+     "    Ok(committed.or(journaled))\n"),
 ]
 
 # **Every member tree, as `MEMBER_TREES` in `xtask/src/members.rs` names them**,
