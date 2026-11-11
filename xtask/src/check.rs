@@ -37527,7 +37527,7 @@ Options:
     /// block rather than beside the declaration, because a `//` note between a
     /// doc block and its item is a doc block that has stopped being above
     /// anything — which the rule two files up says.
-    static OPERATORS: [(&str, &str, &str); 2120] = [
+    static OPERATORS: [(&str, &str, &str); 2122] = [
         ("base32", "decode", "an empty text is not a value"),
         ("base32", "decode", "the width bound is a bound"),
         ("base32", "decode", "`O` is read as the digit it resembles"),
@@ -47003,6 +47003,16 @@ Options:
             "dev",
             "lingering_asked",
             "a real install asks for lingering",
+        ),
+        (
+            "gates",
+            "systems_asked",
+            "a cfg! in brackets or braces is read",
+        ),
+        (
+            "gates",
+            "systems_asked",
+            "a cfg predicate is read to its own closer",
         ),
     ];
 

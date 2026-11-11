@@ -800,9 +800,12 @@ held by its tests, and by no gate over a signal sent another way.
     written down by its file and its text (`THE_GATES_OWN` in `xtask/src/gates.rs`):
     `check::RUNS_THE_STACK`, and two tests holding that answer to the system they run on.
     **Gated** by `no_system_is_asked_outside_the_platform`, over every Rust source of every
-    member tree with comments and strings blanked, the predicate read inside its
-    parentheses and each arm of a `cfg_select!` read before its `=>`, and by
-    `the_system_walk_goes_everywhere_outside_the_platform`, which plants both forms. **Not
+    member tree with comments and strings blanked, the predicate read inside the
+    parentheses an attribute takes or whichever delimiters a macro is called with —
+    `cfg!(…)`, `cfg![…]` and `cfg!{…}` alike, a path before it or none — and each arm of a
+    `cfg_select!` read before its `=>`, and by
+    `the_system_walk_goes_everywhere_outside_the_platform`, which plants the attribute,
+    the arm and `cfg!` in brackets. **Not
     held**: a manifest's `[target.'cfg(…)']` table, which only `nc-platform`'s holds today;
     a `cfg` by architecture or pointer width, which names no system — the reference
     plugin's `target_arch = "wasm32"` among them; `cfg!` or `cfg_select!` renamed by a

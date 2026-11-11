@@ -7612,6 +7612,14 @@ WEAKENINGS = [
     ("dev", "lingering_asked", "a real install asks for lingering",
      "    if install.namespace.is_none() {\n        ask().map(Some)",
      "    if false {\n        ask().map(Some)"),
+    # `cfg!` called with brackets or braces is read as one called with
+    # parentheses is, to the delimiter that closes it.
+    ("gates", "systems_asked", "a cfg! in brackets or braces is read",
+     "                    delimiters = &['(', '[', '{'];\n",
+     "                    delimiters = &['('];\n"),
+    ("gates", "systems_asked", "a cfg predicate is read to its own closer",
+     "                        ')' | ']' | '}' => {\n                            depth -= 1;\n                            if depth == 0 {\n                                break;\n                            }\n                        }\n                        _ => {}\n                    }\n                    end += 1;",
+     "                        ')' => {\n                            depth -= 1;\n                            if depth == 0 {\n                                break;\n                            }\n                        }\n                        _ => {}\n                    }\n                    end += 1;"),
 ]
 
 # **Every member tree, as `MEMBER_TREES` in `xtask/src/members.rs` names them**,
