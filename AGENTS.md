@@ -2205,8 +2205,11 @@ token and its socket for the next start to replace; a daemon that leads its proc
 a session and stays in the one it was started in, where that terminal's hangup reaches it;
 a stop asked while the start waits for its clock, which abandons the start and leaves the
 mark as the last raise wrote it, and whose process ends only once that wait is given up —
-`stop_drain_ms` at most, its record and its endpoint already gone, so a start meanwhile is
-refused by the instance lock (`NC-DMN-0008`); a dispatch, a pump or a sweep still running past
+`stop_drain_ms` at most, its record and its endpoint already gone and its instance lock
+still held, as through any blocking work the runtime's shutdown waits for, a plugin's
+`net#fetch` past its call tree's deadline among it: a start meanwhile waits for the lock
+before it starts one, and only commands run at once read that tail otherwise, signalling
+nothing (the CLI's answer, below); a dispatch, a pump or a sweep still running past
 `stop_drain_ms` — trees run one after another, such as a pump's callbacks, that outlast
 the drain together — which the stop gives up on, counts in `daemon.stopped`, and closes
 the local database under, and whose unit the next start recovers; a connection whose
@@ -2413,7 +2416,7 @@ is installed.
   persistent state directory, created private, synced and the directory synced, before it
   asks the daemon anything; a mark or a state directory another account can reach is
   refused and left as it was (`NC-DMN-0001`), and nothing is asked. `start` removes the
-  mark the same way, once judged.
+  mark the same way, once judged, and only once no daemon holds the profile.
 - **The daemon is asked before it is signalled, and only a process held to its record is
   signalled** (invariant 25). The PID record is read through `nc_channel::record`, judged
   this user's alone and read only as the daemon writes it, and the process it names held
@@ -2421,33 +2424,35 @@ is installed.
   opened first on Linux, asked again which process it holds once everything is read; one
   handle on Windows, every part read through it; `ps` and the boot's session on macOS,
   read again before each signal. A daemon that answers it is stopping is waited for
-  `stop_within_ms` through what verified it, or, with nothing verified, until its endpoint
-  answers no more and its record no longer names it, and never signalled: one still there
-  then is a stop that did not finish (`NC-CLI-0008`, exit 11). One that does not answer is
-  asked to end and then killed, `kill_within_ms` each, through the verification alone —
-  once its record, read again, still names it: a daemon removes its record at the end of
-  its own stop and lets its endpoint go only after, so one whose record went since it was
-  read is ending a stop asked before, and is waited for as one that answered. A
-  record missing or naming a process that runs no more is a daemon stopped (exit 0) while
-  nothing holds its endpoint; something that holds it and does not answer, with no record
-  to hold it to a process, is never signalled (`NC-CLI-0009`, exit 11); and a record naming
-  another process — another executable, another user — or one that does not read is never
-  signalled (`NC-CLI-0009`, exit 11). **A process gone is judged before another**
-  (`nc_platform::process::held_to`), so a record of another start names a process that
-  runs no more whoever holds its id now: on Windows a process this user may query and may
-  not hold — one above this process's integrity, or another account's where this user may
-  query it, as the hosted runner's elevated account, which holds the debug privilege, may
-  query any — is read through a handle that may only query it, never held, so a record a
-  reboot left stale whose id such a process now holds is a daemon stopped, not a refusal.
+  `stop_within_ms` through what verified it, or, with nothing verified, until its record no
+  longer names it, its endpoint answers no more — knocked at only once the record has gone,
+  since a draining daemon accepts every connection and logs each that asks nothing as
+  `ipc.refused` — and no daemon holds the profile's instance lock, which a daemon lets go
+  after its runtime's last work (`nc_platform::try_hold`, let go at once); and never
+  signalled: one still there then is a stop that did not finish (`NC-CLI-0008`, exit 11).
+  One that does not answer is asked to end and then killed, `kill_within_ms` each, through
+  the verification alone — once its record, read again, still names it: a daemon removes
+  its record at the end of its own stop and lets its endpoint go only after, so one whose
+  record went since it was read is ending a stop asked before, and is waited for as one
+  that answered. A record missing or naming a process that runs no more is a daemon stopped
+  (exit 0) while nothing holds its endpoint; something that holds it and does not answer,
+  with no record to hold it to a process, is never signalled (`NC-CLI-0009`, exit 11); and
+  a record naming another process — another executable, another user — or one that does not
+  read is never signalled (`NC-CLI-0009`, exit 11). **A process gone is judged before
+  another** (`nc_platform::process::held_to`), so a record of another start names a process
+  that runs no more whoever holds its id now: on Windows a process this user may query and
+  may not hold — one above this process's integrity, or another account's where this user
+  may query it, as the hosted runner's elevated account, which holds the debug privilege,
+  may query any — is read through a handle that may only query it, never held, so a record
+  a reboot left stale whose id such a process now holds is a daemon stopped, not a refusal.
   **A process this user may not even read is not its daemon**
-  (`nc_platform::process::unread`), which runs as this user — a refusal to read it, never
-  a refusal to hand this process a handle on it, which on Linux a filter can make of any
+  (`nc_platform::process::unread`), which runs as this user — a refusal to read it, never a
+  refusal to hand this process a handle on it, which on Linux a filter can make of any
   pidfd and which is a failure to ask (`nc_platform::process::no_handle`): its record is
   read as one whose process runs no more, never signalled, and the next start writes its
-  own — on
-  Windows, for an account that is not an elevated administrator, that is every process of
-  another account, as the hosted runner measured under a filtered token. A daemon read so
-  wrongly still holds its profile's instance lock, which refuses a second.
+  own — on Windows, for an account that is not an elevated administrator, that is every
+  process of another account, as the hosted runner measured under a filtered token. A
+  daemon read so wrongly still holds its profile's instance lock, which refuses a second.
 - **A start runs the install's own daemon.** It is the executable the layout names beside
   this CLI — never one found on `PATH` — started through the system's service manager
   where that manager holds the install's restorer, as `--restored`, and otherwise detached
@@ -2458,8 +2463,18 @@ is installed.
   that ends first or does not answer is a start that failed (`NC-CLI-0007`, exit 11), shown
   with the last lines of its standard error, escaped, for a detached start, and with what
   the manager counts of it for a start through the manager, whose daemon's standard error
-  goes nowhere. A daemon found answering that it is stopping is waited for as a stop waits
-  for one, and then started; one found answering otherwise runs already.
+  goes nowhere. **Before it starts one, either way, the start waits until a daemon answers
+  or none holds the profile's instance lock**, `stop_within_ms` at most and the `stopped`
+  mark still there: a daemon still ending holds the lock past its record and its endpoint,
+  and one started beside it would be refused by the lock, or not started at all by a
+  manager whose unit still runs it. One that holds it still by then is not signalled, and
+  nothing is started (`NC-DMN-0008`, exit 11). The lock is taken for a moment and let go at
+  once, while the mark is there where the command has one — a stop writes it first, and a
+  start removes it only after the wait — so a restorer's start meeting that moment has
+  ended at the mark; with no mark, it reads the moment as a daemon already up and ends, and
+  the start goes on to start one itself. A daemon found answering that it is stopping is
+  waited for as a stop waits for one, and then started; one found answering otherwise runs
+  already.
 - **The development install is copied, never linked, and named once.** `nc_cli::install`
   makes a missing base directory one private level at a time, and writes the binaries out
   of the target directory cargo built them in — the paths `cargo xtask dev --install` reads
@@ -2544,13 +2559,16 @@ it, the mark written, kept, removed and
 refused, a stop nothing answers ending well over a record of a process gone and refusing
 one of another executable or one that does not read, a stop that ends a child held to its
 record, a daemon that said it is stopping left running and unsignalled once the wait is
-over, and one nothing verified waited for until its endpoint and its record let it go, one
-whose record went while a stop asked it waited for through what verified it and never
+over, and one nothing verified waited for until its record, its endpoint and its profile
+let it go, its endpoint knocked at only once its record has gone, one whose record went
+while a stop asked it waited for through what verified it and never
 signalled, a stop something answers otherwise refused with no record or a record of a process gone, an
 endpoint no socket can have taken for nothing there, a stop and a status the daemon
 answers, a status with nothing answering, a start with no daemon beside it and one with a
 daemon running, a start that says its daemon runs only once its status says so, one that
-waits for a daemon that says it is stopping before it starts one, one that gives up at
+waits for a daemon that says it is stopping before it starts one, one that waits until no
+daemon holds the profile and removes the mark only then, one that gives up on a profile
+still held and starts nothing, one that gives up at
 once on a daemon that ended and shows the last lines it wrote, a daemon that
 does not answer asked to end first and killed only when it has not ended, and a restart
 that stops before it starts and starts nothing after a stop refused — of
@@ -2575,7 +2593,10 @@ daemon that does not answer and whose record was lost, which no stop can end; a 
 that said it is stopping and does not end, which no stop signals; on Windows, for an
 account that is not an elevated administrator, a record a reboot left whose id another
 account's process now holds, which is read as a daemon stopped without that process being
-read; a start that gave up, which leaves the daemon it started running; what a daemon a
+read; a start that gave up, which leaves the daemon it started running; commands run at
+once, each failing closed and none signalling; with nothing verifying the daemon, the
+moment between its lock let go and its process's end, in which a start through a manager
+whose unit still runs it starts nothing (`NC-CLI-0007`); what a daemon a
 manager started writes to its standard error, which goes nowhere; an uninstall from an
 environment that does not reach the manager, which removes nothing; the mark an install
 or an uninstall that did not finish left after its own stop, which the next install reads
@@ -3414,6 +3435,17 @@ rather than anything decided for the project, and each is a maintainer's to reop
 - **A start that gave up leaves its daemon running**: one that does not answer within
   `start_within_ms` is reported as a start that failed and is not ended, since what it is
   doing is its own to say; `stop` ends it.
+- **Commands run at once meet each other's moments, and each fails closed**: a stop asked
+  beside another, once the daemon's record and endpoint are gone and its process not yet,
+  says the daemon is stopped; a start beside another start, or beside a restorer's start
+  that read the moment the start's wait holds the profile's lock as a daemon already up,
+  can have the daemon it starts refused by the lock, or ask a manager to start a unit
+  still running one about to end well, which starts nothing (`NC-CLI-0007`); none of them
+  signals anything. And with nothing verifying the daemon — a PID record that does not
+  verify, as where `pidfd_open` is refused — a stop's wait ends when the daemon lets its
+  instance lock go, a moment before its process ends with its last line logged: a start
+  through a manager in that moment starts nothing for the unit still running it, and fails
+  the same way.
 - **An uninstall keeps the profile**: `cargo xtask dev --uninstall` stops the daemon and
   removes the binaries and the manifest, and leaves the device, the database and the world
   — and the `stopped` mark where it was there before the uninstall's own stop, a person's —

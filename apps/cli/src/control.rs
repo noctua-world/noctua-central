@@ -15,9 +15,10 @@
 //! 3. **The daemon asked through its endpoint**, proven as every request is
 //!    ([`crate::client`]); once it answers that it is stopping it is waited
 //!    for, `stop_within_ms` at most — through what verified it, or, with
-//!    nothing verified, until its endpoint answers no more and its record no
-//!    longer names it — and **never signalled**: one still there by then is a
-//!    stop that did not finish (`NC-CLI-0008`, exit 11).
+//!    nothing verified, until its record no longer names it, its endpoint
+//!    answers no more, and no daemon holds the profile's instance lock — and
+//!    **never signalled**: one still there by then is a stop that did not
+//!    finish (`NC-CLI-0008`, exit 11).
 //! 4. **Only when it does not answer, a signal — and only through what was
 //!    verified**: asked to end, `kill_within_ms`, then killed, `kill_within_ms`
 //!    again, once its record, read again, still names it. A daemon removes its
@@ -35,9 +36,15 @@
 //!
 //! # A start
 //!
-//! It removes the mark and answers at once when a daemon already answers — but
-//! for one that says it is stopping, which it waits for as a stop does and then
-//! starts again. Otherwise, **where this system's service manager holds the
+//! **It waits, with the mark still there, until a daemon answers or none holds
+//! the profile's instance lock** — `stop_within_ms` at most, the lock taken for
+//! a moment and let go at once — so it never starts one beside a daemon still
+//! ending, which the lock would refuse, or which a service manager still runs
+//! and so would not start again; one that holds the lock still by then is not
+//! signalled, and nothing is started (`NC-DMN-0008`, exit 11). A daemon that
+//! says it is stopping is waited for as a stop waits for one. Then it removes
+//! the mark, and answers at once when a daemon answers. Otherwise, **where this
+//! system's service manager holds the
 //! install's restorer** (`cargo xtask dev --install` registers one), it asks
 //! that manager to start it — `noctua-daemon --restored`, as every restorer
 //! starts it — so the daemon it starts is one the manager restores; where the
@@ -411,8 +418,8 @@ async fn ended_once_asked(
         ));
     }
     // Nothing verified the process that answered, so it is waited for until
-    // its endpoint answers no more and its record no longer names it, and
-    // never signalled.
+    // its record no longer names it, its endpoint answers no more and no
+    // daemon holds its profile, and never signalled.
     let endpoint = nc_platform::ipc::Endpoint::new(
         &found.layout.runtime,
         &found.layout.socket,
@@ -420,15 +427,23 @@ async fn ended_once_asked(
     );
     let deadline = tokio::time::Instant::now() + within;
     loop {
-        let listening = nc_platform::ipc::connect(&endpoint, &found.user)
-            .await
-            .map_or_else(
-                |refused| !matches!(refused, nc_platform::ipc::Refused::Nobody(_)),
-                |_| true,
-            );
         let named =
             record::read(&found.layout.pid_file, &found.user).is_ok_and(|record| record.pid == pid);
-        if !listening && !named {
+        // **Knocked at only once the record no longer names it**: a daemon
+        // removes its record before it lets its endpoint go, so the endpoint
+        // answers until then — and a draining daemon accepts every bare
+        // connection, and logs each as one refused (`ipc.refused`).
+        let listening = !named
+            && nc_platform::ipc::connect(&endpoint, &found.user)
+                .await
+                .map_or_else(
+                    |refused| !matches!(refused, nc_platform::ipc::Refused::Nobody(_)),
+                    |_| true,
+                );
+        // **And ended only once no daemon holds the profile**: a daemon lets
+        // its instance lock go after its endpoint, its token and its
+        // runtime's last work, so a start that follows finds none holding it.
+        if !named && !listening && let_go(found)? {
             return Ok(format!(
                 "The daemon of {cli}, process {pid}, stopped when it was asked to.\n"
             ));
@@ -443,6 +458,49 @@ async fn ended_once_asked(
         }
         tokio::time::sleep(BETWEEN_LOOKS).await;
     }
+}
+
+/// Whether no daemon holds the profile of `found`'s install: its instance lock
+/// taken, and let go at once.
+///
+/// A state directory that is not there is held by nothing; one another
+/// account can reach, or a lock that could not be asked, is a failure, never
+/// a profile free. **Asked while the `stopped` mark is there, where the
+/// command has one** — a stop writes it before anything else, and a start
+/// removes it only once this has answered — so a restorer's start that meets
+/// the lock held here for a moment has ended at the mark before it reached
+/// the lock. Where there is none, a start with no stop before it, such a
+/// restorer's start reads that moment as a daemon already up and ends, and
+/// leaves no channel down: the start that asked goes on to start one itself.
+fn let_go(found: &Found) -> Result<bool, Failure> {
+    let (layout, user) = (&found.layout, &found.user);
+    let unasked = |judged| match judged {
+        Judged::Refused(refused) => failed(
+            ErrorCode::DaemonProfileNotPrivate,
+            format!(
+                "{refused}, so whether a daemon still holds the profile could not be asked, and \
+                 it was left as it was"
+            ),
+        ),
+        Judged::Failed(failed_to) => {
+            failed(ErrorCode::DaemonProfileUnavailable, failed_to.to_string())
+        }
+    };
+    match nc_platform::judge(&layout.state, Kind::Directory, user) {
+        Ok(()) => {}
+        Err(Judged::Failed(absent)) if absent.error().kind() == std::io::ErrorKind::NotFound => {
+            return Ok(true);
+        }
+        Err(judged) => return Err(unasked(judged)),
+    }
+    let name = layout
+        .instance_lock
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy();
+    nc_platform::try_hold(&layout.state, &name, user)
+        .map(|held| held.is_some())
+        .map_err(unasked)
 }
 
 /// The failure of a stop whose daemon, process `pid`, said it was stopping and
@@ -527,19 +585,15 @@ fn signalled(cli: &str, process: &impl Ends) -> Result<String, Failure> {
 /// answers what was done.
 async fn start(found: &Found) -> Result<String, Failure> {
     let (layout, cli) = (&found.layout, &found.layout.cli);
+    // The mark goes only once the profile is free, so what the wait asks of
+    // its lock is asked while a restorer's start still ends at the mark.
+    let answering = free_to_start(found, stop_within()).await?;
     unmark(layout, &found.user)?;
-    if let Ok(connection) = client::connect(found).await {
-        let pid = connection.welcome().pid;
-        if connection.welcome().state != nc_ipc::State::Stopping {
-            return Ok(format!(
-                "The daemon of {cli} is running already, as process {pid}.\n"
-            ));
-        }
-        // **A daemon winding down a stop is waited for, then started**: told
-        // it runs already, the start would leave nothing running once the
-        // stop it found ends. Waited for as a stop waits, and never signalled.
-        drop(connection);
-        ended_once_asked(found, recorded(found), pid, stop_within()).await?;
+    if let Some(connection) = answering {
+        return Ok(format!(
+            "The daemon of {cli} is running already, as process {}.\n",
+            connection.welcome().pid
+        ));
     }
     if let Some((registrar, name)) = restorer_of(found) {
         return started_by(found, &registrar, &name).await;
@@ -573,6 +627,57 @@ async fn start(found: &Found) -> Result<String, Failure> {
                     "the daemon of {cli}, process {}, {how}; its standard error ends: {}",
                     detached.pid(),
                     tail_of(&layout.daemon_err)
+                ),
+            ));
+        }
+        tokio::time::sleep(BETWEEN_LOOKS).await;
+    }
+}
+
+/// Waits `within` for the profile of `found`'s install to be free to start a
+/// daemon in, and answers the connection to one that runs there already.
+///
+/// **Free once no daemon holds its instance lock** ([`let_go`]). A daemon lets
+/// the lock go after its record, its endpoint and its runtime's last work, the
+/// last of its profile it holds, so a daemon started before then would be
+/// refused by the lock
+/// (`NC-DMN-0008`), and one asked of a service manager whose unit still runs
+/// the daemon ending would not be started at all. A daemon that answers runs
+/// already — **but for one that says it is stopping**, which is waited for as
+/// a stop waits for one, `within` at most, and never signalled: told it runs
+/// already, the start would leave nothing running once the stop it found ends.
+///
+/// # Errors
+///
+/// [`Failure`] as [`ended_once_asked`] and [`let_go`] fail, and with
+/// `NC-DMN-0008` for a profile a daemon still holds `within` later, answering
+/// nothing — never signalled, and nothing started beside it.
+async fn free_to_start(
+    found: &Found,
+    within: Duration,
+) -> Result<Option<client::Connection>, Failure> {
+    let deadline = tokio::time::Instant::now() + within;
+    loop {
+        if let Ok(connection) = client::connect(found).await {
+            if connection.welcome().state != nc_ipc::State::Stopping {
+                return Ok(Some(connection));
+            }
+            let pid = connection.welcome().pid;
+            drop(connection);
+            ended_once_asked(found, recorded(found), pid, within).await?;
+        }
+        if let_go(found)? {
+            return Ok(None);
+        }
+        if tokio::time::Instant::now() >= deadline {
+            return Err(failed(
+                ErrorCode::DaemonInstanceHeld,
+                format!(
+                    "the daemon of {} was not started: another daemon still held its profile \
+                     after {} ms and answered nothing at its endpoint; it was not signalled, and \
+                     the `stopped` mark is as it was",
+                    found.layout.cli,
+                    within.as_millis()
                 ),
             ));
         }
@@ -1106,6 +1211,60 @@ mod tests {
         );
     }
 
+    /// Something holding the endpoint of `found`'s install as a daemon winding
+    /// down does, spawned on the runtime this is called on: every connection
+    /// accepted, counted in `counted`, and let go.
+    ///
+    /// **Its lock is not the profile's**, which a daemon holds as well, so a
+    /// test of what the endpoint alone holds sees nothing else hold it.
+    fn accepting(
+        found: &nc_channel::found::Found,
+        counted: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    ) -> tokio::task::JoinHandle<()> {
+        let held = nc_platform::hold(&found.layout.runtime, "endpoint.lock", &found.user)
+            .expect("a lock of its own");
+        let endpoint = nc_platform::ipc::Endpoint::new(
+            &found.layout.runtime,
+            &found.layout.socket,
+            found.layout.pipe.as_str(),
+        );
+        let mut listener = nc_ipc::listen(&endpoint, &found.user, &held).expect("bound");
+        tokio::spawn(async move {
+            let _held = held;
+            loop {
+                let _ = listener.accept().await;
+                counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            }
+        })
+    }
+
+    /// The profile of `found`'s install held as a daemon holds it.
+    ///
+    /// By a thread that lets it go `after` it began and answers, once it has,
+    /// what `seen` read while it still held it and when it let go.
+    fn held_for<T: Send + 'static>(
+        found: &nc_channel::found::Found,
+        after: core::time::Duration,
+        seen: impl FnOnce() -> T + Send + 'static,
+    ) -> std::thread::JoinHandle<(T, std::time::Instant)> {
+        let lock = found
+            .layout
+            .instance_lock
+            .file_name()
+            .expect("a name")
+            .to_string_lossy()
+            .into_owned();
+        let held =
+            nc_platform::hold(&found.layout.state, &lock, &found.user).expect("the profile held");
+        std::thread::spawn(move || {
+            std::thread::sleep(after);
+            let seen = seen();
+            let let_go = std::time::Instant::now();
+            drop(held);
+            (seen, let_go)
+        })
+    }
+
     /// With nothing verified, a stop waits for the endpoint and the record to let go.
     ///
     /// A daemon that said it is stopping is stopped only once its endpoint
@@ -1121,26 +1280,7 @@ mod tests {
             .expect("a runtime");
         let ended = |holding: bool| {
             runtime.block_on(async {
-                // Something holds the endpoint as a daemon winding down does,
-                // every connection accepted and let go.
-                let accepting = holding.then(|| {
-                    let instance =
-                        nc_platform::hold(&found.layout.state, "instance.lock", &found.user)
-                            .expect("the lock");
-                    let endpoint = nc_platform::ipc::Endpoint::new(
-                        &found.layout.runtime,
-                        &found.layout.socket,
-                        found.layout.pipe.as_str(),
-                    );
-                    let mut listener =
-                        nc_ipc::listen(&endpoint, &found.user, &instance).expect("bound");
-                    tokio::spawn(async move {
-                        let _instance = instance;
-                        loop {
-                            let _ = listener.accept().await;
-                        }
-                    })
-                });
+                let accepting = holding.then(|| accepting(found, std::sync::Arc::default()));
                 let ended = super::ended_once_asked(
                     found,
                     Recorded::Unverified("another executable".to_owned()),
@@ -1174,6 +1314,166 @@ mod tests {
         }
         let stopped = ended(false).expect("nothing holds it any more");
         assert!(stopped.contains("stopped when it was asked"), "{stopped}");
+    }
+
+    /// With nothing verified, a stop knocks at the endpoint only once the
+    /// record no longer names the daemon.
+    ///
+    /// A draining daemon answers at its endpoint until its record is gone, and
+    /// accepts every connection made meanwhile, logging each that asks nothing
+    /// as one refused; so a wait that knocked while the record still named it
+    /// would write a false refusal at every look. The stand-in endpoint counts
+    /// what it accepts: nothing while the record names the daemon, and once
+    /// the record is gone, the knock that finds it still held. **Found by a
+    /// review**: the wait knocked first, at every look, through the whole
+    /// drain.
+    #[test]
+    fn with_nothing_verified_a_stop_knocks_only_once_the_record_no_longer_names_the_daemon() {
+        use std::sync::atomic::Ordering;
+        let installed = Scratch::new("knock");
+        let found = &installed.found;
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("a runtime");
+        let counted = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let knocked = || {
+            runtime.block_on(async {
+                let accepting = accepting(found, std::sync::Arc::clone(&counted));
+                let ended = super::ended_once_asked(
+                    found,
+                    Recorded::Unverified("another executable".to_owned()),
+                    std::process::id(),
+                    core::time::Duration::from_millis(300),
+                )
+                .await;
+                accepting.abort();
+                let _ = accepting.await;
+                ended.expect_err("the daemon has not ended")
+            })
+        };
+        recorded_as(
+            &installed,
+            &this_process_but(|record| record.started.push('0')),
+        );
+        let named = knocked();
+        assert_eq!(named.code, ErrorCode::CliDaemonDidNotStop, "{named:?}");
+        assert_eq!(
+            counted.load(Ordering::SeqCst),
+            0,
+            "the endpoint was knocked at while the record still named the daemon"
+        );
+        std::fs::remove_file(&found.layout.pid_file).expect("removed");
+        let held = knocked();
+        assert_eq!(held.code, ErrorCode::CliDaemonDidNotStop, "{held:?}");
+        assert!(
+            counted.load(Ordering::SeqCst) > 0,
+            "the stand-in counted no knock once the record was gone"
+        );
+    }
+
+    /// With nothing verified, a stop waits for the profile to be let go.
+    ///
+    /// A daemon lets its instance lock go after its record and its endpoint,
+    /// once its runtime's last work is over, and a start that came before then
+    /// would meet the lock. A thread holds the profile as such a daemon does,
+    /// its record and its endpoint gone, and lets it go a while later: the
+    /// stop says the daemon stopped only after that. **Found by a review**:
+    /// the wait ended once the record and the endpoint were gone, and a
+    /// restart's start met the lock.
+    #[test]
+    fn with_nothing_verified_a_stop_waits_for_the_profile_to_be_let_go() {
+        let installed = Scratch::new("letgo");
+        let found = &installed.found;
+        let ending = held_for(found, core::time::Duration::from_millis(300), || ());
+        let stopped = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("a runtime")
+            .block_on(super::ended_once_asked(
+                found,
+                Recorded::Nothing,
+                std::process::id(),
+                core::time::Duration::from_secs(60),
+            ))
+            .expect("the profile was let go");
+        let ended = std::time::Instant::now();
+        let ((), let_go) = ending.join().expect("the profile was held");
+        assert!(stopped.contains("stopped when it was asked"), "{stopped}");
+        assert!(
+            ended >= let_go,
+            "the stop said the daemon stopped while it still held its profile"
+        );
+    }
+
+    /// A start waits until no daemon holds the profile, and removes the mark
+    /// only then.
+    ///
+    /// A thread holds the profile as a daemon still ending does, nothing
+    /// answering and no record, and lets it go a while later; while it holds
+    /// it, the start has started nothing and the `stopped` mark is still
+    /// there, so a restorer's start that meets the lock the start asks of has
+    /// ended at the mark. With no daemon beside the CLI to start, the start
+    /// then ends in 11, the mark gone. **Found by a review**: a start went on
+    /// as soon as the endpoint was gone, and the daemon it started was
+    /// refused by the lock.
+    #[test]
+    fn a_start_waits_until_no_daemon_holds_the_profile_and_removes_the_mark_only_then() {
+        let installed = Scratch::new("free");
+        let layout = &installed.found.layout;
+        super::mark(layout, &installed.found.user).expect("written");
+        let ending = held_for(&installed.found, core::time::Duration::from_millis(400), {
+            let (started, stopped) = (layout.daemon_err.clone(), layout.stopped.clone());
+            move || (started.exists(), stopped.exists())
+        });
+        let refused = controlled(&installed, Control::Start)
+            .expect_err("the profile was let go, and no daemon is beside it to start");
+        let gave_up = std::time::Instant::now();
+        let ((went_on, marked), let_go) = ending.join().expect("the profile was held");
+        assert!(
+            !went_on,
+            "the start went on to start a daemon while another still held the profile"
+        );
+        assert!(
+            marked,
+            "the start removed the mark while another daemon still held the profile"
+        );
+        assert!(
+            gave_up >= let_go,
+            "the start ended before the profile was let go"
+        );
+        assert_eq!(refused.code, ErrorCode::CliDaemonDidNotStart, "{refused:?}");
+        assert!(
+            refused.detail.contains("could not be started"),
+            "{refused:?}"
+        );
+        assert!(!layout.stopped.exists(), "the start left the mark");
+    }
+
+    /// A start gives up on a profile a daemon still holds once its bound has
+    /// passed, signalling nothing and starting nothing.
+    #[test]
+    fn a_start_gives_up_on_a_profile_still_held_and_starts_nothing() {
+        let installed = Scratch::new("stuck");
+        let found = &installed.found;
+        let ending = held_for(found, core::time::Duration::from_millis(600), || ());
+        let refused = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("a runtime")
+            .block_on(super::free_to_start(
+                found,
+                core::time::Duration::from_millis(100),
+            ))
+            .expect_err("the profile is held throughout");
+        drop(ending.join());
+        assert_eq!(refused.code, ErrorCode::DaemonInstanceHeld, "{refused:?}");
+        assert_eq!(refused.exit, Exit::ProcessControl);
+        assert!(refused.detail.contains("not signalled"), "{refused:?}");
+        assert!(
+            !found.layout.daemon_err.exists(),
+            "a start that gave up started a daemon"
+        );
     }
 
     /// A start says the daemon it reached runs only once its status says so,
