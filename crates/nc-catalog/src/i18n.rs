@@ -336,8 +336,8 @@ const MESSAGES: &[(&str, [&str; 2])] = &[
     (
         "error.cli.daemon-did-not-start",
         [
-            "Noctua was started and did not answer, so it may not be running. What it said as it ended is shown beside this.",
-            "O Noctua foi iniciado e não respondeu, então pode não estar em execução. O que ele disse ao terminar aparece ao lado desta mensagem.",
+            "Noctua was started and did not answer, so it may not be running. What it said as it ended, or what the system's service manager says of it, is shown beside this.",
+            "O Noctua foi iniciado e não respondeu, então pode não estar em execução. O que ele disse ao terminar, ou o que o gerenciador de serviços do sistema diz dele, aparece ao lado desta mensagem.",
         ],
     ),
     (

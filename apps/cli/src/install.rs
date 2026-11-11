@@ -11,12 +11,15 @@
 //!    so; a daemon an earlier install left running is stopped first, through
 //!    the CLI's own [`crate::control`], so no binary is replaced under it —
 //!    once the service manager is reached, where the plan asks for a restorer
-//!    (7).
-//! 3. **The binaries, copied out of `target/`** — never linked to it — under
-//!    the names the layout gives them, each written private beside its name,
-//!    synced and renamed over it: a daemon run from `target/` would hold its
-//!    file, so a build could not replace it on Windows, and an install pointed
-//!    into a checkout's `target/` would run whatever the next build left there.
+//!    (7). An earlier install whose manifest this build cannot read — of
+//!    another format, or another account's to reach — refuses the install
+//!    before anything is stopped or replaced; only a missing one is none.
+//! 3. **The binaries, copied out of the target directory a build wrote them
+//!    in** — never linked to it — under the names the layout gives them, each
+//!    written private beside its name, synced and renamed over it: a daemon
+//!    run from `target/` would hold its file, so a build could not replace it
+//!    on Windows, and an install pointed into a checkout's `target/` would run
+//!    whatever the next build left there.
 //! 4. **The manifest**, with the resolved bases, written the same way, and the
 //!    install read back through `nc_channel::found` — judged as every binary
 //!    of it will read it.
@@ -596,8 +599,10 @@ impl Restoring for Restorer {
 /// unregistered where this system's service manager holds one, then its
 /// binaries and its manifest, and its `bin` once empty. **The profile stays**
 /// — its device, its database and its world — so an install made again is
-/// the same device with the same data. Answers what was removed, if there
-/// was an install.
+/// the same device with the same data; **and the `stopped` mark only where it
+/// was there before**, a person's stop, while the one this uninstall's own stop
+/// wrote is removed once the install is gone, so it leaves no install made
+/// again down. Answers what was removed, if there was an install.
 ///
 /// # Errors
 ///
@@ -620,15 +625,10 @@ fn uninstall_restored_by<R: Restoring>(
     let cli = layout
         .install
         .join(format!("{}{}", layout.cli, nc_platform::EXECUTABLE_SUFFIX));
-    let found = match nc_channel::found::beside(&cli) {
-        Ok(found) => found,
-        Err(nc_channel::found::Refused::NoManifest { .. }) => return Ok(None),
-        Err(nc_channel::found::Refused::Unavailable { error, .. })
-            if error.kind() == std::io::ErrorKind::NotFound =>
-        {
-            return Ok(None);
-        }
-        Err(refused) => return Err(Unmade(format!("the install does not read: {refused}"))),
+    let Some(found) = made_before(&cli)
+        .map_err(|refused| Unmade(format!("the install does not read: {refused}")))?
+    else {
+        return Ok(None);
     };
     // **The manager found, and asked, before anything is touched**: one this
     // environment does not say how to reach, or that does not answer, may hold
@@ -643,6 +643,9 @@ fn uninstall_restored_by<R: Restoring>(
     let held = restorer
         .held()
         .map_err(|unmade| Unmade(format!("{unmade}, so nothing was removed")))?;
+    // Read before the stop, which writes one: a mark there before is a
+    // person's stop, kept with the profile; the stop's own goes with the install.
+    let marked_before = marked(&found.layout, &found.user)?;
     stopped(&found)?;
     let unregistered = restorer.unregistered(held)?;
     let layout = found.layout;
@@ -663,18 +666,54 @@ fn uninstall_restored_by<R: Restoring>(
     }
     std::fs::remove_dir(&layout.install)
         .map_err(|error| unmade("removed", &layout.install, &error))?;
+    if !marked_before {
+        crate::control::unmark(&layout, &found.user).map_err(|failure| {
+            Unmade(format!(
+                "the install is removed, and the `stopped` mark its stop wrote was not [{}]: {}",
+                failure.code.code(),
+                failure.detail
+            ))
+        })?;
+    }
     Ok(Some(Uninstalled {
         layout,
         unregistered,
     }))
 }
 
+/// The install the CLI at `cli` is of, or nothing where none was made there:
+/// no manifest, or nothing at all at the path.
+///
+/// **Only those are no install**: a manifest another account can reach, one of
+/// another format or one that does not read is an install this build cannot
+/// read, which is refused rather than taken for none — so a daemon it runs is
+/// never left running under binaries replaced, nor its restorer stopped as a
+/// crash stops it.
+fn made_before(cli: &Path) -> Result<Option<Found>, nc_channel::found::Refused> {
+    match nc_channel::found::beside(cli) {
+        Ok(found) => Ok(Some(found)),
+        Err(nc_channel::found::Refused::NoManifest { .. }) => Ok(None),
+        Err(nc_channel::found::Refused::Unavailable { error, .. })
+            if error.kind() == std::io::ErrorKind::NotFound =>
+        {
+            Ok(None)
+        }
+        Err(refused) => Err(refused),
+    }
+}
+
 /// What an earlier install's daemon was told, when the CLI at `cli` is one:
 /// it is stopped, so no binary is replaced under it.
+///
+/// An earlier install this build cannot read refuses the install before
+/// anything is stopped or replaced.
 fn stopped_before(cli: &Path) -> Result<Option<String>, Unmade> {
-    match nc_channel::found::beside(cli) {
-        Ok(found) => stopped(&found).map(Some),
-        Err(_) => Ok(None),
+    match made_before(cli) {
+        Ok(Some(found)) => stopped(&found).map(Some),
+        Ok(None) => Ok(None),
+        Err(refused) => Err(Unmade(format!(
+            "the earlier install does not read: {refused}, so nothing was stopped or replaced"
+        ))),
     }
 }
 
@@ -1150,6 +1189,51 @@ mod tests {
         assert!(layout.stopped.is_file(), "the mark went with the install");
     }
 
+    /// An uninstall removes the mark its own stop wrote, and keeps a person's.
+    ///
+    /// So an install made again is started, unless a person stopped the daemon
+    /// before it was removed. **Found by a review**: the mark the uninstall's
+    /// stop wrote stayed with the profile, and the next install read it as a
+    /// person's stop and left the daemon down.
+    #[test]
+    fn an_uninstall_removes_the_mark_its_own_stop_wrote_and_keeps_a_persons() {
+        let scratch = Scratch::new("unmarked");
+        let (cli, daemon) = (
+            scratch.file("noctua", "c"),
+            scratch.file("noctua-daemon", "d"),
+        );
+        let install = scratch.install("tm1");
+        let user = nc_platform::user_in(&scratch.0).expect("private");
+        let layout = nc_channel::layout(&install, &user.to_string());
+        let kept = std::cell::RefCell::new(None);
+        let plan = Plan {
+            install: install.clone(),
+            cli: &cli,
+            daemon: &daemon,
+            world: "{}",
+            plugins: Vec::new(),
+            restorer: false,
+        };
+        for persons in [false, true] {
+            if persons {
+                super::install_with(&plan, |_: &Path, _: &Path| Ok(())).expect("made again");
+                crate::control::mark(&layout, &user).expect("a person's stop");
+            } else {
+                super::install_with(&plan, initialize_as_the_daemon(&layout, &kept)).expect("made");
+            }
+            super::uninstall(&install)
+                .expect("removed")
+                .expect("there was one");
+            assert!(!layout.install.exists(), "`bin` outlived the uninstall");
+            assert_eq!(
+                layout.stopped.is_file(),
+                persons,
+                "the mark is not the person's: the uninstall's own stop left one, or a person's \
+                 stop went with the install"
+            );
+        }
+    }
+
     /// A restorer is known to each manager by the name the layout gives it
     /// there: the unit, the label of the agent, the task.
     #[test]
@@ -1400,6 +1484,70 @@ mod tests {
                 "registered, marked true"
             ],
             "a person's stop was not read before the install"
+        );
+    }
+
+    /// A reinstall over an install it cannot read stops and replaces nothing.
+    ///
+    /// Its manifest of another format is an install there, not none: the
+    /// earlier restorer is not let go, no mark is written and no binary is
+    /// replaced. **Found by a review**: every refusal of the earlier manifest was
+    /// read as no earlier install, so its daemon was left running under binaries
+    /// replaced, or ended by its manager as a crash ends it.
+    #[test]
+    fn a_reinstall_over_an_install_it_cannot_read_stops_and_replaces_nothing() {
+        use std::io::Write as _;
+        let scratch = Scratch::new("unread");
+        let (one, two, daemon) = (
+            scratch.file("noctua", "one"),
+            scratch.file("noctua-2", "two"),
+            scratch.file("noctua-daemon", "d"),
+        );
+        let install = scratch.install("tr1");
+        let user = nc_platform::user_in(&scratch.0).expect("private");
+        let layout = nc_channel::layout(&install, &user.to_string());
+        let seen = std::rc::Rc::new(std::cell::RefCell::new(Vec::new()));
+        let restorer = || {
+            let recorded = recorded(&layout, &seen);
+            move |_: &nc_channel::Install, _: &nc_channel::Layout, _: &nc_platform::User| {
+                Ok(recorded)
+            }
+        };
+        let kept = std::cell::RefCell::new(None);
+        let first = super::development_plan(install.clone(), &one, &daemon, "{}", Vec::new());
+        super::install_restored_by(&first, initialize_as_the_daemon(&layout, &kept), restorer())
+            .expect("made");
+        drop(seen.take());
+        let manifest = std::fs::read_to_string(&layout.manifest).expect("the manifest");
+        let later = manifest.replace("\"format\":1,", "\"format\":2,");
+        assert_ne!(later, manifest, "the manifest names no format");
+        std::fs::remove_file(&layout.manifest).expect("removed");
+        nc_platform::create_private(&layout.manifest)
+            .expect("written again")
+            .write_all(later.as_bytes())
+            .expect("written");
+        let again = super::development_plan(install.clone(), &two, &daemon, "{}", Vec::new());
+        let refused = super::install_restored_by(&again, |_: &Path, _: &Path| Ok(()), restorer())
+            .expect_err("an earlier install this build cannot read");
+        assert!(
+            refused
+                .to_string()
+                .contains("the earlier install does not read"),
+            "{refused}"
+        );
+        assert_eq!(
+            seen.take(),
+            ["asked with the mark there: false"],
+            "the earlier restorer was let go, or a restorer registered"
+        );
+        assert!(!layout.stopped.exists(), "a mark was written");
+        let cli = layout
+            .install
+            .join(format!("{}{}", layout.cli, nc_platform::EXECUTABLE_SUFFIX));
+        assert_eq!(
+            std::fs::read_to_string(&cli).expect("there"),
+            "one",
+            "a binary was replaced"
         );
     }
 

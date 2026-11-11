@@ -428,7 +428,7 @@ pub(crate) fn open(
     let pidfd = match rustix::process::pidfd_open(pid, rustix::process::PidfdFlags::empty()) {
         Ok(pidfd) => pidfd,
         Err(rustix::io::Errno::SRCH) => return Ok(None),
-        Err(error) => return Err(error.into()),
+        Err(error) => return Err(crate::process::no_handle(record.pid, &error.into())),
     };
     let process = Process {
         pid: record.pid,

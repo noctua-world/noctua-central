@@ -36,8 +36,10 @@
 //! specifiers, variables, quotes and backslashes; XML's five characters in a
 //! plist and in a task, whose arguments are first quoted as Windows splits a
 //! command line — and one no escape can carry is refused: a control
-//! character anywhere, and a `%` in what a task runs, since Task Scheduler
-//! expands `%NAME%` there and writes no other form of one. The program is an
+//! character anywhere, a `%` in what a task runs, since Task Scheduler
+//! expands `%NAME%` there and writes no other form of one, and a `$`, `\`,
+//! `"` or `'` in a unit's program, which systemd does not read back as
+//! itself there. The program is an
 //! absolute path, and so is every tool asked: `systemctl` from the absolute
 //! entries of `PATH` alone, `/bin/launchctl`, and `schtasks.exe` under
 //! `%SystemRoot%`, so a relative entry of `PATH` never chooses what runs. A
@@ -418,7 +420,10 @@ pub fn systemd_unit(service: &Service) -> String {
 /// variable, each written twice to stand for itself — measured, `%%` in a unit
 /// reads back as `%` — and inside the double quotes a `\` opens an escape and
 /// a `"` closes the word, each written after a `\`. The quotes make one word of
-/// what holds a space.
+/// what holds a space. **An argument reads back as itself, and the program's
+/// `%` does**; a program holding `$`, `\`, `"` or `'` is refused before this
+/// writes it ([`systemd_program`]), since systemd reads no variable in the
+/// program and refuses a path holding the other three.
 fn systemd_word(word: &str) -> String {
     let mut out = String::with_capacity(word.len() + 2);
     out.push('"');
@@ -618,6 +623,28 @@ fn utf16_with_its_mark(text: &str) -> Vec<u8> {
     bytes
 }
 
+/// Nothing, when systemd starts `service`'s program by the path it is written
+/// as; otherwise the refusal a unit for it is.
+///
+/// **What no escape carries in the program**: measured with systemd 260's
+/// `systemd-analyze verify`, a `$$` in the program stays `$$` — the program is
+/// never a variable, so nothing undoes the escape — and a program holding `\`
+/// is refused as a path with special characters, as one holding `"` or `'` is.
+fn systemd_program(service: &Service) -> Result<(), Error> {
+    if let Some(character) = service
+        .program
+        .chars()
+        .find(|character| matches!(character, '$' | '\\' | '"' | '\''))
+    {
+        return Err(Error::Described(format!(
+            "`{}` holds a `{character}`, which systemd does not read back as itself in a \
+             unit's program: install the program under a path without `$`, `\\`, `\"` or `'`",
+            shown(&service.program)
+        )));
+    }
+    Ok(())
+}
+
 /// The definition `manager` is handed for `service`: the file's name, and the
 /// bytes it holds.
 fn definition(manager: Manager, service: &Service) -> Result<(String, Vec<u8>), Error> {
@@ -629,7 +656,10 @@ fn definition(manager: Manager, service: &Service) -> Result<(String, Vec<u8>), 
         )));
     }
     let bytes = match manager {
-        Manager::Systemd => systemd_unit(service).into_bytes(),
+        Manager::Systemd => {
+            systemd_program(service)?;
+            systemd_unit(service).into_bytes()
+        }
         Manager::Launchd => launchd_plist(service).into_bytes(),
         Manager::TaskScheduler => utf16_with_its_mark(&task_xml(service)?),
     };
@@ -2309,6 +2339,48 @@ mod tests {
         );
     }
 
+    /// A unit's program holding what systemd does not read back is refused.
+    ///
+    /// A `$`, a `\`, a `"` or a `'` in the program is refused for systemd alone,
+    /// while each stands for itself as an argument and in the other formats, and
+    /// a `%` and a space in the program are carried. **Found by a review**: the
+    /// four were escaped in the program as in an argument, and systemd read the
+    /// unit back as another path or refused it.
+    #[test]
+    fn a_units_program_holding_what_systemd_does_not_read_back_is_refused() {
+        let in_the_program = |directory: &str| {
+            Service::described(
+                &named(Manager::Systemd, "noctua-dev-test"),
+                "A description",
+                &program().with_file_name(directory).join("noctua-daemon"),
+                &[directory.to_owned()],
+                Duration::from_secs(1),
+                USER.to_owned(),
+            )
+            .expect("a program a manager could be told of")
+        };
+        for character in ['$', '\\', '"', '\''] {
+            let holding = in_the_program(&format!("a{character}b"));
+            match definition(Manager::Systemd, &holding) {
+                Err(Error::Described(why)) => {
+                    assert!(why.contains(&format!("holds a `{character}`")), "{why}");
+                }
+                answered => panic!("a program holding `{character}` was answered {answered:?}"),
+            }
+            assert!(
+                definition(Manager::Launchd, &holding).is_ok(),
+                "launchd was refused a program holding `{character}`"
+            );
+            let argument = service(
+                &named(Manager::Systemd, "noctua-dev-test"),
+                &[&format!("a{character}b")],
+            );
+            definition(Manager::Systemd, &argument).expect("an argument holding it is carried");
+        }
+        definition(Manager::Systemd, &in_the_program("100% a"))
+            .expect("a `%` and a space in the program are carried");
+    }
+
     /// Each manager's definition is its format, under the file name it is
     /// read from.
     ///
@@ -3469,7 +3541,25 @@ mod tests {
                 kept.display()
             );
         }
-        sweep_scratches(&scratch.0, prefix, Duration::ZERO);
+        // **Swept again until a bound, each time.** A child another test of
+        // this binary starts holds a copy of each descriptor from its fork
+        // until its exec, and the sweep's own look at a free lock takes it for
+        // a moment — so a sibling's fork in that moment holds a dead owner's
+        // lock again, and one sweep reads it as living: measured by reviews, a
+        // share of runs failed here when the sweep came once. A scratch the
+        // sweep never takes away still fails, at the bound; the shipped sweep
+        // is single-shot, and the next run takes away what this one left.
+        let swept_until_gone = |gone: &[&PathBuf]| {
+            let deadline = std::time::Instant::now() + Duration::from_secs(5);
+            loop {
+                sweep_scratches(&scratch.0, prefix, Duration::ZERO);
+                if gone.iter().all(|path| !path.exists()) || std::time::Instant::now() >= deadline {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
+        };
+        swept_until_gone(&[&dead, &never_locked]);
         assert!(
             !dead.exists() && !never_locked.exists(),
             "a dead owner's old scratch stays"
@@ -3478,17 +3568,7 @@ mod tests {
             assert!(kept.exists(), "`{}` was swept", kept.display());
         }
         drop(held);
-        // **Waited for until a bound, before the last sweep.** A child another
-        // test of this binary starts holds a copy of each descriptor from its
-        // fork until its exec, so the lock let go can still be held for that
-        // moment: measured by a review, a share of local runs failed here when
-        // the sweep came at once. An owner whose lock is never let go still
-        // fails, at the bound.
-        let deadline = std::time::Instant::now() + Duration::from_secs(5);
-        while owner_lives(&living) && std::time::Instant::now() < deadline {
-            std::thread::sleep(Duration::from_millis(10));
-        }
-        sweep_scratches(&scratch.0, prefix, Duration::ZERO);
+        swept_until_gone(&[&living]);
         assert!(
             !living.exists(),
             "the scratch of an owner that let go of its lock stays"

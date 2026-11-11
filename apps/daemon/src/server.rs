@@ -25,6 +25,12 @@
 //!    each connection between two requests, its own after the answer to it,
 //!    and the daemon ends only once every connection has written its last
 //!    answer and closed, `stop_drain_ms` at most ([`Server::wound_down`]).
+//!    **The endpoint answers until the drain is over** ([`Server::let_go`]),
+//!    and every connection is answered the first request it makes: one made
+//!    as a stop began or while it drains — a stop asked again, a status — is
+//!    told the daemon is stopping and closed after it, so a stop asked again
+//!    finds the daemon answering and waits for it rather than signalling a
+//!    process nothing answers for.
 //!
 //! # What each answer holds
 //!
@@ -172,15 +178,13 @@ impl Server {
         Arc::clone(&self.schedule)
     }
 
-    /// Accepts connections on `listener` until a stop is asked for, each served
-    /// on a task of its own, and none once it was.
+    /// Accepts connections on `listener` until it is let go
+    /// ([`Server::let_go`]), each served on a task of its own — through a
+    /// stop's drain too, so a stop asked again, a restart's or a status finds
+    /// the daemon answering that it is stopping.
     pub async fn accepting(self: Arc<Self>, mut listener: nc_platform::ipc::Listener) {
         loop {
-            let accepted = tokio::select! {
-                biased;
-                () = self.stopping() => return,
-                accepted = listener.accept() => accepted,
-            };
+            let accepted = listener.accept().await;
             match accepted {
                 Ok(accepted) => self.serve_one(accepted.stream),
                 Err(refused) => {
@@ -251,13 +255,22 @@ impl Server {
                 return;
             }
         };
+        // **The first request is owed its answer, a stop or no stop**: a
+        // connection made as a stop began, or while it drains — a stop asked
+        // again, a status — is told the daemon is stopping, rather than closed
+        // unanswered and read as a daemon that does not answer.
+        let mut owed = true;
         let ended = loop {
             // A request that already arrived is answered first; between two
             // requests, a stop asked for ends the connection.
-            let next = tokio::select! {
-                biased;
-                next = served.next() => next,
-                () = self.stopping() => break None,
+            let next = if core::mem::take(&mut owed) {
+                served.next().await
+            } else {
+                tokio::select! {
+                    biased;
+                    next = served.next() => next,
+                    () = self.stopping() => break None,
+                }
             };
             let request = match next {
                 Ok(Some(request)) => request,
@@ -425,24 +438,21 @@ impl Server {
         }
     }
 
-    /// Once a stop was asked for: takes no connection more, and waits for the
-    /// dispatches running, for the schedule's tasks in `schedule` — each
-    /// inside a run or between two — and for every connection to write its
-    /// last answer and close, until `deadline` at most; answers how many
-    /// dispatches and runs it gave up on.
+    /// Once a stop was asked for: waits for the dispatches running, for the
+    /// schedule's tasks in `schedule` — each inside a run or between two — and
+    /// for every connection to write its last answer and close, until
+    /// `deadline` at most; answers how many dispatches and runs it gave up on.
     ///
-    /// **Every connection there is**: `accepting` has ended before the count
-    /// is read, so none is taken after it. One still open at the bound has a
-    /// client that takes nothing, or a dispatch the drain counts already, and
-    /// goes with the runtime.
+    /// **Still accepting**: a connection made meanwhile is counted with the
+    /// rest, answered that the daemon is stopping and closed, so the drain
+    /// waits for it as well. One still open at the bound has a client that
+    /// takes nothing, or a dispatch the drain counts already, and goes with the
+    /// runtime.
     pub async fn wound_down(
         &self,
-        accepting: tokio::task::JoinHandle<()>,
         schedule: Vec<tokio::task::JoinHandle<()>>,
         deadline: tokio::time::Instant,
     ) -> u32 {
-        accepting.abort();
-        let _ = accepting.await;
         let runs = async {
             let mut given_up = 0_u32;
             for running in schedule {
@@ -453,6 +463,24 @@ impl Server {
         let (dispatches, runs, _still_open) =
             tokio::join!(self.drained(deadline), runs, self.closed(deadline));
         dispatches.saturating_add(runs)
+    }
+
+    /// Lets the endpoint go once the drain is over: `accepting` ends, and every
+    /// connection it took as it ended writes its answer and closes, until
+    /// `deadline` at most.
+    ///
+    /// **The last thing a stop does at its endpoint**, after the mark is
+    /// settled, the local database closed and the PID record removed, so a stop
+    /// asked again before then finds the daemon answering, and one asked after
+    /// finds no record naming it.
+    pub async fn let_go(
+        &self,
+        accepting: tokio::task::JoinHandle<()>,
+        deadline: tokio::time::Instant,
+    ) {
+        accepting.abort();
+        let _ = accepting.await;
+        let _ = self.closed(deadline).await;
     }
 
     /// The daemon's status, as one object.
@@ -961,9 +989,8 @@ mod tests {
                 tokio::time::sleep(Duration::from_millis(200))
             });
             server.stopping().await;
-            let accepting = tokio::spawn(std::future::pending::<()>());
             server
-                .wound_down(accepting, Vec::new(), tokio::time::Instant::now() + bound)
+                .wound_down(Vec::new(), tokio::time::Instant::now() + bound)
                 .await
         });
         // What the daemon's runtime does to every task it still holds once
@@ -981,5 +1008,130 @@ mod tests {
             took < bound,
             "the stop waited out its bound for a connection with nothing more to say"
         );
+    }
+
+    /// What the daemon at `endpoint` says it is, and its answer to `request`,
+    /// over a connection made through the endpoint and proven with `token`.
+    async fn asked_at(
+        endpoint: &nc_platform::ipc::Endpoint,
+        user: &nc_platform::User,
+        token: &str,
+        request: Request,
+    ) -> (State, Answer) {
+        let bound = Duration::from_millis(nc_catalog::DAEMON.stop_drain_ms);
+        let (stream, _) = nc_platform::ipc::connect(endpoint, user)
+            .await
+            .expect("the endpoint answers");
+        let token = nc_ipc::Token::from_text(token).expect("the token reads back");
+        let (mut client, welcome) = tokio::time::timeout(bound, nc_ipc::connect(stream, &token))
+            .await
+            .expect("the handshake ended in time")
+            .expect("proven");
+        let answered = tokio::time::timeout(bound, client.ask(&request))
+            .await
+            .expect("answered in time")
+            .expect("answered");
+        (welcome.state, answered)
+    }
+
+    /// A stop asked again while the daemon drains is answered that it is stopping.
+    ///
+    /// Through the real endpoint, a dispatch counted as running standing for the
+    /// one the drain waits for: the second stop, a status and a dispatch are each
+    /// answered, the dispatch refused, and the endpoint goes only once it is let
+    /// go after the drain. **Found by a review**: the endpoint went as soon as a
+    /// stop began, so a stop asked again found nothing answering and signalled
+    /// the daemon through its record, cutting its drain short.
+    #[test]
+    fn a_stop_asked_again_while_it_drains_is_answered_that_it_is_stopping() {
+        let installed =
+            crate::testing::Installed::new(&std::env::current_exe().expect("this test binary"));
+        let (layout, user) = (&installed.layout, &installed.user);
+        crate::profile::prepare(layout, user).expect("the profile");
+        let lock = layout
+            .instance_lock
+            .file_name()
+            .expect("a name")
+            .to_string_lossy()
+            .into_owned();
+        let held = nc_platform::try_hold(&layout.state, &lock, user)
+            .expect("asked")
+            .expect("nothing held it");
+        let server = Arc::new(a_server(nc_channel::Channel::Staging));
+        let token = server.token.to_text();
+        let endpoint = nc_platform::ipc::Endpoint::new(
+            layout.runtime.clone(),
+            layout.socket.clone(),
+            layout.pipe.clone(),
+        );
+        let bound = Duration::from_millis(nc_catalog::DAEMON.stop_drain_ms);
+        let asked = |request: Request| asked_at(&endpoint, user, &token, request);
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("a runtime")
+            .block_on(async {
+                let listener = nc_ipc::listen(&endpoint, user, &held).expect("bound");
+                let accepting = tokio::spawn(Arc::clone(&server).accepting(listener));
+                server.reach(State::Running);
+                server.running.fetch_add(1, Ordering::SeqCst);
+                let (state, answer) = asked(Request::Stop).await;
+                assert_eq!((state, answer), (State::Running, Answer::Stopping));
+                let draining = tokio::spawn({
+                    let server = Arc::clone(&server);
+                    async move {
+                        server
+                            .wound_down(Vec::new(), tokio::time::Instant::now() + bound)
+                            .await
+                    }
+                });
+                let (state, answer) = asked(Request::Stop).await;
+                assert_eq!(
+                    (state, answer),
+                    (State::Stopping, Answer::Stopping),
+                    "a stop asked again was not answered that the daemon is stopping"
+                );
+                match asked(Request::Status).await.1 {
+                    Answer::Status(status) => assert!(
+                        status.to_canonical().contains("\"state\":\"stopping\""),
+                        "{status:?}"
+                    ),
+                    other => panic!("a status was answered with {other:?}"),
+                }
+                let dispatch = Request::Dispatch {
+                    command: "journal.verify".to_owned(),
+                    args: Value::object([("from", Value::Integer(0))]),
+                };
+                match asked(dispatch).await.1 {
+                    Answer::Refused(refusal) => {
+                        assert_eq!(refusal.code, ErrorCode::DaemonStopping, "{refusal:?}");
+                    }
+                    other => panic!("a dispatch while it drains was answered with {other:?}"),
+                }
+                assert!(
+                    !draining.is_finished(),
+                    "the drain ended with a dispatch still running"
+                );
+                if server.running.fetch_sub(1, Ordering::SeqCst) == 1 {
+                    server.finished.notify_waiters();
+                }
+                let abandoned = tokio::time::timeout(bound, draining)
+                    .await
+                    .expect("the drain ended once the dispatch did")
+                    .expect("the drain did not panic");
+                assert_eq!(abandoned, 0, "the drain gave up on a dispatch that ended");
+                assert_eq!(asked(Request::Stop).await.1, Answer::Stopping);
+                server
+                    .let_go(accepting, tokio::time::Instant::now() + bound)
+                    .await;
+                assert!(
+                    matches!(
+                        nc_platform::ipc::connect(&endpoint, user).await,
+                        Err(nc_platform::ipc::Refused::Nobody(_))
+                    ),
+                    "the endpoint outlived the run that let it go"
+                );
+            });
+        drop(held);
     }
 }

@@ -4,7 +4,7 @@
 //! is sent with.
 //!
 //! **Opened in the order a start needs**: the local database first, so the
-//! newest unit its journal holds is read before the mark is waited on; then,
+//! newest unit it keeps is read before the mark is waited on; then,
 //! once the minter is behind its ceiling, the journal over the same file and
 //! the kernel, which recovers what a stopped process left before it opens.
 //!
@@ -77,25 +77,41 @@ pub fn log(install: &nc_channel::Install) -> Result<Sink, Refused> {
 }
 
 /// The local database in the profile's data directory, and the newest unit
-/// its journal holds, which a start resumes its identifiers above.
+/// it keeps, which a start resumes its identifiers above.
+///
+/// **Every unit the kernel minted**: the larger of the newest its journal
+/// names and the newest the store committed, since a reversal's unit is one
+/// the kernel mints itself and no journal entry names.
 ///
 /// # Errors
 ///
-/// [`Refused::Store`] when the database did not open, and
-/// [`Refused::Journal`] when its journal could not say its newest unit.
+/// [`Refused::Store`] when the database did not open or could not say its
+/// newest unit, and [`Refused::Journal`] when its journal could not.
 pub async fn store(
     layout: &nc_channel::Layout,
 ) -> Result<(LocalStore, Option<Snowflake>), Refused> {
     let store = LocalStore::open(&layout.data)
         .await
         .map_err(Refused::Store)?;
-    match store.journal().newest_unit().await {
+    match newest_kept(&store).await {
         Ok(newest) => Ok((store, newest)),
         Err(refused) => {
             store.close().await;
-            Err(Refused::Journal(refused))
+            Err(refused)
         }
     }
+}
+
+/// The newest unit `store` keeps: its journal's newest, or the store's own
+/// when that is newer.
+async fn newest_kept(store: &LocalStore) -> Result<Option<Snowflake>, Refused> {
+    let journaled = store
+        .journal()
+        .newest_unit()
+        .await
+        .map_err(Refused::Journal)?;
+    let committed = store.newest_unit().await.map_err(Refused::Store)?;
+    Ok(journaled.max(committed))
 }
 
 /// What a kernel is opened over, besides the store.
@@ -265,6 +281,44 @@ mod tests {
         store.close().await;
         let (store, newest) = super::store(&layout).await.expect("opened again");
         assert_eq!(newest, Some(unit));
+        // **A reversal's unit, which no entry names**, is newer than every
+        // unit the journal holds once the kernel commits it; the start reads
+        // it all the same. Found by a review: read from the journal alone,
+        // a mark lost or rolled back let a start mint it again.
+        let reversal = nc_ids::Minter::new(flake, nc_ids::SystemClock)
+            .mint()
+            .expect("a unit");
+        assert!(reversal > unit, "minted after the journal's");
+        let record = nc_local::UnitRecord {
+            unit: reversal,
+            meta: nc_local::UnitMeta {
+                realm: nc_ids::OpaqueId::of_device_key(&[7; 32]),
+                principal: nc_ids::OpaqueId::of_device_key(&[8; 32]),
+                kind: nc_local::UnitKind::Undo { target: unit },
+                label: "a reversal".to_owned(),
+                committed_at_ms: 1_767_225_600_001,
+            },
+            writes: Vec::new(),
+            blobs: Vec::new(),
+            notes: Vec::new(),
+            unpinned: Vec::new(),
+            marks: Vec::new(),
+        };
+        let quotas = nc_local::Quotas {
+            entries_per_plugin: 1,
+            lowered: std::collections::BTreeMap::new(),
+            blobs: 1,
+            writes_per_unit: 1,
+            notes_per_unit: 1,
+        };
+        store.commit(&record, &quotas).await.expect("committed");
+        store.close().await;
+        let (store, newest) = super::store(&layout).await.expect("opened a third time");
+        assert_eq!(
+            newest,
+            Some(reversal),
+            "a unit the store committed was passed over"
+        );
         store.close().await;
     }
 

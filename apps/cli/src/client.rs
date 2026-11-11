@@ -131,7 +131,9 @@ impl Unasked {
     /// **Nothing listening is a daemon that is not running**, and so is one
     /// that stopped answering a request; everything refused on the way to the
     /// first request is a connection refused; a request too long to send is
-    /// arguments refused.
+    /// arguments refused; and an answer the CLI cannot read — a frame that is
+    /// not one message, or one past the bound — from a daemon the handshake
+    /// proved is the daemon answering what the CLI does not read.
     #[must_use]
     pub fn exit(&self) -> Exit {
         match self {
@@ -139,6 +141,9 @@ impl Unasked {
                 Exit::Unreachable
             }
             Self::Asking(IpcError::Unsendable { .. }) => Exit::Invalid,
+            Self::Asking(IpcError::Malformed(_) | IpcError::TooLarge { .. }) | Self::Unread(_) => {
+                Exit::Internal
+            }
             Self::Asking(
                 IpcError::Lost(_) | IpcError::Silent | IpcError::Unread | IpcError::TurnedAway(_),
             ) => Exit::Unreachable,
@@ -148,7 +153,6 @@ impl Unasked {
             | Self::Handshake(_)
             | Self::Misnamed(_)
             | Self::Asking(_) => Exit::Refused,
-            Self::Unread(_) => Exit::Internal,
             Self::Refused(refusal) => Exit::of_refusal(refusal),
             Self::Runtime(_) => Exit::Failed,
         }
@@ -836,8 +840,12 @@ mod tests {
     }
 
     /// A request is answered or lost by how the connection ended: a daemon
-    /// gone is not running, a frame refused is a connection refused, and a
-    /// request too long to send is arguments refused.
+    /// gone is not running, an answer the CLI cannot read is the daemon's
+    /// failure, and a request too long to send is arguments refused.
+    ///
+    /// **Found by a review**: an answer refused as a frame after a proven
+    /// handshake ended in 10, whose meaning is a connection that did not show
+    /// both ends to be this install's, rather than in 8.
     #[test]
     fn a_request_not_answered_ends_by_how_the_connection_ended() {
         for (error, exit) in [
@@ -848,8 +856,9 @@ mod tests {
                 IpcError::TurnedAway(ErrorCode::IpcSilent),
                 Exit::Unreachable,
             ),
-            (IpcError::Malformed(String::new()), Exit::Refused),
-            (IpcError::TooLarge { length: 1 }, Exit::Refused),
+            (IpcError::Malformed(String::new()), Exit::Internal),
+            (IpcError::TooLarge { length: 1 }, Exit::Internal),
+            (IpcError::Protocol { theirs: 9 }, Exit::Refused),
             (IpcError::Unsendable { length: 1 }, Exit::Invalid),
         ] {
             assert_eq!(Unasked::Asking(error).exit(), exit);

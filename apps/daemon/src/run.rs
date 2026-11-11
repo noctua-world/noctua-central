@@ -23,7 +23,7 @@
 //!    instance drawn now — **a token drawn fresh**, each written whole and
 //!    private in the runtime directory, and **the endpoint bound**. From here
 //!    the status is answered.
-//! 5. **The local database**, and the newest unit its journal holds; then
+//! 5. **The local database**, and the newest unit it keeps; then
 //!    **the mark**, waited on until the clock passes it and the newest unit
 //!    (state `waiting-for-clock`).
 //! 6. **The kernel** over the local database, its journal sharing the one
@@ -35,16 +35,19 @@
 //!
 //! # The stop
 //!
-//! A stop asked through the endpoint refuses every new dispatch, stops
-//! accepting, begins no pump and no sweep, and waits `stop_drain_ms` at most
-//! for the dispatches running, for a pump or a sweep it finds inside a run, and
-//! for every connection to write its last answer — the stop's own among them —
-//! and close, giving up on — and counting — the dispatches and runs that still
-//! run then; then **settles the mark** to the exact high-water mark, so a clean
-//! restart has nothing to wait for, closes the local database, removes the PID
-//! record and the token it wrote — the socket goes with the listener — and lets
-//! the instance lock go. A stop asked while the start is under way waits for
-//! the connections alike.
+//! A stop asked through the endpoint refuses every new dispatch, begins no
+//! pump and no sweep, and waits `stop_drain_ms` at most for the dispatches
+//! running, for a pump or a sweep it finds inside a run, and for every
+//! connection to write its last answer — the stop's own among them — and
+//! close, giving up on — and counting — the dispatches and runs that still run
+//! then; then **settles the mark** to the exact high-water mark, so a clean
+//! restart has nothing to wait for, closes the local database and removes the
+//! PID record. **Until then the endpoint answers**, each connection told the
+//! daemon is stopping, so a stop asked again — a restart's, a reinstall's —
+//! waits for it as the first did and signals nothing; then the endpoint is let
+//! go — the socket with the listener — the token removed, and the instance lock
+//! let go. A stop asked while the start is under way waits for the connections
+//! alike.
 //! There is no signal handler: a daemon killed leaves what a crash leaves,
 //! which the next start reads past.
 //!
@@ -215,6 +218,7 @@ fn serving(found: &nc_channel::found::Found) -> Result<Stopped, Refused> {
     let started = Started {
         found,
         held: &held,
+        instance,
         device,
         world,
         pdp,
@@ -224,6 +228,8 @@ fn serving(found: &nc_channel::found::Found) -> Result<Stopped, Refused> {
     // A blocking task still waiting for the clock is not waited for past the
     // drain: the run is over.
     runtime.shutdown_timeout(Duration::from_millis(nc_catalog::DAEMON.stop_drain_ms));
+    // A stop removed both already; a start refused once they were written
+    // did not. The lock is still held, so neither is another start's.
     let _ = pidfile::remove_if_ours(&layout.pid_file, instance, user);
     let _ = std::fs::remove_file(&layout.token);
     drop(held);
@@ -243,6 +249,8 @@ fn serving(found: &nc_channel::found::Found) -> Result<Stopped, Refused> {
 struct Started<'a> {
     found: &'a nc_channel::found::Found,
     held: &'a nc_platform::Held,
+    /// The instance the start drew, which its PID record names.
+    instance: [u8; 16],
     device: device::Device,
     world: nc_authz::LocalWorld,
     pdp: nc_authz::Pdp,
@@ -253,14 +261,15 @@ struct Started<'a> {
 /// beside it, and the stop; answers how many dispatches, pumps and sweeps the
 /// stop gave up on.
 async fn run(started: Started<'_>, server: Arc<Server>) -> Result<u32, Refused> {
-    let layout = &started.found.layout;
+    let (found, instance) = (started.found, started.instance);
+    let layout = &found.layout;
     let endpoint = nc_platform::ipc::Endpoint::new(
         layout.runtime.clone(),
         layout.socket.clone(),
         layout.pipe.clone(),
     );
     let listener =
-        nc_ipc::listen(&endpoint, &started.found.user, started.held).map_err(Refused::Endpoint)?;
+        nc_ipc::listen(&endpoint, &found.user, started.held).map_err(Refused::Endpoint)?;
     let accepting = tokio::spawn(Arc::clone(&server).accepting(listener));
     let opened = tokio::select! {
         opened = opened(started, &server) => opened,
@@ -269,9 +278,10 @@ async fn run(started: Started<'_>, server: Arc<Server>) -> Result<u32, Refused> 
     let (kernel, store, minter) = match opened {
         Ok(Some(opened)) => opened,
         Ok(None) => {
-            return Ok(server
-                .wound_down(accepting, Vec::new(), the_drain_from_now())
-                .await);
+            let deadline = the_drain_from_now();
+            let abandoned = server.wound_down(Vec::new(), deadline).await;
+            ended(found, instance, &server, accepting, deadline).await;
+            return Ok(abandoned);
         }
         Err(refused) => {
             accepting.abort();
@@ -293,16 +303,35 @@ async fn run(started: Started<'_>, server: Arc<Server>) -> Result<u32, Refused> 
     // between two, and every connection's last answer, waited for within one
     // bound: a run is call trees as a dispatch is, and the store closes under
     // none the stop did not give up on.
-    let abandoned = server
-        .wound_down(accepting, vec![pumping, sweeping], the_drain_from_now())
-        .await;
+    let deadline = the_drain_from_now();
+    let abandoned = server.wound_down(vec![pumping, sweeping], deadline).await;
     // The exact high-water mark, so a clean restart waits for nothing. A
     // settle that failed leaves the ceiling the last raise wrote, which no
     // identifier was handed out past.
     let _ = mark::settled(&minter);
     drop(kernel);
     store.close().await;
+    ended(found, instance, &server, accepting, deadline).await;
     Ok(abandoned)
+}
+
+/// The end of a stopped run at its endpoint, in the order a stop asked again
+/// reads it.
+///
+/// **The PID record removed while the endpoint still answers**, so a stop asked
+/// before the endpoint goes is answered that the daemon is stopping, and one
+/// asked after finds no record naming it, and neither signals it; then the
+/// endpoint let go, `deadline` at most, and the token beside it removed.
+async fn ended(
+    found: &nc_channel::found::Found,
+    instance: [u8; 16],
+    server: &Server,
+    accepting: tokio::task::JoinHandle<()>,
+    deadline: tokio::time::Instant,
+) {
+    let _ = pidfile::remove_if_ours(&found.layout.pid_file, instance, &found.user);
+    server.let_go(accepting, deadline).await;
+    let _ = std::fs::remove_file(&found.layout.token);
 }
 
 /// When a drain that begins now ends: `stop_drain_ms` from now.
@@ -473,6 +502,185 @@ mod tests {
             Ok(super::Restored::AlreadyUp)
         ));
         drop(held);
+    }
+
+    /// What tells a child of this test binary to serve an install.
+    ///
+    /// The install beside the path it holds, as the daemon's binary serves the
+    /// one beside itself.
+    const SERVES: &str = "NC_DAEMON_RUN_SERVES";
+
+    /// A clock that never moves: it reads the one millisecond it was made at,
+    /// whenever it is asked.
+    struct At(u64);
+
+    /// Read as a minter reads any clock, its wait returning at once, which is
+    /// all a minter that mints once asks.
+    impl nc_ids::Clock for At {
+        /// The millisecond it was made at.
+        fn now_ms(&self) -> u64 {
+            self.0
+        }
+
+        /// Nothing: it never moves.
+        fn wait_past(&self, _millis: u64) {}
+    }
+
+    /// A unit `ahead_ms` ahead of the clock, committed in the store of the
+    /// profile of `layout` alone, as a reversal's is: no journal entry names it.
+    async fn committed_ahead_by(layout: &nc_channel::Layout, ahead_ms: u64) -> nc_ids::Snowflake {
+        let (store, _) = crate::environment::store(layout).await.expect("opened");
+        let at = crate::server::now_ms() + ahead_ms;
+        let flake = nc_ids::MachineFlake::from_value(3).expect("a flake");
+        let unit = nc_ids::Minter::new(flake, At(at)).mint().expect("a unit");
+        let record = nc_local::UnitRecord {
+            unit,
+            meta: nc_local::UnitMeta {
+                realm: nc_ids::OpaqueId::of_device_key(&[7; 32]),
+                principal: nc_ids::OpaqueId::of_device_key(&[8; 32]),
+                kind: nc_local::UnitKind::Undo { target: unit },
+                label: "a reversal".to_owned(),
+                committed_at_ms: at,
+            },
+            writes: Vec::new(),
+            blobs: Vec::new(),
+            notes: Vec::new(),
+            unpinned: Vec::new(),
+            marks: Vec::new(),
+        };
+        let quotas = nc_local::Quotas {
+            entries_per_plugin: 1,
+            lowered: std::collections::BTreeMap::new(),
+            blobs: 1,
+            writes_per_unit: 1,
+            notes_per_unit: 1,
+        };
+        store.commit(&record, &quotas).await.expect("committed");
+        store.close().await;
+        unit
+    }
+
+    /// `request`, answered on `client` within the suites' patience, or the test
+    /// fails.
+    async fn asked(client: &mut nc_ipc::Client, request: nc_ipc::Request) -> nc_ipc::Answer {
+        tokio::time::timeout(crate::testing::PATIENCE, client.ask(&request))
+            .await
+            .expect("answered in time")
+            .expect("answered")
+    }
+
+    /// A run resumes above the newest unit its profile keeps, and settles its mark.
+    ///
+    /// The daemon's own run, in a child of this test binary told to serve a
+    /// scratch install whose store holds a unit further ahead of the clock than
+    /// the mark's lease and whose mark is not there: the start waits for the
+    /// clock and logs that it moved back, the unit a dispatch then opens is
+    /// above the one kept, a stop asked again while the first drains is
+    /// answered that the daemon is stopping, and the daemon ends well and
+    /// leaves the mark at exactly that unit's millisecond. **Found by a
+    /// review**: nothing held the run's own wiring of the mark — the newest
+    /// unit handed to the minter, the sink it logs to, the minter the kernel
+    /// shares and the settle at a stop — and a stop asked again found nothing
+    /// answering once a stop began, and signalled the daemon.
+    #[test]
+    fn a_run_resumes_above_the_newest_unit_kept_and_a_clean_stop_settles_its_mark() {
+        if let Some(executable) = std::env::var_os(SERVES) {
+            super::serve(std::path::Path::new(&executable)).expect("the daemon ran");
+            return;
+        }
+        let this = std::env::current_exe().expect("this test binary");
+        let installed = crate::testing::Installed::new(&this);
+        let layout = &installed.layout;
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("a runtime");
+        let kept = runtime.block_on(committed_ahead_by(
+            layout,
+            nc_catalog::DAEMON.mark_lease_ms + 1_500,
+        ));
+        assert!(!layout.mark.exists(), "an install made a mark");
+        let mut daemon = installed.spawn_as(
+            &this,
+            &[
+                "--exact",
+                "run::tests::a_run_resumes_above_the_newest_unit_kept_and_a_clean_stop_settles_its_mark",
+                "--nocapture",
+                "--test-threads=1",
+            ],
+            &[(SERVES, installed.executable.as_os_str())],
+        );
+        runtime.block_on(async {
+            let (mut client, _) = daemon.connected().await;
+            let running = format!("\"state\":\"{}\"", nc_ipc::State::Running.word());
+            let deadline = tokio::time::Instant::now() + crate::testing::PATIENCE;
+            loop {
+                match asked(&mut client, nc_ipc::Request::Status).await {
+                    nc_ipc::Answer::Status(status) if status.to_canonical().contains(&running) => {
+                        break;
+                    }
+                    _ => assert!(tokio::time::Instant::now() < deadline, "it never ran"),
+                }
+                tokio::time::sleep(core::time::Duration::from_millis(20)).await;
+            }
+            let dispatch = nc_ipc::Request::Dispatch {
+                command: "kernel.undo".to_owned(),
+                args: nc_canon::Value::object(Vec::<(&str, nc_canon::Value)>::new()),
+            };
+            drop(asked(&mut client, dispatch).await);
+            // A connection that has asked nothing yet, whose first request the
+            // drain waits to answer: what holds the stop open below.
+            let (mut holding, _) = daemon.connected().await;
+            assert_eq!(
+                asked(&mut client, nc_ipc::Request::Stop).await,
+                nc_ipc::Answer::Stopping
+            );
+            let (mut again, welcome) = daemon.connected().await;
+            assert_eq!(
+                (
+                    welcome.state,
+                    asked(&mut again, nc_ipc::Request::Stop).await
+                ),
+                (nc_ipc::State::Stopping, nc_ipc::Answer::Stopping),
+                "a stop asked again while the daemon drained was not answered that it is \
+                 stopping"
+            );
+            match asked(&mut holding, nc_ipc::Request::Status).await {
+                nc_ipc::Answer::Status(status) => assert!(
+                    status.to_canonical().contains("\"state\":\"stopping\""),
+                    "{status:?}"
+                ),
+                other => panic!("the held connection was answered {other:?}"),
+            }
+            drop((holding, again));
+            assert_eq!(daemon.ended().await, Some(0), "the daemon did not end well");
+        });
+        let said = installed.standard_error();
+        let backwards = said
+            .lines()
+            .filter(|line| line.contains("\"_msg\":\"ids.clock_backwards\""))
+            .count();
+        assert_eq!(
+            backwards, 1,
+            "the wait for the clock was not logged once: {said}"
+        );
+        let minted = runtime.block_on(async {
+            let (store, _) = crate::environment::store(layout).await.expect("opened");
+            let minted = store.journal().newest_unit().await.expect("asked");
+            store.close().await;
+            minted.expect("the dispatch opened a unit")
+        });
+        assert!(
+            minted > kept,
+            "a unit was minted at or below one the profile kept"
+        );
+        let (_, read) =
+            crate::mark::MarkFile::open(&layout.mark, &installed.user).expect("the mark reads");
+        assert_eq!(
+            read,
+            Some(minted.millis_since_epoch() + nc_ids::EPOCH_MS),
+            "a clean stop did not settle the mark at the last unit minted"
+        );
     }
 
     /// Two installs a suite makes never share a namespace or a root, and

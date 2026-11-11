@@ -958,6 +958,33 @@ mod tests {
         }
     }
 
+    /// A directory its owner cannot write in is refused before anything is
+    /// made in it.
+    ///
+    /// Judged against its own owner first, so it is refused for what it is
+    /// rather than failing at the probe the user is asked through, and
+    /// nothing is left in it. **Found by a review**: that first judgement had
+    /// no test of its own, and without it a process that is not root failed
+    /// at the probe instead of refusing the directory.
+    #[test]
+    fn a_directory_its_owner_cannot_write_in_is_refused_before_anything_is_made_in_it() {
+        let scratch = Scratch::new("shut");
+        let said = testing::shut_its_owner_out(&scratch.0).expect("shut");
+        let verdict = user_in(&scratch.0);
+        testing::make_private(&scratch.0).expect("private again");
+        match verdict {
+            Err(Judged::Refused(refused)) => {
+                assert!(refused.to_string().contains(&said), "{said}: {refused}");
+            }
+            other => panic!("{said}: refused, and it was {other:?}"),
+        }
+        assert_eq!(
+            std::fs::read_dir(&scratch.0).expect("readable").count(),
+            0,
+            "something was left in a directory that was refused"
+        );
+    }
+
     /// A path that is not there is a failure that says so, not a refusal.
     #[test]
     fn a_path_that_is_not_there_is_not_found() {

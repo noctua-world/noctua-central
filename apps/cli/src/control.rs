@@ -31,8 +31,9 @@
 //!
 //! # A start
 //!
-//! It removes the mark and answers at once when a daemon already answers.
-//! Otherwise, **where this system's service manager holds the install's
+//! It removes the mark and answers at once when a daemon already answers —
+//! but for one that says it is stopping, which it waits for as a stop does
+//! and then starts again. Otherwise, **where this system's service manager holds the install's
 //! restorer** (`cargo xtask dev --install` registers one), it asks that
 //! manager to start it — `noctua-daemon --restored`, as every restorer starts
 //! it — so the daemon it starts is one the manager restores; where the
@@ -492,10 +493,17 @@ async fn start(found: &Found) -> Result<String, Failure> {
     let (layout, cli) = (&found.layout, &found.layout.cli);
     unmark(layout, &found.user)?;
     if let Ok(connection) = client::connect(found).await {
-        return Ok(format!(
-            "The daemon of {cli} is running already, as process {}.\n",
-            connection.welcome().pid
-        ));
+        let pid = connection.welcome().pid;
+        if connection.welcome().state != nc_ipc::State::Stopping {
+            return Ok(format!(
+                "The daemon of {cli} is running already, as process {pid}.\n"
+            ));
+        }
+        // **A daemon winding down a stop is waited for, then started**: told
+        // it runs already, the start would leave nothing running once the
+        // stop it found ends. Waited for as a stop waits, and never signalled.
+        drop(connection);
+        ended_once_asked(found, recorded(found), pid, stop_within()).await?;
     }
     if let Some((registrar, name)) = restorer_of(found) {
         return started_by(found, &registrar, &name).await;
@@ -1229,6 +1237,35 @@ mod tests {
             "{done:?}"
         );
         assert!(!layout.stopped.exists(), "the start left the mark");
+        assert_eq!(daemon.heard(), Vec::<Request>::new());
+    }
+
+    /// A start finding a daemon that says it is stopping waits for it to end.
+    ///
+    /// Then it starts one: told it runs already, the start would leave nothing
+    /// running once the stop it found had ended. The scripted daemon goes once
+    /// it has welcomed the start, and no daemon is beside the CLI to start, so
+    /// the start ends in 11 having asked nothing.
+    #[test]
+    fn a_start_waits_for_a_daemon_that_is_stopping_and_then_starts_one() {
+        let installed = Scratch::new("ending");
+        let token = Token::fresh().expect("a token");
+        installed.token(&token);
+        let daemon = Scripted::serve(
+            &installed,
+            Script {
+                token,
+                welcome: nc_ipc::Welcome {
+                    state: nc_ipc::State::Stopping,
+                    ..installed.welcome()
+                },
+                connections: vec![vec![]],
+            },
+        );
+        let refused = controlled(&installed, Control::Start)
+            .expect_err("the daemon it found ended, and none is beside it to start");
+        assert_eq!(refused.code, ErrorCode::CliDaemonDidNotStart, "{refused:?}");
+        assert_eq!(refused.exit, Exit::ProcessControl);
         assert_eq!(daemon.heard(), Vec::<Request>::new());
     }
 

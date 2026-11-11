@@ -25,8 +25,9 @@
 //!
 //! **A start resumes above everything handed out, and waits for the clock to
 //! pass it**: the larger of the mark and the newest unit the start hands in,
-//! which is the local journal's to answer, so a mark lost or rolled back is
-//! still above every unit kept. A clock behind it is waited out — further
+//! which the local database answers — its journal's newest, or a reversal's
+//! its store committed, which no entry names — so a mark lost or rolled back
+//! is still above every unit kept. A clock behind it is waited out — further
 //! behind than the lease is a clock that moved back, logged as
 //! `ids.clock_backwards` — and a mark more than a day ahead of the clock is a
 //! wrong number, and the start refuses (`MintError::MarkOutOfRange`).
@@ -228,7 +229,7 @@ fn checksum(head: &[u8]) -> [u8; 16] {
 }
 
 /// Where a start resumes: past the mark, and past the newest unit the start
-/// hands in from the local journal, in milliseconds since the Unix epoch.
+/// hands in from the local database, in milliseconds since the Unix epoch.
 #[must_use]
 pub fn barrier(mark: Option<u64>, newest_unit: Option<Snowflake>) -> Option<u64> {
     let unit = newest_unit.map(|unit| unit.millis_since_epoch().saturating_add(EPOCH_MS));
@@ -236,9 +237,9 @@ pub fn barrier(mark: Option<u64>, newest_unit: Option<Snowflake>) -> Option<u64>
 }
 
 /// The minter a start mints with: resumed above the barrier of `read`, the
-/// ceiling the mark held, and `newest_unit`, the newest unit the local journal
-/// holds, which the start reads and hands in — behind the mark as its ceiling,
-/// once the clock has passed the barrier.
+/// ceiling the mark held, and `newest_unit`, the newest unit the local
+/// database keeps, which the start reads and hands in — behind the mark as
+/// its ceiling, once the clock has passed the barrier.
 ///
 /// **A clock behind the barrier is waited for, and a wait is the caller's**:
 /// `wait` is handed how far the clock still has to go, and a daemon sleeps

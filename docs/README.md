@@ -77,8 +77,9 @@ listening there, or one below 1024, which a user without the privilege may not b
 
 **This checkout as a channel you run.** `cargo xtask dev --install` installs the
 checkout as its development channel, on Linux, macOS and Windows alike, stack or no
-stack: it builds the CLI, the daemon and the plugins, copies them out of `target/` into
-the install under your base directories — the XDG ones on Linux, the home's Library on macOS,
+stack: it builds the CLI, the daemon and the plugins, copies them out of the target
+directory cargo built them in — `target/`, or wherever `CARGO_TARGET_DIR` or
+`build.target-dir` puts it — into the install under your base directories — the XDG ones on Linux, the home's Library on macOS,
 `%LOCALAPPDATA%` and `%APPDATA%` on Windows — with its manifest, a device, the test world
 (`policy/world.json`, as `ana` in `home`) and the plugins, and stops a daemon an earlier
 install left running first — once it has reached your service manager: run from an
@@ -87,13 +88,15 @@ registers the daemon with your service manager** — a systemd user unit in your
 configuration directory's `systemd` folder, a launch agent in your Library's
 `LaunchAgents`, a logon task — which restores it when it dies and starts it at each login,
 and starts it, unless the profile carries the stop mark — which your `stop` writes, and
-so do `dev --uninstall` and an install that failed after stopping the earlier daemon —
-and then the daemon stays down until `noctua-dev-<checkout> start`. **It does not
+so does an install or a `dev --uninstall` that failed after stopping the daemon; one that
+finishes takes away the mark its own stop wrote, and keeps yours — and then the daemon
+stays down until `noctua-dev-<checkout> start`. **It does not
 change `PATH`**: the CLI is `noctua-dev-<checkout>`, at the path the install prints — run
 it by that path or a link you make — and `noctua-dev-<checkout> start` starts the daemon,
 `stop` stops it and keeps it down whatever restores it, until `start`, and `status` says
 how it is. `cargo xtask dev --uninstall` stops the daemon, unregisters it from the
-service manager and removes the binaries, and keeps the profile; on Linux, once your user
+service manager and removes the binaries and the mark its own stop wrote, and keeps the
+profile, your own `stop` with it; on Linux, once your user
 manager has read the unit's link at a login or a boot, unregistering it asks for one
 `systemctl --user daemon-reload`, the only reload anything here asks for. Run from an
 environment that does not reach the service manager — no `systemctl` on `PATH` by an
