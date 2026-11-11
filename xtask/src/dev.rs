@@ -588,6 +588,7 @@ pub(crate) fn install(root: &Path, uninstall: bool) -> Result<(), String> {
         ],
         false,
     )
+    .map_err(|output| without_messages(&output))
     .map_err(|said| format!("the CLI and the daemon did not build: {said}"))?;
     let (cli, daemon) = (
         built_at(&built, "noctua")?,
@@ -624,6 +625,26 @@ pub(crate) fn install(root: &Path, uninstall: bool) -> Result<(), String> {
     );
     let installed = nc_cli::install::install(&plan).map_err(|unmade| unmade.to_string())?;
     said_installed(&installed)
+}
+
+/// What a build that failed said, without the messages cargo writes for programs.
+///
+/// **A build asked for `--message-format=json-render-diagnostics` writes one
+/// JSON message for each unit it built** — fresh ones too, hundreds of lines —
+/// beside what cargo rendered of the failure, and the two come back as one
+/// output; so a line that is a message of cargo's, an object naming its
+/// `reason`, is left out, and the failure shows what a person reads. **Found by
+/// a review**: a failed install printed every unit's message before the
+/// compiler's errors.
+fn without_messages(said: &str) -> String {
+    said.lines()
+        .filter(|line| {
+            serde_json::from_str::<serde_json::Value>(line)
+                .ok()
+                .is_none_or(|message| message.get("reason").is_none())
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// Where the build whose output is `built` wrote the binary `name`: the
@@ -1646,6 +1667,36 @@ mod tests {
         );
         let refused = super::built_at(&built, "noctua-helper").expect_err("never built");
         assert!(refused.contains("no binary `noctua-helper`"), "{refused}");
+    }
+
+    /// A build that failed shows what cargo rendered of it, and none of the
+    /// messages it wrote for programs.
+    ///
+    /// A line that only looks like JSON, or a JSON object naming no reason, is
+    /// what was said and stays.
+    #[test]
+    fn a_build_that_failed_shows_what_cargo_rendered_and_none_of_its_messages() {
+        let said = [
+            r#"{"reason":"compiler-artifact","target":{"name":"nc-ids"},"fresh":true}"#,
+            "error[E0425]: cannot find value `minted` in this scope",
+            "  --> apps/daemon/src/run.rs:9:5",
+            r#"{"reason":"build-finished","success":false}"#,
+            r#"{"rendered":"not a message of cargo's"}"#,
+            "{ not json at all",
+            "error: could not compile `nc-daemon` (lib) due to 1 previous error",
+        ]
+        .join("\n");
+        assert_eq!(
+            super::without_messages(&said),
+            [
+                "error[E0425]: cannot find value `minted` in this scope",
+                "  --> apps/daemon/src/run.rs:9:5",
+                r#"{"rendered":"not a message of cargo's"}"#,
+                "{ not json at all",
+                "error: could not compile `nc-daemon` (lib) due to 1 previous error",
+            ]
+            .join("\n")
+        );
     }
 
     /// Lingering is said as done where logind keeps it or enabled it, and

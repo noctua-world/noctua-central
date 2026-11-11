@@ -7687,6 +7687,11 @@ WEAKENINGS = [
     ("cli_control", "still_names", "a record written over names another process",
      ".is_ok_and(|now| now == *record)",
      ".is_ok()"),
+    # A build that failed shows what cargo rendered of it, not the messages it
+    # wrote for programs.
+    ("dev", "without_messages", "a build that failed shows none of cargo's messages",
+     "                .is_none_or(|message| message.get(\"reason\").is_none())\n",
+     "                .is_none_or(|_| true)\n"),
 ]
 
 # **Every member tree, as `MEMBER_TREES` in `xtask/src/members.rs` names them**,
