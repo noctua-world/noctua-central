@@ -1990,6 +1990,18 @@ mod tests {
         described(name, arguments).expect("a service every manager here takes")
     }
 
+    /// `service` as a unit is handed it, its program under `/opt/<directory>`.
+    ///
+    /// A unit is written for Linux alone, so its program is a Unix path
+    /// whatever system these tests run on, since [`program`] holds a `\`
+    /// on Windows, which a unit's program refuses.
+    fn in_a_unit(service: &Service, directory: &str) -> Service {
+        Service {
+            program: format!("/opt/{directory}/noctua-daemon"),
+            ..service.clone()
+        }
+    }
+
     /// `stem` as `manager` names a service.
     fn named(manager: Manager, stem: &str) -> String {
         match manager {
@@ -2299,9 +2311,16 @@ mod tests {
     #[test]
     fn a_percent_sign_is_refused_only_where_task_scheduler_would_expand_it() {
         for manager in Manager::ALL {
+            let handed = |service: Service, directory: &str| match manager {
+                Manager::Systemd => in_a_unit(&service, directory),
+                Manager::Launchd | Manager::TaskScheduler => service,
+            };
             let in_an_argument = definition(
                 manager,
-                &service(&named(manager, "noctua-dev-test"), &["100%"]),
+                &handed(
+                    service(&named(manager, "noctua-dev-test"), &["100%"]),
+                    "noctua",
+                ),
             );
             assert_eq!(
                 in_an_argument.is_ok(),
@@ -2317,7 +2336,7 @@ mod tests {
                 USER.to_owned(),
             )
             .expect("a program every manager here could be told of");
-            let refused = definition(manager, &in_the_program);
+            let refused = definition(manager, &handed(in_the_program, "100%"));
             assert_eq!(
                 refused.is_ok(),
                 manager.carries_a_percent_sign(),
@@ -2360,8 +2379,9 @@ mod tests {
             .expect("a program a manager could be told of")
         };
         for character in ['$', '\\', '"', '\''] {
-            let holding = in_the_program(&format!("a{character}b"));
-            match definition(Manager::Systemd, &holding) {
+            let directory = format!("a{character}b");
+            let holding = in_the_program(&directory);
+            match definition(Manager::Systemd, &in_a_unit(&holding, &directory)) {
                 Err(Error::Described(why)) => {
                     assert!(why.contains(&format!("holds a `{character}`")), "{why}");
                 }
@@ -2371,14 +2391,15 @@ mod tests {
                 definition(Manager::Launchd, &holding).is_ok(),
                 "launchd was refused a program holding `{character}`"
             );
-            let argument = service(
-                &named(Manager::Systemd, "noctua-dev-test"),
-                &[&format!("a{character}b")],
-            );
-            definition(Manager::Systemd, &argument).expect("an argument holding it is carried");
+            let argument = service(&named(Manager::Systemd, "noctua-dev-test"), &[&directory]);
+            definition(Manager::Systemd, &in_a_unit(&argument, "noctua"))
+                .expect("an argument holding it is carried");
         }
-        definition(Manager::Systemd, &in_the_program("100% a"))
-            .expect("a `%` and a space in the program are carried");
+        definition(
+            Manager::Systemd,
+            &in_a_unit(&in_the_program("100% a"), "100% a"),
+        )
+        .expect("a `%` and a space in the program are carried");
     }
 
     /// Each manager's definition is its format, under the file name it is
@@ -2404,7 +2425,7 @@ mod tests {
             .collect();
         assert_eq!(String::from_utf16(&units).expect("UTF-16"), "<a>🦉</a>");
 
-        let systemd = service("noctua-dev-test.service", &["a"]);
+        let systemd = in_a_unit(&service("noctua-dev-test.service", &["a"]), "noctua");
         assert_eq!(
             definition(Manager::Systemd, &systemd).expect("a unit"),
             (
